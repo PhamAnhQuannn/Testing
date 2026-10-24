@@ -60,7 +60,7 @@ def test_objectives_always_have_two_to_four_sentences():
 
 
 def test_stub_matches_the_lesson_schema():
-    schema = load_json(CONTENT / "schema/lesson.schema.json")
+    schema = load_json(CONTENT / "schemas/lesson.schema.json")
     stub = build_stub(SUBTOPICS[0], "0" * 64, "2026-01-01")
     assert schema_errors(stub, schema) == []
     assert schema_errors(load_yaml(CONTENT / "lessons/py/py.core.loops.yaml"), schema) == []

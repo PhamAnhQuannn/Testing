@@ -35,6 +35,15 @@ def _failure(test_id, verdict, error, elapsed_ms=0.0):
     }
 
 
+def parse_result(line: bytes) -> dict | None:
+    """A harness result line, or None for anything else that reached the channel."""
+    try:
+        result = json.loads(line)
+    except ValueError:
+        return None
+    return result if isinstance(result, dict) and "verdict" in result else None
+
+
 def overall_verdict(results: list[dict]) -> str:
     return next((r["verdict"] for r in results if r["verdict"] != "AC"), "AC")
 
@@ -75,8 +84,10 @@ def run_native(code: str, io: dict, tests: list[dict], time_limit_ms: float) -> 
                     break
                 *lines, buffer = (buffer + chunk).split(b"\n")
                 for line in lines:
-                    results.append(json.loads(line))
-                    deadline = time.monotonic() + limit_s
+                    result = parse_result(line)
+                    if result is not None:
+                        results.append(result)
+                        deadline = time.monotonic() + limit_s
         finally:
             proc.kill()
             proc.wait()

@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 import harness
@@ -129,3 +131,28 @@ def test_test_without_expected_records_the_output():
 def test_custom_compare_is_rejected_until_implemented():
     io = FUNCTION | {"compare": "custom"}
     assert verdicts(run("def f():\n    return 1", io, {"args": [], "expected": 1})) == ["RE"]
+
+
+def test_input_does_not_echo_its_prompt_and_stdout_is_clipped():
+    code = "n = input('Number? ')\nprint(n)\nprint('x' * 20000)"
+    result = run(code, {"mode": "stdout"}, {"stdin": "7\n"})[0]
+    assert result["stdout"].startswith("7\nxxx") and len(result["got"]) < 10_100
+
+
+def test_recursion_limit_is_reset_for_every_test():
+    code = (
+        "import sys\n"
+        "def f():\n"
+        "    before = sys.getrecursionlimit()\n"
+        "    sys.setrecursionlimit(50000)\n"
+        "    return before"
+    )
+    results = run(code, FUNCTION, {"args": []}, {"args": []})
+    assert [r["got"] for r in results] == [harness.RECURSION_LIMIT] * 2
+
+
+def test_sets_are_encoded_as_sorted_lists_and_other_objects_fail_loudly():
+    ok = run("def f():\n    return {3, 1, 2}", FUNCTION, {"args": []})[0]
+    assert json.loads(harness.encode_result(ok))["got"] == [1, 2, 3]
+    bad = run("def f():\n    return object()", FUNCTION, {"args": [], "id": "x"})[0]
+    assert json.loads(harness.encode_result(bad))["verdict"] == "RE"

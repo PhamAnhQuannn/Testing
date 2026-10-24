@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://prep-app.local/schema/problem.schema.json",
+  "$id": "https://prep-app.local/schemas/problem.schema.json",
   "title": "Problem (SPEC 3.3)",
   "type": "object",
   "additionalProperties": false,
@@ -107,6 +107,13 @@
   "$defs": {
     "subtopic_id": {"type": "string", "pattern": "^[a-z][a-z0-9_]*(\\.[a-z0-9_]+)+$"},
     "slug": {"type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"},
+    "type_name": {
+      "description": "Parameter/return type; list_node and tree_node get special conversion.",
+      "anyOf": [
+        {"enum": ["int", "float", "str", "bool", "none", "any", "list_node", "tree_node"]},
+        {"type": "string", "pattern": "^(list|set|tuple|dict)(\\[[a-z_, \\[\\]]+\\])?$"}
+      ]
+    },
     "io": {
       "type": "object",
       "additionalProperties": false,
@@ -122,11 +129,11 @@
             "required": ["name", "type"],
             "properties": {
               "name": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"},
-              "type": {"type": "string", "minLength": 1}
+              "type": {"$ref": "#/$defs/type_name"}
             }
           }
         },
-        "returns": {"type": "string", "minLength": 1},
+        "returns": {"$ref": "#/$defs/type_name"},
         "inplace_arg": {"type": "integer", "minimum": 0},
         "compare": {"enum": ["exact", "unordered", "float_tol", "custom"]}
       },

@@ -66,7 +66,7 @@ def test_brute_force_is_required_for_medium(content):
 
 def test_wrong_solution_that_passes(content):
     shutil.copy(content / PROBLEM / "solution.py", content / PROBLEM / "wrong/actually_right.py")
-    assert any("actually_right.py passes every test" in e for e in problem_errors(content))
+    assert any("actually_right.py passes every hidden test" in e for e in problem_errors(content))
 
 
 def test_slow_solution_that_is_fast_enough(content):
@@ -135,3 +135,37 @@ def test_every_subtopic_needs_a_lesson(content):
 def test_prerequisite_cycle(content):
     assert find_cycle({"a": {"b"}, "b": {"c"}, "c": {"a"}}) == ["a", "b", "c", "a"]
     assert find_cycle({"a": {"b"}, "b": set()}) is None
+
+
+def test_solution_that_does_not_compile_is_reported_without_crashing(content):
+    (content / PROBLEM / "solution.py").write_text("def can_construct(:\n")
+    errors = problem_errors(content)
+    assert any("solution CE" in e for e in errors)
+
+
+def test_wrong_solution_must_fail_a_hidden_test_not_just_a_sample(content):
+    only_sample = (content / PROBLEM / "solution.py").read_text() + (
+        "\n_correct = can_construct\n\n\n"
+        "def can_construct(a, b):\n"
+        "    return True if (a, b) == ('aa', 'ab') else _correct(a, b)\n"
+    )
+    (content / PROBLEM / "wrong/sample_only.py").write_text(only_sample)
+    assert any("sample_only.py passes every hidden test" in e for e in problem_errors(content))
+
+
+def test_first_example_must_be_sample_one(content):
+    edit(
+        content / PROBLEM / "problem.yaml",
+        'ransom_note = "a", magazine = "b"',
+        'ransom_note = "z", magazine = "b"',
+    )
+    assert any("examples[0] must be sample test 1" in e for e in problem_errors(content))
+
+
+def test_unknown_param_type_is_a_schema_error(content):
+    edit(
+        content / PROBLEM / "problem.yaml",
+        "type: str}, {name: magazine",
+        "type: strng}, {name: magazine",
+    )
+    assert any("params" in e for e in problem_errors(content))

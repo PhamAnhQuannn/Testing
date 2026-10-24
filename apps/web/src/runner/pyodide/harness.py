@@ -2,22 +2,25 @@
 
 Used by the Pyodide worker in the browser (it iterates `run_tests`) and by
 `tools/run_problem.py --engine native` (it runs this file as a script and reads
-JSON lines). Standard library only, so it runs unchanged in both.
+JSON lines). Standard library only, so it runs unchanged in both. Importing this module never
+runs `main()`: the Pyodide worker writes the file into Pyodide's file system and `pyimport`s it.
 
 Request (JSON on stdin when run as a script)::
 
     {"code": str, "io": {...problem.yaml io...}, "tests": [{...JSONL test...}]}
 
-Each result is a dict ``{id, verdict, got, error, stdout, stderr, elapsed_ms}``
-with verdict ``AC`` | ``WA`` | ``RE`` | ``CE``. TLE is decided by whoever owns
-the watchdog, not by the harness. A test without ``expected`` is only executed
+Each result is a dict ``{id, verdict, got, error, stdout, stderr, elapsed_ms}`` (always all
+keys) with verdict ``AC`` | ``WA`` | ``RE`` | ``CE``. TLE is decided by whoever owns the
+watchdog, not by the harness. A test without ``expected`` is only executed
 (verdict ``AC`` unless it raises); the test generator uses that to record outputs.
 """
 
+import builtins
 import contextlib
 import io as _io
 import json
 import math
+import os
 import sys
 import time
 
@@ -148,10 +151,32 @@ def _clip(text):
     return text if len(text) <= MAX_TEXT else text[:MAX_TEXT] + "\n...[truncated]"
 
 
+def make_result(test_id, verdict, got=None, error="", stdout="", stderr="", elapsed_ms=0.0):
+    return {
+        "id": test_id,
+        "verdict": verdict,
+        "got": got,
+        "error": _clip(error),
+        "stdout": _clip(stdout),
+        "stderr": _clip(stderr),
+        "elapsed_ms": elapsed_ms,
+    }
+
+
+def _input(prompt=""):
+    """input() without echoing the prompt, so prompts do not pollute the graded stdout."""
+    line = sys.stdin.readline()
+    if not line:
+        raise EOFError("EOF when reading a line")
+    return line.rstrip("\n")
+
+
 def run_test(program, io, test):
     """Run one test against a compiled program and return its result dict."""
     out, err = _io.StringIO(), _io.StringIO()
-    stdin, sys.stdin = sys.stdin, _io.StringIO(test.get("stdin", ""))
+    saved_stdin, saved_input = sys.stdin, builtins.input
+    sys.stdin, builtins.input = _io.StringIO(test.get("stdin", "")), _input
+    sys.setrecursionlimit(RECURSION_LIMIT)
     verdict, got, error = "AC", None, ""
     started = time.perf_counter()
     try:
@@ -168,35 +193,48 @@ def run_test(program, io, test):
     except (Exception, SystemExit) as exc:  # user code may raise anything, even exit()
         verdict, error = "RE", f"{type(exc).__name__}: {exc}"
     finally:
-        sys.stdin = stdin
-    return {
-        "id": test.get("id"),
-        "verdict": verdict,
-        "got": got,
-        "error": _clip(error),
-        "stdout": _clip(out.getvalue()),
-        "stderr": _clip(err.getvalue()),
-        "elapsed_ms": round((time.perf_counter() - started) * 1000, 3),
-    }
+        sys.stdin, builtins.input = saved_stdin, saved_input
+    elapsed_ms = round((time.perf_counter() - started) * 1000, 3)
+    if io["mode"] == "stdout" and got is not None:
+        got = _clip(got)
+    return make_result(
+        test.get("id"), verdict, got, error, out.getvalue(), err.getvalue(), elapsed_ms
+    )
 
 
 def run_tests(code, io, tests):
     """Yield one result per test; a syntax error yields a single `CE` result."""
-    sys.setrecursionlimit(RECURSION_LIMIT)
     try:
         program = compile(code, "<solution>", "exec")
     except SyntaxError as exc:
-        yield {"id": None, "verdict": "CE", "error": f"{type(exc).__name__}: {exc}"}
+        yield make_result(None, "CE", error=f"{type(exc).__name__}: {exc}")
         return
     for test in tests:
         yield run_test(program, io, test)
 
 
+def _json_default(value):
+    if isinstance(value, (set, frozenset)):
+        return sorted(value)
+    raise TypeError(f"{type(value).__name__} is not JSON serializable")
+
+
+def encode_result(result):
+    """One JSON line; a result that cannot be encoded (e.g. returns an object) becomes an RE."""
+    try:
+        return json.dumps(result, default=_json_default)
+    except (TypeError, ValueError) as exc:
+        failed = make_result(result["id"], "RE", error=f"result cannot be encoded: {exc}")
+        return json.dumps(failed | {"elapsed_ms": result["elapsed_ms"]})
+
+
 def main():
     request = json.load(sys.stdin)
-    channel = sys.stdout  # run_test swaps sys.stdout while user code runs
+    # Results go to a private copy of fd 1; anything learner code writes to fd 1 lands on stderr.
+    channel = os.fdopen(os.dup(1), "w", encoding="utf-8")
+    os.dup2(2, 1)
     for result in run_tests(request["code"], request["io"], request["tests"]):
-        channel.write(json.dumps(result, default=repr) + "\n")
+        channel.write(encode_result(result) + "\n")
         channel.flush()
 
 

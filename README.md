@@ -15,7 +15,9 @@ Full specification: [docs/SPEC.md](docs/SPEC.md) (Vietnamese), screens in
 
 ## Run `make ci`
 
-Needs [uv](https://docs.astral.sh/uv/) (it fetches Python 3.12), Node 22.12+ and npm.
+Needs [uv](https://docs.astral.sh/uv/) (it fetches Python 3.12), Node 22.12+ and npm. Linux or
+macOS: `tools/run_problem.py` watches its child process with `select` on a pipe, which does not
+work on Windows (use WSL).
 
 ```sh
 make ci
@@ -34,7 +36,7 @@ apps/web/      Vite + React + TypeScript skeleton
                worker (M1) and tools/run_problem.py
 apps/api/      FastAPI skeleton (GET /api/health)
 content/       index/ (snapshot of the skill tree and plan, committed), lessons/, problems/,
-               schema/ (JSON Schemas for lesson, problem, check)
+               schemas/ (JSON Schemas for lesson, problem, check)
 tools/         content tooling, run with `uv run python tools/<name>.py`
                sync_tree.py, gen_lesson_stubs.py, gen_hidden.py, run_problem.py, validate_content.py
 data/          local SQLite data and backups (git-ignored)

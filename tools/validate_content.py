@@ -10,6 +10,8 @@ Pyodide engine (T1.0 / M1).
 """
 
 import argparse
+import ast
+import json
 import sys
 from pathlib import Path
 
@@ -46,7 +48,7 @@ class Validator:
         self.content = content
         self.errors: list[str] = []
         self.schemas = {
-            name: load_json(content / "schema" / f"{name}.schema.json")
+            name: load_json(content / "schemas" / f"{name}.schema.json")
             for name in ("lesson", "problem", "check")
         }
 
@@ -157,10 +159,13 @@ class Validator:
         if not self.check_test_files(directory, problem, paths):
             return
         self.check_generated_hidden(directory, paths["hidden"])
+        self.check_first_example(directory, problem, load_tests(directory, problem, "sample"))
         tests = load_tests(directory, problem, "all")
-        self.check_reference(directory, problem, paths["solution"], tests)
+        if not self.check_reference(directory, problem, paths["solution"], tests):
+            return  # every remaining check compares against a working reference solution
         self.check_cross(directory, problem, paths["generator"], paths["solution"])
-        self.check_variants(directory, problem, tests)
+        hidden = load_tests(directory, problem, "hidden")
+        self.check_variants(directory, problem, hidden)
         self.check_starter(directory, problem, tests)
 
     def check_test_files(self, directory: Path, problem: dict, paths: dict[str, Path]) -> bool:
@@ -191,18 +196,40 @@ class Validator:
         if generated != read_jsonl(hidden):
             self.fail(directory, "hidden.jsonl is stale: re-run tools/gen_hidden.py")
 
-    def check_reference(self, directory: Path, problem: dict, solution: Path, tests: list[dict]):
+    def check_first_example(self, directory: Path, problem: dict, samples: list[dict]) -> None:
+        """The first statement example must be sample test 1 (function mode only)."""
+        if problem["io"]["mode"] != "function":
+            return
+        example = problem["examples"][0]
+        names = [p["name"] for p in problem["io"]["params"]]
+        try:
+            call = ast.parse(f"dict({example['input']})", mode="eval").body
+            args = {kw.arg: ast.literal_eval(kw.value) for kw in call.keywords}
+            output = json.loads(example["output"])
+        except (SyntaxError, ValueError):
+            self.fail(directory, "examples[0] input/output cannot be parsed")
+            return
+        if [args.get(n) for n in names] != samples[0]["args"] or output != samples[0]["expected"]:
+            self.fail(directory, "examples[0] must be sample test 1")
+
+    def check_reference(
+        self, directory: Path, problem: dict, solution: Path, tests: list[dict]
+    ) -> bool:
         limit_ms = problem["limits"]["time_ms"]
         run = run_native(solution.read_text(encoding="utf-8"), problem["io"], tests, limit_ms)
+        failed = False
         for result in run["results"]:
             if result["verdict"] != "AC":
-                self.fail(directory, f"solution {result['verdict']} on {result['id']}")
+                detail = result["error"] if result["verdict"] == "CE" else f"on {result['id']}"
+                self.fail(directory, f"solution {result['verdict']} {detail}")
+                failed = True
             elif result["elapsed_ms"] > SOLUTION_TIME_SHARE * limit_ms:
                 self.fail(
                     directory,
                     f"solution takes {result['elapsed_ms']} ms on {result['id']}, "
                     f"over {SOLUTION_TIME_SHARE} x time_ms",
                 )
+        return not failed
 
     def check_cross(self, directory: Path, problem: dict, generator: Path, solution: Path) -> None:
         brute = directory / "brute.py"
@@ -227,15 +254,15 @@ class Validator:
                 self.fail(directory, f"solution disagrees with brute.py on args {case['args']}")
                 return
 
-    def check_variants(self, directory: Path, problem: dict, tests: list[dict]) -> None:
+    def check_variants(self, directory: Path, problem: dict, hidden: list[dict]) -> None:
         limit_ms = problem["limits"]["time_ms"]
         for wrong in sorted((directory / "wrong").glob("*.py")):
-            run = run_native(wrong.read_text(encoding="utf-8"), problem["io"], tests, limit_ms)
+            run = run_native(wrong.read_text(encoding="utf-8"), problem["io"], hidden, limit_ms)
             if run["verdict"] == "CE":
                 self.fail(directory, f"{wrong.relative_to(directory)} does not compile")
             elif run["verdict"] == "AC":
-                self.fail(directory, f"{wrong.relative_to(directory)} passes every test")
-        stress = [t for t in tests if "stress" in t.get("tags", [])]
+                self.fail(directory, f"{wrong.relative_to(directory)} passes every hidden test")
+        stress = [t for t in hidden if "stress" in t.get("tags", [])]
         for slow in sorted((directory / "slow").glob("*.py")):
             name = slow.relative_to(directory)
             if not stress:
