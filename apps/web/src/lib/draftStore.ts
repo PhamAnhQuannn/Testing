@@ -142,11 +142,29 @@ export class DraftController {
   private async pushRemote(draft: Draft, keepalive: boolean): Promise<void> {
     if (!this.o.remote) return;
     try {
-      await this.o.remote(draft, { keepalive });
-      this.o.onStatus?.({ state: "saved", at: draft.updated_at });
+      let sent = draft;
+      const reply = (await this.o.remote(sent, { keepalive })) as PutReply | undefined;
+      if (reply?.accepted === false && reply.draft && reply.draft.code !== sent.code) {
+        // The server holds a newer-stamped, different draft (clock skew or an old tab). Our text
+        // is what the person last typed: re-send it stamped after the server's copy.
+        const serverAt = Date.parse(reply.draft.updated_at);
+        const at = Math.max(this.o.now().getTime(), Number.isNaN(serverAt) ? 0 : serverAt + 1000);
+        sent = { ...sent, updated_at: new Date(at).toISOString() };
+        if (this.pending === draft) {
+          this.pending = sent;
+          await this.safeLocalPut(sent);
+        }
+        await this.o.remote(sent, { keepalive });
+      }
+      this.o.onStatus?.({ state: "saved", at: sent.updated_at });
     } catch (error) {
       this.remoteDirty = true; // IndexedDB still has it; retried on the next change or flush
       this.o.onStatus?.({ state: "error", message: error instanceof Error ? error.message : "lỗi" });
     }
   }
+}
+
+interface PutReply {
+  accepted?: boolean;
+  draft?: { code: string; updated_at: string } | null;
 }

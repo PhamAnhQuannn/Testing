@@ -43,6 +43,7 @@ export class PyodideRunner implements Runner {
   private queue: Promise<unknown> = Promise.resolve();
   private runCounter = 0;
   private restarts = 0;
+  private initFailed = false;
   private listeners = new Set<(state: RunnerState) => void>();
   private state: RunnerState = "loading";
 
@@ -106,7 +107,16 @@ export class PyodideRunner implements Runner {
   }
 
   private async execute(req: RunRequest): Promise<RunResult> {
-    await this.ready;
+    if (this.initFailed) {
+      this.initFailed = false;
+      this.restart(); // the previous boot failed (e.g. a fetch glitch): try a fresh worker
+    }
+    try {
+      await this.ready;
+    } catch (error) {
+      this.initFailed = true; // state stays "error" until the next Run retries
+      throw error;
+    }
     const worker = this.worker!;
     const started = this.timers.now();
     const runId = ++this.runCounter;

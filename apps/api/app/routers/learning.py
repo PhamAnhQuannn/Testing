@@ -14,7 +14,6 @@ from ..deps import DB, Content, IdemKey, Now, User
 from ..errors import ApiError
 from ..models import tables as t
 from ..services import progress
-from ..services import scoring as sc
 from .content import current_run
 
 router = APIRouter(prefix="/api")
@@ -134,10 +133,9 @@ def post_quiz_answer(
     graded = block["type"] in {"quiz_mcq", "quiz_fill", "predict_output"} and block.get(
         "graded", True
     )
-    ev = progress.load_evidence(db, content, sid, user.id)
-    best = sc.quiz_best(
-        ev.quiz_answers, content.spec_for(sid).graded_quiz_ids, content.spec_for(sid).min_items
-    )
+    # a quiz passed after lesson_done lifts the score without a second /complete
+    progress.recompute_subtopic(db, content, sid, now, event_time=occurred)
+    best = db.get(t.UserSubtopic, (user.id, sid)).quiz_best
     db.commit()
     return {
         "correct": correct,
@@ -170,7 +168,6 @@ def complete_lesson(
     occurred = progress.clamp_occurred(body.occurred_at if body else None, now)
     row = db.get(t.UserSubtopic, (user.id, subtopic_id))
     assert row is not None
-    info: dict[str, Any] = {"before": row.score, "after": row.score, "newly_unlocked": []}
     if row.lesson_done_at is None:
         progress.record_event(
             db,
@@ -180,7 +177,8 @@ def complete_lesson(
             occurred_at=occurred,
             idem_key=key,
         )
-        info = progress.recompute_subtopic(db, content, subtopic_id, now, event_time=occurred)
+    # always recompute: a repeat call after a late quiz answer still refreshes caches
+    info = progress.recompute_subtopic(db, content, subtopic_id, now, event_time=occurred)
     res = progress.compute_score(db, content, subtopic_id, user.id)
     card = db.get(t.ReviewCard, (user.id, subtopic_id))
     db.commit()

@@ -66,8 +66,22 @@ class Runtime:
     def __post_init__(self) -> None:
         s = self.settings
         self.backups = BackupManager(
-            s.db_path, s.backups_path, lambda: self.clock(), s.backup_mirror_dir
+            s.db_path,
+            s.backups_path,
+            lambda: self.clock(),
+            s.backup_mirror_dir,
+            keep_recent=self._backup_keep,
         )
+
+    def _backup_keep(self) -> int:
+        if self.engine is None:
+            return 20
+        try:
+            with self.session() as db:
+                row = db.get(t.UserSettings, progress.USER_ID)
+                return row.backup_keep if row and row.backup_keep else 20
+        except Exception:
+            return 20
 
     # ---- sessions ----
 
@@ -130,6 +144,7 @@ class Runtime:
             self.content.sync_db(db)
             progress.ensure_user_rows(db, self.content, now)
             progress.sync_unlocks(db, self.content, now)
+            progress.recompute_all(db, self.content, now)  # caches follow events (and content)
             cutoff = now - timedelta(days=s.idempotency_ttl_days)
             db.execute(delete(t.IdempotencyKey).where(t.IdempotencyKey.created_at < cutoff))
             db.commit()
@@ -198,17 +213,34 @@ class Runtime:
                     f"{name} has schema version {rev!r}, unknown to this build",
                 )
             target = self.settings.db_path
-            if self.engine is not None and self.degraded is None:
-                self.backups.create()  # snapshot of what is being replaced
-                self.engine.dispose()
-            self.engine = None
-            if target.exists() and not self._quick_check():
-                stamp = self.clock().strftime("%Y%m%d-%H%M%S")
-                target.rename(target.with_name(f"app.db.corrupt-{stamp}"))
-            for suffix in ("-wal", "-shm"):  # leftovers of the DB being replaced
-                Path(str(target) + suffix).unlink(missing_ok=True)
-            self.backups.restore_into(name, target)
-            self._open(backup_if_due=False)
+            staged = target.with_name(target.name + ".restoring")
+            staged.unlink(missing_ok=True)
+            swapped = False
+            try:
+                if self.engine is not None and self.degraded is None:
+                    # snapshot of what is being replaced; the chosen file must survive its prune
+                    self.backups.create(protect={name})
+                self.backups.restore_into(name, staged)  # the live DB is untouched until the swap
+                if not integrity_ok(staged):
+                    raise ApiError(422, "backup_corrupt", f"{name} failed integrity_check")
+                old, self.engine = self.engine, None
+                swapped = True
+                if old is not None:
+                    old.dispose()
+                if target.exists() and not self._quick_check():
+                    stamp = self.clock().strftime("%Y%m%d-%H%M%S")
+                    target.rename(target.with_name(f"app.db.corrupt-{stamp}"))
+                for suffix in ("-wal", "-shm"):  # leftovers of the DB being replaced
+                    Path(str(target) + suffix).unlink(missing_ok=True)
+                staged.replace(target)
+                self._open(backup_if_due=False)
+            except BaseException:
+                staged.unlink(missing_ok=True)
+                if swapped and self.engine is None:
+                    # back to serving whatever DB is on disk (the old one unless the swap happened)
+                    with contextlib.suppress(Exception):
+                        self._open(backup_if_due=False)
+                raise
             info = next((b for b in self.backups.list() if b.name == name), None)
             assert info is not None
             return info

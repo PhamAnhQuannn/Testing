@@ -171,3 +171,28 @@ describe("PyodideRunner protocol", () => {
     expect(runner.getState()).toBe("error");
   });
 });
+
+describe("PyodideRunner init failure", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it("respawns the worker after init-error so the next Run retries", async () => {
+    const { runner, workers } = setup();
+    const first = runner.run({ code: "x", io, tests, limits });
+    const failed = expect(first).rejects.toThrow("boot failed");
+    workers[0].emit({ type: "init-error", message: "boot failed" });
+    await failed;
+    expect(runner.getState()).toBe("error");
+    const second = runner.run({ code: "x", io, tests, limits });
+    await tick();
+    expect(workers).toHaveLength(2);
+    expect(workers[0].terminated).toBe(true);
+    expect(runner.getState()).toBe("loading");
+    workers[1].emit({ type: "ready" });
+    await tick();
+    const request = workers[1].received[0] as { runId: number };
+    for (const t of tests) workers[1].emit({ type: "progress", runId: request.runId, result: ok(t.id) });
+    workers[1].emit({ type: "done", runId: request.runId } as FromWorker);
+    expect((await second).verdict).toBe("AC");
+  });
+});

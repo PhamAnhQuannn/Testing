@@ -33,7 +33,9 @@ def select_keep(
     names: list[str], now: datetime, keep_recent: int = 20, keep_days: int = 30
 ) -> set[str]:
     """Newest `keep_recent` backups plus the first one of each of the last `keep_days` days."""
-    dated = sorted(((parse_name(n), n) for n in names if parse_name(n)), key=lambda x: (x[0], x[1]))
+    dated = sorted(
+        ((parse_name(n), n) for n in names if parse_name(n)), key=lambda x: (x[0], len(x[1]), x[1])
+    )
     keep = {n for _, n in dated[::-1][:keep_recent]}
     cutoff = (now - timedelta(days=keep_days)).date()
     seen_days = set()
@@ -75,7 +77,7 @@ class BackupManager:
         backup_dir: Path,
         clock: Callable[[], datetime],
         mirror_dir: Path | None = None,
-        keep_recent: int = 20,
+        keep_recent: int | Callable[[], int] = 20,
     ) -> None:
         self.db_path = db_path
         self.dir = backup_dir
@@ -91,7 +93,8 @@ class BackupManager:
             dt = parse_name(p.name)
             if dt and p.is_file():
                 out.append(BackupInfo(p.name, p.stat().st_size, dt))
-        return sorted(out, key=lambda b: (b.created_at, b.name), reverse=True)
+        # name length breaks ties within one second: app-..-10.db is newer than app-..-2.db
+        return sorted(out, key=lambda b: (b.created_at, len(b.name), b.name), reverse=True)
 
     def latest(self) -> BackupInfo | None:
         items = self.list()
@@ -105,7 +108,7 @@ class BackupManager:
             raise ApiError(404, "backup_not_found", f"No backup named {name}")
         return p
 
-    def create(self) -> BackupInfo:
+    def create(self, protect: set[str] | None = None) -> BackupInfo:
         """Copy the live DB with the online backup API (never a plain file copy)."""
         self.dir.mkdir(parents=True, exist_ok=True)
         stamp = self.clock().astimezone(UTC).strftime("%Y%m%d-%H%M%S")
@@ -138,12 +141,13 @@ class BackupManager:
                 shutil.copy2(final, self.mirror / name)
             except OSError:
                 pass  # the mirror is best effort
-        self.prune()
+        self.prune(protect)
         return BackupInfo(name, final.stat().st_size, parse_name(name) or self.clock())
 
-    def prune(self) -> list[str]:
+    def prune(self, protect: set[str] | None = None) -> list[str]:
         names = [b.name for b in self.list()]
-        keep = select_keep(names, self.clock(), self.keep_recent)
+        recent = self.keep_recent() if callable(self.keep_recent) else self.keep_recent
+        keep = select_keep(names, self.clock(), recent) | (protect or set())
         removed = []
         for n in names:
             if n not in keep:

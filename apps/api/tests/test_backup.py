@@ -1,6 +1,7 @@
 import sqlite3
 from datetime import UTC, datetime
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
@@ -135,7 +136,9 @@ def test_corrupt_db_then_restore_from_backup(settings, clock):
     rt2.backup_on_shutdown = False
     with TestClient(create_app(settings, rt2)) as c:
         assert c.get("/api/health").status_code == 503
-        assert c.get("/api/health").json()["latest_backup"] == name
+        assert (
+            c.get("/api/health").json()["latest_backup"].startswith("app-20261102-030000")
+        )  # shutdown copy: newest
         r = c.post(f"/api/backups/{name}/restore")
         assert r.status_code == 200
         assert c.get("/api/health").json()["status"] == "ok"
@@ -193,3 +196,48 @@ def test_restore_keeps_progress_rows_consistent(client, clock):
     assert client.get("/api/lessons/py.a.one").json()["progress"]["run_no"] == 2
     with client.app.state.rt.session() as db:
         assert len(db.scalars(select(t.Event).where(t.Event.type == "lesson_run")).all()) == 1
+
+
+def test_restore_of_a_pruneable_backup_survives_the_pre_restore_snapshot(client, clock):
+    put_draft(client, "v0")
+    for i in range(21):  # 21 backups, 1 s apart, same day: 20 newest + the oldest are kept
+        clock.advance(seconds=1)
+        put_draft(client, f"v{i + 1}")
+        client.post("/api/backups")
+    listed = names(client)
+    assert len(listed) == 21
+    chosen = listed[-2]  # second oldest: the snapshot's prune would delete it
+    r = client.post(f"/api/backups/{chosen}/restore")
+    assert r.status_code == 200 and r.json()["restored"]["name"] == chosen
+    assert client.get("/api/health").status_code == 200
+    assert chosen in names(client)
+    assert draft_code(client) == "v2"
+
+
+def test_failed_restore_keeps_serving_the_old_data(client, clock, monkeypatch):
+    put_draft(client, "keep me")
+    name = client.post("/api/backups").json()["name"]
+    clock.advance(minutes=1)
+    put_draft(client, "newer")
+
+    def boom(*_a, **_k):
+        raise RuntimeError("disk gone")
+
+    monkeypatch.setattr(client.app.state.rt.backups, "restore_into", boom)
+    with pytest.raises(RuntimeError, match="disk gone"):
+        client.post(f"/api/backups/{name}/restore")
+    assert client.get("/api/health").status_code == 200
+    assert draft_code(client) == "newer"
+    put_draft(client, "writable")
+    assert draft_code(client) == "writable"
+
+
+def test_backup_list_orders_same_second_names_numerically(client, clock):
+    for _ in range(11):  # same second: app-..-.db, -1 ... -10
+        client.post("/api/backups")
+    listed = names(client)
+    assert (
+        listed[0].endswith("-10.db")
+        and listed[-1].endswith("0.db")
+        and "-" not in listed[-1][-8:-3]
+    )

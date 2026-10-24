@@ -72,6 +72,28 @@ describe("DraftController timing", () => {
     expect(remote.mock.calls[0][0].code).toBe("x = 1");
   });
 
+  it("accepted:false with a different server draft: re-PUT stamped after the server copy", async () => {
+    remote
+      .mockResolvedValueOnce({ accepted: false, draft: { code: "old tab", updated_at: "2026-10-24T10:05:00.000Z" } })
+      .mockResolvedValue({ accepted: true });
+    const c = make();
+    c.update("mine");
+    await c.flush();
+    expect(remote).toHaveBeenCalledTimes(2);
+    const retry = remote.mock.calls[1][0] as Draft;
+    expect(retry.code).toBe("mine");
+    expect(Date.parse(retry.updated_at)).toBe(Date.parse("2026-10-24T10:05:01.000Z"));
+    expect(local.data.get("k")).toMatchObject({ code: "mine", updated_at: retry.updated_at });
+  });
+
+  it("accepted:false with the same code is not retried", async () => {
+    remote.mockResolvedValue({ accepted: false, draft: { code: "same", updated_at: "2099-01-01T00:00:00Z" } });
+    const c = make();
+    c.update("same");
+    await c.flush();
+    expect(remote).toHaveBeenCalledTimes(1);
+  });
+
   it("debounces the server but never waits more than 10 s while typing continuously", async () => {
     const c = make();
     for (let i = 0; i < 20; i++) {

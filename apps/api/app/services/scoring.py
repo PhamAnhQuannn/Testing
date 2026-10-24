@@ -94,7 +94,8 @@ def quiz_best(
     """Best run ratio, counting only the first answer of each graded block within a run.
 
     A run needs at least `min_items` answered graded blocks to count (SPEC 5.1). The ratio is
-    correct / answered blocks of that run. None when no run qualifies.
+    correct first answers / ALL graded blocks of the lesson: an unanswered block counts as wrong.
+    None when no run qualifies.
     """
     graded = set(graded_ids)
     first: dict[tuple[int, str], QuizAnswerEv] = {}
@@ -112,7 +113,7 @@ def quiz_best(
     for results in per_run.values():
         if len(results) < min_items:
             continue
-        ratio = sum(results) / len(results)
+        ratio = sum(results) / len(graded)
         if best is None or ratio > best:
             best = ratio
     return best

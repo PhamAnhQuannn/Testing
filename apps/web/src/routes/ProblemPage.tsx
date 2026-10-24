@@ -12,6 +12,7 @@ import {
   getHiddenTests,
   getProblem,
   getSolution,
+  newIdempotencyKey,
   nowIso,
   openHint,
   postAttempt,
@@ -185,11 +186,12 @@ function ProblemView({ problem }: { problem: Problem }) {
         },
       });
       setPanel(buildPanel(kind, tests, result.results, options, false, result));
-      if (kind === "submit" && result.verdict === "AC") setSolved(true);
-      postAttempt({
+      // One submission = one Idempotency-Key: a retry can never record the attempt twice.
+      const attemptKey = newIdempotencyKey();
+      const attempt = {
         problem_id: problem.id,
         mode: kind,
-        language: "python",
+        language: "python" as const,
         code: source,
         verdict: result.verdict,
         passed: result.passed,
@@ -197,7 +199,19 @@ function ProblemView({ problem }: { problem: Problem }) {
         elapsed_ms: elapsedRef.current,
         runtime_ms: result.elapsed_ms,
         occurred_at: nowIso(),
-      }).catch(() => notify("Chưa lưu được kết quả lên server", { kind: "error" }));
+      };
+      const send = () =>
+        postAttempt(attempt, attemptKey)
+          .then(() => {
+            if (kind === "submit" && result.verdict === "AC") setSolved(true); // only after a 2xx
+          })
+          .catch(() =>
+            notify("Chưa lưu được kết quả lên server", {
+              kind: "error",
+              action: { label: "Thử lại", run: () => void send() },
+            }),
+          );
+      void send();
     } catch (error) {
       setPanel(null);
       notify(

@@ -134,7 +134,7 @@ compared after trimming trailing whitespace per line). Response:
  "explain_md": "...", "correct_answer": ["b"], "quiz_best": 0.75}
 ```
 `correct_answer` is `answer[]` / the first `accept` of each blank / `expected_output`.
-Only the first answer per block per run counts toward `quiz_best` (later ones get `attempt_no > 1`).
+Only the first answer per block per run counts toward `quiz_best` (later ones get `attempt_no > 1`). `quiz_best` is correct first answers over all graded blocks (unanswered = wrong).
 Errors: `404 quiz_item_not_found`, `422 invalid_run | invalid_answer | not_a_quiz`.
 
 ### `POST /api/lessons/{subtopic_id}/complete`  (body optional: `{"occurred_at": ...}`)
@@ -143,8 +143,8 @@ Errors: `404 quiz_item_not_found`, `422 invalid_run | invalid_answer | not_a_qui
  "score": 1, "score_before": 0, "status": "in_progress",
  "review_card": {"box": 1, "due_on": "2026-11-03"}, "newly_unlocked": []}
 ```
-`score` is 1 only when the quiz is also passed (>= 0.7 over >= 3 answered graded blocks);
-otherwise 0 and `review_card` is null. Calling it again is harmless (no second event).
+`score` is 1 only when the quiz is also passed (`quiz_best >= 0.7`, where `quiz_best` = first-answer correct / ALL graded blocks of the lesson, so an unanswered block counts as wrong; a run needs >= 3 answered graded blocks to count);
+otherwise 0 and `review_card` is null. Calling it again is harmless (no second event) and recomputes. `POST /quiz/answers` also recomputes the subtopic, so a quiz passed after the lesson was completed lifts the score without a second `/complete`.
 
 ## Problems
 
@@ -254,6 +254,9 @@ problem was AC'd after the position was saved. `others` = up to 3 other `in_prog
 8. **Check items** (for `has_l3_write_code` and `item_type`) are read from
    `content/checks/<subtopic_id>.yaml` (SPEC 3.1). Without that file `level3_ok` falls back to the
    medium-practice rule, then to true (SPEC 5.2).
+   In M1 `mastery_check` is empty, so a clean `submit` AC of the practice problem (after lesson + quiz)
+   already reaches score 2 (`check2_ok` falls back to "a clean practice AC"). The `user_subtopic`
+   score/quiz_best/review-card caches are rebuilt from the event tables at every boot.
 9. `GET /health` returns `status, journal_mode, synchronous, schema_version, last_backup_at`;
    `503` with `status: db_corrupt` when the DB is damaged.
 10. Idempotency: the stored response is replayed as JSON (same data, not byte-identical).

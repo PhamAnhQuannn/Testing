@@ -104,12 +104,28 @@ def test_lesson_done_with_failed_quiz_is_score_0(client):
         "/api/quiz/answers", json={"quiz_item_id": "py.a.one#q1", "run_no": 2, "answer": ["b"]}
     ).json()
     assert bests["quiz_best"] == 1.0
-    # lesson was already marked done in run 1; the cache must follow the events
+    # lesson was already marked done in run 1; the cache follows the events with no second /complete
+    sub = client.get("/api/map").json()["subtopics"][0]
+    assert sub["score"] == 1 and sub["quiz_best"] == 1.0
     rt = client.app.state.rt
     with rt.session() as db:
-        progress.recompute_subtopic(db, rt.content, "py.a.one", rt.clock())
-        db.commit()
-    assert sub_row(client).score == 1
+        assert db.get(t.ReviewCard, (1, "py.a.one")) is not None
+
+
+def test_quiz_passed_after_lesson_done_lifts_score_without_second_complete(client):
+    # the UI hides "Hoàn thành" once the lesson is done, so the late answers must be enough
+    assert client.post("/api/lessons/py.a.one/complete").json()["score"] == 0
+    do_quiz(client, (True, True, True, True))
+    sub = client.get("/api/map").json()["subtopics"][0]
+    assert sub["score"] == 1 and sub["quiz_best"] == 1.0 and sub["lesson_done"]
+    rt = client.app.state.rt
+    with rt.session() as db:
+        card = db.get(t.ReviewCard, (1, "py.a.one"))
+        assert card is not None and card.box == 1
+        n = db.scalar(
+            select(func.count()).select_from(t.Event).where(t.Event.type == "lesson_done")
+        )
+        assert n == 1
 
 
 def test_run_numbers_are_per_lesson_and_increase(client):
@@ -343,3 +359,24 @@ def test_error_shape(client):
     assert r.json()["error"]["code"] == "validation_error"
     r = client.get("/api/nothing")
     assert r.status_code == 404 and r.json()["error"]["code"] == "http_404"
+
+
+def test_boot_recomputes_score_caches_from_events(client, settings, clock):
+    from fastapi.testclient import TestClient
+
+    from app.main import create_app
+    from app.runtime import Runtime
+
+    do_quiz(client)
+    client.post("/api/lessons/py.a.one/complete")
+    rt = client.app.state.rt
+    with rt.session() as db:
+        row = db.get(t.UserSubtopic, (1, "py.a.one"))
+        row.score, row.quiz_best = 3, 0.1  # a wrong cache
+        db.commit()
+    rt.backup_on_shutdown = False
+    rt2 = Runtime(settings, clock=clock)
+    rt2.backup_on_shutdown = False
+    with TestClient(create_app(settings, rt2)) as c2:
+        sub = c2.get("/api/map").json()["subtopics"][0]
+        assert sub["score"] == 1 and sub["quiz_best"] == 1.0

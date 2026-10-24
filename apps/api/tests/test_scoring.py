@@ -38,6 +38,11 @@ def test_quiz_best_first_answer_only_and_best_run():
     ) == pytest.approx(2 / 3)
 
 
+def test_quiz_best_unanswered_graded_blocks_count_as_wrong():
+    ans = answers(1, [True, True, True])
+    assert sc.quiz_best(ans, ["d#q1", "d#q2", "d#q3", "d#q4", "d#q5"]) == pytest.approx(0.6)
+
+
 def test_quiz_best_needs_min_items_and_ignores_ungraded():
     ans = answers(1, [True, True])
     assert sc.quiz_best(ans, ["d#q1", "d#q2", "d#q3"]) is None
@@ -176,8 +181,10 @@ def test_lesson_done_needs_quiz_and_vice_versa():
     assert sc.score(DICT, sc.Evidence(True, ())).score == 0
     bad = answers(1, [True, False, False, False, False])
     assert sc.score(DICT, sc.Evidence(True, bad)).score == 0
-    boundary = answers(1, [True, True, True, False, False, False, False][:3])  # 3/3
+    boundary = answers(1, [True, True, True, True, False])  # 4/5
     assert sc.score(DICT, sc.Evidence(True, boundary)).score == 1
+    skipped = answers(1, [True, True, True])  # 3 correct but 2 of the 5 graded blocks unanswered
+    assert sc.score(DICT, sc.Evidence(True, skipped)).score == 0
 
 
 def test_practice_ok_edge_cases():
