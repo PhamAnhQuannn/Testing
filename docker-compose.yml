@@ -1,0 +1,31 @@
+# `docker compose up` -> http://127.0.0.1:8080
+# The database is in the named volume `app_data` (not a bind mount: Docker Desktop bind mounts do
+# not guarantee fsync to the real disk). Backups are plain files, written to ./backups on the host.
+# Do not put this repo or ./backups on a network drive or a cloud-sync folder for the DB itself.
+services:
+  api:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "${BIND:-127.0.0.1}:8080:8080"
+    environment:
+      DATA_DIR: /app/data
+      BACKUP_DIR: /app/backups
+      SERVE_DRAFTS: ${SERVE_DRAFTS:-0}
+    volumes:
+      - app_data:/app/data
+      - ./backups:/app/backups
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import json,sys,urllib.request as u; d=json.load(u.urlopen('http://127.0.0.1:8080/api/health', timeout=5)); sys.exit(0 if d['status']=='ok' and d['journal_mode']=='wal' else 1)"
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    stop_grace_period: 20s
+
+volumes:
+  app_data:

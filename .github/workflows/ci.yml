@@ -18,5 +18,28 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: apps/web/package-lock.json
+          cache-dependency-path: |
+            apps/web/package-lock.json
+            tools/pyodide-node/package-lock.json
       - run: make ci
+
+  # SPEC 7 M1 acceptance on the real API + SQLite + browser (no mocks). Separate so `ci` stays fast.
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            apps/web/package-lock.json
+            tools/pyodide-node/package-lock.json
+      - run: make install
+      - run: npm install -g playwright@1.63.0 && playwright install --with-deps chromium
+      - run: NODE_PATH="$(npm root -g)" make e2e

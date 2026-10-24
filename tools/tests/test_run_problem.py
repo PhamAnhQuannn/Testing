@@ -3,7 +3,15 @@ import sys
 import pytest
 
 from common import CONTENT, load_yaml
-from run_problem import load_tests, main, parse_result, run_native
+from run_problem import (
+    engine_limit_ms,
+    load_tests,
+    main,
+    parse_result,
+    pyodide_available,
+    run_engine,
+    run_native,
+)
 
 RANSOM_NOTE = CONTENT / "problems/py.datastructs.dict/ransom-note"
 IO = {"mode": "function", "entry": "f"}
@@ -99,3 +107,50 @@ def test_parse_result_ignores_lines_that_are_not_results():
     assert parse_result(b"garbage") is None
     assert parse_result(b'{"unrelated": 1}') is None
     assert parse_result(b'{"verdict": "AC"}') == {"verdict": "AC"}
+
+
+needs_pyodide = pytest.mark.skipif(
+    not pyodide_available(), reason="run `npm ci` in tools/pyodide-node"
+)
+
+
+@needs_pyodide
+@pytest.mark.parametrize(
+    ("solution", "failing"),
+    [
+        ("solution.py", set()),
+        ("wrong/no_count.py", {"s2", "h05", "h09", "h12"}),
+        ("wrong/off_by_one.py", {"s3", "h04", "h06", "h07", "h08", "h11"}),
+    ],
+)
+def test_pyodide_engine_agrees_with_native(solution, failing):
+    tests = load_tests(RANSOM_NOTE, PROBLEM, "all")
+    code = (RANSOM_NOTE / solution).read_text(encoding="utf-8")
+    run = run_engine("pyodide", code, PROBLEM["io"], tests, engine_limit_ms(PROBLEM, "pyodide"))
+    assert {r["id"] for r in run["results"] if r["verdict"] != "AC"} == failing
+
+
+@needs_pyodide
+def test_pyodide_engine_kills_an_infinite_loop():
+    code = "def f(x):\n    while x:\n        pass\n    return 1"
+    tests = [
+        {"id": "a", "args": [0], "expected": 1},
+        {"id": "b", "args": [1]},
+        {"id": "c", "args": [0]},
+    ]
+    run = run_engine("pyodide", code, IO, tests, time_limit_ms=300)
+    assert [(r["id"], r["verdict"]) for r in run["results"]] == [("a", "AC"), ("b", "TLE")]
+
+
+@needs_pyodide
+def test_pyodide_engine_reports_compile_errors_and_runtime_errors():
+    run = run_engine("pyodide", "def f(:", IO, [{"id": "a", "args": []}], 1000)
+    assert [r["verdict"] for r in run["results"]] == ["CE"]
+    code = "def f():\n    raise ValueError('boom')"
+    run = run_engine("pyodide", code, IO, [{"id": "a", "args": [], "expected": 1}], 1000)
+    assert run["results"][0]["verdict"] == "RE" and "boom" in run["results"][0]["error"]
+
+
+def test_pyodide_limit_applies_the_time_multiplier():
+    assert engine_limit_ms(PROBLEM, "native") == 1000
+    assert engine_limit_ms(PROBLEM, "pyodide") == 3000

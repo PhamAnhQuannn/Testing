@@ -1,6 +1,6 @@
 id: py.datastructs.dict
 version: 1
-status: draft
+status: published
 title_vi: "Dict và set (dictionary & set)"
 est_minutes: 12
 objectives_vi:
@@ -54,17 +54,62 @@ blocks:
     blanks: [{accept: ["get"]}]
     explain_md: "`get(khoá, mặc_định)` không bao giờ ném KeyError."
   - id: b07
+    type: text
+    md: |
+      Để **duyệt** dict, dùng `.items()` để lấy cả khoá lẫn giá trị. Dict nhớ thứ tự bạn thêm khoá
+      vào. Muốn **nhóm** các phần tử theo một tiêu chí, dùng
+      `nhom.setdefault(khoá, []).append(x)`: nếu khoá chưa có thì đặt giá trị mặc định `[]` cho nó,
+      rồi trả về giá trị của khoá để `append`.
+  - id: b08
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      nhom = {}
+      for w in ["an", "bo", "cat", "dog", "e"]:
+          nhom.setdefault(len(w), []).append(w)
+      for do_dai, ds in nhom.items():
+          print(do_dai, ds)
+    expected_output: |
+      2 ['an', 'bo']
+      3 ['cat', 'dog']
+      1 ['e']
+  - id: b09
+    type: text
+    md: |
+      **Set (tập hợp)** là nhóm phần tử *không trùng* và không có thứ tự. Hai việc set làm rất
+      nhanh: loại phần tử trùng (`set(ds)`) và kiểm tra `x in s`. Các phép tập hợp: `|` hợp,
+      `&` giao, `-` hiệu, `^` hiệu đối xứng.
+  - id: b10
     type: predict_output
     code: |
       s = {1, 2, 3}; t = {2, 3, 4}
       print(s & t, sorted(s ^ t))
     expected_output: "{2, 3} [1, 4]"
     explain_md: "`&` giao, `^` hiệu đối xứng. Set không có thứ tự nên in qua `sorted`."
-  - id: b08
+  - id: b11
     type: callout
     kind: interview
     md: "Hỏi: *vì sao list không làm khoá dict?* Đáp: list **mutable**, không hashable; dùng tuple."
-  - id: b09
+  - id: b12
+    type: quiz_mcq
+    prompt_md: "Giá trị nào dưới đây **không** dùng được làm khoá của dict?"
+    options:
+      - {id: a, text_md: "`(1, 2)`"}
+      - {id: b, text_md: "`\"an\"`"}
+      - {id: c, text_md: "`[1, 2]`"}
+      - {id: d, text_md: "`3.5`"}
+    answer: [c]
+    explain_md: "Khoá phải *hashable*, tức không đổi được sau khi tạo. Tuple, chuỗi và số đều được; list thì không."
+  - id: b13
+    type: predict_output
+    code: |
+      d = {"a": 1}
+      d["b"] = d.get("b", 10) + 1
+      print(len(d), d["b"], "c" in d)
+    expected_output: "2 11 False"
+    explain_md: "`get('b', 10)` trả 10 vì chưa có khoá b, cộng 1 được 11; `d` có hai khoá và không có `c`."
+  - id: b14
     type: code_exercise
     md: "Viết `unique_sorted(nums)` trả list các số khác nhau, tăng dần."
     entry: unique_sorted
@@ -78,20 +123,21 @@ blocks:
       - {args: [[5, 5, 5]], expected: [5]}
     hint_md: "Chuyển sang `set` để bỏ trùng rồi `sorted(...)`."
     solution: "def unique_sorted(nums):\n    return sorted(set(nums))\n"
-  - id: b10
+  - id: b15
     type: problem_ref
     problem_id: ransom-note
-  - id: b11
+  - id: b16
     type: summary
     bullets_vi:
       - "Dict: khoá → giá trị; tra/ghi/kiểm tra khoá đều O(1) trung bình."
       - "Dùng `.get(k, mặc_định)`; đếm tần suất bằng `d[k] = d.get(k, 0) + 1`."
+      - "Nhóm bằng `setdefault(k, []).append(x)`; duyệt bằng `.items()`."
       - "Set: loại trùng, giao/hợp/hiệu; khoá dict phải hashable (tuple được, list không)."
 problems: {practice: [ransom-note], extra: []}
-mastery_check: {l1: [Q022], l2: [Q023], l3: [Q024]}
+mastery_check: {l1: [], l2: [], l3: []}
 checkpoint: {pass_ratio: 0.7, min_items: 3}
 source:
   tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
-  authored_by: "SPEC.md 3.5 (worked example)"
+  authored_by: "SPEC.md 3.5 (worked example), completed by Claude (T1.6)"
   reviewed_by: null
   date: "2026-10-24"
