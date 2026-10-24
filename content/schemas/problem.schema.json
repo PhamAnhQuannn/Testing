@@ -1,0 +1,166 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://prep-app.local/schemas/problem.schema.json",
+  "title": "Problem (SPEC 3.3)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id", "subtopic_id", "secondary_subtopics", "kind", "title", "title_vi", "difficulty",
+    "source", "statement_en_md", "statement_vi_md", "constraints", "examples", "io", "starter",
+    "limits", "time_target_min", "hints", "solution", "tests", "tags", "status", "version"
+  ],
+  "properties": {
+    "id": {"$ref": "#/$defs/slug"},
+    "subtopic_id": {"$ref": "#/$defs/subtopic_id"},
+    "secondary_subtopics": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/subtopic_id"},
+      "uniqueItems": true
+    },
+    "kind": {"enum": ["practice", "check", "mock"]},
+    "title": {"type": "string", "minLength": 1},
+    "title_vi": {"type": "string", "minLength": 1},
+    "difficulty": {"enum": ["easy", "medium", "hard"]},
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": {"enum": ["leetcode", "original", "mock"]},
+        "lc": {"type": "integer", "minimum": 1},
+        "rewrite_required": {"type": "boolean"}
+      }
+    },
+    "statement_en_md": {"type": "string", "minLength": 1},
+    "statement_vi_md": {"type": "string", "minLength": 1},
+    "constraints": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "examples": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["input", "output", "explain_vi"],
+        "properties": {
+          "input": {"type": "string"},
+          "output": {"type": "string"},
+          "explain_vi": {"type": "string"}
+        }
+      }
+    },
+    "io": {"$ref": "#/$defs/io"},
+    "starter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["python"],
+      "properties": {
+        "python": {"type": "string", "minLength": 1},
+        "java": {"type": "string", "minLength": 1}
+      }
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["time_ms", "memory_mb", "time_multiplier"],
+      "properties": {
+        "time_ms": {"type": "integer", "minimum": 1},
+        "memory_mb": {"type": "integer", "minimum": 1},
+        "time_multiplier": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["pyodide"],
+          "properties": {"pyodide": {"type": "number", "minimum": 1}}
+        }
+      }
+    },
+    "time_target_min": {"type": "integer", "minimum": 1},
+    "hints": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "solution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file", "approach_vi", "complexity"],
+      "properties": {
+        "file": {"type": "string", "pattern": "^[A-Za-z0-9_./-]+\\.py$"},
+        "approach_vi": {"type": "string", "minLength": 1},
+        "complexity": {"type": "string", "minLength": 1}
+      }
+    },
+    "tests": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sample", "hidden", "generator"],
+      "properties": {
+        "sample": {"type": "string", "pattern": "\\.jsonl$"},
+        "hidden": {"type": "string", "pattern": "\\.jsonl$"},
+        "generator": {"type": "string", "pattern": "\\.py$"}
+      }
+    },
+    "tags": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+    "status": {"enum": ["draft", "validated", "reviewed", "published"]},
+    "version": {"type": "integer", "minimum": 1}
+  },
+  "$defs": {
+    "subtopic_id": {"type": "string", "pattern": "^[a-z][a-z0-9_]*(\\.[a-z0-9_]+)+$"},
+    "slug": {"type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"},
+    "type_name": {
+      "description": "Parameter/return type; list_node and tree_node get special conversion.",
+      "anyOf": [
+        {"enum": ["int", "float", "str", "bool", "none", "any", "list_node", "tree_node"]},
+        {"type": "string", "pattern": "^(list|set|tuple|dict)(\\[[a-z_, \\[\\]]+\\])?$"}
+      ]
+    },
+    "io": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode"],
+      "properties": {
+        "mode": {"enum": ["function", "inplace", "class_ops", "stdout"]},
+        "entry": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"},
+        "params": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "type"],
+            "properties": {
+              "name": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"},
+              "type": {"$ref": "#/$defs/type_name"}
+            }
+          }
+        },
+        "returns": {"$ref": "#/$defs/type_name"},
+        "inplace_arg": {"type": "integer", "minimum": 0},
+        "compare": {"enum": ["exact", "unordered", "float_tol", "custom"]}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"mode": {"const": "function"}}},
+          "then": {"required": ["entry", "params", "returns"]}
+        },
+        {
+          "if": {"properties": {"mode": {"const": "inplace"}}},
+          "then": {"required": ["entry", "params", "inplace_arg"]}
+        }
+      ]
+    },
+    "test_case": {
+      "description": "One line of a sample/hidden JSONL file; which keys apply depends on io.mode.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "expected"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+        "args": {"type": "array"},
+        "ops": {"type": "array", "items": {"type": "string"}},
+        "stdin": {"type": "string"},
+        "expected": {},
+        "tags": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+      }
+    }
+  }
+}

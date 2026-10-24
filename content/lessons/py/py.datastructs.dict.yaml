@@ -1,0 +1,97 @@
+id: py.datastructs.dict
+version: 1
+status: draft
+title_vi: "Dict và set (dictionary & set)"
+est_minutes: 12
+objectives_vi:
+  - "Tạo, tra cứu, thêm và duyệt dict; dùng .get để tránh KeyError."
+  - "Dùng dict để đếm và nhóm, dùng set để loại trùng và tìm phần chung."
+  - "Giải thích vì sao tra dict nhanh (O(1) trung bình) còn list không làm khoá được."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      **Dict (dictionary, từ điển)** lưu cặp *khoá → giá trị*. Giống danh bạ điện thoại:
+      bạn tra theo **tên** (khoá) để ra **số** (giá trị), không cần biết vị trí.
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      sdt = {"An": "0901", "Binh": "0902"}
+      sdt["Chi"] = "0903"           # thêm khoá mới
+      sdt["An"] = "0911"            # sửa giá trị
+      print(sdt["An"], "Binh" in sdt, sdt.get("Dung", "không có"))
+    expected_output: "0911 True không có"
+  - id: b03
+    type: callout
+    kind: beginner
+    md: |
+      `sdt["Dung"]` (khoá không tồn tại) báo **KeyError**; `sdt.get("Dung")` trả `None`
+      hoặc giá trị mặc định bạn đưa vào. Phỏng vấn viên rất hay hỏi điểm này.
+  - id: b04
+    type: quiz_mcq
+    prompt_md: "Đoạn `d = {}; d['x'] += 1` cho kết quả gì?"
+    options:
+      - {id: a, text_md: "`d` thành `{'x': 1}`"}
+      - {id: b, text_md: "`KeyError: 'x'`"}
+      - {id: c, text_md: "`d` thành `{'x': 0}`"}
+    answer: [b]
+    explain_md: "`+=` đọc `d['x']` trước, khoá chưa có nên lỗi. Dùng `d['x'] = d.get('x', 0) + 1`."
+  - id: b05
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      dem = {}
+      for w in "a b a c b a".split():
+          dem[w] = dem.get(w, 0) + 1
+      print(dem, max(dem, key=dem.get))
+    expected_output: "{'a': 3, 'b': 2, 'c': 1} a"
+  - id: b06
+    type: quiz_fill
+    prompt_md: "Điền vào chỗ trống để đếm: `dem[w] = dem.___(w, 0) + 1`"
+    blanks: [{accept: ["get"]}]
+    explain_md: "`get(khoá, mặc_định)` không bao giờ ném KeyError."
+  - id: b07
+    type: predict_output
+    code: |
+      s = {1, 2, 3}; t = {2, 3, 4}
+      print(s & t, sorted(s ^ t))
+    expected_output: "{2, 3} [1, 4]"
+    explain_md: "`&` giao, `^` hiệu đối xứng. Set không có thứ tự nên in qua `sorted`."
+  - id: b08
+    type: callout
+    kind: interview
+    md: "Hỏi: *vì sao list không làm khoá dict?* Đáp: list **mutable**, không hashable; dùng tuple."
+  - id: b09
+    type: code_exercise
+    md: "Viết `unique_sorted(nums)` trả list các số khác nhau, tăng dần."
+    entry: unique_sorted
+    starter: |
+      def unique_sorted(nums):
+          # TODO: dùng set
+          pass
+    tests:
+      - {args: [[3, 1, 3, 2]], expected: [1, 2, 3]}
+      - {args: [[]], expected: []}
+      - {args: [[5, 5, 5]], expected: [5]}
+    hint_md: "Chuyển sang `set` để bỏ trùng rồi `sorted(...)`."
+    solution: "def unique_sorted(nums):\n    return sorted(set(nums))\n"
+  - id: b10
+    type: problem_ref
+    problem_id: ransom-note
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "Dict: khoá → giá trị; tra/ghi/kiểm tra khoá đều O(1) trung bình."
+      - "Dùng `.get(k, mặc_định)`; đếm tần suất bằng `d[k] = d.get(k, 0) + 1`."
+      - "Set: loại trùng, giao/hợp/hiệu; khoá dict phải hashable (tuple được, list không)."
+problems: {practice: [ransom-note], extra: []}
+mastery_check: {l1: [Q022], l2: [Q023], l3: [Q024]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "SPEC.md 3.5 (worked example)"
+  reviewed_by: null
+  date: "2026-10-24"
