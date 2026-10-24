@@ -1,4 +1,4 @@
-.PHONY: install lint test validate web-build ci sync-tree stubs
+.PHONY: install lint test validate validate-public web-build ci sync-tree stubs
 
 WEB := apps/web
 
@@ -8,6 +8,7 @@ ci: install lint test validate web-build
 install:
 	uv sync --locked --all-packages
 	cd $(WEB) && npm ci
+	cd tools/pyodide-node && npm ci
 
 lint:
 	uv run ruff check .
@@ -17,8 +18,14 @@ lint:
 test:
 	uv run pytest
 
+# Native checks plus the stress tests under Pyodide in Node (tools/pyodide-node).
 validate:
-	uv run python tools/validate_content.py
+	uv run python tools/validate_content.py --pyodide
+
+# The public-bundle gate: fails while a published problem still has rewrite_required.
+# Not part of `ci`; run it before building a bundle anyone else can read.
+validate-public:
+	uv run python tools/validate_content.py --pyodide --public
 
 web-build:
 	cd $(WEB) && npm run build
