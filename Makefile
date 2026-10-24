@@ -1,4 +1,4 @@
-.PHONY: install lint test validate web-build ci sync-tree stubs
+.PHONY: install lint test validate web-build web-e2e ci sync-tree stubs
 
 WEB := apps/web
 
@@ -16,12 +16,18 @@ lint:
 
 test:
 	uv run pytest
+	cd $(WEB) && npm test
 
 validate:
 	uv run python tools/validate_content.py
 
+# Fetches the pinned, self-hosted Pyodide into apps/web/public/pyodide first (npm run build).
 web-build:
 	cd $(WEB) && npm run build
+
+# Real-browser smoke test (Chromium + Pyodide, API mocked); not part of `make ci`.
+web-e2e: web-build
+	cd $(WEB) && npm run e2e
 
 # Refresh content/index/ from the source data, e.g.
 #   make sync-tree TREE=/path/skill_tree.json PLAN=/path/plan.json

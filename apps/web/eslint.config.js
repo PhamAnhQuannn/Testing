@@ -4,9 +4,14 @@ import globals from "globals";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist"] },
+  { ignores: ["dist", "public/pyodide"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   reactHooks.configs.flat.recommended,
   { languageOptions: { globals: globals.browser } },
+  {
+    files: ["scripts/**", "e2e/**"],
+    languageOptions: { globals: { ...globals.node } },
+    rules: { "@typescript-eslint/no-require-imports": "off" },
+  },
 );
