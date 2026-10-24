@@ -102,7 +102,7 @@ def test_lesson_code_sample_output_is_checked(content):
 
 def test_lesson_code_exercise_solution_is_checked(content):
     edit(content / DICT_LESSON, "return sorted(set(nums))", "return nums")
-    assert any("block b09: solution" in e for e in lesson_errors(content))
+    assert any("block b14: solution" in e for e in lesson_errors(content))
 
 
 def test_lesson_problem_must_exist(content):
@@ -117,9 +117,8 @@ def test_lesson_block_ids_must_be_unique(content):
 
 def test_published_lesson_needs_graded_blocks(content):
     path = content / DICT_LESSON
-    edit(path, "status: draft", "status: published")
-    edit(path, "min_items: 3", "min_items: 4")
-    assert any("at least 4 graded" in e for e in lesson_errors(content))
+    edit(path, "min_items: 3", "min_items: 9")
+    assert any("at least 9 graded" in e for e in lesson_errors(content))
 
 
 def test_non_draft_lesson_cannot_be_empty(content):

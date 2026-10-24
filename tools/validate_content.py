@@ -2,11 +2,16 @@
 
     uv run python tools/validate_content.py [--content content]
 
-Implemented so far: JSON Schemas, ids and prerequisites, lesson code blocks, and every
-per-problem check (generated hidden tests, reference solution, brute-force cross-check, wrong and
-slow solutions, time limits, starter code). Still to come: `convert_checks.py` item checks
-(mastery_check ids, level-2 write_code rule), the public-bundle `rewrite_required` gate and the
-Pyodide engine (T1.0 / M1).
+Checks: JSON Schemas, ids and prerequisites, lesson code blocks (outputs, exercises, runnable
+samples), lesson/problem/mastery-check references, at least 3 graded blocks per non-draft lesson,
+and every per-problem check (generated hidden tests, reference solution, brute-force cross-check,
+wrong and slow solutions, time limits, starter code).
+
+Options:
+    --pyodide   also run each reference solution on its `stress` tests under Pyodide in Node
+                (needs `npm ci` in tools/pyodide-node), so native and browser timing stay within
+                `limits.time_multiplier.pyodide` of each other (SPEC 4.4 / 6.2).
+    --public    the public-bundle gate: published problems must not still be `rewrite_required`.
 """
 
 import argparse
@@ -20,7 +25,7 @@ from jsonschema.exceptions import best_match
 
 from common import CONTENT, load_json, load_yaml, read_jsonl
 from gen_hidden import generate_hidden, load_generator
-from run_problem import load_tests, run_native
+from run_problem import engine_limit_ms, load_tests, run_native, run_pyodide
 
 SOLUTION_TIME_SHARE = 0.3  # solution.py must use at most this share of limits.time_ms
 SLOW_TIME_FACTOR = 3  # slow/*.py must still be running after this many times limits.time_ms
@@ -31,6 +36,20 @@ CROSS_CHECK_CASES = 200
 CROSS_CHECK_SEED = 20260101
 SNIPPET_TIME_MS = 5000
 GRADED_TYPES = {"quiz_mcq", "quiz_fill", "predict_output"}
+MIN_GRADED_BLOCKS = 3
+LEVELS = {"l1": 1, "l2": 2, "l3": 3}
+# SPEC 3.4: once these subtopics have a lesson they need a level-2 write_code mastery item.
+NEEDS_L2_WRITE_CODE = {
+    "py.core.getting_started",
+    "py.core.variables_types",
+    "py.datastructs.tuple_namedtuple",
+    "py.datastructs.copying_mutability",
+    "py.functions.lambda_hof",
+    "cs.complexity.big_o",
+    "dsa.foundations.memory_model",
+    "py.functions.scope_closures",
+    "dsa.foundations.interview_method",
+}
 
 
 def schema_errors(instance, schema: dict) -> list[str]:
@@ -44,9 +63,13 @@ def schema_errors(instance, schema: dict) -> list[str]:
 
 
 class Validator:
-    def __init__(self, content: Path):
+    def __init__(self, content: Path, *, pyodide: bool = False, public: bool = False):
         self.content = content
+        self.pyodide = pyodide
+        self.public = public
         self.errors: list[str] = []
+        self._problems: dict[str, dict] | None = None
+        self.checks: dict[str, dict[str, dict]] = {}  # subtopic id -> item id -> item
         self.schemas = {
             name: load_json(content / "schemas" / f"{name}.schema.json")
             for name in ("lesson", "problem", "check")
@@ -89,6 +112,16 @@ class Validator:
 
     # --- lessons -----------------------------------------------------------------------------
 
+    def problem_meta(self) -> dict[str, dict]:
+        """problem id -> problem.yaml, for every problem that loads."""
+        if self._problems is None:
+            self._problems = {}
+            for directory in self.problem_dirs():
+                problem = load_yaml(directory / "problem.yaml")
+                if isinstance(problem, dict) and "id" in problem:
+                    self._problems[problem["id"]] = problem
+        return self._problems
+
     def check_lessons(self, subtopics: list[dict], problem_ids: set[str]) -> int:
         ids = {s["id"] for s in subtopics}
         files = sorted((self.content / "lessons").glob("*/*.yaml"))
@@ -101,6 +134,8 @@ class Validator:
             if path.stem != lesson["id"] or path.parent.name != lesson["id"].split(".")[0]:
                 self.fail(path, "file must be lessons/<section>/<id>.yaml")
             self.check_lesson_blocks(path, lesson, problem_ids)
+            self.check_lesson_problems(path, lesson)
+            self.check_mastery_refs(path, lesson)
         missing = ids - {p.stem for p in files}
         if missing:
             self.fail(self.content / "lessons", f"missing lessons: {sorted(missing)}")
@@ -111,16 +146,88 @@ class Validator:
         block_ids = [b["id"] for b in blocks]
         if len(set(block_ids)) != len(block_ids):
             self.fail(path, "duplicate block ids")
-        referenced = lesson["problems"]["practice"] + lesson["problems"]["extra"]
-        referenced += [b["problem_id"] for b in blocks if b["type"] == "problem_ref"]
-        for problem_id in sorted(set(referenced) - problem_ids):
+        listed = lesson["problems"]["practice"] + lesson["problems"]["extra"]
+        refs = [b["problem_id"] for b in blocks if b["type"] == "problem_ref"]
+        for problem_id in sorted(set(listed + refs) - problem_ids):
             self.fail(path, f"unknown problem {problem_id}")
+        for problem_id in sorted(set(refs) & problem_ids - set(listed)):
+            self.fail(path, f"problem_ref {problem_id} is not in problems.practice or extra")
         graded = [b for b in blocks if b["type"] in GRADED_TYPES and b.get("graded", True)]
-        if lesson["status"] != "draft" and len(graded) < lesson["checkpoint"]["min_items"]:
-            self.fail(path, f"needs at least {lesson['checkpoint']['min_items']} graded blocks")
+        needed = max(MIN_GRADED_BLOCKS, lesson["checkpoint"]["min_items"])
+        if lesson["status"] != "draft" and len(graded) < needed:
+            self.fail(path, f"needs at least {needed} graded blocks, has {len(graded)}")
         for block in blocks:
             for message in block_code_errors(block):
                 self.fail(path, f"block {block['id']}: {message}")
+
+    def check_lesson_problems(self, path: Path, lesson: dict) -> None:
+        """Problems a lesson lists belong to it; a published lesson only links published ones."""
+        problems = self.problem_meta()
+        refs = [b["problem_id"] for b in lesson["blocks"] if b["type"] == "problem_ref"]
+        listed = lesson["problems"]["practice"] + lesson["problems"]["extra"]
+        for problem_id in sorted({*listed, *refs}):
+            problem = problems.get(problem_id)
+            if problem is None:
+                continue  # reported as unknown
+            if lesson["id"] not in [problem.get("subtopic_id"), *problem["secondary_subtopics"]]:
+                self.fail(path, f"problem {problem_id} belongs to {problem.get('subtopic_id')}")
+            if lesson["status"] == "published" and problem.get("status") != "published":
+                self.fail(path, f"published lesson links {problem['status']} problem {problem_id}")
+        if lesson["status"] == "draft":
+            return
+        for problem_id, problem in sorted(problems.items()):
+            if (
+                problem.get("subtopic_id") == lesson["id"]
+                and problem.get("kind") == "practice"
+                and problem_id not in listed
+            ):
+                self.fail(path, f"practice problem {problem_id} is not in problems.practice/extra")
+
+    def check_mastery_refs(self, path: Path, lesson: dict) -> None:
+        """Every mastery_check id resolves to a checks/<subtopic>.yaml item of the same level."""
+        items = self.checks.get(lesson["id"], {})
+        for level, difficulty in LEVELS.items():
+            for item_id in lesson["mastery_check"][level]:
+                item = items.get(item_id)
+                if item is None:
+                    self.fail(path, f"mastery_check {level}: unknown item {item_id}")
+                elif item["difficulty"] != difficulty:
+                    self.fail(
+                        path,
+                        f"mastery_check {level}: {item_id} has difficulty {item['difficulty']}",
+                    )
+        needs_l2 = lesson["id"] in NEEDS_L2_WRITE_CODE and lesson["status"] != "draft"
+        if needs_l2 and not any(
+            items.get(i, {}).get("type") == "write_code" for i in lesson["mastery_check"]["l2"]
+        ):
+            self.fail(path, "needs a level-2 write_code item in mastery_check.l2 (SPEC 3.4)")
+
+    # --- mastery check files -----------------------------------------------------------------
+
+    def check_check_files(self, subtopic_ids: set[str]) -> None:
+        problems = self.problem_meta()
+        seen: dict[str, Path] = {}
+        for path in sorted((self.content / "checks").glob("*.yaml")):
+            data = load_yaml(path)
+            if not self.check_schema(path, data, "check"):
+                continue
+            if data["subtopic_id"] != path.stem or path.stem not in subtopic_ids:
+                self.fail(path, "file must be checks/<subtopic_id>.yaml for a known subtopic")
+            items = self.checks.setdefault(data["subtopic_id"], {})
+            for item in data["items"]:
+                if item["id"] in seen:
+                    self.fail(path, f"item id {item['id']} also appears in {seen[item['id']].name}")
+                seen[item["id"]] = path
+                items[item["id"]] = item
+                if item["type"] != "write_code":
+                    continue
+                problem = problems.get(item["problem_id"])
+                if problem is None:
+                    self.fail(path, f"{item['id']}: unknown problem {item['problem_id']}")
+                elif problem.get("kind") != "check":
+                    self.fail(
+                        path, f"{item['id']}: problem {item['problem_id']} must be kind check"
+                    )
 
     # --- problems ----------------------------------------------------------------------------
 
@@ -140,6 +247,19 @@ class Validator:
             return
         if problem["id"] != directory.name:
             self.fail(directory, "directory name must equal the problem id")
+        if problem["io"].get("compare") == "custom":
+            self.fail(
+                directory, "io.compare custom is not supported yet: harness.py has no checker"
+            )
+            return
+        if (
+            self.public
+            and problem["status"] == "published"
+            and problem["source"].get("rewrite_required")
+        ):
+            self.fail(
+                directory, "published problem still has source.rewrite_required (public bundle)"
+            )
         if problem["subtopic_id"] != directory.parent.name:
             self.fail(directory, "problem must live in problems/<subtopic_id>/")
         for sub in [problem["subtopic_id"], *problem["secondary_subtopics"]]:
@@ -165,6 +285,8 @@ class Validator:
             return  # every remaining check compares against a working reference solution
         self.check_cross(directory, problem, paths["generator"], paths["solution"])
         hidden = load_tests(directory, problem, "hidden")
+        if self.pyodide:
+            self.check_pyodide(directory, problem, paths["solution"], hidden)
         self.check_variants(directory, problem, hidden)
         self.check_starter(directory, problem, tests)
 
@@ -277,6 +399,23 @@ class Validator:
                     f"{name} must exceed {SLOW_TIME_FACTOR} x time_ms, got {run['verdict']}",
                 )
 
+    def check_pyodide(
+        self, directory: Path, problem: dict, solution: Path, hidden: list[dict]
+    ) -> None:
+        """The reference solution must also pass the stress tests in Pyodide, within its limit."""
+        stress = [t for t in hidden if "stress" in t.get("tags", [])]
+        if not stress:
+            return
+        limit_ms = engine_limit_ms(problem, "pyodide")
+        run = run_pyodide(solution.read_text(encoding="utf-8"), problem["io"], stress, limit_ms)
+        for result in run["results"]:
+            if result["verdict"] != "AC":
+                self.fail(
+                    directory,
+                    f"solution {result['verdict']} under Pyodide on {result['id']} "
+                    f"(limit {limit_ms:g} ms): {result['error']}".rstrip(": "),
+                )
+
     def check_starter(self, directory: Path, problem: dict, tests: list[dict]) -> None:
         run = run_native(
             problem["starter"]["python"], problem["io"], tests, problem["limits"]["time_ms"]
@@ -291,13 +430,11 @@ class Validator:
     def run(self) -> dict[str, int]:
         subtopics = self.check_index()
         problem_ids = {p.name for p in self.problem_dirs()}
-        counts = {
+        self.check_check_files({s["id"] for s in subtopics})
+        return {
             "lessons": self.check_lessons(subtopics, problem_ids),
             "problems": self.check_problems(subtopics),
         }
-        for path in sorted((self.content / "checks").glob("*.yaml")):
-            self.check_schema(path, load_yaml(path), "check")
-        return counts
 
 
 def block_code_errors(block: dict) -> list[str]:
@@ -305,14 +442,19 @@ def block_code_errors(block: dict) -> list[str]:
     kind = block["type"]
     if kind == "code_exercise":
         return exercise_errors(block)
-    runnable_sample = kind == "code_sample" and block["runnable"] and "expected_output" in block
+    runnable_sample = kind == "code_sample" and block["runnable"] and block["lang"] == "python"
     if not (runnable_sample or kind == "predict_output"):
         return []
-    test = {"id": block["id"], "expected": block["expected_output"]}
+    test = {"id": block["id"]}
+    if "expected_output" in block:  # a runnable sample without one only has to run
+        test["expected"] = block["expected_output"]
     run = run_native(block["code"], {"mode": "stdout"}, [test], SNIPPET_TIME_MS)
     if run["verdict"] == "AC":
         return []
-    return [f"{run['verdict']}: expected {test['expected']!r}, got {run['results'][0]['got']!r}"]
+    result = run["results"][0]
+    if result["verdict"] in ("RE", "CE", "TLE"):
+        return [f"{run['verdict']}: {result['error']}"]
+    return [f"{run['verdict']}: expected {test['expected']!r}, got {result['got']!r}"]
 
 
 def exercise_errors(block: dict) -> list[str]:
@@ -352,8 +494,10 @@ def find_cycle(graph: dict[str, set[str]]) -> list[str] | None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--content", type=Path, default=CONTENT)
+    parser.add_argument("--pyodide", action="store_true", help="also run stress tests in Pyodide")
+    parser.add_argument("--public", action="store_true", help="public bundle: no rewrite_required")
     args = parser.parse_args()
-    validator = Validator(args.content)
+    validator = Validator(args.content, pyodide=args.pyodide, public=args.public)
     counts = validator.run()
     for error in validator.errors:
         print(f"ERROR {error}")

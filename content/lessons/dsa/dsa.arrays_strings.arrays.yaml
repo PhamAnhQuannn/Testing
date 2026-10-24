@@ -1,24 +1,187 @@
 id: dsa.arrays_strings.arrays
 version: 1
-status: draft
-title_vi: Mảng và mảng động (array, dynamic array)
-est_minutes: 10
+status: published
+title_vi: "Mảng và mảng động (array, dynamic array)"
+est_minutes: 14
 objectives_vi:
-- Nêu đúng chi phí từng thao tác của mảng.
-- Tự cài mảng động có resize, và sửa mảng tại chỗ mà không bị lỗi lệch một.
-blocks: []
-problems:
-  practice: []
-  extra: []
-mastery_check:
-  l1: []
-  l2: []
-  l3: []
-checkpoint:
-  pass_ratio: 0.7
-  min_items: 3
+  - "Nêu đúng chi phí từng thao tác của mảng: truy cập theo chỉ số, thêm cuối, chèn/xoá ở giữa."
+  - "Tự cài mảng động có resize (nới dung lượng khi đầy)."
+  - "Sửa mảng tại chỗ bằng con trỏ ghi mà không bị lỗi lệch một (off-by-one)."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      **Mảng (array)** là dãy ô nhớ nằm *sát nhau*, đánh số từ 0, giống một dãy tủ khoá. Biết số
+      tủ là mở ngay, không cần tìm. Nhưng muốn chèn thêm một tủ vào giữa, bạn phải **dời cả hàng
+      phía sau** sang phải để lấy chỗ.
+  - id: b02
+    type: text
+    md: |
+      Có hai loại mảng. **Mảng cố định (fixed array)** có kích thước chọn trước và không đổi.
+      **Mảng động (dynamic array)** tự lớn thêm khi đầy. `list` của Python chính là mảng động, nên
+      khi bạn gọi `append`, có lúc Python phải âm thầm xin vùng nhớ mới rộng hơn.
+  - id: b03
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      a = [10, 20, 30, 40]
+      print(a[2])          # truy cập theo chỉ số: tới thẳng ô số 2
+      a.insert(1, 15)      # chèn vào vị trí 1: 20, 30, 40 phải dời sang phải
+      print(a)
+      a.pop(0)             # xoá đầu: mọi phần tử còn lại phải dời sang trái
+      print(a)
+    expected_output: |
+      30
+      [10, 15, 20, 30, 40]
+      [15, 20, 30, 40]
+  - id: b04
+    type: quiz_mcq
+    prompt_md: "Với list có `n` phần tử, thao tác nào sau đây tốn thời gian **tỉ lệ với n** (O(n))?"
+    options:
+      - {id: a, text_md: "Đọc `a[i]` theo chỉ số"}
+      - {id: b, text_md: "`a.insert(0, x)` (chèn vào đầu)"}
+      - {id: c, text_md: "`a.append(x)` (thêm vào cuối), trung bình"}
+    answer: [b]
+    explain_md: "Chèn vào đầu phải dời cả `n` phần tử. Đọc theo chỉ số và `append` (trung bình) chỉ tốn một khoảng thời gian cố định, ký hiệu O(1)."
+  - id: b05
+    type: text
+    md: |
+      Vậy `append` nhanh bằng cách nào? Khi mảng đầy, ta xin một mảng mới **gấp đôi** dung lượng
+      (capacity) rồi chép phần tử sang (**resize**). Lần chép này chậm, nhưng nó hiếm: sau mỗi lần
+      gấp đôi, ta có nhiều chỗ trống để `append` liên tiếp mà không phải chép nữa. Chia đều ra, mỗi
+      `append` vẫn chỉ tốn O(1). Người ta gọi là **O(1) trung bình (amortized)**.
+  - id: b06
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class DynamicArray:
+          def __init__(self):
+              self.capacity = 2
+              self.size = 0
+              self.data = [None] * self.capacity
+
+          def append(self, x):
+              if self.size == self.capacity:      # đầy: nới gấp đôi
+                  self._resize(self.capacity * 2)
+              self.data[self.size] = x
+              self.size += 1
+
+          def _resize(self, new_capacity):
+              new_data = [None] * new_capacity
+              for i in range(self.size):          # chép từng phần tử sang mảng mới
+                  new_data[i] = self.data[i]
+              self.data = new_data
+              self.capacity = new_capacity
+
+      arr = DynamicArray()
+      for i in range(5):
+          arr.append(i * 10)
+          print(arr.size, arr.capacity)
+      print(arr.data[:arr.size])
+    expected_output: |
+      1 2
+      2 2
+      3 4
+      4 4
+      5 8
+      [0, 10, 20, 30, 40]
+  - id: b07
+    type: quiz_fill
+    prompt_md: "Trong `DynamicArray` ở trên, khi mảng đầy ta tạo mảng mới có dung lượng gấp ___ lần (điền một số)."
+    blanks: [{accept: ["2", "hai"]}]
+    explain_md: "Mỗi lần đầy, dung lượng tăng gấp đôi: 2, 4, 8... Nhờ vậy số lần resize rất ít."
+  - id: b08
+    type: callout
+    kind: beginner
+    md: |
+      CPython (bản Python phổ biến) không gấp đôi chính xác mà tăng khoảng 1,125 lần, nhưng ý
+      tưởng giống hệt: tăng theo *tỉ lệ* để việc resize hiếm dần. Nếu chỉ tăng thêm 1 ô mỗi lần
+      thì mọi `append` đều phải chép lại cả mảng.
+  - id: b09
+    type: predict_output
+    code: |
+      a = [5, 6, 7, 8]
+      tong = 0
+      for i in range(1, len(a)):
+          tong += a[i]
+      print(tong)
+    expected_output: "21"
+    explain_md: "`range(1, len(a))` bắt đầu từ chỉ số 1 nên bỏ sót `a[0]` (5). Tổng đủ là 26. Đây là lỗi lệch một: nhớ chỉ số bắt đầu từ 0."
+  - id: b10
+    type: text
+    md: |
+      **Sửa tại chỗ (in-place)** nghĩa là sửa ngay trên mảng, không tạo mảng mới, để tiết kiệm bộ nhớ.
+      Mẹo hay dùng: hai con trỏ. Một con trỏ **đọc** `x` đi hết mảng, một con trỏ **ghi** `w` chỉ
+      tiến lên khi có phần tử đáng giữ. Phần tử ở vị trí ghi luôn nằm sau hoặc đúng chỗ vị trí
+      đọc, nên không ghi đè lên thứ chưa đọc.
+  - id: b11
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      nums = [3, 2, 2, 3, 4]
+      val = 3
+      w = 0                       # vị trí ghi
+      for x in nums:              # x: phần tử đang đọc
+          if x != val:
+              nums[w] = x
+              w += 1
+      print(w, nums[:w])
+    expected_output: "3 [2, 2, 4]"
+  - id: b12
+    type: predict_output
+    code: |
+      m = [[0] * 2] * 2
+      m[0][0] = 1
+      print(m)
+    expected_output: "[[1, 0], [1, 0]]"
+    explain_md: "`[[0] * 2] * 2` không tạo hai hàng riêng mà lặp lại *cùng một* hàng hai lần. Muốn hai hàng độc lập, viết `[[0] * 2 for _ in range(2)]`."
+  - id: b13
+    type: callout
+    kind: interview
+    md: "Hỏi: *`list.insert(0, x)` và `list.pop(0)` tốn bao nhiêu?* Đáp: O(n), vì phải dời mọi phần tử. Nếu cần thêm/bớt ở đầu liên tục, dùng `collections.deque`."
+  - id: b14
+    type: code_exercise
+    md: |
+      Viết `remove_value(nums, val)` xoá mọi phần tử bằng `val` khỏi `nums` **tại chỗ** (dùng con trỏ
+      ghi) rồi trả về số phần tử còn lại. Mọi phần tử còn lại phải nằm ở đầu list.
+    entry: remove_value
+    starter: |
+      def remove_value(nums, val):
+          # TODO: con trỏ ghi w, đọc từng x trong nums
+          pass
+    tests:
+      - {args: [[3, 2, 2, 3], 3], expected: 2}
+      - {args: [[0, 1, 2, 2, 3, 0, 4, 2], 2], expected: 5}
+      - {args: [[1, 2, 3], 4], expected: 3}
+      - {args: [[5, 5], 5], expected: 0}
+      - {args: [[], 1], expected: 0}
+    hint_md: "Giữ `w = 0`. Với mỗi `x` khác `val`: gán `nums[w] = x` rồi `w += 1`. Cuối cùng trả về `w`."
+    solution: "def remove_value(nums, val):\n    w = 0\n    for x in nums:\n        if x != val:\n            nums[w] = x\n            w += 1\n    return w\n"
+  - id: b15
+    type: problem_ref
+    problem_id: max-consecutive-ones
+  - id: b16
+    type: problem_ref
+    problem_id: find-numbers-with-even-number-of-digits
+  - id: b17
+    type: problem_ref
+    problem_id: duplicate-zeros
+  - id: b18
+    type: summary
+    bullets_vi:
+      - "Mảng là các ô nhớ liền nhau: đọc/ghi theo chỉ số là O(1)."
+      - "Chèn hoặc xoá ở giữa/đầu là O(n) vì phải dời các phần tử phía sau."
+      - "Mảng động tự gấp đôi dung lượng khi đầy, nên `append` là O(1) trung bình (amortized)."
+      - "Sửa tại chỗ bằng hai con trỏ (đọc và ghi) giúp tiết kiệm bộ nhớ."
+      - "Cẩn thận lỗi lệch một: chỉ số bắt đầu từ 0, `range(1, n)` bỏ sót phần tử đầu."
+problems: {practice: [max-consecutive-ones, find-numbers-with-even-number-of-digits, duplicate-zeros], extra: []}
+mastery_check: {l1: [], l2: [], l3: []}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
 source:
   tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
-  authored_by: tools/gen_lesson_stubs.py
+  authored_by: "Claude (T1.6)"
   reviewed_by: null
-  date: '2026-10-24'
+  date: "2026-10-24"
