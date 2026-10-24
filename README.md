@@ -34,7 +34,7 @@ It installs the locked dependencies, then runs the same steps as
 apps/web/      Vite + React + TypeScript skeleton
                src/runner/pyodide/harness.py is the one test harness, shared by the browser
                worker (M1) and tools/run_problem.py
-apps/api/      FastAPI skeleton (GET /api/health)
+apps/api/      FastAPI + SQLite (SQLAlchemy, Alembic): see docs/API_M1.md; `make dev-api`, `docker compose up`
 content/       index/ (snapshot of the skill tree and plan, committed), lessons/, problems/,
                schemas/ (JSON Schemas for lesson, problem, check)
 tools/         content tooling, run with `uv run python tools/<name>.py`
