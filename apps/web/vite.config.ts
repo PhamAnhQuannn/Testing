@@ -24,10 +24,19 @@ const cspMeta = (): Plugin => ({
   ],
 });
 
+// dist/csp.txt lets the FastAPI static mount send exactly this string as a header.
+const cspFile = (): Plugin => ({
+  name: "csp-file",
+  apply: "build",
+  generateBundle() {
+    this.emitFile({ type: "asset", fileName: "csp.txt", source: `${CSP}\n` });
+  },
+});
+
 const api = { "/api": "http://127.0.0.1:8000" };
 
 export default defineConfig({
-  plugins: [react(), cspMeta()],
+  plugins: [react(), cspMeta(), cspFile()],
   build: { assetsInlineLimit: 0 }, // no data: URIs, so CSP font-src/img-src stay on 'self'
   server: { proxy: api },
   preview: { proxy: api, headers: { "Content-Security-Policy": CSP } },

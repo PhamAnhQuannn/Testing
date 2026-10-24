@@ -10,7 +10,6 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .config import Settings
@@ -18,6 +17,7 @@ from .errors import ApiError
 from .idempotency import IdempotencyMiddleware
 from .routers import content, learning, problems, resume, system
 from .runtime import Runtime
+from .web import SpaStaticFiles
 
 
 def _err(status: int, code: str, message: str, **extra: object) -> JSONResponse:
@@ -63,7 +63,7 @@ def create_app(settings: Settings | None = None, runtime: Runtime | None = None)
 
     web_dist = os.environ.get("WEB_DIST")
     if web_dist and Path(web_dist).is_dir():
-        app.mount("/", StaticFiles(directory=web_dist, html=True), name="web")
+        app.mount("/", SpaStaticFiles(web_dist), name="web")
     return app
 
 

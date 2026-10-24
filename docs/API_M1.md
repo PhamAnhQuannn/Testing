@@ -23,6 +23,16 @@ listed under "Deviations" at the end. Code: `apps/api/app/`. Base path `/api`, J
 - **The server does not enforce locks.** `/map` reports `unlocked`/`lock_reasons`; the UI decides
   whether to disable editor/Submit for a locked subtopic (SPEC 5.3 preview mode).
 
+## Serving the web app
+
+With `WEB_DIST=<apps/web/dist>` (set in the Docker image) FastAPI serves the built app at `/`
+(`app/web.py`). Every static response carries the `Content-Security-Policy` header from
+`apps/web/vite.config.ts` (the build also writes it to `dist/csp.txt`); worker scripts only honour
+the header, not the `<meta>`. `.wasm` is `application/wasm`, `.js`/`.mjs` `text/javascript`.
+A GET for a path that is not under `/api` and has no asset extension (`/s/py.datastructs.dict`,
+`/p/ransom-note`, `/map`) returns `index.html` so client routes survive a reload; `/api/*` keeps
+its JSON `404 http_404`. `assets/*` are cached immutable, everything else `no-cache`.
+
 ## Health and durability
 
 ### `GET /api/health`
