@@ -1,4 +1,4 @@
-.PHONY: install lint test validate validate-public web-build web-e2e ci sync-tree stubs dev-api backup
+.PHONY: install lint test validate validate-public web-build web-e2e e2e ci sync-tree stubs dev-api backup
 
 WEB := apps/web
 
@@ -35,6 +35,12 @@ web-build:
 # Real-browser smoke test (Chromium + Pyodide, API mocked); not part of `make ci`.
 web-e2e: web-build
 	cd $(WEB) && npm run e2e
+
+# SPEC 7 M1 acceptance against the REAL stack: uvicorn + SQLite in a temp dir serving apps/web/dist,
+# driven by Chromium/Pyodide (apps/web/e2e/real.cjs). ~30 s plus the web build; not part of `make ci`
+# (own CI job). Needs `make install` first and `playwright` resolvable by require() (NODE_PATH).
+e2e: web-build
+	node $(WEB)/e2e/real.cjs
 
 # Refresh content/index/ from the source data, e.g.
 #   make sync-tree TREE=/path/skill_tree.json PLAN=/path/plan.json

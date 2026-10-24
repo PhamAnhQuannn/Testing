@@ -43,6 +43,12 @@ data/          local SQLite data and backups (git-ignored)
 docs/          SPEC.md, UI_SPEC.md
 ```
 
+## End-to-end check (real API)
+
+`make e2e` builds the web app, starts uvicorn on a temp SQLite dir and drives Chromium through the
+SPEC 7 M1 acceptance (lesson, quiz, exercise, Submit AC, score, reload, TLE, kill -9, idempotency,
+backup restore). Needs `make install` and `playwright` resolvable by `require()` (`NODE_PATH`).
+
 ## Content tooling
 
 ```sh
