@@ -46,7 +46,15 @@ const lesson = JSON.parse(
     { encoding: "utf8" },
   ),
 );
-for (const b of lesson.blocks) if (b.type === "code_exercise") delete b.solution; // API strips it
+// Mimic the API: secrets stay server-side, graded through POST /quiz/answers.
+const secrets = Object.fromEntries(lesson.blocks.map((b) => [b.id, structuredClone(b)]));
+for (const b of lesson.blocks) {
+  if (b.type === "code_exercise") delete b.solution;
+  if (b.type === "quiz_mcq") { delete b.answer; delete b.explain_md; }
+  if (b.type === "quiz_fill") { b.blanks = b.blanks.map((_, index) => ({ index })); delete b.explain_md; }
+  if (b.type === "predict_output") { delete b.expected_output; delete b.explain_md; }
+}
+lesson.progress = { run_no: 1, answers: {}, lesson_done: false, quiz_best: null, score: 0 };
 
 const log = [];
 const check = (name, ok, extra = "") => {
@@ -84,12 +92,18 @@ async function main() {
       const reply = (data) => route.fulfill({ json: data });
       if (url.pathname === "/api/problems/ransom-note") return reply(problem);
       if (url.pathname === "/api/problems/ransom-note/start-submit") return reply({ token: "t1" });
-      if (url.pathname === "/api/problems/ransom-note/tests/hidden") return reply({ tests: hidden });
+      if (url.pathname === "/api/problems/ransom-note/tests/hidden") {
+        return req.headers()["x-submit-token"] === "t1" ? reply({ tests: hidden }) : route.fulfill({ status: 403, json: { error: { code: "submit_token_required", message: "no token" } } });
+      }
       if (url.pathname === "/api/problems/ransom-note/solution") return reply({ code: solution, complexity: "O(n + m)" });
       if (url.pathname === "/api/attempts") return reply({ clean: true });
       if (url.pathname === "/api/lessons/py.datastructs.dict") return reply(lesson);
-      if (url.pathname === "/api/lessons/py.datastructs.dict/complete") return reply({ quiz_best: 1, passed: true, score: 1 });
-      if (url.pathname === "/api/quiz/answers") return reply({});
+      if (url.pathname === "/api/lessons/py.datastructs.dict/complete") return reply({ lesson_done: true, quiz_best: 1, quiz_passed: true, score: 1 });
+      if (url.pathname === "/api/quiz/answers") {
+        const src = secrets[body.quiz_item_id.split("#")[1]];
+        return reply({ correct: [...src.answer].sort().join() === [...body.answer].sort().join(), explain_md: src.explain_md, correct_answer: src.answer, first_attempt: true });
+      }
+      if (url.pathname === "/api/drafts/ransom-note" && req.method() === "GET") return reply({ draft: null });
       return reply({});
     });
 
@@ -181,7 +195,8 @@ async function main() {
     const mcq = page.locator("fieldset", { hasText: "KeyError" }).first();
     await mcq.locator("label").nth(1).click();
     await mcq.locator("button:has-text('Kiểm tra')").click();
-    check("quiz_mcq graded", (await mcq.innerText()).includes("Đúng"));
+    await mcq.locator("text=Đúng").first().waitFor({ timeout: 5000 }).catch(() => undefined);
+    check("quiz_mcq graded by the server (shows explain)", (await mcq.innerText()).includes("Đúng") && (await mcq.innerText()).includes("KeyError"));
     await page.locator("button:has-text('Làm bài này')").click();
     await page.waitForSelector(".pane.right .cm-content");
     await page.click(".pane.right .cm-content");
@@ -195,7 +210,7 @@ async function main() {
     await page.locator("button:has-text('Hoàn thành bài học')").click();
     await page.waitForSelector("text=Đạt");
     check("Hoàn thành bài học posts /complete", requests.some((r) => r.path === "/api/lessons/py.datastructs.dict/complete" && r.key));
-    check("quiz answer posted with run_no", requests.some((r) => r.path === "/api/quiz/answers" && r.body.run_no === 1));
+    check("quiz answer posted with run_no", requests.some((r) => r.path === "/api/quiz/answers" && r.body.run_no === 1 && r.body.quiz_item_id === "py.datastructs.dict#b04"));
     await page.waitForTimeout(3300);
     check("resume saved (PUT /api/resume)", requests.some((r) => r.method === "PUT" && r.path === "/api/resume" && r.body.mode === "lesson"));
 

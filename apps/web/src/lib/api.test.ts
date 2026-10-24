@@ -2,10 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ApiError,
   getHiddenTests,
+  getDraft,
   getLesson,
   getMap,
   getProblem,
   postAttempt,
+  postQuizAnswer,
   putDraft,
   putResume,
   request,
@@ -67,7 +69,7 @@ describe("request", () => {
     await putDraft("ransom-note", { code: "c", updated_at: "t" }, { keepalive: true });
     expect(lastInit().keepalive).toBe(true);
     expect(fetchMock.mock.calls[0][0]).toBe("/api/drafts/ransom-note");
-    expect(JSON.parse(lastInit().body as string)).toMatchObject({ code: "c", base_rev: null });
+    expect(JSON.parse(lastInit().body as string)).toMatchObject({ code: "c", language: "python", cursor: { line: 0, ch: 0 } });
   });
 });
 
@@ -84,14 +86,14 @@ describe("normalizers", () => {
 
   it("getLesson reads blocks, run_no and answers", async () => {
     fetchMock.mockResolvedValue(
-      json({ id: "s.x", title_vi: "T", blocks: [{ id: "b01", type: "text", md: "hi" }], run_no: 2, answers: { b04: { correct: true } } }),
+      json({ id: "s.x", title_vi: "T", blocks: [{ id: "b01", type: "text", md: "hi" }], progress: { run_no: 2, lesson_done: false, answers: { b04: { first_correct: false, last_correct: true, last_answer: ["b"] } } } }),
     );
     const lesson = await getLesson("s.x");
-    expect(lesson).toMatchObject({ run_no: 2, answers: { b04: { correct: true } } });
+    expect(lesson).toMatchObject({ run_no: 2, answers: { b04: { correct: false, answer: ["b"] } } });
     expect(lesson.blocks).toHaveLength(1);
   });
 
-  it("getProblem flattens starter.python, pyodide multiplier and the draft", async () => {
+  it("getProblem flattens starter.python, pyodide multiplier, opened hints and status", async () => {
     fetchMock.mockResolvedValue(
       json({
         id: "ransom-note",
@@ -100,25 +102,52 @@ describe("normalizers", () => {
         limits: { time_ms: 1000, memory_mb: 256, time_multiplier: { pyodide: 3 } },
         io: { mode: "function", entry: "can_construct" },
         sample_tests: [{ id: "s1", args: ["a", "b"], expected: false }],
-        draft: { code: "x", updated_at: "t" },
+        hint_count: 3,
+        hints: ["h1"],
+        status: "solved",
       }),
     );
     const p = await getProblem("ransom-note");
     expect(p.starter).toBe("def f(): pass");
     expect(p.limits.time_multiplier).toBe(3);
     expect(p.sample_tests).toHaveLength(1);
-    expect(p.draft?.code).toBe("x");
+    expect(p.hints_opened).toEqual(["h1"]);
+    expect(p.solved).toBe(true);
+  });
+});
+
+describe("drafts and quiz", () => {
+  it("getDraft maps the wire cursor to an offset", async () => {
+    fetchMock.mockResolvedValue(json({ draft: { code: "ab", updated_at: "t", cursor: { line: 0, ch: 1, offset: 1 }, elapsed_ms: 5 } }));
+    expect(await getDraft("p")).toEqual({ code: "ab", updated_at: "t", cursor: 1, elapsed_ms: 5 });
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/drafts/p?language=python");
+    fetchMock.mockResolvedValue(json({ draft: null }));
+    expect(await getDraft("p")).toBeNull();
+  });
+
+  it("putDraft sends line/ch computed from the offset", async () => {
+    fetchMock.mockResolvedValue(json({ accepted: true }));
+    await putDraft("p", { code: "ab\ncd", updated_at: "t", cursor: 4 });
+    expect(JSON.parse(lastInit().body as string).cursor).toEqual({ line: 1, ch: 1, offset: 4 });
+  });
+
+  it("postQuizAnswer uses quiz_item_id and an idempotency key", async () => {
+    fetchMock.mockResolvedValue(json({ correct: true }));
+    await postQuizAnswer({ quiz_item_id: "s#b04", run_no: 1, answer: ["b"], occurred_at: "t" });
+    expect(lastInit().headers["Idempotency-Key"]).toBeTruthy();
+    expect(JSON.parse(lastInit().body as string)).toMatchObject({ quiz_item_id: "s#b04", run_no: 1 });
   });
 });
 
 describe("hidden tests flow", () => {
-  it("POST start-submit then GET tests/hidden with the token", async () => {
+  it("POST start-submit then GET tests/hidden with X-Submit-Token", async () => {
     fetchMock.mockResolvedValueOnce(json({ token: "tok 1" }));
     fetchMock.mockResolvedValueOnce(json({ tests: [{ id: "h01", args: ["a", "a"], expected: true }] }));
     const tests = await getHiddenTests("ransom-note");
     expect(fetchMock.mock.calls[0][0]).toBe("/api/problems/ransom-note/start-submit");
     expect(lastInit(0).method).toBe("POST");
-    expect(fetchMock.mock.calls[1][0]).toBe("/api/problems/ransom-note/tests/hidden?token=tok%201");
+    expect(fetchMock.mock.calls[1][0]).toBe("/api/problems/ransom-note/tests/hidden");
+    expect(lastInit(1).headers["X-Submit-Token"]).toBe("tok 1");
     expect(tests[0].id).toBe("h01");
   });
 
@@ -127,6 +156,7 @@ describe("hidden tests flow", () => {
     await postAttempt({
       problem_id: "ransom-note",
       mode: "submit",
+      language: "python",
       code: "c",
       verdict: "AC",
       passed: 12,

@@ -27,13 +27,14 @@ export interface RequestOptions {
   /** Survive page unload (pagehide flush). */
   keepalive?: boolean;
   signal?: AbortSignal;
+  headers?: Record<string, string>;
 }
 
 export const API_BASE = "/api";
 
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const method = options.method ?? "GET";
-  const headers: Record<string, string> = { Accept: "application/json" };
+  const headers: Record<string, string> = { Accept: "application/json", ...options.headers };
   if (options.body !== undefined) headers["Content-Type"] = "application/json";
   if (method !== "GET") headers["Idempotency-Key"] = options.idempotencyKey ?? newIdempotencyKey();
 
@@ -94,6 +95,15 @@ const asArray = (data: unknown, keys: string[]): Loose[] => {
   return [];
 };
 
+/** `lock_reasons: [{prerequisite, name_vi, score, need}]` -> "cần X ≥ 2". Locks are advisory in M1. */
+function lockText(raw: Loose): string | null {
+  const reasons = raw.lock_reasons as { prerequisite: string; name_vi?: string; need?: number }[] | undefined;
+  if (reasons?.length) {
+    return reasons.map((r) => `cần ${r.name_vi ?? r.prerequisite} ≥ ${r.need ?? 2}`).join(", ");
+  }
+  return (raw.lock_reason as string | null | undefined) ?? null;
+}
+
 export function normalizeMap(data: unknown): MapSubtopic[] {
   return asArray(data, ["subtopics", "items", "nodes"]).map((raw) => {
     const id = String(raw.id ?? raw.subtopic_id);
@@ -105,7 +115,7 @@ export function normalizeMap(data: unknown): MapSubtopic[] {
       score: Number(raw.score ?? 0),
       unlocked: raw.unlocked !== false,
       due_cards: Number(raw.due_cards ?? 0),
-      lock_reason: (raw.lock_reason as string | null | undefined) ?? null,
+      lock_reason: lockText(raw),
       content_status: (raw.content_status as string | null | undefined) ?? null,
     };
   });
@@ -135,25 +145,26 @@ export type LessonBlock =
       graded?: boolean;
       prompt_md: string;
       options: { id: string; text_md: string }[];
-      answer: string[];
+      /** Not shipped by the server: answer/explain_md come back from POST /quiz/answers. */
+      answer?: string[];
       multi?: boolean;
-      explain_md: string;
+      explain_md?: string;
     }
   | {
       id: string;
       type: "quiz_fill";
       graded?: boolean;
       prompt_md: string;
-      blanks: { accept: string[]; regex?: string }[];
-      explain_md: string;
+      blanks: { index?: number }[];
+      explain_md?: string;
     }
   | {
       id: string;
       type: "predict_output";
       graded?: boolean;
       code: string;
-      expected_output: string;
-      explain_md: string;
+      expected_output?: string;
+      explain_md?: string;
     }
   | {
       id: string;
@@ -168,6 +179,11 @@ export type LessonBlock =
   | { id: string; type: "problem_ref"; problem_id: string }
   | { id: string; type: "summary"; bullets_vi: string[] };
 
+export interface KnownAnswer {
+  correct: boolean;
+  answer?: unknown;
+}
+
 export interface Lesson {
   id: string;
   title_vi: string;
@@ -178,14 +194,19 @@ export interface Lesson {
   checkpoint: { pass_ratio: number; min_items: number };
   status?: string;
   run_no: number;
-  /** Optional server-side state: answers already given in the current run. */
-  answers: Record<string, { correct: boolean; answer?: unknown }>;
+  /** From `progress.answers` (current run): first-attempt correctness and last answer. */
+  answers: Record<string, KnownAnswer>;
   completed: boolean;
 }
 
 export function normalizeLesson(data: unknown): Lesson {
   const root = ((data as Loose).lesson ?? data) as Loose;
-  const state = (root.state ?? data) as Loose;
+  const progress = (root.progress ?? {}) as Loose;
+  const raw = (progress.answers ?? {}) as Record<string, Loose>;
+  const answers: Lesson["answers"] = {};
+  for (const [id, a] of Object.entries(raw)) {
+    answers[id] = { correct: Boolean(a.first_correct ?? a.last_correct), answer: a.last_answer };
+  }
   return {
     id: String(root.id),
     title_vi: String(root.title_vi ?? root.id),
@@ -195,48 +216,50 @@ export function normalizeLesson(data: unknown): Lesson {
     problems: (root.problems as Lesson["problems"]) ?? { practice: [], extra: [] },
     checkpoint: (root.checkpoint as Lesson["checkpoint"]) ?? { pass_ratio: 0.7, min_items: 3 },
     status: root.status as string | undefined,
-    run_no: Number(state.run_no ?? root.run_no ?? 1),
-    answers: (state.answers as Lesson["answers"]) ?? {},
-    completed: Boolean(state.completed ?? root.completed ?? false),
+    run_no: Number(progress.run_no ?? 1),
+    answers,
+    completed: Boolean(progress.lesson_done ?? false),
   };
 }
 
-/** GET /api/lessons/{subtopic_id} -> lesson (blocks without code_exercise.solution) [+ run_no, answers, completed] */
+/** GET /api/lessons/{subtopic_id} -> lesson YAML as JSON (no quiz answers/explanations, no exercise solution) + progress{run_no, answers, lesson_done} */
 export async function getLesson(subtopicId: string): Promise<Lesson> {
   return normalizeLesson(await request<unknown>(`/lessons/${enc(subtopicId)}`));
 }
 
 export interface QuizAnswerBody {
-  subtopic_id: string;
-  block_id: string;
+  /** `<subtopic_id>#<block_id>` */
+  quiz_item_id: string;
   run_no: number;
   answer: unknown;
-  correct: boolean;
   occurred_at: string;
 }
 export interface QuizAnswerResult {
-  correct?: boolean;
+  correct: boolean;
   explain_md?: string;
+  correct_answer?: unknown;
+  first_attempt?: boolean;
+  graded?: boolean;
+  quiz_best?: number;
 }
 
-/** POST /api/quiz/answers {subtopic_id, block_id, run_no, answer, correct, occurred_at} -> {correct, explain_md} */
+/** POST /api/quiz/answers {quiz_item_id, run_no, answer, occurred_at} -> {correct, explain_md, correct_answer, first_attempt, quiz_best}. Grading is server-side. */
 export function postQuizAnswer(body: QuizAnswerBody, key?: string): Promise<QuizAnswerResult> {
   return request("/quiz/answers", { method: "POST", body, idempotencyKey: key });
 }
 
 export interface LessonCompleteResult {
   quiz_best?: number;
-  passed?: boolean;
+  quiz_passed?: boolean;
   score?: number;
-  wrong_blocks?: string[];
-  review_card_created?: boolean;
+  review_card?: { box: number; due_on: string } | null;
   [key: string]: unknown;
 }
 
-/** POST /api/lessons/{id}/complete {run_no, occurred_at} -> {quiz_best, score, passed?, wrong_blocks?} */
+/** POST /api/lessons/{id}/complete {occurred_at} -> {lesson_done, quiz_best, quiz_passed, score, review_card} */
 export function completeLesson(
   subtopicId: string,
-  body: { run_no: number; occurred_at: string },
+  body: { occurred_at: string },
   key?: string,
 ): Promise<LessonCompleteResult> {
   return request(`/lessons/${enc(subtopicId)}/complete`, {
@@ -281,7 +304,6 @@ export interface Problem {
   sample_tests: TestCase[];
   hints_opened: string[];
   hints_total: number;
-  draft: DraftPayload | null;
   status?: string;
   solved: boolean;
 }
@@ -291,8 +313,8 @@ export function normalizeProblem(data: unknown): Problem {
   const starter = root.starter as string | { python?: string } | undefined;
   const limits = (root.limits as Problem["limits"]) ?? { time_ms: 1000, memory_mb: 256 };
   const tests = root.tests as { sample?: TestCase[] } | undefined;
-  const opened = (root.hints_opened ?? root.hints_shown ?? []) as string[];
-  const hintsTotal = Number(root.hints_total ?? (root.hints as unknown[] | undefined)?.length ?? 3);
+  const opened = (root.hints as string[] | undefined) ?? [];
+  const hintsTotal = Number(root.hint_count ?? 3);
   return {
     id: String(root.id),
     subtopic_id: String(root.subtopic_id ?? ""),
@@ -310,9 +332,8 @@ export function normalizeProblem(data: unknown): Problem {
     sample_tests: ((root.sample_tests ?? root.samples ?? tests?.sample ?? []) as TestCase[]) ?? [],
     hints_opened: opened,
     hints_total: hintsTotal,
-    draft: (root.draft as DraftPayload | null | undefined) ?? null,
     status: root.status as string | undefined,
-    solved: Boolean(root.solved ?? root.accepted ?? false),
+    solved: root.status === "solved" || Boolean(root.solved),
   };
 }
 
@@ -322,23 +343,24 @@ function pyodideMultiplier(limits: unknown): { time_multiplier?: number } {
   return multiplier?.pyodide ? { time_multiplier: multiplier.pyodide } : {};
 }
 
-/** GET /api/problems/{id} -> problem (statement, io, starter, sample_tests, limits, hints_opened[], draft?) */
+/** GET /api/problems/{id} -> public problem + sample_tests, hint_count, hints (opened only), status */
 export async function getProblem(id: string): Promise<Problem> {
   return normalizeProblem(await request<unknown>(`/problems/${enc(id)}`));
 }
 
-/** POST /api/problems/{id}/start-submit {} -> {token} ; GET /api/problems/{id}/tests/hidden?token= -> tests[] */
+/** POST /api/problems/{id}/start-submit {} -> {token}; GET /api/problems/{id}/tests/hidden (X-Submit-Token) -> {tests[]} */
 export async function getHiddenTests(id: string): Promise<TestCase[]> {
   const start = await request<{ token?: string }>(`/problems/${enc(id)}/start-submit`, {
     method: "POST",
     body: {},
   });
-  const query = start.token ? `?token=${enc(start.token)}` : "";
-  const data = await request<unknown>(`/problems/${enc(id)}/tests/hidden${query}`);
+  const data = await request<unknown>(`/problems/${enc(id)}/tests/hidden`, {
+    headers: start.token ? { "X-Submit-Token": start.token } : undefined,
+  });
   return asArray(data, ["tests", "items", "hidden"]) as TestCase[];
 }
 
-/** POST /api/problems/{id}/hints {} -> {level, hint, hints_used} */
+/** POST /api/problems/{id}/hints {} -> {hints_used, hint|null, hints[], exhausted} */
 export async function openHint(
   id: string,
   key?: string,
@@ -349,8 +371,8 @@ export async function openHint(
     idempotencyKey: key,
   });
   return {
-    level: Number(data.level ?? data.hints_used ?? 1),
-    hint: String(data.hint ?? data.text ?? ""),
+    level: Number(data.hints_used ?? 1),
+    hint: String(data.hint ?? ""),
     hints_used: data.hints_used as number | undefined,
   };
 }
@@ -375,28 +397,39 @@ export async function getSolution(id: string): Promise<Solution> {
 export interface AttemptBody {
   problem_id: string;
   mode: "run" | "submit";
+  language: "python";
   code: string;
   verdict: string;
   passed: number;
   total: number;
-  first_failed?: string | null;
   elapsed_ms: number;
-  run_ms?: number;
+  runtime_ms?: number;
   occurred_at: string;
 }
 export interface AttemptResult {
+  ac?: boolean;
   clean?: boolean;
-  score?: number;
-  accepted?: boolean;
+  score?: { before: number; after: number } | null;
   [key: string]: unknown;
 }
 
-/** POST /api/attempts {problem_id, mode, code, verdict, passed, total, first_failed, elapsed_ms, run_ms, occurred_at} -> {clean?, score?, ...} */
+/** POST /api/attempts {problem_id, mode, language, code, verdict, passed, total, elapsed_ms, runtime_ms, occurred_at} -> 201 {attempt_id, ac, clean, score{before,after,...}|null} */
 export function postAttempt(body: AttemptBody, key?: string): Promise<AttemptResult> {
   return request("/attempts", { method: "POST", body, idempotencyKey: key });
 }
 
-/** PUT /api/drafts/{problem_id} {code, base_rev: null, updated_at, cursor, elapsed_ms} -> {rev?, updated_at?} */
+interface WireCursor {
+  line: number;
+  ch: number;
+  offset: number;
+}
+
+function toWireCursor(code: string, offset = 0): WireCursor {
+  const before = code.slice(0, offset).split("\n");
+  return { line: before.length - 1, ch: before[before.length - 1].length, offset };
+}
+
+/** PUT /api/drafts/{problem_id} {code, language, updated_at, cursor{line,ch,offset}, elapsed_ms} -> {accepted, draft} (newer updated_at wins) */
 export function putDraft(
   problemId: string,
   draft: DraftPayload,
@@ -404,9 +437,29 @@ export function putDraft(
 ): Promise<unknown> {
   return request(`/drafts/${enc(problemId)}`, {
     method: "PUT",
-    body: { ...draft, base_rev: null },
+    body: {
+      code: draft.code,
+      language: "python",
+      updated_at: draft.updated_at,
+      cursor: toWireCursor(draft.code, draft.cursor),
+      elapsed_ms: draft.elapsed_ms,
+    },
     keepalive: options.keepalive,
   });
+}
+
+/** GET /api/drafts/{problem_id}?language=python -> {draft: {code, updated_at, cursor, elapsed_ms, rev} | null} */
+export async function getDraft(problemId: string): Promise<DraftPayload | null> {
+  const data = await request<{ draft?: Loose | null }>(`/drafts/${enc(problemId)}?language=python`);
+  const d = data.draft;
+  if (!d) return null;
+  const cursor = d.cursor as Partial<WireCursor> | number | null | undefined;
+  return {
+    code: String(d.code ?? ""),
+    updated_at: String(d.updated_at),
+    cursor: typeof cursor === "number" ? cursor : cursor?.offset,
+    elapsed_ms: d.elapsed_ms as number | undefined,
+  };
 }
 
 // ---------------------------------------------------------------- resume
@@ -419,7 +472,7 @@ export interface ResumeState {
   updated_at: string;
 }
 
-/** PUT /api/resume {mode, route, ref, context, updated_at} -> 204/{} */
+/** PUT /api/resume {mode, route, ref, context, updated_at} -> {ok:true} (POST same body for sendBeacon) */
 export function putResume(state: ResumeState, options: { keepalive?: boolean } = {}): Promise<unknown> {
   return request("/resume", { method: "PUT", body: state, keepalive: options.keepalive });
 }

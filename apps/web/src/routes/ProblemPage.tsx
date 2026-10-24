@@ -8,6 +8,7 @@ import { TestResultPanel, type PanelState } from "../components/TestResultPanel"
 import { useToast } from "../components/Toast";
 import {
   ApiError,
+  getDraft,
   getHiddenTests,
   getProblem,
   getSolution,
@@ -92,7 +93,10 @@ function ProblemView({ problem }: { problem: Problem }) {
   // Load: IndexedDB vs server, newest updated_at wins.
   useEffect(() => {
     let alive = true;
-    controller.load(problem.draft).then((draft) => {
+    getDraft(problem.id)
+      .catch(() => null)
+      .then((remote) => controller.load(remote))
+      .then((draft) => {
       if (!alive) return;
       elapsedRef.current = draft?.elapsed_ms ?? 0;
       setElapsed(elapsedRef.current);
@@ -182,17 +186,16 @@ function ProblemView({ problem }: { problem: Problem }) {
       });
       setPanel(buildPanel(kind, tests, result.results, options, false, result));
       if (kind === "submit" && result.verdict === "AC") setSolved(true);
-      const firstFailed = result.results.find((r) => r.verdict !== "AC");
       postAttempt({
         problem_id: problem.id,
         mode: kind,
+        language: "python",
         code: source,
         verdict: result.verdict,
         passed: result.passed,
         total: result.total,
-        first_failed: firstFailed ? (firstFailed.id ?? "compile") : null,
         elapsed_ms: elapsedRef.current,
-        run_ms: result.elapsed_ms,
+        runtime_ms: result.elapsed_ms,
         occurred_at: nowIso(),
       }).catch(() => notify("Chưa lưu được kết quả lên server", { kind: "error" }));
     } catch (error) {

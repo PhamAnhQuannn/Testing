@@ -170,7 +170,7 @@ function LessonView({ lesson }: { lesson: Lesson }) {
   const ctx: BlockContext = {
     subtopicId: lesson.id,
     runNo,
-    known: Object.fromEntries(Object.entries(lesson.answers).map(([id, a]) => [id, { correct: a.correct }])),
+    known: runNo === lesson.run_no ? lesson.answers : {},
     onAnswered,
     activeExercise: active,
     doneExercises: done,
@@ -189,7 +189,7 @@ function LessonView({ lesson }: { lesson: Lesson }) {
     try {
       const result = await completeLesson(
         lesson.id,
-        { run_no: runNo, occurred_at: nowIso() },
+        { occurred_at: nowIso() },
         completeKey.current,
       );
       setOutcome(result);
@@ -219,8 +219,8 @@ function LessonView({ lesson }: { lesson: Lesson }) {
   };
 
   const quizBest = outcome?.quiz_best ?? stats.ratio;
-  const passed = outcome ? (outcome.passed ?? quizBest >= passRatio) : false;
-  const wrongBlocks = (outcome?.wrong_blocks as string[] | undefined) ?? stats.wrong;
+  const passed = outcome ? (outcome.quiz_passed ?? quizBest >= passRatio) : false;
+  const wrongBlocks = stats.wrong;
 
   const left = (
     <>

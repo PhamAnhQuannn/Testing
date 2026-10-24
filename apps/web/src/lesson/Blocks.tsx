@@ -3,9 +3,8 @@ import { CodeEditor } from "../components/CodeEditor";
 import { Markdown } from "../components/Markdown";
 import { useToast } from "../components/Toast";
 import { Link } from "react-router-dom";
-import { nowIso, postQuizAnswer, type LessonBlock } from "../lib/api";
+import { nowIso, postQuizAnswer, type KnownAnswer, type LessonBlock } from "../lib/api";
 import { DraftController, type Draft } from "../lib/draftStore";
-import { gradeFill, gradeMcq, gradePredict } from "../lib/grade";
 import { useRunnerState } from "../lib/hooks";
 import { idbStore } from "../lib/idb";
 import { getRunner } from "../runner";
@@ -15,7 +14,7 @@ export interface BlockContext {
   subtopicId: string;
   runNo: number;
   /** Server-known answers for the current run (reload keeps them). */
-  known: Record<string, { correct: boolean }>;
+  known: Record<string, KnownAnswer>;
   onAnswered: (blockId: string, correct: boolean) => void;
   activeExercise: string | null;
   doneExercises: Set<string>;
@@ -183,7 +182,12 @@ function CodeSample({ block, ctx }: { block: Of<"code_sample">; ctx: BlockContex
 
 // ------------------------------------------------------------------ quizzes
 
-type Answered = { correct: boolean; known?: boolean };
+interface Answered {
+  correct: boolean;
+  explain?: string;
+  correctAnswer?: unknown;
+  known?: boolean;
+}
 
 function useQuizInflight<T>(ctx: BlockContext, blockId: string, initial: T) {
   const store = useMemo(() => idbStore<T>("quiz_inflight"), []);
@@ -206,59 +210,68 @@ function useQuizInflight<T>(ctx: BlockContext, blockId: string, initial: T) {
   return [value, update, clear] as const;
 }
 
-function useAnswerSubmit(ctx: BlockContext, blockId: string) {
+/** Grading is server-side (the lesson JSON carries no answers): POST /quiz/answers. */
+function useQuizSubmit(ctx: BlockContext, blockId: string, clear: () => void) {
   const notify = useToast();
-  return useCallback(
-    (answer: unknown, correct: boolean) => {
-      ctx.onAnswered(blockId, correct);
-      const body = {
-        subtopic_id: ctx.subtopicId,
-        block_id: blockId,
+  const [busy, setBusy] = useState(false);
+  const [answered, setAnswered] = useState<Answered | null>(() => {
+    const known = ctx.known[blockId];
+    return known ? { correct: known.correct, known: true } : null;
+  });
+  const submit = async (answer: unknown) => {
+    setBusy(true);
+    try {
+      const result = await postQuizAnswer({
+        quiz_item_id: `${ctx.subtopicId}#${blockId}`,
         run_no: ctx.runNo,
         answer,
-        correct,
         occurred_at: nowIso(),
-      };
-      const key = crypto.randomUUID();
-      const send = () =>
-        postQuizAnswer(body, key).catch(() =>
-          notify("Chưa lưu được câu trả lời", { kind: "error", action: { label: "Thử lại", run: () => void send() } }),
-        );
-      void send();
-    },
-    [ctx, blockId, notify],
-  );
+      });
+      setAnswered({
+        correct: result.correct,
+        explain: result.explain_md,
+        correctAnswer: result.correct_answer,
+      });
+      clear();
+      // only the first answer per block per run counts toward quiz_best
+      if (result.first_attempt !== false) ctx.onAnswered(blockId, result.correct);
+    } catch (error) {
+      notify(`Chưa chấm được (cần server): ${(error as Error).message}`, { kind: "error" });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return { answered, busy, submit };
 }
 
-function Feedback({ answered, explain }: { answered: Answered; explain: string }) {
+function Feedback({ answered }: { answered: Answered }) {
   return (
     <div className={`feedback ${answered.correct ? "ok" : "bad"}`} role="status">
       <strong>{answered.correct ? "✔ Đúng" : "✘ Chưa đúng"}</strong>
-      <Markdown md={explain} />
+      {answered.explain && <Markdown md={answered.explain} />}
     </div>
   );
 }
 
 function QuizMcq({ block, ctx }: { block: Of<"quiz_mcq">; ctx: BlockContext }) {
-  const submit = useAnswerSubmit(ctx, block.id);
-  const known = ctx.known[block.id];
-  const [selected, setSelected, clear] = useQuizInflight<string[]>(ctx, block.id, []);
-  const [answered, setAnswered] = useState<Answered | null>(known ? { ...known, known: true } : null);
-  const multi = block.multi ?? block.answer.length > 1;
+  const known = ctx.known[block.id]?.answer;
+  const [selected, setSelected, clear] = useQuizInflight<string[]>(
+    ctx,
+    block.id,
+    Array.isArray(known) ? (known as string[]) : [],
+  );
+  const { answered, busy, submit } = useQuizSubmit(ctx, block.id, clear);
+  // `multi` is shipped; without it a single choice is assumed
+  const multi = Boolean(block.multi);
   const toggle = (id: string) =>
     setSelected(multi ? (selected.includes(id) ? selected.filter((s) => s !== id) : [...selected, id]) : [id]);
-  const check = () => {
-    const correct = gradeMcq(block, selected);
-    setAnswered({ correct });
-    clear();
-    submit(selected, correct);
-  };
+  const right = Array.isArray(answered?.correctAnswer) ? (answered.correctAnswer as string[]) : [];
   return (
-    <fieldset className="block-card" disabled={Boolean(answered)} style={{ border: undefined }}>
+    <fieldset className="block-card" disabled={Boolean(answered) || busy}>
       <legend>Quiz</legend>
       <Markdown md={block.prompt_md} />
       {block.options.map((option) => {
-        const state = answered && !answered.known ? (block.answer.includes(option.id) ? "right" : selected.includes(option.id) ? "wrong" : "") : "";
+        const state = answered && right.length ? (right.includes(option.id) ? "right" : selected.includes(option.id) ? "wrong" : "") : "";
         return (
           <label key={option.id} className={`option ${state}`}>
             <input
@@ -272,28 +285,25 @@ function QuizMcq({ block, ctx }: { block: Of<"quiz_mcq">; ctx: BlockContext }) {
         );
       })}
       {!answered && (
-        <button className="btn sm primary" disabled={selected.length === 0} onClick={check}>
-          Kiểm tra
+        <button className="btn sm primary" disabled={selected.length === 0 || busy} onClick={() => void submit(selected)}>
+          {busy ? "Đang chấm…" : "Kiểm tra"}
         </button>
       )}
-      {answered && <Feedback answered={answered} explain={block.explain_md} />}
+      {answered && <Feedback answered={answered} />}
     </fieldset>
   );
 }
 
 function QuizFill({ block, ctx }: { block: Of<"quiz_fill">; ctx: BlockContext }) {
-  const submit = useAnswerSubmit(ctx, block.id);
-  const known = ctx.known[block.id];
-  const [values, setValues, clear] = useQuizInflight<string[]>(ctx, block.id, block.blanks.map(() => ""));
-  const [answered, setAnswered] = useState<Answered | null>(known ? { ...known, known: true } : null);
-  const check = () => {
-    const correct = gradeFill(block, values);
-    setAnswered({ correct });
-    clear();
-    submit(values, correct);
-  };
+  const known = ctx.known[block.id]?.answer;
+  const [values, setValues, clear] = useQuizInflight<string[]>(
+    ctx,
+    block.id,
+    Array.isArray(known) ? (known as string[]) : block.blanks.map(() => ""),
+  );
+  const { answered, busy, submit } = useQuizSubmit(ctx, block.id, clear);
   return (
-    <fieldset className="block-card" disabled={Boolean(answered)}>
+    <fieldset className="block-card" disabled={Boolean(answered) || busy}>
       <legend>Điền vào chỗ trống</legend>
       <Markdown md={block.prompt_md} />
       {block.blanks.map((_, i) => (
@@ -302,57 +312,56 @@ function QuizFill({ block, ctx }: { block: Of<"quiz_fill">; ctx: BlockContext })
           <input
             className="text-input"
             value={values[i] ?? ""}
-            onChange={(e) => setValues(values.map((v, j) => (j === i ? e.target.value : v)))}
-            onKeyDown={(e) => e.key === "Enter" && !answered && check()}
+            onChange={(e) => setValues(block.blanks.map((_b, j) => (j === i ? e.target.value : (values[j] ?? ""))))}
+            onKeyDown={(e) => e.key === "Enter" && !answered && void submit(values)}
             autoComplete="off"
             spellCheck={false}
           />
         </label>
       ))}
       {!answered && (
-        <button className="btn sm primary" onClick={check} disabled={values.every((v) => !v.trim())}>
-          Kiểm tra
+        <button className="btn sm primary" onClick={() => void submit(values)} disabled={busy || values.every((v) => !v.trim())}>
+          {busy ? "Đang chấm…" : "Kiểm tra"}
         </button>
       )}
-      {answered && <Feedback answered={answered} explain={block.explain_md} />}
+      {answered && (
+        <>
+          {Array.isArray(answered.correctAnswer) && (
+            <div className="status-line">Đáp án: {(answered.correctAnswer as string[]).join(", ")}</div>
+          )}
+          <Feedback answered={answered} />
+        </>
+      )}
     </fieldset>
   );
 }
 
 function PredictOutput({ block, ctx }: { block: Of<"predict_output">; ctx: BlockContext }) {
-  const submit = useAnswerSubmit(ctx, block.id);
-  const known = ctx.known[block.id];
-  const [typed, setTyped, clear] = useQuizInflight<string>(ctx, block.id, "");
-  const [answered, setAnswered] = useState<Answered | null>(known ? { ...known, known: true } : null);
-  const check = () => {
-    const correct = gradePredict(block, typed);
-    setAnswered({ correct });
-    clear();
-    submit(typed, correct);
-  };
+  const known = ctx.known[block.id]?.answer;
+  const [typed, setTyped, clear] = useQuizInflight<string>(ctx, block.id, typeof known === "string" ? known : "");
+  const { answered, busy, submit } = useQuizSubmit(ctx, block.id, clear);
   return (
-    <fieldset className="block-card" disabled={Boolean(answered)}>
+    <fieldset className="block-card" disabled={Boolean(answered) || busy}>
       <legend>Đoán output</legend>
       <pre className="output">{block.code}</pre>
       <label>
         <span className="muted">Output của đoạn code trên:</span>
-        <textarea
-          className="text-input"
-          value={typed}
-          onChange={(e) => setTyped(e.target.value)}
-          spellCheck={false}
-        />
+        <textarea className="text-input" value={typed} onChange={(e) => setTyped(e.target.value)} spellCheck={false} />
       </label>
       {!answered && (
-        <button className="btn sm primary" onClick={check} disabled={!typed.trim()}>
-          Kiểm tra
+        <button className="btn sm primary" onClick={() => void submit(typed)} disabled={!typed.trim() || busy}>
+          {busy ? "Đang chấm…" : "Kiểm tra"}
         </button>
       )}
       {answered && (
         <>
-          <div className="status-line">Output thật:</div>
-          <pre className="output">{block.expected_output}</pre>
-          <Feedback answered={answered} explain={block.explain_md} />
+          {typeof answered.correctAnswer === "string" && (
+            <>
+              <div className="status-line">Output thật:</div>
+              <pre className="output">{answered.correctAnswer}</pre>
+            </>
+          )}
+          <Feedback answered={answered} />
         </>
       )}
     </fieldset>
