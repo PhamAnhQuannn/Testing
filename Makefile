@@ -1,4 +1,4 @@
-.PHONY: install lint test validate validate-public web-build ci sync-tree stubs dev-api backup
+.PHONY: install lint test validate validate-public web-build web-e2e ci sync-tree stubs dev-api backup
 
 WEB := apps/web
 
@@ -17,6 +17,7 @@ lint:
 
 test:
 	uv run pytest
+	cd $(WEB) && npm test
 
 # Native checks plus the stress tests under Pyodide in Node (tools/pyodide-node).
 validate:
@@ -27,8 +28,13 @@ validate:
 validate-public:
 	uv run python tools/validate_content.py --pyodide --public
 
+# Fetches the pinned, self-hosted Pyodide into apps/web/public/pyodide first (npm run build).
 web-build:
 	cd $(WEB) && npm run build
+
+# Real-browser smoke test (Chromium + Pyodide, API mocked); not part of `make ci`.
+web-e2e: web-build
+	cd $(WEB) && npm run e2e
 
 # Refresh content/index/ from the source data, e.g.
 #   make sync-tree TREE=/path/skill_tree.json PLAN=/path/plan.json
