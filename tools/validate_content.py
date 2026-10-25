@@ -4,7 +4,9 @@
 
 Checks: JSON Schemas, ids and prerequisites, lesson code blocks (outputs, exercises, runnable
 samples), lesson/problem/mastery-check references, at least 3 graded blocks per non-draft lesson,
-and every per-problem check (generated hidden tests, reference solution, brute-force cross-check,
+a level-2 write_code check item for every non-draft lesson (content/checks, which tools/
+convert_checks.py builds from the assessment plus content/checks_extra), and every
+per-problem check (generated hidden tests, reference solution, brute-force cross-check,
 wrong and slow solutions, time limits, starter code).
 
 Options:
@@ -29,7 +31,7 @@ from run_problem import engine_limit_ms, load_tests, run_native, run_pyodide
 
 SOLUTION_TIME_SHARE = 0.3  # solution.py must use at most this share of limits.time_ms
 SLOW_TIME_FACTOR = 3  # slow/*.py must still be running after this many times limits.time_ms
-MIN_SAMPLES = 3
+MIN_SAMPLES = {"practice": 3, "check": 1, "mock": 3}  # SPEC 3.4: a check has 1 sample
 MIN_HIDDEN = {"practice": 8, "check": 5, "mock": 8}
 MAX_HIDDEN_BYTES = 1_000_000
 CROSS_CHECK_CASES = 200
@@ -196,8 +198,11 @@ class Validator:
                         path,
                         f"mastery_check {level}: {item_id} has difficulty {item['difficulty']}",
                     )
-        needs_l2 = lesson["id"] in NEEDS_L2_WRITE_CODE and lesson["status"] != "draft"
-        if needs_l2 and not any(
+        if lesson["status"] == "draft":
+            return
+        if not any(i["difficulty"] == 2 and i["type"] == "write_code" for i in items.values()):
+            self.fail(path, "needs a level-2 write_code item in content/checks (SPEC 3.4/4.4)")
+        if lesson["id"] in NEEDS_L2_WRITE_CODE and not any(
             items.get(i, {}).get("type") == "write_code" for i in lesson["mastery_check"]["l2"]
         ):
             self.fail(path, "needs a level-2 write_code item in mastery_check.l2 (SPEC 3.4)")
@@ -228,6 +233,21 @@ class Validator:
                     self.fail(
                         path, f"{item['id']}: problem {item['problem_id']} must be kind check"
                     )
+
+    def check_extra_files(self, subtopic_ids: set[str]) -> None:
+        """content/checks_extra/<id>.yaml holds author-added items; convert_checks.py merges them
+        into content/checks/<id>.yaml, so each must appear there unchanged."""
+        for path in sorted((self.content / "checks_extra").glob("*.yaml")):
+            data = load_yaml(path)
+            if not self.check_schema(path, data, "check"):
+                continue
+            if data["subtopic_id"] != path.stem or path.stem not in subtopic_ids:
+                self.fail(path, "file must be checks_extra/<subtopic_id>.yaml for a known subtopic")
+                continue
+            merged = self.checks.get(data["subtopic_id"], {})
+            for item in data["items"]:
+                if merged.get(item["id"]) != item:
+                    self.fail(path, f"item {item['id']} is not merged: run tools/convert_checks.py")
 
     # --- problems ----------------------------------------------------------------------------
 
@@ -298,7 +318,7 @@ class Validator:
             ids += [row.get("id") for row in rows]
             for row in rows:
                 ok &= self.check_schema(paths[name], row, "problem", "test_case")
-            floor = MIN_SAMPLES if name == "sample" else MIN_HIDDEN[problem["kind"]]
+            floor = (MIN_SAMPLES if name == "sample" else MIN_HIDDEN)[problem["kind"]]
             if len(rows) < floor:
                 self.fail(directory, f"{name} has {len(rows)} tests, needs at least {floor}")
             if name == "hidden" and not any("edge" in row.get("tags", []) for row in rows):
@@ -431,6 +451,7 @@ class Validator:
         subtopics = self.check_index()
         problem_ids = {p.name for p in self.problem_dirs()}
         self.check_check_files({s["id"] for s in subtopics})
+        self.check_extra_files({s["id"] for s in subtopics})
         return {
             "lessons": self.check_lessons(subtopics, problem_ids),
             "problems": self.check_problems(subtopics),

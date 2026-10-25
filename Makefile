@@ -1,4 +1,4 @@
-.PHONY: install lint test validate validate-public web-build web-e2e e2e ci sync-tree stubs dev-api backup
+.PHONY: install lint test validate validate-public web-build web-e2e e2e ci sync-tree stubs checks dev-api backup
 
 WEB := apps/web
 
@@ -50,6 +50,11 @@ sync-tree:
 # Create draft lesson stubs for subtopics that have no lesson file yet.
 stubs:
 	uv run python tools/gen_lesson_stubs.py
+
+# Mastery checks: source/assessment.json (+ content/checks_extra) -> content/checks/*.yaml and the
+# `kind: check` problems (content/problems/<subtopic>/check-<item>/). Generated; idempotent.
+checks:
+	uv run python tools/convert_checks.py
 
 # API on 127.0.0.1:8000 with the draft lessons/problems served too (dev). Data in ./data/app.db.
 dev-api:

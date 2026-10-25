@@ -173,6 +173,35 @@ def missing_level2_write_code(fx):
     patch_yaml(fx / LESSON, lambda lesson: lesson["mastery_check"].update(l2=[]))
 
 
+def no_level2_write_code_in_checks(fx):
+    """The lesson lists no l2 item and the checks hold none either (SPEC 3.4/4.4)."""
+
+    def drop_l2(checks):
+        checks["items"] = [i for i in checks["items"] if i["id"] != "Q902"]
+
+    patch_yaml(fx / CHECKS, drop_l2)
+    patch_yaml(fx / LESSON, lambda lesson: lesson["mastery_check"].update(l2=[]))
+
+
+def check_problem_has_four_hidden_tests(fx):
+    hidden = fx / CHECK_PROBLEM / "tests/hidden.jsonl"
+    hidden.write_text("".join(hidden.read_text().splitlines(keepends=True)[:4]))
+
+
+def extra_item_not_merged(fx):
+    extra = {"id": "X001", "difficulty": 1, "type": "concept", "minutes": 2}
+    extra |= {"prompt_md": "Giải thích.", "answer_md": "Đáp án."}
+    (fx / "checks_extra").mkdir()
+    (fx / "checks_extra" / f"{SUB}.yaml").write_text(
+        dump_yaml({"subtopic_id": SUB, "items": [extra]}), encoding="utf-8"
+    )
+
+
+def extra_file_misnamed(fx):
+    extra_item_not_merged(fx)
+    (fx / "checks_extra" / f"{SUB}.yaml").rename(fx / "checks_extra" / f"{OTHER}.yaml")
+
+
 def check_item_unknown_problem(fx):
     edit(fx / CHECKS, "problem_id: triple-it", "problem_id: nope")
 
@@ -346,6 +375,16 @@ CASES = {
     "mastery_check item is unknown": ("unknown item Q999", mastery_unknown_item),
     "mastery_check level mismatch": ("Q902 has difficulty 2", mastery_wrong_level),
     "level-2 write_code item missing": ("level-2 write_code", missing_level2_write_code),
+    "no level-2 write_code item in the checks": (
+        "needs a level-2 write_code item in content/checks",
+        no_level2_write_code_in_checks,
+    ),
+    "check problem with 4 hidden tests": (
+        "hidden has 4 tests",
+        check_problem_has_four_hidden_tests,
+    ),
+    "extra check item not merged": ("not merged", extra_item_not_merged),
+    "extra checks file misnamed": ("checks_extra/<subtopic_id>.yaml", extra_file_misnamed),
     "write_code item, unknown problem": ("unknown problem nope", check_item_unknown_problem),
     "write_code item, not a check problem": ("must be kind check", check_item_problem_not_a_check),
     "check item ids repeat": ("also appears in", duplicate_check_item_ids),
@@ -389,6 +428,27 @@ SLOW_CASES = {
 
 def test_good_fixture_is_clean(fx):
     assert errors_of(fx, keep_slow=True) == []
+
+
+def test_check_problem_needs_only_one_sample(fx):
+    sample = fx / CHECK_PROBLEM / "tests/sample.jsonl"
+    sample.write_text(sample.read_text().splitlines(keepends=True)[0])
+    assert errors_of(fx) == []
+
+
+def test_merged_extra_item_is_accepted(fx):
+    item = load_yaml(fx / CHECKS)["items"][0]
+    (fx / "checks_extra").mkdir()
+    (fx / "checks_extra" / f"{SUB}.yaml").write_text(
+        dump_yaml({"subtopic_id": SUB, "items": [item]}), encoding="utf-8"
+    )
+    assert errors_of(fx) == []
+
+
+def test_draft_lesson_needs_no_level2_write_code(fx):
+    patch_yaml(fx / CHECKS, lambda checks: checks.update(items=checks["items"][:1]))
+    patch_yaml(fx / LESSON, lambda lesson: lesson.update(status="draft"))
+    assert not any("level-2 write_code" in e for e in errors_of(fx))
 
 
 @pytest.mark.parametrize(("expected", "break_it"), CASES.values(), ids=CASES.keys())
