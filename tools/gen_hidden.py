@@ -2,7 +2,8 @@
 
     uv run python tools/gen_hidden.py content/problems/<subtopic>/<slug>
 
-gen.py exports `hidden_inputs()` (dicts with id, args and tags) and `small_inputs(seed, n)`
+gen.py exports `hidden_inputs()` (dicts with id, args, tags and, for class_ops mode, ops) and
+`small_inputs(seed, n)`
 (argument lists of at most 12 elements, used by the brute-force cross-check). It is deterministic,
 so regenerating must reproduce the committed hidden.jsonl.
 """
@@ -35,9 +36,14 @@ def generate_hidden(problem_dir: Path) -> list[dict]:
     if failures or len(run["results"]) != len(inputs):
         raise RuntimeError(f"reference solution failed while generating: {failures}")
     return [
-        {"id": t["id"], "args": t["args"], "expected": r["got"], "tags": t["tags"]}
+        {"id": t["id"], **extra_keys(t), "args": t["args"], "expected": r["got"], "tags": t["tags"]}
         for t, r in zip(inputs, run["results"], strict=True)
     ]
+
+
+def extra_keys(test: dict) -> dict:
+    """`ops` (class_ops mode) and `stdin` belong to the test, so they must reach hidden.jsonl."""
+    return {key: test[key] for key in ("ops", "stdin") if key in test}
 
 
 def main() -> None:
