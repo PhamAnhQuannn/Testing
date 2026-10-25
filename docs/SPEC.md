@@ -654,7 +654,7 @@ skill_tree.json ─► tools/sync_tree.py ─► content/index/*.json (snapshot 
             ├─ mục có lesson đang validate phải có ≥ 1 item mastery check mức 2 loại write_code (9 mục ở 3.4); không chặn mục chưa soạn
             ├─ starter code chạy được và KHÔNG qua test (tránh đề lộ đáp án)
             ├─ code_exercise: solution qua test của nó
-            ├─ ≥ 3 sample, ≥ 8 hidden (practice) / ≥ 5 (check), có test biên rỗng/1 phần tử
+            ├─ sample ≥ 3 (practice/mock) / ≥ 1 (check, xem 3.4), hidden ≥ 8 (practice) / ≥ 5 (check), có test biên rỗng/1 phần tử
             └─ chặn nếu build `public` còn rewrite_required
                                               ▼   status: validated
         (3) Reviewer agent (instance khác, không thấy chat của author)
