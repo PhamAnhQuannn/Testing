@@ -43,8 +43,16 @@ content/       index/ (snapshot of the skill tree and plan, committed), lessons/
 tools/         content tooling, run with `uv run python tools/<name>.py`
                sync_tree.py, gen_lesson_stubs.py, gen_hidden.py, run_problem.py, validate_content.py
 data/          local SQLite data and backups (git-ignored)
-docs/          SPEC.md, UI_SPEC.md
+docs/          SPEC.md, UI_SPEC.md, API_M1.md, OVERVIEW.md, NEXT_M2A.md
 ```
+
+## Làm việc với VS Code + Claude Code
+
+Mở thư mục repo trong VS Code (chấp nhận extension gợi ý trong `.vscode/extensions.json`), chạy
+`make install` rồi `make ci`, sau đó mở Claude Code ở thư mục gốc: nó tự đọc [CLAUDE.md](CLAUDE.md)
+(quy tắc, lệnh, quy ước, gotchas). Việc tiếp theo (M2a) nằm trong
+[docs/NEXT_M2A.md](docs/NEXT_M2A.md), kèm checklist phiên đầu tiên và prompt gợi ý; tổng quan yêu
+cầu và hiện trạng ở [docs/OVERVIEW.md](docs/OVERVIEW.md).
 
 ## End-to-end check (real API)
 
