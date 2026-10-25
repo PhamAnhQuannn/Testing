@@ -1,0 +1,175 @@
+# CLAUDE.md - Prep App
+
+Guidance for Claude Code working in this repo. Read this first, then `docs/NEXT_M2A.md` (the task
+plan) and `docs/OVERVIEW.md` (requirements and status, Vietnamese).
+
+## Goal (5 lines)
+
+1. Personal learning app for Quan, in the style of Coddy / HackerRank: short lessons and code
+   problems side by side (split view), Python runs and is graded in the browser (Pyodide).
+2. Per-subtopic score 0-3, one-way prerequisite unlock, Leitner spaced review (D+1/3/7/14/28).
+3. Content comes from a 530-subtopic skill tree and a 30-day Meta intern/new-grad plan
+   (`source/`); the MVP is 40 subtopics (plan days 1-12).
+4. Single user (Quan) now; every progress table has `user_id` so multi-user can come later.
+5. Status: M0 and M1 are merged. **Current milestone: M2a** (plan days 1-3, 16 subtopics, plus
+   unlock, review loop, mastery check, onboarding, minimal placement). Plan: `docs/NEXT_M2A.md`.
+
+## Quan's standing rules
+
+- **Reply to Quan in Vietnamese** (code, commit messages, PR text and identifiers stay English;
+  UI text and lessons are Vietnamese with technical terms kept in English).
+- Self-paced learner: no daily quota, no "behind schedule" message, no streaks, no review-card
+  cap. The plan is only a suggested order (SPEC 5.5).
+- Single user for now. Do not build auth, public hosting or licensing. Keep `user_id` on every
+  progress table and go through `current_user()`.
+- **Scoring, unlock and Leitner rules live in `docs/SPEC.md` section 5.** Do not change their
+  behaviour without updating SPEC in the same PR (and say so in the PR description). They are pure
+  functions in `apps/api/app/services/` (`scoring.py`, `unlock.py`, `leitner.py`) tested with the
+  SPEC's worked examples. Score is always recomputed from events; `user_subtopic.score` is a cache.
+- Content is produced and checked by tools, not by hand:
+  - never hand-edit generated files: `content/index/*` (run `make sync-tree`), `tests/hidden.jsonl`
+    (run `tools/gen_hidden.py`), `content/checks/*` once `tools/convert_checks.py` exists;
+  - `expected` values always come from `solution.py`, never typed by an LLM;
+  - `source/` is an upstream snapshot: do not edit it (see `source/README.md`).
+- Problem statements may stay close to LeetCode (personal use) but keep `source.rewrite_required:
+  true`; `make validate-public` blocks a public bundle until they are rewritten.
+
+## Workflow
+
+- One branch per milestone task (`m2a/t2.3-unlock-map`), small PRs (see PR boundaries in
+  `docs/NEXT_M2A.md`). Never commit to `main` directly.
+- Push the branch and open a PR yourself. **Merge rule (Quan, 2026-10-24):** implementation by a
+  Sonnet subagent, then independent review by a stronger model, then `make ci` + `make e2e` (CI's
+  separate `e2e` job) green, then squash-merge without waiting for Quan (GitHub auto-merge is off;
+  use `gh pr merge --squash`). Ask Quan only when SPEC/scoring rules change or a decision is marked
+  "hỏi Quan".
+- Preferred agent split (Quan's rule): **implementation is done by subagents running Sonnet; an
+  independent review pass by a stronger model happens before merging.** In Claude Code: delegate
+  each task to a subagent with a precise brief (files, acceptance criteria, tests), then run a
+  separate reviewer subagent or `/code-review` that has not seen the author's reasoning, and fix its
+  findings before merge. Content authoring follows the same split (author, then independent
+  reviewer; SPEC 4.4).
+- Update `docs/SPEC.md` / `docs/API_M1.md` (rename or extend as `API_M2A.md` if it grows) when
+  behaviour changes. Keep README and OVERVIEW status lines honest.
+- Tests with every change: pytest for `tools/` and `apps/api/`, vitest for `apps/web`, validator
+  for content.
+
+## Repo map
+
+```
+CLAUDE.md                this file
+docs/SPEC.md             product + architecture + milestones (Vietnamese, v0.7). Source of truth
+docs/UI_SPEC.md          onboarding/placement flow, 13 screens S1-S13, persistence (v0.2)
+docs/API_M1.md           API as implemented in M1 + "Deviations from SPEC 6.4"
+docs/OVERVIEW.md         consolidated requirements, decisions, status (Vietnamese)
+docs/NEXT_M2A.md         ordered M2a task plan + first-session checklist
+source/                  upstream snapshot: skill_tree.json, plan.json/.md, assessment.json/.md
+content/index/           generated snapshot of tree + plan (make sync-tree). Do not hand-edit
+content/lessons/<sec>/   <subtopic_id>.yaml (40 files; 3 published, 37 draft stubs)
+content/problems/<subtopic_id>/<slug>/  problem.yaml, solution.py, brute.py, wrong/, slow/, tests/
+content/checks/          (new in M2a) <subtopic_id>.yaml mastery-check items
+content/schemas/         lesson / problem / check JSON Schemas
+tools/                   sync_tree, gen_lesson_stubs, gen_hidden, run_problem, validate_content,
+                         common.py, pyodide-node/ (Pyodide in Node), tests/
+apps/api/                FastAPI + SQLite (SQLAlchemy, Alembic). app/routers, app/services, tests/
+apps/web/                Vite + React 18 + TS. src/routes, components, lesson, lib, runner/
+apps/web/src/runner/pyodide/harness.py   the ONE test harness (see conventions)
+data/                    local SQLite + backups (git-ignored)
+```
+
+## Commands
+
+Prerequisites: [uv](https://docs.astral.sh/uv/) (fetches Python 3.12), Node >= 22.12 + npm.
+Docker Desktop only for `docker compose`.
+
+```sh
+make install        # uv sync --locked --all-packages; npm ci in apps/web and tools/pyodide-node
+make ci             # install + lint + test + validate + web-build  (what CI runs; keep green)
+make lint | test | validate | web-build     # single steps
+make e2e            # real stack (uvicorn + SQLite + Chromium/Pyodide); needs playwright via NODE_PATH
+make web-e2e        # browser smoke with mocked API
+make validate-public  # fails while a published problem has rewrite_required
+make dev-api        # API on 127.0.0.1:8000 with drafts served (data in ./data/app.db)
+cd apps/web && npm run dev    # Vite dev server, proxies /api to :8000 (run dev-api in another shell)
+docker compose up   # whole app on http://127.0.0.1:8080 (named volume app_data, ./backups)
+make sync-tree TREE=source/skill_tree.json PLAN=source/plan.json   # refresh content/index/
+make stubs          # draft lesson stubs for subtopics with no lesson file
+uv run pytest [path] ; cd apps/web && npm test
+```
+
+### Authoring a problem
+
+1. Create `content/problems/<subtopic_id>/<slug>/` with `problem.yaml` (copy
+   `content/problems/py.datastructs.dict/ransom-note/` as the model), `solution.py`, `brute.py`
+   (required for medium), `wrong/*.py` (1-3, each must fail a hidden test), optional `slow/*.py`
+   (must TLE), `tests/sample.jsonl` (3), `tests/gen.py` (exports `hidden_inputs()` and
+   `small_inputs(seed, n)`).
+2. `uv run python tools/gen_hidden.py content/problems/<subtopic_id>/<slug>` writes
+   `tests/hidden.jsonl` (expected comes from `solution.py`).
+3. `uv run python tools/run_problem.py <dir> [--solution wrong/x.py] [--engine pyodide]`.
+4. Reference the problem from the lesson (`problems:` and the lesson's blocks), set
+   `status: validated`, then `make validate` (runs schema, cross-checks, wrong/slow, limits, and
+   stress tests under Pyodide). Reviewer pass, then `status: published`.
+5. Lesson: edit `content/lessons/<sec>/<subtopic_id>.yaml` (model:
+   `py.datastructs.dict.yaml`, SPEC 3.5); at least 3 `graded` blocks.
+
+## Key conventions
+
+- **Result protocol**: `apps/web/src/runner/pyodide/harness.py` (+ `protocol.ts`) is shared by the
+  browser worker and `tools/run_problem.py`, so "passes the validator" and "passes in the app"
+  mean the same thing. Change it in one place, with tests in `tools/tests/test_harness.py` and
+  `PyodideRunner.test.ts`.
+- **Pyodide 0.29.5 is pinned in two places**: `apps/web/package.json` and
+  `tools/pyodide-node/package.json` (self-hosted by `apps/web/scripts/fetch-pyodide.mjs`). Bump both
+  together. CSP is `script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'` (`vite.config.ts`).
+- **API contract**: `docs/API_M1.md`. Base `/api`, errors `{"error": {"code", "message"}}`, times in
+  ISO 8601 UTC. Every state-changing POST/PUT sends `Idempotency-Key` (uuid); replays return the
+  stored response and write nothing. A 2xx means committed (WAL, `synchronous=FULL`).
+- **Schema changes go through Alembic** (`apps/api/migrations/`), never by editing tables ad hoc.
+  A backup is taken automatically before migrations.
+- **UI text is Vietnamese** (technical terms in English); problem statements are bilingual
+  (`statement_en_md` primary, `statement_vi_md` explanation). Colour is never the only channel.
+- Locks are not enforced by the server; `/map` reports `unlocked` / `lock_reasons` and the UI
+  disables editor/Submit for locked subtopics (preview mode, SPEC 5.3).
+- Python style: ruff, line length 100 (`ruff check` + `ruff format --check` are in CI).
+
+## Known M1 deviations (details: `docs/API_M1.md` "Deviations", unnumbered there; the D1-D8
+numbering is from `docs/OVERVIEW.md` 6.4)
+
+- **D1** `content/checks/` does not exist yet, so `mastery_check` is empty and a clean practice AC
+  already gives score 2. Ends when T2.2 lands. Caches are rebuilt from events at every boot.
+- **D2 (closed in M1)** `quiz_best` follows SPEC 5.1 (`scoring.quiz_best` keys by run_no / first
+  answer / min_items; tests in `apps/api/tests/test_scoring.py`). Only the 3 worked examples of
+  SPEC 5.2 are still missing as table tests (fold into A2 / T2.2b).
+- **D3** Server does not enforce locks (UI decides). Keep.
+- **D4** Not implemented: `PUT /profile`, placement, checks, review, `/next`, `/activity/ping`,
+  `/stats`, `/feedback`, `/export`, `/import`, `/reset`; `GET /me` always says placement `none`.
+- **D5** Additions over SPEC 6.4: `GET /drafts/{problem_id}`, `POST /resume`, `problem_state`,
+  `lesson_runs`, `check_results.item_type`; submit tokens live in memory (lost on restart).
+- **D6** No service worker, outbox replay or `draft_versions`/409 yet (M3, T3.5); newer
+  `updated_at` wins.
+- **D8** Review cards in box 3-5 on a device without an editor use recall items and do not count
+  for `retention_ok` (intentional).
+- Note: `services/leitner.py` and `services/unlock.py` already exist as pure functions from M1;
+  M2a wires them to routes, not rewrites them.
+
+## Gotchas
+
+- **Windows**: `tools/run_problem.py` watches its child with `select` on a pipe, which does not
+  work on Windows. Use WSL2 (open the repo from WSL in VS Code) for `make ci`/`make validate`.
+  Clone into the WSL filesystem (`~/`), NOT `/mnt/c`: the durability check refuses 9p, so
+  `make dev-api` fails there. In WSL: `sudo apt install make build-essential`; enable Docker
+  Desktop -> Settings -> Resources -> WSL integration.
+- **Data dir**: the SQLite dir must not be on a network or cloud-sync folder (OneDrive, Dropbox,
+  NFS/SMB). The API refuses to start on nfs/cifs/smb/9p/vboxsf/fuse. With Docker use the named
+  volume `app_data` (bind mounts of Docker Desktop do not guarantee fsync); `./backups` is plain files.
+- **ruff excludes `source/`** and `apps/web/node_modules`. ESLint covers `apps/web`.
+- `make e2e` needs `playwright` resolvable by `require()`: `npm i -g playwright@1.63.0 &&
+  playwright install chromium`, then `NODE_PATH="$(npm root -g)" make e2e`.
+- `apps/web/public/pyodide/` is fetched at build and git-ignored; first `npm run dev`/`build`
+  needs network.
+- `.claude/worktrees/` is git-ignored scratch; do not commit it.
+- If this clone is shallow/single-branch, set `remote.origin.fetch` to
+  `+refs/heads/*:refs/remotes/origin/*` before using git worktrees.
+- Project memory and the shared project folder (`/mnt/project-files`) are NOT available here;
+  everything needed is in this repo. Where docs mention them, read "project folder (not in repo)".
