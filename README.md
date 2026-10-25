@@ -2,13 +2,16 @@
 
 **Vi:** Ứng dụng cá nhân để học lập trình và luyện phỏng vấn: bài học ngắn (lesson), bài tập có
 chấm điểm tự động (problem), ôn tập ngắt quãng. Nội dung lấy từ cây kỹ năng và kế hoạch 30 ngày của
-Quan; chạy code Python ngay trong trình duyệt. Mới ở mốc M0: khung repo, schema nội dung, bộ
-kiểm tra nội dung, 40 lesson nháp và một problem mẫu (`ransom-note`).
+Quan; chạy code Python ngay trong trình duyệt. Đã xong M1: học trọn một mục trong app (lesson, quiz,
+editor, Run/Submit, điểm 0-3, lưu nháp, backup); 3 lesson và 5 problem đã publish. Dữ liệu nguồn ở
+[source/](source/README.md). Chạy: `docker compose up` rồi mở http://127.0.0.1:8080.
 
 **En:** A personal app for learning to code and preparing for interviews: short lessons,
 auto-graded problems and spaced review, built from Quan's skill tree and 30-day plan, with Python
-running in the browser. This repo is at milestone M0: monorepo skeleton, content schemas, the
-content validator, 40 draft lesson stubs and one full sample problem (`ransom-note`).
+running in the browser. Milestone M1 is done: one subtopic can be learned end to end in the
+app (lesson, quiz, editor, Run/Submit, 0-3 score, drafts, backups); 3 lessons and 5 problems are
+published. Upstream source data is in [source/](source/README.md). Run: `docker compose up`, then
+open http://127.0.0.1:8080.
 
 Full specification: [docs/SPEC.md](docs/SPEC.md) (Vietnamese), screens in
 [docs/UI_SPEC.md](docs/UI_SPEC.md).
