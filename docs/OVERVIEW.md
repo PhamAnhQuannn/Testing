@@ -40,7 +40,7 @@ Quy ước: số nào không có nguồn đi kèm là số tôi đếm lại tr�
 
 **Việc tiếp theo: M2a** (SPEC §7): soạn lesson cho ngày 1-3 (16 mục, 2 mục đã xong), mastery check + Test out, unlock + skill map, Leitner + `/review`, màn "Học tiếp", onboarding, backup UI và placement tối thiểu. Dự kiến 7-10 ngày (SPEC §7). Sau đó M2b, M3 (MVP dùng được), rồi M4-M7.
 
-**Cách làm việc.** Sonnet agent làm toàn bộ việc, Fable chỉ kiểm tra/review, Claude tự merge từng PR khi CI xanh (squash qua REST, vì tính năng auto-merge của GitHub đang tắt trên repo; cụm "auto-merge on" trong MEMORY chỉ quy trình này). Trả lời Quan bằng tiếng Việt. (`mem:agent-roles`) **Khi làm cục bộ trong VS Code + Claude Code:** dùng subagent (Sonnet) để làm, một lượt review độc lập bằng model mạnh hơn trước khi merge, và chỉ merge khi Quan yêu cầu (xem `CLAUDE.md`).
+**Cách làm việc.** Sonnet agent làm toàn bộ việc, Fable chỉ kiểm tra/review, Claude tự merge từng PR khi CI xanh (squash qua REST, vì tính năng auto-merge của GitHub đang tắt trên repo; cụm "auto-merge on" trong MEMORY chỉ quy trình này). Trả lời Quan bằng tiếng Việt. (`mem:agent-roles`) **Khi làm cục bộ trong VS Code + Claude Code:** dùng subagent (Sonnet) để làm, một lượt review độc lập bằng model mạnh hơn trước khi merge, tự push/mở PR và squash-merge (`gh pr merge --squash`) khi review độc lập và CI + e2e xanh, chỉ hỏi Quan khi đổi SPEC hoặc luật điểm (xem `CLAUDE.md`).
 
 ---
 
@@ -357,7 +357,7 @@ Nội dung MVP là 40 subtopic, khoảng 43h theo kế hoạch, gồm tuần 1 (
 | # | Sai lệch | Vì sao | Hết khi nào |
 |---|---|---|---|
 | D1 | `mastery_check` rỗng nên **một AC practice sạch đã cho điểm 2** (không cần đậu check mức 2). Cache điểm/quiz_best/thẻ ôn được tính lại từ bảng sự kiện mỗi lần khởi động | Chưa có `content/checks/` | Khi M2a thêm `convert_checks.py` + mastery check |
-| D2 | `quiz_best` = số câu đúng / **tất cả** block graded (SPEC §5.1 nói "tỉ lệ đúng cao nhất trên các block graded" theo lượt, tối thiểu 3 câu đã trả lời) | Cách tính M1 đơn giản hoá | Cần đối chiếu khi viết test M2a; ghi nhận trong `mem:learning-app` |
+| D2 | `quiz_best` = số câu đúng / **tất cả** block graded (SPEC §5.1 nói "tỉ lệ đúng cao nhất trên các block graded" theo lượt, tối thiểu 3 câu đã trả lời) | Cách tính M1 đơn giản hoá | **Đã sửa ở M1** (`scoring.quiz_best` theo `run_no`/lần trả lời đầu/`min_items`, test ở `apps/api/tests/test_scoring.py`); còn thiếu test bảng cho 3 ví dụ SPEC §5.2 (làm ở T2.2b) |
 | D3 | Server **không ép khoá** (`/map` chỉ báo `unlocked`/`lock_reasons`, UI quyết định) nên học `py.datastructs.dict` end to end vẫn được dù prerequisite còn điểm 0 | Đúng ý SPEC §5.3 "xem trước" và phục vụ nghiệm thu M1 | Giữ nguyên; UI sẽ tắt editor/Submit ở M2a |
 | D4 | Chưa có: `PUT /profile`, placement, checks, review, `/next`, `/activity/ping`, `/stats`, `/feedback`, `/export`, `/import`, `/reset`; `GET /me` luôn trả `placement: "none"` | Thuộc M2a/M2b | M2a, M2b |
 | D5 | Thêm so với SPEC §6.4: `GET /drafts/{problem_id}`, `POST /resume`, bảng `problem_state`, bảng `lesson_runs`, `check_results.item_type`; token Submit giữ trong bộ nhớ (restart server thì mất); đáp án và giải thích quiz ở lại server | Cần thực tế cài đặt | Ghi ở `API_M1.md` "Deviations" |
@@ -410,7 +410,7 @@ Khối lượng nội dung tổng của MVP (`SPEC §4.3`): 40 lesson; khoảng 
 | Không có lịch cứng nên dễ trôi | `/progress` chỉ hiện "đã xong X / 40 mục", mục kế tiếp, giờ theo tuần |
 | Mất dữ liệu khi tắt máy hoặc ổ đĩa sai | `synchronous=FULL`, named volume, từ chối chạy trên ổ mạng, backup tự động, IndexedDB (`SPEC §6.7`) |
 | Thời gian placement thực so với time-box chưa kiểm | Mô phỏng chỉ cho 6-47 phút (`UI §2.7`: yếu ~6-9 / 12-18, trung bình 40-47, mạnh 42-44); subset tiếng Việt của JetBrains Mono chưa xác minh, kiểm khi cài đặt (`REV` changelog v0.6) |
-| Điểm lệch do deviation M1 (D1, D2 ở mục 6.4) | Sửa ở M2a cùng mastery check; viết test bảng ví dụ `SPEC §5.2` |
+| Điểm lệch do deviation M1 (D1; D2 đã sửa, mục 6.4) | Sửa ở M2a cùng mastery check; viết test bảng ví dụ `SPEC §5.2` |
 | Mặc định 5 câu hỏi mở chưa được Quan xác nhận | Hỏi Quan trước M3 ít nhất câu 1 (40 hay 46 mục) và câu 2 (cần dùng ngoài máy chính không) vì ảnh hưởng đóng gói (T3.2) |
 
 ---

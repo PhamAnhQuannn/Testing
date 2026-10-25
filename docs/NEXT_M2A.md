@@ -5,7 +5,7 @@ Mục tiêu M2a: Quan làm hết nhóm 1-3 của plan (16 subtopic) trong app th
 mastery check/Test out, ôn Leitner, "Học tiếp", onboarding, UI backup và placement tối thiểu.
 Dự kiến 7-10 ngày. Quy tắc làm việc: mỗi task một nhánh `m2a/<task>`, PR nhỏ, `make ci` xanh,
 subagent (Sonnet) làm, một lượt review độc lập trước khi merge; không đổi luật điểm/unlock/Leitner
-nếu không sửa SPEC cùng PR.
+nếu không sửa SPEC cùng PR. Claude tự push, mở PR và squash-merge (`gh pr merge --squash`) khi review độc lập và CI + e2e xanh; chỉ hỏi Quan khi đổi SPEC/luật điểm hoặc quyết định đánh dấu "hỏi Quan".
 
 ## 0. Hiện trạng cần biết trước khi bắt đầu
 
@@ -14,8 +14,8 @@ nếu không sửa SPEC cùng PR.
   `/drafts`, `/resume`, `/health`, `/backups*`. Web: routes `Home`, `LessonPage`, `ProblemPage`.
 - Bảng đã có (migration `0001`): subtopics, lessons, problems, quiz_items, users, settings, user_subtopic, lesson_runs, quiz_answers, problem_state, attempts, check_results, review_cards, review_log, drafts, events, resume_state, idempotency_keys. Chưa có: `check_sessions`, `study_time`, `placement_sessions`, `plan_order`/`plan_milestones` (kiểm `content_loader.py`; mọi bảng mới qua Alembic).
 - Chưa có: `content/checks/`, `tools/convert_checks.py`, `/checks/*`, `/review/*`, `/next`,
-  `/activity/ping`, `PUT /profile`, `/placement/*`, các màn S1, S2, S3, S4, S5, S8, S9, S11 (backup UI).
-- Sai lệch M1 phải xử lý: D1 (không có check nên 1 AC sạch = điểm 2), D2 (`quiz_best` tính khác SPEC 5.1).
+  `/activity/ping`, `PUT /profile`, `/placement/*`, các màn S1, S2, S3, S4, S5, S8, S9, S11 (backup UI), S12 (banner "Tiếp tục").
+- Sai lệch M1 phải xử lý: D1 (không có check nên 1 AC sạch = điểm 2). D2 (`quiz_best`) đã sửa ở M1; chỉ còn thiếu test bảng 3 ví dụ SPEC 5.2 (làm trong A2).
   Xem `docs/API_M1.md` "Deviations".
 - Nội dung: 2/16 lesson của nhóm 1-3 đã `published` (`py.datastructs.list`, `py.datastructs.dict`).
 
@@ -26,9 +26,8 @@ Các PR code (A) và PR nội dung (C) độc lập nhau, trừ khi ghi chú.
 
 | PR | Task | Phụ thuộc | Cỡ |
 |---|---|---|---|
-| A0 | T2.0 sửa D2 + test bảng ví dụ SPEC 5.2 | không | nhỏ |
 | A1 | T2.2a `tools/convert_checks.py` + schema/validator cho check | không | vừa |
-| A2 | T2.2b API checks + `check_sessions` + bỏ fallback D1 | A1 | lớn, tách 2 PR nếu cần |
+| A2 | T2.2b API checks + `check_sessions` + bỏ fallback D1 + test bảng 3 ví dụ SPEC 5.2 | A1 | lớn, tách 2 PR nếu cần |
 | A3 | T2.2c UI `/check/:id` (flow C, D) | A2 | vừa |
 | A4 | T2.3 unlock + `/map` + S5 + chế độ xem trước (editor/Submit tắt) | A2 (cho `tested_out`) | vừa |
 | A5 | T2.4a Leitner + `/review/*` API | A2 | vừa |
@@ -44,13 +43,6 @@ Có thể làm C-PR song song với A-PR bằng subagent riêng; mỗi PR nội 
 `content/lessons`, `content/problems`, không đụng code.
 
 ## 2. Chi tiết từng task
-
-### T2.0 (A0) Sửa `quiz_best` (D2) và test bảng điểm
-- Mục tiêu: `quiz_best` đúng SPEC 5.1 (theo `run_no`, chỉ lần trả lời đầu mỗi block, cần >= `min_items`
-  (3) block đã trả lời, lấy lượt tốt nhất). Thêm test bảng cho 3 ví dụ SPEC 5.2.
-- Chạm: `apps/api/app/services/scoring.py`, `progress.py`, `apps/api/tests/test_scoring.py`.
-- Nghiệm thu: 3 ví dụ trong SPEC 5.2 cho đúng điểm; test quiz nhiều lượt; `make test` xanh.
-  Nếu chọn giữ cách tính M1 thì sửa SPEC 5.1 cùng PR (hỏi Quan).
 
 ### T2.2a (A1) `convert_checks.py` và mastery check
 - Mục tiêu: chuyển `assessment.json` thành `content/checks/<subtopic_id>.yaml` (schema
@@ -76,7 +68,7 @@ Có thể làm C-PR song song với A-PR bằng subagent riêng; mỗi PR nội 
   `models/tables.py` + migration Alembic mới (`check_sessions`, cột `attempt_no`, `gave_up`, `context`), `docs/API_M1.md` (hoặc `API_M2A.md`).
 - Endpoint: `POST /checks/{subtopic_id}/start` (tiếp tục phiên dở trong 24h), `POST /checks/{subtopic_id}/answer`,
   `POST /checks/{session_id}/heartbeat` (SPEC 6.4). Có `Idempotency-Key`.
-- Nghiệm thu: test cho bảng 5.2 (clean = AC, không xem lời giải, <= 1 hint, <= 1,5 x time target); khoá làm lại 24 giờ
+- Nghiệm thu: thêm test bảng cho 3 ví dụ SPEC 5.2 (`apps/api/tests/test_scoring.py`); test cho bảng 5.2 (clean = AC, không xem lời giải, <= 1 hint, <= 1,5 x time target); khoá làm lại 24 giờ
   (`check_retry_locked`, trả `retry_after`); trượt không lộ `reference`; `concept` tự chấm nhưng không bao giờ là bằng chứng điểm 2;
   `tested_out` cho điểm 2 và mở khoá một chiều; điểm luôn `== scoring(events)` sau khi tính lại.
 
@@ -213,7 +205,7 @@ quy ước đó trong tool.
    - **Node 22.12+** (kèm npm). Kiểm: `node -v`.
    - **Docker Desktop** (chỉ cần để chạy `docker compose up`): dữ liệu nằm trong named volume `app_data`, đừng đổi sang bind mount;
      thư mục `./backups` là file thường. Không để repo/`data/`/`backups/` trong OneDrive, Dropbox hay ổ mạng.
-   - **Windows**: mở repo bằng WSL (extension "WSL"); `tools/run_problem.py` không chạy trên Windows thuần.
+   - **Windows**: dùng WSL2 (extension "WSL"); `tools/run_problem.py` không chạy trên Windows thuần. Clone vào ổ WSL (`~/`), KHÔNG vào `/mnt/c` (kiểm tra độ bền từ chối 9p nên `make dev-api` sẽ lỗi). Trong WSL: `sudo apt install make build-essential`; bật Docker Desktop -> Settings -> Resources -> WSL integration.
    - Claude Code: cài CLI hoặc extension Claude Code cho VS Code theo hướng dẫn chính thức, đăng nhập.
 3. `make install` (cài Python và npm dependencies).
 4. `make ci` phải xanh (lint, test, validate, web-build; vài phút, lần đầu tải Pyodide cần mạng).
@@ -225,11 +217,12 @@ quy ước đó trong tool.
 
 ```
 Đọc CLAUDE.md, docs/NEXT_M2A.md, docs/SPEC.md (mục 3.4, 5, 7) và docs/API_M1.md. Mình muốn bắt đầu M2a theo thứ tự trong NEXT_M2A.md.
-Bước 1: chạy `make ci` để xác nhận nền xanh, rồi tóm tắt cho mình bằng tiếng Việt: hiện trạng, các PR dự kiến (A0, A1, ...) và rủi ro.
-Bước 2: làm PR A0 (T2.0: sửa quiz_best theo SPEC 5.1 và thêm test bảng ví dụ SPEC 5.2) trên nhánh m2a/t2.0-quiz-best. Dùng subagent Sonnet để
-cài đặt, sau đó một subagent review độc lập (chưa thấy lý luận của author) kiểm trước khi mình merge. Không đổi luật điểm nếu không sửa SPEC.
-Bước 3: sau khi A0 xong, lên kế hoạch chi tiết cho A1 (T2.2a convert_checks.py) và hỏi mình những điểm còn mơ hồ trước khi code.
-Nhớ: trả lời mình bằng tiếng Việt, không tự push hay merge khi mình chưa bảo.
+Bước 1: chạy `make ci` để xác nhận nền xanh, rồi tóm tắt cho mình bằng tiếng Việt: hiện trạng, các PR dự kiến (A1, A2, ...) và rủi ro.
+Bước 2: làm PR A1 (T2.2a: tools/convert_checks.py, source/assessment.json -> content/checks/*.yaml + check problem, thêm quy tắc validator) trên nhánh
+m2a/t2.2a-convert-checks. Dùng subagent Sonnet để cài đặt, sau đó một subagent review độc lập (chưa thấy lý luận của author) kiểm trước khi merge.
+Không đổi luật điểm nếu không sửa SPEC.
+Bước 3: sau khi A1 xong, lên kế hoạch chi tiết cho A2 (T2.2b API mastery check) và hỏi mình những điểm còn mơ hồ trước khi code.
+Nhớ: trả lời mình bằng tiếng Việt; tự push/PR/merge theo quy tắc CLAUDE.md; chỉ hỏi mình khi đổi SPEC.
 ```
 
 Song song (tuỳ chọn): mở một phiên Claude Code thứ hai trên nhánh `m2a/content-day1` để soạn nội dung ngày 1 theo mục 3 (C1a), vì code và nội dung

@@ -37,9 +37,12 @@ plan) and `docs/OVERVIEW.md` (requirements and status, Vietnamese).
 ## Workflow
 
 - One branch per milestone task (`m2a/t2.3-unlock-map`), small PRs (see PR boundaries in
-  `docs/NEXT_M2A.md`). Never commit to `main` directly. Do not push or merge without Quan asking.
-- `make ci` must be green before a PR is opened; CI also runs a separate `e2e` job (`make e2e`).
-  Squash-merge only when both are green.
+  `docs/NEXT_M2A.md`). Never commit to `main` directly.
+- Push the branch and open a PR yourself. **Merge rule (Quan, 2026-10-24):** implementation by a
+  Sonnet subagent, then independent review by a stronger model, then `make ci` + `make e2e` (CI's
+  separate `e2e` job) green, then squash-merge without waiting for Quan (GitHub auto-merge is off;
+  use `gh pr merge --squash`). Ask Quan only when SPEC/scoring rules change or a decision is marked
+  "hỏi Quan".
 - Preferred agent split (Quan's rule): **implementation is done by subagents running Sonnet; an
   independent review pass by a stronger model happens before merging.** In Claude Code: delegate
   each task to a subagent with a precise brief (files, acceptance criteria, tests), then run a
@@ -130,12 +133,14 @@ uv run pytest [path] ; cd apps/web && npm test
   disables editor/Submit for locked subtopics (preview mode, SPEC 5.3).
 - Python style: ruff, line length 100 (`ruff check` + `ruff format --check` are in CI).
 
-## Known M1 deviations (details: `docs/API_M1.md` "Deviations", `docs/OVERVIEW.md` 6.4)
+## Known M1 deviations (details: `docs/API_M1.md` "Deviations", unnumbered there; the D1-D8
+numbering is from `docs/OVERVIEW.md` 6.4)
 
 - **D1** `content/checks/` does not exist yet, so `mastery_check` is empty and a clean practice AC
   already gives score 2. Ends when T2.2 lands. Caches are rebuilt from events at every boot.
-- **D2** `quiz_best` = correct / all graded blocks, not SPEC 5.1's per-run first-answer best with a
-  3-answer minimum. Reconcile in M2a with table tests from SPEC 5.2.
+- **D2 (closed in M1)** `quiz_best` follows SPEC 5.1 (`scoring.quiz_best` keys by run_no / first
+  answer / min_items; tests in `apps/api/tests/test_scoring.py`). Only the 3 worked examples of
+  SPEC 5.2 are still missing as table tests (fold into A2 / T2.2b).
 - **D3** Server does not enforce locks (UI decides). Keep.
 - **D4** Not implemented: `PUT /profile`, placement, checks, review, `/next`, `/activity/ping`,
   `/stats`, `/feedback`, `/export`, `/import`, `/reset`; `GET /me` always says placement `none`.
@@ -151,7 +156,10 @@ uv run pytest [path] ; cd apps/web && npm test
 ## Gotchas
 
 - **Windows**: `tools/run_problem.py` watches its child with `select` on a pipe, which does not
-  work on Windows. Use WSL (open the repo from WSL in VS Code) for `make ci`/`make validate`.
+  work on Windows. Use WSL2 (open the repo from WSL in VS Code) for `make ci`/`make validate`.
+  Clone into the WSL filesystem (`~/`), NOT `/mnt/c`: the durability check refuses 9p, so
+  `make dev-api` fails there. In WSL: `sudo apt install make build-essential`; enable Docker
+  Desktop -> Settings -> Resources -> WSL integration.
 - **Data dir**: the SQLite dir must not be on a network or cloud-sync folder (OneDrive, Dropbox,
   NFS/SMB). The API refuses to start on nfs/cifs/smb/9p/vboxsf/fuse. With Docker use the named
   volume `app_data` (bind mounts of Docker Desktop do not guarantee fsync); `./backups` is plain files.
