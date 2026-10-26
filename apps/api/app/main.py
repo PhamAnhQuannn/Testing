@@ -15,7 +15,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from .config import Settings
 from .errors import ApiError
 from .idempotency import IdempotencyMiddleware
-from .routers import checks, content, learning, problems, resume, review, system
+from .routers import checks, content, learning, next, problems, resume, review, system
 from .runtime import Runtime
 from .web import SpaStaticFiles
 
@@ -66,6 +66,7 @@ def create_app(settings: Settings | None = None, runtime: Runtime | None = None)
         checks.router,
         resume.router,
         review.router,
+        next.router,
     ):
         app.include_router(r)
 

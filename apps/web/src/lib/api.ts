@@ -864,3 +864,171 @@ export async function postReviewResult(
     }),
   );
 }
+
+// ---------------------------------------------------------------- "Học tiếp" (SPEC 5.5) + activity ping
+
+export interface SuggestedProblem {
+  id: string;
+  title: string;
+  title_vi: string | null;
+  difficulty: string;
+  role: "practice" | "extra";
+}
+
+export interface NextItem {
+  id: string;
+  name_vi: string;
+  score: number;
+  target_intern: number;
+  status: "unlocked" | "in_progress";
+  known_basic: boolean;
+  lesson_done: boolean;
+  has_lesson: boolean;
+  /** ISO time the 24 h check retry lock ends (the item is listed after the ones doable now), or null. */
+  check_retry_after: string | null;
+  due_card: boolean;
+  suggested_problem: SuggestedProblem | null;
+}
+
+export interface MustRaise {
+  prerequisite: { id: string; name_vi: string; score: number; need: number };
+  /** The next locked subtopic this prerequisite would open. */
+  unlocks: { id: string; name_vi: string };
+  sole_blocker: boolean;
+  also_blocks: number;
+  suggested_problem: SuggestedProblem | null;
+  test_out: { available: boolean; retry_after: string | null };
+}
+
+export interface LockedPreview {
+  id: string;
+  name_vi: string;
+  lock_reasons: { prerequisite: string; name_vi: string | null; score: number | null; need: number }[];
+}
+
+export interface NextData {
+  must_raise: MustRaise[];
+  up_next: NextItem[];
+  locked_preview: LockedPreview[];
+  due_count: number;
+  backlog: boolean;
+  study: { today_s: number; week_s: number };
+}
+
+const num = (v: unknown, d = 0) => (typeof v === "number" && Number.isFinite(v) ? v : d);
+const strOrNull = (v: unknown) => (typeof v === "string" ? v : null);
+
+function normalizeSuggested(raw: unknown): SuggestedProblem | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Loose;
+  if (typeof r.id !== "string") return null;
+  return {
+    id: r.id,
+    title: String(r.title ?? r.id),
+    title_vi: strOrNull(r.title_vi),
+    difficulty: String(r.difficulty ?? ""),
+    role: r.role === "extra" ? "extra" : "practice",
+  };
+}
+
+export function normalizeNext(data: unknown): NextData {
+  const raw = (data ?? {}) as Loose;
+  const list = (v: unknown): Loose[] => (Array.isArray(v) ? (v as Loose[]) : []);
+  const study = (raw.study ?? {}) as Loose;
+  return {
+    must_raise: list(raw.must_raise).map((m): MustRaise => {
+      const p = (m.prerequisite ?? {}) as Loose;
+      const u = (m.unlocks ?? {}) as Loose;
+      const t = (m.test_out ?? {}) as Loose;
+      return {
+        prerequisite: {
+          id: String(p.id),
+          name_vi: String(p.name_vi ?? p.id),
+          score: num(p.score),
+          need: num(p.need, 2),
+        },
+        unlocks: { id: String(u.id), name_vi: String(u.name_vi ?? u.id) },
+        sole_blocker: m.sole_blocker === true,
+        also_blocks: num(m.also_blocks),
+        suggested_problem: normalizeSuggested(m.suggested_problem),
+        test_out: { available: t.available === true, retry_after: strOrNull(t.retry_after) },
+      };
+    }),
+    up_next: list(raw.up_next).map(
+      (i): NextItem => ({
+        id: String(i.id),
+        name_vi: String(i.name_vi ?? i.id),
+        score: num(i.score),
+        target_intern: num(i.target_intern),
+        status: i.status === "in_progress" ? "in_progress" : "unlocked",
+        known_basic: i.known_basic === true,
+        lesson_done: i.lesson_done === true,
+        has_lesson: i.has_lesson !== false,
+        check_retry_after: strOrNull(i.check_retry_after),
+        due_card: i.due_card === true,
+        suggested_problem: normalizeSuggested(i.suggested_problem),
+      }),
+    ),
+    locked_preview: list(raw.locked_preview).map(
+      (l): LockedPreview => ({
+        id: String(l.id),
+        name_vi: String(l.name_vi ?? l.id),
+        lock_reasons: list(l.lock_reasons).map((r) => ({
+          prerequisite: String(r.prerequisite),
+          name_vi: strOrNull(r.name_vi),
+          score: typeof r.score === "number" ? r.score : null,
+          need: num(r.need, 2),
+        })),
+      }),
+    ),
+    due_count: num(raw.due_count),
+    backlog: raw.backlog === true,
+    study: { today_s: num(study.today_s), week_s: num(study.week_s) },
+  };
+}
+
+/** GET /api/next -> {must_raise[], up_next[], locked_preview[], due_count, backlog, study}. No current day, no schedule. */
+export async function getNext(): Promise<NextData> {
+  return normalizeNext(await request<unknown>("/next"));
+}
+
+export interface PingResult {
+  added_s: number;
+  today_s: number;
+  week_s: number;
+}
+
+/** POST /api/activity/ping every ~30 s while the app is focused; the server caps the added time (60 s, gaps > 2 min skipped). */
+export async function pingActivity(): Promise<PingResult> {
+  const r = (await request<unknown>("/activity/ping", { method: "POST" })) as Loose;
+  return { added_s: num(r?.added_s), today_s: num(r?.today_s), week_s: num(r?.week_s) };
+}
+
+export interface ResumeView {
+  primary: (ResumeState & { stale: boolean }) | null;
+  others: { mode: string; route: string; name_vi: string }[];
+}
+
+/** GET /api/resume with `stale` and the other in-progress lessons (S12 banner). */
+export async function getResumeView(): Promise<ResumeView> {
+  const d = (await request<unknown>("/resume")) as Loose;
+  const p = d?.primary as Loose | null | undefined;
+  const others = Array.isArray(d?.others) ? (d.others as Loose[]) : [];
+  return {
+    primary: p
+      ? {
+          mode: p.mode as ResumeState["mode"],
+          route: String(p.route),
+          ref: (p.ref as Record<string, unknown>) ?? {},
+          context: (p.context as Record<string, unknown>) ?? {},
+          updated_at: String(p.updated_at ?? ""),
+          stale: p.stale === true,
+        }
+      : null,
+    others: others.map((o) => ({
+      mode: String(o.mode ?? "lesson"),
+      route: String(o.route),
+      name_vi: String(o.name_vi ?? o.route),
+    })),
+  };
+}
