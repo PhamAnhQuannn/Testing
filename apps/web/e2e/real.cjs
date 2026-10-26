@@ -113,6 +113,14 @@ async function main() {
     const posts = [];
     page.on("request", (r) => r.method() !== "GET" && r.url().includes("/api/") && posts.push({ method: r.method(), path: new URL(r.url()).pathname, key: r.headers()["idempotency-key"] }));
 
+    // ---- onboarding (A8): onboard the fixed user via the API BEFORE opening Home, so "/" renders
+    // Home directly. A fresh DB would otherwise redirect "/" -> /welcome; that redirect and the
+    // welcome form are covered by the web unit tests (Welcome.test.tsx, needsWelcome).
+    const me0 = await api("GET", "/me");
+    check("fresh DB: not onboarded yet", me0.json?.onboarding?.profile_done === false, JSON.stringify(me0.json?.onboarding));
+    const prof = await api("PUT", "/profile", { target_role: "intern", track: "swe", language: "python", experience: "none", placement: "skipped" });
+    check("PUT /profile completes onboarding", prof.status === 200 && prof.json?.onboarding?.profile_done === true && prof.json?.onboarding?.placement === "skipped", JSON.stringify(prof.json));
+
     // ---- map -> lesson
     await page.goto(base);
     await page.waitForSelector(`a[href="/s/${dictId}"]`);

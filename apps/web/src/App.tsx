@@ -1,10 +1,13 @@
-import { BrowserRouter, NavLink, Route, Routes, useLocation } from "react-router-dom";
+import { BrowserRouter, NavLink, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { ToastProvider } from "./components/Toast";
 import { useActivityPing } from "./lib/activity";
+import { getResumeView, type ResumeView } from "./lib/api";
+import { showResumeStrip } from "./lib/onboarding";
 import { lsGet, lsSet, useOnline } from "./lib/hooks";
 import CheckPage from "./routes/CheckPage";
 import Home from "./routes/Home";
 import MapPage from "./routes/MapPage";
+import Welcome from "./routes/Welcome";
 import ReviewPage from "./routes/ReviewPage";
 import LessonPage from "./routes/LessonPage";
 import ProblemPage from "./routes/ProblemPage";
@@ -24,7 +27,8 @@ function useTheme() {
 }
 
 function Nav() {
-  const focus = useLocation().pathname.startsWith("/check/"); // focus mode (UI_SPEC S8): no side nav
+  const path = useLocation().pathname;
+  const focus = path.startsWith("/check/") || path.startsWith("/welcome"); // focus mode (UI_SPEC S8): no side nav
   const [theme, setTheme] = useTheme();
   const cycle = () => setTheme(theme === "auto" ? "light" : theme === "light" ? "dark" : "auto");
   if (focus) return null;
@@ -50,6 +54,36 @@ function Nav() {
   );
 }
 
+/** S12 on routes other than `/`: one thin strip, dismissible for the session. */
+function ResumeStrip() {
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const [resume, setResume] = useState<ResumeView | null>(null);
+  const [hidden, setHidden] = useState(false);
+  useEffect(() => {
+    let live = true;
+    getResumeView()
+      .then((r) => live && setResume(r))
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, []);
+  const p = resume?.primary;
+  if (!p || hidden || !showResumeStrip(pathname, p.route)) return null;
+  return (
+    <div className="banner resume-strip" role="note" data-testid="resume-strip">
+      <span>Tiếp tục nơi bạn dừng.</span>{" "}
+      <button className="btn sm primary" onClick={() => navigate(p.route)}>
+        {p.stale ? "Mở lại" : "Tiếp tục"}
+      </button>{" "}
+      <button className="btn sm ghost" aria-label="Ẩn" onClick={() => setHidden(true)}>
+        ✕
+      </button>
+    </div>
+  );
+}
+
 export default function App() {
   const online = useOnline();
   useActivityPing();
@@ -66,9 +100,11 @@ export default function App() {
               Mất kết nối server. Bạn vẫn đọc, gõ code và Run được; thay đổi được giữ trên máy.
             </div>
           )}
+          <ResumeStrip />
           <main className="main" id="main">
             <Routes>
               <Route path="/" element={<Home />} />
+              <Route path="/welcome" element={<Welcome />} />
               <Route path="/map" element={<MapPage />} />
               <Route path="/review" element={<ReviewPage />} />
               <Route path="/s/:subtopicId" element={<LessonPage />} />

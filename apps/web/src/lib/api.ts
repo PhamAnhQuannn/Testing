@@ -1032,3 +1032,36 @@ export async function getResumeView(): Promise<ResumeView> {
     })),
   };
 }
+
+// ---------------------------------------------------------------- onboarding (S1)
+
+export interface Onboarding {
+  profile_done: boolean;
+  placement: "none" | "in_progress" | "finished" | "skipped";
+}
+
+export interface Profile {
+  target_role: "intern" | "new_grad";
+  track: "swe" | "ai";
+  language: "python";
+  experience: "none" | "some" | "solid";
+  display_name?: string;
+  tz?: string;
+  /** "Bắt đầu từ đầu": no placement session; recorded so S1 is not shown again. */
+  placement?: "skipped";
+}
+
+/** GET /api/me → onboarding (a missing/odd body counts as "not onboarded"). */
+export async function getOnboarding(): Promise<Onboarding> {
+  const d = (await request<unknown>("/me")) as Loose;
+  const o = (d?.onboarding ?? {}) as Loose;
+  return {
+    profile_done: o.profile_done === true,
+    placement: (o.placement as Onboarding["placement"]) ?? "none",
+  };
+}
+
+/** PUT /api/profile (idempotent; reuse the key when retrying the same submit). */
+export function putProfile(profile: Partial<Profile>, idempotencyKey?: string): Promise<{ onboarding: Onboarding }> {
+  return request("/profile", { method: "PUT", body: profile, idempotencyKey });
+}

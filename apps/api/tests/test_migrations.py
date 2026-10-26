@@ -31,4 +31,4 @@ def test_m1_tables_exist(tmp_path):
     assert {"elapsed_ms", "started_at"} <= cols
     cols = {c["name"] for c in inspect(engine).get_columns("user_subtopic")}
     assert {"unlocked_at", "known_basic"} <= cols
-    assert head_revision() == "0003"
+    assert head_revision() == "0004"

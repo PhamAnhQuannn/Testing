@@ -1,6 +1,7 @@
-import { Link, useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate } from "react-router-dom";
 import {
   getNext,
+  getOnboarding,
   getResumeView,
   type LockedPreview,
   type MapSubtopic,
@@ -10,6 +11,7 @@ import {
   type ResumeView,
 } from "../lib/api";
 import { useAsync } from "../lib/hooks";
+import { needsWelcome } from "../lib/onboarding";
 
 export function ScoreBadge({ score }: { score: number }) {
   return (
@@ -232,7 +234,11 @@ export function HomeView({
 export default function Home() {
   const next = useAsync(getNext, []);
   const resume = useAsync(() => getResumeView().catch(() => null), []);
+  // First-time user (profile_done=false) is sent to S1. Unknown state (server down) never redirects.
+  const onboarding = useAsync(() => getOnboarding().catch(() => null), []);
   const navigate = useNavigate();
+  if (onboarding.loading) return <div className="page" aria-busy="true" />;
+  if (needsWelcome(onboarding.data)) return <Navigate to="/welcome" replace />;
   return (
     <div className="page">
       <h1>Học tiếp</h1>
