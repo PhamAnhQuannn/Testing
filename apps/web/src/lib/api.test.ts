@@ -11,6 +11,9 @@ import {
   putDraft,
   putResume,
   request,
+  startCheck,
+  answerCheck,
+  checkHeartbeat,
 } from "./api";
 
 const json = (body: unknown, status = 200) =>
@@ -166,5 +169,65 @@ describe("hidden tests flow", () => {
     });
     expect(lastInit().headers["Idempotency-Key"]).toBeTruthy();
     expect(JSON.parse(lastInit().body as string)).toMatchObject({ mode: "submit", passed: 12 });
+  });
+});
+
+describe("mastery check api", () => {
+  it("startCheck POSTs context with an Idempotency-Key and normalizes the session", async () => {
+    fetchMock.mockResolvedValue(
+      json({
+        session_id: 7,
+        subtopic_id: "py.x",
+        context: "test_out",
+        attempt_no: 1,
+        status: "in_progress",
+        resumed: true,
+        elapsed_ms: 1000,
+        step: { index: 0, count: 2, item_id: "q1", level: 2, type: "write_code", minutes: 6, time_limit_ms: 360000, prompt_md: "p", problem_id: "check-q1" },
+        results: [],
+      }),
+    );
+    const s = await startCheck("py.x", "test_out");
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/checks/py.x/start");
+    expect(JSON.parse(lastInit().body as string)).toEqual({ context: "test_out" });
+    expect(lastInit().headers["Idempotency-Key"]).toMatch(/[0-9a-f-]{36}/);
+    expect(s.session_id).toBe(7);
+    expect(s.step.problem_id).toBe("check-q1");
+    expect(s.resumed).toBe(true);
+  });
+
+  it("check_retry_locked keeps retry_after in ApiError.extra", async () => {
+    fetchMock.mockResolvedValue(
+      json({ error: { code: "check_retry_locked", message: "locked", retry_after: "2026-10-26T00:00:00Z", level: 2 } }, 409),
+    );
+    const err = (await startCheck("py.x").catch((e: unknown) => e)) as ApiError;
+    expect(err.code).toBe("check_retry_locked");
+    expect(err.status).toBe(409);
+    expect(err.extra.retry_after).toBe("2026-10-26T00:00:00Z");
+  });
+
+  it("answerCheck reuses a supplied key and sends the body as is", async () => {
+    fetchMock.mockResolvedValue(
+      json({
+        session_id: 7,
+        finished: false,
+        result: { item_id: "q1", level: 2, type: "read_code", passed: true, correct: true, clean: false, reason: "over_time" },
+        next: { index: 1, count: 2, item_id: "q2", level: 3, type: "concept", minutes: 3, prompt_md: "c", answer_md: "a" },
+        score: { before: 0, after: 0 },
+        outcome: null,
+      }),
+    );
+    const out = await answerCheck("py.x", { session_id: 7, item_id: "q1", elapsed_ms: 5, answer: "2" }, "key-1");
+    expect(lastInit().headers["Idempotency-Key"]).toBe("key-1");
+    expect(JSON.parse(lastInit().body as string)).toMatchObject({ session_id: 7, item_id: "q1", answer: "2" });
+    expect(out.result.reason).toBe("over_time");
+    expect(out.next?.type).toBe("concept");
+  });
+
+  it("checkHeartbeat posts the absolute elapsed_ms to the session path", async () => {
+    fetchMock.mockResolvedValue(json({ session_id: 7, status: "in_progress", elapsed_ms: 1235 }));
+    await checkHeartbeat(7, 1234.6);
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/checks/7/heartbeat");
+    expect(JSON.parse(lastInit().body as string)).toEqual({ elapsed_ms: 1235 });
   });
 });

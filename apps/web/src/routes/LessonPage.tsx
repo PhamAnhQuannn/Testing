@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { SplitLayout } from "../components/SplitLayout";
 import { useToast } from "../components/Toast";
 import {
@@ -72,6 +72,7 @@ function readDone(id: string): Set<string> {
 
 function LessonView({ lesson }: { lesson: Lesson }) {
   const notify = useToast();
+  const navigate = useNavigate();
   const layout = useLayout();
   const [tab, setTab] = useState<"lesson" | "problems">("lesson");
   const [pane, setPane] = useState<"left" | "right">("left");
@@ -239,9 +240,16 @@ function LessonView({ lesson }: { lesson: Lesson }) {
         <button role="tab" aria-selected={tab === "problems"} onClick={() => setTab("problems")}>
           Bài tập
         </button>
-        <button role="tab" aria-selected={false} disabled title="Có ở M2">
+        <button role="tab" aria-selected={false} onClick={() => navigate(`/check/${lesson.id}`)}>
           Kiểm tra
         </button>
+        <Link
+          className="btn sm ghost"
+          to={`/check/${lesson.id}?ctx=test_out`}
+          title="Đã biết rồi? Làm bài kiểm tra để bỏ qua mục này"
+        >
+          Test out
+        </Link>
       </div>
       {tab === "problems" ? (
         <ProblemList lesson={lesson} />

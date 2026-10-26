@@ -1,6 +1,7 @@
-import { BrowserRouter, NavLink, Route, Routes } from "react-router-dom";
+import { BrowserRouter, NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { ToastProvider } from "./components/Toast";
 import { lsGet, lsSet, useOnline } from "./lib/hooks";
+import CheckPage from "./routes/CheckPage";
 import Home from "./routes/Home";
 import LessonPage from "./routes/LessonPage";
 import ProblemPage from "./routes/ProblemPage";
@@ -20,8 +21,10 @@ function useTheme() {
 }
 
 function Nav() {
+  const focus = useLocation().pathname.startsWith("/check/"); // focus mode (UI_SPEC S8): no side nav
   const [theme, setTheme] = useTheme();
   const cycle = () => setTheme(theme === "auto" ? "light" : theme === "light" ? "dark" : "auto");
+  if (focus) return null;
   return (
     <nav className="nav" aria-label="Điều hướng chính">
       <NavLink to="/" className="logo">
@@ -61,6 +64,7 @@ export default function App() {
               <Route path="/" element={<Home />} />
               <Route path="/map" element={<Home />} />
               <Route path="/s/:subtopicId" element={<LessonPage />} />
+              <Route path="/check/:subtopicId" element={<CheckPage />} />
               <Route path="/p/:problemId" element={<ProblemPage />} />
               <Route path="*" element={<div className="page empty">Không tìm thấy trang.</div>} />
             </Routes>
