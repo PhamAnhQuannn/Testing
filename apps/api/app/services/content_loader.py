@@ -239,6 +239,21 @@ class ContentStore:
                 out[i["difficulty"]].append(i)
         return out
 
+    def curated_check_items(self, subtopic_id: str) -> dict[int, list[dict[str, Any]]]:
+        """`check_items` narrowed to the lesson's `mastery_check` (SPEC 3.5) per level.
+
+        A level whose `mastery_check` list is empty or missing, or names no existing item of that
+        level, keeps all of its items (hand-written / not-yet-authored lessons)."""
+        out = self.check_items(subtopic_id)
+        lesson = self.lessons.get(subtopic_id)
+        mc = (lesson.data.get("mastery_check") or {}) if lesson else {}
+        for level in (1, 2, 3):
+            named = mc.get(f"l{level}") or []
+            picked = [i for i in out[level] if i["id"] in named]
+            if picked:
+                out[level] = picked
+        return out
+
     def check_problem(self, problem_id: str) -> ProblemEntry | None:
         """A `kind: check` problem, served to the check flow whatever its publication status."""
         e = self.problems.get(problem_id)
