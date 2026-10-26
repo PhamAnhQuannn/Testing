@@ -123,6 +123,7 @@ class UserSettings(Base):
     experience: Mapped[str | None] = mapped_column(String)
     display_name: Mapped[str | None] = mapped_column(String)
     onboarded_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
+    placement_choice: Mapped[str | None] = mapped_column(String)  # "skipped" (S1 "Bắt đầu từ đầu")
     backup_every_hours: Mapped[int] = mapped_column(Integer, default=6)
     backup_keep: Mapped[int] = mapped_column(Integer, default=20)
     ui_prefs: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)

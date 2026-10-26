@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter
@@ -9,7 +10,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 from ..db import pragma
-from ..deps import DB, RT, Content, User
+from ..deps import DB, RT, Content, Now, User
 from ..errors import ApiError
 from ..models import tables as t
 from ..runtime import head_revision
@@ -87,6 +88,15 @@ def _settings_json(s: t.UserSettings) -> dict:
         "backup_every_hours": s.backup_every_hours,
         "backup_keep": s.backup_keep,
         "ui_prefs": s.ui_prefs or {},
+        "placement_choice": s.placement_choice,
+    }
+
+
+def _onboarding_json(s: t.UserSettings) -> dict:
+    """`placement` is none|skipped until the placement session exists (A10/A11)."""
+    return {
+        "profile_done": s.onboarded_at is not None,
+        "placement": "skipped" if s.placement_choice == "skipped" else "none",
     }
 
 
@@ -97,7 +107,7 @@ def me(db: DB, user: User, content: Content):
     return {
         "user": {"id": user.id, "name": user.name},
         "settings": _settings_json(s),
-        "onboarding": {"profile_done": s.onboarded_at is not None, "placement": "none"},
+        "onboarding": _onboarding_json(s),
         "content": {"subtopics": len(content.subtopics), "serve_drafts": content.serve_drafts},
     }
 
@@ -131,3 +141,40 @@ def put_settings(body: SettingsIn, db: DB, user: User):
         s.ui_prefs = body.ui_prefs
     db.commit()
     return _settings_json(s)
+
+
+class ProfileIn(BaseModel):
+    """S1 profile. Every field is optional so the screen can save step by step; `onboarded_at`
+    is set once all four answers exist."""
+
+    target_role: Literal["intern", "new_grad"] | None = None
+    track: Literal["swe", "ai"] | None = None
+    language: Literal["python"] | None = None
+    experience: Literal["none", "some", "solid"] | None = None
+    display_name: str | None = Field(default=None, max_length=60)
+    tz: str | None = None
+    placement: Literal["skipped"] | None = None  # "Bắt đầu từ đầu"; placement itself is A10/A11
+
+
+@router.put("/profile")
+def put_profile(body: ProfileIn, db: DB, user: User, now: Now):
+    s = db.get(t.UserSettings, user.id)
+    assert s is not None
+    fields = body.model_fields_set
+    if "tz" in fields and body.tz is not None:
+        try:
+            ZoneInfo(body.tz)
+        except (ZoneInfoNotFoundError, ValueError) as e:
+            raise ApiError(422, "invalid_tz", f"Unknown timezone {body.tz!r}") from e
+        s.tz = body.tz
+    for name in ("target_role", "track", "language", "experience"):
+        if name in fields and getattr(body, name) is not None:
+            setattr(s, name, getattr(body, name))
+    if "display_name" in fields and body.display_name is not None:
+        s.display_name = body.display_name.strip() or None
+    if body.placement == "skipped":
+        s.placement_choice = "skipped"
+    if s.onboarded_at is None and all((s.target_role, s.track, s.language, s.experience)):
+        s.onboarded_at = now
+    db.commit()
+    return {"settings": _settings_json(s), "onboarding": _onboarding_json(s)}

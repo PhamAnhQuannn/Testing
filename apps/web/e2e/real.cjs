@@ -113,6 +113,13 @@ async function main() {
     const posts = [];
     page.on("request", (r) => r.method() !== "GET" && r.url().includes("/api/") && posts.push({ method: r.method(), path: new URL(r.url()).pathname, key: r.headers()["idempotency-key"] }));
 
+    // ---- onboarding (A8): a fresh DB redirects "/" to /welcome; finish it the API way, then Home is "/"
+    await page.goto(base);
+    await page.waitForURL(/\/welcome$/);
+    check("first open of a fresh DB lands on /welcome", true);
+    const prof = await api("PUT", "/profile", { target_role: "intern", track: "swe", language: "python", experience: "none", placement: "skipped" });
+    check("PUT /profile completes onboarding", prof.status === 200 && prof.json.onboarding.profile_done === true && prof.json.onboarding.placement === "skipped", JSON.stringify(prof.json?.onboarding));
+
     // ---- map -> lesson
     await page.goto(base);
     await page.waitForSelector(`a[href="/s/${dictId}"]`);
