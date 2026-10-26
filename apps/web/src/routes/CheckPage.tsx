@@ -338,8 +338,8 @@ function CheckRunner({ subtopicId, context }: { subtopicId: string; context: Che
   );
 }
 
-function WriteCodeStep(props: {
-  session: CheckSession;
+export function WriteCodeStep(props: {
+  session: { session_id: number };
   step: CheckStep;
   busy: boolean;
   commit: (body: CheckAnswerBody) => Promise<boolean>;
@@ -372,7 +372,7 @@ interface FailedSubmit {
 }
 
 function WriteCodeView(props: {
-  session: CheckSession;
+  session: { session_id: number };
   step: CheckStep;
   problem: Problem;
   busy: boolean;
