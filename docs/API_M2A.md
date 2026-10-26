@@ -113,6 +113,28 @@ Returns `{subtopic_id, success, item_ref, item_kind, box_before, box_after, due_
 score: {before, after}, newly_unlocked}`. Errors: `404 review_card_not_found`, `409 card_not_due`,
 `422 missing_field | item_kind_mismatch | no_review_item`. Honors `Idempotency-Key`.
 
+## Navigation and activity (T2.5, SPEC 5.5)
+
+### `GET /api/next`
+
+Returns `{must_raise[], up_next[], locked_preview[], due_count, backlog, study: {today_s, week_s}}`.
+No current-day, quota, "late" or schedule field (self-paced, SPEC 5.5).
+- `must_raise`: up to 5 entries, one per prerequisite with score exactly 1 that blocks a locked
+  subtopic — `{prerequisite: {id, name_vi, score, need: 2}, unlocks: {id, name_vi}, sole_blocker,
+  also_blocks, suggested_problem, test_out: {available, retry_after}}`.
+- `up_next`: unlocked, not-`done` subtopics (`done` = score ≥ max(1, target_intern)), ordered
+  in-progress first, then plan order `(N, position)`, then check-retry-locked last. Each:
+  `{id, name_vi, status, score, check_retry_after, due_card, known_basic, suggested_problem, ...}`.
+- `locked_preview`: 3 locked items with lock reasons. `due_count`/`backlog` from the review queue.
+
+### `POST /api/activity/ping`
+
+Adds `min(now - last_ping, 60s)` to the user's `study_time` for today, ignoring gaps > 120s (which
+still move `last_ping` forward; it never goes backward), so a resend or a second tab adds ~0.
+Optional `{resume}` body updates `resume_state` like `PUT /resume`. Returns `{added_s, today_s,
+week_s}`. `last_ping` lives in a new `activity_state` table (addition beyond SPEC 6.3); `study_time`
+is `(user_id, day) -> seconds` (SPEC 6.3). Migration `0003_study_time`.
+
 ## Not in this document yet
 
-Placement, `/next`, `/activity/ping` (later A-tasks).
+Placement (`/placement/*`) — A10/A11.

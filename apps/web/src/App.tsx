@@ -1,5 +1,6 @@
 import { BrowserRouter, NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { ToastProvider } from "./components/Toast";
+import { useActivityPing } from "./lib/activity";
 import { lsGet, lsSet, useOnline } from "./lib/hooks";
 import CheckPage from "./routes/CheckPage";
 import Home from "./routes/Home";
@@ -51,6 +52,7 @@ function Nav() {
 
 export default function App() {
   const online = useOnline();
+  useActivityPing();
   return (
     <BrowserRouter>
       <ToastProvider>

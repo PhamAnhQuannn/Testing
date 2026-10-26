@@ -330,3 +330,20 @@ class IdempotencyKey(Base):
     status: Mapped[int] = mapped_column(Integer)  # 0 while the first request is still running
     response: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime)
+
+
+class StudyTime(Base):
+    """Real interaction time per local day (SPEC 6.3); view-only, no goals."""
+
+    __tablename__ = "study_time"
+    user_id: Mapped[int] = uid()
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    seconds: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class ActivityState(Base):
+    """`last_ping` per user, so several tabs never double count (SPEC 6.4 `/activity/ping`)."""
+
+    __tablename__ = "activity_state"
+    user_id: Mapped[int] = uid()
+    last_ping_at: Mapped[datetime] = mapped_column(UTCDateTime)

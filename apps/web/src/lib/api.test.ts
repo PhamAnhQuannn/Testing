@@ -266,3 +266,16 @@ describe("review api", () => {
     await expect(postReviewResult("a.b", { success: false })).rejects.toMatchObject({ code: "card_not_due", status: 409 });
   });
 });
+
+describe("pingActivity", () => {
+  it("POSTs with an Idempotency-Key and reads the totals", async () => {
+    const fetchMock = vi.fn(async () => json({ added_s: 30, today_s: 90, week_s: 300 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const r = await (await import("./api")).pingActivity();
+    expect(r).toEqual({ added_s: 30, today_s: 90, week_s: 300 });
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("/api/activity/ping");
+    expect(init.method).toBe("POST");
+    expect((init.headers as Record<string, string>)["Idempotency-Key"]).toBeTruthy();
+  });
+});
