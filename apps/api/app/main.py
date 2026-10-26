@@ -15,7 +15,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from .config import Settings
 from .errors import ApiError
 from .idempotency import IdempotencyMiddleware
-from .routers import content, learning, problems, resume, system
+from .routers import checks, content, learning, problems, resume, system
 from .runtime import Runtime
 from .web import SpaStaticFiles
 
@@ -58,7 +58,14 @@ def create_app(settings: Settings | None = None, runtime: Runtime | None = None)
         return _err(exc.status_code, f"http_{exc.status_code}", str(exc.detail))
 
     app.add_middleware(IdempotencyMiddleware)
-    for r in (system.router, content.router, learning.router, problems.router, resume.router):
+    for r in (
+        system.router,
+        content.router,
+        learning.router,
+        problems.router,
+        checks.router,
+        resume.router,
+    ):
         app.include_router(r)
 
     web_dist = os.environ.get("WEB_DIST")

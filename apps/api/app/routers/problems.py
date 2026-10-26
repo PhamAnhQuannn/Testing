@@ -21,7 +21,7 @@ MAX_HINTS = 3
 
 
 def _problem(content, problem_id: str) -> ProblemEntry:
-    p = content.problem(problem_id)
+    p = content.problem(problem_id) or content.check_problem(problem_id)
     if p is None:
         raise ApiError(404, "problem_not_found", f"No problem {problem_id}")
     return p
@@ -92,9 +92,32 @@ def open_hint(problem_id: str, db: DB, user: User, content: Content, now: Now, k
     }
 
 
+def _check_passed(db, user_id: int, content, problem_id: str) -> bool:
+    found = content.check_item_of_problem(problem_id)
+    if found is None:
+        return False
+    sid, item = found
+    return (
+        db.scalar(
+            select(t.CheckResult.id)
+            .where(
+                t.CheckResult.user_id == user_id,
+                t.CheckResult.subtopic_id == sid,
+                t.CheckResult.item_id == item["id"],
+                t.CheckResult.passed.is_(True),
+            )
+            .limit(1)
+        )
+        is not None
+    )
+
+
 @router.get("/problems/{problem_id}/solution")
 def get_solution(problem_id: str, db: DB, user: User, content: Content, now: Now):
     p = _problem(content, problem_id)
+    if p.data.get("kind") == "check" and not _check_passed(db, user.id, content, problem_id):
+        # SPEC flow C: a failed (or not yet passed) check never reveals the reference solution
+        raise ApiError(403, "check_solution_locked", "The reference is shown after passing it")
     st = _state(db, user.id, problem_id, now)
     if not st.solution_viewed:
         st.solution_viewed = True

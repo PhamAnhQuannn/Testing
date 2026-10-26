@@ -117,18 +117,57 @@ def build_content(root: Path, *, status: str = "published") -> Path:
     }
     (lessons / "py.a.one.yaml").write_text(yaml.safe_dump(lesson, allow_unicode=True))
     (root / "checks").mkdir()
-    (root / "checks" / "py.a.one.yaml").write_text(
-        yaml.safe_dump(
+    checks = {
+        "py.a.one": [
+            {"id": "Q1", "type": "concept", "minutes": 3, "difficulty": 1, "answer_md": "ans1"},
             {
-                "subtopic_id": "py.a.one",
-                "items": [
-                    {"id": "Q1", "type": "concept", "minutes": 3, "difficulty": 1},
-                    {"id": "Q2", "type": "write_code", "minutes": 8, "difficulty": 2},
-                    {"id": "Q3", "type": "write_code", "minutes": 12, "difficulty": 3},
-                ],
-            }
+                "id": "Q2",
+                "type": "write_code",
+                "minutes": 8,
+                "difficulty": 2,
+                "prompt_md": "viet add",
+                "problem_id": "check-q2",
+            },
+            {
+                "id": "Q3",
+                "type": "write_code",
+                "minutes": 12,
+                "difficulty": 3,
+                "prompt_md": "viet add 3",
+                "problem_id": "check-q3",
+            },
+        ],
+        # read_code at levels 1-2, a concept level 3 (no write_code => level3_ok is vacuous)
+        "py.a.two": [
+            {
+                "id": "R1",
+                "type": "read_code",
+                "minutes": 3,
+                "difficulty": 1,
+                "code": "print(1)",
+                "expected_output": "1",
+                "answer_md": "one",
+            },
+            {
+                "id": "R2",
+                "type": "read_code",
+                "minutes": 4,
+                "difficulty": 2,
+                "code": "print(2)",
+                "expected_output": "2",
+                "answer_md": "two",
+            },
+            {"id": "C3", "type": "concept", "minutes": 5, "difficulty": 3, "answer_md": "three"},
+        ],
+        # only a concept at level 2 and no level 1 item
+        "py.a.three": [
+            {"id": "C2", "type": "concept", "minutes": 5, "difficulty": 2, "answer_md": "x"},
+        ],
+    }
+    for sid, items in checks.items():
+        (root / "checks" / f"{sid}.yaml").write_text(
+            yaml.safe_dump({"subtopic_id": sid, "items": items})
         )
-    )
 
     pdir = root / "problems" / "py.a.one" / "add-two"
     (pdir / "tests").mkdir(parents=True)
@@ -168,6 +207,16 @@ def build_content(root: Path, *, status: str = "published") -> Path:
     (pdir / "tests" / "hidden.jsonl").write_text(
         '{"id":"h1","args":[0,0],"expected":0}\n{"id":"h2","args":[5,7],"expected":12}\n'
     )
+    for cid, minutes in (("check-q2", 8), ("check-q3", 12)):
+        cdir = root / "problems" / "py.a.one" / cid
+        (cdir / "tests").mkdir(parents=True)
+        cprob = {**problem, "id": cid, "kind": "check", "status": "validated"}
+        cprob["time_target_min"] = minutes
+        cprob["title"] = cid
+        (cdir / "problem.yaml").write_text(yaml.safe_dump(cprob, allow_unicode=True))
+        (cdir / "solution.py").write_text("def add(a, b):\n    return a + b  # REFERENCE\n")
+        (cdir / "tests" / "sample.jsonl").write_text('{"id":"s1","args":[1,2],"expected":3}\n')
+        (cdir / "tests" / "hidden.jsonl").write_text('{"id":"h1","args":[0,0],"expected":0}\n')
     return root
 
 

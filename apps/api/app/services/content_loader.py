@@ -205,10 +205,17 @@ class ContentStore:
             min_items = cp.get("min_items", min_items)
             graded = tuple(lesson.graded_ids())
             mc = d.get("mastery_check") or {}
-            l2 = bool(mc.get("l2"))
             items = {i["id"]: i for i in self.checks.get(subtopic_id, [])}
-            l3_ids = mc.get("l3") or []
-            l3 = any(items.get(i, {}).get("type") == "write_code" for i in l3_ids)
+            l2 = bool(mc.get("l2"))
+            l3 = any(items.get(i, {}).get("type") == "write_code" for i in mc.get("l3") or [])
+        # content/checks is the authority for which items exist (the lesson's `mastery_check` lists
+        # may be empty in hand-written lessons). Without this, a subtopic that has check items but
+        # an empty list would fall back to "one clean practice AC = score 2" (the M1 D1 fallback).
+        for item in self.checks.get(subtopic_id, []):
+            if item.get("difficulty") == 2:
+                l2 = True
+            if item.get("difficulty") == 3 and item.get("type") == "write_code":
+                l3 = True
         medium = tuple(
             p
             for p in practice
@@ -223,6 +230,32 @@ class ContentStore:
             pass_ratio=pass_ratio,
             min_items=min_items,
         )
+
+    def check_items(self, subtopic_id: str) -> dict[int, list[dict[str, Any]]]:
+        """Check items of a subtopic by level (= item difficulty 1-3), file order kept."""
+        out: dict[int, list[dict[str, Any]]] = {1: [], 2: [], 3: []}
+        for i in self.checks.get(subtopic_id, []):
+            if i.get("difficulty") in out:
+                out[i["difficulty"]].append(i)
+        return out
+
+    def check_problem(self, problem_id: str) -> ProblemEntry | None:
+        """A `kind: check` problem, served to the check flow whatever its publication status."""
+        e = self.problems.get(problem_id)
+        if e is None or e.data.get("kind") != "check":
+            return None
+        if self.serve_drafts:
+            p = e.dir / "problem.yaml"
+            e.data = _load_yaml(p)
+            e.content_hash = _hash(p)
+        return e
+
+    def check_item_of_problem(self, problem_id: str) -> tuple[str, dict[str, Any]] | None:
+        for sid, items in self.checks.items():
+            for i in items:
+                if i.get("problem_id") == problem_id:
+                    return sid, i
+        return None
 
     def check_item_type(self, subtopic_id: str, item_id: str) -> str:
         for i in self.checks.get(subtopic_id, []):

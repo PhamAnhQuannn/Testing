@@ -223,6 +223,32 @@ class CheckResult(Base):
     )
 
 
+class CheckSession(Base):
+    """One attempt at a mastery check / test out (SPEC 6.3 `check_sessions`, flows C and D).
+
+    `ladder` holds the steps (item, level, result); results are also appended to `check_results`,
+    which is what scoring reads. `expired` = no activity for 24 h; it is not a failure.
+    """
+
+    __tablename__ = "check_sessions"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    subtopic_id: Mapped[str] = mapped_column(ForeignKey("subtopics.id"))
+    context: Mapped[str] = mapped_column(String, default="mastery")  # mastery | test_out
+    placement_session_id: Mapped[int | None] = mapped_column(Integer)
+    order_no: Mapped[int] = mapped_column(Integer, default=0)
+    attempt_no: Mapped[int] = mapped_column(Integer, default=1)
+    status: Mapped[str] = mapped_column(String, default="in_progress")  # in_progress|done|expired
+    ladder: Mapped[dict[str, Any]] = mapped_column(JSON)
+    current_item_id: Mapped[str | None] = mapped_column(String)
+    elapsed_ms: Mapped[int] = mapped_column(Integer, default=0)
+    started_at: Mapped[datetime] = mapped_column(UTCDateTime)
+    last_active_at: Mapped[datetime] = mapped_column(UTCDateTime)
+    __table_args__ = (
+        Index("ix_check_sessions_user_sub_status", "user_id", "subtopic_id", "status"),
+    )
+
+
 class ReviewCard(Base):
     __tablename__ = "review_cards"
     user_id: Mapped[int] = uid()

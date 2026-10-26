@@ -234,9 +234,11 @@ async function main() {
     const badge = (await page.locator(`a[href="/s/${dictId}"] .badge`).innerText()).trim();
     const mapScore = (await api("GET", "/map")).json.subtopics.find((s) => s.id === dictId);
     check("map badge = score from the API", badge === String(mapScore.score), `badge ${badge}, api ${mapScore.score}, status ${mapScore.status}`);
-    // Expected, not a bug: with an empty mastery_check a clean practice AC reaches score 2 in M1
-    // (docs/API_M1.md, Deviations 8), which is why the lesson is completed (score 1) before Submit.
-    check("clean Submit AC after the lesson lifts the score to 2 (SPEC 5.2)", mapScore.score === 2);
+    // After T2.2b the D1 fallback is gone: py.datastructs.dict has a level-2 write_code check, so a
+    // clean practice AC alone no longer reaches score 2 (needs tested_out or the SPEC 5.2 practice
+    // exit). Lesson done + one clean AC keeps the score at 1; reaching 2 is covered by the mastery
+    // check API tests (apps/api/tests/test_api_checks.py).
+    check("clean Submit AC after the lesson keeps score 1 (D1 fallback removed, T2.2b)", mapScore.score === 1);
     await page.goto(`${base}/s/${dictId}`);
     await page.waitForSelector(".lesson .block");
     check("reload: lesson shows as completed", (await page.locator("[aria-label='Hoàn thành bài học']").innerText()).includes("đã hoàn thành"));
