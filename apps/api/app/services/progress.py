@@ -224,6 +224,8 @@ def recompute_subtopic(
     ).all()
     mine = [e for e in done_ev if e.payload.get("subtopic_id") == subtopic_id]
     row.lesson_done_at = mine[0].occurred_at if mine else None
+    if row.placement_hint is not None and (res.score > 0 or row.lesson_done_at is not None):
+        row.placement_hint = None  # real evidence replaces a graph-inferred label (SPEC 5.6 #5)
     db.flush()
 
     created = False
