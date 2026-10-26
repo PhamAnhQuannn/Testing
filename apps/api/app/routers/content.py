@@ -152,17 +152,10 @@ def get_subtopic(subtopic_id: str, db: DB, user: User, content: Content, now: No
         }
         for p in content.problems_of(subtopic_id)
     ]
-    mc = (lesson.data.get("mastery_check") if lesson else None) or {}
-    items = {i["id"]: i for i in content.checks.get(subtopic_id, [])}
     out["checks"] = [
-        {
-            "level": lvl,
-            "item_id": iid,
-            "type": items.get(iid, {}).get("type"),
-            "minutes": items.get(iid, {}).get("minutes"),
-        }
-        for lvl, key in ((1, "l1"), (2, "l2"), (3, "l3"))
-        for iid in mc.get(key, [])
+        {"level": lvl, "item_id": i["id"], "type": i["type"], "minutes": i.get("minutes")}
+        for lvl, items in content.check_items(subtopic_id).items()
+        for i in items
     ]
     return out
 

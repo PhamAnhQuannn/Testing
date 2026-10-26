@@ -236,9 +236,10 @@ problem was AC'd after the position was saved. `others` = up to 3 other `in_prog
 
 ## Deviations from SPEC 6.4
 
-1. **Not implemented in M1** (later milestones): `PUT /profile`, placement, checks, review,
+1. **Not implemented in M1** (later milestones): `PUT /profile`, placement, review,
    `/next`, `/activity/ping`, `/stats`, `/feedback`, `/export`, `/import`, `/reset`.
-   `GET /me` returns `onboarding.placement: "none"` always.
+   `GET /me` returns `onboarding.placement: "none"` always. Mastery check / test out arrived in
+   M2a (T2.2b): see [API_M2A.md](API_M2A.md).
 2. **Added**: `GET /drafts/{problem_id}` (needed to load a draft), `POST /resume` (beacon),
    `PUT /settings` accepts `backup_every_hours` and `ui_prefs`, a `progress` object in
    `GET /lessons/{id}`, `last_attempt` in `GET /problems/{id}`.
@@ -251,12 +252,13 @@ problem was AC'd after the position was saved. `others` = up to 3 other `in_prog
 6. **Drafts**: M1 behaviour (newer `updated_at` wins, no 409, `rev` only informative).
 7. **Locks are not enforced server side** (the UI decides), so the M1 acceptance flow (learn
    `py.datastructs.dict` end to end) is possible even while its prerequisites are at score 0.
-8. **Check items** (for `has_l3_write_code` and `item_type`) are read from
-   `content/checks/<subtopic_id>.yaml` (SPEC 3.1). Without that file `level3_ok` falls back to the
-   medium-practice rule, then to true (SPEC 5.2).
-   In M1 `mastery_check` is empty, so a clean `submit` AC of the practice problem (after lesson + quiz)
-   already reaches score 2 (`check2_ok` falls back to "a clean practice AC"). The `user_subtopic`
-   score/quiz_best/review-card caches are rebuilt from the event tables at every boot.
+8. **Check items** (for `has_l2_items`, `has_l3_write_code` and `item_type`) are read from
+   `content/checks/<subtopic_id>.yaml` (SPEC 3.1). Since M2a (T2.2b) the check files decide which
+   levels exist, even when a lesson's `mastery_check` lists are empty, so the M1 shortcut "a clean
+   practice AC already gives score 2" (old D1) is gone; see [API_M2A.md](API_M2A.md). A subtopic
+   with no level 2 item at all still falls back to the SPEC 5.2 rule "one clean practice AC". The
+   `user_subtopic` score/quiz_best/review-card caches are rebuilt from the event tables at every
+   boot, so scores that relied on the old shortcut drop to 1 on the next start.
 9. `GET /health` returns `status, journal_mode, synchronous, schema_version, last_backup_at`;
    `503` with `status: db_corrupt` when the DB is damaged.
 10. Idempotency: the stored response is replayed as JSON (same data, not byte-identical).

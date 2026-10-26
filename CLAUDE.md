@@ -124,7 +124,7 @@ uv run pytest [path] ; cd apps/web && npm test
 - **Pyodide 0.29.5 is pinned in two places**: `apps/web/package.json` and
   `tools/pyodide-node/package.json` (self-hosted by `apps/web/scripts/fetch-pyodide.mjs`). Bump both
   together. CSP is `script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'` (`vite.config.ts`).
-- **API contract**: `docs/API_M1.md`. Base `/api`, errors `{"error": {"code", "message"}}`, times in
+- **API contract**: `docs/API_M1.md` (+ `docs/API_M2A.md` for checks). Base `/api`, errors `{"error": {"code", "message"}}`, times in
   ISO 8601 UTC. Every state-changing POST/PUT sends `Idempotency-Key` (uuid); replays return the
   stored response and write nothing. A 2xx means committed (WAL, `synchronous=FULL`).
 - **Schema changes go through Alembic** (`apps/api/migrations/`), never by editing tables ad hoc.
@@ -138,13 +138,14 @@ uv run pytest [path] ; cd apps/web && npm test
 ## Known M1 deviations (details: `docs/API_M1.md` "Deviations", unnumbered there; the D1-D8
 numbering is from `docs/OVERVIEW.md` 6.4)
 
-- **D1** `content/checks/` does not exist yet, so `mastery_check` is empty and a clean practice AC
-  already gives score 2. Ends when T2.2 lands. Caches are rebuilt from events at every boot.
-- **D2 (closed in M1)** `quiz_best` follows SPEC 5.1 (`scoring.quiz_best` keys by run_no / first
-  answer / min_items; tests in `apps/api/tests/test_scoring.py`). Only the 3 worked examples of
-  SPEC 5.2 are still missing as table tests (fold into A2 / T2.2b).
+- **D1 (closed in M2a/T2.2b)** a subtopic with `content/checks` items now needs `check2_ok`
+  (pass the level-2 check, or the fail-then-practice exit of SPEC 5.2); one clean practice AC no
+  longer gives score 2. Caches are rebuilt from events at every boot.
+- **D2 (closed)** `quiz_best` follows SPEC 5.1 (`scoring.quiz_best` keys by run_no / first
+  answer / min_items); the 3 SPEC 5.2 worked examples are table tests in
+  `apps/api/tests/test_scoring.py` (`WORKED`) and end to end in `test_api_checks.py`.
 - **D3** Server does not enforce locks (UI decides). Keep.
-- **D4** Not implemented: `PUT /profile`, placement, checks, review, `/next`, `/activity/ping`,
+- **D4** Not implemented: `PUT /profile`, placement, review, `/next`, `/activity/ping`,
   `/stats`, `/feedback`, `/export`, `/import`, `/reset`; `GET /me` always says placement `none`.
 - **D5** Additions over SPEC 6.4: `GET /drafts/{problem_id}`, `POST /resume`, `problem_state`,
   `lesson_runs`, `check_results.item_type`; submit tokens live in memory (lost on restart).

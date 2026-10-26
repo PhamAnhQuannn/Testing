@@ -167,6 +167,85 @@ def test_example_3_failed_l2_exit():
     assert r.score == 2
 
 
+# ---- SPEC 5.2 worked examples as one table: (timeline step, evidence, expected score) ----
+
+_Q4 = answers(1, [True, True, True, True, False])  # 4/5 = 0.8
+_AC = sc.AttemptEv("ransom-note", ac=True, clean=True)
+_REV = (sc.ReviewEv(True, 1, "recall"), sc.ReviewEv(True, 2, "recall"))
+_TWO_PRACTICE = sc.SubtopicSpec(
+    practice_ids=("p1", "p2"), graded_quiz_ids=("d#q1", "d#q2", "d#q3"), has_l2_items=True
+)
+_Q3 = answers(1, [True, True, True])
+_P1 = sc.AttemptEv("p1", True, True)
+_P2 = sc.AttemptEv("p2", True, False)
+_FAIL = sc.CheckEv("Q1", 2, passed=False)
+_PASS2 = sc.CheckEv("Q023", 2, True, True)
+_PASS3 = sc.CheckEv("Q024", 3, True, True, item_type="write_code")
+
+WORKED = [
+    # example 1 (dict: 1 practice problem, L2 = Q023, L3 = Q024, all write_code)
+    ("ex1 day 2 lesson", DICT, sc.Evidence(True, _Q4), 1),
+    (
+        "ex1 day 2 AC ransom-note (no check yet: D1 fallback gone)",
+        DICT,
+        sc.Evidence(True, _Q4, (_AC,)),
+        1,
+    ),
+    ("ex1 day 3 Q023 clean", DICT, sc.Evidence(True, _Q4, (_AC,), (_PASS2,)), 2),
+    (
+        "ex1 day 3 Q024 clean: level3_ok, no retention",
+        DICT,
+        sc.Evidence(True, _Q4, (_AC,), (_PASS2, _PASS3), _REV),
+        2,
+    ),
+    (
+        "ex1 day 9 code review in box 3",
+        DICT,
+        sc.Evidence(True, _Q4, (_AC,), (_PASS2, _PASS3), (*_REV, sc.ReviewEv(True, 3, "code"))),
+        3,
+    ),
+    (
+        "ex1 day 9 recall card in box 3: no retention",
+        DICT,
+        sc.Evidence(True, _Q4, (_AC,), (_PASS2, _PASS3), (*_REV, sc.ReviewEv(True, 3, "recall"))),
+        2,
+    ),
+    # example 2 (test out, lesson never opened)
+    ("ex2 test out", DICT, sc.Evidence(checks=(_PASS2,)), 2),
+    ("ex2 test out + L3 but no code review", DICT, sc.Evidence(checks=(_PASS2, _PASS3)), 2),
+    # example 3 (a subtopic with one L2 item: fail, then the practice exit)
+    ("ex3 fail only", _TWO_PRACTICE, sc.Evidence(True, _Q3, (), (_FAIL,)), 1),
+    ("ex3 one clean AC is not enough", _TWO_PRACTICE, sc.Evidence(True, _Q3, (_P1,), (_FAIL,)), 1),
+    (
+        "ex3 two practice, one clean, after a fail",
+        _TWO_PRACTICE,
+        sc.Evidence(True, _Q3, (_P1, _P2), (_FAIL,)),
+        2,
+    ),
+    (
+        "ex3 same practice without a failed check",
+        _TWO_PRACTICE,
+        sc.Evidence(True, _Q3, (_P1, _P2), ()),
+        1,
+    ),
+]
+
+
+@pytest.mark.parametrize(("name", "spec", "ev", "expected"), WORKED, ids=[w[0] for w in WORKED])
+def test_spec_5_2_worked_examples_table(name, spec, ev, expected):
+    assert sc.score(spec, ev).score == expected
+
+
+def test_a_self_graded_concept_pass_is_never_evidence():
+    """The API records concept results with clean=False, so they can never be level 2/3 proof."""
+    spec = sc.SubtopicSpec(has_l2_items=True, has_l3_write_code=True)
+    concept = sc.CheckEv("C", 2, passed=True, clean=False, item_type="concept")
+    assert sc.score(spec, sc.Evidence(checks=(concept,))).score == 0
+    # a level 1 pass is diagnostic only
+    l1 = sc.CheckEv("Q", 1, passed=True, clean=True, item_type="read_code")
+    assert sc.score(spec, sc.Evidence(checks=(l1,))).score == 0
+
+
 # ---- edge cases ----
 
 
