@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ApiError, getOnboarding, newIdempotencyKey, putProfile, type Profile } from "../lib/api";
+import { ApiError, getOnboarding, newIdempotencyKey, putProfile, startPlacement, type Profile } from "../lib/api";
 import { useRunnerState } from "../lib/hooks";
 import { defaultTz, profilePayload, type ProfileDraft } from "../lib/onboarding";
 import type { RunnerState } from "../runner/pyodide/PyodideRunner";
@@ -157,15 +157,22 @@ export function ProfileStep({
 export function StartStep({
   experience,
   onSkip,
+  onPlacement,
+  onRestart,
+  resume = false,
   busy,
   error,
 }: {
   experience: ProfileDraft["experience"];
   onSkip: () => void;
+  /** Start (or resume) the placement sitting. */
+  onPlacement: () => void;
+  /** Only offered when a sitting is already in progress: abandon it and start over. */
+  onRestart?: () => void;
+  resume?: boolean;
   busy: boolean;
   error: string | null;
 }) {
-  // Placement is not built yet (A10/A11): the button is shown disabled, never faked.
   return (
     <section aria-labelledby="w3">
       <h2 id="w3">Chọn cách bắt đầu</h2>
@@ -173,9 +180,17 @@ export function StartStep({
         <div className="card">
           <h3>Đánh giá trình độ</h3>
           <p className="muted">~30-45 phút, dừng/tiếp tục được, bỏ qua phần bạn đã biết.</p>
-          <button className="btn" disabled aria-disabled="true" title="Sắp có">
-            Đánh giá trình độ (sắp có)
+          <button className={`btn${experience === "none" ? "" : " primary"}`} onClick={onPlacement} disabled={busy}>
+            {resume ? "Tiếp tục đánh giá" : "Đánh giá trình độ"}
           </button>
+          {resume && onRestart && (
+            <>
+              {" "}
+              <button className="btn" onClick={onRestart} disabled={busy}>
+                Làm lại từ đầu
+              </button>
+            </>
+          )}
         </div>
         <div className="card">
           <h3>Bắt đầu từ đầu</h3>
@@ -208,6 +223,7 @@ export default function Welcome() {
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [resume, setResume] = useState(false);
   const key = useRef(newIdempotencyKey());
 
   // Reopening mid-way resumes at the right step; an already-finished onboarding goes home.
@@ -216,7 +232,10 @@ export default function Welcome() {
       .then((o) => {
         if (o.profile_done) {
           if (o.placement === "none") setStep(3);
-          else navigate("/", { replace: true });
+          else if (o.placement === "in_progress") {
+            setResume(true); // flow H: offer to continue the sitting
+            setStep(3);
+          } else navigate("/", { replace: true });
         }
       })
       .catch(() => undefined);
@@ -234,6 +253,23 @@ export default function Welcome() {
         e instanceof ApiError && e.isNetwork
           ? "Server chưa chạy. Chạy `docker compose up` rồi thử lại."
           : `Không lưu được hồ sơ: ${(e as Error).message}`,
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const beginPlacement = async (restart: boolean) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const view = await startPlacement(restart ? { restart: true } : {}, newIdempotencyKey());
+      navigate(`/placement/${view.placement_id}`, { replace: true });
+    } catch (e) {
+      setError(
+        e instanceof ApiError && e.isNetwork
+          ? "Server chưa chạy. Chạy `docker compose up` rồi thử lại."
+          : `Không bắt đầu được đánh giá: ${(e as Error).message}`,
       );
     } finally {
       setBusy(false);
@@ -259,6 +295,9 @@ export default function Welcome() {
           experience={draft.experience}
           busy={busy}
           error={error}
+          resume={resume}
+          onPlacement={() => void beginPlacement(false)}
+          onRestart={() => void beginPlacement(true)}
           onSkip={() => save({ placement: "skipped" }, () => navigate("/", { replace: true }))}
         />
       )}

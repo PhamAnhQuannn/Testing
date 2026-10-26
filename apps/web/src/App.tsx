@@ -1,13 +1,14 @@
 import { BrowserRouter, NavLink, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { ToastProvider } from "./components/Toast";
 import { useActivityPing } from "./lib/activity";
-import { getResumeView, type ResumeView } from "./lib/api";
+import { getPlacementCurrent, getResumeView, type PlacementView, type ResumeView } from "./lib/api";
 import { showResumeStrip } from "./lib/onboarding";
 import { useOnline } from "./lib/hooks";
 import { useTheme } from "./lib/theme";
 import CheckPage from "./routes/CheckPage";
 import Home from "./routes/Home";
 import MapPage from "./routes/MapPage";
+import PlacementPage from "./routes/PlacementPage";
 import SettingsPage from "./routes/SettingsPage";
 import Welcome from "./routes/Welcome";
 import ReviewPage from "./routes/ReviewPage";
@@ -17,7 +18,7 @@ import { useEffect, useState } from "react";
 
 function Nav() {
   const path = useLocation().pathname;
-  const focus = path.startsWith("/check/") || path.startsWith("/welcome"); // focus mode (UI_SPEC S8): no side nav
+  const focus = path.startsWith("/check/") || path.startsWith("/welcome") || path.startsWith("/placement/"); // focus mode (UI_SPEC S2/S8): no side nav
   const [theme, setTheme] = useTheme();
   const cycle = () => setTheme(theme === "auto" ? "light" : theme === "light" ? "dark" : "auto");
   if (focus) return null;
@@ -76,6 +77,36 @@ function ResumeStrip() {
   );
 }
 
+/** Flow H: /resume carries no placement state yet, so ask /placement/current and offer to continue. */
+function PlacementStrip() {
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const [current, setCurrent] = useState<PlacementView | null>(null);
+  const [hidden, setHidden] = useState(false);
+  useEffect(() => {
+    let live = true;
+    getPlacementCurrent()
+      .then((p) => live && setCurrent(p))
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [pathname]); // re-check on navigation so finishing a sitting clears the strip
+  if (!current || current.status !== "in_progress" || hidden) return null;
+  if (pathname.startsWith("/placement/") || pathname.startsWith("/welcome")) return null;
+  return (
+    <div className="banner resume-strip" role="note" data-testid="placement-resume-strip">
+      <span>Bạn đang đánh giá trình độ dở dang.</span>{" "}
+      <button className="btn sm primary" onClick={() => navigate(`/placement/${current.placement_id}`)}>
+        Tiếp tục đánh giá
+      </button>{" "}
+      <button className="btn sm ghost" aria-label="Ẩn" onClick={() => setHidden(true)}>
+        ✕
+      </button>
+    </div>
+  );
+}
+
 export default function App() {
   const online = useOnline();
   useActivityPing();
@@ -93,6 +124,7 @@ export default function App() {
             </div>
           )}
           <ResumeStrip />
+          <PlacementStrip />
           <main className="main" id="main">
             <Routes>
               <Route path="/" element={<Home />} />
@@ -102,6 +134,8 @@ export default function App() {
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/s/:subtopicId" element={<LessonPage />} />
               <Route path="/check/:subtopicId" element={<CheckPage />} />
+              <Route path="/placement/:sessionId" element={<PlacementPage />} />
+              <Route path="/placement/:sessionId/result" element={<PlacementPage />} />
               <Route path="/p/:problemId" element={<ProblemPage />} />
               <Route path="*" element={<div className="page empty">Không tìm thấy trang.</div>} />
             </Routes>

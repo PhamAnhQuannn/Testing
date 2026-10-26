@@ -42,10 +42,28 @@ describe("S1 screens", () => {
     expect(out).toMatch(/type="submit"[^>]*disabled/);
   });
 
-  it("start step: placement disabled (not faked), skip enabled", () => {
-    const out = html(createElement(StartStep, { experience: "none", onSkip: noop, busy: false, error: null }));
-    expect(out).toMatch(/<button[^>]*disabled[^>]*>Đánh giá trình độ \(sắp có\)/);
+  it("start step: placement enabled, skip kept", () => {
+    const out = html(createElement(StartStep, { experience: "none", onSkip: noop, onPlacement: noop, busy: false, error: null }));
+    expect(out).toMatch(/<button class="btn"[^>]*>Đánh giá trình độ<\/button>/);
+    expect(out).not.toMatch(/<button[^>]*disabled[^>]*>Đánh giá/);
+    expect(out).not.toContain("sắp có");
     expect(out).toMatch(/<button class="btn primary">Bắt đầu từ đầu/);
+  });
+
+  it("start step: a sitting in progress is offered to resume (or restart)", () => {
+    const out = html(
+      createElement(StartStep, {
+        experience: "some",
+        onSkip: noop,
+        onPlacement: noop,
+        onRestart: noop,
+        resume: true,
+        busy: false,
+        error: null,
+      }),
+    );
+    expect(out).toContain("Tiếp tục đánh giá");
+    expect(out).toContain("Làm lại từ đầu");
   });
 
   it("intro shows the Pyodide state", () => {

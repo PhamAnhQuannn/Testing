@@ -1118,3 +1118,254 @@ export function putSettings(
 ): Promise<unknown> {
   return request("/settings", { method: "PUT", body, idempotencyKey });
 }
+
+// ---------------------------------------------------------------- placement, Phase A (docs/API_M2A.md "Placement")
+
+export type PlacementStatus = "in_progress" | "finished" | "skipped" | string;
+
+export interface PlacementGate {
+  code: string;
+  subtopic_id: string;
+  name_vi: string;
+  /** null = not decided yet; else passed | passed_unclean | known | failed | gave_up | locked | unavailable. */
+  outcome: string | null;
+  l1: string | null;
+  retry_after: string | null;
+}
+
+export interface PlacementBudget {
+  soft_ms: number;
+  hard_ms: number;
+  remaining_ms: number;
+}
+
+export interface PlacementCurrent {
+  gate: string;
+  subtopic_id: string;
+  name_vi: string;
+  probing: boolean;
+  check_session_id: number;
+  elapsed_ms: number;
+  /** Same shape as a check step (no reference / solution). null when the gate has nothing open. */
+  step: CheckStep | null;
+}
+
+export interface PlacementView {
+  placement_id: number;
+  status: PlacementStatus;
+  resumed: boolean;
+  stale: boolean;
+  stop_reason: string | null;
+  message_vi: string | null;
+  active_ms: number;
+  budget: PlacementBudget;
+  progress: { gates_total: number; gates_done: number };
+  gates: PlacementGate[];
+  current: PlacementCurrent | null;
+}
+
+export interface PlacementAnswerResponse {
+  result: CheckStepResult;
+  gate_outcome: string | null;
+  placement: PlacementView;
+}
+
+export interface PlacementSkillNode {
+  subtopic_id: string;
+  name_vi: string;
+  score: number;
+  /** measured | likely_known | likely_gap | not_assessed */
+  state: string;
+  seeded: boolean;
+  known_basic: boolean;
+  placement_hint: string | null;
+}
+
+export interface PlacementGateRef {
+  gate: string;
+  name_vi: string;
+  subtopic_id: string;
+  outcome?: string;
+  retry_after?: string | null;
+}
+
+export interface PlacementResult {
+  placement_id: number;
+  status: PlacementStatus;
+  stop_reason: string | null;
+  message_vi: string | null;
+  active_ms: number;
+  seeded: string[];
+  skill_map: PlacementSkillNode[];
+  strong_areas: PlacementGateRef[];
+  weak_areas: PlacementGateRef[];
+  start: { subtopic_id: string; name_vi: string } | null;
+  content_pending: boolean;
+  test_out_candidates: string[];
+  counts: { measured: number; likely_known: number; likely_gap: number; not_assessed: number };
+}
+
+export function normalizePlacementView(data: unknown): PlacementView {
+  const raw = (data ?? {}) as Loose;
+  const budget = (raw.budget ?? {}) as Loose;
+  const progress = (raw.progress ?? {}) as Loose;
+  const cur = raw.current as Loose | null | undefined;
+  return {
+    placement_id: Number(raw.placement_id),
+    status: String(raw.status ?? "in_progress"),
+    resumed: Boolean(raw.resumed),
+    stale: Boolean(raw.stale),
+    stop_reason: (raw.stop_reason as string | null | undefined) ?? null,
+    message_vi: (raw.message_vi as string | null | undefined) ?? null,
+    active_ms: Number(raw.active_ms ?? 0),
+    budget: {
+      soft_ms: Number(budget.soft_ms ?? 45 * 60_000),
+      hard_ms: Number(budget.hard_ms ?? 60 * 60_000),
+      remaining_ms: Number(budget.remaining_ms ?? 60 * 60_000),
+    },
+    progress: { gates_total: Number(progress.gates_total ?? 0), gates_done: Number(progress.gates_done ?? 0) },
+    gates: ((raw.gates as Loose[] | undefined) ?? []).map((g) => ({
+      code: String(g.code),
+      subtopic_id: String(g.subtopic_id),
+      name_vi: String(g.name_vi ?? ""),
+      outcome: (g.outcome as string | null | undefined) ?? null,
+      l1: (g.l1 as string | null | undefined) ?? null,
+      retry_after: (g.retry_after as string | null | undefined) ?? null,
+    })),
+    current: cur
+      ? {
+          gate: String(cur.gate),
+          subtopic_id: String(cur.subtopic_id),
+          name_vi: String(cur.name_vi ?? ""),
+          probing: Boolean(cur.probing),
+          check_session_id: Number(cur.check_session_id),
+          elapsed_ms: Number(cur.elapsed_ms ?? 0),
+          step: cur.step ? normalizeCheckStep(cur.step as Loose) : null,
+        }
+      : null,
+  };
+}
+
+export function normalizePlacementAnswer(data: unknown): PlacementAnswerResponse {
+  const raw = data as Loose;
+  return {
+    result: normalizeCheckResult(raw.result as Loose),
+    gate_outcome: (raw.gate_outcome as string | null | undefined) ?? null,
+    placement: normalizePlacementView(raw.placement),
+  };
+}
+
+const gateRef = (g: Loose): PlacementGateRef => ({
+  gate: String(g.gate),
+  name_vi: String(g.name_vi ?? ""),
+  subtopic_id: String(g.subtopic_id),
+  outcome: g.outcome as string | undefined,
+  retry_after: (g.retry_after as string | null | undefined) ?? null,
+});
+
+export function normalizePlacementResult(data: unknown): PlacementResult {
+  const raw = (data ?? {}) as Loose;
+  const counts = (raw.counts ?? {}) as Loose;
+  const start = raw.start as Loose | null | undefined;
+  return {
+    placement_id: Number(raw.placement_id),
+    status: String(raw.status ?? "finished"),
+    stop_reason: (raw.stop_reason as string | null | undefined) ?? null,
+    message_vi: (raw.message_vi as string | null | undefined) ?? null,
+    active_ms: Number(raw.active_ms ?? 0),
+    seeded: ((raw.seeded as unknown[] | undefined) ?? []).map(String),
+    skill_map: ((raw.skill_map as Loose[] | undefined) ?? []).map((m) => ({
+      subtopic_id: String(m.subtopic_id),
+      name_vi: String(m.name_vi ?? ""),
+      score: Number(m.score ?? 0),
+      state: String(m.state ?? "not_assessed"),
+      seeded: Boolean(m.seeded),
+      known_basic: Boolean(m.known_basic),
+      placement_hint: (m.placement_hint as string | null | undefined) ?? null,
+    })),
+    strong_areas: ((raw.strong_areas as Loose[] | undefined) ?? []).map(gateRef),
+    weak_areas: ((raw.weak_areas as Loose[] | undefined) ?? []).map(gateRef),
+    start: start ? { subtopic_id: String(start.subtopic_id), name_vi: String(start.name_vi ?? "") } : null,
+    content_pending: Boolean(raw.content_pending),
+    test_out_candidates: ((raw.test_out_candidates as unknown[] | undefined) ?? []).map(String),
+    counts: {
+      measured: Number(counts.measured ?? 0),
+      likely_known: Number(counts.likely_known ?? 0),
+      likely_gap: Number(counts.likely_gap ?? 0),
+      not_assessed: Number(counts.not_assessed ?? 0),
+    },
+  };
+}
+
+/** POST /api/placement: start, or resume the sitting in progress (`resumed`). `skip` writes nothing. */
+export async function startPlacement(
+  opts: { experience?: "none" | "some" | "solid"; restart?: boolean; skip?: boolean } = {},
+  key?: string,
+): Promise<PlacementView> {
+  return normalizePlacementView(
+    await request<unknown>("/placement", { method: "POST", body: opts, idempotencyKey: key }),
+  );
+}
+
+/** GET /api/placement/current -> the latest sitting, or null. */
+export async function getPlacementCurrent(): Promise<PlacementView | null> {
+  const d = (await request<unknown>("/placement/current")) as Loose;
+  return d?.placement ? normalizePlacementView(d.placement) : null;
+}
+
+export async function getPlacement(id: number | string): Promise<PlacementView> {
+  return normalizePlacementView(await request<unknown>(`/placement/${enc(String(id))}`));
+}
+
+export async function answerPlacement(
+  id: number,
+  body: { item_id: string; elapsed_ms: number; session_elapsed_ms?: number } & CheckAnswerBody,
+  key?: string,
+): Promise<PlacementAnswerResponse> {
+  return normalizePlacementAnswer(
+    await request<unknown>(`/placement/${id}/answer`, { method: "POST", body, idempotencyKey: key }),
+  );
+}
+
+/** "Không biết": a give-up (no lock, not a pass). */
+export async function skipPlacement(
+  id: number,
+  body: { item_id: string; elapsed_ms: number; session_elapsed_ms?: number },
+  key?: string,
+): Promise<PlacementAnswerResponse> {
+  return normalizePlacementAnswer(
+    await request<unknown>(`/placement/${id}/skip`, { method: "POST", body, idempotencyKey: key }),
+  );
+}
+
+/** Absolute, monotonic active time; safe to resend. */
+export function placementHeartbeat(
+  id: number,
+  activeMs: number,
+  itemElapsedMs?: number,
+  options: { keepalive?: boolean } = {},
+): Promise<{ placement_id: number; status: string; active_ms: number; budget: PlacementBudget }> {
+  return request(`/placement/${id}/heartbeat`, {
+    method: "POST",
+    body: {
+      active_ms: Math.round(activeMs),
+      ...(itemElapsedMs === undefined ? {} : { item_elapsed_ms: Math.round(itemElapsedMs) }),
+    },
+    keepalive: options.keepalive,
+  });
+}
+
+export async function finishPlacement(id: number, activeMs?: number, key?: string): Promise<PlacementView> {
+  return normalizePlacementView(
+    await request<unknown>(`/placement/${id}/finish`, {
+      method: "POST",
+      body: activeMs === undefined ? {} : { active_ms: Math.round(activeMs) },
+      idempotencyKey: key,
+    }),
+  );
+}
+
+/** 409 placement_skipped when the sitting was skipped (nothing measured). */
+export async function getPlacementResult(id: number | string): Promise<PlacementResult> {
+  return normalizePlacementResult(await request<unknown>(`/placement/${enc(String(id))}/result`));
+}
