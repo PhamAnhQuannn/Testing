@@ -1,24 +1,192 @@
 id: py.datastructs.copying_mutability
 version: 1
-status: draft
-title_vi: Mutability, aliasing và sao chép (copying)
-est_minutes: 10
+status: published
+title_vi: "Mutability, aliasing và sao chép (copying)"
+est_minutes: 14
 objectives_vi:
-- Dự đoán đúng kết quả khi hai biến cùng trỏ một list.
-- Chọn sao chép nông hay sâu đúng và tránh bẫy [[0]*n]*m.
-blocks: []
-problems:
-  practice: []
-  extra: []
-mastery_check:
-  l1: []
-  l2: []
-  l3: []
-checkpoint:
-  pass_ratio: 0.7
-  min_items: 3
+  - "Dự đoán đúng kết quả khi hai biến cùng trỏ một list (aliasing)."
+  - "Chọn sao chép nông (shallow copy) hay sâu (deep copy) cho đúng, và tránh bẫy `[[0]*n]*m`."
+  - "Biết `+=` trên list sửa tại chỗ còn trên tuple tạo đối tượng mới."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Trong Python, biến chỉ là **cái nhãn** gắn vào một đối tượng, không phải cái hộp chứa giá trị.
+      Đối tượng **mutable** (sửa được tại chỗ): `list`, `dict`, `set`. Đối tượng **immutable**
+      (không sửa được): `int`, `float`, `bool`, `str`, `tuple`. Vì vậy `b = a` **không sao chép gì**,
+      nó chỉ gắn thêm nhãn `b` vào đúng đối tượng mà `a` đang trỏ tới: đó là **aliasing**. Sửa qua
+      nhãn nào thì nhãn kia cũng thấy.
+      Hai công cụ kiểm tra: `a is b` hỏi "cùng một đối tượng không?" (và `id(a)` là số định danh của
+      đối tượng), còn `a == b` chỉ hỏi "giá trị có bằng nhau không?".
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      a = [1, 2, 3]
+      b = a
+      b.append(4)
+      print(a, a is b, id(a) == id(b))
+      x = 5
+      y = x
+      y += 1
+      print(x, y)
+    expected_output: |
+      [1, 2, 3, 4] True True
+      5 6
+  - id: b03
+    type: text
+    md: |
+      Với số (immutable), `y += 1` không sửa số 5; nó tạo số 6 và gắn nhãn `y` sang đó, nên `x`
+      vẫn là 5. Với list thì `b.append(4)` sửa chính đối tượng, nên `a` đổi theo.
+      Muốn có một list độc lập, hãy **sao chép**. Cách phổ biến cho **shallow copy** (sao chép nông):
+      `a[:]`, `list(a)`, `a.copy()` hoặc `copy.copy(a)`. Chúng tạo **list ngoài mới**, nhưng các
+      phần tử bên trong vẫn là chính các đối tượng cũ. Nếu phần tử là số hay chuỗi thì không sao;
+      nếu phần tử là list con thì list con vẫn **dùng chung** giữa bản gốc và bản sao.
+      Mẹo hay gặp khi phỏng vấn: khi lưu "ảnh chụp" của một list đang thay đổi vào list khác, hãy lưu
+      bản sao (`ds.append(hien_tai[:])`), nếu không mọi phần tử đều là cùng một list.
+  - id: b04
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      a = [[1, 2], [3]]
+      b = a[:]
+      b.append([7])
+      b[0].append(9)
+      print(a)
+      print(b)
+      print(a is b, a[0] is b[0])
+    expected_output: |
+      [[1, 2, 9], [3]]
+      [[1, 2, 9], [3], [7]]
+      False True
+  - id: b05
+    type: quiz_mcq
+    prompt_md: |
+      Sau đoạn code sau, `a` bằng gì?
+      ```python
+      a = [[1], [2]]
+      b = list(a)
+      b[0].append(5)
+      b[1] = [9]
+      ```
+    options:
+      - {id: a, text_md: "`[[1], [2]]`"}
+      - {id: b, text_md: "`[[1, 5], [2]]`"}
+      - {id: c, text_md: "`[[1, 5], [9]]`"}
+    answer: [b]
+    explain_md: "`list(a)` là bản sao nông: `b[0]` và `a[0]` là cùng list con nên `append(5)` thấy ở cả hai. Còn `b[1] = [9]` chỉ gán lại ô số 1 của list ngoài `b`, không động tới `a`."
+  - id: b06
+    type: text
+    md: |
+      Muốn sao chép **mọi tầng**, dùng **deep copy**: `import copy` rồi `copy.deepcopy(a)`. Nó
+      sao chép đệ quy cả list con, nên bản sao hoàn toàn độc lập với bản gốc. Đổi lại, nó chậm hơn
+      và tốn bộ nhớ hơn shallow copy, nên chỉ dùng khi thật sự có cấu trúc lồng nhau cần tách.
+      Một chi tiết nhận biết: nếu cấu trúc **tự chứa chính nó** (ví dụ `c = [1]; c.append(c)`, một
+      "vòng"), `deepcopy` vẫn xử lý được vì nó nhớ những đối tượng đã sao chép; một hàm tự viết
+      kiểu "duyệt và sao chép" thì sẽ lặp mãi.
+  - id: b07
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      import copy
+      a = [[1, 2], [3]]
+      b = copy.deepcopy(a)
+      b[0].append(9)
+      print(a, b)
+      c = [1]
+      c.append(c)
+      d = copy.deepcopy(c)
+      print(d is c, d[1] is d)
+    expected_output: |
+      [[1, 2], [3]] [[1, 2, 9], [3]]
+      False True
+  - id: b08
+    type: text
+    md: |
+      **Bẫy kinh điển khi tạo lưới 2D**: `[[0] * 3] * 2`. Phép `* 2` chỉ **lặp lại tham chiếu** tới cùng
+      một list con, nên hai hàng là *cùng một đối tượng*; sửa ô của hàng này, hàng kia đổi theo.
+      (`[0] * 3` thì an toàn vì phần tử là số, immutable.) Cách đúng là tạo một list con **mới cho
+      mỗi hàng** bằng comprehension: `[[0] * 3 for _ in range(2)]`.
+  - id: b09
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      sai = [[0] * 3] * 2
+      sai[0][0] = 1
+      dung = [[0] * 3 for _ in range(2)]
+      dung[0][0] = 1
+      print(sai, sai[0] is sai[1])
+      print(dung, dung[0] is dung[1])
+    expected_output: |
+      [[1, 0, 0], [1, 0, 0]] True
+      [[1, 0, 0], [0, 0, 0]] False
+  - id: b10
+    type: predict_output
+    code: |
+      m = [[0] * 2] * 2
+      m[1][1] = 7
+      print(m, m[0] is m[1])
+    expected_output: "[[0, 7], [0, 7]] True"
+    explain_md: "Hai hàng là cùng một list con, nên gán `m[1][1] = 7` cũng đổi hàng 0, và `m[0] is m[1]` là `True`."
+  - id: b11
+    type: text
+    md: |
+      **`+=` khác nhau giữa list và tuple.** Với list, `a += [3]` **sửa tại chỗ** (giống `extend`),
+      nên mọi nhãn cùng trỏ tới list đó đều thấy thay đổi. Còn `a = a + [3]` tạo list mới. Với tuple
+      (immutable), `t += (3,)` buộc phải **tạo tuple mới** và gắn lại nhãn `t`; các nhãn khác vẫn trỏ
+      tuple cũ. Một lưu ý nhận biết: tuple không sửa được các ô của nó, nhưng nếu một ô là list thì
+      list đó vẫn sửa được (`t = ([1], 2); t[0].append(9)` hợp lệ).
+  - id: b12
+    type: predict_output
+    code: |
+      a = [1, 2]
+      b = a
+      a += [3]
+      t = (1, 2)
+      u = t
+      t += (3,)
+      print(b, u)
+    expected_output: "[1, 2, 3] (1, 2)"
+    explain_md: "`a += [3]` sửa tại chỗ list mà `b` cũng trỏ tới nên `b` thành `[1, 2, 3]`. `t += (3,)` tạo tuple mới cho `t`; `u` vẫn là tuple cũ `(1, 2)`."
+  - id: b13
+    type: code_exercise
+    md: |
+      Viết `grid_with(rows, cols, r, c, v)`: tạo lưới `rows` hàng, `cols` cột toàn số 0, gán ô hàng `r`
+      cột `c` bằng `v`, rồi trả về lưới. Mỗi hàng phải là list riêng, để chỉ ô `(r, c)` đổi.
+    entry: grid_with
+    starter: |
+      def grid_with(rows, cols, r, c, v):
+          # TODO: tạo lưới bằng comprehension (không dùng [[0] * cols] * rows), rồi gán ô (r, c)
+          pass
+    tests:
+      - {args: [2, 3, 1, 2, 7], expected: [[0, 0, 0], [0, 0, 7]]}
+      - {args: [1, 1, 0, 0, 5], expected: [[5]]}
+      - {args: [3, 2, 0, 0, 1], expected: [[1, 0], [0, 0], [0, 0]]}
+    hint_md: "`luoi = [[0] * cols for _ in range(rows)]`, sau đó `luoi[r][c] = v` và `return luoi`."
+    solution: "def grid_with(rows, cols, r, c, v):\n    luoi = [[0] * cols for _ in range(rows)]\n    luoi[r][c] = v\n    return luoi\n"
+  - id: b14
+    type: problem_ref
+    problem_id: pascals-triangle
+  - id: b15
+    type: problem_ref
+    problem_id: rotate-array
+  - id: b16
+    type: summary
+    bullets_vi:
+      - "Biến là nhãn gắn vào đối tượng: `b = a` không sao chép, chỉ aliasing. Kiểm tra bằng `is` / `id()`, còn `==` so giá trị."
+      - "Mutable: list, dict, set. Immutable: int, float, bool, str, tuple."
+      - "Shallow copy (`a[:]`, `list(a)`, `a.copy()`, `copy.copy`) tạo list ngoài mới nhưng list con vẫn dùng chung; `copy.deepcopy` sao chép mọi tầng (xử lý được cả cấu trúc tự chứa chính nó)."
+      - "Bẫy `[[0] * n] * m`: các hàng là cùng một list. Dùng `[[0] * n for _ in range(m)]`."
+      - "`+=` trên list sửa tại chỗ (alias thấy), trên tuple tạo đối tượng mới."
+problems: {practice: [pascals-triangle, rotate-array], extra: []}
+mastery_check: {l1: [Q029], l2: [X007], l3: []}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
 source:
   tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
-  authored_by: tools/gen_lesson_stubs.py
+  authored_by: "Claude (M2a content pipeline)"
   reviewed_by: null
-  date: '2026-10-24'
+  date: "2026-10-26"

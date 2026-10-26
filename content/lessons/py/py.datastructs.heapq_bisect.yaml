@@ -1,24 +1,191 @@
 id: py.datastructs.heapq_bisect
 version: 1
-status: draft
-title_vi: heapq và bisect
-est_minutes: 10
+status: published
+title_vi: "heapq và bisect"
+est_minutes: 14
 objectives_vi:
-- Dùng heapq lấy số nhỏ nhất hoặc k số lớn nhất.
-- Bisect tìm vị trí chèn đúng mà không cần tra cứu.
-blocks: []
-problems:
-  practice: []
-  extra: []
-mastery_check:
-  l1: []
-  l2: []
-  l3: []
-checkpoint:
-  pass_ratio: 0.7
-  min_items: 3
+  - "Dùng heapq (min-heap) để lấy phần tử nhỏ nhất, và giữ k phần tử lớn nhất bằng heap kích thước k."
+  - "Biết đảo dấu để làm max-heap và đẩy cặp `(ưu tiên, phần tử)` vào heap."
+  - "Dùng bisect để tìm vị trí chèn đúng trong list đã sắp xếp (`bisect_left` khác `bisect_right`)."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      **Heap** (đống) là cấu trúc giữ phần tử nhỏ nhất luôn ở đầu để lấy ra nhanh. Module **`heapq`**
+      biến một list thường thành **min-heap**: `heapq.heappush(h, x)` thêm `x`, `heapq.heappop(h)`
+      lấy và xoá phần tử nhỏ nhất (đều O(log n)), `h[0]` xem phần tử nhỏ nhất (O(1)), và
+      `heapq.heapify(h)` biến cả list có sẵn thành heap trong O(n). Lưu ý: `h` chỉ **bảo đảm
+      `h[0]` là nhỏ nhất**, các phần tử còn lại không nằm theo thứ tự sắp xếp, nên đừng `print(h)`
+      rồi mong thấy list đã sort.
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      import heapq
+      h = [5, 1, 4]
+      heapq.heapify(h)
+      heapq.heappush(h, 0)
+      print(h[0], heapq.heappop(h), heapq.heappop(h), len(h))
+    expected_output: |
+      0 0 1 2
+  - id: b03
+    type: text
+    md: |
+      `heapq` chỉ có **min-heap**. Muốn lấy số **lớn nhất** trước, hãy đẩy số **đối dấu**: push `-x`,
+      pop xong đổi dấu lại. Muốn gắn thêm dữ liệu, đẩy **tuple** `(ưu_tiên, phần_tử)`: heap so
+      sánh tuple từng phần tử, nên ưu tiên nhỏ ra trước; nếu hai ưu tiên bằng nhau thì so tiếp phần
+      tử thứ hai (nên nó cũng phải so sánh được).
+  - id: b04
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      import heapq
+      h = []
+      for x in [3, 9, 1]:
+          heapq.heappush(h, -x)
+      print(-heapq.heappop(h))
+      cv = []
+      heapq.heappush(cv, (2, "viet bai"))
+      heapq.heappush(cv, (1, "an sang"))
+      heapq.heappush(cv, (2, "ngu"))
+      print(heapq.heappop(cv), heapq.heappop(cv))
+    expected_output: |
+      9
+      (1, 'an sang') (2, 'ngu')
+  - id: b05
+    type: quiz_mcq
+    prompt_md: "Muốn dùng `heapq` để liên tục lấy ra số **lớn nhất** của một nhóm số, ta làm gì?"
+    options:
+      - {id: a, text_md: "Đẩy `-x` vào heap rồi đổi dấu lại khi `heappop`"}
+      - {id: b, text_md: "Gọi `heapq.heappop(h)`, nó luôn trả số lớn nhất"}
+      - {id: c, text_md: "Dùng `heapq.maxheap(h)`"}
+    answer: [a]
+    explain_md: "`heapq` chỉ là min-heap (`heappop` trả số nhỏ nhất) và không có `maxheap`; mẹo là lưu số đối dấu."
+  - id: b06
+    type: text
+    md: |
+      Hai hàm tiện lợi: `heapq.nlargest(k, ds)` và `heapq.nsmallest(k, ds)` trả list `k` số lớn
+      nhất / nhỏ nhất (đã sắp xếp: lớn→nhỏ hoặc nhỏ→lớn). Mẫu rất hay gặp là **heap kích thước k**:
+      để giữ **k số lớn nhất** đã thấy, dùng min-heap; mỗi số mới `heappush`, nếu `len(h) > k` thì
+      `heappop` bỏ số nhỏ nhất. Cuối cùng `h[0]` chính là số **lớn thứ k**. Mỗi bước O(log k), cả
+      dãy O(n log k), tốt hơn sắp xếp toàn bộ (O(n log n)) khi k nhỏ.
+  - id: b07
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      import heapq
+      a = [5, 1, 8, 3, 9, 2]
+      print(heapq.nlargest(2, a), heapq.nsmallest(2, a))
+      h = []
+      for x in a:
+          heapq.heappush(h, x)
+          if len(h) > 3:
+              heapq.heappop(h)
+      print(h[0], sorted(h))
+    expected_output: |
+      [9, 8] [1, 2]
+      5 [5, 8, 9]
+  - id: b08
+    type: predict_output
+    code: |
+      import heapq
+      h = []
+      for x in [4, 1, 7, 3]:
+          heapq.heappush(h, x)
+          if len(h) > 2:
+              heapq.heappop(h)
+      print(h[0])
+    expected_output: "4"
+    explain_md: "Heap giữ 2 số lớn nhất đã thấy; sau cùng là {4, 7} nên số nhỏ nhất trong heap (`h[0]`) là 4, tức số lớn thứ 2."
+  - id: b09
+    type: text
+    md: |
+      **`bisect`** làm việc với list **đã sắp xếp tăng dần** và tìm vị trí bằng tìm kiếm nhị phân
+      (O(log n)). `bisect_left(a, x)` trả **vị trí đầu tiên** có thể chèn `x` mà vẫn giữ thứ tự (bên
+      trái các số bằng `x`); `bisect_right(a, x)` trả vị trí **ngay sau** các số bằng `x`. Hiệu
+      `bisect_right - bisect_left` là số lần `x` xuất hiện. `bisect.insort(a, x)` chèn `x` vào đúng chỗ,
+      nhưng việc chèn dời các phần tử nên là O(n). Nhận biết thêm: bản Python mới (3.10 trở lên) cho
+      tham số `key=` ở các hàm bisect; trong bài này ta chỉ dùng list số trực tiếp.
+      **Chọn công cụ:** lấy nhỏ nhất liên tục khi dữ liệu thay đổi thì `heapq`; list đã sort và cần
+      tìm vị trí thì `bisect`; chỉ cần một lần k số lớn nhất thì `nlargest`.
+  - id: b10
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      import bisect
+      a = [1, 3, 3, 5]
+      print(bisect.bisect_left(a, 3), bisect.bisect_right(a, 3), bisect.bisect_left(a, 4))
+      bisect.insort(a, 4)
+      print(a)
+      print(bisect.bisect_left(a, 10), bisect.bisect_left(a, 0))
+    expected_output: |
+      1 3 3
+      [1, 3, 3, 4, 5]
+      5 0
+  - id: b11
+    type: quiz_mcq
+    prompt_md: "Cho `a = [1, 3, 3, 3, 5]` đã sắp xếp. Biểu thức nào đếm số lần xuất hiện của 3?"
+    options:
+      - {id: a, text_md: "`bisect_left(a, 3) - bisect_right(a, 3)`"}
+      - {id: b, text_md: "`bisect_right(a, 3) - bisect_left(a, 3)`"}
+      - {id: c, text_md: "`bisect_left(a, 3)`"}
+    answer: [b]
+    explain_md: "`bisect_right` trả 4 (ngay sau các số 3) và `bisect_left` trả 1 (trước các số 3): 4 - 1 = 3. Đáp án a cho -3, còn c chỉ là vị trí bắt đầu."
+  - id: b12
+    type: code_exercise
+    md: "Viết `sum_of_k_largest(nums, k)` trả tổng của `k` số lớn nhất trong `nums` (`1 <= k <= len(nums)`). Dùng `heapq.nlargest`."
+    entry: sum_of_k_largest
+    starter: |
+      import heapq
+
+
+      def sum_of_k_largest(nums, k):
+          # TODO: heapq.nlargest(k, nums) rồi cộng lại
+          pass
+    tests:
+      - {args: [[5, 1, 8, 3], 2], expected: 13}
+      - {args: [[4], 1], expected: 4}
+      - {args: [[2, 2, 2], 2], expected: 4}
+    hint_md: "`return sum(heapq.nlargest(k, nums))`."
+    solution: "import heapq\n\n\ndef sum_of_k_largest(nums, k):\n    return sum(heapq.nlargest(k, nums))\n"
+  - id: b13
+    type: code_exercise
+    md: "Viết `insert_position(nums, target)`: `nums` đã sắp xếp tăng dần; trả về chỉ số mà `target` nằm hoặc sẽ được chèn vào để list vẫn có thứ tự (nếu `target` đã có thì trả chỉ số đầu tiên). Dùng `bisect`."
+    entry: insert_position
+    starter: |
+      import bisect
+
+
+      def insert_position(nums, target):
+          # TODO: bisect.bisect_left(nums, target)
+          pass
+    tests:
+      - {args: [[1, 3, 5, 6], 5], expected: 2}
+      - {args: [[1, 3, 5, 6], 2], expected: 1}
+      - {args: [[1, 3, 5, 6], 7], expected: 4}
+      - {args: [[], 3], expected: 0}
+    hint_md: "`return bisect.bisect_left(nums, target)`."
+    solution: "import bisect\n\n\ndef insert_position(nums, target):\n    return bisect.bisect_left(nums, target)\n"
+  - id: b14
+    type: problem_ref
+    problem_id: running-kth-largest
+  - id: b15
+    type: summary
+    bullets_vi:
+      - "`heapq` là min-heap trên list: `heappush`, `heappop` (O(log n)), `h[0]` là nhỏ nhất, `heapify(h)` O(n); thứ tự các phần tử còn lại không được sắp xếp."
+      - "Max-heap: đẩy số đối dấu. Gắn dữ liệu: đẩy tuple `(ưu_tiên, phần_tử)`."
+      - "`nlargest(k, ds)` / `nsmallest(k, ds)`; mẫu heap kích thước k: push rồi pop khi `len > k`, `h[0]` là số lớn thứ k, O(n log k)."
+      - "`bisect_left` (vị trí bên trái các số bằng x) khác `bisect_right` (bên phải); `bisect_right - bisect_left` là số lần xuất hiện; `insort` chèn đúng chỗ nhưng O(n)."
+      - "Python mới có `key=` cho bisect (chỉ cần nhận biết)."
+problems: {practice: [running-kth-largest], extra: []}
+mastery_check: {l1: [Q031], l2: [Q032], l3: []}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
 source:
   tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
-  authored_by: tools/gen_lesson_stubs.py
+  authored_by: "Claude (M2a content pipeline)"
   reviewed_by: null
-  date: '2026-10-24'
+  date: "2026-10-26"
