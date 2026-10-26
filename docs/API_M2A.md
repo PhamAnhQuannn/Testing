@@ -135,6 +135,33 @@ Optional `{resume}` body updates `resume_state` like `PUT /resume`. Returns `{ad
 week_s}`. `last_ping` lives in a new `activity_state` table (addition beyond SPEC 6.3); `study_time`
 is `(user_id, day) -> seconds` (SPEC 6.3). Migration `0003_study_time`.
 
+## Placement, Phase A (A10)
+
+Engine `services/placement.py`, router `routers/placement.py`, table `placement_sessions`
+(migration `0005_placement`). Evidence is only `check_results` (`context=placement`) written through
+`checks.answer`; the score is recomputed by `scoring.py`, so placement seeds score 2 (clean level-2
+`write_code` = `tested_out`) and never 1 or 3. Level 3 is never asked. A level-1 pass sets
+`known_basic` only. Graph inference is `user_subtopic.placement_hint` (`likely_known`/`likely_gap`),
+a label cleared by real evidence.
+
+- `POST /api/placement` `{experience?, restart?, skip?}`: start, or resume the sitting in progress
+  (`resumed: true`). `skip` = "Bắt đầu từ đầu": a `skipped` session, writes no results (also sets the
+  A8 `placement_choice`). `GET /api/placement/current` (latest sitting or `{placement: null}`),
+  `GET /api/placement/{id}`.
+- `POST /api/placement/{id}/answer` `{item_id, elapsed_ms, session_elapsed_ms?, gave_up?, code,
+  verdict, passed_tests, total | answer | self_grade}` (same fields as a check answer);
+  `POST .../skip` `{item_id}` = "Không biết" (give-up: no lock, not a pass);
+  `POST .../heartbeat` `{active_ms, item_elapsed_ms?}` (absolute, monotonic, capped by the wall
+  clock); `POST .../finish` (keeps what was measured); `GET .../result` (seeded skill map,
+  strong/weak areas, `start`, `content_pending`, `test_out_candidates`).
+- View: `{placement_id, status, stop_reason, message_vi, active_ms, budget{soft,hard,remaining},
+  progress{gates_total,gates_done}, gates[{code,subtopic_id,outcome,l1,retry_after}], current{gate,
+  subtopic_id, check_session_id, elapsed_ms, step{index,count,item...}}}`.
+- Rules: entry gate by `experience` (none C1, some C2, solid C3; `none` runs C1 -> C2 only); pass
+  goes up; a failed/given-up gate stops once the gate below was tried (that one is asked if not yet
+  measured); no gate below: stop at once. No new gate when `active_ms + minutes > 60 min`.
+- `GET /me.onboarding.placement` is `none | in_progress | finished | skipped`.
+
 ## Not in this document yet
 
-Placement (`/placement/*`) — A10/A11.
+Placement Phase B/C (A11b, M2b), `kind=continue|retake`.

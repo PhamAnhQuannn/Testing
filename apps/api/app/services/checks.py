@@ -191,6 +191,7 @@ def start(
             t.CheckSession.user_id == user_id,
             t.CheckSession.subtopic_id == subtopic_id,
             t.CheckSession.status == "in_progress",
+            t.CheckSession.context != "placement",  # a placement gate is resumed by placement
         )
         .order_by(t.CheckSession.id.desc())
         .limit(1)
@@ -220,13 +221,32 @@ def start(
             level=level,
         )
 
+    return begin_session(db, content, user_id, subtopic_id, context, level, now, key=key), False
+
+
+def begin_session(
+    db: Session,
+    content: ContentStore,
+    user_id: int,
+    subtopic_id: str,
+    context: str,
+    level: int,
+    now: datetime,
+    *,
+    key: str | None = None,
+    item: dict[str, Any] | None = None,
+    placement_session_id: int | None = None,
+) -> t.CheckSession:
+    """Open a new session at `level` (best item, or the given `item`); the caller has already
+    checked the lock. Placement (SPEC 5.6) opens one per gate with its own item."""
     prev = db.scalar(
         select(func.max(t.CheckResult.attempt_no)).where(
             t.CheckResult.user_id == user_id, t.CheckResult.subtopic_id == subtopic_id
         )
     )
     attempt_no = (prev or 0) + 1
-    item = pick_item(content, subtopic_id, level, attempt_no)
+    if item is None:
+        item = pick_item(content, subtopic_id, level, attempt_no)
     assert item is not None
     # a new attempt starts with a clean slate of hints / solution views on its code items
     for it in content.checks.get(subtopic_id, []):
@@ -241,6 +261,7 @@ def start(
         user_id=user_id,
         subtopic_id=subtopic_id,
         context=context,
+        placement_session_id=placement_session_id,
         order_no=0,
         attempt_no=attempt_no,
         status="in_progress",
@@ -265,7 +286,7 @@ def start(
         now=now,
         idem_key=key,
     )
-    return sess, False
+    return sess
 
 
 # ---- answer ----
@@ -394,7 +415,8 @@ def _advance(
     res = step["result"]
     nxt_level = None
     if step["level"] == 2:
-        nxt_level = 3 if res["correct"] else 1
+        # placement never goes up to level 3 (SPEC 5.6: Phase C is separate and optional)
+        nxt_level = (None if sess.context == "placement" else 3) if res["correct"] else 1
     if nxt_level is not None:
         item = pick_item(content, sess.subtopic_id, nxt_level, sess.attempt_no)
         if item is not None:

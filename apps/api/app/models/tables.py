@@ -250,6 +250,29 @@ class CheckSession(Base):
     )
 
 
+class PlacementSession(Base):
+    """One sitting of the placement assessment (SPEC 5.6, UI_SPEC 2). Evidence is only ever
+    `check_results` (context=placement); `state` holds the gate ladder and the current pointer.
+
+    status: in_progress | finished | skipped ("start from scratch": writes nothing) | abandoned.
+    """
+
+    __tablename__ = "placement_sessions"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    kind: Mapped[str] = mapped_column(String, default="initial")
+    scope: Mapped[str] = mapped_column(String, default="all")
+    status: Mapped[str] = mapped_column(String, default="in_progress")
+    experience: Mapped[str] = mapped_column(String, default="none")
+    state: Mapped[dict[str, Any]] = mapped_column(JSON)
+    active_ms: Mapped[int] = mapped_column(Integer, default=0)
+    stop_reason: Mapped[str | None] = mapped_column(String)
+    started_at: Mapped[datetime] = mapped_column(UTCDateTime)
+    last_active_at: Mapped[datetime] = mapped_column(UTCDateTime)
+    finished_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
+    __table_args__ = (Index("ix_placement_sessions_user_status", "user_id", "status"),)
+
+
 class ReviewCard(Base):
     __tablename__ = "review_cards"
     user_id: Mapped[int] = uid()

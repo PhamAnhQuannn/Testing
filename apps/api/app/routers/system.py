@@ -8,12 +8,14 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from fastapi import APIRouter
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
 from ..db import pragma
 from ..deps import DB, RT, Content, Now, User
 from ..errors import ApiError
 from ..models import tables as t
 from ..runtime import head_revision
+from ..services import placement
 
 router = APIRouter(prefix="/api")
 
@@ -92,11 +94,12 @@ def _settings_json(s: t.UserSettings) -> dict:
     }
 
 
-def _onboarding_json(s: t.UserSettings) -> dict:
-    """`placement` is none|skipped until the placement session exists (A10/A11)."""
+def _onboarding_json(db: Session, s: t.UserSettings) -> dict:
+    """`placement`: none | in_progress | finished | skipped (a placement session wins over the
+    A8 `placement_choice` flag; `GET /placement/current` has the session id)."""
     return {
         "profile_done": s.onboarded_at is not None,
-        "placement": "skipped" if s.placement_choice == "skipped" else "none",
+        "placement": placement.onboarding_state(db, s.user_id, s.placement_choice),
     }
 
 
@@ -107,7 +110,7 @@ def me(db: DB, user: User, content: Content):
     return {
         "user": {"id": user.id, "name": user.name},
         "settings": _settings_json(s),
-        "onboarding": _onboarding_json(s),
+        "onboarding": _onboarding_json(db, s),
         "content": {"subtopics": len(content.subtopics), "serve_drafts": content.serve_drafts},
     }
 
@@ -177,4 +180,4 @@ def put_profile(body: ProfileIn, db: DB, user: User, now: Now):
     if s.onboarded_at is None and all((s.target_role, s.track, s.language, s.experience)):
         s.onboarded_at = now
     db.commit()
-    return {"settings": _settings_json(s), "onboarding": _onboarding_json(s)}
+    return {"settings": _settings_json(s), "onboarding": _onboarding_json(db, s)}

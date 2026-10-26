@@ -23,7 +23,7 @@ def test_m1_tables_exist(tmp_path):
         "users", "settings", "subtopics", "lessons", "problems", "user_subtopic", "quiz_answers",
         "lesson_runs", "attempts", "drafts", "events", "resume_state", "idempotency_keys",
         "check_results", "review_cards", "review_log", "alembic_version", "check_sessions",
-        "study_time", "activity_state",
+        "study_time", "activity_state", "placement_sessions",
     } <= tables  # fmt: skip
     cols = {c["name"] for c in inspect(engine).get_columns("events")}
     assert {"idem_key", "occurred_at", "received_at"} <= cols
@@ -31,4 +31,4 @@ def test_m1_tables_exist(tmp_path):
     assert {"elapsed_ms", "started_at"} <= cols
     cols = {c["name"] for c in inspect(engine).get_columns("user_subtopic")}
     assert {"unlocked_at", "known_basic"} <= cols
-    assert head_revision() == "0004"
+    assert head_revision() == "0005"
