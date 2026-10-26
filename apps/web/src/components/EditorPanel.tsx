@@ -36,8 +36,11 @@ export function EditorPanel(props: {
   status: SaveStatus;
   elapsed?: string;
   height?: number;
+  /** Preview of a locked subtopic: editor read-only, Run/Submit/Hint disabled, with this reason. */
+  previewReason?: string;
 }) {
-  const busy = props.running || props.runnerLoading;
+  const preview = Boolean(props.previewReason);
+  const busy = props.running || props.runnerLoading || preview;
   return (
     <>
       <CodeEditor
@@ -49,9 +52,10 @@ export function EditorPanel(props: {
         onSave={props.onSave}
         onBlur={props.onBlur}
         minHeight={props.height ?? 280}
+        readOnly={preview}
       />
       <div className="toolbar">
-        <button className="btn sm primary" onClick={props.onRun} disabled={busy} title="Ctrl/Cmd+Enter">
+        <button className="btn sm primary" onClick={props.onRun} disabled={busy} title={props.previewReason ?? "Ctrl/Cmd+Enter"}>
           {props.runnerLoading ? "Đang chuẩn bị…" : "▶ Run"}
         </button>
         {props.onSubmit && (
@@ -59,7 +63,7 @@ export function EditorPanel(props: {
             className="btn sm"
             onClick={props.onSubmit}
             disabled={busy || Boolean(props.submitDisabledReason)}
-            title={props.submitDisabledReason ?? "Ctrl/Cmd+Shift+Enter"}
+            title={props.previewReason ?? props.submitDisabledReason ?? "Ctrl/Cmd+Shift+Enter"}
           >
             ✔ Submit
           </button>
@@ -68,12 +72,12 @@ export function EditorPanel(props: {
           <button
             className="btn sm"
             onClick={props.hintButton.onClick}
-            disabled={props.hintButton.disabled || props.hintButton.used >= props.hintButton.total}
+            disabled={preview || props.hintButton.disabled || props.hintButton.used >= props.hintButton.total}
           >
             💡 Gợi ý {props.hintButton.used}/{props.hintButton.total}
           </button>
         )}
-        <button className="btn sm ghost" onClick={props.onReset} aria-label="Reset về starter">
+        <button className="btn sm ghost" disabled={preview} onClick={props.onReset} aria-label="Reset về starter">
           ⟲ Reset
         </button>
         <span className="grow" />

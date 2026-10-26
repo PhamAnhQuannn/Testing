@@ -87,7 +87,18 @@ export interface MapSubtopic {
   unlocked: boolean;
   due_cards: number;
   lock_reason?: string | null;
+  lock_reasons: LockReason[];
   content_status?: string | null;
+  target_intern: number;
+}
+
+/** One unmet prerequisite of a locked subtopic (`score` is null when the prerequisite has no content). */
+export interface LockReason {
+  prerequisite: string;
+  name_vi?: string | null;
+  score: number | null;
+  need: number;
+  missing_content?: boolean;
 }
 
 type Loose = Record<string, unknown>;
@@ -121,6 +132,12 @@ export function normalizeMap(data: unknown): MapSubtopic[] {
       unlocked: raw.unlocked !== false,
       due_cards: Number(raw.due_cards ?? 0),
       lock_reason: lockText(raw),
+      lock_reasons: ((raw.lock_reasons as LockReason[] | undefined) ?? []).map((r) => ({
+        ...r,
+        need: r.need ?? 2,
+        score: r.score ?? null,
+      })),
+      target_intern: Number(raw.target_intern ?? 0),
       content_status: (raw.content_status as string | null | undefined) ?? null,
     };
   });
