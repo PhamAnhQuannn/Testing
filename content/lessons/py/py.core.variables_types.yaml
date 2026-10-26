@@ -1,25 +1,165 @@
 id: py.core.variables_types
 version: 1
-status: draft
-title_vi: Biến, kiểu dữ liệu và dynamic typing (variables & types)
-est_minutes: 10
+status: published
+title_vi: "Biến, kiểu dữ liệu và dynamic typing (variables & types)"
+est_minutes: 12
 objectives_vi:
-- Giải thích được vì sao 0.1 + 0.2 != 0.3.
-- Hiểu biến là tên gắn với giá trị.
-- Chọn và đổi kiểu đúng trong các bài nhỏ.
-blocks: []
-problems:
-  practice: []
-  extra: []
-mastery_check:
-  l1: []
-  l2: []
-  l3: []
-checkpoint:
-  pass_ratio: 0.7
-  min_items: 3
+  - "Giải thích biến là một cái tên gắn với một giá trị (không phải cái hộp chứa giá trị)."
+  - "Phân biệt các kiểu int, float, bool, str, None; dùng type() và isinstance() để kiểm tra."
+  - "Đổi kiểu bằng int(), float(), str() và dự đoán được kết quả (kể cả lỗi)."
+  - "Giải thích vì sao 0.1 + 0.2 != 0.3, và dùng gán nhiều biến để hoán đổi giá trị."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Trong Python, `so_luong = 5` **không** có nghĩa là "cất số 5 vào hộp tên `so_luong`". Đúng
+      hơn: Python tạo giá trị `5` rồi **gắn nhãn** (tên) `so_luong` vào nó. Gán lại
+      (`so_luong = 6`) chỉ là chuyển nhãn sang giá trị khác. Hai tên có thể cùng gắn vào một giá trị.
+
+      Mỗi giá trị có một **kiểu (type)**. Các kiểu cơ bản:
+
+      - `int`: số nguyên (`5`, `-3`). Python không giới hạn độ lớn của `int`.
+      - `float`: số thực (`2.5`, `1e-3`).
+      - `bool`: `True` hoặc `False`.
+      - `str`: chuỗi ký tự (`"trà sữa"`).
+      - `NoneType`: chỉ có một giá trị `None`, nghĩa là "không có gì".
+
+      Python là **dynamic typing**: tên không bị khoá vào một kiểu, `x = 5` rồi `x = "năm"` hợp lệ.
+      Nhưng Python cũng là **strong typing**: không tự trộn kiểu vô lý, `"5" + 3` báo `TypeError`.
+      `type(x)` cho biết kiểu; `isinstance(x, int)` hỏi "x có phải int không".
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      so_luong = 5          # int
+      gia = 2.5             # float
+      dang_ban = True       # bool
+      ten = "trà sữa"       # str
+      ghi_chu = None        # NoneType
+      print(type(so_luong), type(gia), type(dang_ban), type(ten), type(ghi_chu))
+      print(isinstance(so_luong, int), isinstance(so_luong, float))
+
+      a = 5
+      b = a                 # b gắn vào cùng giá trị 5
+      a = a + 1             # a chuyển sang giá trị 6; b vẫn là 5
+      print(a, b)
+      print(2 ** 100)       # ** là lũy thừa (bài về toán tử sẽ nói kỹ); int không tràn
+    expected_output: |
+      <class 'int'> <class 'float'> <class 'bool'> <class 'str'> <class 'NoneType'>
+      True False
+      6 5
+      1267650600228229401496703205376
+  - id: b03
+    type: quiz_mcq
+    prompt_md: "Chạy `print(\"5\" + 3)` thì chuyện gì xảy ra?"
+    options:
+      - {id: a, text_md: "In `8`, vì Python tự đổi chuỗi `\"5\"` sang số"}
+      - {id: b, text_md: "In `53`, vì Python nối hai giá trị lại"}
+      - {id: c, text_md: "Báo `TypeError`, vì Python (strong typing) không tự trộn `str` với `int`"}
+    answer: [c]
+    explain_md: "Python không tự đổi kiểu giữa chuỗi và số. Muốn cộng phải tự đổi: `int(\"5\") + 3` hoặc `\"5\" + str(3)`."
+  - id: b04
+    type: text
+    md: |
+      **Đổi kiểu (conversion)** bằng tên kiểu như một hàm: `int("42")` cho `42`, `float("2.5")` cho
+      `2.5`, `str(42)` cho `"42"`. Vài điều cần nhớ:
+
+      - `int(3.9)` cho `3` (cắt bỏ phần thập phân, không làm tròn). `int("abc")` báo `ValueError`.
+      - `bool(0)`, `bool("")` và `bool(None)` là `False`; hầu hết giá trị còn lại là `True`.
+      - `"5" * 2` là `"55"` (lặp chuỗi), còn `5 * 2` là `10`.
+      - Phép chia: `/` luôn trả `float` (`10 / 2` là `5.0`); `//` chia lấy phần nguyên
+        (`7 // 2` là `3`). Bài sau sẽ dạy kỹ các toán tử.
+      - Quy ước đặt tên (PEP 8): `ten_bien_snake_case`, không bắt đầu bằng số, không trùng từ khoá
+        như `class`, và tránh đặt tên trùng hàm có sẵn như `list`, `str`.
+  - id: b04a
+    type: text
+    md: "Một mẹo nhỏ cho bài tập sau: `type(x).__name__` cho tên kiểu dưới dạng chuỗi (ví dụ `\"str\"`), còn `round(x, 2)` làm tròn `x` đến 2 chữ số thập phân."
+  - id: b05
+    type: predict_output
+    code: |
+      n = "12"
+      print(int(n) * 2, n * 2, type(n * 2).__name__)
+    expected_output: "24 1212 str"
+    explain_md: "`int(n) * 2` là số `24`. `n * 2` lặp chuỗi `\"12\"` hai lần thành `\"1212\"`, kiểu `str` (`__name__` là tên kiểu)."
+  - id: b06
+    type: text
+    md: |
+      **Số thực (float) có sai số.** Máy lưu `float` dưới dạng nhị phân nên nhiều số thập phân
+      không biểu diễn chính xác. Ví dụ:
+
+      ```python
+      print(0.1 + 0.2)           # 0.30000000000000004
+      print(0.1 + 0.2 == 0.3)    # False
+      print(round(0.1 + 0.2, 2) == 0.3)   # True: làm tròn trước khi so sánh
+      ```
+
+      Vì vậy **đừng dùng `==` để so sánh hai float**; hãy làm tròn bằng `round(x, 2)` hoặc dùng
+      `math.isclose(a, b)` (sau `import math`). Còn `int` thì luôn chính xác. Ngoài ra có giá trị
+      đặc biệt `float("nan")` (Not a Number): nó **không bằng chính nó**, `nan == nan` là `False`.
+      Kiểm tra bằng `math.isnan(x)`.
+
+      **Gán nhiều biến** gọn hơn: `x, y = 1, 2`. Vế phải được tính xong trước, nên **hoán đổi** hai
+      giá trị chỉ cần `a, b = b, a`, không cần biến phụ.
+  - id: b07
+    type: quiz_mcq
+    prompt_md: "Cách nào đúng để kiểm tra `0.1 + 0.2` bằng `0.3` (xét sai số float)?"
+    options:
+      - {id: a, text_md: "`0.1 + 0.2 == 0.3`"}
+      - {id: b, text_md: "`math.isclose(0.1 + 0.2, 0.3)` (sau `import math`)"}
+      - {id: c, text_md: "`int(0.1 + 0.2) == int(0.3)`"}
+    answer: [b]
+    explain_md: "`==` bị sai số float (kết quả `False`). `isclose` cho phép chênh lệch rất nhỏ. `int()` cắt cả hai về 0 nên luôn bằng nhau, kể cả khi hai số rất khác nhau."
+  - id: b08
+    type: predict_output
+    code: |
+      a = 1
+      b = 2
+      a, b = b, a + b
+      print(a, b)
+    expected_output: "2 3"
+    explain_md: "Vế phải tính trước với giá trị cũ: `(b, a + b)` = `(2, 3)`, rồi mới gán `a = 2`, `b = 3`."
+  - id: b09
+    type: code_exercise
+    md: |
+      Viết `total_cost(price_text, qty_text)`: cả hai tham số là **chuỗi** (ví dụ giá `"2.5"`, số
+      lượng `"4"`). Trả về tổng tiền là `float`: giá nhân số lượng.
+
+      Xem trước về hàm: `def` tạo một **hàm** (function), tức một khối code có tên, nhận đầu vào
+      (tham số, ở đây là `price_text` và `qty_text`) và trả kết quả bằng `return`. `pass` chỉ là
+      chỗ giữ chỗ, bạn thay nó bằng code của mình. Hàm sẽ được học đầy đủ ở `py.functions`.
+    entry: total_cost
+    starter: |
+      def total_cost(price_text, qty_text):
+          # TODO: đổi price_text sang float, qty_text sang int rồi nhân
+          pass
+    tests:
+      - {args: ["2.5", "4"], expected: 10.0}
+      - {args: ["10", "3"], expected: 30.0}
+      - {args: ["0.5", "5"], expected: 2.5}
+      - {args: ["0", "9"], expected: 0.0}
+    hint_md: "Dùng `float(price_text) * int(qty_text)`. Nhân `float` với `int` cho `float`."
+    solution: "def total_cost(price_text, qty_text):\n    return float(price_text) * int(qty_text)\n"
+  - id: b10a
+    type: text
+    md: "Bài luyện dưới đây cần vòng lặp và dict (học ở các bài sau), nên làm sau cũng được; nếu bí thì quay lại khi đã học tới đó."
+  - id: b10
+    type: problem_ref
+    problem_id: number-of-good-pairs
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "Biến là cái tên gắn vào một giá trị; gán lại chỉ chuyển nhãn, không sửa giá trị cũ."
+      - "Kiểu cơ bản: int (không giới hạn độ lớn), float, bool, str, None; kiểm tra bằng `type()`, `isinstance()`."
+      - "Dynamic typing: tên đổi kiểu được. Strong typing: không tự trộn kiểu (`\"5\" + 3` là TypeError)."
+      - "Đổi kiểu bằng `int()`, `float()`, `str()`; `int(3.9)` là 3; `\"5\" * 2` là `\"55\"`; `/` luôn ra float."
+      - "Float có sai số (0.1 + 0.2 != 0.3): dùng `round` hoặc `math.isclose`; `nan != nan`."
+      - "Gán nhiều biến: `a, b = b, a` để hoán đổi. Tên theo snake_case (PEP 8)."
+problems: {practice: [number-of-good-pairs], extra: []}
+mastery_check: {l1: [Q003], l2: [Q004, X002], l3: []}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
 source:
   tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
-  authored_by: tools/gen_lesson_stubs.py
+  authored_by: "Claude (M2a content pipeline)"
   reviewed_by: null
-  date: '2026-10-24'
+  date: "2026-10-25"

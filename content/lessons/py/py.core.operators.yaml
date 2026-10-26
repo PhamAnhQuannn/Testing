@@ -1,24 +1,164 @@
 id: py.core.operators
 version: 1
-status: draft
-title_vi: Toán tử, biểu thức và số (operators & numbers)
-est_minutes: 10
+status: published
+title_vi: "Toán tử, biểu thức và số (operators & numbers)"
+est_minutes: 12
 objectives_vi:
-- Dự đoán đúng kết quả biểu thức dùng //, %, ==.
-- And/or và dùng math, random sau khi import mà không cần chạy thử.
-blocks: []
-problems:
-  practice: []
-  extra: []
-mastery_check:
-  l1: []
-  l2: []
-  l3: []
-checkpoint:
-  pass_ratio: 0.7
-  min_items: 3
+  - "Dự đoán đúng kết quả biểu thức dùng //, %, ** và divmod, kể cả với số âm."
+  - "Phân biệt == với is; dùng chained comparison, and/or (short-circuit) và phép gán rút gọn."
+  - "Biết thứ tự ưu tiên toán tử, round() làm tròn kiểu banker, và các hàm của math."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Các toán tử số học của Python: `+`, `-`, `*`, và:
+
+      - `/` chia thật, luôn trả `float` (`7 / 2` là `3.5`).
+      - `//` **chia lấy phần nguyên** (floor division): làm tròn xuống, `7 // 2` là `3`.
+      - `%` **chia lấy dư** (modulo): `7 % 3` là `1`.
+      - `**` lũy thừa: `2 ** 10` là `1024`.
+      - `divmod(a, b)` trả cặp `(a // b, a % b)` trong một lần: `divmod(17, 5)` là `(3, 2)`.
+
+      Với **số âm**, `//` làm tròn về phía **âm vô cực** (không phải về 0), và `%` luôn đi cùng để
+      giữ đẳng thức `a == (a // b) * b + a % b`. Do đó `-7 // 2` là `-4` và `-7 % 3` là `2`.
+
+      Kết quả của `%` có cùng dấu với số chia `b`. Tính chất này rất hữu ích để "quay vòng": giờ
+      trên đồng hồ là `(gio + them) % 24`, luôn nằm trong `0..23` kể cả khi `them` âm.
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      print(7 // 2, 7 % 3, 2 ** 10, divmod(17, 5))
+      print(-7 // 2, -7 % 3)
+      print((22 + 5) % 24, (3 - 5) % 24)
+    expected_output: |
+      3 1 1024 (3, 2)
+      -4 2
+      3 22
+  - id: b03
+    type: predict_output
+    code: |
+      print(-17 // 5, -17 % 5)
+      print(17 // -5, 17 % -5)
+    expected_output: |
+      -4 3
+      -4 -3
+    explain_md: "`-17 / 5 = -3.4` làm tròn xuống thành `-4`, dư `-17 - (-4*5) = 3`. Với `17 // -5`: `-3.4` xuống `-4`, dư `17 - (-4*-5) = -3` (cùng dấu với số chia -5)."
+  - id: b04
+    type: text
+    md: |
+      **So sánh** trả về `bool`: `==` (bằng), `!=`, `<`, `<=`, `>`, `>=`. Python cho phép
+      **so sánh nối (chained)**: `1 < x < 5` nghĩa là `1 < x and x < 5`.
+
+      - `==` hỏi "hai giá trị **bằng nhau** không"; `is` hỏi "hai tên có cùng **một đối tượng**
+        không". Dùng `is` chủ yếu để kiểm tra `x is None`; còn so sánh số hay chuỗi thì dùng `==`.
+      - `and`, `or`, `not` kết hợp điều kiện. Chúng **short-circuit**: `False and (1 / 0)` không
+        tính vế phải nên không lỗi. Chúng trả về *một trong hai toán hạng*, không nhất thiết là
+        bool: `0 or "mặc định"` là `"mặc định"`, `5 and 7` là `7`.
+      - **Gán rút gọn (augmented assignment)**: `x += 5` giống `x = x + 5`; tương tự `-=`, `*=`,
+        `//=`, `%=`, `**=`.
+      - **Thứ tự ưu tiên**: `**` trước, rồi `*` `/` `//` `%`, rồi `+` `-`, rồi so sánh, rồi `not`,
+        `and`, `or`. Nên `-2 ** 2` là `-4` (vì là `-(2 ** 2)`), còn `(-2) ** 2` là `4`. Không chắc thì
+        thêm ngoặc.
+  - id: b05
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      x = 3
+      print(1 < x < 5, 1 < 7 < 5)
+      print(0 or "mặc định", 5 and 7, False and 1 / 0)
+      print(-2 ** 2, (-2) ** 2, 2 ** 3 ** 2)
+      x = 10
+      x += 5
+      x *= 2
+      x //= 4
+      print(x, x == 7, x is None)
+    expected_output: |
+      True False
+      mặc định 7 False
+      -4 4 512
+      7 True False
+  - id: b06
+    type: quiz_mcq
+    prompt_md: "Giá trị của `2 + 3 * 2 ** 2` là bao nhiêu?"
+    options:
+      - {id: a, text_md: "`20`: cộng trước rồi nhân, `(2 + 3) * 2 ** 2`"}
+      - {id: b, text_md: "`14`: `**` trước (4), rồi `3 * 4 = 12`, rồi `2 + 12`"}
+      - {id: c, text_md: "`100`: tính lần lượt từ trái sang phải, `(((2 + 3) * 2) ** 2)`"}
+    answer: [b]
+    explain_md: "Thứ tự ưu tiên: `**` cao nhất, rồi `*`, rồi `+`. Vậy `2 + (3 * (2 ** 2))` = `2 + 12` = `14`."
+  - id: b07
+    type: text
+    md: |
+      **`round(x)`** làm tròn đến số nguyên gần nhất, nhưng khi đúng giữa hai số (`.5`) nó chọn số
+      **chẵn** (banker's rounding): `round(2.5)` là `2`, `round(3.5)` là `4`, `round(0.5)` là `0`.
+      `round(x, 2)` làm tròn đến 2 chữ số thập phân, và vì float có sai số nên `round(2.675, 2)`
+      cho `2.67` chứ không phải `2.68`.
+
+      Module **`math`** (sau `import math`) có nhiều hàm hữu ích:
+
+      - `math.sqrt(x)`: căn bậc hai, trả `float`. `math.isqrt(n)`: căn nguyên (phần nguyên của
+        căn), `math.isqrt(17)` là `4`.
+      - `math.floor(x)` làm tròn xuống, `math.ceil(x)` làm tròn lên: `floor(-2.5)` là `-3`,
+        `ceil(-2.5)` là `-2`.
+      - `math.gcd(a, b)`: ước chung lớn nhất, `math.gcd(12, 18)` là `6`.
+
+      Python còn có toán tử bit (`&`, `|`, `^`, `<<`), cùng các kiểu `Decimal`, `Fraction` cho số
+      chính xác, và module `random`; những phần này dùng khi cần và bạn có thể tra cứu sau.
+  - id: b08
+    type: predict_output
+    code: |
+      import math
+
+      print(round(2.5), round(3.5), math.gcd(12, 18), math.isqrt(17))
+      print(math.floor(-2.5), math.ceil(-2.5))
+    expected_output: |
+      2 4 6 4
+      -3 -2
+    explain_md: "`round` chọn số chẵn khi đúng giữa: 2.5 thành 2, 3.5 thành 4. `floor` luôn xuống (-2.5 thành -3), `ceil` luôn lên (-2.5 thành -2)."
+  - id: b09
+    type: code_exercise
+    md: |
+      Viết `wrap_hour(hour, add)` trả về giờ trên đồng hồ 24 giờ (từ 0 đến 23) sau khi cộng thêm
+      `add` giờ; `add` có thể âm (lùi giờ). Dùng `%`.
+
+      Xem trước về hàm: `def` tạo một **hàm** (function), tức một khối code có tên, nhận đầu vào
+      (tham số, ở đây là `hour` và `add`) và trả kết quả bằng `return`. `pass` chỉ là chỗ giữ chỗ,
+      bạn thay nó bằng code của mình. Hàm sẽ được học đầy đủ ở `py.functions`.
+    entry: wrap_hour
+    starter: |
+      def wrap_hour(hour, add):
+          # TODO: dùng % 24 để quay vòng, kể cả khi add âm
+          pass
+    tests:
+      - {args: [22, 5], expected: 3}
+      - {args: [3, -5], expected: 22}
+      - {args: [0, 48], expected: 0}
+      - {args: [23, 1], expected: 0}
+    hint_md: "Trả về `(hour + add) % 24`. Nhờ `%` có cùng dấu với số chia nên kết quả luôn từ 0 đến 23."
+    solution: "def wrap_hour(hour, add):\n    return (hour + add) % 24\n"
+  - id: b09a
+    type: text
+    md: "Bài luyện dưới đây cần vòng lặp `while` (học ở `py.core.loops`), nên làm sau cũng được; nếu bí thì quay lại khi đã học tới đó."
+  - id: b10
+    type: problem_ref
+    problem_id: subtract-product-and-sum
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "`/` ra float; `//` làm tròn xuống (về âm vô cực); `%` lấy dư, cùng dấu với số chia; `**` lũy thừa; `divmod(a, b)` = `(a // b, a % b)`."
+      - "`-7 // 2 == -4` và `-7 % 3 == 2`; `(x + k) % n` quay vòng trong `0..n-1`."
+      - "`==` so sánh giá trị, `is` so sánh đối tượng (dùng cho `None`); `1 < x < 5` là chained comparison."
+      - "`and`/`or` short-circuit và trả về một toán hạng; `x += 1` là gán rút gọn."
+      - "Ưu tiên: `**` > `* / // %` > `+ -` > so sánh > `not` > `and` > `or`; `-2 ** 2 == -4`."
+      - "`round` làm tròn về số chẵn khi đúng `.5`; `math.sqrt/isqrt/gcd/floor/ceil`."
+problems: {practice: [subtract-product-and-sum], extra: []}
+mastery_check: {l1: [Q005], l2: [X003], l3: []}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
 source:
   tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
-  authored_by: tools/gen_lesson_stubs.py
+  authored_by: "Claude (M2a content pipeline)"
   reviewed_by: null
-  date: '2026-10-24'
+  date: "2026-10-25"
