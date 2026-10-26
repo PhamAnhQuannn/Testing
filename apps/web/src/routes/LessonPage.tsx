@@ -15,6 +15,8 @@ import {
   type ResumeState,
 } from "../lib/api";
 import { tally } from "../lib/grade";
+import { PreviewBanner } from "../components/PreviewBanner";
+import { isLocked, useSubtopicLock } from "../lib/lock";
 import { lsGet, lsSet, useAsync, useLayout, usePageExit } from "../lib/hooks";
 import { idbStore } from "../lib/idb";
 import { ResumeReporter } from "../lib/resumeReporter";
@@ -74,6 +76,8 @@ function LessonView({ lesson }: { lesson: Lesson }) {
   const notify = useToast();
   const navigate = useNavigate();
   const layout = useLayout();
+  const lock = useSubtopicLock(lesson.id);
+  const preview = lock !== null && isLocked(lock);
   const [tab, setTab] = useState<"lesson" | "problems">("lesson");
   const [pane, setPane] = useState<"left" | "right">("left");
   const [current, setCurrent] = useState(0);
@@ -179,7 +183,7 @@ function LessonView({ lesson }: { lesson: Lesson }) {
       setActive(id);
       setPane("right");
     },
-    canEdit: layout !== "narrow",
+    canEdit: layout !== "narrow" && !preview,
   };
 
   const stats = tally(lesson.blocks, results);
@@ -251,6 +255,7 @@ function LessonView({ lesson }: { lesson: Lesson }) {
           Test out
         </Link>
       </div>
+      {preview && lock && <PreviewBanner item={lock} />}
       {tab === "problems" ? (
         <ProblemList lesson={lesson} />
       ) : (
@@ -261,6 +266,7 @@ function LessonView({ lesson }: { lesson: Lesson }) {
               <li key={i}>{o}</li>
             ))}
           </ul>
+          <fieldset className="preview-fieldset" disabled={preview}>
           {lesson.blocks.map((b, i) => (
             <div
               key={b.id}
@@ -278,7 +284,7 @@ function LessonView({ lesson }: { lesson: Lesson }) {
           ))}
           <section className="card" aria-label="Hoàn thành bài học">
             {!completed && (
-              <button className="btn primary" onClick={() => void complete()} disabled={completing}>
+              <button className="btn primary" onClick={() => void complete()} disabled={completing || preview}>
                 {completing ? "Đang lưu…" : "Hoàn thành bài học"}
               </button>
             )}
@@ -315,6 +321,7 @@ function LessonView({ lesson }: { lesson: Lesson }) {
             )}
             {completed && !outcome && <p className="muted">Bạn đã hoàn thành bài học này.</p>}
           </section>
+          </fieldset>
           <div className="blocknav">
             <button className="btn sm" onClick={() => goTo(current - 1)} disabled={current === 0}>
               ◄ Block trước

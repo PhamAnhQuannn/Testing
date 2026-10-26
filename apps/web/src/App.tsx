@@ -3,6 +3,7 @@ import { ToastProvider } from "./components/Toast";
 import { lsGet, lsSet, useOnline } from "./lib/hooks";
 import CheckPage from "./routes/CheckPage";
 import Home from "./routes/Home";
+import MapPage from "./routes/MapPage";
 import LessonPage from "./routes/LessonPage";
 import ProblemPage from "./routes/ProblemPage";
 import { useEffect, useState } from "react";
@@ -62,7 +63,7 @@ export default function App() {
           <main className="main" id="main">
             <Routes>
               <Route path="/" element={<Home />} />
-              <Route path="/map" element={<Home />} />
+              <Route path="/map" element={<MapPage />} />
               <Route path="/s/:subtopicId" element={<LessonPage />} />
               <Route path="/check/:subtopicId" element={<CheckPage />} />
               <Route path="/p/:problemId" element={<ProblemPage />} />

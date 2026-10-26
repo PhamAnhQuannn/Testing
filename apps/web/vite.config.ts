@@ -40,5 +40,5 @@ export default defineConfig({
   build: { assetsInlineLimit: 0 }, // no data: URIs, so CSP font-src/img-src stay on 'self'
   server: { proxy: api },
   preview: { proxy: api, headers: { "Content-Security-Policy": CSP } },
-  test: { include: ["src/**/*.test.ts"], environment: "node" },
+  test: { include: ["src/**/*.test.{ts,tsx}"], environment: "node" },
 });

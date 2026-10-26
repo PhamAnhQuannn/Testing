@@ -22,6 +22,8 @@ import {
 } from "../lib/api";
 import { DraftController, type Draft, type SaveStatus } from "../lib/draftStore";
 import { lsGet, lsSet, useAsync, useOnline, usePageExit, useRunnerState } from "../lib/hooks";
+import { PreviewBanner } from "../components/PreviewBanner";
+import { isLocked, previewReason, useSubtopicLock } from "../lib/lock";
 import { idbStore } from "../lib/idb";
 import { ResumeReporter } from "../lib/resumeReporter";
 import { runProblem } from "../lib/runProblem";
@@ -56,6 +58,8 @@ const DIFF: Record<string, string> = { easy: "E", medium: "M", hard: "H" };
 
 function ProblemView({ problem }: { problem: Problem }) {
   const notify = useToast();
+  const lock = useSubtopicLock(problem.subtopic_id);
+  const preview = lock !== null && isLocked(lock);
   const online = useOnline();
   const runnerState = useRunnerState();
   const [lang, setLang] = useState<"en" | "vi">(() => (lsGet("prep:lang") === "vi" ? "vi" : "en"));
@@ -160,7 +164,7 @@ function ProblemView({ problem }: { problem: Problem }) {
   );
 
   const execute = async (kind: "run" | "submit") => {
-    if (running) return;
+    if (preview || running) return; // preview mode: keyboard shortcuts must not run/submit either
     setRunning(true);
     const source = codeRef.current;
     await controller.flush();
@@ -312,6 +316,7 @@ function ProblemView({ problem }: { problem: Problem }) {
           {showTimer ? "Ẩn giờ" : "Hiện giờ"}
         </button>
       </div>
+      {preview && lock && <PreviewBanner item={lock} />}
       {code === null ? (
         <div className="skeleton" style={{ height: 240 }} />
       ) : (
@@ -337,13 +342,14 @@ function ProblemView({ problem }: { problem: Problem }) {
             disabled: !online,
           }}
           status={status}
+          previewReason={previewReason(lock)}
         />
       )}
       <TestResultPanel state={panel} />
       <div className="toolbar">
         <button
           className="btn sm"
-          disabled={!online}
+          disabled={!online || preview}
           title={online ? undefined : "Cần server"}
           onClick={() => (solved ? void loadSolution() : setConfirm("solution"))}
         >
