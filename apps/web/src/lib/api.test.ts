@@ -14,6 +14,8 @@ import {
   startCheck,
   answerCheck,
   checkHeartbeat,
+  getReviewQueue,
+  postReviewResult,
 } from "./api";
 
 const json = (body: unknown, status = 200) =>
@@ -229,5 +231,38 @@ describe("mastery check api", () => {
     await checkHeartbeat(7, 1234.6);
     expect(fetchMock.mock.calls[0][0]).toBe("/api/checks/7/heartbeat");
     expect(JSON.parse(lastInit().body as string)).toEqual({ elapsed_ms: 1235 });
+  });
+});
+
+describe("review api", () => {
+  it("getReviewQueue adds editor=false only when asked and normalizes", async () => {
+    const body = {
+      today: "2026-10-25",
+      total_due: 1,
+      backlog_warn: 20,
+      backlog: false,
+      cards: [{ subtopic_id: "s1", name_vi: "S", box: 3, due_on: "2026-10-24", overdue_days: 1, item_kind: "code",
+        item: { kind: "code", ref: "p1", type: "write_code", subtopic_id: "s1" }, recall_item: null }],
+      short_session: { enabled: true, size: 6, max_code: 2, cards: [{ subtopic_id: "s1", item_kind: "code" }] },
+    };
+    fetchMock.mockImplementation(async () => json(body));
+    const q = await getReviewQueue();
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/review/queue");
+    expect(q.cards[0].item?.ref).toBe("p1");
+    expect(q.short_session.size).toBe(6);
+    await getReviewQueue(false);
+    expect(fetchMock.mock.calls[1][0]).toBe("/api/review/queue?editor=false");
+  });
+
+  it("postReviewResult posts with an Idempotency-Key and surfaces card_not_due", async () => {
+    fetchMock.mockResolvedValueOnce(
+      json({ subtopic_id: "a.b", success: true, box_before: 1, box_after: 2, due_on: "2026-10-28", lapses: 0, score: { before: 1, after: 1 }, newly_unlocked: [] }),
+    );
+    const res = await postReviewResult("a.b", { success: true, item_ref: "a.b#q1", item_kind: "recall" }, "k1");
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/review/a.b/result");
+    expect(lastInit().headers["Idempotency-Key"]).toBe("k1");
+    expect(res.box_after).toBe(2);
+    fetchMock.mockResolvedValueOnce(json({ error: { code: "card_not_due", message: "x" } }, 409));
+    await expect(postReviewResult("a.b", { success: false })).rejects.toMatchObject({ code: "card_not_due", status: 409 });
   });
 });

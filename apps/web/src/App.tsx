@@ -4,6 +4,7 @@ import { lsGet, lsSet, useOnline } from "./lib/hooks";
 import CheckPage from "./routes/CheckPage";
 import Home from "./routes/Home";
 import MapPage from "./routes/MapPage";
+import ReviewPage from "./routes/ReviewPage";
 import LessonPage from "./routes/LessonPage";
 import ProblemPage from "./routes/ProblemPage";
 import { useEffect, useState } from "react";
@@ -37,6 +38,9 @@ function Nav() {
       <NavLink to="/map" className={({ isActive }) => `link${isActive ? " active" : ""}`}>
         Map
       </NavLink>
+      <NavLink to="/review" className={({ isActive }) => `link${isActive ? " active" : ""}`}>
+        Ôn tập
+      </NavLink>
       <span className="spacer" />
       <button className="btn sm ghost" onClick={cycle} aria-label={`Giao diện: ${theme}`}>
         {theme === "dark" ? "🌙" : theme === "light" ? "☀️" : "🌓"}
@@ -64,6 +68,7 @@ export default function App() {
             <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/map" element={<MapPage />} />
+              <Route path="/review" element={<ReviewPage />} />
               <Route path="/s/:subtopicId" element={<LessonPage />} />
               <Route path="/check/:subtopicId" element={<CheckPage />} />
               <Route path="/p/:problemId" element={<ProblemPage />} />
