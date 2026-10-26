@@ -7,6 +7,8 @@ export class ApiError extends Error {
     readonly status: number,
     readonly code: string,
     message: string,
+    /** Extra fields of the error body (e.g. `retry_after`, `level` of check_retry_locked). */
+    readonly extra: Record<string, unknown> = {},
   ) {
     super(message);
   }
@@ -53,16 +55,19 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   if (!response.ok) {
     let code = `http_${response.status}`;
     let message = response.statusText || "Lỗi server";
+    let extra: Record<string, unknown> = {};
     try {
-      const data = (await response.json()) as { error?: { code?: string; message?: string } };
+      const data = (await response.json()) as { error?: Record<string, unknown> };
       if (data.error) {
-        code = data.error.code ?? code;
-        message = data.error.message ?? message;
+        const { code: c, message: m, ...rest } = data.error;
+        code = (c as string | undefined) ?? code;
+        message = (m as string | undefined) ?? message;
+        extra = rest;
       }
     } catch {
       /* body was not JSON */
     }
-    throw new ApiError(response.status, code, message);
+    throw new ApiError(response.status, code, message, extra);
   }
   if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
@@ -481,4 +486,216 @@ export function putResume(state: ResumeState, options: { keepalive?: boolean } =
 export async function getResume(): Promise<ResumeState | null> {
   const data = await request<{ primary?: ResumeState | null }>("/resume");
   return data.primary ?? null;
+}
+
+// ---------------------------------------------------------------- mastery check (docs/API_M2A.md)
+
+export type CheckType = "write_code" | "read_code" | "concept";
+export type CheckContext = "mastery" | "test_out";
+
+export interface CheckStep {
+  index: number;
+  count: number;
+  item_id: string;
+  level: number;
+  type: CheckType;
+  minutes: number;
+  time_limit_ms: number;
+  prompt_md: string;
+  /** write_code */
+  problem_id?: string;
+  /** read_code */
+  code?: string;
+  /** concept: shown only after the learner asks for it */
+  answer_md?: string;
+}
+
+export interface CheckStepResult {
+  item_id: string;
+  level: number;
+  type: CheckType;
+  correct: boolean;
+  passed: boolean;
+  clean: boolean;
+  gave_up: boolean;
+  /** `hint_limit` | `solution_viewed` | `over_time` when correct but not clean. */
+  reason?: string;
+  verdict?: string;
+  tests_passed?: number;
+  tests_total?: number;
+}
+
+export interface CheckSession {
+  session_id: number;
+  subtopic_id: string;
+  context: CheckContext;
+  attempt_no: number;
+  status: string;
+  resumed: boolean;
+  elapsed_ms: number;
+  step: CheckStep;
+  results: CheckStepResult[];
+}
+
+export interface CheckScore {
+  before: number;
+  after: number;
+  tested_out: boolean;
+  newly_unlocked: string[];
+}
+
+export type LevelLabel = "passed" | "failed" | "gave_up" | null;
+
+export interface CheckOutcome {
+  level1: LevelLabel;
+  level2: LevelLabel;
+  level3: LevelLabel;
+  tested_out: boolean;
+  score: number;
+  need_lesson: boolean;
+  /** ISO time; only set after a real wrong answer (never for correct-but-unclean or "Không biết"). */
+  retry_after: string | null;
+  newly_unlocked: string[];
+}
+
+export interface CheckAnswerResponse {
+  session_id: number;
+  finished: boolean;
+  result: CheckStepResult;
+  next: CheckStep | null;
+  score: CheckScore;
+  outcome: CheckOutcome | null;
+}
+
+export type CheckAnswerBody =
+  | { code: string; language: "python"; verdict: string; passed_tests: number; total: number; runtime_ms?: number }
+  | { answer: string }
+  | { self_grade: boolean }
+  | { gave_up: true };
+
+const ids = (value: unknown): string[] =>
+  Array.isArray(value)
+    ? value.map((v) => (typeof v === "string" ? v : String((v as Loose).id ?? (v as Loose).subtopic_id ?? "")))
+    : [];
+
+export function normalizeCheckStep(raw: Loose): CheckStep {
+  const minutes = Number(raw.minutes ?? 10);
+  return {
+    index: Number(raw.index ?? 0),
+    count: Number(raw.count ?? 1),
+    item_id: String(raw.item_id),
+    level: Number(raw.level ?? 2),
+    type: raw.type as CheckType,
+    minutes,
+    time_limit_ms: Number(raw.time_limit_ms ?? minutes * 60_000),
+    prompt_md: String(raw.prompt_md ?? ""),
+    problem_id: raw.problem_id as string | undefined,
+    code: raw.code as string | undefined,
+    answer_md: raw.answer_md as string | undefined,
+  };
+}
+
+export function normalizeCheckResult(raw: Loose): CheckStepResult {
+  const passed = Boolean(raw.passed);
+  return {
+    item_id: String(raw.item_id),
+    level: Number(raw.level ?? 0),
+    type: raw.type as CheckType,
+    correct: raw.correct === undefined ? passed : Boolean(raw.correct),
+    passed,
+    clean: Boolean(raw.clean),
+    gave_up: Boolean(raw.gave_up),
+    reason: (raw.reason as string | null | undefined) ?? undefined,
+    verdict: raw.verdict as string | undefined,
+    tests_passed: raw.tests_passed as number | undefined,
+    tests_total: raw.tests_total as number | undefined,
+  };
+}
+
+export function normalizeCheckSession(data: unknown): CheckSession {
+  const raw = data as Loose;
+  return {
+    session_id: Number(raw.session_id),
+    subtopic_id: String(raw.subtopic_id),
+    context: (raw.context as CheckContext) ?? "mastery",
+    attempt_no: Number(raw.attempt_no ?? 1),
+    status: String(raw.status ?? "in_progress"),
+    resumed: Boolean(raw.resumed),
+    elapsed_ms: Number(raw.elapsed_ms ?? 0),
+    step: normalizeCheckStep(raw.step as Loose),
+    results: ((raw.results as Loose[] | undefined) ?? []).map(normalizeCheckResult),
+  };
+}
+
+export function normalizeCheckAnswer(data: unknown): CheckAnswerResponse {
+  const raw = data as Loose;
+  const score = (raw.score ?? {}) as Loose;
+  const outcome = raw.outcome as Loose | null | undefined;
+  return {
+    session_id: Number(raw.session_id),
+    finished: Boolean(raw.finished),
+    result: normalizeCheckResult(raw.result as Loose),
+    next: raw.next ? normalizeCheckStep(raw.next as Loose) : null,
+    score: {
+      before: Number(score.before ?? 0),
+      after: Number(score.after ?? 0),
+      tested_out: Boolean(score.tested_out),
+      newly_unlocked: ids(score.newly_unlocked),
+    },
+    outcome: outcome
+      ? {
+          level1: (outcome.level1 as LevelLabel) ?? null,
+          level2: (outcome.level2 as LevelLabel) ?? null,
+          level3: (outcome.level3 as LevelLabel) ?? null,
+          tested_out: Boolean(outcome.tested_out),
+          score: Number(outcome.score ?? 0),
+          need_lesson: Boolean(outcome.need_lesson),
+          retry_after: (outcome.retry_after as string | null | undefined) ?? null,
+          newly_unlocked: ids(outcome.newly_unlocked),
+        }
+      : null,
+  };
+}
+
+/** POST /api/checks/{subtopic_id}/start {context} -> session + current step. 409 check_retry_locked carries `extra.retry_after`. */
+export async function startCheck(
+  subtopicId: string,
+  context: CheckContext = "mastery",
+  key?: string,
+): Promise<CheckSession> {
+  return normalizeCheckSession(
+    await request<unknown>(`/checks/${enc(subtopicId)}/start`, {
+      method: "POST",
+      body: { context },
+      idempotencyKey: key,
+    }),
+  );
+}
+
+/** POST /api/checks/{subtopic_id}/answer {session_id, item_id, elapsed_ms, ...per type}. Reuse `key` when retrying. */
+export async function answerCheck(
+  subtopicId: string,
+  body: { session_id: number; item_id: string; elapsed_ms: number; session_elapsed_ms?: number } & CheckAnswerBody,
+  key?: string,
+): Promise<CheckAnswerResponse> {
+  return normalizeCheckAnswer(
+    await request<unknown>(`/checks/${enc(subtopicId)}/answer`, {
+      method: "POST",
+      body,
+      idempotencyKey: key,
+    }),
+  );
+}
+
+/** POST /api/checks/{session_id}/heartbeat {elapsed_ms (absolute)} -> {session_id, status, elapsed_ms, expires_at} */
+export function checkHeartbeat(
+  sessionId: number,
+  elapsedMs: number,
+  options: { keepalive?: boolean } = {},
+): Promise<{ session_id: number; status: string; elapsed_ms: number; expires_at?: string }> {
+  return request(`/checks/${sessionId}/heartbeat`, {
+    method: "POST",
+    body: { elapsed_ms: Math.round(elapsedMs) },
+    keepalive: options.keepalive,
+  });
 }

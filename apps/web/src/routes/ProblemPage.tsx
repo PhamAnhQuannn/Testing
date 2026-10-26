@@ -9,7 +9,6 @@ import { useToast } from "../components/Toast";
 import {
   ApiError,
   getDraft,
-  getHiddenTests,
   getProblem,
   getSolution,
   newIdempotencyKey,
@@ -25,9 +24,7 @@ import { DraftController, type Draft, type SaveStatus } from "../lib/draftStore"
 import { lsGet, lsSet, useAsync, useOnline, usePageExit, useRunnerState } from "../lib/hooks";
 import { idbStore } from "../lib/idb";
 import { ResumeReporter } from "../lib/resumeReporter";
-import { buildPanel, hiddenLabel, sampleLabel } from "../lib/runView";
-import { getRunner } from "../runner";
-import type { RunResult, TestCase } from "../runner/Runner";
+import { runProblem } from "../lib/runProblem";
 
 export default function ProblemPage() {
   const { problemId } = useParams();
@@ -168,24 +165,7 @@ function ProblemView({ problem }: { problem: Problem }) {
     const source = codeRef.current;
     await controller.flush();
     try {
-      let tests: TestCase[] = problem.sample_tests;
-      if (kind === "submit") {
-        setPanel({ kind, rows: [], total: 0, running: true, verdict: null, stdout: "", stderr: "", note: "Đang tải test ẩn…" });
-        tests = await getHiddenTests(problem.id);
-      }
-      const options = { hidden: kind === "submit", label: kind === "submit" ? hiddenLabel : sampleLabel };
-      const seen: RunResult["results"] = [];
-      const result = await getRunner().run({
-        code: source,
-        io: problem.io,
-        tests,
-        limits: problem.limits,
-        onProgress: (r) => {
-          seen.push(r);
-          setPanel(buildPanel(kind, tests, seen, options, true));
-        },
-      });
-      setPanel(buildPanel(kind, tests, result.results, options, false, result));
+      const result = await runProblem(kind, problem, source, setPanel);
       // One submission = one Idempotency-Key: a retry can never record the attempt twice.
       const attemptKey = newIdempotencyKey();
       const attempt = {
