@@ -1,24 +1,187 @@
 id: py.datastructs.collections_module
 version: 1
-status: draft
-title_vi: Module collections (Counter, deque, defaultdict)
-est_minutes: 10
+status: published
+title_vi: "Module collections (Counter, deque, defaultdict)"
+est_minutes: 13
 objectives_vi:
-- Dùng Counter, defaultdict và deque đúng việc.
-- Nói được vì sao deque nhanh hơn list khi lấy phần tử ở đầu.
-blocks: []
-problems:
-  practice: []
-  extra: []
-mastery_check:
-  l1: []
-  l2: []
-  l3: []
-checkpoint:
-  pass_ratio: 0.7
-  min_items: 3
+  - "Dùng Counter để đếm và lấy phần tử phổ biến nhất (`most_common`)."
+  - "Dùng defaultdict để đếm và nhóm không cần kiểm tra khoá."
+  - "Dùng deque cho hàng đợi và giải thích vì sao nhanh hơn list khi lấy phần tử ở đầu."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Module **`collections`** (có sẵn trong Python) chứa vài kiểu dữ liệu "dict/list có thêm sức
+      mạnh". Đầu tiên là **`Counter`**: truyền vào bất kỳ dãy nào, nó trả về một dict đếm số lần
+      xuất hiện của từng phần tử. Khoá không có thì cho **0** thay vì `KeyError`.
+      `most_common(k)` trả list `k` cặp `(phần_tử, số_lần)` nhiều nhất trước.
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      from collections import Counter
+      dem = Counter("banana")
+      print(dem, dem["a"], dem["z"])
+      print(dem.most_common(2))
+    expected_output: |
+      Counter({'a': 3, 'n': 2, 'b': 1}) 3 0
+      [('a', 3), ('n', 2)]
+  - id: b03
+    type: text
+    md: |
+      Counter hỗ trợ phép tính: `a + b` cộng số đếm, `a - b` trừ số đếm và **bỏ các khoá có số
+      đếm không dương**. Còn một chi tiết hay gặp ở phỏng vấn: khi hai phần tử cùng số đếm,
+      `most_common` giữ thứ tự *xuất hiện đầu tiên*. Muốn hoà thì chữ cái nhỏ hơn đứng trước, hãy
+      **sắp xếp dãy trước**: `Counter(sorted(words)).most_common(k)`.
+  - id: b04
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      from collections import Counter
+      a = Counter("aab")
+      b = Counter("abc")
+      print(a + b, a - b, (a - b)["b"])
+      tu = ["b", "a", "b", "a", "c"]
+      print(Counter(sorted(tu)).most_common(2))
+    expected_output: |
+      Counter({'a': 3, 'b': 2, 'c': 1}) Counter({'a': 1}) 0
+      [('a', 2), ('b', 2)]
+  - id: b04b
+    type: predict_output
+    code: |
+      from collections import Counter
+      print(Counter(sorted(["b", "a", "b", "a"])).most_common(1))
+    expected_output: "[('a', 2)]"
+    explain_md: "`a` và `b` cùng đếm 2; sau khi `sorted` thì `a` xuất hiện trước nên `most_common(1)` giữ `a`."
+  - id: b05
+    type: quiz_mcq
+    prompt_md: "`Counter(\"aab\") - Counter(\"abb\")` cho kết quả nào?"
+    options:
+      - {id: a, text_md: "`Counter({'a': 1, 'b': -1})`"}
+      - {id: b, text_md: "`Counter({'a': 1})`"}
+      - {id: c, text_md: "`Counter({'a': 2, 'b': 1})`"}
+    answer: [b]
+    explain_md: "a: 2 - 1 = 1; b: 1 - 2 = -1 bị bỏ vì phép trừ chỉ giữ số đếm dương."
+  - id: b06
+    type: text
+    md: |
+      **`defaultdict(kiểu)`** là dict tự tạo giá trị mặc định cho khoá chưa có, bằng cách gọi
+      `kiểu()`: `defaultdict(int)` mặc định `0` (đếm), `defaultdict(list)` mặc định `[]` (nhóm),
+      `defaultdict(set)` mặc định `set()` (nhóm không trùng). Nhờ vậy bỏ được `get` và
+      `setdefault` của bài dict: viết thẳng `nhom[k].append(x)` hoặc `dem[k] += 1`.
+      Lưu ý: chỉ *đọc* `d[k]` một khoá chưa có cũng **tạo** khoá đó; dùng `k in d` để kiểm tra.
+  - id: b07
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      from collections import defaultdict
+      nhom = defaultdict(list)
+      for w in ["an", "bo", "cat", "dog", "e"]:
+          nhom[len(w)].append(w)
+      dem = defaultdict(int)
+      for ch in "abca":
+          dem[ch] += 1
+      print(dict(nhom))
+      print(dict(dem), "z" in dem, dem["z"], "z" in dem)
+    expected_output: |
+      {2: ['an', 'bo'], 3: ['cat', 'dog'], 1: ['e']}
+      {'a': 2, 'b': 1, 'c': 1} False 0 True
+  - id: b08
+    type: predict_output
+    code: |
+      from collections import defaultdict
+      d = defaultdict(list)
+      d["a"].append(1)
+      d["b"]
+      print(len(d), d["c"], len(d))
+    expected_output: "2 [] 3"
+    explain_md: "`d['b']` chỉ đọc nhưng đã tạo khoá `b` nên `len` là 2; `d['c']` tạo thêm khoá `c` (giá trị `[]`) trước khi `len` thứ hai chạy nên là 3."
+  - id: b09
+    type: text
+    md: |
+      **`deque`** (double-ended queue, hàng đợi hai đầu) cho thêm/lấy ở **cả hai đầu trong O(1)**:
+      `append`, `appendleft`, `pop`, `popleft`. Với list, `ds.pop(0)` và `ds.insert(0, x)` phải
+      dời mọi phần tử nên mất **O(n)**. Vì vậy hàng đợi (queue) nên dùng deque. Đổi lại,
+      truy cập `q[i]` ở giữa deque chậm hơn list. Thêm `deque(maxlen=k)` giữ k phần tử cuối
+      (bên kia tự rụng) và `rotate(n)` xoay vòng các phần tử.
+  - id: b10
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      from collections import deque
+      q = deque([1, 2, 3])
+      q.append(4)
+      q.appendleft(0)
+      print(q.popleft(), q.pop(), list(q))
+      q.rotate(1)
+      print(list(q))
+      cuoi = deque(maxlen=3)
+      for x in range(6):
+          cuoi.append(x)
+      print(list(cuoi))
+    expected_output: |
+      0 4 [1, 2, 3]
+      [3, 1, 2]
+      [3, 4, 5]
+  - id: b11
+    type: quiz_mcq
+    prompt_md: "Một hàng đợi có 100000 phần tử, ta lấy lần lượt từng phần tử ở đầu cho đến hết. Cách nào nhanh về mặt độ phức tạp?"
+    options:
+      - {id: a, text_md: "list và `ds.pop(0)` mỗi lần (tổng O(n^2))"}
+      - {id: b, text_md: "deque và `q.popleft()` mỗi lần (tổng O(n))"}
+      - {id: c, text_md: "Hai cách như nhau"}
+    answer: [b]
+    explain_md: "`pop(0)` của list dời toàn bộ phần tử còn lại, O(n) mỗi lần; `popleft()` của deque là O(1)."
+  - id: b12
+    type: callout
+    kind: interview
+    md: |
+      **Chọn theo chi phí:** đếm tần suất / tìm phần tử phổ biến thì `Counter`; nhóm theo khoá thì
+      `defaultdict(list)`; hàng đợi, BFS, cửa sổ trượt thì `deque`; tra khoá, danh sách thông thường
+      thì `dict`/`list`. **OrderedDict** chỉ cần nhận ra: dict thường đã nhớ thứ tự thêm vào,
+      `OrderedDict` còn có `move_to_end()` và `popitem(last=False)`, hữu ích cho bài kiểu LRU cache.
+  - id: b13
+    type: quiz_fill
+    prompt_md: "Điền vào chỗ trống để lấy phần tử ở đầu deque trong O(1): `q.___()`"
+    blanks: [{accept: ["popleft"]}]
+    explain_md: "`popleft()` lấy và xoá phần tử ở đầu; `pop()` lấy ở cuối."
+  - id: b14
+    type: code_exercise
+    md: "Viết `group_by_first(words)` trả dict nhóm các từ theo chữ cái đầu: khoá là chữ cái đầu, giá trị là list các từ theo thứ tự xuất hiện. Dùng `defaultdict(list)`."
+    entry: group_by_first
+    starter: |
+      from collections import defaultdict
+
+
+      def group_by_first(words):
+          # TODO: nhom[w[0]].append(w)
+          pass
+    tests:
+      - {args: [["an", "bo", "ao", "ba"]], expected: {"a": ["an", "ao"], "b": ["bo", "ba"]}}
+      - {args: [[]], expected: {}}
+      - {args: [["x"]], expected: {"x": ["x"]}}
+    hint_md: "`nhom = defaultdict(list)`, duyệt từng `w`, `nhom[w[0]].append(w)`, cuối cùng `return dict(nhom)`."
+    solution: "from collections import defaultdict\n\n\ndef group_by_first(words):\n    nhom = defaultdict(list)\n    for w in words:\n        nhom[w[0]].append(w)\n    return dict(nhom)\n"
+  - id: b15
+    type: problem_ref
+    problem_id: majority-element
+  - id: b16
+    type: summary
+    bullets_vi:
+      - "`Counter(dãy)` đếm; khoá vắng cho 0; `most_common(k)`; `a + b`, `a - b` (bỏ số đếm không dương)."
+      - "Hoà số đếm thì `most_common` giữ thứ tự xuất hiện đầu tiên; muốn theo bảng chữ cái thì `Counter(sorted(dãy))`."
+      - "`defaultdict(int/list/set)` tự tạo giá trị mặc định; chỉ đọc khoá vắng cũng tạo khoá đó."
+      - "`deque`: thêm/lấy hai đầu O(1), `maxlen`, `rotate`; hàng đợi dùng deque, không dùng `list.pop(0)` (O(n))."
+      - "Chọn công cụ theo chi phí và mục đích; OrderedDict chỉ cần nhận ra (`move_to_end`)."
+problems: {practice: [majority-element], extra: []}
+mastery_check: {l1: [Q027], l2: [Q028], l3: []}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
 source:
   tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
-  authored_by: tools/gen_lesson_stubs.py
+  authored_by: "Claude (M2a content pipeline)"
   reviewed_by: null
-  date: '2026-10-24'
+  date: "2026-10-26"

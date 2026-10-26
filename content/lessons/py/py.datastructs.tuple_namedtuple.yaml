@@ -1,24 +1,172 @@
 id: py.datastructs.tuple_namedtuple
 version: 1
-status: draft
-title_vi: Tuple, unpacking và namedtuple
-est_minutes: 10
+status: published
+title_vi: "Tuple, unpacking và namedtuple"
+est_minutes: 12
 objectives_vi:
-- Dùng unpacking (kể cả hoán đổi) thành thạo.
-- Chọn đúng tuple hay list và giải thích vì sao tuple không sửa được.
-blocks: []
-problems:
-  practice: []
-  extra: []
-mastery_check:
-  l1: []
-  l2: []
-  l3: []
-checkpoint:
-  pass_ratio: 0.7
-  min_items: 3
+  - "Tạo tuple (kể cả tuple một phần tử) và giải thích vì sao tuple không sửa được."
+  - "Dùng unpacking, kể cả hoán đổi `a, b = b, a` và `*rest`."
+  - "Dùng tuple làm khoá dict; dùng namedtuple khi cần truy cập theo tên."
+  - "Chọn đúng giữa list và tuple."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      **Tuple** là dãy giá trị có thứ tự như list, nhưng **không sửa được (immutable)** sau khi
+      tạo. Viết bằng dấu ngoặc tròn: `p = (3, 4)`. Chỉ số, cắt lát, `len`, `in` và vòng `for` đều
+      dùng giống list. Nhưng `p[0] = 9` báo **TypeError** (gán phần tử cho kiểu immutable), còn `p.append(1)` báo
+      **AttributeError** (tuple không có `append`).
+
+      Cẩn thận với tuple **một phần tử**: `(5)` chỉ là số 5 trong ngoặc; phải viết **`(5,)`**. Dấu
+      phẩy mới là thứ tạo ra tuple, ngoặc chỉ để dễ đọc: `t = 1, 2` cũng là tuple.
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      p = (3, 4)
+      print(p[0], p[-1], len(p), p + (5,), p[:1])
+      print(type((5)), type((5,)), type(()))
+    expected_output: |
+      3 4 2 (3, 4, 5) (3,)
+      <class 'int'> <class 'tuple'> <class 'tuple'>
+  - id: b03
+    type: quiz_mcq
+    prompt_md: "Dòng nào tạo ra một tuple có đúng một phần tử `7`?"
+    options:
+      - {id: a, text_md: "`t = (7)`"}
+      - {id: b, text_md: "`t = (7,)`"}
+      - {id: c, text_md: "`t = [7]`"}
+    answer: [b]
+    explain_md: "Dấu phẩy tạo ra tuple. `(7)` chỉ là số nguyên 7 và `[7]` là list."
+  - id: b04
+    type: text
+    md: |
+      **Unpacking (giải nén)** gán từng phần tử của một tuple/list cho từng biến trong một dòng:
+      `x, y = p`. Số biến phải khớp số phần tử, nếu không báo **ValueError**. Hai mẹo hay gặp:
+
+      - **Hoán đổi** không cần biến tạm: `a, b = b, a` (vế phải được tính xong trước khi gán).
+      - **`*rest`** gom phần còn lại thành một **list**: `dau, *giua, cuoi = ds`.
+
+      Vòng `for` cũng unpack được: `for ten, tuoi in cac_cap:`. Khi một hàm `return lo, hi` thì
+      thật ra nó trả về một tuple `(lo, hi)`.
+  - id: b05
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      a, b = 1, 2
+      a, b = b, a
+      dau, *giua, cuoi = [10, 20, 30, 40, 50]
+      print(a, b, dau, giua, cuoi)
+      for ten, tuoi in [("An", 20), ("Binh", 22)]:
+          print(ten, tuoi)
+    expected_output: |
+      2 1 10 [20, 30, 40] 50
+      An 20
+      Binh 22
+  - id: b06
+    type: predict_output
+    code: |
+      t = (1, 2, 3, 4)
+      a, *b, c = t
+      b.append(99)
+      print(a, b, c, t[1:3])
+    expected_output: "1 [2, 3, 99] 4 (2, 3)"
+    explain_md: "`*b` gom `2, 3` thành một **list** nên `append` được; `t` không đổi và `t[1:3]` là tuple `(2, 3)`."
+  - id: b07
+    type: text
+    md: |
+      Vì không đổi được, tuple có **hash** (hashable) khi mọi phần tử của nó cũng hashable. Nhờ đó
+      tuple làm được **khoá dict** và phần tử của set, còn list thì không. Rất hay dùng cho toạ độ
+      lưới: `da_tham[(hang, cot)] = True`. Tuple chứa list như `(1, [2])` thì **không** hashable.
+  - id: b08
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      da_tham = {}
+      da_tham[(0, 1)] = "a"
+      da_tham[(2, 3)] = "b"
+      print((0, 1) in da_tham, (1, 0) in da_tham, da_tham[(2, 3)])
+      print(len({(1, 2), (1, 2), (2, 1)}))
+    expected_output: |
+      True False b
+      2
+  - id: b09
+    type: quiz_mcq
+    prompt_md: "Dòng nào báo `TypeError: unhashable type`? (với `d = {}`)"
+    options:
+      - {id: a, text_md: "`d[(1, 2)] = 0`"}
+      - {id: b, text_md: "`d[(1, [2])] = 0`"}
+      - {id: c, text_md: "`d[\"an\"] = 0`"}
+    answer: [b]
+    explain_md: "Tuple `(1, [2])` chứa một list sửa được nên không có hash; `(1, 2)` và chuỗi thì được."
+  - id: b10
+    type: text
+    md: |
+      Tuple `(3, 4)` ngắn gọn nhưng phải nhớ `p[0]` là x hay y. **namedtuple** là tuple có tên cho
+      từng vị trí: `Diem = namedtuple("Diem", ["x", "y"])`. Giá trị vẫn là tuple thật (unpack,
+      chỉ số, không sửa được), nhưng đọc được bằng `p.x`. Đổi một trường thì tạo bản mới bằng
+      `p._replace(x=10)`. (Khi học class, bạn sẽ gặp dạng `class Diem(NamedTuple)` của module
+      `typing`, cùng ý tưởng.)
+  - id: b11
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      from collections import namedtuple
+      Diem = namedtuple("Diem", ["x", "y"])
+      p = Diem(3, 4)
+      x, y = p
+      print(p.x, p[1], p, x + y)
+      q = p._replace(x=10)
+      print(q, p)
+    expected_output: |
+      3 4 Diem(x=3, y=4) 7
+      Diem(x=10, y=4) Diem(x=3, y=4)
+  - id: b12
+    type: callout
+    kind: interview
+    md: |
+      Hỏi: *list hay tuple?* Đáp: dùng **list** cho dãy cùng loại, cần thêm/bớt phần tử; dùng
+      **tuple** cho một bản ghi cố định (toạ độ, cặp `(tên, điểm)`), khi cần làm khoá dict/phần tử
+      set, hoặc để báo hiệu "đừng sửa cái này". Tuple cũng nhẹ hơn list một chút.
+  - id: b13
+    type: quiz_fill
+    prompt_md: "Điền vào chỗ trống để hoán đổi hai biến: `a, b = ___`"
+    blanks: [{accept: ["b, a", "b,a", "(b, a)"]}]
+    explain_md: "Vế phải `b, a` là một tuple tính xong rồi mới gán lại cho `a, b`, nên không cần biến tạm."
+  - id: b14
+    type: code_exercise
+    md: "Viết `split_head(nums)` trả về tuple `(phần_tử_đầu, list_phần_còn_lại)`. `nums` luôn có ít nhất một phần tử."
+    entry: split_head
+    starter: |
+      def split_head(nums):
+          # TODO: dùng unpacking với *rest
+          pass
+    tests:
+      - {args: [[1, 2, 3]], expected: [1, [2, 3]]}
+      - {args: [[7]], expected: [7, []]}
+      - {args: [[5, 5, 9, 1]], expected: [5, [5, 9, 1]]}
+    hint_md: "`dau, *con_lai = nums` rồi `return dau, con_lai`."
+    solution: "def split_head(nums):\n    dau, *con_lai = nums\n    return dau, con_lai\n"
+  - id: b15
+    type: problem_ref
+    problem_id: flipping-an-image
+  - id: b16
+    type: summary
+    bullets_vi:
+      - "Tuple giống list nhưng không sửa được; tuple một phần tử phải viết `(x,)`."
+      - "Unpacking: `x, y = p`, hoán đổi `a, b = b, a`, gom phần còn lại `dau, *rest = ds` (rest là list)."
+      - "Tuple hashable (nếu phần tử hashable) nên làm khoá dict và phần tử set, ví dụ `(hang, cot)`; list thì không."
+      - "`namedtuple` thêm tên trường (`p.x`) mà vẫn là tuple; đổi giá trị bằng `_replace`."
+      - "List cho dãy đổi được; tuple cho bản ghi cố định hoặc khoá."
+problems: {practice: [flipping-an-image], extra: []}
+mastery_check: {l1: [Q020], l2: [X006], l3: []}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
 source:
   tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
-  authored_by: tools/gen_lesson_stubs.py
+  authored_by: "Claude (M2a content pipeline)"
   reviewed_by: null
-  date: '2026-10-24'
+  date: "2026-10-26"

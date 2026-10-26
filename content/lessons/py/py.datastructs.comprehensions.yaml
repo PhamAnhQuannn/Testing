@@ -1,24 +1,151 @@
 id: py.datastructs.comprehensions
 version: 1
-status: draft
-title_vi: Comprehension và generator expression
-est_minutes: 10
+status: published
+title_vi: "Comprehension và generator expression"
+est_minutes: 12
 objectives_vi:
-- Biến đổi, lọc và làm phẳng dữ liệu bằng comprehension một dòng dễ đọc.
-- Biết lúc nào nên quay về vòng for.
-blocks: []
-problems:
-  practice: []
-  extra: []
-mastery_check:
-  l1: []
-  l2: []
-  l3: []
-checkpoint:
-  pass_ratio: 0.7
-  min_items: 3
+  - "Viết list comprehension có lọc `if` và có biểu thức điều kiện `a if c else b`."
+  - "Làm phẳng và biến đổi list lồng nhau; viết dict comprehension và set comprehension."
+  - "Biết lúc nào nên quay về vòng `for`, và nhận ra generator expression."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      **Comprehension** là cách viết gọn một vòng `for` dùng để *tạo ra một list mới*:
+
+      `[biểu_thức for x in dãy if điều_kiện]`
+
+      Đọc từ trái sang phải: "lấy `biểu_thức` cho mỗi `x` trong `dãy`, chỉ giữ những `x` thoả
+      `điều_kiện`". Phần `if` là tuỳ chọn. Kết quả luôn là list **mới**, list gốc không đổi.
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      so = [3, 8, 5, 12]
+      binh_phuong = []
+      for x in so:
+          binh_phuong.append(x * x)
+      gon = [x * x for x in so]
+      chan = [x for x in so if x % 2 == 0]
+      print(binh_phuong == gon, chan)
+    expected_output: "True [8, 12]"
+  - id: b03
+    type: quiz_mcq
+    prompt_md: "`[x for x in range(10) if x % 3 == 0]` cho kết quả nào?"
+    options:
+      - {id: a, text_md: "`[0, 3, 6, 9]`"}
+      - {id: b, text_md: "`[3, 6, 9]`"}
+      - {id: c, text_md: "`[0, 1, 2]`"}
+      - {id: d, text_md: "`[1, 4, 7]`"}
+    answer: [a]
+    explain_md: "`range(10)` là 0..9; các số chia hết cho 3 là 0, 3, 6, 9 (0 % 3 == 0 nên 0 được giữ)."
+  - id: b04
+    type: text
+    md: |
+      Có **hai chỗ** đặt `if`, và chúng khác nhau:
+
+      - `if` ở **cuối** là *bộ lọc*: bỏ phần tử không thoả. `[x for x in so if x > 0]`.
+      - `a if c else b` ở **đầu** là *biểu thức điều kiện*: mọi phần tử đều được giữ, chỉ giá trị
+        thay đổi. `[x if x > 0 else 0 for x in so]`. Ở đây bắt buộc có `else`.
+  - id: b05
+    type: predict_output
+    code: |
+      so = [1, -2, 3, -4]
+      print([x if x > 0 else 0 for x in so], [x for x in so if x > 0])
+    expected_output: "[1, 0, 3, 0] [1, 3]"
+    explain_md: "Vế đầu giữ cả 4 phần tử và thay số âm bằng 0; vế sau bỏ hẳn các số âm."
+  - id: b06
+    type: text
+    md: |
+      **Hai vòng `for`** trong một comprehension viết theo đúng thứ tự như hai vòng lồng nhau:
+      `[x for hang in m for x in hang]` tương đương `for hang in m:` rồi `for x in hang:`. Đây là
+      cách **làm phẳng (flatten)** list các list. Muốn *giữ* cấu trúc lồng, đặt một comprehension
+      bên trong: `[[v * 2 for v in hang] for hang in m]`.
+  - id: b07
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      m = [[1, 2], [3], [4, 5]]
+      phang = [x for hang in m for x in hang]
+      nhan_doi = [[v * 2 for v in hang] for hang in m]
+      print(phang, nhan_doi)
+    expected_output: "[1, 2, 3, 4, 5] [[2, 4], [6], [8, 10]]"
+  - id: b08
+    type: text
+    md: |
+      Cùng ý tưởng cho dict và set, chỉ đổi dấu ngoặc:
+
+      - **dict comprehension**: `{khoá: giá_trị for x in dãy}`, ví dụ `{w: len(w) for w in tu}`.
+      - **set comprehension**: `{biểu_thức for x in dãy}`, tự bỏ phần tử trùng.
+
+      Lưu ý `{}` rỗng là **dict**, không phải set; set rỗng viết `set()`.
+  - id: b09
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      tu = ["an", "binh", "chi", "an"]
+      do_dai = {w: len(w) for w in tu}
+      chu_cai = {w[0] for w in tu}
+      print(do_dai, sorted(chu_cai))
+    expected_output: "{'an': 2, 'binh': 4, 'chi': 3} ['a', 'b', 'c']"
+  - id: b10
+    type: quiz_fill
+    prompt_md: "Điền vào chỗ trống để tạo dict bình phương: `{x: ___ for x in range(4)}` cho `{0: 0, 1: 1, 2: 4, 3: 9}`."
+    blanks: [{accept: ["x * x", "x*x", "x ** 2", "x**2"]}]
+    explain_md: "Phần giá trị là biểu thức tính từ `x`; `x * x` hoặc `x ** 2` đều cho bình phương."
+  - id: b11
+    type: callout
+    kind: tip
+    md: |
+      **Giới hạn dễ đọc.** Comprehension dành cho "một phép biến đổi và tối đa một bộ lọc".
+      Khi cần nhiều `if` lồng, nhiều hơn hai `for`, thêm `print`, hoặc phải giải thích mới hiểu,
+      hãy quay về vòng `for` thường. Dùng comprehension chỉ để chạy việc phụ (như `print`) là
+      lạm dụng.
+
+      **Generator expression** (chỉ cần nhận ra): đổi `[...]` thành `(...)` sẽ không tạo list ngay mà
+      sinh từng giá trị khi cần, tiết kiệm bộ nhớ. Khi là đối số duy nhất của hàm có thể bỏ luôn
+      ngoặc thừa: `sum(x * x for x in so)`.
+  - id: b12
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      so = [3, 8, 5, 12]
+      print(sum(x * x for x in so), sum(1 for x in so if x % 2 == 0))
+    expected_output: "242 2"
+  - id: b13
+    type: code_exercise
+    md: "Viết `squares_of_odds(nums)` trả list bình phương của các số lẻ trong `nums`, giữ nguyên thứ tự. Dùng một comprehension."
+    entry: squares_of_odds
+    starter: |
+      def squares_of_odds(nums):
+          # TODO: [biểu_thức for x in nums if điều_kiện]
+          pass
+    tests:
+      - {args: [[1, 2, 3, 4, 5]], expected: [1, 9, 25]}
+      - {args: [[2, 4]], expected: []}
+      - {args: [[-3, 0, 7]], expected: [9, 49]}
+    hint_md: "Số lẻ thoả `x % 2 == 1` (kể cả số âm trong Python). Giá trị giữ lại là `x * x`."
+    solution: "def squares_of_odds(nums):\n    return [x * x for x in nums if x % 2 == 1]\n"
+  - id: b14
+    type: problem_ref
+    problem_id: how-many-numbers-are-smaller-than-the-current-number
+  - id: b15
+    type: summary
+    bullets_vi:
+      - "`[biểu_thức for x in dãy if điều_kiện]` tạo list mới; `if` ở cuối lọc, `a if c else b` ở đầu biến đổi."
+      - "Hai `for` liền nhau làm phẳng: `[x for hang in m for x in hang]`; comprehension lồng giữ cấu trúc."
+      - "Dict: `{k: v for ...}`; set: `{e for ...}`; `{}` rỗng là dict."
+      - "Quá phức tạp hoặc có tác dụng phụ thì dùng vòng `for`."
+      - "Generator expression `(e for ...)` sinh từng giá trị, hay dùng trong `sum(...)`."
+problems: {practice: [how-many-numbers-are-smaller-than-the-current-number], extra: []}
+mastery_check: {l1: [Q025], l2: [Q026], l3: []}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
 source:
   tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
-  authored_by: tools/gen_lesson_stubs.py
+  authored_by: "Claude (M2a content pipeline)"
   reviewed_by: null
-  date: '2026-10-24'
+  date: "2026-10-26"
