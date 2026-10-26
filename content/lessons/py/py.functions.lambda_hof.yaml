@@ -1,24 +1,199 @@
 id: py.functions.lambda_hof
 version: 1
-status: draft
-title_vi: Lambda và hàm bậc cao (higher-order functions)
-est_minutes: 10
+status: published
+title_vi: "lambda và hàm bậc cao (higher-order functions)"
+est_minutes: 14
 objectives_vi:
-- Dùng lambda với sorted, map, filter đúng chỗ.
-- Biết map/filter cho kết quả lười và chọn comprehension khi dễ đọc hơn.
-blocks: []
-problems:
-  practice: []
-  extra: []
-mastery_check:
-  l1: []
-  l2: []
-  l3: []
-checkpoint:
-  pass_ratio: 0.7
-  min_items: 3
+  - "Viết lambda một biểu thức và biết giới hạn của nó; hiểu rằng hàm là một giá trị có thể lưu, truyền và trả về."
+  - "Dùng `map`, `filter` (trả iterator nên bọc `list()`), `functools.reduce`, `functools.partial` và module `operator`."
+  - "Chọn giữa lambda, `def`, `map`/`filter` và list comprehension cho dễ đọc."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      **Hàm là một giá trị**, giống số hay chuỗi: gán cho biến, bỏ vào list/dict, truyền làm đối số,
+      trả về từ hàm khác. Hàm nhận hoặc trả hàm gọi là **hàm bậc cao (higher-order function)**.
+      **`lambda`** viết nhanh một hàm nhỏ **không tên**: `lambda tham_số: biểu_thức`. Giới hạn: thân
+      chỉ là **một biểu thức** (kết quả của nó là giá trị trả về, không có `return`), không có câu
+      lệnh như `return`, gán `=`, `for`, `if` khối. Biểu thức điều kiện `a if c else b` thì được.
+      `callable(x)` cho biết `x` có gọi được như hàm không.
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      sq = lambda x: x * x
+
+
+      def sq2(x):
+          return x * x
+
+
+      print(sq(5), sq2(5), callable(sq), callable(5))
+      ops = {"inc": lambda v: v + 1, "neg": lambda v: -v}
+      print(ops["inc"](4), ops["neg"](4))
+      add = lambda a, b=10: a + b
+      print(add(1), add(1, 2))
+    expected_output: |
+      25 25 True False
+      5 -4
+      11 3
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Biểu thức nào là lambda **hợp lệ**?"
+    options:
+      - {id: a, text_md: "`lambda x: x if x > 0 else 0`"}
+      - {id: b, text_md: "`lambda x: return x + 1`"}
+      - {id: c, text_md: "`lambda x: y = x + 1`"}
+    answer: [a]
+    explain_md: "Thân lambda phải là một biểu thức. `return` và phép gán `=` là câu lệnh nên b, c lỗi cú pháp; còn `x if x > 0 else 0` là một biểu thức."
+  - id: b04
+    type: text
+    md: |
+      **`map(f, ds)`** áp dụng `f` lên từng phần tử; **`filter(f, ds)`** giữ phần tử mà `f(phần_tử)` là
+      truthy (`filter(None, ds)` giữ phần tử truthy). Cả hai trả về **iterator** (đối tượng sinh
+      từng phần tử khi cần, và **chỉ duyệt được một lần**), không phải list: muốn xem hoặc dùng
+      lại hãy bọc **`list(...)`**. `map` nhận được nhiều dãy: `map(f, a, b)` gọi `f(a_i, b_i)`.
+      Hàm dựng sẵn cũng truyền được: `map(len, words)`, `map(int, tokens)`.
+      Hàm có tham số `key=` nhận một hàm, ví dụ `sorted(ds, key=lambda w: -len(w))` sắp xếp theo giá
+      trị mà hàm tính cho từng phần tử (bài sorting_keys sẽ đi sâu).
+      **map/filter hay comprehension?** `[x * x for x in ds if x % 2 == 0]` thường đọc dễ hơn
+      `map(lambda ..., filter(lambda ..., ds))`; dùng `map(len, ds)` khi truyền thẳng một hàm có tên.
+  - id: b05
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      nums = [1, 2, 3, 4, 5, 6]
+      m = map(lambda x: x * x, nums)
+      print(list(m), list(m))
+      print(list(filter(lambda x: x % 2 == 0, nums)))
+      print(list(map(lambda a, b: a + b, [1, 2, 3], [10, 20, 30])))
+      print(list(filter(None, [0, 1, "", "a", None])))
+      print(sorted(["bb", "a", "ccc"], key=lambda w: -len(w)))
+      print([x * x for x in nums if x % 2 == 0])
+    expected_output: |
+      [1, 4, 9, 16, 25, 36] []
+      [2, 4, 6]
+      [11, 22, 33]
+      [1, 'a']
+      ['ccc', 'bb', 'a']
+      [4, 16, 36]
+  - id: b06
+    type: predict_output
+    graded: true
+    code: |
+      words = ["bb", "a", "ccc"]
+      r = map(len, words)
+      print(list(r), sum(map(lambda w: len(w), words)), list(filter(lambda w: len(w) > 1, words)))
+    expected_output: "[2, 1, 3] 6 ['bb', 'ccc']"
+    explain_md: "`map(len, words)` cho độ dài `[2, 1, 3]`; `sum(map(...))` chạy trên một iterator mới nên cũng được 6; `filter` giữ các từ dài hơn 1 là `bb`, `ccc`."
+  - id: b07
+    type: text
+    md: |
+      **`functools.reduce(f, ds, đầu)`** gộp cả dãy thành một giá trị: lấy `acc = đầu`, rồi
+      `acc = f(acc, x)` với từng `x`. Có giá trị `đầu` thì dãy rỗng vẫn có kết quả (nên luôn
+      cho `đầu` khi dãy có thể rỗng). **`functools.partial(f, ...)`** tạo hàm mới bằng cách cố định
+      trước một số đối số của `f`. Module **`operator`** có sẵn các phép toán dạng hàm
+      (`operator.add`, `mul`, `neg`, `itemgetter`) để khỏi viết lambda đơn giản.
+      Một hàm cũng có thể **trả về một hàm** (định nghĩa hàm con rồi `return` nó); hàm con "nhớ"
+      các biến của hàm ngoài, cơ chế này (closure) sẽ được giải thích ở bài scope sau.
+  - id: b08
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      import operator
+      from functools import partial, reduce
+
+      print(reduce(lambda acc, x: acc + x, [1, 2, 3, 4], 0))
+      print(reduce(operator.mul, [1, 2, 3, 4]))
+
+
+      def power(base, exp):
+          return base**exp
+
+
+      square = partial(power, exp=2)
+      print(square(7), partial(power, 2)(10))
+
+
+      def make_adder(k):
+          def add(x):
+              return x + k
+
+          return add
+
+
+      add5 = make_adder(5)
+      print(add5(1), make_adder(10)(1), callable(add5))
+      print(list(map(operator.neg, [1, -2])))
+    expected_output: |
+      10
+      24
+      49 1024
+      6 11 True
+      [-1, 2]
+  - id: b09
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Sau `r = map(str, [1, 2])`, phát biểu nào đúng?"
+    options:
+      - {id: a, text_md: "`r` là list `['1', '2']`"}
+      - {id: b, text_md: "`r` là một iterator; `list(r)` mới cho `['1', '2']`"}
+      - {id: c, text_md: "`r` là tuple `('1', '2')`"}
+    answer: [b]
+    explain_md: "`map` trả về iterator (lười), không phải list. Cần `list(r)` để lấy giá trị, và sau khi duyệt hết thì `r` rỗng."
+  - id: b10
+    type: code_exercise
+    md: "Viết `evens_squared(nums)` trả list bình phương của các số **chẵn** trong `nums`, giữ nguyên thứ tự. Dùng `map` và `filter` (nhớ bọc `list()`)."
+    entry: evens_squared
+    starter: |
+      def evens_squared(nums):
+          # TODO: list(map(..., filter(..., nums)))
+          pass
+    tests:
+      - {args: [[1, 2, 3, 4]], expected: [4, 16]}
+      - {args: [[]], expected: []}
+      - {args: [[3, 5]], expected: []}
+      - {args: [[-2, 6, 0]], expected: [4, 36, 0]}
+    hint_md: "`list(map(lambda x: x * x, filter(lambda x: x % 2 == 0, nums)))`."
+    solution: "def evens_squared(nums):\n    return list(map(lambda x: x * x, filter(lambda x: x % 2 == 0, nums)))\n"
+  - id: b11
+    type: code_exercise
+    md: "Viết `product(nums)` trả tích của mọi số trong `nums`, và `1` nếu `nums` rỗng. Dùng `functools.reduce` kèm giá trị đầu."
+    entry: product
+    starter: |
+      from functools import reduce
+
+
+      def product(nums):
+          # TODO: reduce(lambda acc, x: acc * x, nums, 1)
+          pass
+    tests:
+      - {args: [[2, 3, 4]], expected: 24}
+      - {args: [[]], expected: 1}
+      - {args: [[5]], expected: 5}
+      - {args: [[-1, 4, 0]], expected: 0}
+    hint_md: "`return reduce(lambda acc, x: acc * x, nums, 1)`; giá trị đầu 1 làm dãy rỗng trả 1."
+    solution: "from functools import reduce\n\n\ndef product(nums):\n    return reduce(lambda acc, x: acc * x, nums, 1)\n"
+  - id: b12
+    type: problem_ref
+    problem_id: height-checker
+  - id: b13
+    type: summary
+    bullets_vi:
+      - "Hàm là giá trị: gán, bỏ vào list/dict, truyền, trả về; `callable(x)` kiểm tra gọi được. `lambda tham_số: biểu_thức` chỉ có MỘT biểu thức (không `return`, không gán)."
+      - "`map(f, ds)` và `filter(f, ds)` trả iterator, duyệt được một lần: bọc `list(...)`; `filter(None, ds)` giữ phần tử truthy."
+      - "`reduce(f, ds, đầu)` gộp dãy thành một giá trị (luôn cho `đầu` nếu dãy có thể rỗng); `partial` cố định trước đối số; `operator.add/mul/neg/itemgetter` thay lambda đơn giản."
+      - "Có thể trả hàm con từ một hàm (closure sẽ học ở bài scope)."
+      - "Ưu tiên comprehension khi phải viết lambda dài; dùng lambda cho hàm ngắn một biểu thức (như `key=`), còn lại dùng `def`."
+problems: {practice: [height-checker], extra: []}
+mastery_check: {l1: [Q035], l2: [X008], l3: []}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
 source:
   tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
-  authored_by: tools/gen_lesson_stubs.py
+  authored_by: "Claude (M2a content pipeline)"
   reviewed_by: null
-  date: '2026-10-24'
+  date: "2026-10-26"

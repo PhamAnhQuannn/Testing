@@ -1,24 +1,230 @@
 id: py.functions.def_args
 version: 1
-status: draft
-title_vi: Định nghĩa hàm và đối số (functions & arguments)
-est_minutes: 10
+status: published
+title_vi: "Định nghĩa hàm và đối số (functions & arguments)"
+est_minutes: 15
 objectives_vi:
-- Viết hàm có tham số mặc định, trả nhiều giá trị.
-- Dùng *args/**kwargs và giải thích đúng bẫy giá trị mặc định là list.
-blocks: []
-problems:
-  practice: []
-  extra: []
-mastery_check:
-  l1: []
-  l2: []
-  l3: []
-checkpoint:
-  pass_ratio: 0.7
-  min_items: 3
+  - "Viết hàm với `def`/`return`, biết hàm không có `return` trả `None`, và trả nhiều giá trị (thực chất là một tuple)."
+  - "Phân biệt đối số vị trí và đối số tên, đặt giá trị mặc định, và giải thích bẫy giá trị mặc định là list."
+  - "Dùng `*args`/`**kwargs`, giải nén (`*`/`**`) khi gọi hàm, và hiểu hàm nhận tham chiếu tới đối tượng (pass-by-object-reference)."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Từ bài này, **hàm (function)** là công cụ chính của bạn. Cú pháp:
+      `def ten_ham(tham_so):` rồi phần thân thụt lề; `return giá_trị` kết thúc hàm và đưa giá trị về
+      nơi gọi. Phân biệt: **tham số (parameter)** là tên trong dòng `def`; **đối số (argument)** là
+      giá trị bạn truyền khi gọi.
+      - Hàm **không có `return`** (hoặc chỉ `return` trần) trả về **`None`**. Quên `return` là lỗi rất hay gặp: hàm có tính toán nhưng kết quả "biến mất".
+      - **Trả nhiều giá trị**: `return a, b` thực chất trả **một tuple** `(a, b)`; bên ngoài giải nén bằng `lo, hi = f(...)`.
+      - **Đối số vị trí** khớp theo thứ tự; **đối số tên** viết `ten=gia_tri` nên không cần đúng thứ tự (đối số vị trí phải đứng trước đối số tên).
+      - **Giá trị mặc định** `def f(x, scale=1)`: nếu không truyền thì dùng mặc định. Tham số có mặc định phải đứng sau tham số không có mặc định.
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      def stats(nums, scale=1):
+          return min(nums) * scale, max(nums) * scale
+
+
+      def greet(name):
+          print("xin chao", name)
+
+
+      lo, hi = stats([4, 9, 2])
+      print(lo, hi)
+      print(stats([1, 3], scale=10))
+      print(stats(scale=2, nums=[5, 6]))
+      r = greet("An")
+      print(r)
+    expected_output: |
+      2 9
+      (10, 30)
+      (10, 12)
+      xin chao An
+      None
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: |
+      Đoạn code sau in ra gì?
+      ```python
+      def double(x):
+          x * 2
+
+      print(double(4))
+      ```
+    options:
+      - {id: a, text_md: "`8`"}
+      - {id: b, text_md: "`None`"}
+      - {id: c, text_md: "`4`"}
+    answer: [b]
+    explain_md: "Hàm tính `x * 2` nhưng không `return` nó, nên kết quả bị bỏ và hàm trả về `None`. Sửa: `return x * 2`."
+  - id: b04
+    type: text
+    md: |
+      **Bẫy giá trị mặc định (mutable default argument).** Giá trị mặc định được tính **đúng một
+      lần**, lúc câu lệnh `def` chạy, rồi **dùng lại** cho mọi lần gọi. Với giá trị bất biến (số,
+      chuỗi, `None`) không sao. Nhưng nếu mặc định là **list/dict/set** (mutable) và hàm sửa nó, thì
+      những lần gọi sau thấy lại dữ liệu của lần trước, vì chúng cùng dùng một đối tượng. Cách sửa
+      chuẩn: mặc định `None`, rồi tạo list mới **bên trong** hàm khi cần.
+  - id: b05
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      def tag_bad(name, tags=[]):
+          tags.append(name)
+          return tags
+
+
+      def tag_ok(name, tags=None):
+          if tags is None:
+              tags = []
+          tags.append(name)
+          return tags
+
+
+      print(tag_bad("a"), tag_bad("b"))
+      print(tag_ok("a"), tag_ok("b"))
+      print(tag_ok("c", ["x"]))
+    expected_output: |
+      ['a', 'b'] ['a', 'b']
+      ['a'] ['b']
+      ['x', 'c']
+  - id: b06
+    type: predict_output
+    graded: true
+    code: |
+      def log(msg, history=[]):
+          history.append(msg)
+          return len(history)
+
+
+      print(log("a"), log("b"), log("c", []), log("d"))
+    expected_output: "1 2 1 3"
+    explain_md: "`log(\"a\")` và `log(\"b\")` dùng chung list mặc định (độ dài 1 rồi 2). `log(\"c\", [])` truyền list mới nên trả 1 và không đụng list chung. `log(\"d\")` quay lại list chung đã có `a, b` nên thành 3."
+  - id: b07
+    type: text
+    md: |
+      **Số đối số tuỳ ý:** `*args` và `**kwargs`. Trong dòng `def`, `*args` gom các đối số
+      **vị trí còn dư** thành một **tuple**; `**kwargs` gom các đối số **tên còn dư** thành một
+      **dict**. Tham số đứng sau `*args` chỉ truyền được **bằng tên** (keyword-only).
+      Chiều ngược lại, khi **gọi** hàm: `f(*ds)` rải các phần tử của list/tuple ra thành đối số vị
+      trí, `f(**d)` rải dict thành đối số tên. Thứ tự trong `def`: tham số thường, `*args`,
+      tham số keyword-only, `**kwargs`.
+  - id: b08
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      def total(*nums):
+          return sum(nums)
+
+
+      def show(title, *items, mark="-", **opts):
+          print(title, items, mark, opts)
+
+
+      print(total(1, 2, 3), total())
+      show("ds", 1, 2, mark="+", bold=True)
+      data = [4, 5, 6]
+      print(total(*data), total(*data, 10))
+      cfg = {"mark": "|", "x": 1}
+      show("t", **cfg)
+    expected_output: |
+      6 0
+      ds (1, 2) + {'bold': True}
+      15 25
+      t () | {'x': 1}
+  - id: b09
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Cho `def total(*nums): return sum(nums)` và `data = [1, 2, 3]`. Lời gọi nào trả về `6`?"
+    options:
+      - {id: a, text_md: "`total(data)`"}
+      - {id: b, text_md: "`total(*data)`"}
+      - {id: c, text_md: "`total(**data)`"}
+    answer: [b]
+    explain_md: "`*data` rải list thành ba đối số `1, 2, 3`. `total(data)` truyền một đối số duy nhất là cả list nên `sum(([1, 2, 3],))` lỗi; `**data` đòi một dict."
+  - id: b10
+    type: text
+    md: |
+      **Docstring và annotation.** Chuỗi ba nháy `"""..."""` ngay dưới dòng `def` là *docstring*, mô tả
+      hàm làm gì (xem bằng `help(f)`). Annotation như `def f(n: int) -> int:` ghi chú kiểu để người
+      đọc và công cụ hiểu; Python **không** ép kiểu khi chạy.
+      **Pass-by-object-reference.** Khi gọi `f(x)`, tham số mới là **một cái tên khác trỏ tới cùng đối
+      tượng** (như phép gán trong bài copying). Hệ quả:
+      - Hàm **sửa tại chỗ** một list/dict (`append`, `x[i] = ...`) thì người gọi **thấy** thay đổi.
+      - Hàm **gán lại** tên (`nums = [0]`, `n += 1` với số) chỉ đổi cái tên bên trong hàm, **không** ảnh hưởng người gọi.
+      Biến tạo trong thân hàm là biến **cục bộ**, mất khi hàm trả về.
+  - id: b11
+    type: predict_output
+    graded: true
+    code: |
+      def f(nums, n):
+          nums.append(n)
+          n += 1
+          nums = [0]
+          nums.append(n)
+          return nums
+
+
+      a = [1]
+      b = 5
+      print(f(a, b), a, b)
+    expected_output: "[0, 6] [1, 5] 5"
+    explain_md: "`nums.append(n)` sửa chính list `a` nên `a` thành `[1, 5]`. `n += 1` chỉ đổi tên `n` cục bộ (`b` vẫn 5). `nums = [0]` gắn tên `nums` sang list mới nên hàm trả `[0, 6]` và không đụng tới `a` nữa."
+  - id: b12
+    type: code_exercise
+    md: "Viết `sum_of_squares(*nums)` nhận số lượng số tuỳ ý và trả tổng bình phương của chúng (không có số nào thì trả 0)."
+    entry: sum_of_squares
+    starter: |
+      def sum_of_squares(*nums):
+          # TODO: nums là một tuple các đối số; cộng bình phương từng số
+          pass
+    tests:
+      - {args: [], expected: 0}
+      - {args: [3], expected: 9}
+      - {args: [1, 2, 3], expected: 14}
+      - {args: [-2, 2], expected: 8}
+    hint_md: "`return sum(x * x for x in nums)`, hoặc dùng vòng `for` cộng dồn vào biến tổng."
+    solution: "def sum_of_squares(*nums):\n    total = 0\n    for x in nums:\n        total += x * x\n    return total\n"
+  - id: b13
+    type: code_exercise
+    md: "Viết `append_to(item, bucket=None)`: thêm `item` vào cuối `bucket` rồi trả về `bucket`. Nếu không truyền `bucket` thì bắt đầu từ một list rỗng **mới** ở mỗi lần gọi (tránh bẫy mặc định)."
+    entry: append_to
+    starter: |
+      def append_to(item, bucket=None):
+          # TODO: nếu bucket là None thì tạo list mới bên trong hàm
+          pass
+    tests:
+      - {args: ["a"], expected: ["a"]}
+      - {args: ["b", ["x"]], expected: ["x", "b"]}
+      - {args: ["c"], expected: ["c"]}
+      - {args: ["d", []], expected: ["d"]}
+    hint_md: "`if bucket is None: bucket = []`, sau đó `bucket.append(item)` và `return bucket`."
+    solution: "def append_to(item, bucket=None):\n    if bucket is None:\n        bucket = []\n    bucket.append(item)\n    return bucket\n"
+  - id: b14
+    type: problem_ref
+    problem_id: create-target-array-in-the-given-order
+  - id: b15
+    type: problem_ref
+    problem_id: fibonacci-number
+  - id: b16
+    type: summary
+    bullets_vi:
+      - "`def` + `return`: không `return` thì trả `None`; `return a, b` trả một tuple, giải nén bằng `lo, hi = f(...)`."
+      - "Đối số vị trí (theo thứ tự) và đối số tên (`ten=gia_tri`); tham số mặc định đứng sau tham số bắt buộc."
+      - "Giá trị mặc định tính MỘT lần: mặc định list/dict bị dùng chung giữa các lần gọi. Sửa bằng `=None` rồi tạo mới trong hàm."
+      - "`*args` gom đối số vị trí dư thành tuple, `**kwargs` gom đối số tên dư thành dict; khi gọi, `f(*ds)` và `f(**d)` rải ra."
+      - "Tham số là tên khác trỏ cùng đối tượng: sửa tại chỗ thì người gọi thấy, gán lại tên thì không. Docstring và annotation chỉ để mô tả."
+problems: {practice: [create-target-array-in-the-given-order, fibonacci-number], extra: []}
+mastery_check: {l1: [Q033], l2: [Q034], l3: []}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
 source:
   tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
-  authored_by: tools/gen_lesson_stubs.py
+  authored_by: "Claude (M2a content pipeline)"
   reviewed_by: null
-  date: '2026-10-24'
+  date: "2026-10-26"
