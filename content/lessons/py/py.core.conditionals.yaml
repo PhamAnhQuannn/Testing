@@ -1,24 +1,169 @@
 id: py.core.conditionals
 version: 1
-status: draft
-title_vi: Rẽ nhánh và truthiness (conditionals)
+status: published
+title_vi: "Rẽ nhánh và truthiness (conditionals)"
 est_minutes: 10
 objectives_vi:
-- Viết đúng chuỗi if/elif/else lồng nhau.
-- Nêu được các giá trị falsy và phân biệt x is None với x == None.
-blocks: []
-problems:
-  practice: []
-  extra: []
-mastery_check:
-  l1: []
-  l2: []
-  l3: []
-checkpoint:
-  pass_ratio: 0.7
-  min_items: 3
+  - "Viết đúng chuỗi if/elif/else (thụt dòng, dấu hai chấm, thứ tự điều kiện) và biểu thức một dòng `x if c else y`."
+  - "Nêu được các giá trị falsy (kể cả container rỗng) và dự đoán `if x:` chạy nhánh nào."
+  - "Phân biệt `x is None` với `x == None`; dùng `in`, `assert` và `pass` đúng chỗ."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Chương trình cần **rẽ nhánh**: làm việc A nếu điều kiện đúng, ngược lại làm việc B. Python dùng
+      `if` / `elif` / `else`:
+
+      ```python
+      diem = 72
+      if diem >= 90:
+          print("xuất sắc")
+      elif diem >= 60:
+          print("đạt")
+      else:
+          print("chưa đạt")
+      ```
+
+      Quy tắc cú pháp:
+
+      - Cuối dòng `if`, `elif`, `else` phải có dấu **hai chấm** `:`.
+      - Các dòng thuộc nhánh đó phải **thụt vào** (quy ước 4 dấu cách). Thụt dòng *là* cú pháp của
+        Python, không phải chuyện trình bày.
+      - Điều kiện là biểu thức cho ra `bool` (so sánh, `and`, `or`, `not` ở bài trước).
+
+      Python xét các điều kiện **từ trên xuống** và chỉ chạy **nhánh đầu tiên** đúng, rồi bỏ qua phần
+      còn lại. Vì thế **thứ tự** các `elif` rất quan trọng: đặt điều kiện hẹp (cụ thể) trước, điều
+      kiện rộng sau. `elif` khác với nhiều `if` liền nhau: nhiều `if` riêng rẽ *đều* được xét, còn
+      chuỗi `if/elif` thì dừng ở nhánh đúng đầu tiên. `if` có thể lồng trong `if`, nhưng nếu lồng quá
+      sâu thì thường nên gộp điều kiện bằng `and`.
+  - id: b02
+    type: predict_output
+    code: |
+      diem = 85
+      if diem >= 60:
+          print("đạt")
+      elif diem >= 80:
+          print("giỏi")
+      else:
+          print("trượt")
+      print("xong")
+    expected_output: |
+      đạt
+      xong
+    explain_md: "`85 >= 60` đúng nên in `đạt` và bỏ qua các nhánh còn lại, dù `85 >= 80` cũng đúng. Muốn in `giỏi`, phải kiểm tra `diem >= 80` *trước* `diem >= 60`. Dòng `print(\"xong\")` không thụt vào nên luôn chạy."
+  - id: b03
+    type: text
+    md: |
+      **Biểu thức điều kiện (conditional expression)** viết một lựa chọn gọn trên một dòng:
+      `gia_tri_neu_dung if dieu_kien else gia_tri_neu_sai`. Ví dụ `"chẵn" if n % 2 == 0 else "lẻ"`.
+      Nó là một *biểu thức* (cho ra giá trị), nên gán hoặc `return` trực tiếp được. Chỉ dùng cho
+      lựa chọn đơn giản; nhiều nhánh thì dùng `if/elif`.
+
+      **Truthy / falsy.** Điều kiện của `if` không bắt buộc là `bool`: Python tự đổi giá trị bất kỳ
+      sang bool (như `bool(x)`). Các giá trị **falsy** (coi là sai) gồm: `False`, `None`, `0`, `0.0`,
+      chuỗi rỗng `""`, và mọi **container rỗng** (list `[]`, tuple `()`, dict `{}`, set rỗng; các
+      kiểu này sẽ học ở `py.datastructs`). **Mọi giá trị khác là truthy**, kể cả `"0"`, `"False"`
+      hay `[0]` (chuỗi/list có phần tử thì không rỗng).
+
+      Nhờ vậy, `if ten:` nghĩa là "nếu `ten` không rỗng" và `if not ds:` nghĩa là "nếu `ds` rỗng".
+      Cách này ngắn và là phong cách Python chuẩn, nhưng hãy cẩn thận khi `0` là giá trị hợp lệ: với
+      `so_luong = 0`, `if so_luong:` là sai dù `0` là một số lượng đúng.
+  - id: b04
+    type: quiz_mcq
+    prompt_md: "Giá trị nào dưới đây là **falsy** (khiến `if x:` chạy nhánh else)?"
+    options:
+      - {id: a, text_md: "`\"0\"` (chuỗi có 1 ký tự)"}
+      - {id: b, text_md: "`0.0` (số thực bằng 0)"}
+      - {id: c, text_md: "`\"False\"` (chuỗi có 5 ký tự)"}
+    answer: [b]
+    explain_md: "`0.0` là số không nên falsy. Hai chuỗi kia không rỗng nên đều truthy, dù nội dung của chúng trông giống `0` hay `False`."
+  - id: b05
+    type: text
+    md: |
+      Vài công cụ nhỏ khác hay gặp trong điều kiện và trong code:
+
+      - **`in` / `not in`** kiểm tra "có chứa không" và cho ra `bool`: `"an" in "banana"` là `True`,
+        `"z" not in "banana"` là `True`. (Với chuỗi, `in` kiểm tra chuỗi con; với list/dict ở các bài
+        sau, nó kiểm tra phần tử/khoá.)
+      - **`x is None`** là cách kiểm tra "x có phải `None` không". `None` chỉ có một bản duy nhất
+        trong chương trình, nên so sánh *danh tính* bằng `is` là chuẩn, ngắn và an toàn hơn
+        `x == None` (vì `==` có thể bị một kiểu tự định nghĩa ghi đè). Phủ định là `x is not None`.
+        Đừng viết `if x:` khi bạn thật sự muốn hỏi "có phải None", vì `0` và `""` cũng falsy.
+      - **`assert dieu_kien, "thông báo"`** khẳng định một điều *phải luôn đúng* khi code chạy đúng
+        (một **bất biến**, invariant). Nếu sai, Python ném `AssertionError` kèm thông báo, giúp bắt
+        lỗi của chính bạn sớm. Đừng dùng `assert` để kiểm tra dữ liệu người dùng nhập, vì assert có
+        thể bị tắt khi chạy với tối ưu hoá.
+      - **`pass`** là câu lệnh "không làm gì", dùng khi cú pháp đòi một khối nhưng bạn chưa có code:
+        `if x > 0:` rồi `pass`.
+  - id: b06
+    type: predict_output
+    code: |
+      x = None
+      y = 0
+      print(x is None, y is None, not y, "" or "n/a")
+      print("ok" if y == 0 else "no", "an" in "banana", "z" not in "banana")
+    expected_output: |
+      True False True n/a
+      ok True True
+    explain_md: "`x` đúng là None; `y` là 0 chứ không phải None (dù falsy), và `not 0` là True. `\"\" or \"n/a\"` trả toán hạng truthy đầu tiên là `\"n/a\"`. Biểu thức điều kiện chọn `\"ok\"` vì `y == 0`. Cuối cùng `\"an\"` có trong `\"banana\"`, còn `\"z\"` thì không."
+  - id: b07
+    type: quiz_mcq
+    prompt_md: |
+      Chạy đoạn sau thì chuyện gì xảy ra?
+
+      ```python
+      n = -1
+      assert n > 0, "n phải dương"
+      print("tiếp tục")
+      ```
+    options:
+      - {id: a, text_md: "In `tiếp tục`, vì assert chỉ để cảnh báo"}
+      - {id: b, text_md: "Ném `AssertionError: n phải dương` và không chạy dòng `print`"}
+      - {id: c, text_md: "In `n phải dương` rồi in `tiếp tục`"}
+    answer: [b]
+    explain_md: "Khi điều kiện sau `assert` sai, Python ném `AssertionError` (kèm thông báo) và chương trình dừng tại đó nếu không được xử lý, nên dòng `print` không chạy."
+  - id: b08
+    type: code_exercise
+    md: |
+      Một cửa hàng tính phí vận chuyển theo tổng đơn hàng `total`: từ `500` trở lên thì miễn phí
+      (`0`); từ `200` đến dưới `500` thì phí `15`; dưới `200` thì phí `30`. Viết `shipping_fee(total)`
+      dùng `if/elif/else`. Chú ý thứ tự điều kiện.
+
+      Xem trước về hàm: `def` tạo một **hàm** (function), tức một khối code có tên, nhận đầu vào
+      (tham số, ở đây là `total`) và trả kết quả bằng `return`. `pass` chỉ là chỗ giữ chỗ, bạn thay
+      nó bằng code của mình. Hàm sẽ được học đầy đủ ở `py.functions`.
+    entry: shipping_fee
+    starter: |
+      def shipping_fee(total):
+          # TODO: if/elif/else theo các mốc 500 và 200
+          pass
+    tests:
+      - {args: [100], expected: 30}
+      - {args: [200], expected: 15}
+      - {args: [350], expected: 15}
+      - {args: [500], expected: 0}
+      - {args: [1200], expected: 0}
+    hint_md: "Kiểm tra mốc cao trước: `if total >= 500: return 0`, rồi `elif total >= 200: return 15`, cuối cùng `else: return 30`."
+    solution: "def shipping_fee(total):\n    if total >= 500:\n        return 0\n    elif total >= 200:\n        return 15\n    else:\n        return 30\n"
+  - id: b09
+    type: text
+    md: "Bài luyện dưới đây (LC412 Fizz Buzz) cần thêm vòng lặp `for` để dựng cả list (học ngay ở bài `py.core.loops`). Phần khó nhất là chuỗi `if/elif` chọn kết quả cho từng số, nên làm sau cũng được; nếu bí thì quay lại khi đã học tới vòng lặp."
+  - id: b10
+    type: problem_ref
+    problem_id: fizz-buzz
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "`if/elif/else`: kết thúc dòng bằng `:`, thân thụt vào; chỉ nhánh đúng đầu tiên chạy, nên đặt điều kiện hẹp trước điều kiện rộng."
+      - "`a if cond else b` là biểu thức một dòng cho lựa chọn đơn giản."
+      - "Falsy: `False`, `None`, `0`, `0.0`, `\"\"`, container rỗng; mọi giá trị khác (kể cả `\"0\"`, `[0]`) là truthy."
+      - "Kiểm tra None bằng `x is None` / `x is not None`, không dùng `x == None`; `if x:` còn bắt cả `0` và `\"\"`."
+      - "`in` / `not in` kiểm tra chứa; `assert cond, msg` bảo vệ bất biến của code; `pass` là câu lệnh rỗng."
+problems: {practice: [fizz-buzz], extra: []}
+mastery_check: {l1: [X005], l2: [X004], l3: []}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
 source:
   tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
-  authored_by: tools/gen_lesson_stubs.py
+  authored_by: "Claude (M2a content pipeline)"
   reviewed_by: null
-  date: '2026-10-24'
+  date: "2026-10-25"

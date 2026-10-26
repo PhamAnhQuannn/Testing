@@ -1,24 +1,173 @@
 id: py.core.strings
 version: 1
-status: draft
-title_vi: Chuỗi và xử lý văn bản (strings)
-est_minutes: 10
+status: published
+title_vi: "Chuỗi và xử lý văn bản (strings)"
+est_minutes: 12
 objectives_vi:
-- Giải các bài chuỗi cơ bản (đảo chuỗi, palindrome, đếm ký tự) bằng chỉ số.
-- Cắt chuỗi và vòng lặp.
-blocks: []
-problems:
-  practice: []
-  extra: []
-mastery_check:
-  l1: []
-  l2: []
-  l3: []
-checkpoint:
-  pass_ratio: 0.7
-  min_items: 3
+  - "Giải thích vì sao str là bất biến (immutable) và dùng chỉ số, chỉ số âm, slicing [a:b:c] để lấy phần của chuỗi."
+  - "Dùng các phương thức split, join, strip, replace, find, count, startswith/endswith, lower/upper và isalnum/isdigit/isalpha."
+  - "Định dạng chuỗi bằng f-string và format spec; biết str khác bytes ở chỗ nào (encode/decode)."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Một **chuỗi (str)** là dãy ký tự có thứ tự, nên bạn đã duyệt được nó bằng `for` ở bài vòng
+      lặp. Có thể viết bằng `'...'` hoặc `"..."`; ký tự đặc biệt dùng dấu `\`: `"\n"` xuống dòng,
+      `"\t"` tab. `len(s)` là số ký tự.
+
+      **Chỉ số (index)** đếm từ `0`; chỉ số **âm** đếm từ cuối: `s[-1]` là ký tự cuối. Với
+      `s = "interview"` thì `s[0]` là `'i'`, `s[-1]` là `'w'`. Chỉ số ngoài phạm vi gây `IndexError`.
+
+      **Slicing** `s[a:b:c]` lấy một đoạn từ `a` đến *trước* `b`, bước `c` (giống `range`):
+
+      - `s[2:5]` là `"ter"`; `s[:3]` là 3 ký tự đầu; `s[-3:]` là 3 ký tự cuối.
+      - Bỏ trống thì mặc định: `s[::2]` lấy cách một ký tự; `s[::-1]` là chuỗi **đảo ngược**.
+      - Slicing không bao giờ báo `IndexError`: vượt phạm vi thì bị cắt cho vừa.
+
+      **Chuỗi bất biến (immutable)**: không sửa được ký tự tại chỗ. `s[0] = "I"` gây `TypeError`.
+      Muốn "sửa" thì tạo chuỗi mới, ví dụ `s = "I" + s[1:]`. Hầu hết phương thức **biến đổi** chuỗi
+      đều **trả về chuỗi mới** (vì `str` bất biến) và để nguyên chuỗi gốc; còn phương thức **truy vấn**
+      như `find`/`count`/`startswith` trả về số hoặc `bool`. Vì vậy gọi `s.upper()` mà không gán lại kết quả thì không có
+      tác dụng gì với `s`.
+  - id: b02
+    type: predict_output
+    code: |
+      s = "interview"
+      print(s[0], s[-1], s[2:5], s[-3:])
+      print(s[::2], s[::-1][:4], len(s))
+    expected_output: |
+      i w ter iew
+      itriw weiv 9
+    explain_md: "`s[2:5]` là các chỉ số 2, 3, 4: `ter`. `s[-3:]` là ba ký tự cuối: `iew`. `s[::2]` lấy chỉ số 0, 2, 4, 6, 8: `itriw`. `s[::-1]` là `weivretni`, lấy 4 ký tự đầu: `weiv`."
+  - id: b03
+    type: text
+    md: |
+      Các phương thức hay dùng (không sửa chuỗi gốc, luôn trả về giá trị mới):
+
+      - **Tách và ghép**: `s.split(",")` cắt theo dấu phân cách và trả về một **list** các chuỗi
+        (list sẽ học ở `py.datastructs`); `s.split()` không tham số cắt theo mọi khoảng trắng và bỏ
+        phần rỗng. `"-".join(ds)` ghép các chuỗi trong `ds` lại, xen dấu `-` ở giữa. Giá trị trong
+        ngoặc vuông như `["2026", "10", "25"]` (hay biến `ds` giữ nó) là một `list`, tức tập hợp có
+        thứ tự; `py.datastructs` sẽ dạy đầy đủ, ở đây ta chỉ đọc và ghép các phần của nó.
+      - **Dọn và thay**: `strip()` bỏ khoảng trắng hai đầu (`lstrip`, `rstrip` cho một đầu);
+        `replace(cu, moi)` thay mọi chỗ xuất hiện.
+      - **Tìm**: `find(x)` trả chỉ số đầu tiên của `x`, hoặc `-1` nếu không có (`rfind` tìm từ
+        cuối); `count(x)` đếm số lần xuất hiện; `x in s` cho `bool`.
+      - **Kiểm tra đầu/cuối**: `startswith(x)`, `endswith(x)`.
+      - **Chữ hoa/thường**: `lower()`, `upper()`, `title()`, `capitalize()`. Dùng `lower()` để so
+        sánh không phân biệt hoa thường.
+      - **Loại ký tự**: `isdigit()`, `isalpha()`, `isalnum()` (chữ hoặc số) cho `bool`.
+  - id: b04
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      linh = "  Xin chao, Python  "
+      sach = linh.strip()
+      print(sach, len(sach))
+      print(sach.upper(), sach.lower())
+      print(sach.replace("Python", "Viet Nam"))
+      print("a,b,,c".split(","), "a b  c".split())
+      print("-".join(["2026", "10", "25"]))
+      print(sach.find("o"), sach.rfind("o"), sach.find("z"), sach.count("o"))
+      print(sach.startswith("Xin"), sach.endswith("on"), "Python" in sach)
+      print("abc123".isalnum(), "12a".isdigit(), "abc".isalpha())
+    expected_output: |
+      Xin chao, Python 16
+      XIN CHAO, PYTHON xin chao, python
+      Xin chao, Viet Nam
+      ['a', 'b', '', 'c'] ['a', 'b', 'c']
+      2026-10-25
+      7 14 -1 2
+      True True True
+      True False True
+  - id: b05
+    type: quiz_mcq
+    prompt_md: |
+      Đoạn sau in ra gì?
+
+      ```python
+      s = "abc"
+      s.upper()
+      print(s)
+      ```
+    options:
+      - {id: a, text_md: "`ABC`, vì `upper()` đổi chuỗi `s` thành chữ hoa"}
+      - {id: b, text_md: "`abc`, vì `upper()` trả về chuỗi mới còn `s` giữ nguyên (bất biến)"}
+      - {id: c, text_md: "Báo `TypeError`, vì không được gọi phương thức trên chuỗi"}
+    answer: [b]
+    explain_md: "Chuỗi bất biến: `s.upper()` tạo ra chuỗi `\"ABC\"` nhưng bị bỏ đi vì không được gán lại. Phải viết `s = s.upper()` mới đổi được tên `s`."
+  - id: b06
+    type: text
+    md: |
+      **f-string** nhúng giá trị vào chuỗi: đặt chữ `f` trước dấu nháy và viết biểu thức trong
+      `{}`: `f"{ten} được {diem} điểm"`. Sau dấu `:` trong `{}` là **format spec** quyết định cách
+      hiển thị:
+
+      - `{x:.2f}`: số thực với 2 chữ số thập phân; `{x:.1%}`: phần trăm.
+      - `{x:03d}`: số nguyên, rộng 3, đệm số `0` bên trái (`7` thành `007`); `{x:,}`: ngăn cách
+        hàng nghìn bằng dấu phẩy.
+      - `{s:>6}` căn phải trong ô rộng 6, `{s:<6}` căn trái, `{s:^6}` căn giữa.
+
+      **`str` và `bytes`** (chỉ cần biết sơ): `str` là văn bản Unicode, còn `bytes` là dãy byte thô
+      (viết `b"..."`). `s.encode("utf-8")` đổi `str` thành `bytes`, `b.decode("utf-8")` đổi ngược
+      lại. Một ký tự có thể chiếm nhiều byte: `"café"` có 4 ký tự nhưng 5 byte. Bạn chỉ gặp `bytes`
+      khi đọc/ghi file nhị phân hay làm việc với mạng.
+  - id: b07
+    type: predict_output
+    code: |
+      ten = "Lan"
+      diem = 8.5
+      print(f"{ten} duoc {diem:.2f} diem")
+      print(f"{7:03d} | {1234567:,} | {0.256:.1%} | {ten:>6}|{ten:<6}|")
+    expected_output: |
+      Lan duoc 8.50 diem
+      007 | 1,234,567 | 25.6% |    Lan|Lan   |
+    explain_md: "`.2f` hiện 2 chữ số thập phân nên `8.50`. `03d` đệm số 0 thành `007`; `,` ngăn cách hàng nghìn; `.1%` đổi 0.256 thành `25.6%`. `>6` căn phải ô rộng 6 (3 dấu cách rồi `Lan`), `<6` căn trái (`Lan` rồi 3 dấu cách)."
+  - id: b08
+    type: quiz_fill
+    prompt_md: "Điền vào chỗ trống để lấy 3 ký tự **cuối** của chuỗi `s`: `s[___:]`"
+    blanks: [{accept: ["-3"]}]
+    explain_md: "Chỉ số âm đếm từ cuối: `-3` là ký tự thứ ba tính từ cuối, và để trống phần sau dấu `:` nghĩa là lấy đến hết chuỗi. Ví dụ `\"interview\"[-3:]` là `\"iew\"`."
+  - id: b09
+    type: code_exercise
+    md: |
+      Viết `initials(full_name)` trả về chữ cái đầu của mỗi từ trong tên, viết hoa và ghép lại.
+      Ví dụ `"ada lovelace"` cho `"AL"`. Tên có thể có khoảng trắng thừa ở đầu, cuối hoặc giữa các từ.
+      Gợi ý: `split()`, một vòng `for`, `word[0]` và `upper()`.
+
+      Xem trước về hàm: `def` tạo một **hàm** (function), tức một khối code có tên, nhận đầu vào
+      (tham số, ở đây là `full_name`) và trả kết quả bằng `return`. `pass` chỉ là chỗ giữ chỗ, bạn
+      thay nó bằng code của mình. Hàm sẽ được học đầy đủ ở `py.functions`.
+    entry: initials
+    starter: |
+      def initials(full_name):
+          # TODO: tách từ, lấy chữ cái đầu của mỗi từ, viết hoa, ghép lại
+          pass
+    tests:
+      - {args: ["ada lovelace"], expected: "AL"}
+      - {args: ["grace brewster hopper"], expected: "GBH"}
+      - {args: ["alan"], expected: "A"}
+      - {args: ["  linus   torvalds "], expected: "LT"}
+      - {args: ["Ho Chi Minh"], expected: "HCM"}
+    hint_md: "Tạo `result = \"\"`. Lặp `for word in full_name.split():` rồi `result += word[0].upper()`. `split()` không tham số đã bỏ khoảng trắng thừa."
+    solution: "def initials(full_name):\n    result = \"\"\n    for word in full_name.split():\n        result += word[0].upper()\n    return result\n"
+  - id: b10
+    type: problem_ref
+    problem_id: length-of-last-word
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "`str` bất biến: không gán `s[i] = ...`; các phương thức biến đổi trả chuỗi mới, nên phải gán lại kết quả (`s = s.strip()`)."
+      - "Chỉ số bắt đầu từ 0, chỉ số âm đếm từ cuối; `s[a:b:c]` lấy từ `a` đến trước `b`; `s[::-1]` đảo chuỗi; slicing không báo `IndexError`."
+      - "`split` / `join` tách và ghép; `strip`, `replace`, `find` (-1 nếu không có), `rfind`, `count`; `startswith` / `endswith` / `in` kiểm tra chứa."
+      - "`lower()` / `upper()` để so sánh không phân biệt hoa thường; `isdigit` / `isalpha` / `isalnum` kiểm tra loại ký tự."
+      - "f-string: `f\"{x:.2f}\"`, `{n:03d}`, `{n:,}`, `{s:>6}`; `str` là văn bản, `bytes` là byte thô (`encode` / `decode`)."
+problems: {practice: [length-of-last-word], extra: []}
+mastery_check: {l1: [Q011], l2: [Q012], l3: [Q013]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
 source:
   tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
-  authored_by: tools/gen_lesson_stubs.py
+  authored_by: "Claude (M2a content pipeline)"
   reviewed_by: null
-  date: '2026-10-24'
+  date: "2026-10-25"
