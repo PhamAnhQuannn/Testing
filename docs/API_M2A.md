@@ -87,6 +87,32 @@ expires_at}`. `409 check_session_expired`, `404 check_session_not_found`.
 - Since T2.2b the loader derives `has_l2_items` / `has_l3_write_code` from `content/checks`, which
   removes the M1 shortcut (a clean practice AC alone = score 2) for every subtopic with checks.
 
+## Review (Leitner, SPEC 5.4)
+
+### `GET /api/review/queue[?editor=false]`
+
+All due cards (`due_on <= today` in the user's tz, not suspended), most overdue first, tie-break
+lowest score. No cap. Returns `{today, total_due, backlog_warn, backlog, cards[], short_session}`.
+Card: `{subtopic_id, name_vi, box, due_on, overdue_days, score, lapses, item_kind, item, recall_item}`.
+`item` = `{kind, ref, type, subtopic_id}`: boxes 1-2 a recall item (a graded lesson block
+`<sid>#<block>`, else a level-1 non-write_code check `check:<sid>:<item_id>`; rotated by the number
+of past reviews); boxes 3-5 a code problem (level-2/3 check problem, then practice problem; not yet
+clean first, then least recently attempted), falling back to recall when none exists or with
+`editor=false`. `recall_item` is the recall fallback for boxes 3-5. `short_session` is a hint only:
+`{enabled, size (settings.review_preset, null = off), max_code: 2, cards: [{subtopic_id, item_kind}]}`
+where code cards beyond the second are demoted to recall.
+
+### `POST /api/review/{subtopic_id}/result`
+
+Body `{success, item_ref?, item_kind?}`. With `item_ref` the kind is derived (a known problem id =
+`code`, anything else `recall`; a conflicting `item_kind` is `422 item_kind_mismatch`). With only
+`item_kind` the server picks that kind's item. Applies `leitner.review` from the real review day,
+appends `review_log` (`item_ref, item_kind, box_before, box_after, success`), updates the card,
+records a `review_result` event and recomputes the score (`retention_ok` reads `review_log`).
+Returns `{subtopic_id, success, item_ref, item_kind, box_before, box_after, due_on, lapses,
+score: {before, after}, newly_unlocked}`. Errors: `404 review_card_not_found`, `409 card_not_due`,
+`422 missing_field | item_kind_mismatch | no_review_item`. Honors `Idempotency-Key`.
+
 ## Not in this document yet
 
-Placement, review, `/next`, `/activity/ping` (later A-tasks).
+Placement, `/next`, `/activity/ping` (later A-tasks).
