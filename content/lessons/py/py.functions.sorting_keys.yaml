@@ -1,24 +1,190 @@
 id: py.functions.sorting_keys
 version: 1
-status: draft
-title_vi: Sắp xếp với key và tính ổn định (sorting)
-est_minutes: 10
+status: published
+title_vi: "Sắp xếp với key và tính ổn định (sorting)"
+est_minutes: 14
 objectives_vi:
-- Xếp theo nhiều tiêu chí bằng key đúng.
-- Giải thích 'ổn định' nghĩa là gì.
-blocks: []
-problems:
-  practice: []
-  extra: []
-mastery_check:
-  l1: []
-  l2: []
-  l3: []
-checkpoint:
-  pass_ratio: 0.7
-  min_items: 3
+  - "Phân biệt `sorted()` (list mới) với `list.sort()` (sửa tại chỗ, trả `None`) và dùng `reverse=True`."
+  - "Viết hàm `key` (lambda, `len`, `str.lower`...) và sắp xếp nhiều tiêu chí bằng key là tuple (đổi dấu để giảm dần)."
+  - "Giải thích tính ổn định (stable) của sort, và sắp xếp dict theo giá trị."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Python có hai cách sắp xếp, đều dùng thuật toán **Timsort** (ổn định, O(n log n); gần O(n)
+      nếu dữ liệu đã gần như có thứ tự):
+      - **`sorted(ds)`** nhận **bất kỳ dãy duyệt được** (list, tuple, str, dict, set...) và trả về **list mới đã sắp xếp**; dữ liệu gốc không đổi.
+      - **`lst.sort()`** chỉ có ở **list**, sắp xếp **tại chỗ** và trả về **`None`**. Lỗi kinh điển: `a = a.sort()` làm `a` thành `None`.
+      Cả hai nhận `reverse=True` để sắp xếp **giảm dần**. Sắp xếp mặc định so sánh theo thứ tự tự
+      nhiên của phần tử (số theo giá trị, chuỗi theo bảng mã: chữ in hoa đứng trước chữ thường).
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      a = [3, 1, 2]
+      b = sorted(a)
+      print(a, b)
+      r = a.sort()
+      print(a, r)
+      print(sorted("cab"), sorted({3: "x", 1: "y"}), sorted(a, reverse=True))
+    expected_output: |
+      [3, 1, 2] [1, 2, 3]
+      [1, 2, 3] None
+      ['a', 'b', 'c'] [1, 3] [3, 2, 1]
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Sau `nums = [3, 1, 2]` rồi `nums = nums.sort()`, giá trị của `nums` là gì?"
+    options:
+      - {id: a, text_md: "`[1, 2, 3]`"}
+      - {id: b, text_md: "`None`"}
+      - {id: c, text_md: "`[3, 1, 2]`"}
+    answer: [b]
+    explain_md: "`list.sort()` sắp xếp tại chỗ và trả về `None`; gán kết quả đó lại cho `nums` làm mất list. Dùng `nums.sort()` một mình, hoặc `nums = sorted(nums)`."
+  - id: b04
+    type: text
+    md: |
+      **Tham số `key=`** là một hàm một đối số. Python gọi nó **đúng một lần cho mỗi phần tử** để
+      lấy một "khoá", rồi sắp xếp các phần tử theo khoá đó; bản thân phần tử không bị đổi. `key`
+      có thể là hàm dựng sẵn (`key=len`, `key=abs`), phương thức (`key=str.lower` để không phân
+      biệt hoa thường) hoặc lambda (`key=lambda w: w[-1]`). `sort` và `sorted` đều nhận `key` và
+      `reverse`; `max`/`min` cũng nhận `key` nhưng không có `reverse`.
+  - id: b05
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      words = ["banana", "apple", "Cherry", "fig"]
+      print(sorted(words))
+      print(sorted(words, key=str.lower))
+      print(sorted(words, key=len))
+      print(sorted([-5, 2, -1, 4], key=abs))
+      print(sorted(words, key=lambda w: w[-1]))
+    expected_output: |
+      ['Cherry', 'apple', 'banana', 'fig']
+      ['apple', 'banana', 'Cherry', 'fig']
+      ['fig', 'apple', 'banana', 'Cherry']
+      [-1, 2, 4, -5]
+      ['banana', 'apple', 'fig', 'Cherry']
+  - id: b06
+    type: text
+    md: |
+      **Tính ổn định (stable).** Khi hai phần tử có **cùng khoá**, sort giữ nguyên **thứ tự ban đầu**
+      của chúng. Điều này đúng cả khi dùng `reverse=True` (phần tử bằng nhau vẫn giữ thứ tự gốc,
+      không bị lật ngược).
+      **Nhiều tiêu chí:** cho `key` trả về **tuple**; tuple so sánh từng phần tử từ trái sang phải
+      nên tiêu chí đầu quan trọng nhất, hoà thì xét tiếp. `key=lambda w: (len(w), w)` là "ngắn trước,
+      hoà thì theo chữ cái". Muốn một tiêu chí **số** giảm dần còn tiêu chí kia tăng dần, **đổi dấu**
+      số đó: `key=lambda t: (-t[1], t[0])`. (Không đổi dấu được chuỗi; khi đó dùng hai lượt sort
+      nhờ tính ổn định, hoặc `reverse`.)
+  - id: b07
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      data = [("b", 2), ("a", 2), ("c", 1), ("d", 3)]
+      print(sorted(data, key=lambda t: t[1]))
+      print(sorted(data, key=lambda t: (t[1], t[0])))
+      print(sorted(data, key=lambda t: (-t[1], t[0])))
+      print(sorted(data, key=lambda t: t[1], reverse=True))
+    expected_output: |
+      [('c', 1), ('b', 2), ('a', 2), ('d', 3)]
+      [('c', 1), ('a', 2), ('b', 2), ('d', 3)]
+      [('d', 3), ('a', 2), ('b', 2), ('c', 1)]
+      [('d', 3), ('b', 2), ('a', 2), ('c', 1)]
+  - id: b08
+    type: predict_output
+    graded: true
+    code: |
+      pairs = [("x", 1), ("y", 2), ("z", 1), ("w", 2)]
+      print(sorted(pairs, key=lambda p: p[1], reverse=True))
+    expected_output: "[('y', 2), ('w', 2), ('x', 1), ('z', 1)]"
+    explain_md: "Khoá 2 đứng trước khoá 1 vì giảm dần. Hai phần tử cùng khoá giữ thứ tự gốc (`y` trước `w`, `x` trước `z`) vì sort ổn định, kể cả khi `reverse=True`."
+  - id: b09
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Cho list các tuple `p = (tên, tuổi)`. Muốn xếp **tuổi giảm dần**, hoà thì **tên tăng dần**, `key` nào đúng?"
+    options:
+      - {id: a, text_md: "`key=lambda p: (p[1], p[0])` với `reverse=True`"}
+      - {id: b, text_md: "`key=lambda p: (-p[1], p[0])`"}
+      - {id: c, text_md: "`key=lambda p: (p[1], -p[0])`"}
+    answer: [b]
+    explain_md: "Đổi dấu tuổi để giảm dần và giữ tên nguyên để tăng dần. Đáp án a đảo cả tên (hoà thì tên giảm dần); c lỗi vì không đổi dấu được chuỗi."
+  - id: b10
+    type: text
+    md: |
+      **Sắp xếp dict.** `sorted(d)` chỉ trả các khoá. Để xếp theo **giá trị**, sắp xếp các cặp:
+      `sorted(d.items(), key=lambda kv: kv[1])` cho list các cặp `(khoá, giá trị)`; muốn dict thì
+      bọc `dict(...)` (dict giữ thứ tự chèn). Top k theo giá trị giảm dần, hoà theo khoá:
+      `sorted(d.items(), key=lambda kv: (-kv[1], kv[0]))[:k]`.
+      **Nhận biết thêm (chưa cần dùng):** `operator.itemgetter(1)` thay cho `lambda kv: kv[1]`;
+      `operator.attrgetter("tên")` lấy thuộc tính của đối tượng; `functools.cmp_to_key` biến một
+      hàm so sánh kiểu cũ thành `key` (hiếm cần, thường nghĩ lại để viết `key` trực tiếp).
+  - id: b11
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      from operator import itemgetter
+
+      score = {"an": 7, "binh": 9, "chi": 7}
+      print(sorted(score))
+      print(sorted(score.items(), key=lambda kv: kv[1], reverse=True))
+      top = sorted(score.items(), key=lambda kv: (-kv[1], kv[0]))
+      print(top[0], [k for k, v in top])
+      print(sorted(score.items(), key=itemgetter(1))[0])
+    expected_output: |
+      ['an', 'binh', 'chi']
+      [('binh', 9), ('an', 7), ('chi', 7)]
+      ('binh', 9) ['binh', 'an', 'chi']
+      ('an', 7)
+  - id: b12
+    type: code_exercise
+    md: "Viết `sort_by_abs(nums)` trả list mới sắp xếp theo **giá trị tuyệt đối** tăng dần; hai số cùng giá trị tuyệt đối thì số **nhỏ hơn** đứng trước (ví dụ `-3` trước `3`). Không làm đổi `nums`."
+    entry: sort_by_abs
+    starter: |
+      def sort_by_abs(nums):
+          # TODO: sorted với key là tuple (abs(x), x)
+          pass
+    tests:
+      - {args: [[3, -1, -3, 2]], expected: [-1, 2, -3, 3]}
+      - {args: [[]], expected: []}
+      - {args: [[5, -5, 5]], expected: [-5, 5, 5]}
+      - {args: [[0, -2, 1]], expected: [0, 1, -2]}
+    hint_md: "`return sorted(nums, key=lambda x: (abs(x), x))`."
+    solution: "def sort_by_abs(nums):\n    return sorted(nums, key=lambda x: (abs(x), x))\n"
+  - id: b13
+    type: code_exercise
+    md: "Viết `top_words(freq, k)`: `freq` là dict `{từ: số_lần}`; trả list `k` từ có số lần **nhiều nhất** (giảm dần), hoà thì theo chữ cái. (`k` không vượt quá số từ.)"
+    entry: top_words
+    starter: |
+      def top_words(freq, k):
+          # TODO: sắp xếp freq.items() với key (-số_lần, từ), lấy k từ đầu
+          pass
+    tests:
+      - {args: [{"b": 2, "a": 2, "c": 5}, 2], expected: ["c", "a"]}
+      - {args: [{"x": 1}, 1], expected: ["x"]}
+      - {args: [{"b": 3, "a": 1, "c": 3}, 3], expected: ["b", "c", "a"]}
+      - {args: [{}, 0], expected: []}
+    hint_md: "`ranked = sorted(freq.items(), key=lambda kv: (-kv[1], kv[0]))` rồi `return [w for w, c in ranked[:k]]`."
+    solution: "def top_words(freq, k):\n    ranked = sorted(freq.items(), key=lambda kv: (-kv[1], kv[0]))\n    return [w for w, c in ranked[:k]]\n"
+  - id: b14
+    type: problem_ref
+    problem_id: rank-students
+  - id: b15
+    type: summary
+    bullets_vi:
+      - "`sorted(ds)` nhận mọi dãy và trả list MỚI; `lst.sort()` chỉ cho list, sửa tại chỗ và trả `None` (đừng viết `a = a.sort()`). Cả hai có `reverse=True`."
+      - "`key=` là hàm một đối số, được gọi một lần cho mỗi phần tử; dùng `len`, `abs`, `str.lower` hoặc lambda."
+      - "Sort ổn định (Timsort, O(n log n)): khoá bằng nhau giữ thứ tự gốc, kể cả khi `reverse=True`."
+      - "Nhiều tiêu chí: key là tuple; đổi dấu số để giảm dần, ví dụ `(-điểm, tên)`. Chuỗi không đổi dấu được."
+      - "Dict theo giá trị: `sorted(d.items(), key=lambda kv: kv[1])`; nhận biết `itemgetter`, `attrgetter`, `cmp_to_key`."
+problems: {practice: [rank-students], extra: []}
+mastery_check: {l1: [Q037], l2: [Q038], l3: []}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
 source:
   tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
-  authored_by: tools/gen_lesson_stubs.py
+  authored_by: "Claude (M2a content pipeline)"
   reviewed_by: null
-  date: '2026-10-24'
+  date: "2026-10-26"
