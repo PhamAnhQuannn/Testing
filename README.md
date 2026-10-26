@@ -2,16 +2,19 @@
 
 **Vi:** Ứng dụng cá nhân để học lập trình và luyện phỏng vấn: bài học ngắn (lesson), bài tập có
 chấm điểm tự động (problem), ôn tập ngắt quãng. Nội dung lấy từ cây kỹ năng và kế hoạch 30 ngày của
-Quan; chạy code Python ngay trong trình duyệt. Đã xong M1: học trọn một mục trong app (lesson, quiz,
-editor, Run/Submit, điểm 0-3, lưu nháp, backup); 3 lesson và 5 problem đã publish. Dữ liệu nguồn ở
-[source/](source/README.md). Chạy: `docker compose up` rồi mở http://127.0.0.1:8080.
+Quan; chạy code Python ngay trong trình duyệt. **Đã xong M2a**: vòng lặp học đầy đủ — onboarding +
+placement, "Học tiếp", lesson + editor, mastery check / Test out, điểm 0-3, mở khoá + skill map,
+ôn lặp Leitner, backup/khôi phục, tiếp tục sau khi thoát; 17 lesson và 89 problem đã publish (16 mục
+ngày 1-3 của kế hoạch). Dữ liệu nguồn ở [source/](source/README.md). Chạy: `docker compose up` rồi
+mở http://127.0.0.1:8080.
 
 **En:** A personal app for learning to code and preparing for interviews: short lessons,
 auto-graded problems and spaced review, built from Quan's skill tree and 30-day plan, with Python
-running in the browser. Milestone M1 is done: one subtopic can be learned end to end in the
-app (lesson, quiz, editor, Run/Submit, 0-3 score, drafts, backups); 3 lessons and 5 problems are
-published. Upstream source data is in [source/](source/README.md). Run: `docker compose up`, then
-open http://127.0.0.1:8080.
+running in the browser. **Milestone M2a is done**: the full learning loop — onboarding + placement,
+a "Continue" home, lesson + editor, mastery check / Test out, 0-3 scoring, prerequisite unlock +
+skill map, Leitner spaced review, backup/restore, and resume-after-exit; 17 lessons and 89 problems
+are published (the 16 days-1-3 plan subtopics). Upstream source data is in
+[source/](source/README.md). Run: `docker compose up`, then open http://127.0.0.1:8080.
 
 Full specification: [docs/SPEC.md](docs/SPEC.md) (Vietnamese), screens in
 [docs/UI_SPEC.md](docs/UI_SPEC.md).
@@ -50,9 +53,10 @@ docs/          SPEC.md, UI_SPEC.md, API_M1.md, OVERVIEW.md, NEXT_M2A.md
 
 Mở thư mục repo trong VS Code (chấp nhận extension gợi ý trong `.vscode/extensions.json`), chạy
 `make install` rồi `make ci`, sau đó mở Claude Code ở thư mục gốc: nó tự đọc [CLAUDE.md](CLAUDE.md)
-(quy tắc, lệnh, quy ước, gotchas). Việc tiếp theo (M2a) nằm trong
-[docs/NEXT_M2A.md](docs/NEXT_M2A.md), kèm checklist phiên đầu tiên và prompt gợi ý; tổng quan yêu
-cầu và hiện trạng ở [docs/OVERVIEW.md](docs/OVERVIEW.md).
+(quy tắc, lệnh, quy ước, gotchas). M2a đã xong (xem [docs/NEXT_M2A.md](docs/NEXT_M2A.md) cho các task
+đã làm); việc tiếp theo là M2b (SPEC §7: hết tuần 1 — 12 mục ngày 4-7, `/problems` + `/progress` +
+export/import, placement đầy đủ Phase B/C). Tổng quan yêu cầu và hiện trạng ở
+[docs/OVERVIEW.md](docs/OVERVIEW.md).
 
 ## End-to-end check (real API)
 

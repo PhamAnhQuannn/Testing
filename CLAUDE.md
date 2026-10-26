@@ -11,8 +11,11 @@ plan) and `docs/OVERVIEW.md` (requirements and status, Vietnamese).
 3. Content comes from a 530-subtopic skill tree and a 30-day Meta intern/new-grad plan
    (`source/`); the MVP is 40 subtopics (plan days 1-12).
 4. Single user (Quan) now; every progress table has `user_id` so multi-user can come later.
-5. Status: M0 and M1 are merged. **Current milestone: M2a** (plan days 1-3, 16 subtopics, plus
-   unlock, review loop, mastery check, onboarding, minimal placement). Plan: `docs/NEXT_M2A.md`.
+5. Status: M0, M1 and **M2a are merged** — the full learning loop (unlock + skill map, mastery
+   check/Test out, Leitner review, "Continue"/`/next`, onboarding, minimal placement, backup UI)
+   and the 16 days-1-3 lessons are published (17 lessons, 89 problems). **Next milestone: M2b**
+   (SPEC §7: week-1 wave 1b — 12 subtopics days 4-7, `/problems` + `/progress` + export/import,
+   full placement Phase B/C). Task history for M2a: `docs/NEXT_M2A.md`.
 
 ## Quan's standing rules
 
