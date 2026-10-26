@@ -80,7 +80,9 @@ def _gate_item(content: ContentStore, subtopic_id: str, item_id: str) -> dict[st
     for i in items:
         if i["id"] == item_id:
             return i
+    curated = {i["id"] for i in content.curated_check_items(subtopic_id)[2]}
     pool = [i for i in items if not i["id"].startswith("W")]
+    pool = [i for i in pool if i["id"] in curated] or pool  # prefer the lesson's curated gate
     return min(pool, key=lambda i: i.get("minutes") or 8) if pool else None
 
 

@@ -47,8 +47,9 @@ def find_item(content: ContentStore, subtopic_id: str, item_id: str) -> dict[str
 def pick_item(
     content: ContentStore, subtopic_id: str, level: int, attempt_no: int
 ) -> dict[str, Any] | None:
-    """Best-typed item of a level; with several of the same type a redo rotates through them."""
-    items = content.check_items(subtopic_id)[level]
+    """Best-typed item of a level, drawn from the lesson's curated `mastery_check` items when it
+    names any (else all items of the level); with several of the same type a redo rotates."""
+    items = content.curated_check_items(subtopic_id)[level]
     if not items:
         return None
     order = _TYPE_ORDER[level]

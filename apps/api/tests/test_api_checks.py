@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
 from sqlalchemy import func, select
 
 from app.models import tables as t
@@ -370,6 +371,27 @@ def test_the_loader_takes_check_levels_from_content_checks(client):
     assert spec.has_l2_items and spec.has_l3_write_code
     learn(client)
     assert attempt(client).json()["score"]["after"] == 1
+
+
+def _add_sibling_l2(client):
+    """A second level-2 write_code item that sorts FIRST (like Q006 before X003)."""
+    content = client.app.state.rt.content
+    sibling = {**content.checks["py.a.one"][1], "id": "Q2b"}
+    content.checks["py.a.one"].insert(0, sibling)
+    return content
+
+
+@pytest.mark.parametrize("context", ["mastery", "test_out"])
+def test_the_ladder_serves_the_lessons_curated_mastery_check_item(client, context):
+    content = _add_sibling_l2(client)  # lesson mastery_check.l2 == ["Q2"]
+    assert content.check_items("py.a.one")[2][0]["id"] == "Q2b"
+    assert start(client, "py.a.one", context).json()["step"]["item_id"] == "Q2"
+
+
+def test_without_a_curated_list_the_ladder_uses_all_items_of_the_level(client):
+    content = _add_sibling_l2(client)
+    content.lessons["py.a.one"].data["mastery_check"] = {"l1": [], "l2": [], "l3": []}
+    assert start(client).json()["step"]["item_id"] == "Q2b"
 
 
 def test_real_content_has_levels_from_the_check_files():
