@@ -716,3 +716,151 @@ export function checkHeartbeat(
     keepalive: options.keepalive,
   });
 }
+
+// ---------------------------------------------------------------- review (docs/API_M2A.md "Review")
+
+export type ReviewItemKind = "recall" | "code";
+
+export interface ReviewItem {
+  kind: ReviewItemKind;
+  /** recall: `<sid>#<block>` or `check:<sid>:<item_id>`; code: a problem id. */
+  ref: string;
+  type: string | null;
+  subtopic_id: string;
+}
+
+export interface ReviewCard {
+  subtopic_id: string;
+  name_vi: string;
+  box: number;
+  due_on: string;
+  overdue_days: number;
+  score: number;
+  lapses: number;
+  item_kind: ReviewItemKind | null;
+  item: ReviewItem | null;
+  recall_item: ReviewItem | null;
+}
+
+export interface ShortSession {
+  enabled: boolean;
+  size: number | null;
+  max_code: number;
+  cards: { subtopic_id: string; item_kind: ReviewItemKind | null }[];
+}
+
+export interface ReviewQueue {
+  today: string;
+  total_due: number;
+  backlog_warn: number;
+  backlog: boolean;
+  cards: ReviewCard[];
+  short_session: ShortSession;
+}
+
+export interface ReviewResultBody {
+  success: boolean;
+  item_ref?: string;
+  item_kind?: ReviewItemKind;
+}
+
+export interface ReviewResult {
+  subtopic_id: string;
+  success: boolean;
+  item_ref: string | null;
+  item_kind: ReviewItemKind | null;
+  box_before: number;
+  box_after: number;
+  due_on: string;
+  lapses: number;
+  score: { before: number; after: number };
+  newly_unlocked: string[];
+}
+
+const reviewItem = (raw: unknown, sid: string): ReviewItem | null => {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Loose;
+  if (typeof r.ref !== "string") return null;
+  return {
+    kind: r.kind === "code" ? "code" : "recall",
+    ref: r.ref,
+    type: (r.type as string | null | undefined) ?? null,
+    subtopic_id: String(r.subtopic_id ?? sid),
+  };
+};
+
+const itemKind = (value: unknown): ReviewItemKind | null =>
+  value === "code" ? "code" : value === "recall" ? "recall" : null;
+
+export function normalizeReviewQueue(data: unknown): ReviewQueue {
+  const raw = (data ?? {}) as Loose;
+  const short = (raw.short_session ?? {}) as Loose;
+  const cards = ((raw.cards as Loose[] | undefined) ?? []).map((c): ReviewCard => {
+    const sid = String(c.subtopic_id);
+    return {
+      subtopic_id: sid,
+      name_vi: String(c.name_vi ?? sid),
+      box: Number(c.box ?? 1),
+      due_on: String(c.due_on ?? ""),
+      overdue_days: Math.max(0, Number(c.overdue_days ?? 0)),
+      score: Number(c.score ?? 0),
+      lapses: Number(c.lapses ?? 0),
+      item_kind: itemKind(c.item_kind),
+      item: reviewItem(c.item, sid),
+      recall_item: reviewItem(c.recall_item, sid),
+    };
+  });
+  return {
+    today: String(raw.today ?? ""),
+    total_due: Number(raw.total_due ?? cards.length),
+    backlog_warn: Number(raw.backlog_warn ?? 20),
+    backlog: Boolean(raw.backlog),
+    cards,
+    short_session: {
+      enabled: Boolean(short.enabled),
+      size: short.size === null || short.size === undefined ? null : Number(short.size),
+      max_code: Number(short.max_code ?? 2),
+      cards: ((short.cards as Loose[] | undefined) ?? []).map((c) => ({
+        subtopic_id: String(c.subtopic_id),
+        item_kind: itemKind(c.item_kind),
+      })),
+    },
+  };
+}
+
+export function normalizeReviewResult(data: unknown): ReviewResult {
+  const raw = data as Loose;
+  const score = (raw.score ?? {}) as Loose;
+  return {
+    subtopic_id: String(raw.subtopic_id),
+    success: Boolean(raw.success),
+    item_ref: (raw.item_ref as string | null | undefined) ?? null,
+    item_kind: itemKind(raw.item_kind),
+    box_before: Number(raw.box_before ?? 1),
+    box_after: Number(raw.box_after ?? 1),
+    due_on: String(raw.due_on ?? ""),
+    lapses: Number(raw.lapses ?? 0),
+    score: { before: Number(score.before ?? 0), after: Number(score.after ?? 0) },
+    newly_unlocked: ids(raw.newly_unlocked),
+  };
+}
+
+/** GET /api/review/queue[?editor=false] -> the whole due list (no cap) + soft backlog flag + short-session hint. */
+export async function getReviewQueue(editor = true): Promise<ReviewQueue> {
+  return normalizeReviewQueue(await request<unknown>(`/review/queue${editor ? "" : "?editor=false"}`));
+}
+
+/** POST /api/review/{subtopic_id}/result. Reuse `key` when retrying the same answer. 409 card_not_due = stale queue. */
+export async function postReviewResult(
+  subtopicId: string,
+  body: ReviewResultBody,
+  key?: string,
+): Promise<ReviewResult> {
+  return normalizeReviewResult(
+    await request<unknown>(`/review/${enc(subtopicId)}/result`, {
+      method: "POST",
+      body,
+      idempotencyKey: key,
+    }),
+  );
+}

@@ -50,8 +50,16 @@ export function MapNode({ item }: { item: MapSubtopic }) {
 
 export function MapView({ items }: { items: MapSubtopic[] }) {
   const done = items.filter((i) => i.status === "done").length;
+  const due = items.reduce((sum, i) => sum + i.due_cards, 0);
   return (
     <>
+      {due > 0 && (
+        <p>
+          <Link className="chip warn" to="/review" aria-label={`${due} thẻ đến hạn ôn, mở trang ôn tập`}>
+            ● {due} thẻ đến hạn · Ôn tập
+          </Link>
+        </p>
+      )}
       <p className="muted" role="status">
         {done}/{items.length} mục hoàn thành · điểm 0-3 (số trong vòng tròn)
       </p>

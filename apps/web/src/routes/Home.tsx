@@ -21,7 +21,9 @@ export default function Home() {
   return (
     <div className="page">
       <h1>Học tiếp</h1>
-      <p className="muted">Chọn một mục để học. Mục khoá vẫn xem trước được.</p>
+      <p className="muted">
+        Chọn một mục để học. Mục khoá vẫn xem trước được. <Link to="/review">Ôn tập thẻ đến hạn</Link>
+      </p>
       {map.loading && (
         <div aria-busy="true">
           <div className="skeleton" style={{ width: "60%" }} />
