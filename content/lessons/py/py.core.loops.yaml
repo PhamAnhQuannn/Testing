@@ -1,25 +1,202 @@
 id: py.core.loops
 version: 1
-status: draft
-title_vi: Vòng lặp (loops)
+status: published
+title_vi: "Vòng lặp (loops)"
 est_minutes: 10
 objectives_vi:
-- Viết đúng vòng for/while kể cả lồng nhau.
-- Dùng break/continue để in hình, đếm.
-- Tính tổng mà không bị lặp vô hạn.
-blocks: []
-problems:
-  practice: []
-  extra: []
-mastery_check:
-  l1: []
-  l2: []
-  l3: []
-checkpoint:
-  pass_ratio: 0.7
-  min_items: 3
+  - "Dùng for để duyệt một dãy (chuỗi, range, các giá trị cố định) và theo mẫu cộng dồn (accumulator)."
+  - "Dự đoán chính xác các giá trị của range(start, stop, step), kể cả bước âm."
+  - "Dùng while với điều kiện dừng (sentinel), break, continue, else của vòng lặp và vòng lặp lồng nhau."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      **Vòng lặp (loop)** chạy lại một khối code nhiều lần. Python có hai loại: `for` (duyệt qua
+      từng phần tử của một dãy) và `while` (lặp khi điều kiện còn đúng).
+
+      ```python
+      for bien in day_gia_tri:
+          # khối thụt vào: chạy một lần cho mỗi phần tử
+      ```
+
+      `bien` lần lượt nhận từng phần tử của **iterable** (thứ có thể duyệt). Iterable bạn đã gặp: một
+      **chuỗi** (duyệt từng ký tự), kết quả của `range(...)`, hoặc một dãy giá trị viết sẵn như
+      `(2, 3, 5)` (kiểu tuple; list và tuple sẽ học kỹ ở `py.datastructs`, tạm hiểu là "dãy giá trị
+      cố định").
+
+      Mẫu rất hay dùng là **cộng dồn (accumulator)**: tạo một biến khởi đầu *trước* vòng lặp
+      (`tong = 0`), rồi cập nhật nó *trong* vòng lặp (`tong += i`). Kết hợp với `if` ở bài trước,
+      bạn đếm hoặc lọc các phần tử thỏa điều kiện: `if ch in "0123456789":` rồi `dem += 1`.
+
+      Mẹo đếm nguyên âm không phân biệt hoa thường mà chưa cần `.lower()`: liệt kê cả hai dạng trong
+      chuỗi mẫu, `if ch in "aeiouAEIOU":`, rồi `dem += 1`.
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      tong = 0
+      for i in range(1, 6):
+          tong += i
+      print(tong)
+
+      for ch in "py3.12":
+          if ch in "0123456789":
+              print(ch, end=",")
+      print()
+
+      for p in (2, 3, 5):
+          print(p * p, end=",")
+      print()
+    expected_output: |
+      15
+      3,1,2,
+      4,9,25,
+  - id: b03
+    type: text
+    md: |
+      **`range`** sinh dãy số nguyên. Có ba dạng:
+
+      - `range(stop)`: từ `0` đến `stop - 1`. `range(4)` cho `0, 1, 2, 3`.
+      - `range(start, stop)`: từ `start` đến `stop - 1`. `range(2, 6)` cho `2, 3, 4, 5`.
+      - `range(start, stop, step)`: nhảy mỗi lần `step`; `step` âm thì đếm ngược.
+        `range(10, 0, -3)` cho `10, 7, 4, 1`.
+
+      Nhớ kỹ: **`stop` không bao giờ được đưa vào** (nửa mở), và `range(n)` có đúng `n` phần tử. Để
+      duyệt `1..n` gồm cả `n`, viết `range(1, n + 1)`. Nếu `start` đã vượt `stop` theo chiều của
+      `step` thì dãy rỗng và vòng lặp không chạy lần nào. `range` không tạo sẵn cả dãy trong bộ
+      nhớ, nên `range(10**9)` vẫn nhẹ.
+  - id: b04
+    type: predict_output
+    code: |
+      for i in range(10, 0, -3):
+          print(i, end=",")
+      print()
+      total = 0
+      for i in range(1, 5):
+          total += i
+      print(total)
+    expected_output: |
+      10,7,4,1,
+      10
+    explain_md: "`range(10, 0, -3)` đếm lùi 10, 7, 4, 1 và dừng trước 0. `range(1, 5)` là 1, 2, 3, 4 (không gồm 5) nên tổng là 10. Vòng lặp thứ hai `print(total)` nằm ngoài vòng lặp nên chỉ in một lần."
+  - id: b05
+    type: text
+    md: |
+      **`while`** lặp khi điều kiện còn đúng, hợp với việc "chưa biết trước số lần". Điều kiện dừng
+      (**sentinel**) phải có lúc trở thành sai, nếu không là vòng lặp vô hạn. Ví dụ tổng các chữ số:
+
+      ```python
+      n = 12345
+      tong = 0
+      while n > 0:        # dừng khi n về 0
+          tong += n % 10  # chữ số cuối
+          n //= 10        # bỏ chữ số cuối: n tiến dần về 0
+      print(tong)         # 15
+      ```
+
+      Hai lệnh điều khiển vòng lặp:
+
+      - **`break`** thoát hẳn vòng lặp ngay lập tức.
+      - **`continue`** bỏ qua phần còn lại của lần lặp này và nhảy sang lần tiếp theo. Ví dụ cộng
+        các số từ 1 đến 9 trừ bội của 3: `if i % 3 == 0: continue` rồi `tong += i` cho kết quả `27`.
+
+      Vòng lặp còn có thể có nhánh **`else`**, chạy khi vòng lặp **kết thúc bình thường (không bị
+      `break`)**. Rất tiện cho kiểu "tìm thấy thì dừng, không thấy thì làm gì đó":
+
+      ```python
+      for n in range(2, 8):          # in các số nguyên tố trong 2..7
+          for d in range(2, n):      # vòng lặp lồng: vòng trong chạy trọn cho mỗi n
+              if n % d == 0:
+                  break              # n có ước d nên không nguyên tố
+          else:
+              print(n, end=",")      # không break: không có ước nào
+      # in ra: 2,3,5,7,
+      ```
+
+      Trong **vòng lặp lồng nhau (nested loop)**, `break` và `continue` chỉ tác động tới vòng lặp
+      *trong cùng* chứa chúng.
+  - id: b06
+    type: quiz_mcq
+    prompt_md: "`range(3, 12, 4)` sinh ra những giá trị nào?"
+    options:
+      - {id: a, text_md: "`3, 7`: hai giá trị"}
+      - {id: b, text_md: "`3, 7, 11`: ba giá trị"}
+      - {id: c, text_md: "`3, 7, 11, 12`: bốn giá trị"}
+    answer: [b]
+    explain_md: "Bắt đầu từ 3, cộng 4 mỗi lần: 3, 7, 11; giá trị kế tiếp là 15 vượt quá `stop = 12` nên dừng. `stop` không bao giờ nằm trong dãy."
+  - id: b07
+    type: quiz_mcq
+    prompt_md: |
+      Khi nào khối `else` của một vòng `for` chạy?
+
+      ```python
+      for x in dãy:
+          ...
+      else:
+          ...
+      ```
+    options:
+      - {id: a, text_md: "Khi vòng lặp chạy hết mà **không** gặp `break`"}
+      - {id: b, text_md: "Khi điều kiện của vòng lặp sai ngay từ đầu, và chỉ khi đó"}
+      - {id: c, text_md: "Khi vòng lặp bị thoát bởi `break`"}
+    answer: [a]
+    explain_md: "`else` của vòng lặp chạy khi vòng lặp kết thúc tự nhiên (kể cả dãy rỗng), và bị bỏ qua nếu vòng lặp thoát vì `break`."
+  - id: b08
+    type: predict_output
+    code: |
+      for i in range(1, 4):
+          for j in range(1, 4):
+              if j == 2:
+                  continue
+              if i == j:
+                  break
+              print(i, j)
+    expected_output: |
+      2 1
+      2 3
+      3 1
+    explain_md: "Với `i = 1`: `j = 1` thì `i == j` nên `break` vòng trong, không in gì. Với `i = 2`: in `2 1`, `j = 2` bị `continue`, in `2 3`. Với `i = 3`: in `3 1`, bỏ qua `j = 2`, rồi `j = 3` làm `i == j` nên `break`. `break` chỉ thoát vòng trong; vòng ngoài vẫn chạy tiếp."
+  - id: b09
+    type: code_exercise
+    md: |
+      Chuỗi Collatz của số nguyên dương `n`: nếu `n` chẵn thì chia đôi (`n // 2`), nếu lẻ thì thành
+      `3 * n + 1`; lặp lại cho đến khi `n` bằng `1`. Viết `collatz_steps(n)` trả về **số bước** cần
+      thực hiện (với `n = 1` là `0` bước). Ví dụ `6 -> 3 -> 10 -> 5 -> 16 -> 8 -> 4 -> 2 -> 1` là 8
+      bước. Dùng `while`.
+
+      Xem trước về hàm: `def` tạo một **hàm** (function), tức một khối code có tên, nhận đầu vào
+      (tham số, ở đây là `n`) và trả kết quả bằng `return`. `pass` chỉ là chỗ giữ chỗ, bạn thay nó
+      bằng code của mình. Hàm sẽ được học đầy đủ ở `py.functions`.
+    entry: collatz_steps
+    starter: |
+      def collatz_steps(n):
+          # TODO: đếm số bước trong khi n != 1
+          pass
+    tests:
+      - {args: [1], expected: 0}
+      - {args: [2], expected: 1}
+      - {args: [6], expected: 8}
+      - {args: [7], expected: 16}
+      - {args: [27], expected: 111}
+    hint_md: "Đặt `steps = 0`. `while n != 1:` nếu `n % 2 == 0` thì `n //= 2`, ngược lại `n = 3 * n + 1`; sau đó `steps += 1`. Cuối cùng `return steps`."
+    solution: "def collatz_steps(n):\n    steps = 0\n    while n != 1:\n        if n % 2 == 0:\n            n //= 2\n        else:\n            n = 3 * n + 1\n        steps += 1\n    return steps\n"
+  - id: b10
+    type: problem_ref
+    problem_id: ugly-number
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "`for x in iterable` duyệt từng phần tử (ký tự của chuỗi, số của `range`, dãy giá trị cố định); mẫu cộng dồn: khởi tạo trước vòng lặp, cập nhật trong vòng lặp."
+      - "`range(start, stop, step)`: `stop` không được đưa vào; `range(n)` có `n` phần tử; `step` âm đếm ngược; duyệt `1..n` viết `range(1, n + 1)`."
+      - "`while` lặp khi điều kiện còn đúng: phải có điều kiện dừng (sentinel) tiến dần tới sai, nếu không là vòng lặp vô hạn."
+      - "`break` thoát vòng lặp, `continue` nhảy sang lần lặp kế; trong vòng lặp lồng, chúng chỉ tác động vòng trong cùng."
+      - "`else` của vòng lặp chạy khi vòng lặp kết thúc mà không bị `break`."
+problems: {practice: [ugly-number], extra: []}
+mastery_check: {l1: [Q009], l2: [Q010], l3: []}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
 source:
   tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
-  authored_by: tools/gen_lesson_stubs.py
+  authored_by: "Claude (M2a content pipeline)"
   reviewed_by: null
-  date: '2026-10-24'
+  date: "2026-10-25"

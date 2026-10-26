@@ -122,7 +122,7 @@ def test_published_lesson_needs_graded_blocks(content):
 
 
 def test_non_draft_lesson_cannot_be_empty(content):
-    edit(content / "lessons/py/py.core.loops.yaml", "status: draft", "status: validated")
+    edit(content / "lessons/cs/cs.complexity.big_o.yaml", "status: draft", "status: validated")
     assert any("blocks" in e for e in lesson_errors(content))
 
 
