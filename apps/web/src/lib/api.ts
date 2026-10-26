@@ -1065,3 +1065,56 @@ export async function getOnboarding(): Promise<Onboarding> {
 export function putProfile(profile: Partial<Profile>, idempotencyKey?: string): Promise<{ onboarding: Onboarding }> {
   return request("/profile", { method: "PUT", body: profile, idempotencyKey });
 }
+
+// ---------------------------------------------------------------- settings / backups (S11)
+
+export interface BackupInfo {
+  name: string;
+  size: number;
+  created_at: string;
+}
+
+export function normalizeBackup(raw: unknown): BackupInfo {
+  const o = (raw ?? {}) as Loose;
+  return { name: String(o.name ?? ""), size: Number(o.size ?? 0), created_at: String(o.created_at ?? "") };
+}
+
+/** GET /api/backups -> {backups:[{name,size,created_at}]} (newest first as the server sorts). */
+export async function listBackups(): Promise<BackupInfo[]> {
+  return asArray(await request<unknown>("/backups"), ["backups"]).map(normalizeBackup);
+}
+
+/** POST /api/backups ("Sao lưu ngay"). Reuse the key when retrying the same click. */
+export async function createBackup(idempotencyKey?: string): Promise<BackupInfo> {
+  return normalizeBackup(await request<unknown>("/backups", { method: "POST", idempotencyKey }));
+}
+
+/** POST /api/backups/{name}/restore: replaces ALL data; the server backs up the current DB first. */
+export async function restoreBackup(name: string, idempotencyKey?: string): Promise<BackupInfo> {
+  const d = (await request<unknown>(`/backups/${enc(name)}/restore`, { method: "POST", idempotencyKey })) as Loose;
+  return normalizeBackup(d?.restored);
+}
+
+export interface SettingsView {
+  tz: string;
+  review_preset: number | null;
+  display_name: string;
+}
+
+/** GET /api/me -> the editable slice of the settings. */
+export async function getSettings(): Promise<SettingsView> {
+  const s = (((await request<unknown>("/me")) as Loose)?.settings ?? {}) as Loose;
+  return {
+    tz: String(s.tz ?? ""),
+    review_preset: s.review_preset == null ? null : Number(s.review_preset),
+    display_name: String(s.display_name ?? ""),
+  };
+}
+
+/** PUT /api/settings (`review_preset: null` turns the short session off). */
+export function putSettings(
+  body: { tz?: string; review_preset?: number | null },
+  idempotencyKey?: string,
+): Promise<unknown> {
+  return request("/settings", { method: "PUT", body, idempotencyKey });
+}

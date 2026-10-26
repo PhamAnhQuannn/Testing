@@ -3,28 +3,17 @@ import { ToastProvider } from "./components/Toast";
 import { useActivityPing } from "./lib/activity";
 import { getResumeView, type ResumeView } from "./lib/api";
 import { showResumeStrip } from "./lib/onboarding";
-import { lsGet, lsSet, useOnline } from "./lib/hooks";
+import { useOnline } from "./lib/hooks";
+import { useTheme } from "./lib/theme";
 import CheckPage from "./routes/CheckPage";
 import Home from "./routes/Home";
 import MapPage from "./routes/MapPage";
+import SettingsPage from "./routes/SettingsPage";
 import Welcome from "./routes/Welcome";
 import ReviewPage from "./routes/ReviewPage";
 import LessonPage from "./routes/LessonPage";
 import ProblemPage from "./routes/ProblemPage";
 import { useEffect, useState } from "react";
-
-type Theme = "auto" | "light" | "dark";
-
-function useTheme() {
-  const [theme, setTheme] = useState<Theme>(() => (lsGet("prep:theme") as Theme) || "auto");
-  useEffect(() => {
-    const root = document.documentElement;
-    if (theme === "auto") root.removeAttribute("data-theme");
-    else root.setAttribute("data-theme", theme);
-    lsSet("prep:theme", theme);
-  }, [theme]);
-  return [theme, setTheme] as const;
-}
 
 function Nav() {
   const path = useLocation().pathname;
@@ -45,6 +34,9 @@ function Nav() {
       </NavLink>
       <NavLink to="/review" className={({ isActive }) => `link${isActive ? " active" : ""}`}>
         Ôn tập
+      </NavLink>
+      <NavLink to="/settings" className={({ isActive }) => `link${isActive ? " active" : ""}`}>
+        Cài đặt
       </NavLink>
       <span className="spacer" />
       <button className="btn sm ghost" onClick={cycle} aria-label={`Giao diện: ${theme}`}>
@@ -107,6 +99,7 @@ export default function App() {
               <Route path="/welcome" element={<Welcome />} />
               <Route path="/map" element={<MapPage />} />
               <Route path="/review" element={<ReviewPage />} />
+              <Route path="/settings" element={<SettingsPage />} />
               <Route path="/s/:subtopicId" element={<LessonPage />} />
               <Route path="/check/:subtopicId" element={<CheckPage />} />
               <Route path="/p/:problemId" element={<ProblemPage />} />
