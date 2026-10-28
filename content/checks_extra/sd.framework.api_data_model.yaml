@@ -1,0 +1,70 @@
+subtopic_id: sd.framework.api_data_model
+items:
+  - id: S034
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Nói ngắn gọn: khi định nghĩa một **endpoint** trong API, cần nêu rõ những phần nào? Và
+      **access pattern** nghĩa là gì, nó dùng để quyết định điều gì trong data model?
+    answer_md: |
+      Một endpoint cần nêu rõ: **resource** (tài nguyên, danh từ số nhiều như `/posts`), **verb**
+      (`GET`/`POST`/`PUT`/`DELETE`), **tham số chính** (dữ liệu vào, gồm **pagination** bằng
+      `cursor`/`limit` cho danh sách dài), và **idempotency** cho lệnh tạo/ghi.
+      **Access pattern** là truy vấn hay gặp nhất — tức là **cách ta đọc dữ liệu** ("query the way
+      you read"). Nó quyết định **cột và index** của các bảng (ví dụ "đọc theo `user_id`, sắp theo
+      `created_at`" -> cần index `(user_id, created_at)`).
+    rubric_md: "Đạt khi nêu đúng cả hai: (1) các phần của endpoint (ít nhất resource + verb + tham số/pagination; nhắc idempotency là điểm cộng) và (2) access pattern = truy vấn hay gặp/cách đọc, dùng để quyết định cột và index. Đúng ý: bằng chứng điểm 1; thiếu một vế: tối đa điểm 0."
+  - id: S035
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Một ứng dụng thương mại điện tử có yêu cầu "**xem lịch sử đơn hàng của tôi, mới nhất trước**".
+      Hãy: (1) viết endpoint phù hợp (resource, verb, tham số, có phân trang); (2) phác bảng `orders`
+      với các cột cần thiết và nêu **primary key**; (3) chỉ ra **index chính** để truy vấn này chạy
+      nhanh và giải thích vì sao index đó khớp access pattern.
+    answer_md: |
+      (1) `GET /orders?cursor=&limit=20` — đọc danh sách đơn của chính người gọi (danh tính lấy từ
+      **token**, không từ body), phân trang bằng `cursor` + `limit`.
+      (2) `orders(id, user_id, status, total, created_at)` với **primary key = `id`** (định danh duy
+      nhất một đơn).
+      (3) **Index chính = `(user_id, created_at)`**: access pattern là "lọc theo `user_id` rồi sắp
+      theo `created_at` giảm dần", nên index đúng cột lọc + cột sắp giúp lấy đúng 20 đơn mới nhất của
+      một người mà không quét cả bảng. (Có thể nói thêm: nếu sharding, chọn **partition key =
+      `user_id`** để đơn của một người nằm cùng phân mảnh.)
+    rubric_md: "Đạt khi nêu đúng cả 3 ý: endpoint `GET /orders` có pagination và danh tính từ token; bảng `orders` có `user_id` + `created_at` và primary key `id`; index chính `(user_id, created_at)` kèm lý do khớp access pattern (lọc theo user, sắp theo thời gian). Đúng, trong time-box, tự giải thích được: bằng chứng điểm 2. Thiếu index đúng cột hoặc không gắn index với access pattern: tối đa điểm 1."
+  - id: S036
+    difficulty: 3
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Đề (mức phỏng vấn, time-box ~8 phút): thiết kế phần **API + data model** cho một dịch vụ rút
+      gọn link (URL shortener) với hai yêu cầu: (a) tạo short link từ một URL dài; (b) truy cập
+      short link thì chuyển hướng tới URL gốc (đọc rất nhiều, phải nhanh). Hãy phác: **3-6 endpoint**
+      (resource, verb, tham số, pagination/idempotency ở chỗ cần); **các bảng chính** với thực thể
+      và quan hệ; và chỉ rõ **primary key**, **partition key** và **index chính** khớp access
+      pattern. Nêu một câu chọn relational hay NoSQL kèm lý do.
+    answer_md: |
+      **API (3-4 endpoint):**
+      ```
+      POST /links        body: {long_url}     -> tạo short link (gửi Idempotency-Key để không tạo trùng)
+      GET  /{code}                            -> tra URL gốc rồi 301/302 redirect (đường nóng)
+      GET  /links?cursor=&limit=20            -> liệt kê link của tôi (pagination, danh tính từ token)
+      DELETE /links/{code}                    -> xóa link của tôi
+      ```
+      **Bảng chính:**
+      ```
+      links (code, long_url, user_id, created_at, clicks)
+        primary key   = code          (chuỗi ngắn, định danh duy nhất mỗi short link)
+        partition key = code          (đọc luôn theo code -> rải đều, tránh hot partition)
+        index chính   = (user_id, created_at)   (phục vụ "liệt kê link của tôi, mới nhất trước")
+      ```
+      **Access pattern & khóa:** đường nóng là tra cứu theo `code` để redirect, nên `code` vừa là
+      primary key vừa là partition key — tra một khóa, đi thẳng một phân mảnh, rất nhanh. Việc liệt
+      kê link của người dùng là access pattern phụ -> index `(user_id, created_at)`.
+      **Kho:** đọc theo một khóa đã biết (`code`) với tải đọc khổng lồ và schema đơn giản hợp với
+      **NoSQL key-value** (dễ sharding theo `code`, thêm cache cho đường đọc); nếu quy mô vừa phải
+      và muốn truy vấn linh hoạt/giao dịch thì **relational** cũng đủ. (Chấp nhận mọi lựa chọn có
+      lý do gắn với access pattern.)
+    rubric_md: "Đạt mức 3 (phỏng vấn) khi, trong ~8 phút, phác được: 3-6 endpoint hợp lý (có `POST /links` tạo link + `GET /{code}` redirect, dùng idempotency cho tạo và pagination cho danh sách, danh tính từ token); bảng `links` với thực thể/quan hệ rõ; và **chỉ đúng cả ba**: primary key (`code`), partition key (`code`, để đường đọc theo khóa đi một phân mảnh), index chính `(user_id, created_at)` cho access pattern phụ — mỗi khóa gắn với một truy vấn. Thêm một câu chọn relational/NoSQL có lý do theo access pattern. Đúng, trong time-box, tự biện minh rõ ràng: bằng chứng điểm 3. Sót một trong ba khóa, hoặc không gắn khóa/index với access pattern, hoặc chọn kho không lý do: chưa đạt mức 3."

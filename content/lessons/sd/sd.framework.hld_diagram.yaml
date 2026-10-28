@@ -1,0 +1,152 @@
+id: sd.framework.hld_diagram
+version: 1
+status: published
+title_vi: "Thiết kế tổng thể (high-level design): vẽ các hộp, kể đường đọc/ghi, mở rộng dần"
+est_minutes: 13
+objectives_vi:
+  - "Vẽ được sơ đồ **high-level design (HLD)** chuẩn với các hộp đi theo đường của một request: client, DNS/CDN, load balancer, tầng service **stateless**, cache, database/replica, queue + worker nền, blob store."
+  - "Kể được **đường ghi (write path)** và **đường đọc (read path)** đi qua các hộp, kể cả khi cache trượt (miss)."
+  - "Biện minh mỗi hộp (thêm vào để giải quyết yêu cầu nào) và biết bắt đầu đơn giản rồi **mở rộng dần** theo lộ trình đã học ở scalability."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      **Sơ đồ tổng thể (high-level design / HLD)** là bản vẽ đường đi của một request qua các khối
+      của hệ thống. Mục đích không phải là đẹp, mà là để bạn (và người phỏng vấn) **nhìn thấy dữ liệu
+      chảy đi đâu** và **vì sao từng khối có mặt**. Trong phỏng vấn, bạn vừa vẽ vừa nói: đây là các hộp,
+      đây là đường request đi, và mỗi hộp giải quyết yêu cầu nào.
+
+      Nguyên tắc vàng (nối tiếp bài scalability): **bắt đầu từ thiết kế đơn giản nhất chạy được** —
+      *client → service → database* — rồi **chỉ thêm một hộp khi có một yêu cầu cụ thể đòi hỏi nó**.
+      Vẽ hết mọi hộp ngay từ đầu là dấu hiệu "học vẹt"; thêm dần có lý do mới là tư duy thiết kế.
+  - id: b02
+    type: text
+    md: |
+      **Bộ hộp chuẩn**, xếp đúng theo thứ tự một request đi qua (từ ngoài vào trong):
+      - **Client**: trình duyệt / app của người dùng — nơi request bắt đầu.
+      - **DNS → CDN**: DNS phân giải tên miền ra địa chỉ; **CDN** là các kho bản sao đặt gần người
+        dùng, phục vụ nội dung tĩnh (ảnh, JS, CSS) ngay tại biên, giảm tải cho hệ thống gốc.
+      - **Load balancer (LB)**: cổng vào, nhận request rồi **rải** cho nhiều máy service phía sau.
+      - **Tầng service (app tier) — stateless**: nơi chạy logic. Stateless (không giữ session trong
+        RAM riêng) nên **nhân bản được** và LB rải vào máy nào cũng xử lý được (ôn lại ở bài scalability).
+      - **Cache** (ví dụ Redis): kho đọc nhanh trong bộ nhớ cho dữ liệu nóng, đặt **trước** database.
+      - **Database + read replica**: kho sự thật bền vững; replica gánh bớt tải **đọc**, mọi lệnh
+        **ghi** vẫn về **primary**.
+      - **Queue + worker nền**: hàng đợi việc chạy sau (gửi email, resize ảnh, cập nhật feed) —
+        ranh giới **bất đồng bộ (async)**.
+      - **Blob store (object store)**: kho cất file lớn (ảnh, video); DB chỉ giữ **đường dẫn**, không
+        giữ chính file.
+  - id: b03
+    type: callout
+    kind: beginner
+    md: |
+      Ba khối sẽ học kỹ ở bài sau, giờ chỉ cần biết **tên và vai trò**: **queue** = hàng đợi việc nền;
+      **blob/object store** = kho cất file lớn như ảnh/video; **CDN** = các kho bản sao gần người dùng.
+      Vẽ chúng vào sơ đồ được rồi, không cần đi sâu cơ chế.
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Khi vẽ HLD trong phỏng vấn, cách mở đầu nào là **đúng tinh thần** nhất?"
+    options:
+      - {id: a, text_md: "Vẽ ngay đủ cả CDN, cache, queue, replica, blob store để cho thấy mình biết nhiều."}
+      - {id: b, text_md: "Bắt đầu từ *client → service → database* chạy được, rồi thêm từng hộp khi một yêu cầu cụ thể đòi hỏi."}
+      - {id: c, text_md: "Bắt đầu từ sharding và đa vùng vì đó là phần khó nhất, các phần còn lại suy ra sau."}
+    answer: [b]
+    explain_md: "Thiết kế tốt bắt đầu đơn giản rồi **mở rộng dần** có lý do — giống lộ trình 5 bước ở bài scalability. (a) vẽ hết mọi hộp mà không gắn với yêu cầu là học vẹt; (c) nhảy thẳng vào sharding khi chưa có nghẽn là ngược quy trình."
+  - id: b05
+    type: text
+    md: |
+      **Đường ghi (write path)** — khi người dùng tạo/sửa dữ liệu (ví dụ đăng một bài):
+
+      `client → (DNS) → load balancer → service → database (primary)`
+
+      Service nhận request ở một máy bất kỳ sau LB, xác thực rồi **ghi vào primary** của database. Nếu
+      có việc chạy sau (gửi thông báo, resize ảnh), service **đẩy một message vào queue rồi trả lời
+      ngay** — worker nền xử lý sau; đây là **ranh giới async**. File lớn (ảnh kèm bài) được đưa vào
+      **blob store**, database chỉ lưu đường dẫn. Điểm cốt lõi: **ghi luôn về primary**, nên đây là
+      chỗ khó chia tải nhất (đã nói ở scalability).
+  - id: b06
+    type: text
+    md: |
+      **Đường đọc (read path)** — khi người dùng xem dữ liệu:
+
+      `client → (CDN cho nội dung tĩnh) → load balancer → service → cache → (nếu trượt) database (replica)`
+
+      Service **hỏi cache trước**. **Cache hit**: trả ngay, không chạm database. **Cache miss**: đọc
+      từ **read replica** của database, rồi **ghi kết quả vào cache** cho lần sau, rồi trả về. Nội dung
+      tĩnh (ảnh, JS, CSS) thường được **CDN** phục vụ thẳng ở biên, không vào tới service. Nhờ cache +
+      replica, phần lớn lượt đọc không dồn hết về primary.
+  - id: b07
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Trên **đường đọc**, khi xảy ra **cache miss**, điều gì xảy ra tiếp theo?"
+    options:
+      - {id: a, text_md: "Service đọc từ database (read replica), rồi **ghi kết quả vào cache**, rồi trả về cho client."}
+      - {id: b, text_md: "Service báo lỗi cho client vì dữ liệu không có trong cache."}
+      - {id: c, text_md: "Load balancer tự đọc thẳng từ primary và bỏ qua service."}
+    answer: [a]
+    explain_md: "Cache miss nghĩa là *chưa có sẵn*, không phải *không tồn tại*: service đọc từ replica rồi **nạp lại vào cache** để lần sau là hit. (b) sai vì miss không phải lỗi; (c) sai vì LB chỉ rải request, không đọc dữ liệu."
+  - id: b08
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền tên hộp còn thiếu (một hộp mỗi chỗ trống):
+
+      1. Hộp đứng trước tầng service, nhận request rồi rải cho nhiều máy, là ___.
+      2. Mọi lệnh **ghi** đều về ___ của database (không về replica).
+      3. File lớn như ảnh/video được cất ở ___, database chỉ lưu đường dẫn.
+    blanks:
+      - {accept: ["load balancer", "LB", "cân bằng tải", "bộ cân bằng tải"]}
+      - {accept: ["primary", "primary database", "DB primary", "máy chính"]}
+      - {accept: ["blob store", "object store", "blob/object store", "kho object"]}
+    explain_md: "LB là cổng vào rải tải; ghi luôn về **primary** (replica chỉ phục vụ đọc); file lớn nằm ở **blob/object store**, DB chỉ giữ đường dẫn. Đây đúng là các hộp và quy ước trên đường đọc/ghi."
+  - id: b09
+    type: text
+    md: |
+      **Biện minh từng hộp** — với mỗi hộp phải trả lời được "thêm vào để giải quyết yêu cầu nào?".
+      Không có lý do thì **bỏ**:
+      - **Load balancer**: để tầng service scale ngang được (nhiều máy sau LB).
+      - **Cache**: để giảm độ trễ và tải đọc cho dữ liệu nóng, chặn bớt lượt chạm database.
+      - **Read replica**: để chia tải **đọc** khi một database không gánh nổi.
+      - **Queue + worker**: để trả lời người dùng nhanh, đẩy việc chậm ra chạy nền (async).
+      - **Blob store**: vì database không hợp để chứa file nhị phân lớn.
+      - **CDN**: để phục vụ nội dung tĩnh gần người dùng, giảm độ trễ và tải gốc.
+
+      Ngược lại: nếu đề chỉ là một dịch vụ nhỏ, đọc ít, không file lớn, không việc nền — thì **client →
+      service → database** là đủ, và thêm cache/queue/CDN lúc đó chỉ là thừa.
+  - id: b10
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Người phỏng vấn hỏi: *'Vì sao anh thêm queue vào sơ đồ?'* Câu trả lời **đúng tinh thần biện minh từng hộp** nhất là gì?"
+    options:
+      - {id: a, text_md: "Vì queue là một phần tiêu chuẩn, hệ thống lớn nào cũng có nên em vẽ vào."}
+      - {id: b, text_md: "Để tách việc chạy chậm (gửi email, resize ảnh) ra chạy **nền**, nhờ đó service trả lời người dùng ngay thay vì bắt họ chờ."}
+      - {id: c, text_md: "Để thay thế database, vì queue cũng lưu được dữ liệu lâu dài."}
+    answer: [b]
+    explain_md: "Mỗi hộp phải gắn với một yêu cầu cụ thể: queue có mặt để **đẩy việc chậm ra async** và giữ phản hồi nhanh. (a) 'ai cũng có' không phải lý do; (c) sai — queue là hàng đợi việc, không phải kho sự thật bền vững như database."
+  - id: b11
+    type: callout
+    kind: interview
+    md: |
+      **Thước đo mức 3 (mastery).** Để đạt mức thành thạo ở chủ đề này, bạn cần làm được **cả ba** việc
+      trong một lần: (1) **vẽ một sơ đồ sạch** với bộ hộp chuẩn xếp đúng thứ tự; (2) **kể cả đường ghi
+      và đường đọc** đi qua các hộp (gồm cả tình huống cache miss và ranh giới async); (3) **nói được lý
+      do của từng hộp** — thêm vào để giải quyết yêu cầu nào, và bỏ được hộp nào khi đề đơn giản. Thiếu
+      một trong ba (vẽ mà không kể được đường đi, hay vẽ mà không biện minh) là chưa đạt mức 3.
+  - id: b12
+    type: summary
+    bullets_vi:
+      - "HLD là bản vẽ đường đi của request; bắt đầu từ *client → service → database* rồi **mở rộng dần**, mỗi hộp phải có lý do."
+      - "Bộ hộp chuẩn theo thứ tự: client → DNS/CDN → load balancer → tầng service **stateless** → cache → database/replica → queue + worker nền → blob store."
+      - "**Đường ghi**: client → LB → service → **primary** (việc chậm đẩy qua queue chạy async; file lớn vào blob store)."
+      - "**Đường đọc**: client → (CDN) → LB → service → **cache** → (miss thì) **read replica**; miss thì đọc replica rồi nạp lại cache."
+      - "Biện minh từng hộp (LB để scale ngang, cache/replica để giảm tải đọc, queue cho async, blob store cho file lớn, CDN cho nội dung tĩnh); không có lý do thì bỏ."
+      - "Mức 3: vẽ sơ đồ sạch + kể được đường đọc và đường ghi + nói được lý do của từng hộp."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S037], l2: [S038], l3: [S039]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

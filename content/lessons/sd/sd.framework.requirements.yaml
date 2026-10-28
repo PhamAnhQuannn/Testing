@@ -1,0 +1,119 @@
+id: sd.framework.requirements
+version: 1
+status: published
+title_vi: "Làm rõ yêu cầu (requirements): chức năng và phi chức năng"
+est_minutes: 12
+objectives_vi:
+  - "Phân biệt yêu cầu **chức năng** (functional) và **phi chức năng** (non-functional), và kể đúng các trục phi chức năng chính."
+  - "Thuộc bộ **câu hỏi làm rõ** (clarifying questions) để hỏi người phỏng vấn trong ~5 phút đầu."
+  - "Biết **ưu tiên** (MVP vs nice-to-have) và **chốt phạm vi** (lock scope) để thiết kế đi đúng trọng tâm."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Trước khi vẽ bất kỳ hộp nào, việc đầu tiên là **làm rõ yêu cầu** (clarify requirements): đề thiết
+      kế luôn cố tình mơ hồ ("Design Instagram"). Nhiệm vụ của bạn trong ~5 phút đầu là biến câu mơ hồ
+      đó thành một danh sách cụ thể gồm hai phần: **hệ thống phải làm được gì** (chức năng) và **phải
+      tốt đến mức nào** (phi chức năng). Người phỏng vấn chấm rất nặng bước này: nhảy thẳng vào kiến
+      trúc mà chưa chốt yêu cầu là lỗi phổ biến nhất khiến phần sau lan man.
+  - id: b02
+    type: text
+    md: |
+      **Yêu cầu chức năng (functional requirements)** là những việc hệ thống làm **cho ai** — các
+      tính năng cốt lõi. Viết dưới dạng hành động của người dùng (use case): "người dùng đăng ảnh",
+      "người dùng xem feed", "người dùng follow người khác". Mẹo: chỉ liệt kê **3-5 việc cốt lõi**,
+      đừng kể hết mọi nút bấm. Nêu rõ **ai** là actor (người dùng cuối, admin, hệ thống khác) và
+      **việc nào nằm ngoài phạm vi** ngay từ đầu.
+  - id: b03
+    type: text
+    md: |
+      **Yêu cầu phi chức năng (non-functional requirements / NFR)** mô tả hệ thống phải **tốt đến mức
+      nào** — không phải *làm gì* mà *làm tốt ra sao*. Các trục cần hỏi:
+      - **Quy mô (scale):** bao nhiêu người dùng mỗi ngày (DAU), bao nhiêu yêu cầu mỗi giây (QPS),
+        lượng dữ liệu, giữ bao lâu — đây là đầu vào cho bước ước lượng (estimation).
+      - **Độ trễ (latency):** phản hồi cần nhanh cỡ nào (ví dụ p99 < 200ms).
+      - **Tính sẵn sàng (availability):** chạy liên tục tới mức nào (99.9%? 99.99%?).
+      - **Nhất quán (consistency):** đúng ngay (**strong**) hay trễ vài giây được (**eventual**).
+      - **Độ bền (durability):** đã ghi nhận thì không được mất.
+      - **Bảo mật (security)** và **chi phí (cost):** ai được truy cập gì, ngân sách hạ tầng.
+      Một mẹo quan trọng: hỏi **đọc nhiều hay ghi nhiều** (read-heavy vs write-heavy) — câu trả lời
+      quyết định có dùng cache / read replica hay phải chia dữ liệu để chịu tải ghi.
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Trong đề 'Design Instagram', yêu cầu nào là **phi chức năng** (non-functional)?"
+    options:
+      - {id: a, text_md: "Người dùng có thể đăng ảnh kèm chú thích."}
+      - {id: b, text_md: "Feed phải tải trong vòng 200ms ở p99 và hệ thống đạt 99.9% uptime."}
+      - {id: c, text_md: "Người dùng có thể follow và unfollow người khác."}
+    answer: [b]
+    explain_md: "(b) nói hệ thống phải *tốt đến mức nào* — độ trễ và tính sẵn sàng — nên là phi chức năng. (a) và (c) là các việc hệ thống *làm* (tính năng), tức yêu cầu chức năng."
+  - id: b05
+    type: text
+    md: |
+      **Bộ câu hỏi làm rõ** để hỏi trong ~5 phút đầu (học thuộc, hỏi theo thứ tự):
+      1. **Ai dùng và làm gì?** — chốt actor và 3-5 use case cốt lõi (ra yêu cầu chức năng).
+      2. **Bao nhiêu người mỗi ngày (DAU)? Đọc nhiều hay ghi nhiều?** — ra quy mô và hình dạng tải.
+      3. **Cần nhanh cỡ nào? Cần sẵn sàng tới mức nào?** — ra latency và availability.
+      4. **Đúng ngay hay trễ vài giây được?** — chốt **nhất quán theo từng tính năng**: số dư tài khoản
+         cần **strong**, còn số like hiển thị thì **eventual** là đủ.
+      5. **Mất dữ liệu có được không? Có ràng buộc gì?** — ra durability, bảo mật, và ràng buộc như
+         nhiều quốc gia, thiết bị, hay quy định (dữ liệu phải nằm trong nước).
+      6. **Phần nào KHÔNG làm?** — câu này nhỏ nhưng cực kỳ quan trọng (xem bên dưới).
+  - id: b06
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền thuật ngữ tiếng Anh (viết thường): nhất quán nên chốt **theo từng tính năng**. Số dư
+      tài khoản cần nhất quán kiểu ______ (1), còn bộ đếm lượt like thì ______ (2) là đủ.
+    blanks:
+      - {accept: ["strong", "strong consistency"]}
+      - {accept: ["eventual", "eventual consistency"]}
+    explain_md: "Không phải cả hệ thống dùng chung một mức nhất quán. Dữ liệu tiền/giao dịch cần **strong consistency** (đọc luôn thấy giá trị mới nhất); dữ liệu đếm/hiển thị như like chịu được **eventual consistency** (trễ vài giây), đổi lại dễ scale hơn."
+  - id: b07
+    type: text
+    md: |
+      Có danh sách yêu cầu rồi, phải **ưu tiên** và **chốt phạm vi (lock scope)**:
+      - **MVP vs nice-to-have:** chọn bản tối thiểu dùng được (MVP) gồm các use case cốt lõi; những
+        thứ hay-ho-nhưng-không-thiết-yếu (thông báo đẩy, tìm kiếm nâng cao, gợi ý bằng ML) để vào
+        danh sách "sẽ bàn nếu còn thời gian".
+      - **Nói rõ phần làm và phần không làm:** phát biểu một câu scope rõ ràng, ví dụ *"Tôi sẽ thiết
+        kế đăng ảnh và đọc feed cho ~10M DAU, read-heavy; tạm bỏ qua nhắn tin, livestream và quảng cáo."*
+      - **Chốt rồi mới vẽ:** scope đã khóa giúp bạn không bị cuốn sang tính năng phụ giữa chừng; nếu
+        người phỏng vấn muốn đổi, họ sẽ nói — còn bạn luôn có một phạm vi gọn để bảo vệ.
+      Chốt phạm vi không phải để làm ít đi, mà để **phần bạn làm được sâu và nhất quán**.
+  - id: b08
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao nên **chốt phạm vi (lock scope)** ngay sau khi làm rõ yêu cầu, trước khi vẽ kiến trúc?"
+    options:
+      - {id: a, text_md: "Để thiết kế tập trung vào các use case cốt lõi (MVP) và không lan man sang tính năng phụ giữa chừng."}
+      - {id: b, text_md: "Vì chốt phạm vi làm hệ thống chạy nhanh hơn ở lúc runtime."}
+      - {id: c, text_md: "Vì sau khi chốt thì không được phép thay đổi yêu cầu nữa trong buổi phỏng vấn."}
+    answer: [a]
+    explain_md: "Chốt phạm vi giữ buổi thiết kế đi đúng trọng tâm và cho bạn một phạm vi gọn để đào sâu. (b) sai — chốt phạm vi là chuyện lúc thiết kế, không ảnh hưởng tốc độ runtime. (c) sai — phạm vi vẫn có thể đổi nếu người phỏng vấn yêu cầu; 'lock' nghĩa là có một mốc rõ ràng để bám, không phải cấm thay đổi."
+  - id: b09
+    type: callout
+    kind: interview
+    md: |
+      **Thước đo mức 3 (level-3 bar).** Trong **5 phút**, hãy làm trọn ba việc, nói thành tiếng:
+      (1) hỏi **đủ bộ câu hỏi** làm rõ (actor + use case, quy mô, đọc/ghi, latency, availability,
+      nhất quán, durability, ràng buộc, phần không làm); (2) **viết ra** yêu cầu chức năng và phi
+      chức năng **có ưu tiên** (đánh dấu cái nào MVP); (3) **chốt phạm vi** bằng một câu scope rõ
+      ràng. Người phỏng vấn muốn thấy bạn dẫn dắt được bước này một cách có hệ thống, không chờ gợi ý.
+  - id: b10
+    type: summary
+    bullets_vi:
+      - "Yêu cầu **chức năng** (functional) = hệ thống *làm gì* cho ai (3-5 use case cốt lõi); yêu cầu **phi chức năng** (non-functional) = hệ thống *tốt đến mức nào*."
+      - "Các trục phi chức năng chính: quy mô (scale/DAU/QPS), độ trễ (latency), sẵn sàng (availability), nhất quán (consistency), độ bền (durability), bảo mật (security), chi phí (cost); luôn hỏi đọc nhiều hay ghi nhiều."
+      - "Bộ câu hỏi ~5 phút: ai dùng & làm gì → bao nhiêu & đọc/ghi → nhanh & sẵn sàng cỡ nào → đúng ngay hay trễ được → mất dữ liệu / ràng buộc → phần nào KHÔNG làm."
+      - "Nhất quán chốt **theo từng tính năng**: số dư cần **strong**, số like **eventual** là đủ."
+      - "Ưu tiên MVP vs nice-to-have rồi **chốt phạm vi** bằng một câu scope rõ ràng để thiết kế tập trung và sâu."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S028], l2: [S029], l3: [S030]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"
