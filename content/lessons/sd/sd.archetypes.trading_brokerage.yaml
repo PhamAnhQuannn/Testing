@@ -1,0 +1,146 @@
+id: sd.archetypes.trading_brokerage
+version: 1
+status: published
+title_vi: "Môi giới và sàn chứng khoán (brokerage & exchange): sổ lệnh, khớp lệnh và sequencer một luồng"
+est_minutes: 14
+objectives_vi:
+  - "Đọc được **sổ lệnh (order book)** gồm lệnh mua (bids) và lệnh bán (asks) xếp theo ưu tiên giá-thời gian, và khớp tay vài lệnh kể cả **khớp một phần (partial fill)**."
+  - "Mô tả **đường đi của một lệnh (order path)**: app -> kiểm tra rủi ro -> **sequencer một luồng** -> **matching engine**."
+  - "Giải thích vì sao sequencer chạy **một luồng, trong bộ nhớ (single-threaded, in-memory)**, và cách **dựng lại sổ lệnh** bằng chạy lại nhật ký lệnh (event sourcing / replay)."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Người dùng không giao dịch thẳng với sàn, mà qua một công ty **môi giới (broker)**: app nhận
+      lệnh, kiểm tra tiền, rồi chuyển lên **sàn (exchange)**. Sàn là nơi **ghép (match)** lệnh mua
+      với lệnh bán. Đây là một archetype "khó" về độ trễ và tính đúng đắn, nên ta dựng lại nó bằng
+      những mảnh đã học: **ledger** để thanh toán (từ payments_wallet), **nhật ký sự kiện có thứ tự
+      (ordered event log)** (từ kafka_log) và **đẩy dữ liệu real-time** cho client (từ
+      realtime_protocols). Bài này tập trung vào phần lõi riêng của sàn: **sổ lệnh** và **khớp lệnh**.
+  - id: b02
+    type: text
+    md: |
+      **Sổ lệnh (order book)** của một mã cổ phiếu gồm hai phía các lệnh đang chờ (resting orders):
+      - **Lệnh mua (bids):** xếp từ **giá cao xuống thấp** — ai trả cao nhất được ưu tiên.
+      - **Lệnh bán (asks):** xếp từ **giá thấp lên cao** — ai bán rẻ nhất được ưu tiên.
+
+      Khi **cùng giá**, lệnh **đến trước khớp trước** — đó là **ưu tiên giá-thời gian
+      (price-time priority)**. Một nguyên tắc quan trọng: **giá khớp là giá của lệnh đã nằm sẵn
+      trong sổ**, không phải giá của lệnh vừa tới. Chừng nào giá bán thấp nhất vẫn **cao hơn** giá
+      mua cao nhất thì chưa có gì khớp — khoảng cách đó gọi là **spread**.
+  - id: b03
+    type: text
+    md: |
+      **Matching engine (máy khớp lệnh)** làm việc này: mỗi khi có lệnh mới tới, nó so lệnh đó với
+      **giá đối diện tốt nhất**. Nếu giá mua >= giá bán thì khớp, ở **giá của lệnh nằm sẵn**. Một
+      lệnh lớn có thể khớp với **nhiều lệnh** nằm sẵn liên tiếp (ăn dần từ giá tốt nhất ra xa);
+      nếu khớp hết các lệnh đối diện trong tầm giá mà vẫn còn dư, phần dư **nằm lại sổ chờ tiếp** —
+      đó là **khớp một phần (partial fill)**. Vòng đời một lệnh vì thế là: mới -> khớp một phần ->
+      khớp đủ hoặc đã huỷ (một **state machine** nhỏ), mỗi lần đổi trạng thái đều được ghi lại.
+  - id: b04
+    type: text
+    md: |
+      **Khớp tay một ví dụ.** Sổ lệnh ban đầu của mã VNM:
+      - Bán (asks): **51** (50 cp), **52** (30 cp)
+      - Mua (bids): **50** (100 cp), **49** (80 cp)
+
+      Spread = 51 - 50, chưa gì khớp. Giờ tới lệnh mới: **mua 100 cp, giá tối đa 52** (limit buy).
+      1. Giá bán tốt nhất là **51** (50 cp). Mua 52 >= 51 -> khớp **50 cp ở giá 51** (giá lệnh nằm
+         sẵn, không phải 52). Lệnh bán 51 hết hàng, rời sổ. Lệnh mua còn **50 cp**.
+      2. Giá bán tốt nhất giờ là **52** (30 cp). Mua 52 >= 52 -> khớp **30 cp ở giá 52**. Lệnh bán
+         52 hết hàng, rời sổ. Lệnh mua còn **20 cp**.
+      3. Hết lệnh bán trong tầm giá. **20 cp còn lại** nằm lại sổ mua ở giá **52**, thành bid tốt
+         nhất mới. Đây là **khớp một phần**: lệnh mua đã khớp với **hai** lệnh bán, phần dư rest lại.
+  - id: b05
+    type: quiz_mcq
+    graded: true
+    prompt_md: |
+      Với sổ lệnh trong ví dụ (asks: 51 giá 50cp, 52 giá 30cp), một lệnh **mua 100 cp giá tối đa 52**
+      cho kết quả nào?
+    options:
+      - {id: a, text_md: "Khớp cả 100 cp ở giá 52, vì 52 là mức giá người mua sẵn sàng trả."}
+      - {id: b, text_md: "Khớp 50 cp ở giá 51 rồi 30 cp ở giá 52 (theo giá của lệnh nằm sẵn), 20 cp còn lại nằm chờ trong sổ mua ở giá 52 — khớp một phần."}
+      - {id: c, text_md: "Không khớp gì, vì giá mua 52 không trùng đúng giá bán tốt nhất là 51."}
+    answer: [b]
+    explain_md: |
+      Giá khớp là **giá của lệnh nằm sẵn**, nên 50 cp khớp ở 51 và 30 cp khớp ở 52, không phải cả
+      100 cp ở 52 — (a) sai. Khớp xảy ra khi mua >= bán, **không** cần trùng giá — (c) sai. 20 cp dư
+      rest lại ở 52: đó là khớp một phần.
+  - id: b06
+    type: text
+    md: |
+      **Đường đi của một lệnh (order path)** từ lúc người dùng bấm "Mua" đến lúc khớp:
+      1. **App / gateway** nhận lệnh, xác thực người dùng.
+      2. **Kiểm tra rủi ro trước giao dịch (pre-trade risk check):** đủ tiền để mua (hoặc đủ cổ
+         phiếu để bán), lệnh không vượt hạn mức, và **lệnh quá hạn phải bị loại tại đây**, không bao
+         giờ chuyển tiếp lên sàn.
+      3. **Sequencer:** gán cho lệnh một **số thứ tự tổng (total order)** và ghi vào **nhật ký
+         lệnh (event log)**.
+      4. **Matching engine:** đọc lệnh theo đúng thứ tự đó và khớp như phần trên.
+      5. **Kết quả (fills)** được đẩy real-time cho người xem (market-data feed) và chuyển sang
+         **ledger** để **thanh toán (settlement)** — tiền và cổ phiếu đổi chủ.
+  - id: b07
+    type: text
+    md: |
+      Vì sao **sequencer chạy một luồng, trong bộ nhớ (single-threaded, in-memory)** chứ không viết
+      thẳng vào database cho mỗi lệnh?
+      - **Độ trễ cực thấp:** khớp lệnh đua nhau từng **micro-giây**; một luồng trong RAM, không khoá
+        (lock), nhanh hơn nhiều lần so với mỗi lệnh phải ghi đĩa qua DB.
+      - **Tính xác định (determinism):** một luồng áp **một thứ tự duy nhất** cho mọi lệnh của một
+        mã, nên chạy lại cùng chuỗi lệnh luôn cho **kết quả y hệt** — kiểm toán và sửa lỗi dễ.
+      - **Dựng lại được:** trạng thái nằm trong RAM là **nguy hiểm** nếu máy chết — nhưng vì **mọi
+        lệnh đã được ghi vào event log theo thứ tự** trước khi khớp, ta chỉ cần **chạy lại (replay)**
+        nhật ký đó để **dựng lại sổ lệnh** đúng như cũ. Bản dự phòng (standby) nhận **cùng log** nên
+        luôn sẵn sàng thay thế. Đây chính là **event sourcing**: log là sự thật, sổ lệnh chỉ là
+        trạng thái tính ra từ log.
+  - id: b08
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Kĩ thuật "lưu mọi thay đổi dưới dạng một chuỗi sự kiện đã đánh số, rồi dựng lại trạng thái
+      bằng cách chạy lại (replay) chúng" — nhờ đó dựng lại được sổ lệnh khi máy khớp lệnh chết —
+      có tên tiếng Anh gồm hai từ là: ______
+    blanks:
+      - accept: ["event sourcing", "event-sourcing", "Event Sourcing", "Event sourcing"]
+    explain_md: |
+      **Event sourcing**: event log (nhật ký lệnh đã đánh số) là nguồn sự thật; sổ lệnh trong RAM là
+      trạng thái dẫn xuất, dựng lại bất cứ lúc nào bằng cách replay log từ đầu (hoặc từ một snapshot).
+  - id: b09
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao sàn cho lệnh đi qua một **sequencer một luồng trong bộ nhớ** thay vì ghi mỗi lệnh thẳng vào database rồi mới khớp?"
+    options:
+      - {id: a, text_md: "Vì CPU một luồng rẻ hơn CPU nhiều luồng, giúp giảm chi phí vận hành."}
+      - {id: b, text_md: "Để đạt độ trễ micro-giây và một thứ tự tổng xác định (chạy lại log ra kết quả y hệt); ghi DB mỗi lệnh quá chậm và khó đảm bảo thứ tự. Mất RAM không sao vì dựng lại sổ từ event log."}
+      - {id: c, text_md: "Vì tại một thời điểm sàn chỉ phục vụ được một người dùng, nên một luồng là đủ."}
+    answer: [b]
+    explain_md: |
+      Lý do là **tốc độ + tính xác định**, và an toàn là nhờ **event log** để dựng lại — (b) đúng.
+      (a) chi phí không phải động cơ; một luồng được chọn dù tốn kém. (c) sai hoàn toàn: sàn phục vụ
+      rất nhiều người cùng lúc, một luồng chỉ để **xếp thứ tự** các lệnh của một mã.
+  - id: b10
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn.** Với "thiết kế một sàn chứng khoán", khung trả lời gọn: *sổ lệnh (bids/asks,
+      ưu tiên giá-thời gian) -> matching engine (khớp ở giá lệnh nằm sẵn, có partial fill) -> order
+      path app -> risk check -> sequencer một luồng -> matching -> event log -> fan-out giá real-time
+      + settlement qua ledger*. Hai câu "ăn điểm": **"giá khớp là giá của lệnh nằm sẵn"** và
+      **"sequencer một luồng + event sourcing để vừa nhanh vừa dựng lại được"**. Nếu được hỏi scale:
+      **sharding theo mã (symbol)** — mỗi mã một sequencer độc lập, vì lệnh của hai mã không khớp nhau.
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "Sổ lệnh (order book): bids xếp giá cao->thấp, asks xếp giá thấp->cao; cùng giá thì đến trước khớp trước (ưu tiên giá-thời gian)."
+      - "Matching engine khớp khi mua >= bán, **ở giá của lệnh nằm sẵn**; lệnh lớn khớp nhiều lệnh liên tiếp, phần dư rest lại = **khớp một phần (partial fill)**."
+      - "Order path: app -> kiểm tra rủi ro (loại lệnh quá hạn) -> **sequencer** đánh số + ghi log -> **matching engine** -> fan-out giá real-time + settlement qua ledger."
+      - "Sequencer chạy **một luồng, trong RAM**: micro-giây và thứ tự tổng **xác định (deterministic)**, nhanh hơn ghi DB mỗi lệnh."
+      - "Dựng lại sổ lệnh = **chạy lại (replay) event log** đã đánh số (**event sourcing**); standby nhận cùng log; scale bằng **sharding theo mã**."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S265], l2: [S266], l3: [S267]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

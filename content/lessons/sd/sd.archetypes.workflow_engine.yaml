@@ -1,0 +1,137 @@
+id: sd.archetypes.workflow_engine
+version: 1
+status: published
+title_vi: "Workflow engine và thực thi bền (durable execution): lịch sử sự kiện và replay"
+est_minutes: 13
+objectives_vi:
+  - "Giải thích thực thi bền (durable execution): engine ghi lịch sử sự kiện bền (durable event history) cho mỗi bước và dùng replay để khôi phục quy trình sau sự cố."
+  - "Vẽ được ba thành phần lõi: lịch sử bền, hàng đợi việc (task queue) và bộ hẹn giờ (timer service), và vai trò từng cái."
+  - "Nói được vì sao mỗi bước (activity) phải idempotent và vì sao code quy trình phải tất định (deterministic)."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Nhiều quy trình nghiệp vụ gồm **nhiều bước nối nhau** và kéo dài: hoàn tất đơn hàng (tạo đơn →
+      trừ kho → thu tiền → gửi email → chờ 3 ngày → nhắc đánh giá), hay onboarding nhân viên. Chúng
+      phải chạy đúng **dù máy xử lý chết giữa chừng**. Cách thủ công: tự viết một **saga** (đã học ở
+      sd.async.event_driven_patterns) cộng một **cột trạng thái** trong database ("đang ở bước 3"),
+      rồi tự viết vòng lặp đọc cột đó, thử lại, hết giờ, bù trừ. Viết tay kiểu này rất dễ sai ở các
+      ca hiếm — ví dụ crash đúng khe hở giữa "làm xong bước" và "ghi cột trạng thái". **Workflow
+      engine** (Temporal, Cadence, AWS Step Functions) là hạ tầng làm sẵn đúng phần khó đó.
+  - id: b02
+    type: text
+    md: |
+      Ý tưởng lõi là **thực thi bền (durable execution)**: engine lưu một **lịch sử sự kiện bền
+      (durable event history)** — mỗi bước, cả **đầu vào lẫn kết quả**, được ghi vào kho bền ngay khi
+      xong. Ví dụ lịch sử một đơn hàng: [1 tạo đơn → OK, id=42][2 trừ kho → OK][3 thu tiền → bắt đầu].
+      Lịch sử này là **nguồn sự thật (source of truth)**: nhìn vào là biết quy trình đã đi tới đâu,
+      không phải đoán. Đây chính là chỗ thay cho "cột trạng thái" tự viết, nhưng đầy đủ và tin cậy hơn.
+  - id: b03
+    type: text
+    md: |
+      Khi worker đang chạy quy trình **chết**, một worker khác nhặt quy trình đó lên và **replay (chạy
+      lại) toàn bộ lịch sử từ đầu**. Nhưng "chạy lại" ở đây đặc biệt: với mỗi bước **đã có kết quả
+      trong lịch sử**, engine **không gọi lại** mà trả ngay kết quả cũ đã ghi; chỉ bước **chưa có
+      trong lịch sử** mới thật sự chạy. Nhờ vậy engine **dựng lại trạng thái trong bộ nhớ** (các biến
+      cục bộ, đang ở nhánh if nào) y hệt lúc trước khi chết, rồi **chạy tiếp từ đúng chỗ dở** — không
+      làm lại từ đầu, không gửi lại email của bước 2.
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một quy trình 5 bước chết khi đang chạy bước 3; lịch sử đã ghi bước 1 và 2 xong. Khi một worker khác **replay** quy trình này, điều gì xảy ra?"
+    options:
+      - {id: a, text_md: "Quy trình chạy lại từ bước 1, gửi lại mọi email và thu tiền một lần nữa."}
+      - {id: b, text_md: "Bước 1 và 2 được lấy kết quả cũ từ lịch sử (không chạy lại), engine dựng lại trạng thái rồi chạy thật từ bước 3."}
+      - {id: c, text_md: "Engine bỏ qua cả quy trình vì không còn biết đang ở đâu sau khi máy chết."}
+    answer: [b]
+    explain_md: |
+      Replay trả kết quả đã ghi cho các bước có trong lịch sử (bước 1, 2) và chỉ chạy thật bước chưa
+      có (bước 3), nên quy trình tiếp tục từ chỗ dở chứ không từ đầu. (a) sai vì sẽ lặp lại side
+      effect; (c) sai vì lịch sử bền chính là cái cho engine biết đang ở đâu.
+  - id: b05
+    type: text
+    md: |
+      Hai thành phần còn lại giúp engine chạy được ở quy mô lớn:
+      - **Hàng đợi việc (task queue):** engine không tự gọi hàm gửi email; nó **đẩy việc vào hàng
+        đợi** để các **worker** (đã học ở sd.async.task_workers) nhặt và thực thi, rồi báo kết quả về
+        để ghi vào lịch sử. Giao việc qua hàng đợi là **giao ít nhất một lần (at-least-once)** và cho
+        **thử lại** khi worker lỗi (đã học ở sd.async.delivery_guarantees).
+      - **Bộ hẹn giờ (timer service):** bước "chờ 3 ngày" **không** giữ một worker ngồi chờ; engine
+        lưu một dòng "đến thời điểm T thì đánh thức quy trình X" (cùng ý với sd.archetypes.job_scheduler).
+        Hàng triệu quy trình đang chờ chỉ là hàng triệu dòng, gần như không tốn tài nguyên. Timer cũng
+        lo **hết giờ (timeout)** và **nhịp thử lại (retry)**.
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao một workflow engine có thể giữ hàng triệu quy trình đang ở bước chờ 3 ngày mà không cạn tài nguyên?"
+    options:
+      - {id: a, text_md: "Vì mỗi quy trình chờ được gắn một luồng (thread) riêng rất rẻ."}
+      - {id: b, text_md: "Vì bước chờ chỉ là một dòng trong bộ hẹn giờ (đến lúc T đánh thức quy trình X); không worker nào ngồi chờ."}
+      - {id: c, text_md: "Vì engine nén lịch sử sự kiện để tiết kiệm RAM."}
+    answer: [b]
+    explain_md: |
+      Chờ lâu được hiện thực bằng timer service: một dòng dữ liệu ghi mốc đánh thức, không cần luồng
+      hay worker ngồi chờ. (a) đúng nghĩa ngược — giữ một luồng cho mỗi quy trình chính là cái engine
+      tránh; (c) nén lịch sử không liên quan đến chi phí của việc chờ.
+  - id: b07
+    type: text
+    md: |
+      Replay cộng với giao việc at-least-once dẫn tới **hai ràng buộc bắt buộc**:
+      - **Mỗi bước (activity) phải idempotent.** Vì việc được giao ít nhất một lần và replay có thể
+        re-drive một bước (ví dụ crash sau khi đã gửi email nhưng trước khi kịp ghi kết quả), bước gọi
+        ra ngoài **có thể chạy hai lần**. Dùng **khóa idempotent** (ví dụ order_id + tên bước) để "thu
+        tiền" hay "gửi email" lần hai **không** tạo hiệu ứng kép — đạt **effectively-once** (ý này đã
+        gặp ở sd.async.delivery_guarantees).
+      - **Code quy trình phải tất định (deterministic).** Vì replay phải dựng lại **đúng** đường đi
+        cũ, code quy trình **không được** đọc trực tiếp đồng hồ hệ thống (wall-clock) hay số ngẫu
+        nhiên (random) — mỗi lần replay sẽ ra giá trị khác và rẽ nhánh sai. Thay vào đó gọi **API do
+        engine cấp** (giờ của engine, random của engine); những giá trị này được **ghi vào lịch sử**
+        nên replay lấy lại đúng giá trị cũ.
+  - id: b08
+    type: quiz_fill
+    graded: true
+    prompt_md: "Vì việc được giao **ít nhất một lần** và replay có thể chạy lại một bước, mỗi bước gọi ra ngoài phải có tính chất ______ (một từ tiếng Anh) để chạy hai lần cũng không gây hiệu ứng kép."
+    blanks:
+      - accept: ["idempotent", "idempotency", "tính idempotent", "idempotent (bất biến khi lặp)"]
+    explain_md: |
+      Bước phải **idempotent**: dùng khóa như order_id + tên bước để lần chạy thứ hai không trừ tiền
+      hay gửi email lần nữa, đạt hiệu ứng effectively-once.
+  - id: b09
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao code quy trình (workflow) **không** được gọi trực tiếp đồng hồ hệ thống (wall-clock) hay random, mà phải dùng API do engine cấp?"
+    options:
+      - {id: a, text_md: "Vì các hàm đó chậm và làm quy trình bị trễ."}
+      - {id: b, text_md: "Vì khi replay, mỗi lần gọi sẽ ra giá trị khác khiến code rẽ nhánh lệch đường đi đã ghi; API của engine ghi giá trị vào lịch sử nên replay lấy lại đúng giá trị cũ."}
+      - {id: c, text_md: "Vì các hàm đó không chạy được bên trong worker."}
+    answer: [b]
+    explain_md: |
+      Replay cần **tất định**: cùng một lịch sử phải cho cùng một đường đi. Đồng hồ và số ngẫu nhiên
+      trực tiếp phá điều đó; engine thay bằng API ghi giá trị vào lịch sử để replay tái lập chính xác.
+      (a) và (c) không phải lý do thật.
+  - id: b10
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn.** Khi đề là "chạy quy trình nhiều bước tin cậy, sống sót qua sự cố", hãy nêu
+      đúng ba mảnh: **lịch sử sự kiện bền** (nguồn sự thật), **hàng đợi việc** cho activity, và **bộ
+      hẹn giờ** cho chờ lâu/timeout/retry; rồi giải thích **replay** khôi phục ra sao và chốt bằng hai
+      ràng buộc **idempotent** + **tất định**. Biết **khi nào không cần** cũng ghi điểm: quy trình chỉ
+      1-2 bước ngắn thì một saga tự viết cộng cột trạng thái là đủ; workflow engine đáng dùng khi quy
+      trình **dài, nhiều bước, có chờ lâu và cần audit** — đổi lại là thêm một hạ tầng phải vận hành.
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "Workflow engine (Temporal/Cadence/Step Functions) chạy quy trình nhiều bước, kéo dài và **sống sót qua sự cố** nhờ **thực thi bền (durable execution)**."
+      - "Engine ghi **lịch sử sự kiện bền** (đầu vào + kết quả mỗi bước) làm nguồn sự thật; khi worker chết, worker khác **replay** lịch sử — bước đã có thì lấy kết quả cũ, chỉ chạy thật bước chưa có — để **chạy tiếp từ chỗ dở**, không từ đầu."
+      - "Ba thành phần lõi: **lịch sử bền**, **hàng đợi việc (task queue)** giao activity cho worker (at-least-once), **bộ hẹn giờ (timer service)** lo chờ lâu/timeout/retry mà không giữ worker ngồi chờ."
+      - "Vì at-least-once cộng replay: **mỗi bước phải idempotent** (khóa idempotent → effectively-once) và **code quy trình phải tất định** (không đọc wall-clock/random trực tiếp, dùng API của engine)."
+      - "So với saga tự viết cộng cột trạng thái: engine làm sẵn phần khó (bền, thử lại, chờ lâu, audit); đổi lại là thêm hạ tầng — quy trình ngắn 1-2 bước thì chưa cần."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S241], l2: [S242], l3: [S243]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

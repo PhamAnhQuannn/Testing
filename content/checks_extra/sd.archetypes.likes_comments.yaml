@@ -1,0 +1,70 @@
+subtopic_id: sd.archetypes.likes_comments
+items:
+  - id: S259
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Nói ngắn gọn: **bộ đếm nóng** (hot counter) trong hệ thống like là gì, và vì sao một bài cực
+      hot (viral) lại làm nó nghẽn?
+    answer_md: |
+      Bộ đếm nóng là trường **số đếm** (ví dụ `like_count`) của một bài khi mọi lượt thích cùng cộng
+      vào **đúng một dòng**. Với bài viral, hàng chục nghìn lượt thích đến **trong cùng một giây**,
+      mỗi lượt là một `UPDATE` trên cùng dòng đó. Cơ sở dữ liệu phải **khóa dòng** (row lock) để cộng
+      cho đúng, nên các lượt ghi phải **xếp hàng tuần tự** qua một điểm duy nhất → **điểm nóng ghi**
+      (write hotspot), độ trễ tăng vọt và hàng đợi khóa phình ra. Gốc vấn đề là **mọi lượt ghi dồn
+      vào một chỗ**, không phải tổng lượng ghi quá lớn.
+    rubric_md: "Đúng khi nêu được: số đếm nằm ở một dòng, bài viral dồn nhiều lượt ghi đồng thời vào dòng đó, khóa dòng khiến ghi phải tuần tự → nghẽn (điểm nóng ghi). Đúng ý: bằng chứng điểm 1; chỉ nói 'quá nhiều like' mà không chỉ ra việc dồn vào một dòng/khóa: tối đa điểm 0."
+  - id: S260
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Một bài đăng bất ngờ nhận khoảng **100.000 lượt thích mỗi giây**, và trang hiển thị bài đang bị
+      chậm vì bộ đếm like nghẽn. Hãy đề xuất cách sửa **đường ghi** để hết nghẽn và nói rõ đánh đổi:
+      (1) **bộ đếm chia nhỏ** (sharded counter) hoạt động thế nào — ghi ra sao, đọc ra sao; (2)
+      **gộp ghi** (write coalescing) giảm tải DB thế nào; (3) đường **đọc** số đếm nên làm gì để
+      không chạm DB mỗi lượt xem.
+    answer_md: |
+      (1) **Bộ đếm chia nhỏ:** thay một dòng đếm bằng **K dòng con** (shard). Mỗi lượt thích cộng vào
+      **một shard ngẫu nhiên**, nên 100.000 lượt/giây trải đều ra K điểm thay vì dồn một dòng — hết
+      điểm nóng. Khi cần hiển thị thì **cộng K shard lại** (`SUM`). Đánh đổi: đọc tốn hơn (phải cộng
+      K số) để đổi lấy ghi không nghẽn.
+      (2) **Gộp ghi:** đệm các lượt tăng trong bộ nhớ hoặc Redis (ví dụ `INCR`), rồi **định kỳ**
+      (mỗi 1-2 giây hoặc mỗi N lượt) **xả một lần** xuống DB bằng một phép cộng gộp. Hàng chục nghìn
+      lượt/giây biến thành ~một lượt ghi DB/giây cho mỗi bài. Đánh đổi: nếu tiến trình đệm chết trước
+      khi xả, mất một ít lượt tăng — chấp nhận được với số gần đúng.
+      (3) Đường đọc: **cache tổng số đếm** (ví dụ Redis) để lượt xem đọc thẳng từ cache, không chạm
+      DB; số trong cache trễ vài giây là ổn vì số like chấp nhận **nhất quán cuối**.
+    rubric_md: "Đạt khi nêu đúng cả 3 ý: sharded counter (ghi vào shard ngẫu nhiên, đọc SUM K shard), gộp ghi (đệm rồi xả định kỳ, giảm số lượt ghi DB), và cache tổng số đếm ở đường đọc. Đúng, trong time-box, tự giải thích được đánh đổi: bằng chứng điểm 2. Thiếu một trong (chia nhỏ ghi) hoặc (gộp ghi), hoặc không nói được đường đọc dùng cache: tối đa điểm 1."
+  - id: S261
+    difficulty: 3
+    type: concept
+    minutes: 12
+    prompt_md: |
+      Thiết kế hệ thống **thích và bình luận** cho một mạng xã hội chịu được bài cực hot. Trình bày
+      đủ: (1) lưu trữ cho **like** (bảng, khóa) và cho **comment**; (2) **chống thích trùng** khi
+      client bấm nhiều lần / gửi lại yêu cầu; (3) **bộ đếm chia nhỏ** và **gộp ghi** để gỡ bộ đếm
+      nóng, và vì sao được phép dùng **nhất quán cuối** cho số hiển thị; (4) cách đọc danh sách
+      **bình luận** theo trang và xử lý trả lời nhiều cấp.
+    answer_md: |
+      (1) **Lưu trữ.** Like là **quan hệ**: bảng `likes` mỗi dòng là cặp `(user_id, post_id)`. Số
+      like của bài lưu **sẵn** (precomputed `like_count`), cập nhật khi ghi, không `COUNT(*)` mỗi lượt
+      xem. Comment là **kho ghi-thêm** (append store): mỗi bình luận một bản ghi, giữ `post_id`,
+      `author`, thời gian, và `parent_id` cho trả lời.
+      (2) **Chống thích trùng.** Đặt **khóa duy nhất** (unique constraint) trên `(user_id, post_id)`:
+      lần thích thứ hai của cùng người cho cùng bài bị DB từ chối, nên chỉ một dòng tồn tại. Thiết kế
+      API thích **idempotent** (đặt trạng thái liked=true, không "cộng 1"); chỉ tăng/giảm bộ đếm khi
+      dòng like **thực sự** được thêm/xóa, nên retry không đếm thừa.
+      (3) **Gỡ bộ đếm nóng.** Bài viral khiến mọi lượt thích dồn vào một dòng → khóa dòng, điểm nóng
+      ghi. Dùng **bộ đếm chia nhỏ** (K shard: cộng vào shard ngẫu nhiên, đọc thì `SUM` K shard) để
+      trải tải ghi, và **gộp ghi** (đệm lượt tăng trong Redis/bộ nhớ rồi định kỳ xả một lần xuống DB)
+      để DB thấy ít ghi hơn hàng nghìn lần; **cache** tổng số đếm cho đường đọc. Được phép dùng **nhất
+      quán cuối** vì số like hiển thị chấp nhận trễ vài giây / làm tròn ("1,2 triệu") — miễn là mỗi
+      người vẫn chỉ tính một like (điều này do khóa duy nhất bảo đảm, không phải do bộ đếm).
+      (4) **Bình luận.** Đọc theo **phân trang con trỏ** (cursor): tải N bình luận mới nhất, lần sau
+      dùng con trỏ (id/thời điểm của bình luận cuối) lấy trang kế — ổn định và rẻ hơn `OFFSET` lớn.
+      Trả lời nhiều cấp dựa trên `parent_id`: tải **cấp 1 trước**, bấm "xem thêm trả lời" mới tải
+      nhánh sâu. Kèm kiểm duyệt / giới hạn tần suất để chống spam; bài cực hot có thể nhận bình luận
+      qua hàng đợi để không dồn tải tức thời.
+    rubric_md: "Đạt (mức phỏng vấn, đúng mastery_bar) khi trình bày đủ bốn phần: (1) lưu trữ like (bảng + khóa duy nhất) và comment (append store, parent_id); (2) chống thích trùng bằng unique key + API idempotent; (3) sharded counter + gộp ghi + cache, và giải thích đúng vì sao dùng được nhất quán cuối (số hiển thị trễ/làm tròn OK, nhưng 'một người một like' vẫn đảm bảo nhờ khóa duy nhất); (4) phân trang con trỏ + trả lời nhiều cấp theo parent_id. Đúng, mạch lạc, trong time-box: bằng chứng điểm 3. Sót phần chống thích trùng, hoặc không giải thích được ranh giới giữa nhất quán cuối (số đếm) và chính xác (một người một like): chưa đạt mức 3."

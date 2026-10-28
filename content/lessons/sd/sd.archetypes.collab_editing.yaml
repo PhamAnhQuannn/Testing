@@ -1,0 +1,195 @@
+id: sd.archetypes.collab_editing
+version: 1
+status: published
+title_vi: "Archetype: Soạn thảo cộng tác (collaborative editing) kiểu Google Docs"
+est_minutes: 14
+objectives_vi:
+  - "Giải thích vì sao áp kiểu ghi-sau-đè-ghi-trước (last write wins) lên **cả tài liệu** sẽ mất chữ, và vì sao sửa đồng thời phải mô hình hoá thành **thao tác (operation)** chèn/xoá theo vị trí."
+  - "Dùng một ví dụ cụ thể nói được vì sao hai thao tác đồng thời phải được **biến đổi (transform)** để mọi máy hội tụ; so sánh **OT (operational transformation)** với **CRDT**."
+  - "Vẽ được kiến trúc **máy chủ theo tài liệu (per-document server)**: một máy sở hữu tài liệu, đánh số thứ tự thao tác, phát qua WebSocket; kèm con trỏ/hiện diện (presence) và lưu bền (op log + snapshot)."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Bài này ghép các mảnh đã học thành một **archetype** (dạng bài mẫu) hay gặp: nhiều người cùng
+      sửa **một tài liệu** và ai cũng phải thấy kết quả giống hệt nhau — Google Docs, Figma, hay một
+      danh sách việc dùng chung. Ta dựa trên hai thứ đã học: **giao thức realtime**
+      (sd.networking.realtime_protocols — WebSocket, kết nối hai chiều, số thứ tự, kết nối lại) và
+      **giải quyết xung đột** (sd.distributed.conflict_resolution — OT và CRDT). Ở đây ta **áp dụng**
+      chúng vào một thiết kế, không dạy lại từ đầu.
+
+      Cái bẫy đầu tiên: xem tài liệu như **một ô dữ liệu** rồi lưu theo kiểu "ai ghi sau thì đè"
+      (last write wins). Khi An và Bình cùng mở một bản, mỗi người sửa một chỗ rồi lưu, bản lưu sau
+      sẽ **ghi đè toàn bộ** bản trước — một người mất sạch chữ vừa gõ. Last write wins chỉ hợp cho
+      một **ô nhỏ độc lập** (ví dụ trạng thái bật/tắt), không hợp cho một tài liệu mà nhiều người
+      sửa những phần khác nhau.
+  - id: b02
+    type: text
+    md: |
+      Lời giải: đừng gửi **cả tài liệu**, hãy gửi **thao tác (operation)** — mô tả *thay đổi gì ở
+      đâu*. Với văn bản, thao tác cơ bản là **chèn (insert) ký tự tại vị trí i** và **xoá (delete)
+      ký tự tại vị trí i**. Thay vì "tài liệu mới là X", mỗi máy nói "chèn chữ H tại vị trí 5". Như
+      vậy thay đổi của hai người ở hai chỗ khác nhau **cộng dồn** được, không đè nhau.
+
+      Nhưng còn một vấn đề tinh vi: **vị trí trong thao tác được tính trên bản mà người gửi đang
+      thấy**. Khi hai người sửa **đồng thời**, bản họ thấy đã lệch nhau, nên cùng một con số "vị trí
+      5" lại trỏ vào hai chỗ khác nhau sau khi áp. Nếu cứ áp y nguyên theo thứ tự tuỳ máy, mỗi máy
+      sẽ ra một tài liệu khác — hệ **không hội tụ (diverge)**. Đây chính là lý do cần biến đổi thao
+      tác.
+  - id: b03
+    type: text
+    md: |
+      **Ví dụ biến đổi (transform) khi hai người chèn cùng một vị trí.** Tài liệu hiện là `ab`. An
+      và Bình cùng lúc muốn chèn vào **vị trí 1** (ngay sau chữ `a`): An chèn `X`, Bình chèn `Y`.
+
+      - Nếu không làm gì: máy của An áp An trước rồi Bình → `aX` rồi chèn `Y` tại 1 → `aYXb`; máy của
+        Bình áp Bình trước rồi An → `aYb` rồi chèn `X` tại 1 → `aXYb`. Hai máy ra **hai kết quả khác
+        nhau** — mất nhất quán.
+      - **OT (operational transformation)** sửa điều này: server chọn một thứ tự (giả sử An trước),
+        áp An → `aXb`. Thao tác của Bình "chèn `Y` tại 1" bây giờ phải được **biến đổi** so với thao
+        tác của An: vì An đã chèn 1 ký tự tại vị trí 1 (nằm trước hoặc ngang chỗ Bình định chèn), **vị
+        trí của Bình dịch từ 1 thành 2** → `aXYb`. Áp cùng quy tắc đó ở *mọi* máy, tất cả cùng hội tụ
+        về `aXYb`.
+
+      Ý cốt lõi: thao tác đồng thời không thể áp "như gửi đi"; phải **chỉnh lại chỉ số vị trí của
+      thao tác này theo các thao tác đã chen vào trước nó**, để kết quả không phụ thuộc thứ tự nhận.
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Tài liệu là `ab`. An chèn `X` tại vị trí 1 và Bình chèn `Y` tại vị trí 1 **đồng thời**. Vì sao không thể áp y nguyên hai thao tác này ở mỗi máy?"
+    options:
+      - {id: a, text_md: "Vì chèn ký tự là thao tác chậm, cần nén trước khi gửi qua WebSocket."}
+      - {id: b, text_md: "Vì vị trí trong mỗi thao tác tính trên bản người gửi đang thấy; áp theo thứ tự khác nhau sẽ cho tài liệu khác nhau, nên thao tác sau phải được biến đổi (transform) chỉ số vị trí theo thao tác đã áp trước."}
+      - {id: c, text_md: "Vì cần dùng last write wins để một trong hai thao tác thắng và thao tác kia bị bỏ."}
+    answer: [b]
+    explain_md: |
+      Chỉ số vị trí phụ thuộc bản gốc mà người gửi thấy; khi hai bản đã lệch, áp cùng con số theo thứ
+      tự tuỳ máy sẽ diverge. OT biến đổi vị trí của thao tác sau (ví dụ dịch 1 thành 2) để mọi máy hội
+      tụ. (a) không phải vấn đề ở đây. (c) sai — last write wins làm **mất** chữ của một người; mục
+      tiêu là giữ cả hai thao tác.
+  - id: b05
+    type: text
+    md: |
+      **Hai họ giải pháp: OT và CRDT** (đã học ở sd.distributed.conflict_resolution, ở đây chỉ so
+      để chọn):
+
+      - **OT (operational transformation):** thao tác vẫn dùng **vị trí số** (chèn tại 1, xoá tại 3),
+        và có một **bộ biến đổi** chỉnh chỉ số của thao tác này theo thao tác kia. Vì phép biến đổi
+        phụ thuộc thứ tự, OT thường cần một **điểm trung tâm** (server) để chốt một thứ tự chuẩn cho
+        mọi người. Thao tác nhỏ gọn, ít tốn bộ nhớ, nhưng bộ biến đổi khó viết đúng cho mọi trường
+        hợp.
+      - **CRDT (conflict-free replicated data type):** bỏ vị trí số, mỗi ký tự mang một **định danh
+        (ID) bất biến, có thứ tự**, và thao tác là "chèn *sau ký tự có ID này*". Vì không dựa vào vị
+        trí số, áp các thao tác theo **thứ tự nào cũng ra cùng kết quả** — hợp nhất (merge) được mà
+        **không cần một bộ biến đổi trung tâm**, nên dễ cho offline và ngang hàng (peer-to-peer). Giá
+        phải trả: mỗi ký tự kèm metadata (ID), **tốn bộ nhớ hơn** và các ID "chết" phải được dọn.
+
+      Chốt chọn phỏng vấn: nhiều sản phẩm có server trung tâm (Google Docs) dùng **OT**; sản phẩm
+      thiên về offline/ngang hàng hay dữ liệu cấu trúc (Figma, nhiều app local-first) nghiêng về
+      **CRDT**. Cả hai đều đạt mục tiêu chung: **hội tụ về cùng một trạng thái cuối**.
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Khác biệt **cốt lõi** giữa CRDT và OT là gì?"
+    options:
+      - {id: a, text_md: "CRDT gắn mỗi ký tự một định danh (ID) bất biến có thứ tự nên các thao tác hợp nhất được bất kể thứ tự, không cần một bộ biến đổi trung tâm; OT dùng vị trí số và một bộ biến đổi để chỉnh chỉ số theo một thứ tự chốt bởi server."}
+      - {id: b, text_md: "CRDT đảm bảo hội tụ còn OT thì không; OT luôn làm mất chữ của một người."}
+      - {id: c, text_md: "CRDT tốn ít bộ nhớ hơn OT vì không cần lưu nội dung ký tự."}
+    answer: [a]
+    explain_md: |
+      CRDT dời bài toán từ "vị trí số" sang "ID bất biến có thứ tự", nên hợp nhất không phụ thuộc thứ
+      tự và không cần bộ biến đổi trung tâm — tiện cho offline/ngang hàng. OT dùng vị trí số + bộ biến
+      đổi, thường cần server chốt thứ tự. (b) sai — **cả hai** đều hội tụ; OT không cố tình bỏ chữ.
+      (c) ngược — CRDT **tốn hơn** vì mỗi ký tự kèm metadata ID.
+  - id: b07
+    type: text
+    md: |
+      **Kiến trúc: máy chủ theo tài liệu (per-document server).** Đơn vị của hệ không phải "người
+      dùng" mà là **một tài liệu**. Mỗi tài liệu được **một máy (hay một actor/tiến trình) sở hữu**
+      tại một thời điểm. Mọi người sửa tài liệu đó **mở một WebSocket tới đúng máy đó**, và máy đó
+      làm ba việc:
+
+      1. **Nối tiếp (serialize) thao tác:** nhận thao tác từ nhiều người, xếp thành **một dòng thứ
+         tự duy nhất** và **gán số thứ tự (sequence number) tăng dần** cho từng thao tác — đây là
+         "thứ tự chuẩn" mà OT cần, hoặc là thứ tự ghi log cho CRDT.
+      2. **Biến đổi/hợp nhất rồi phát (broadcast):** với OT thì biến đổi thao tác mới theo các thao
+         tác đã có số thứ tự nhỏ hơn; rồi **phát thao tác đã chốt cho mọi collaborator** qua
+         WebSocket, kèm số thứ tự để client biết mình đã bắt kịp tới đâu (và kết nối lại thì xin từ
+         số nào — ý đã học ở realtime_protocols).
+      3. **Giữ trạng thái tài liệu trong bộ nhớ** để xử lý nhanh.
+
+      Vì mỗi tài liệu dồn về **một** máy nên thứ tự được chốt dễ dàng; và vì các tài liệu **độc lập**
+      nhau, ta **scale ngang bằng cách chia tài liệu ra nhiều máy** (sharding theo document_id) —
+      đây là lý do archetype này "scale theo tài liệu", không phải theo người dùng.
+  - id: b08
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền thuật ngữ. Trong kiến trúc per-document server, mỗi tài liệu do **một** máy sở hữu; máy
+      này nhận thao tác từ nhiều người, xếp thành một dòng duy nhất và gán cho mỗi thao tác một
+      ______ tăng dần để chốt thứ tự chuẩn, rồi phát cho mọi người qua ______.
+    blanks:
+      - {accept: ["số thứ tự", "sequence number", "số thứ tự (sequence number)", "sequence", "seq", "số tuần tự"]}
+      - {accept: ["WebSocket", "web socket", "websocket", "WebSockets"]}
+    explain_md: |
+      Một máy sở hữu tài liệu nên nó đánh **số thứ tự (sequence number)** cho mọi thao tác — thứ tự
+      chuẩn để OT biến đổi và để client biết đã bắt kịp tới đâu — rồi **phát qua WebSocket** (kết nối
+      hai chiều đã học ở realtime_protocols) cho các collaborator.
+  - id: b09
+    type: text
+    md: |
+      Hai mảnh còn lại của archetype:
+
+      - **Con trỏ và hiện diện (presence, cursors):** thấy ai đang online và con trỏ/vùng chọn của
+        họ nằm ở đâu. Đây là dữ liệu **phù du (ephemeral)** — không cần lưu bền, không cần hội tụ
+        tuyệt đối; cứ phát qua cùng WebSocket và bỏ đi khi người đó rời. Tách bạch nó với thao tác
+        sửa nội dung để khỏi phình op log.
+      - **Lưu bền (persistence): op log + snapshot.** Mọi thao tác đã chốt được ghi vào một **nhật
+        ký thao tác (operation log)** — đây là nguồn sự thật, cho phép dựng lại tài liệu, làm lịch
+        sử và hoàn tác (undo). Nhưng phát lại cả log từ đầu thì chậm, nên định kỳ lưu một **ảnh chụp
+        (snapshot)** trạng thái tài liệu; khi mở lại chỉ cần nạp snapshot gần nhất rồi phát lại các
+        thao tác **sau** nó. Nếu máy đang sở hữu tài liệu chết, máy mới nạp snapshot + phần log còn
+        lại là khôi phục được.
+  - id: b10
+    type: callout
+    kind: interview
+    md: |
+      **Khung trả lời khi gặp "thiết kế Google Docs / soạn thảo cộng tác".** (1) Bắt đầu bằng cái
+      bẫy: last write wins trên **cả tài liệu** làm mất chữ → chuyển sang gửi **thao tác (operation)**
+      chèn/xoá theo vị trí. (2) Nêu vấn đề đồng thời: vị trí phụ thuộc bản người gửi thấy → **phải
+      biến đổi (transform)** để hội tụ, kèm **một ví dụ** hai người chèn cùng vị trí. (3) So **OT**
+      (vị trí số + bộ biến đổi, cần server chốt thứ tự) với **CRDT** (ID bất biến, hợp nhất không cần
+      trung tâm, tốn bộ nhớ hơn) và nói lý do chọn. (4) Vẽ **per-document server**: một máy sở hữu
+      tài liệu, gán **số thứ tự**, phát qua **WebSocket**; scale bằng chia tài liệu ra nhiều máy. (5)
+      Thêm presence/cursor (phù du) và persistence (**op log + snapshot**). Người phỏng vấn chấm việc
+      bạn hiểu *vì sao cần transform* và *đơn vị là tài liệu*, không chấm tên thư viện.
+  - id: b11
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao hệ lưu cả **op log** lẫn **snapshot** định kỳ, thay vì chỉ giữ một trong hai?"
+    options:
+      - {id: a, text_md: "Op log là nguồn sự thật cho lịch sử/undo và để khôi phục, nhưng phát lại cả log từ đầu thì chậm; snapshot định kỳ cho phép nạp trạng thái gần đây rồi chỉ phát lại các thao tác sau nó."}
+      - {id: b, text_md: "Snapshot thay thế hoàn toàn op log; giữ op log chỉ để dự phòng khi snapshot hỏng."}
+      - {id: c, text_md: "Op log dùng cho presence/cursor còn snapshot dùng cho quyền truy cập."}
+    answer: [a]
+    explain_md: |
+      Op log là nguồn sự thật (dựng lại tài liệu, lịch sử, undo) nhưng phát lại từ đầu tốn kém;
+      snapshot cắt ngắn việc đó. (b) sai — bỏ op log là mất lịch sử/undo và mất các thao tác sau
+      snapshot gần nhất. (c) sai — presence là dữ liệu phù du, không nằm trong op log; quyền truy
+      cập là phần riêng.
+  - id: b12
+    type: summary
+    bullets_vi:
+      - "Last write wins trên **cả tài liệu** làm mất chữ khi nhiều người sửa; lời giải là gửi **thao tác (operation)** chèn/xoá theo vị trí để các thay đổi cộng dồn, không đè nhau."
+      - "Vị trí trong thao tác tính trên bản người gửi thấy, nên sửa **đồng thời** phải được **biến đổi (transform)** thì mọi máy mới hội tụ — ví dụ hai người chèn cùng vị trí 1 vào `ab`, thao tác sau dịch vị trí từ 1 thành 2 → `aXYb`."
+      - "**OT** = vị trí số + bộ biến đổi, thường cần server chốt thứ tự; **CRDT** = mỗi ký tự có ID bất biến có thứ tự, hợp nhất không cần trung tâm (hợp offline/ngang hàng) nhưng tốn bộ nhớ hơn. Cả hai đều hội tụ."
+      - "**Per-document server**: mỗi tài liệu do một máy sở hữu, nối tiếp thao tác và gán **số thứ tự (sequence number)**, rồi phát cho mọi người qua **WebSocket**; scale ngang bằng cách chia tài liệu ra nhiều máy."
+      - "Presence/cursor là dữ liệu **phù du** (không lưu bền); persistence dùng **op log** (nguồn sự thật, lịch sử, undo) + **snapshot** định kỳ để khôi phục và mở lại nhanh."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S244], l2: [S245], l3: [S246]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

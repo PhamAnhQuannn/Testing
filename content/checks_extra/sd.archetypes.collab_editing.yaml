@@ -1,0 +1,68 @@
+subtopic_id: sd.archetypes.collab_editing
+items:
+  - id: S244
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Trong soạn thảo cộng tác, vì sao ta gửi **thao tác (operation)** chèn/xoá theo vị trí thay vì
+      lưu cả tài liệu theo kiểu ghi-sau-đè-ghi-trước (last write wins)? Nói ngắn gọn.
+    answer_md: |
+      Vì last write wins trên **cả tài liệu** khiến bản lưu sau đè toàn bộ bản trước, nên khi nhiều
+      người cùng sửa thì chữ của người lưu trước **bị mất**. Gửi **thao tác** (ví dụ "chèn ký tự H
+      tại vị trí 5", "xoá ký tự tại vị trí 3") mô tả *thay đổi gì ở đâu*, nên các thay đổi ở những
+      chỗ khác nhau **cộng dồn** được chứ không đè nhau.
+    rubric_md: "Đạt khi nêu đúng hai ý: (1) last write wins trên cả tài liệu làm mất chữ của người khác; (2) thao tác chèn/xoá theo vị trí cho phép các thay đổi cộng dồn. Đúng cả hai ý: bằng chứng điểm 1. Thiếu một vế: tối đa điểm 0."
+  - id: S245
+    difficulty: 2
+    type: concept
+    minutes: 7
+    prompt_md: |
+      Tài liệu hiện là `ab`. **Đồng thời**, An chèn `X` tại vị trí 1 và Bình chèn `Y` tại vị trí 1.
+      (1) Nếu mỗi máy áp y nguyên hai thao tác theo thứ tự nó nhận được thì chuyện gì xảy ra? (2)
+      **OT (operational transformation)** xử lý thế nào để mọi máy ra cùng kết quả — minh hoạ bằng
+      việc chỉ số vị trí bị chỉnh ra sao?
+    answer_md: |
+      (1) Vị trí "1" được tính trên bản `ab` mà mỗi người đang thấy, nhưng áp theo thứ tự khác nhau
+      cho kết quả khác nhau: máy áp An trước rồi Bình ra `aYXb`, máy áp Bình trước rồi An ra `aXYb` —
+      hai máy **diverge**, mất nhất quán.
+      (2) OT chốt một thứ tự (giả sử An trước) và áp An → `aXb`. Thao tác của Bình "chèn `Y` tại 1"
+      được **biến đổi** so với thao tác của An: vì An đã chèn một ký tự tại vị trí 1 (trước/ngang chỗ
+      Bình), **vị trí của Bình dịch từ 1 thành 2**, nên áp ra `aXYb`. Dùng cùng quy tắc ở mọi máy,
+      tất cả cùng hội tụ về `aXYb`.
+    rubric_md: "Đạt khi: (1) chỉ ra áp y nguyên theo thứ tự khác nhau sẽ diverge (nêu được hai kết quả khác nhau, hoặc giải thích vị trí phụ thuộc bản gốc); (2) nói OT chốt thứ tự rồi biến đổi chỉ số của thao tác sau — dịch vị trí Bình từ 1 thành 2 — để hội tụ về một kết quả. Đúng, trong time-box, tự giải thích được: bằng chứng điểm 2. Không chỉ ra việc chỉnh chỉ số vị trí, hoặc không giải thích được vì sao diverge: tối đa điểm 1."
+  - id: S246
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      Thiết kế phần lõi của một hệ soạn thảo cộng tác kiểu Google Docs. Hãy: (1) dùng một **ví dụ**
+      giải thích vì sao thao tác phải được **biến đổi (transform)** khi hai người sửa đồng thời; (2)
+      **so sánh OT và CRDT** (cơ chế, khi nào cần điểm trung tâm, chi phí) và nói bạn chọn gì cho
+      Google Docs; (3) **vẽ/mô tả kiến trúc máy chủ theo tài liệu (per-document server)** — máy sở
+      hữu tài liệu, số thứ tự, WebSocket, cách scale — kèm presence và persistence.
+    answer_md: |
+      (1) **Vì sao cần transform:** thao tác mang **vị trí số** tính trên bản người gửi đang thấy.
+      Tài liệu `ab`, An và Bình đồng thời chèn tại vị trí 1 (`X` và `Y`). Áp y nguyên theo thứ tự tuỳ
+      máy ra `aYXb` hoặc `aXYb` — diverge. Biến đổi: chốt An trước → `aXb`, rồi **dịch vị trí của Bình
+      từ 1 thành 2** → `aXYb`; mọi máy dùng cùng quy tắc nên hội tụ.
+      (2) **OT vs CRDT:**
+      - OT: thao tác dùng **vị trí số** + một **bộ biến đổi** chỉnh chỉ số theo thao tác đã áp; phép
+        biến đổi phụ thuộc thứ tự nên thường cần **một điểm trung tâm (server)** chốt thứ tự chuẩn.
+        Thao tác nhỏ gọn, ít tốn bộ nhớ, nhưng bộ biến đổi khó viết đúng mọi trường hợp.
+      - CRDT: mỗi ký tự mang **ID bất biến, có thứ tự**, thao tác là "chèn sau ký tự ID này"; hợp
+        nhất **không phụ thuộc thứ tự**, **không cần bộ biến đổi trung tâm** nên hợp offline/ngang
+        hàng, nhưng **tốn bộ nhớ hơn** (metadata mỗi ký tự, phải dọn ID chết).
+      - Cả hai đều **hội tụ**. Với Google Docs — có server trung tâm rõ ràng, muốn thao tác gọn — tôi
+        chọn **OT** (CRDT hợp hơn cho local-first/ngang hàng như Figma).
+      (3) **Per-document server:** đơn vị là **tài liệu**, không phải người dùng. Mỗi tài liệu do
+      **một máy/actor sở hữu**; mọi collaborator mở **WebSocket** tới đúng máy đó. Máy này: nhận thao
+      tác từ nhiều người, **nối tiếp thành một dòng và gán số thứ tự (sequence number) tăng dần**
+      (thứ tự chuẩn cho OT); biến đổi thao tác mới theo các thao tác có số nhỏ hơn rồi **phát
+      (broadcast) kèm số thứ tự** cho mọi người (client dùng số này để biết đã bắt kịp và để xin lại
+      khi kết nối lại). **Scale ngang bằng cách chia tài liệu ra nhiều máy** (shard theo document_id)
+      vì các tài liệu độc lập. **Presence/cursor** phát qua cùng WebSocket, là dữ liệu **phù du**
+      không lưu bền. **Persistence:** ghi mọi thao tác đã chốt vào **op log** (nguồn sự thật, lịch
+      sử, undo) và định kỳ lưu **snapshot**; mở lại/khôi phục chỉ cần nạp snapshot gần nhất rồi phát
+      lại các thao tác sau nó.
+    rubric_md: "Đạt mức 3 (mức phỏng vấn, đúng mastery_bar) khi đủ cả ba phần: (1) ví dụ cụ thể chứng minh phải transform khi sửa đồng thời (chỉ rõ chỉ số vị trí bị chỉnh và lý do hội tụ); (2) so sánh OT và CRDT đúng về cơ chế (vị trí số + bộ biến đổi cần điểm trung tâm vs ID bất biến hợp nhất không cần trung tâm), chi phí bộ nhớ, và chọn có lý do; (3) mô tả per-document server rõ: một máy sở hữu tài liệu, gán số thứ tự, phát qua WebSocket, scale bằng chia tài liệu, kèm presence phù du và persistence op log + snapshot. Đúng, trong time-box, tự giải thích mạch lạc: bằng chứng điểm 3. Thiếu bất kỳ phần nào trong ba phần, hoặc không nêu được vì sao cần transform: chưa đạt mức 3."

@@ -1,0 +1,69 @@
+subtopic_id: sd.archetypes.workflow_engine
+items:
+  - id: S241
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Nói ngắn gọn: **thực thi bền (durable execution)** trong một workflow engine nghĩa là gì, và
+      engine dựa vào cái gì để biết quy trình đã chạy tới đâu?
+    answer_md: |
+      Thực thi bền (durable execution) = quy trình nhiều bước chạy **bền**, **sống sót qua sự cố**
+      máy (crash) thay vì mất hoặc phải làm lại từ đầu. Engine làm được nhờ ghi một **lịch sử sự kiện
+      bền (durable event history)** — mỗi bước cùng kết quả — vào kho bền; nhìn vào lịch sử là biết
+      quy trình đã đi tới đâu, nên khi máy sống lại có thể chạy tiếp từ đúng chỗ dở.
+    rubric_md: "Nêu đúng hai ý: durable execution = quy trình sống sót qua crash (chạy tiếp, không làm lại từ đầu), và engine dựa vào lịch sử sự kiện bền để biết tiến độ. Đủ hai ý: bằng chứng điểm 1; thiếu một vế: tối đa điểm 0."
+  - id: S242
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Một quy trình đơn hàng 5 bước (tạo đơn → trừ kho → **thu tiền** → gửi email → nhắc sau 3 ngày)
+      chạy trên một workflow engine. Máy chết **ngay sau khi thu tiền thành công nhưng trước khi kịp
+      ghi kết quả bước đó vào lịch sử**.
+      (1) Khi một worker khác replay, bước thu tiền sẽ xảy ra thế nào?
+      (2) Cần tính chất gì ở bước thu tiền để khách **không bị trừ hai lần**, và hiện thực ra sao?
+      (3) Vì sao bước gửi email (chưa chạy) lại không bị ảnh hưởng?
+    answer_md: |
+      (1) Vì kết quả thu tiền **chưa có trong lịch sử**, replay coi như bước này chưa xong và **chạy
+      nó lại** — tức lệnh thu tiền có thể được gửi **lần hai** (hệ quả của giao at-least-once cộng
+      replay).
+      (2) Bước thu tiền phải **idempotent**: gửi kèm một **khóa idempotent** (ví dụ order_id cộng tên
+      bước "thu-tien"). Cổng thanh toán thấy khóa đã xử lý thì trả lại kết quả cũ, không trừ tiền lần
+      nữa → đạt **effectively-once** (trừ đúng một lần dù lệnh tới hai lần).
+      (3) Gửi email nằm **sau** trong trình tự và **chưa từng chạy** trước khi crash, nên không có kết
+      quả nào để lặp lại; replay chỉ chạy lại các bước đã có trong lịch sử, còn email sẽ chạy đúng một
+      lần theo luồng bình thường sau khi bước thu tiền hoàn tất.
+    rubric_md: "Đạt khi nêu đúng cả 3 ý: (1) kết quả chưa ghi vào lịch sử nên replay chạy lại bước thu tiền (at-least-once, có thể hai lần); (2) bước phải idempotent qua khóa idempotent để chỉ trừ một lần (effectively-once); (3) email chưa chạy/chưa có trong lịch sử nên không bị lặp. Đúng, trong time-box, tự giải thích được: bằng chứng điểm 2. Thiếu ý idempotent, hoặc không nhận ra bước thu tiền có thể chạy hai lần: tối đa điểm 1."
+  - id: S243
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      **Câu hỏi phỏng vấn.** Thiết kế một workflow engine chạy quy trình nhiều bước **tin cậy**.
+      (1) Vẽ hoặc mô tả **ba thành phần lõi** và vai trò từng cái: **lịch sử sự kiện bền**, **hàng đợi
+      việc (task queue)**, **bộ hẹn giờ (timer service)**.
+      (2) Giải thích cơ chế **replay** khôi phục một quy trình sau khi worker chết: nó dựng lại trạng
+      thái và chạy tiếp ra sao.
+      (3) Giải thích **vì sao mỗi bước (activity) phải idempotent**, và nêu thêm một ràng buộc nữa lên
+      code quy trình để replay cho kết quả đúng.
+    answer_md: |
+      (1) Ba thành phần:
+      - **Lịch sử sự kiện bền:** kho ghi mỗi bước cùng đầu vào/kết quả, là **nguồn sự thật** về tiến
+        độ quy trình.
+      - **Hàng đợi việc:** engine đẩy mỗi activity vào hàng đợi cho **worker** nhặt chạy rồi báo kết
+        quả về để ghi lịch sử; giao **at-least-once** và cho **thử lại** khi lỗi.
+      - **Bộ hẹn giờ:** lưu các mốc "đến lúc T đánh thức quy trình X" cho bước chờ lâu, cho **timeout**
+        và nhịp **retry**, nên không worker nào phải ngồi chờ.
+      (Có thể thêm một orchestrator quyết định bước kế tiếp và ghi lịch sử.)
+      (2) **Replay:** khi worker chết, một worker khác nhặt quy trình và chạy lại code từ đầu, nhưng
+      mỗi bước **đã có kết quả trong lịch sử** thì lấy lại **kết quả cũ** thay vì gọi thật; chỉ bước
+      **chưa có** mới chạy thật. Nhờ đó engine dựng lại **trạng thái trong bộ nhớ** (các biến, nhánh
+      đã đi) y hệt rồi **chạy tiếp từ chỗ dở**, không từ đầu.
+      (3) **Idempotent:** vì giao at-least-once và replay có thể re-drive một bước (crash sau khi đã
+      gây side effect nhưng trước khi ghi kết quả), một activity có thể chạy hai lần; dùng **khóa
+      idempotent** (order_id cộng tên bước) để lần hai không tạo hiệu ứng kép → effectively-once.
+      Ràng buộc nữa: **code quy trình phải tất định (deterministic)** — không đọc trực tiếp
+      wall-clock hay random mà dùng API do engine cấp (giá trị được ghi vào lịch sử), để mỗi lần
+      replay cho **cùng** một đường đi.
+    rubric_md: "Đạt (mức phỏng vấn, theo mastery_bar L3) khi: (1) vẽ đúng ba thành phần và vai trò (lịch sử bền = nguồn sự thật; task queue giao activity at-least-once; timer cho chờ lâu/timeout/retry); (2) giải thích replay lấy kết quả đã ghi cho bước cũ, chỉ chạy bước mới, dựng lại trạng thái và tiếp từ chỗ dở (không từ đầu); (3) giải thích vì sao activity phải idempotent (at-least-once cộng replay → có thể chạy hai lần → khóa idempotent) và nêu thêm ràng buộc tất định. Đúng, mạch lạc, tự bảo vệ được trong time-box: bằng chứng điểm 3. Sót một trong ba thành phần, hoặc không giải thích được vì sao phải idempotent: chưa đạt mức 3."

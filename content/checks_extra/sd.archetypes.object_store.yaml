@@ -1,0 +1,68 @@
+subtopic_id: sd.archetypes.object_store
+items:
+  - id: S253
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Kho đối tượng (object store) tách thành hai phần: **dịch vụ metadata (metadata service)** và
+      **máy dữ liệu (data nodes)**. Mỗi phần giữ gì, và vì sao phải tách?
+    answer_md: |
+      - **Dịch vụ metadata:** sổ cái nhỏ ghi *mỗi object nằm ở đâu* — khoá object (object key) ánh xạ
+        tới danh sách khối (chunk) của nó, kích thước, checksum, phiên bản (version). Nó không giữ byte
+        thật của file.
+      - **Máy dữ liệu:** cất **byte thật** trong các khối lớn, bất biến (immutable chunk/block).
+      Tách vì hai bài toán khác nhau: metadata nhỏ nhưng phải nhất quán và không được mất (mất metadata
+      là mất file dù byte còn trên đĩa), nên thường đặt trên kho có đồng thuận; còn dữ liệu thì khổng lồ
+      nhưng dễ nhân bản — thêm máy dữ liệu là thêm dung lượng.
+    rubric_md: "Đạt khi nêu đúng: metadata = ánh xạ object key → khối ở đâu/kích thước/checksum/version (nhỏ, cần nhất quán); data nodes = byte thật trong khối lớn bất biến (dễ scale bằng thêm máy). Đúng cả hai vai trò: bằng chứng điểm 1. Lẫn lộn ai giữ byte / thiếu một vế: tối đa điểm 0."
+  - id: S254
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Một đội lưu **1 GB** cho mỗi object và phải chịu được mất vài máy mà không mất dữ liệu. Họ phân
+      vân giữa **chép 3 bản (3-way replication)** và **mã sửa lỗi (erasure coding) 10+4**. Hãy giúp
+      họ: (1) mỗi cách tốn bao nhiêu dung lượng cho 1 GB đó; (2) mỗi cách chịu mất được mấy máy/mảnh;
+      (3) với dữ liệu **lạnh, ít đọc** (ví dụ bản sao lưu) thì nên chọn cách nào và vì sao.
+    answer_md: |
+      (1) Dung lượng: chép 3 bản = 3 × 1 GB = **3 GB** (3x); mã 10+4 = 14/10 × 1 GB = **1,4 GB** (1,4x).
+      (2) Chịu lỗi: chép 3 bản **chịu mất 2 bản** (còn 1 là đọc/khôi phục được); mã 10+4 có 14 mảnh,
+      **chịu mất bất kỳ 4 mảnh** vẫn dựng lại đủ 10 mảnh gốc.
+      (3) Dữ liệu lạnh ít đọc nên chọn **erasure coding 10+4**: rẻ dung lượng hơn nhiều (1,4x so với 3x)
+      mà độ bền còn cao hơn (chịu mất 4 so với 2). Nhược điểm của erasure là tốn CPU/mạng khi ghi và
+      khi sửa chữa (phải tính parity, đọc nhiều mảnh để dựng lại) và đọc chậm hơn — nhưng dữ liệu lạnh
+      ít đọc nên nhược điểm đó không quan trọng, đổi lại tiết kiệm được rất nhiều dung lượng.
+    rubric_md: "Đạt khi đúng cả 3: (1) 3 GB so với 1,4 GB; (2) chịu mất 2 so với chịu mất 4; (3) chọn erasure coding cho dữ liệu lạnh vì rẻ dung lượng (và nêu đánh đổi CPU/mạng/đọc chậm). Đúng con số + lý do, trong time-box: bằng chứng điểm 2. Sai con số dung lượng/chịu lỗi, hoặc không giải thích được vì sao chọn erasure: tối đa điểm 1."
+  - id: S255
+    difficulty: 3
+    type: concept
+    minutes: 12
+    prompt_md: |
+      Phỏng vấn "Thiết kế S3 / một blob store". Hãy trình bày **mức 3** của chủ đề:
+      (1) **Vẽ đường ghi (write path) của một object** qua dịch vụ metadata và máy dữ liệu — đủ các
+      bước và nói rõ *khi nào object được coi là tồn tại*;
+      (2) **So sánh chép 3 bản với mã sửa lỗi bằng con số** (dung lượng và số máy/mảnh chịu mất),
+      và nói mỗi cách hợp với loại dữ liệu nào.
+    answer_md: |
+      **(1) Đường ghi một object:**
+      1. Client hỏi **dịch vụ metadata** (object key + kích thước); metadata chọn các máy dữ liệu đích.
+      2. Object được **chia thành khối (chunk)** lớn (ví dụ 64 MB).
+      3. Mỗi khối được **ghi xuống máy dữ liệu và chép bản (replication)** hoặc mã hoá erasure, đặt ở
+         các failure domain khác nhau (ví dụ 3 bản ở 3 rack).
+      4. **Chờ đủ số bản ghi bền (durable) xuống đĩa.**
+      5. **Chốt metadata (commit)** danh sách khối + vị trí + checksum + version, thường qua kho
+         metadata có **đồng thuận (consensus)**. *Object chỉ chính thức tồn tại sau khi metadata chốt
+         xong* — trước đó nếu máy chết thì object chưa an toàn hoặc chưa ai biết nó ở đâu.
+      (Có thể nói thêm: đường đọc = hỏi metadata để biết khối ở đâu, rồi lấy byte thẳng từ máy dữ liệu,
+      đối chiếu checksum.)
+
+      **(2) So sánh độ bền bằng con số (cho 1 GB):**
+      - **Chép 3 bản (3-way replication):** 3x dung lượng (3 GB), **chịu mất 2 bản**. Đơn giản, đọc
+        nhanh (đọc bản gần nhất) → hợp **dữ liệu nóng, đọc nhiều**.
+      - **Mã sửa lỗi 10+4 (erasure coding):** 14/10 = 1,4x dung lượng (1,4 GB), **chịu mất 4 mảnh**.
+        Rẻ dung lượng và bền hơn, nhưng tốn CPU/mạng khi ghi và sửa chữa → hợp **dữ liệu lạnh, ít đọc**
+        (sao lưu, lưu trữ lâu dài). Công thức k+m: tốn (k+m)/k lần, chịu mất m mảnh.
+      Điểm cộng khi nhắc: độ bền thật đến từ **sửa chữa nhanh khi máy chết (re-replication)** và
+      **scrubbing** (quét checksum bắt bit rot), chứ không chỉ do "để nhiều bản".
+    rubric_md: "Đạt mức phỏng vấn khi: (1) vẽ đúng đường ghi đủ bước (hỏi metadata → chia khối → ghi+chép bản ở các rack → đủ bản bền → chốt metadata qua đồng thuận) VÀ chỉ ra object tồn tại khi metadata chốt xong; (2) so sánh đúng con số: replication 3x/chịu mất 2 so với erasure 10+4 = 1,4x/chịu mất 4, và gắn đúng loại dữ liệu (nóng→replication, lạnh→erasure). Đúng, tự giải thích rõ, trong time-box: bằng chứng điểm 3. Thiếu bước chốt metadata/đồng thuận, hoặc sai con số dung lượng/chịu lỗi, hoặc không gắn được loại dữ liệu: chưa đạt mức 3."

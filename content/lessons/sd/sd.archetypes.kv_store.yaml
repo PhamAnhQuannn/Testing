@@ -1,0 +1,138 @@
+id: sd.archetypes.kv_store
+version: 1
+status: published
+title_vi: "Thiết kế kho key-value và cache phân tán (distributed key-value store, Dynamo-style)"
+est_minutes: 14
+objectives_vi:
+  - "Dựng dần một kho key-value từ một dict trong RAM đến cụm có vòng băm nhất quán (consistent hashing), N bản sao (replication) và quorum."
+  - "Giải thích vì sao **R + W > N** đảm bảo mỗi lần đọc gặp ít nhất một bản mới nhất, và chọn R, W cho yêu cầu nghiêng nhất quán (consistency) hay nghiêng sẵn sàng (availability)."
+  - "Xử lý xung đột ghi (conflict resolution) và máy tạm chết (hinted handoff, read repair) theo kiểu leaderless Dynamo."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Kho key-value (key-value store) chỉ làm hai việc: **put(key, value)** và **get(key)**. Bắt đầu
+      từ thứ đơn giản nhất — **một dict (hash map) trong RAM của một máy**. Nó nhanh, nhưng có hai
+      giới hạn chí mạng: (1) dữ liệu phải vừa RAM/đĩa của **một** máy; (2) máy chết là **mất tất**.
+      Toàn bộ bài học này là một chuỗi nâng cấp để gỡ hai giới hạn đó, dùng lại đúng các khối bạn đã
+      học: **một dict → chia mảnh (shard) bằng vòng băm nhất quán → sao chép N bản → quorum đọc/ghi**.
+      Mỗi bước gỡ một điểm yếu và lộ ra điểm yếu tiếp theo.
+  - id: b02
+    type: text
+    md: |
+      **Bước 1 — chia mảnh bằng vòng băm nhất quán (consistent hashing).** Khi dữ liệu không vừa một
+      máy, ta trải nhiều máy lên một **vòng băm** và băm khoá để chọn máy giữ khoá đó (đã học ở
+      sd.data.consistent_hashing). Mỗi máy chiếm nhiều điểm trên vòng — **nút ảo (virtual nodes)** —
+      để tải chia đều và để khi thêm/bớt một máy chỉ **ít khoá** phải dời chỗ (không băm lại toàn bộ
+      như hash() % n). Lúc này đã scale được dung lượng và thông lượng, nhưng mỗi khoá vẫn chỉ nằm
+      trên **một** máy: máy đó chết là mất phần dữ liệu đó. Đó là điểm yếu cho bước sau.
+  - id: b03
+    type: text
+    md: |
+      **Bước 2 — sao chép N bản (replication).** Thay vì lưu mỗi khoá trên một máy, ta lưu trên **N
+      máy kế tiếp nhau trên vòng** (đã học ở sd.data.replication). N là **hệ số sao chép
+      (replication factor)**, thường N = 3. Mất một (hoặc N-1) máy vẫn còn bản khác để phục vụ, nên
+      hệ chịu lỗi (fault tolerance) và sẵn sàng (availability) cao hơn. Nhưng sao chép đẻ ra vấn đề
+      mới: khi nhiều bản sao cùng tồn tại, **đọc bản nào mới là mới nhất?** Ghi phải chờ **bao nhiêu**
+      bản xong mới coi là thành công? Đây chính là lúc cần quorum.
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Trong kho key-value phân tán, vì sao ta sao chép mỗi khoá ra **N** máy thay vì để nó nằm trên một máy duy nhất (dù vòng băm nhất quán đã chia mảnh gọn gàng)?"
+    options:
+      - {id: a, text_md: "Để tăng dung lượng lưu trữ: N bản nghĩa là chứa được nhiều dữ liệu hơn N lần."}
+      - {id: b, text_md: "Để khi một (hoặc vài) máy chết, khoá vẫn còn bản sao khác phục vụ được — tức chịu lỗi và giữ tính sẵn sàng (availability)."}
+      - {id: c, text_md: "Để khỏi cần vòng băm nhất quán nữa, vì sao chép đã tự chia mảnh dữ liệu."}
+    answer: [b]
+    explain_md: "Vòng băm nhất quán lo **chia mảnh** (mỗi khoá thuộc một máy), nhưng một bản thì một máy chết là mất. Sao chép ra N máy để còn bản khác khi có máy chết — đó là mục đích chính (b). (a) sai: sao chép *tốn thêm* chỗ (N lần), không tăng dung lượng. (c) sai: sao chép và chia mảnh là hai việc khác nhau, vẫn cần vòng băm để biết N máy nào giữ khoá."
+  - id: b05
+    type: text
+    md: |
+      **Bước 3 — quorum đọc/ghi.** Kiểu Dynamo không có máy chủ (leaderless): client (qua một máy
+      điều phối, coordinator) gửi mỗi thao tác tới cả N bản sao và chờ đủ số bản trả lời.
+      - Ghi coi là thành công khi **W** bản xác nhận (write quorum).
+      - Đọc coi là thành công khi **R** bản trả lời (read quorum); trong các bản đó, client lấy bản có
+        phiên bản/nhãn thời gian **mới nhất**.
+
+      Quy tắc vàng: chọn **R + W > N**. Khi đó tập W máy từng ghi và tập R máy đang đọc **luôn giao
+      nhau ít nhất một máy** (nguyên lý chuồng bồ câu: W + R > N thì không thể tách rời). Máy giao đó
+      đã giữ bản ghi mới nhất, nên lần đọc chắc chắn **gặp** bản mới nhất và chọn đúng nó. Đây là cốt
+      lõi bạn đã gặp ở sd.distributed.gossip_quorum, nay ráp vào kho key-value.
+  - id: b06
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Với **N = 3** và cấu hình quorum **cân bằng** R = W = ⌈(N + 1) / 2⌉, giá trị nhỏ nhất của R (và
+      của W) là bao nhiêu? Điền một số.
+    blanks:
+      - accept: ["2"]
+    explain_md: "⌈(3 + 1) / 2⌉ = ⌈2⌉ = 2, nên R = W = 2. Kiểm lại điều kiện: R + W = 2 + 2 = 4 > 3 = N, thoả R + W > N, nên hai máy đọc và hai máy ghi (trong ba máy) chắc chắn có máy chung — đọc gặp bản mới nhất."
+  - id: b07
+    type: text
+    md: |
+      **Bước 4 — chỉnh R, W theo yêu cầu (ví dụ cụ thể N = 3).** R + W > N là một **nút vặn**: giữ
+      tổng > N để vẫn nhất quán, rồi dịch gánh nặng giữa đọc và ghi.
+      - **Cân bằng:** R = 2, W = 2 — đọc và ghi đều chịu được **một** máy chết mà vẫn đủ quorum. Lựa
+        chọn mặc định tốt.
+      - **Tải đọc nhiều (read-heavy), vẫn muốn nhất quán:** cho đọc **rẻ** bằng R = 1, bù lại W = 3
+        (ghi phải tới cả ba). Đọc nhanh nhưng ghi hỏng khi mất một máy. (Muốn tải ghi nhiều thì làm
+        ngược: W = 1, R = 3.)
+      - **Nghiêng nhất quán (consistency-leaning)**, ví dụ dữ liệu phải luôn đọc ra bản mới (số dư,
+        cấu hình): chọn R + W > N, chẳng hạn **R = 2, W = 2** (hoặc W = 3, R = 1). Mỗi lần đọc bảo đảm
+        thấy ghi gần nhất.
+      - **Nghiêng sẵn sàng (availability-leaning)**, ví dụ giỏ hàng phải luôn ghi được kể cả khi có
+        máy chết: **nới** xuống **W = 1, R = 1** (W + R = 2 ≤ N). Luôn ghi/đọc được, nhưng **chấp
+        nhận đọc cũ** trong chốc lát — nhất quán cuối cùng (eventual consistency), bù lại bằng
+        read repair và giải quyết xung đột ở dưới.
+  - id: b08
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một dịch vụ **giỏ hàng** phải **luôn cho khách thêm món** kể cả khi vài máy đang chết, và chấp nhận thỉnh thoảng giỏ hiện hơi cũ rồi hợp nhất sau. Với N = 3, cấu hình quorum nào **hợp** yêu cầu này nhất?"
+    options:
+      - {id: a, text_md: "R = 2, W = 2 — cân bằng, R + W > N, mỗi lần đọc chắc chắn thấy bản mới nhất."}
+      - {id: b, text_md: "W = 1, R = 1 — nghiêng sẵn sàng: luôn ghi/đọc được dù có máy chết, chấp nhận nhất quán cuối cùng và hợp nhất xung đột sau."}
+      - {id: c, text_md: "W = 3, R = 3 — ghi và đọc đều hỏi cả ba máy để tuyệt đối chắc chắn."}
+    answer: [b]
+    explain_md: "Yêu cầu là **luôn ghi được** và **chịu được đọc cũ** — đó là nghiêng sẵn sàng, nới quorum xuống W = 1, R = 1 (b). (a) đúng về nhất quán nhưng W = 2 làm ghi hỏng khi mất 2 máy, không tối đa sẵn sàng. (c) W = 3 nghĩa là chỉ một máy chết là **không ghi được** — trái hẳn yêu cầu luôn ghi được. Cái giá của (b) là xung đột/đọc cũ, xử lý bằng vector clock và read repair."
+  - id: b09
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn — khi được hỏi "thiết kế một distributed key-value store".** Đừng kể tên công
+      nghệ; hãy **dựng dần** đúng mạch này và nói rõ mỗi bước gỡ điểm yếu gì:
+      *một dict → vòng băm nhất quán + nút ảo (chia mảnh) → sao chép N bản (chịu lỗi) → quorum với
+      R + W > N (đọc thấy bản mới) → chỉnh R, W cho yêu cầu → xung đột ghi + hinted handoff/read
+      repair → engine đĩa là LSM tree.* Luôn hỏi lại yêu cầu **nghiêng nhất quán hay sẵn sàng** rồi
+      bảo vệ lựa chọn R, W bằng con số (ví dụ N = 3). Người phỏng vấn chấm mạch dựng-dần và sự đánh
+      đổi, không chấm việc đọc thuộc tên hệ thống.
+  - id: b10
+    type: text
+    md: |
+      **Hai mảnh còn lại để hoàn chỉnh.**
+      - **Xung đột ghi (conflict resolution).** Vì leaderless, hai máy có thể nhận hai giá trị cho
+        cùng một khoá gần như đồng thời. "Bản mới nhất thắng" (LWW, last-write-wins) đơn giản nhưng
+        **có thể mất một ghi**; **vector clock** (mỗi máy một bộ đếm — xem
+        sd.distributed.conflict_resolution) phát hiện hai ghi song song và giữ **cả hai** để ứng dụng
+        hợp nhất (ví dụ gộp giỏ hàng). Đây đúng là cái giá của cấu hình nghiêng sẵn sàng ở trên.
+      - **Máy tạm chết và chữa lệch.** Khi một bản sao offline, máy hàng xóm **giữ hộ** bản ghi
+        (hinted handoff) rồi trả lại khi máy sống lại; lúc đọc mà thấy một bản cũ thì sửa luôn
+        (read repair). So bản định kỳ bằng cây băm Merkle (anti-entropy) là phần đào sâu thêm.
+      - **Engine lưu đĩa.** Store bền thường dùng **LSM tree** (ghi nối đuôi rồi gộp dần — giả định
+        đã biết): ghi rất nhanh, hợp với tải ghi lớn của kho key-value; cache thuần RAM thì chỉ là
+        bảng băm với TTL và đuổi khoá (LRU/LFU).
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "Dựng dần: **một dict** (RAM, một máy) → **vòng băm nhất quán + nút ảo** để chia mảnh (thêm máy dời ít khoá) → **sao chép N bản** (thường N = 3) để chịu máy chết → **quorum** đọc R / ghi W."
+      - "Chọn **R + W > N** thì tập đọc và tập ghi luôn giao nhau ít nhất một máy, nên mỗi lần đọc **chắc chắn gặp bản ghi mới nhất** (client chọn bản có phiên bản mới nhất)."
+      - "N = 3: **R = W = 2** cân bằng (chịu một máy chết); **nghiêng nhất quán** dùng R + W > N (ví dụ R = 2, W = 2 hay W = 3, R = 1); **nghiêng sẵn sàng** nới **W = 1, R = 1** (luôn ghi được, chấp nhận đọc cũ / nhất quán cuối cùng)."
+      - "Leaderless nên phải **giải quyết xung đột**: LWW đơn giản nhưng mất ghi; vector clock giữ cả hai ghi song song để hợp nhất."
+      - "Chịu lỗi mềm bằng **hinted handoff** (hàng xóm giữ hộ) và **read repair** (đọc thấy cũ thì sửa); engine đĩa là **LSM tree** (ghi nhanh), cache RAM là bảng băm + TTL + LRU/LFU."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S250], l2: [S251], l3: [S252]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

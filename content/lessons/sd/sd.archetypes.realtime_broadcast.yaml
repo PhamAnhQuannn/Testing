@@ -1,0 +1,147 @@
+id: sd.archetypes.realtime_broadcast
+version: 1
+status: published
+title_vi: "Phát tin thời gian thực (real-time broadcast): một nguồn tới hàng triệu người xem"
+est_minutes: 13
+objectives_vi:
+  - "Nhận ra dạng bài phát tin thời gian thực (real-time broadcast): một nguồn phát tới hàng triệu người xem chỉ-đọc, khác với chat nhiều-tới-nhiều."
+  - "Thiết kế phát theo tầng (fan-out tiers) qua các máy biên (edge servers) và một trục pub/sub để không máy nào phải ôm cả triệu kết nối."
+  - "Giải thích gộp cập nhật (conflation/batching) và nối lại bằng ảnh chụp cộng delta (snapshot plus deltas) có số thứ tự."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Dạng bài này là **phát tin thời gian thực (real-time broadcast)**: **một nguồn** (tỷ số trận
+      đấu, bình luận trong một buổi livestream, giá cổ phiếu) phải đẩy cập nhật tới **hàng triệu
+      người xem** gần như cùng lúc. Điểm mấu chốt để phân biệt: người xem ở đây **chỉ đọc
+      (read-only)** và tất cả cùng nhìn **một luồng chung** — khác hẳn **chat/presence**
+      (`chat_presence`) là **nhiều-tới-nhiều**, mỗi người có hộp thư riêng và ai cũng vừa gửi vừa
+      nhận. Ít người gửi, cực nhiều người nhận, nên bài toán không phải là "định tuyến tin tới đúng
+      người" mà là **nhân một tin ra hàng triệu bản (fan-out)** đủ nhanh và đủ rẻ.
+  - id: b02
+    type: text
+    md: |
+      Bài học này dựng trên hai nền đã có: **giao thức thời gian thực (real-time protocols)** —
+      WebSocket và SSE để server **chủ động đẩy (push)** xuống client — và **hàng đợi / pub-sub
+      (queues and pub/sub)** để tách nguồn khỏi nơi phát. Vấn đề đầu tiên: **một máy không giữ nổi
+      hàng triệu kết nối** mở cùng lúc (mỗi WebSocket/SSE tốn bộ nhớ và file descriptor). Cũng không
+      máy nào một mình đẩy nổi tin cho cả triệu người. Nên ta phân tải theo **nhiều tầng (fan-out
+      tiers)**.
+  - id: b03
+    type: text
+    md: |
+      **Cây phát theo tầng (fan-out tree):**
+      - **Nguồn (origin/ingest):** nhận sự kiện gốc (một bàn thắng, một bình luận mới) và đưa vào
+        một **trục pub/sub** theo từng chủ đề (topic/channel), ví dụ một kênh cho mỗi trận đấu.
+      - **Máy biên (edge / broadcast servers):** rất nhiều máy, **mỗi máy giữ hàng chục nghìn kết
+        nối** của client. Mỗi máy biên **đăng ký (subscribe)** chủ đề từ trục pub/sub; khi có tin,
+        trục đẩy **một lần** xuống mỗi máy biên, rồi máy biên **nhân ra** cho các client của nó.
+      - Nhờ vậy nguồn chỉ nói chuyện với một ít máy, mỗi tầng chỉ nhân lên một hệ số nhỏ — giống
+        **CDN cho tin trực tiếp (a CDN for live messages)**: thay vì một máy gửi 1 triệu lần, 1000
+        máy biên mỗi máy gửi 1000 lần.
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao ta cần **nhiều tầng máy biên (fan-out tiers)** thay vì cho nguồn đẩy thẳng tới mọi client?"
+    options:
+      - {id: a, text_md: "Vì một máy không giữ nổi hàng triệu kết nối mở và không đẩy nổi tin cho cả triệu người; chia thành nhiều máy biên, mỗi máy chỉ ôm một phần kết nối."}
+      - {id: b, text_md: "Vì nhiều tầng giúp mỗi người xem gửi bình luận nhanh hơn về nguồn."}
+      - {id: c, text_md: "Vì fan-out tiers loại bỏ hoàn toàn nhu cầu dùng pub/sub giữa nguồn và máy biên."}
+    answer: [a]
+    explain_md: "Giới hạn là bộ nhớ/kết nối và băng thông của một máy; chia tải ra nhiều máy biên, mỗi máy ôm một phần kết nối và tự nhân tin ra. (b) sai — đây là luồng chỉ-đọc, không tối ưu cho việc người xem gửi lên; (c) sai — trục pub/sub chính là thứ nối nguồn với các máy biên."
+  - id: b05
+    type: text
+    md: |
+      **Gộp cập nhật (conflation / batching).** Đừng gửi mọi thay đổi li ti. Nếu giá hay tỷ số đổi
+      20 lần mỗi giây, người xem không cần thấy đủ 20 lần — chỉ cần **trạng thái mới nhất**. Máy biên
+      **gom (coalesce)** các cập nhật trong một cửa sổ ngắn (thường **100-500 ms**) rồi gửi **một
+      gói**: hoặc giá trị mới nhất (với tỷ số), hoặc một lô bình luận gộp lại. Việc này cắt mạnh số
+      lần ghi socket và băng thông.
+      - **Giới hạn theo từng người (per-client throttling):** người mạng chậm nhận **ít cập nhật
+        hơn** (gói to hơn, thưa hơn) thay vì làm nghẽn hàng đợi gửi của chính họ và kéo cả máy biên
+        chậm theo.
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Tỷ số một trận đấu đổi liên tục ~20 lần/giây, 5 triệu người xem. Cách gửi nào hợp lý nhất?"
+    options:
+      - {id: a, text_md: "Gửi ngay mỗi lần đổi, đủ 20 lần/giây xuống từng người, để không ai bỏ lỡ trạng thái trung gian."}
+      - {id: b, text_md: "Gộp (conflation) và chỉ gửi tỷ số mới nhất mỗi ~200 ms; người xem chỉ cần thấy giá trị hiện tại, không cần mọi bước trung gian."}
+      - {id: c, text_md: "Gửi toàn bộ lịch sử tỷ số từ đầu trận mỗi lần có thay đổi."}
+    answer: [b]
+    explain_md: "Với trạng thái kiểu 'giá trị mới nhất', gộp lại và gửi thưa (vài trăm ms) cắt mạnh tải mà người xem vẫn thấy đúng số hiện tại. (a) gửi 20 lần/giây × 5 triệu người là lãng phí khổng lồ cho dữ liệu sẽ bị ghi đè ngay; (c) gửi lại toàn bộ lịch sử là thừa và càng nặng."
+  - id: b07
+    type: text
+    md: |
+      **Vào mới và nối lại: ảnh chụp cộng delta (snapshot plus deltas).** Một client mới vào (hoặc
+      vừa mất mạng rồi nối lại) **không** nên nhận lại toàn bộ lịch sử. Thay vào đó:
+      1. Nhận một **ảnh chụp (snapshot)** trạng thái hiện tại (tỷ số lúc này, N bình luận gần nhất),
+         kèm một **số thứ tự (sequence number)** cho biết "ảnh này tính tới tin số K".
+      2. Sau đó chỉ nhận các **thay đổi (deltas)** tiếp theo, mỗi delta mang số thứ tự **liên tục**
+         (K+1, K+2, ...).
+      Nhờ số thứ tự liên tục, client **phát hiện thiếu tin**: nếu thấy nhảy số (nhận K+1 rồi tới
+      K+4), nó biết đã mất K+2, K+3 và có thể **xin lại** hoặc **tải lại snapshot**. Khi nối lại sau
+      mất mạng, client gửi số thứ tự cuối nó có; server gửi delta từ đó, hoặc một snapshot mới nếu
+      khoảng cách quá xa.
+  - id: b08
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền thuật ngữ: Một client vừa nối lại nên nhận trước một ______ (trạng thái hiện tại) rồi sau
+      đó chỉ nhận các delta, và nhờ ______ liên tục trên mỗi tin, nó phát hiện được khi bị thiếu tin.
+    blanks:
+      - {accept: ["ảnh chụp", "snapshot", "ảnh chụp (snapshot)", "anh chup"]}
+      - {accept: ["số thứ tự", "sequence number", "số thứ tự (sequence number)", "so thu tu", "sequence"]}
+    explain_md: "Nối lại = snapshot (ảnh chụp trạng thái hiện tại) + deltas về sau; số thứ tự (sequence number) liên tục cho phép phát hiện nhảy số, tức là đã mất tin, để xin lại hoặc tải lại snapshot. Đây là cách tránh phải phát lại toàn bộ lịch sử."
+  - id: b09
+    type: text
+    md: |
+      **SSE hay WebSocket?** Vì đây là luồng **một chiều** (server đẩy, client chỉ xem), **SSE
+      (Server-Sent Events)** thường là đủ và còn **đơn giản hơn**: chạy trên HTTP thường, **tự nối
+      lại** và có sẵn `Last-Event-ID` hợp với mô hình snapshot + delta ở trên. Chỉ chọn **WebSocket**
+      khi thật sự cần **hai chiều** độ trễ thấp (ví dụ người xem cũng gửi bình luận/biểu cảm liên
+      tục lên). Mẹo thực tế: tách đường — **phát (broadcast) đi một chiều bằng SSE**, còn **hành động
+      của người xem gửi lên bằng một API/HTTP riêng** — để giữ lớp fan-out đơn giản.
+      - **Chủ đề nóng lệch tải (hot topic skew):** một sự kiện cực hot dồn người vào **cùng một chủ
+        đề**. Phải **rải người xem của chủ đề đó ra nhiều máy biên** (nhiều máy cùng subscribe một
+        chủ đề), chứ không để một máy ôm hết.
+  - id: b10
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Với một bảng tỷ số trực tiếp (server đẩy, người xem chỉ nhìn), vì sao SSE thường đủ và được ưu tiên hơn WebSocket?"
+    options:
+      - {id: a, text_md: "Vì SSE nhanh hơn WebSocket trong mọi trường hợp và hỗ trợ dữ liệu nhị phân tốt hơn."}
+      - {id: b, text_md: "Vì luồng là một chiều (chỉ server đẩy); SSE chạy trên HTTP thường, tự nối lại và có Last-Event-ID hợp với snapshot + delta, nên đơn giản hơn WebSocket."}
+      - {id: c, text_md: "Vì SSE cho phép người xem gửi bình luận lên server với độ trễ thấp hơn WebSocket."}
+    answer: [b]
+    explain_md: "Khi chỉ cần đẩy một chiều, SSE đủ việc và nhẹ về vận hành (HTTP thường, tự reconnect, Last-Event-ID). (c) sai — chiều client-tới-server mới là lúc cần WebSocket; (a) sai — SSE không mạnh về nhị phân và không 'nhanh hơn trong mọi trường hợp'."
+  - id: b11
+    type: callout
+    kind: interview
+    md: |
+      **Trả lời dạng bài này trong phỏng vấn (mục tiêu Mức 3).** Khung ba ý, nói theo thứ tự:
+      1. **Fan-out nhiều tầng tới hàng triệu người:** nguồn → trục **pub/sub** theo chủ đề → nhiều
+         **máy biên (edge)**, mỗi máy ôm hàng chục nghìn kết nối và tự nhân tin ra (như CDN cho tin
+         trực tiếp). Nêu rõ: không một máy nào ôm cả triệu kết nối.
+      2. **Gộp cập nhật (conflation/batching):** gom thay đổi mỗi ~100-500 ms, gửi trạng thái mới
+         nhất thay vì mọi bước; thêm per-client throttling cho người mạng chậm.
+      3. **Nối lại bằng snapshot + delta** với **số thứ tự** để bắt lỗi thiếu tin. Chốt bằng lựa
+         chọn **SSE vs WebSocket** (một chiều → SSE) và xử lý **hot topic skew** (rải chủ đề nóng ra
+         nhiều máy biên). Người phỏng vấn chấm việc bạn thấy "nghẽn ở số kết nối và băng thông" và gỡ
+         bằng phân tầng + gộp tin, không chấm tên công nghệ.
+  - id: b12
+    type: summary
+    bullets_vi:
+      - "Phát tin thời gian thực (real-time broadcast) = một nguồn tới hàng triệu người xem chỉ-đọc, cùng một luồng; khác chat (nhiều-tới-nhiều, hộp thư riêng). Bài toán là nhân một tin ra hàng triệu bản (fan-out)."
+      - "Phát theo tầng (fan-out tiers): nguồn → trục pub/sub theo chủ đề → nhiều máy biên (edge), mỗi máy ôm hàng chục nghìn kết nối và tự nhân tin ra — như CDN cho tin trực tiếp; không máy nào ôm cả triệu kết nối."
+      - "Gộp cập nhật (conflation/batching): gom mỗi ~100-500 ms và gửi trạng thái mới nhất thay vì mọi thay đổi; per-client throttling cho người mạng chậm."
+      - "Nối lại bằng ảnh chụp cộng delta (snapshot plus deltas) có số thứ tự liên tục để phát hiện thiếu tin và xin lại, thay vì phát lại toàn bộ lịch sử."
+      - "Một chiều thì SSE thường đủ (HTTP, tự nối lại, Last-Event-ID); WebSocket khi cần hai chiều. Rải chủ đề nóng (hot topic skew) ra nhiều máy biên."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S256], l2: [S257], l3: [S258]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

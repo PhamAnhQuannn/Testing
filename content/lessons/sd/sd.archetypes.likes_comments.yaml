@@ -1,0 +1,172 @@
+id: sd.archetypes.likes_comments
+version: 1
+status: published
+title_vi: "Thiết kế hệ thống thích và bình luận (likes and comments): bộ đếm nóng, chia nhỏ và gộp ghi"
+est_minutes: 14
+objectives_vi:
+  - "Thiết kế lưu trữ cho **like** và **comment**, và giải thích vì sao phải lưu **số đếm sẵn** (precomputed count) thay vì COUNT mỗi lần xem."
+  - "Giải thích bài toán **bộ đếm nóng** (hot counter) và hai cách gỡ: **bộ đếm chia nhỏ** (sharded counter) và **gộp ghi** (write coalescing / batching)."
+  - "Chống **thích trùng** bằng khóa duy nhất (user_id + post_id) / tính **idempotent**, và biết vì sao **nhất quán cuối** (eventual consistency) của số hiển thị là chấp nhận được."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Đây là một **archetype** (mẫu thiết kế lặp lại) kinh điển: đếm và lưu **like** cùng **comment**
+      cho các bài đăng, ở quy mô mạng xã hội. Đặc trưng của nó là **đọc nhiều hơn ghi rất nhiều**
+      (read-heavy): một bài được xem hàng triệu lần nhưng chỉ một phần nhỏ người xem bấm thích. Ta
+      sẽ dùng lại ba thứ đã học: **sharding** (`sd.data.sharding`) để chia tải ghi, **cache phân tán**
+      (`sd.caching.distributed_cache`) để phục vụ số đếm nóng, và **idempotency** (`sd.api.idempotency`)
+      để một thao tác lặp lại không đếm thừa.
+
+      Yêu cầu chức năng tối thiểu: (1) **thích / bỏ thích** một bài, không bị đếm trùng; (2) hiển thị
+      **tổng số like** của bài; (3) **thêm bình luận** và tải danh sách bình luận theo trang. Yêu cầu
+      phi chức năng cốt lõi: chịu được **bài cực hot** (viral) mà không sập, và số like hiển thị
+      **gần như tức thời** nhưng không nhất thiết chính xác từng mili-giây.
+  - id: b02
+    type: text
+    md: |
+      **Lưu trữ cơ bản.** Hai thứ dữ liệu khác hẳn nhau:
+
+      - **Like** là một **quan hệ** (user thích post): lưu một bảng `likes` mà mỗi dòng là cặp
+        `(user_id, post_id)`. Đây là dữ liệu nhỏ, phẳng, ghi/xóa nhiều.
+      - **Comment** là một **kho ghi-thêm** (append store): mỗi bình luận là một bản ghi mới, hầu như
+        không sửa, chỉ đọc lại theo bài và theo thời gian.
+
+      Một quyết định quan trọng: **đừng tính số like bằng `COUNT(*)` mỗi lần có người xem bài**. Bài
+      hot được xem hàng triệu lần/phút; quét đếm hàng triệu dòng mỗi lần là tự sát. Thay vào đó lưu
+      **số đếm sẵn** (precomputed / denormalized count): một trường `like_count` của bài, cập nhật
+      **khi có thay đổi** (lúc ghi), và **đọc thẳng** khi hiển thị. Ta đổi việc đếm nặng ở đường đọc
+      lấy một lần cộng/trừ nhỏ ở đường ghi — đúng hướng vì đọc nhiều hơn ghi rất nhiều.
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao ta lưu một trường `like_count` cập nhật khi ghi, thay vì chạy `COUNT(*)` trên bảng `likes` mỗi lần hiển thị bài?"
+    options:
+      - {id: a, text_md: "Vì `COUNT(*)` luôn trả về sai số trên cơ sở dữ liệu phân tán."}
+      - {id: b, text_md: "Vì hệ **đọc nhiều hơn ghi rất nhiều**: đếm lại hàng triệu dòng ở mỗi lượt xem quá tốn, nên ta trả trước chi phí bằng một lần cộng/trừ nhỏ ở đường ghi và đọc thẳng số đã lưu."}
+      - {id: c, text_md: "Vì bảng `likes` không cho phép dùng câu lệnh tổng hợp như `COUNT`."}
+    answer: [b]
+    explain_md: "Đường đọc nóng hơn đường ghi rất nhiều, nên dồn chi phí về đường ghi (cập nhật sẵn số đếm) và đọc O(1) là đúng hướng. (a) sai: `COUNT` không vốn dĩ sai; (c) sai: `COUNT` chạy được, vấn đề là nó **đắt** khi lặp lại ở quy mô lớn."
+  - id: b04
+    type: text
+    md: |
+      **Bài toán bộ đếm nóng (hot counter).** Giả sử số like lưu trong **một dòng** của một bài. Khi
+      bài lên xu hướng, hàng chục nghìn người bấm thích **trong cùng một giây**. Mỗi lượt thích là một
+      lệnh `UPDATE ... SET like_count = like_count + 1` trên **đúng một dòng đó**. Cơ sở dữ liệu phải
+      **khóa dòng** (row lock) để cộng cho đúng, nên mọi lượt ghi phải **xếp hàng tuần tự** qua một
+      điểm duy nhất. Dòng đó trở thành **điểm nóng ghi** (write hotspot): độ trễ tăng vọt, hàng đợi
+      khóa (lock contention) phình ra, và cả bài có thể "đơ" dù phần còn lại của hệ vẫn rảnh.
+
+      Mấu chốt: vấn đề không phải *tổng lượng ghi* mà là **mọi lượt ghi dồn vào một chỗ**. Cách gỡ
+      đều xoay quanh một ý: **đừng để mọi người ghi chung một điểm**.
+  - id: b05
+    type: text
+    md: |
+      Hai kỹ thuật gỡ bộ đếm nóng, thường dùng **kết hợp**:
+
+      1. **Bộ đếm chia nhỏ (sharded counter).** Thay một dòng đếm bằng **K dòng con** (ví dụ
+         `(post_id, shard_0..shard_K-1)`). Mỗi lượt thích cộng vào **một shard ngẫu nhiên**, nên tải
+         ghi trải đều ra K điểm thay vì một — hết điểm nóng. Khi cần hiển thị, **cộng K shard lại**
+         (`SUM`). Ta đánh đổi: đọc tốn hơn một chút (cộng K số), đổi lấy ghi không còn nghẽn. Đọc đắt
+         hơn không sao vì ta còn **cache** tổng này.
+
+      2. **Gộp ghi (write coalescing / batching).** Thay vì ghi xuống DB từng lượt thích, **đệm** các
+         lượt tăng trong bộ nhớ hoặc trong Redis (ví dụ `INCR` một khóa đếm), rồi **định kỳ** (mỗi
+         1-2 giây, hoặc mỗi N lượt) **xả một lần** xuống DB bằng một phép cộng gộp. Mười nghìn lượt
+         thích/giây có thể biến thành **một** lệnh ghi DB/giây cho mỗi bài. DB thấy ít ghi hơn hàng
+         nghìn lần.
+
+      Cuối cùng, **cache tổng số đếm** (ví dụ trong Redis) để đường đọc nóng không chạm DB. Số trong
+      cache có thể trễ vài giây so với sự thật — và điều đó hoàn toàn ổn (xem block tiếp theo).
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: "**Bộ đếm chia nhỏ** (sharded counter) gỡ điểm nóng ghi bằng cách nào?"
+    options:
+      - {id: a, text_md: "Chia số đếm thành K dòng con; mỗi lượt thích cộng vào **một shard ngẫu nhiên**, khi đọc thì **cộng K shard** lại — nhờ đó tải ghi trải ra K điểm thay vì dồn vào một dòng."}
+      - {id: b, text_md: "Nén K lượt thích thành một con số duy nhất rồi nhân lên khi đọc, nên không cần ghi gì cả."}
+      - {id: c, text_md: "Chuyển toàn bộ bộ đếm sang một máy mạnh hơn (scale dọc) để chịu nhiều ghi hơn."}
+    answer: [a]
+    explain_md: "Chia ghi ra K điểm (cộng vào shard ngẫu nhiên) và cộng lại khi đọc chính là cốt lõi của sharded counter: hết điểm nóng, đổi lại đọc tốn hơn chút (còn được cache che). (b) không có cơ chế như vậy; (c) scale dọc chỉ nâng trần một dòng, vẫn là một điểm nóng."
+  - id: b07
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Kỹ thuật **đệm** các lượt tăng trong bộ nhớ / Redis rồi **định kỳ xả một lần** xuống cơ sở dữ
+      liệu (biến hàng nghìn lượt ghi/giây thành một lượt ghi gộp) được gọi là gộp ghi, hay trong
+      tiếng Anh là ______ (một từ, chỉ việc "gộp/kết hợp" các lượt ghi lại).
+    blanks:
+      - accept: ["coalescing", "write coalescing", "write-coalescing", "batching", "write batching", "aggregation", "write aggregation"]
+    explain_md: "Gộp ghi = **write coalescing** (hoặc batching / aggregation): đệm các lượt tăng rồi xả một lần, nên DB thấy ít ghi hơn hàng nghìn lần. Đánh đổi là nếu tiến trình đệm chết trước khi xả thì có thể mất một ít lượt tăng chưa ghi — chấp nhận được với số đếm gần đúng."
+  - id: b08
+    type: text
+    md: |
+      **Chống thích trùng (prevent duplicate likes).** Người dùng bấm thích hai lần nhanh, mạng
+      chập chờn khiến client **gửi lại** (retry), hay bấm thích/bỏ thích liên tục — tất cả không được
+      làm số đếm sai. Hai lớp bảo vệ:
+
+      - **Khóa duy nhất** (unique constraint) trên `(user_id, post_id)` của bảng `likes`. Lần thích
+        thứ hai của cùng người cho cùng bài sẽ **bị DB từ chối** (vi phạm ràng buộc duy nhất), nên
+        chỉ **một** dòng tồn tại dù bấm bao nhiêu lần. Đây là nguồn sự thật cho "ai đã thích bài nào".
+      - **Idempotency**: thiết kế API thích như một thao tác **đặt trạng thái** (liked = true), không
+        phải "cộng 1". Gửi lại cùng một yêu cầu (hoặc kèm `Idempotency-Key`) cho **cùng kết quả**:
+        đã thích rồi thì thao tác thừa **không** làm tăng bộ đếm. Chỉ tăng/giảm số đếm khi dòng like
+        **thực sự** được thêm/xóa.
+
+      Nhờ vậy "một người = một like" được đảm bảo ở tầng dữ liệu, còn số đếm chỉ đổi theo **thay đổi
+      thật** của tập người đã thích.
+  - id: b09
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một người bấm thích một bài rồi client **gửi lại** cùng yêu cầu 3 lần do mạng chập chờn. Thiết kế nào giữ cho số like **không bị đếm thừa**?"
+    options:
+      - {id: a, text_md: "Mỗi yêu cầu thích đều chạy `like_count = like_count + 1`, rồi chạy một job nền quét định kỳ để trừ bớt phần dư."}
+      - {id: b, text_md: "Khóa **duy nhất** trên `(user_id, post_id)` nên chỉ một dòng like tồn tại, và API thích là **idempotent** (đặt trạng thái liked=true): chỉ tăng bộ đếm khi dòng like thực sự được thêm mới."}
+      - {id: c, text_md: "Chặn mọi retry ở client, vì nếu client không bao giờ gửi lại thì không bao giờ có thích trùng."}
+    answer: [b]
+    explain_md: "Ràng buộc duy nhất + thao tác idempotent khiến các yêu cầu lặp không tạo thêm dòng like nào, nên bộ đếm không tăng thừa. (a) cộng vô điều kiện rồi vá bằng job nền vừa sai tạm thời vừa mong manh; (c) không thể tin client — retry là hành vi bình thường của mạng, server phải tự bảo vệ."
+  - id: b10
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn.** Khi được hỏi "thiết kế hệ thống like", hãy nói sớm một câu then chốt: *số
+      like hiển thị chấp nhận **nhất quán cuối** (eventual consistency) — trễ vài giây hay làm tròn
+      kiểu "1,2 triệu" đều ổn, miễn là mỗi người chỉ được tính một like*. Câu này "mở khóa" cho
+      cache, sharded counter và gộp ghi — những thứ đổi độ chính xác tức thời lấy khả năng chịu tải.
+
+      Trình bày theo mạch: (1) tách **quan hệ like** (bảng, khóa duy nhất) khỏi **số đếm** (lưu sẵn);
+      (2) nêu **bài toán bộ đếm nóng**; (3) gỡ bằng **sharded counter + gộp ghi + cache**; (4) **chống
+      thích trùng** bằng unique key + idempotent. Người phỏng vấn chấm việc bạn **nhận ra điểm nóng
+      ghi** và biết đâu là chỗ được phép xài nhất quán cuối, không chấm bạn kể tên công nghệ.
+  - id: b11
+    type: text
+    md: |
+      **Bình luận (comments).** Khác với like, bình luận là **kho ghi-thêm**, cần đọc lại theo trang:
+
+      - **Phân trang bằng con trỏ (cursor pagination)** thay vì `OFFSET`: tải N bình luận mới nhất,
+        lần sau dùng con trỏ (ví dụ thời điểm / id của bình luận cuối) để lấy trang kế. Ổn định khi
+        dữ liệu đang được thêm liên tục, và không tốn như `OFFSET` lớn.
+      - **Sắp xếp / xếp hạng (ranking):** mới nhất, hoặc "top" theo số like của chính bình luận (lại
+        là một bộ đếm nữa — cùng kỹ thuật ở trên).
+      - **Bình luận nhiều cấp:** mỗi bình luận giữ `parent_id`; tải **cấp 1 trước**, bấm "xem thêm
+        trả lời" mới tải nhánh sâu — tránh kéo cả cây trong một lần.
+      - **Kiểm duyệt (moderation) và chống spam:** bình luận là chỗ dễ bị spam/lạm dụng, nên cần lọc
+        và giới hạn tần suất (rate limit); với bài cực hot, có thể ghi bình luận qua một hàng đợi để
+        không dồn tải tức thời xuống DB.
+  - id: b12
+    type: summary
+    bullets_vi:
+      - "Hệ like/comment **đọc nhiều hơn ghi rất nhiều**: lưu **số đếm sẵn** cập nhật khi ghi và đọc thẳng, đừng `COUNT(*)` mỗi lượt xem."
+      - "**Bộ đếm nóng** (hot counter): bài viral khiến mọi lượt thích dồn vào **một dòng** → khóa dòng, điểm nóng ghi. Gốc vấn đề là ghi dồn một chỗ."
+      - "Gỡ bằng **bộ đếm chia nhỏ** (cộng vào 1 trong K shard, đọc thì `SUM` K shard) + **gộp ghi** (đệm trong Redis/bộ nhớ, định kỳ xả một lần) + **cache** tổng số đếm."
+      - "**Chống thích trùng:** khóa **duy nhất** `(user_id, post_id)` + API **idempotent** (đặt trạng thái, không cộng mù) → một người một like, retry không đếm thừa."
+      - "Số like hiển thị chấp nhận **nhất quán cuối** (trễ vài giây / làm tròn) — đó là điều kiện cho phép cache, sharded counter và gộp ghi hoạt động."
+      - "**Comment** = kho ghi-thêm: **phân trang con trỏ**, xếp hạng, bình luận nhiều cấp theo `parent_id` (tải cấp 1 trước), kèm kiểm duyệt / chống spam."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S259], l2: [S260], l3: [S261]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"
