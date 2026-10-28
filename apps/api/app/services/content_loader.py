@@ -24,6 +24,12 @@ from .scoring import SubtopicSpec
 
 GRADED_TYPES = {"quiz_mcq", "quiz_fill", "predict_output"}
 
+# Concept tracks (SPEC 5.2): System Design and the AI-engineer LLM subset of `ml`. A subtopic of
+# one of these with no code evidence is a "concept subtopic" (see `spec_for`). Must match the
+# selection in tools/sync_tree.py.
+CONCEPT_SECTIONS = {"sd"}
+CONCEPT_MODULES = {"ml.llm", "ml.rag_agents", "ml.llm_eval_serving", "ml.system_design"}
+
 
 def _hash(*paths: Path) -> str:
     h = hashlib.sha256()
@@ -221,12 +227,28 @@ class ContentStore:
             for p in practice
             if p in self.problems and self.problems[p].data.get("difficulty") == "medium"
         )
+        all_items = self.checks.get(subtopic_id, [])
+        # Concept subtopic (SPEC 5.2): a subtopic of a concept TRACK (System Design + the
+        # AI-engineer LLM track) that has no code evidence path (no practice, no write_code item).
+        # Gating on the track matters: a py/dsa/cs subtopic that merely lacks a write_code item
+        # while being authored must NOT become concept (its score-2 bar stays measured code). A
+        # concept-track subtopic that DOES carry code (e.g. a rate-limiter exercise) is not concept
+        # either and uses the normal code path. has_l3_items gates the concept level-3 pass.
+        node = self.subtopics.get(subtopic_id, {})
+        in_concept_track = (
+            node.get("section") in CONCEPT_SECTIONS or node.get("module") in CONCEPT_MODULES
+        )
+        has_code = bool(practice) or any(i.get("type") == "write_code" for i in all_items)
+        is_concept = in_concept_track and not has_code
+        has_l3_items = any(i.get("difficulty") == 3 for i in all_items)
         return SubtopicSpec(
             practice_ids=practice,
             medium_practice_ids=medium,
             graded_quiz_ids=graded,
             has_l2_items=l2,
             has_l3_write_code=l3,
+            is_concept=is_concept,
+            has_l3_items=has_l3_items,
             pass_ratio=pass_ratio,
             min_items=min_items,
         )

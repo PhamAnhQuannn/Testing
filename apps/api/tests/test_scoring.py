@@ -237,13 +237,54 @@ def test_spec_5_2_worked_examples_table(name, spec, ev, expected):
 
 
 def test_a_self_graded_concept_pass_is_never_evidence():
-    """The API records concept results with clean=False, so they can never be level 2/3 proof."""
+    """On a CODE subtopic the API records concept results with clean=False, so they can never be
+    level 2/3 proof (is_concept defaults False here)."""
     spec = sc.SubtopicSpec(has_l2_items=True, has_l3_write_code=True)
     concept = sc.CheckEv("C", 2, passed=True, clean=False, item_type="concept")
     assert sc.score(spec, sc.Evidence(checks=(concept,))).score == 0
     # a level 1 pass is diagnostic only
     l1 = sc.CheckEv("Q", 1, passed=True, clean=True, item_type="read_code")
     assert sc.score(spec, sc.Evidence(checks=(l1,))).score == 0
+
+
+# ---- concept subtopics: System Design + the AI-engineer LLM track (SPEC 5.2) ----
+
+_CONCEPT = sc.SubtopicSpec(
+    graded_quiz_ids=tuple(f"d#q{i}" for i in range(1, 6)),
+    has_l2_items=True,
+    is_concept=True,
+    has_l3_items=True,
+)
+_C2 = sc.CheckEv("C2", 2, passed=True, clean=True, item_type="concept")
+_C3 = sc.CheckEv("C3", 3, passed=True, clean=True, item_type="concept")
+
+
+def test_concept_subtopic_earns_2_and_3_without_any_code():
+    # lesson + quiz only -> 1
+    assert sc.score(_CONCEPT, sc.Evidence(True, _Q4)).score == 1
+    # a clean (self-graded, in-time) concept level-2 pass -> 2 and tested_out (unlocks dependents)
+    r2 = sc.score(_CONCEPT, sc.Evidence(True, _Q4, checks=(_C2,)))
+    assert r2.score == 2 and r2.tested_out and r2.check2_ok
+    # a clean concept level-3 pass but no retained review yet -> still 2
+    assert sc.score(_CONCEPT, sc.Evidence(True, _Q4, checks=(_C2, _C3))).score == 2
+    # + a recall review at box >= 3: retention counts for a concept subtopic -> 3
+    rev = (sc.ReviewEv(True, 3, "recall"),)
+    r3 = sc.score(_CONCEPT, sc.Evidence(True, _Q4, checks=(_C2, _C3), reviews=rev))
+    assert r3.level3_ok and r3.retention_ok and r3.score == 3
+
+
+def test_concept_level_3_item_gates_score_3():
+    # retention present but the L3 concept item not yet passed -> level3_ok false -> stays 2
+    rev = (sc.ReviewEv(True, 3, "recall"),)
+    r = sc.score(_CONCEPT, sc.Evidence(True, _Q4, checks=(_C2,), reviews=rev))
+    assert not r.level3_ok and r.score == 2
+
+
+def test_recall_retention_does_not_help_a_code_subtopic():
+    # the existing 40 py/dsa/cs are unchanged: a recall review is never retention evidence for them
+    ev = sc.Evidence(True, _Q4, (_AC,), (_PASS2, _PASS3), (sc.ReviewEv(True, 3, "recall"),))
+    r = sc.score(DICT, ev)
+    assert not r.retention_ok and r.score == 2
 
 
 # ---- edge cases ----

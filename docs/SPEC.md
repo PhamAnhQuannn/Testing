@@ -33,7 +33,7 @@ Nguyên tắc sản phẩm:
 
 1. **Một mục nhỏ (subtopic) là đơn vị duy nhất.** Id `<sec>.<module>.<sub>` trong `skill_tree.json` là khoá chung của lesson, problem, quiz, điểm, thẻ ôn. Không tạo id song song.
 2. **Học ít, làm nhiều.** Một lesson đọc 8-15 phút; ít nhất một nửa thời gian học là gõ code.
-3. **Điểm phải có bằng chứng.** Điểm 0-3 chỉ tăng khi có sự kiện đo được (quiz đạt, bài Accepted, mastery check đạt, ôn lặp đạt). Không có nút "tự chấm" (ngoại lệ duy nhất: item `concept` của mastery check, mục 5.1). Điểm không bao giờ tự giảm.
+3. **Điểm phải có bằng chứng.** Điểm 0-3 chỉ tăng khi có sự kiện đo được (quiz đạt, bài Accepted, mastery check đạt, ôn lặp đạt). Không có nút "tự chấm" cho mục có code (ngoại lệ hẹp: item `concept`, mục 5.1). **Mục concept** (System Design và track AI engineer LLM — không có bài code để đo, mục 5.2) là ngoại lệ rộng hơn: bằng chứng điểm 2/3 của chúng là item `concept`/`read_code` tự giải thích, và ôn lặp (review) tính cả thẻ `recall`. Điểm không bao giờ tự giảm.
 4. **Nội dung là file trong git**, kiểm tra tự động bằng script; app chỉ hiển thị và ghi tiến độ.
 5. **Chạy được trên máy Quan với chi phí 0 đồng**, nhưng không đóng cửa đường mở rộng (Java, nhiều người dùng).
 6. **Quyết đoán, ít cấu hình.** Mỗi chức năng có một cách làm mặc định.
@@ -201,7 +201,7 @@ Quy tắc UI của khối code trong lesson: `code_sample` có nút Chạy chạ
 **Flow C, mastery check (kiểm tra điểm 2/3)**
 
 1. Nút "Kiểm tra" chạy thang bậc của `assessment.json`: bắt đầu item mức 2 (ưu tiên item `write_code`); đúng thì (nếu có) item mức 3; sai thì item mức 1 để chẩn đoán. Nếu mục không có item mức 1 thì dừng và báo "cần học lesson". Tối đa 3 item, mỗi item có time-box theo trường `minutes` của item.
-2. Item `write_code` dùng cùng engine như problem (kind `check`); item `read_code` là predict-output, chấm tự động; item `concept` là "tự giải thích rồi xem đáp án, bấm Đúng/Sai" (chỉ loại này là tự chấm, chiếm 20/112 item gốc; chấp nhận ở MVP như ngoại lệ duy nhất của nguyên tắc 1.1#3). Mọi mục MVP đều có item `write_code` mức 2 (9 mục thiếu sẽ được soạn thêm, mục 4.3), nên bằng chứng điểm 2 không bao giờ chỉ là tự chấm.
+2. Item `write_code` dùng cùng engine như problem (kind `check`); item `read_code` là predict-output, chấm tự động; item `concept` là "tự giải thích rồi xem đáp án, bấm Đúng/Sai" (loại tự chấm, chiếm 20/112 item gốc). **Mục có code**: item `concept` được ghi nhưng không bao giờ `clean`, nên không là bằng chứng điểm 2/3; mọi mục MVP (40 mục py/dsa/cs) đều có item `write_code` mức 2, nên bằng chứng điểm 2 ở đó không bao giờ chỉ là tự chấm. **Mục concept** (toàn bộ `sd` và 4 module `ml.llm`/`ml.rag_agents`/`ml.llm_eval_serving`/`ml.system_design` — không có bài code): một lần pass `concept` đúng, trong time-box là `clean` và chính là bằng chứng điểm 2/3 (mục 5.2). Đây là nới rộng có chủ đích của nguyên tắc 1.1#3 cho các track không-code.
 3. Kết quả ghi `check_results` (kèm `attempt_no`); điểm cập nhật theo mục 5.
 4. **Trượt mức 2**: không hiện `reference`, chỉ hiện test sai (như Submit). Được làm lại sau 24 giờ, không giới hạn số lần, mỗi lần là một `attempt_no` mới. Trong lúc chờ, đường khác là fallback `check2_ok` (mục 5.2).
 
@@ -330,7 +330,7 @@ Chuẩn hoá từ `assessment.json` (field thật: `id, subtopic_id, difficulty 
 
 - `write_code` (61 item MVP, đều có `reference`, `driver`, `expected_output`): script `tools/convert_checks.py` sinh `problem.yaml` kind `check` với mode `stdout`/`function` và 1 sample + ≥5 hidden (sinh từ reference), giữ `minutes` làm time-box.
 - `read_code` (31): `predict_output` với `code`, `expected_output`.
-- `concept` (20): thẻ tự giải thích (`prompt`, `answer` hiện sau khi người học viết/nói ra, tự bấm Đúng/Sai). Đây là ngoại lệ tự chấm duy nhất, chấp nhận ở MVP.
+- `concept` (20 gốc + item tự soạn cho các track concept): thẻ tự giải thích (`prompt`, `answer` hiện sau khi người học viết/nói ra, tự bấm Đúng/Sai). Trên mục có code đây là tự chấm không tính bằng chứng; trên **mục concept** (mục 5.2) một lần pass đúng trong time-box là `clean` và là bằng chứng điểm 2/3. Các mục `sd.*` và 4 module `ml` không có item nào trong `assessment.json`, nên toàn bộ item của chúng viết tay qua `content/checks_extra/<id>.yaml` (mỗi mục: item recall mức 1, 1 item `concept` mức 2 là cổng điểm 2, 1 item `concept` mức 3 là cổng điểm 3).
 - `write_code` mức 2 **bổ sung** (9 item, tự soạn) cho 9 mục mà mọi item mức 2 gốc chỉ là `concept`/`read_code`: `py.core.getting_started`, `py.core.variables_types`, `py.datastructs.tuple_namedtuple`, `py.datastructs.copying_mutability`, `py.functions.lambda_hof`, `cs.complexity.big_o`, `dsa.foundations.memory_model`, `py.functions.scope_closures`, `dsa.foundations.interview_method`. Mỗi mục đúng một item, cùng định dạng problem kind `check`, có `solution.py` + hidden test; author agent viết khi viết lesson của mục. Validator chặn nếu mục đang được validate (có lesson) thiếu item `write_code` mức 2; mục chưa soạn lesson không bị chặn.
 
 ### 3.5 Ví dụ hoàn chỉnh: lesson `py.datastructs.dict`
@@ -681,8 +681,9 @@ Nguyên tắc: **LLM không bao giờ viết `expected` bằng tay**; mọi expe
 - **AC**: Submit qua toàn bộ hidden test.
 - **elapsed**: tổng thời gian editor của bài đang hiển thị (tạm dừng khi `document.hidden`), cộng dồn qua các phiên, từ lần mở đầu tiên (`attempts.started_at`) đến Submit AC đầu tiên; client gửi `elapsed_ms` kèm `POST /attempts`.
 - **clean**: AC mà `solution_viewed=false`, `hints_used ≤ 1`, và `elapsed ≤ 1.5 × time_target_min` (hoặc `minutes` của check item). Bài kiểm tra "sạch" mới đủ làm bằng chứng điểm 2 và 3.
-- **check pass (mức L)**: pass item mức L trong mastery check, tính "clean" theo cùng quy tắc. `concept` là tự chấm (ngoại lệ chấp nhận ở MVP), nhưng mức 2 luôn có item `write_code` (mục 3.4).
-- **review success**: thẻ ôn đạt (mục 5.4). `review_log.item_kind` = `code` (bài code ngắn) hoặc `recall` (thẻ nhớ nhanh); cả hai đều làm thẻ lên hộp, nhưng chỉ `code` tính cho `retention_ok`.
+- **check pass (mức L)**: pass item mức L trong mastery check, tính "clean" theo cùng quy tắc. Trên mục có code, `concept` là tự chấm và không `clean`, nên mức 2 phải có item `write_code` (mục 3.4); trên **mục concept** một lần pass `concept`/`read_code` đúng, trong time-box là `clean`.
+- **mục concept**: mục không có đường code nào — không có problem practice **và** không có item check `write_code` ở mọi mức (suy ra từ nội dung, không phải trường trong cây). Toàn bộ `sd` và 4 module `ml` là mục concept; mọi mục 40 py/dsa/cs đều có code nên không phải (luật của chúng không đổi).
+- **review success**: thẻ ôn đạt (mục 5.4). `review_log.item_kind` = `code` (bài code ngắn) hoặc `recall` (thẻ nhớ nhanh); cả hai đều làm thẻ lên hộp. Chỉ `code` tính cho `retention_ok`, **trừ mục concept** thì `recall` cũng tính (vì mục concept không có bài code).
 
 ### 5.2 Quy tắc điểm 0-3 (chính xác)
 
@@ -698,16 +699,19 @@ score(subtopic, user):
                    AND số problem practice AC khác nhau >= min(2, số practice của mục))
                # lối thoát khi mục chỉ có 1 item mức 2; khớp practice_ok
                nếu mục không có item mức 2: 1 problem practice AC clean
+               # mục concept: pass mức 2 là item concept/read_code (đã clean theo mục 5.1)
   s2 = tested_out OR (s1 AND practice_ok AND check2_ok)
        # practice chỉ cần AC thường; check mới cần clean
 
   level3_ok  = check pass mức 3 (clean) với item loại write_code   # concept/read_code không đủ
                nếu không có item mức 3 loại write_code (vd big_o chỉ có concept Q043):
                  1 problem practice độ khó medium AC clean
+               mục concept (không có write_code): pass mức 3 (clean) item concept/read_code nếu có item mức 3, nếu không: true
                nếu cũng không có: true
-  retention_ok = tồn tại review_log có success = true AND box_before >= 3 AND item_kind = code
-                 # lần ôn đạt đầu tiên ở hộp >= 3 rơi vào D+7; phải là bài code (không phải thẻ nhớ nhanh),
-                 # đúng ý "làm được và còn nhớ sau >= 7 ngày"
+  retention_ok = tồn tại review_log có success = true AND box_before >= 3
+                 AND (item_kind = code OR mục là mục concept)
+                 # lần ôn đạt đầu tiên ở hộp >= 3 rơi vào D+7; mục có code phải ôn bằng bài code,
+                 # mục concept ôn bằng thẻ recall (không có bài code); đúng ý "còn nhớ sau >= 7 ngày"
   s3 = s2 AND level3_ok AND retention_ok
 
   score = 3 nếu s3; 2 nếu s2; 1 nếu s1 OR tested_out; ngược lại 0
@@ -1081,7 +1085,7 @@ Ghi chú v0.2: review không trả lời trực tiếp câu nào trong 5 câu tr
 
 - Mở khoá một chiều (`unlocked_at`); bỏ decay điểm ở MVP; `tested_out` = check mức 2 clean; `s2 = tested_out OR (s1 AND practice_ok AND check2_ok)`.
 - Làm lại mastery check sau 24 giờ, không giới hạn, không hiện `reference` khi trượt; thêm `attempt_no`.
-- Leitner: `due = ngày ôn + gap(box_mới)`, gap {1:1, 2:2, 3:4, 4:7, 5:14}, rồi 30; `retention_ok` dùng `box_before >= 3` (v0.7: và `item_kind = code`).
+- Leitner: `due = ngày ôn + gap(box_mới)`, gap {1:1, 2:2, 3:4, 4:7, 5:14}, rồi 30; `retention_ok` dùng `box_before >= 3` (v0.7: và `item_kind = code`; mục concept: `recall` cũng tính).
 - Pyodide tự host, pin phiên bản, CSP `script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'`; `solution.py` ≤ 0.3 × `time_ms` native.
 - v0.3: T2.2 (mastery check, Test out) chuyển vào M2a, T2.6 ở M2b; fallback `check2_ok` dùng `min(2, số practice)`.
 - v0.4 (Quan, 2026-10-24): học tự do nhịp độ, không cố định số lượng mỗi ngày. Plan chỉ là thứ tự gợi ý; màn "Học tiếp" thay "Hôm nay"; bỏ `plan_start_date`, `plan_day_pointer`, `review_cap`, `budget_h`, "Sang ngày kế", thông báo trễ lịch và streak (thay bằng tổng giờ theo tuần + heatmap `study_time`); review queue không có trần (preset "Phiên ngắn" tuỳ chọn, cảnh báo backlog mềm); Leitner vẫn theo ngày lịch; bài ôn ghim thành `review_hint` gắn subtopic; mock mở theo tiến độ.

@@ -58,6 +58,11 @@ class SubtopicSpec:
     graded_quiz_ids: tuple[str, ...] = ()
     has_l2_items: bool = False
     has_l3_write_code: bool = False
+    # Concept subtopic (SPEC 5.2): no practice problem and no `write_code` check item at any
+    # level (System Design + the AI-engineer LLM track). Its score-2/3 evidence is a clean
+    # `concept`/`read_code` check pass, and review retention may be earned with a recall item.
+    is_concept: bool = False
+    has_l3_items: bool = False  # any level-3 check item (any type), for the concept level-3 gate
     pass_ratio: float = PASS_RATIO
     min_items: int = MIN_ITEMS
 
@@ -157,13 +162,20 @@ def score(spec: SubtopicSpec, ev: Evidence) -> ScoreResult:
     medium = set(spec.medium_practice_ids)
     if spec.has_l3_write_code:
         level3_ok = _check_pass(ev.checks, 3, "write_code")
+    elif spec.is_concept and spec.has_l3_items:
+        # Concept subtopic: a clean level-3 concept/read_code pass is the interview-level gate
+        # (mirrors the `big_o` no-write_code fallback; True only when no L3 item was authored).
+        level3_ok = _check_pass(ev.checks, 3)
     elif medium:
         level3_ok = any(a.ac and a.clean and a.problem_id in medium for a in ev.attempts)
     else:
         level3_ok = True
 
+    # A recall review counts for retention only on a concept subtopic (SPEC 5.2); code subtopics
+    # still require a code review at box >= 3, so the existing 40 py/dsa/cs are unchanged.
     retention_ok = any(
-        r.success and r.box_before >= 3 and r.item_kind == "code" for r in ev.reviews
+        r.success and r.box_before >= 3 and (r.item_kind == "code" or spec.is_concept)
+        for r in ev.reviews
     )
     s3 = s2 and level3_ok and retention_ok
 
