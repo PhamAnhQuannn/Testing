@@ -1,0 +1,133 @@
+id: sd.distributed.conflict_resolution
+version: 1
+status: published
+title_vi: "Giải quyết xung đột: LWW, OT và CRDT (conflict resolution)"
+est_minutes: 13
+objectives_vi:
+  - "Giải thích vì sao ghi đồng thời (concurrent writes) trên nhiều bản sao (replica) gây xung đột khi offline / multi-master, và ba cách ghép."
+  - "So sánh **LWW** (last-write-wins), **OT** (operational transformation) và **CRDT** (conflict-free replicated data type) qua ví dụ văn bản 'ab' và G-counter."
+  - "Dùng **vector clock** để nhận ra hai bản là song song (xung đột) hay một bản con cháu của bản kia, và nêu chi phí của **tombstone** khi xóa."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Khi hệ có nhiều **bản sao (replica)** cùng ghi được — người dùng sửa lúc **offline** rồi đồng
+      bộ sau, hoặc kiến trúc **multi-master** cho ghi ở nhiều nơi — hai người có thể sửa *cùng một
+      dữ liệu* mà không thấy thay đổi của nhau. Lúc nối lại, hệ phải **ghép (merge)** hai bản thành
+      một. Câu hỏi cốt lõi: khi hai ghi là **đồng thời (concurrent)** — không ai thấy ai — thì giữ
+      bản nào, hay giữ cả hai? Có ba hướng trả lời: **LWW**, **OT** và **CRDT**, khác nhau ở chỗ
+      *đơn giản đến đâu*, *mất dữ liệu hay không* và *có cần server trung tâm hay không*.
+  - id: b02
+    type: text
+    md: |
+      **LWW (last-write-wins — ai ghi sau thắng):** mỗi ghi gắn một **mốc thời gian (timestamp)**;
+      khi ghép, bản có giờ muộn hơn thắng, bản kia bị **bỏ im lặng**. Ví dụ A đổi tên thành 'Ba' lúc
+      10:00, B đổi thành 'Bình' lúc 10:01 (hai máy, offline) → ghép xong còn 'Bình', thay đổi của A
+      **mất** mà không ai biết. LWW rất đơn giản và luôn hội tụ về một giá trị, nhưng (1) **âm thầm
+      mất một edit**, và (2) **phụ thuộc đồng hồ máy** — đồng hồ lệch nhau thì "ai sau" có thể sai.
+      Phù hợp khi mất một edit không nghiêm trọng (ví dụ ô cấu hình đơn lẻ), không phù hợp cho dữ
+      liệu cần gộp (giỏ hàng, văn bản chung).
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Giỏ hàng lưu bằng **LWW**: lúc offline, A thêm sách lúc 10:00, B thêm bút lúc 10:01. Nối mạng rồi ghép, giỏ còn gì và vì sao?"
+    options:
+      - {id: a, text_md: "Còn cả sách và bút, vì LWW luôn hợp (union) hai bản."}
+      - {id: b, text_md: "Chỉ còn bút: bản của B muộn hơn nên thắng, thao tác thêm sách của A bị bỏ im lặng."}
+      - {id: c, text_md: "Giỏ rỗng, vì hai ghi đồng thời nên LWW hủy cả hai."}
+    answer: [b]
+    explain_md: "LWW chỉ giữ một bản theo timestamp muộn hơn, nên edit kia mất âm thầm — đây đúng là điểm yếu của LWW với dữ liệu cần gộp. Muốn giữ cả hai phải đổi cách ghép (ví dụ coi giỏ như một tập hợp và hợp hai bản, tức tư duy CRDT). (a) sai vì LWW không hợp; (c) sai vì LWW chọn một bản chứ không hủy cả hai."
+  - id: b04
+    type: text
+    md: |
+      Trước khi ghép phải biết hai bản có thật sự **đồng thời** không, hay một bản là **con cháu**
+      (descendant) của bản kia (đã thấy và nối tiếp nó). **Vector clock** làm việc đó: mỗi máy giữ
+      một bộ đếm riêng và gửi kèm cả bộ. So sánh từng chỉ số:
+      - {A:2, B:1} so với {A:1, B:1}: bên đầu **lớn hơn hoặc bằng ở mọi chỗ** (và lớn hơn ở A) → nó
+        **mới hơn**, là con cháu → cứ thay, không xung đột.
+      - {A:2, B:0} so với {A:1, B:1}: **mỗi bên có một chỗ lớn hơn** bên kia (A: 2>1; B: 0<1) →
+        không bên nào bao trùm bên kia → **hai bản sửa song song = xung đột**, phải ghép.
+
+      Vector clock chỉ **phát hiện** xung đột; *xử lý* thế nào là việc của LWW / OT / CRDT, hoặc giữ
+      cả hai bản (**siblings** — bản anh em) cho ứng dụng tự ghép.
+  - id: b05
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Dùng **vector clock**, cặp nào là **xung đột song song** (concurrent) chứ không phải một bản mới hơn?"
+    options:
+      - {id: a, text_md: "{A:2, B:1} và {A:1, B:1} — bên đầu lớn hơn hoặc bằng ở mọi chỉ số."}
+      - {id: b, text_md: "{A:2, B:0} và {A:1, B:1} — mỗi bên có một chỉ số lớn hơn bên kia."}
+      - {id: c, text_md: "{A:3, B:3} và {A:3, B:3} — hai bộ giống hệt nhau."}
+    answer: [b]
+    explain_md: "Song song (xung đột) khi không bộ nào lớn hơn hoặc bằng bộ kia ở MỌI chỉ số: ở (b), A có 2>1 còn B có 0<1, nên không bên nào bao trùm → hai nhánh song song. (a) bộ đầu bao trùm bộ sau → nó là bản mới hơn, chỉ cần thay. (c) hai bộ bằng nhau → cùng một phiên bản, không có xung đột."
+  - id: b06
+    type: text
+    md: |
+      **OT (operational transformation — biến đổi thao tác):** thay vì gửi cả tài liệu, mỗi máy gửi
+      **thao tác (operation)** ("chèn 'X' ở vị trí 0"); server **biến đổi** thao tác đồng thời theo
+      thao tác đã áp để mọi máy hội tụ. Ví dụ văn bản 'ab': An chèn 'X' ở vị trí 0, Bình **cùng lúc**
+      chèn 'Y' ở vị trí 2. Server nhận của An trước → 'Xab'; thao tác của Bình nhắm vị trí 2 nhưng
+      giờ đã có thêm 1 ký tự ở trước, nên server **dịch** nó từ vị trí 2 thành 3 → kết quả 'XabY' ở
+      **mọi máy**. OT mạnh và giữ được **ý định (intent)** của người dùng, là nền của soạn thảo kiểu
+      Google Docs, nhưng **phức tạp** (phải đúng mọi cặp biến đổi) và thường **cần một server trung
+      tâm** để sắp thứ tự.
+  - id: b07
+    type: text
+    md: |
+      **CRDT (conflict-free replicated data type — kiểu dữ liệu sao chép không xung đột):** thiết kế
+      *bản thân cấu trúc dữ liệu* sao cho phép ghép là **giao hoán, kết hợp, lũy đẳng** — ghép theo
+      thứ tự nào, lặp lại bao nhiêu lần, cũng ra **cùng kết quả**, nên **không cần phối hợp
+      (coordination)**, hợp với peer-to-peer và offline.
+      - **G-counter (grow-only counter):** mỗi máy giữ bộ đếm riêng của mình; **ghép = lấy max từng
+        máy**, **giá trị = cộng tất cả**. Ví dụ A thấy {A:3, B:0}, B thấy {A:2, B:4} → ghép lấy max
+        từng máy ra {A:3, B:4} → tổng = 3 + 4 = **7**. Lấy max nên nhận trùng một cập nhật nhiều lần
+        cũng không cộng dư.
+      - **Set / văn bản:** tập hợp CRDT cho phép hai bên cùng thêm rồi hợp lại (giỏ hàng giữ cả sách
+        lẫn bút); CRDT văn bản gán **ID duy nhất cho mỗi ký tự** nên thao tác không phụ thuộc vị trí.
+
+      CRDT luôn hội tụ (**strong eventual consistency**), nhưng **giá** của nó là **metadata phình
+      to** (phải mang theo bộ đếm/ID per-node).
+  - id: b08
+    type: quiz_fill
+    graded: true
+    prompt_md: "**G-counter**: máy A thấy {A:3, B:0}, máy B thấy {A:2, B:4}. Ghép đúng (lấy max từng máy) rồi tính tổng. Giá trị tổng là ___?"
+    blanks:
+      - accept: ["7", "bảy"]
+    explain_md: "Ghép = max từng máy: max(3,2)=3 cho A, max(0,4)=4 cho B → {A:3, B:4}. Giá trị = tổng các bộ đếm = 3 + 4 = 7. Lưu ý KHÔNG cộng dọc kiểu 3+0+2+4; ghép là lấy max per-node trước rồi mới cộng, nên nhận lại cùng một cập nhật không làm số bị phồng."
+  - id: b09
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn — chọn cái nào?** Trả lời theo trục *mất dữ liệu / độ phức tạp / cần server*:
+      **LWW** đơn giản nhất nhưng âm thầm **mất một edit** và tin vào đồng hồ → chỉ dùng cho giá trị
+      đơn lẻ. **OT** giữ được ý định cho soạn thảo chung (Google Docs) nhưng phức tạp và thường cần
+      **server trung tâm** sắp thứ tự. **CRDT** hội tụ không cần phối hợp (tốt cho offline / P2P)
+      nhưng trả giá bằng **metadata phình to** và **tombstone** khi xóa. Hãy nói kèm cơ chế *phát
+      hiện* xung đột bằng **vector clock** (song song hay con cháu) — người phỏng vấn chấm việc bạn
+      phân biệt "phát hiện" với "giải quyết".
+  - id: b10
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Trong CRDT, vì sao khi **xóa** một phần tử người ta thường để lại một **tombstone** ('bia mộ') thay vì bỏ hẳn, và cái giá của nó là gì?"
+    options:
+      - {id: a, text_md: "Để biết một phần tử đã bị xóa, nếu không một bản sao cũ ở máy khác khi ghép sẽ làm phần tử 'sống lại'; giá là tombstone tích tụ tốn chỗ, phải dọn (garbage collection) định kỳ."}
+      - {id: b, text_md: "Để tăng tốc đọc, vì tombstone là một chỉ mục (index) giúp tìm phần tử nhanh hơn; gần như không tốn gì."}
+      - {id: c, text_md: "Để nén dữ liệu: tombstone thay thế phần tử bằng bản nhỏ hơn nên tiết kiệm bộ nhớ."}
+    answer: [a]
+    explain_md: "Nếu xóa sạch, một replica chưa thấy lệnh xóa vẫn còn phần tử cũ; khi ghép (nhất là CRDT kiểu add/remove set) phần tử đó quay lại. Tombstone là dấu 'đã xóa' để phép ghép tôn trọng việc xóa. Giá là chúng không mất đi ngay, tích tụ làm metadata phình to nên cần GC — đây chính là chi phí tombstone cần nêu ở mức phỏng vấn. (b) và (c) hiểu sai bản chất tombstone."
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "Ghi đồng thời trên nhiều replica (offline / multi-master) gây xung đột; ba cách ghép: LWW, OT, CRDT."
+      - "**LWW** chọn bản có timestamp muộn hơn — đơn giản nhưng âm thầm mất một edit và phụ thuộc đồng hồ máy."
+      - "**OT** biến đổi thao tác đồng thời ('ab' → An chèn 'X' @0, Bình chèn 'Y' @2 dịch thành @3 → 'XabY'); mạnh, giữ ý định, nhưng phức tạp và thường cần server trung tâm."
+      - "**CRDT** ghép giao hoán/kết hợp/lũy đẳng nên luôn hội tụ không cần phối hợp — G-counter: max từng máy rồi cộng ({A:3,B:0} ⊔ {A:2,B:4} = {A:3,B:4} → 7); giá là metadata phình to và tombstone khi xóa."
+      - "**Vector clock** phát hiện xung đột: bộ này ≥ bộ kia ở mọi chỉ số → con cháu (thay); mỗi bên có một chỗ lớn hơn → song song (xung đột, phải ghép)."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S145], l2: [S146], l3: [S147]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

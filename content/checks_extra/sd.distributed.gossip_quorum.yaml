@@ -1,0 +1,60 @@
+subtopic_id: sd.distributed.gossip_quorum
+items:
+  - id: S148
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Trong kho dữ liệu leaderless kiểu Dynamo, ba con số **N**, **W**, **R** nghĩa là gì? Viết bất
+      đẳng thức đảm bảo một lệnh đọc nhìn thấy bản ghi mới nhất, và nói một câu vì sao nó hiệu quả.
+    answer_md: |
+      - **N** = số bản sao của mỗi khóa.
+      - **W** = số máy phải xác nhận thì một lệnh **ghi** mới thành công.
+      - **R** = số máy phải trả lời cho một lệnh **đọc**.
+      Bất đẳng thức: **W + R > N**. Khi đó tập máy đã ghi và tập máy được đọc buộc phải **giao nhau ít
+      nhất một máy**; máy giao đó giữ bản vừa ghi, nên lệnh đọc chắc chắn gặp bản mới nhất (quorum chặt).
+    rubric_md: "Đúng khi nêu đủ nghĩa N/W/R và viết đúng W + R > N kèm lý do 'hai tập giao nhau'. Đủ ý: bằng chứng điểm 1. Thiếu bất đẳng thức, viết nhầm thành W + R ≥ N (lớn hơn hoặc bằng), hoặc không giải thích giao nhau: tối đa điểm 0."
+  - id: S149
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Một kho kiểu Dynamo dùng **N = 3**. Với **từng** yêu cầu dưới đây, chọn **W** và **R** và giải
+      thích ngắn gọn bằng bất đẳng thức quorum:
+      (a) **Giỏ hàng** cần **luôn ghi được** kể cả khi một bản sao đang chết (ưu tiên sẵn sàng khi ghi).
+      (b) **Cấu hình hệ thống** cần đọc **luôn ra bản mới nhất** (ưu tiên nhất quán khi đọc).
+    answer_md: |
+      (a) Giỏ hàng — ghi phải luôn chạy: chọn **W = 1** (chỉ cần một máy nhận là xong, ghi vẫn được dù
+      hai máy kia chết). Để bù, đọc dùng **R = 3** nếu vẫn muốn giữ W + R > N (1 + 3 = 4 > 3); nếu chấp
+      nhận đọc có thể hơi cũ để luôn sẵn sàng thì để R nhỏ. Điểm cốt lõi: ưu tiên ghi không hỏng nên
+      W nhỏ.
+      (b) Cấu hình — đọc phải ra bản mới: chọn **W = 3, R = 1** (3 + 1 = 4 > 3) để đọc nhanh mà vẫn
+      đảm bảo; hoặc **W = 2, R = 2** (4 > 3) cho cân bằng. Miễn là **W + R > N** thì đọc chắc chắn gặp
+      bản mới nhất.
+    rubric_md: "Đạt khi: (a) chọn W nhỏ (W = 1) để ghi luôn được và giải thích đúng; (b) chọn bộ thỏa W + R > N (ví dụ W = 3, R = 1 hoặc W = 2, R = 2) để đọc thấy bản mới, và dùng đúng bất đẳng thức để biện minh. Đúng, trong time-box, tự giải thích được: bằng chứng điểm 2. Chọn số mà không gắn với W + R > N, hoặc nhầm (a) sang W lớn: tối đa điểm 1."
+  - id: S150
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      Giải thích ở **mức phỏng vấn** một kho key-value leaderless kiểu Dynamo:
+      (1) mô tả **đường ghi và đường đọc** (vai trò của vòng băm, coordinator, N, W, R);
+      (2) cho yêu cầu "**đọc rất nhiều, hiếm khi ghi, và đọc phải thấy bản mới**", chọn **N, R, W** và
+      giải thích bằng bất đẳng thức quorum;
+      (3) nêu vai trò của **read repair**, **hinted handoff** và cách **gossip** phát hiện thành viên
+      (membership) và máy chết.
+    answer_md: |
+      (1) **Đường ghi/đọc:** vòng băm nhất quán chọn ra N máy kế tiếp giữ bản sao của khóa. Client gọi
+      một máy làm **coordinator**; khi **ghi**, coordinator gửi tới các bản sao và báo thành công khi
+      có **W** máy xác nhận; khi **đọc**, nó hỏi **R** máy, so phiên bản (vector clock) và trả bản mới
+      nhất. **W + R > N** bảo đảm tập ghi và tập đọc giao nhau nên đọc thấy bản mới.
+      (2) **Đọc nhiều, ghi hiếm, đọc phải mới:** cho đọc rẻ nên **R = 1**; để vẫn giữ W + R > N thì
+      **W = N**. Ví dụ **N = 3, R = 1, W = 3** (1 + 3 = 4 > 3): đọc chỉ chạm một máy (nhanh, hợp read-heavy),
+      ghi chờ cả 3 máy (chậm hơn nhưng ghi hiếm nên chấp nhận được) và đọc vẫn chắc chắn gặp bản mới.
+      (3) **Read repair:** khi đọc thấy bản sao nào giữ bản cũ, coordinator đẩy bản mới về sửa ngay trên
+      đường đọc. **Hinted handoff:** khi một bản sao tạm chết, máy khác nhận hộ lệnh ghi kèm hint rồi
+      phát lại cho máy gốc khi nó sống lại, nên ghi không hỏng vì một cú chết chớp nhoáng. **Gossip:**
+      mỗi máy định kỳ hỏi thăm vài máy ngẫu nhiên, trao đổi trạng thái cả cụm; tin lan gần gấp đôi mỗi
+      vòng nên mở rộng tốt mà không cần sổ đăng ký trung tâm; máy lâu không có heartbeat lan truyền thì
+      bị đánh dấu nghi chết, và cả cụm dần đồng thuận ai còn trong vòng băm.
+    rubric_md: "Đạt (mức phỏng vấn) khi: (1) mô tả đúng đường ghi (chờ W) và đọc (hỏi R) kèm vai trò vòng băm + coordinator và nêu W + R > N; (2) chọn R = 1, W = N (ví dụ N = 3, R = 1, W = 3) và biện minh bằng bất đẳng thức; (3) nêu đúng vai trò read repair, hinted handoff và gossip (membership + phát hiện máy chết). Đúng, trong time-box, tự giải thích rõ: bằng chứng điểm 3. Sót một trong ba phần, hoặc chọn R/W không thỏa W + R > N ở (2): chưa đạt mức 3."

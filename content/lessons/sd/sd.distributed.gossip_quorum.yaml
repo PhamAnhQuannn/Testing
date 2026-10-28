@@ -1,0 +1,147 @@
+id: sd.distributed.gossip_quorum
+version: 1
+status: published
+title_vi: "Gossip, membership và quorum kiểu Dynamo"
+est_minutes: 14
+objectives_vi:
+  - "Giải thích đường đọc/ghi của kho dữ liệu không có leader (leaderless) kiểu Dynamo: N bản sao, ghi chờ W xác nhận, đọc hỏi R máy."
+  - "Dùng bất đẳng thức **W + R > N** để chọn N, R, W cho một yêu cầu cho trước và nêu trade-off khi chỉnh (tunable consistency)."
+  - "Nêu vai trò của read repair, hinted handoff và cách gossip phát hiện thành viên (membership / failure detection)."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Bài này nói về kho dữ liệu **không có sếp (leaderless)** kiểu **Dynamo** của Amazon — Cassandra
+      chạy theo kiểu này. Khác với replication có một **primary** nhận mọi lệnh ghi, ở đây **không
+      máy nào là leader**: client (hoặc một máy đứng ra điều phối gọi là **coordinator**) gửi ghi tới
+      nhiều bản sao cùng lúc, và đọc cũng hỏi nhiều bản sao.
+      Hai nền tảng đã học ở bài trước ghép lại thành kho này:
+      - **Vòng băm nhất quán (consistent hashing)** chọn ra, cho mỗi khóa, N máy đứng kế tiếp trên
+        vòng để giữ bản sao — thêm/bớt máy chỉ dời ít khóa.
+      - **Nhân bản (replication)**: mỗi khóa được chép ra **N** máy để chịu lỗi và chia tải đọc.
+      Vì ghi có thể vào nhiều nơi mà không ai làm trọng tài, câu hỏi cốt lõi là: đọc làm sao **chắc
+      chắn gặp được bản mới nhất**? Đó là việc của quorum.
+  - id: b02
+    type: text
+    md: |
+      **Quorum** — ba con số điều khiển mọi thứ:
+      - **N**: số bản sao của mỗi khóa (ví dụ N = 3).
+      - **W**: số máy phải **xác nhận** thì một lệnh **ghi** mới coi là thành công.
+      - **R**: số máy phải **trả lời** cho một lệnh **đọc**.
+      Quy tắc vàng: nếu **W + R > N** thì **tập máy đã ghi** và **tập máy được đọc** luôn **giao nhau
+      ít nhất một máy**. Máy giao đó chắc chắn giữ bản vừa ghi, nên lệnh đọc nhìn thấy bản mới nhất
+      (nhất quán kiểu mạnh — strong-ish; với quorum chặt, chưa tính sloppy quorum ở dưới). Nếu
+      W + R ≤ N, tập đọc và tập ghi có thể rời nhau, và bạn có thể đọc trúng bản cũ.
+      Để biết bản nào "mới hơn" khi hai máy giữ hai giá trị khác nhau của cùng khóa, mỗi bản mang
+      thêm thông tin phiên bản (vector clock — xem sd.distributed.conflict_resolution).
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Với N = 3, bộ (W, R) nào **đảm bảo** một lệnh đọc luôn nhìn thấy bản ghi mới nhất (quorum chặt)?"
+    options:
+      - {id: a, text_md: "W = 1, R = 1, vì mỗi lệnh chỉ cần chạm một máy nên luôn nhanh và đủ."}
+      - {id: b, text_md: "W = 2, R = 2, vì W + R = 4 > 3 nên tập ghi và tập đọc chắc chắn giao nhau một máy."}
+      - {id: c, text_md: "W = 1, R = 2, vì tổng bằng 3 là đã đủ để phủ hết N máy."}
+    answer: [b]
+    explain_md: |
+      Điều kiện là **W + R > N**. Với N = 3: (b) 2 + 2 = 4 > 3 nên hai tập giao nhau, đọc gặp bản mới.
+      (a) 1 + 1 = 2 < 3 — nhanh nhưng có thể đọc cũ. (c) 1 + 2 = 3, **không** lớn hơn 3 (phải *lớn hơn*,
+      không phải *bằng*), nên vẫn có thể hai tập rời nhau và đọc trúng bản cũ.
+  - id: b04
+    type: text
+    md: |
+      **Chỉnh N, R, W (tunable consistency).** Giữ N cố định rồi dời W và R để đổi ưu tiên; mỗi truy
+      vấn có thể chọn R, W riêng:
+      - **W lớn (ví dụ W = N)**: ghi bền và nhất quán hơn (nhiều máy đã nhận), nhưng **ghi chậm** và
+        dễ hỏng khi mất một máy (phải chờ đủ W xác nhận).
+      - **W = 1**: ghi **rất nhanh** và luôn ghi được dù nhiều máy chết, nhưng **yếu** — mới chỉ một
+        máy biết, đọc dễ trúng bản cũ nếu R nhỏ.
+      - **Nghiêng đọc (read-heavy)**: cho **R = 1** để đọc nhanh, bù lại **W = N** để vẫn giữ
+        W + R > N.
+      - **Cân bằng**: chọn **R = W = ⌈(N + 1) / 2⌉**. Với N = 3 thì R = W = 2 — đây là mặc định hay gặp
+        (2 + 2 = 4 > 3), đọc và ghi đều chịu được **một** máy chết.
+      Quy tắc không đổi: muốn đọc-thấy-ghi (read-your-writes) qua quorum thì luôn giữ **W + R > N**.
+  - id: b05
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Một cụm đặt **N = 5** và muốn ghi bền nên chọn **W = 3**. Để lệnh đọc vẫn **đảm bảo** gặp bản
+      mới nhất (quorum chặt), **R nhỏ nhất** có thể chọn là bao nhiêu? (điền một số)
+    blanks:
+      - accept: ["3", "R=3", "R = 3"]
+    explain_md: |
+      Cần W + R > N, tức 3 + R > 5, nên R > 2, suy ra R nhỏ nhất là **R = 3**. Khi đó tập ghi (3 máy)
+      và tập đọc (3 máy) trong N = 5 buộc phải giao nhau ít nhất một máy, nên đọc thấy bản vừa ghi.
+      R = 2 cho 3 + 2 = 5, không lớn hơn 5, nên không đảm bảo.
+  - id: b06
+    type: text
+    md: |
+      Quorum mới chỉ lo lúc đọc/ghi. Còn hai cơ chế giữ các bản sao **hội tụ** dần về cùng một giá
+      trị, ngay cả khi có máy chậm hay tạm chết:
+      - **Read repair (vá khi đọc):** khi một lệnh đọc hỏi nhiều bản sao và thấy có máy đang giữ bản
+        **cũ**, coordinator lấy bản **mới nhất** đẩy ngược về máy cũ để sửa ngay. Việc sửa diễn ra
+        "tiện thể" trên đường đọc, nên những khóa hay được đọc luôn được làm tươi.
+      - **Hinted handoff (giữ hộ rồi trả lại):** khi một bản sao **tạm chết**, một máy đứng khác nhận
+        thay lệnh ghi và kèm một **ghi chú (hint)** "cái này của máy kia". Khi máy gốc sống lại, máy
+        giữ hộ **phát lại (replay)** các ghi đó cho nó rồi bỏ hint. Nhờ vậy ghi không thất bại chỉ vì
+        một máy chớp nhoáng.
+      Mở rộng: **sloppy quorum** cho phép đếm cả máy giữ hộ vào W để ghi vẫn đủ số khi chủ thật chết —
+      đổi lại, lúc đó bảo đảm W + R > N tạm thời **không còn chắc**, đọc có thể cũ một lúc. Để đồng bộ
+      nền định kỳ còn có anti-entropy bằng cây băm Merkle (phần đào sâu).
+  - id: b07
+    type: quiz_mcq
+    graded: true
+    prompt_md: |
+      Một bản sao **tạm chết** vài phút rồi sống lại. Cơ chế nào giúp lệnh **ghi vẫn thành công** trong
+      lúc nó chết, rồi **giao lại** các ghi đó cho nó khi nó trở lại?
+    options:
+      - {id: a, text_md: "Read repair — vì nó sửa máy cũ ngay trên đường đọc."}
+      - {id: b, text_md: "Hinted handoff — một máy khác nhận hộ ghi kèm ghi chú rồi phát lại cho máy gốc khi nó sống lại."}
+      - {id: c, text_md: "Tăng N lên — vì thêm bản sao thì không máy nào cần giữ hộ nữa."}
+    answer: [b]
+    explain_md: |
+      (b) đúng: **hinted handoff** là máy đứng khác nhận thay lệnh ghi (kèm hint) rồi replay về máy gốc
+      khi nó phục hồi, nên ghi không hỏng vì một cú chết chớp nhoáng. (a) read repair chỉ sửa bản cũ khi
+      có lệnh **đọc** chạm tới, không giúp lúc ghi mà máy đang chết. (c) tăng N không giải quyết việc một
+      bản sao cụ thể đang tạm chết.
+  - id: b08
+    type: text
+    md: |
+      **Gossip — biết ai còn sống (membership) và ai đã chết (failure detection).** Không có leader thì
+      cũng không có một "sổ hộ khẩu" trung tâm ghi danh sách máy. Thay vào đó, **mỗi máy định kỳ hỏi
+      thăm vài máy ngẫu nhiên**, trao đổi hiểu biết của mình về trạng thái cả cụm (ai sống, ai nghi
+      chết, phiên bản bao nhiêu) — y như tin đồn lan trong lớp.
+      - **Lan rất nhanh:** mỗi vòng số máy biết tin gần như **gấp đôi**, nên một cụm 1.000 máy chỉ cần
+        cỡ 10 vòng là ai cũng biết một máy vừa đổi trạng thái. Không cần đăng ký trung tâm nên **mở
+        rộng tốt** và không có một điểm chết.
+      - **Phát hiện lỗi:** máy nào lâu không thấy "nhịp tim (heartbeat)" lan truyền thì bị đánh dấu
+        **nghi chết**; thông tin này lại lan qua gossip. Vì không có sếp nên không nơi nào tự quyết một
+        mình — cả cụm dần đồng thuận về việc ai còn trong vòng băm.
+      Danh sách thành viên này chính là thứ quyết định, cho mỗi khóa, N máy nào đang giữ bản sao để
+      điều phối đọc/ghi.
+  - id: b09
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn.** Khi được hỏi thiết kế kho key-value kiểu Dynamo, hãy kể theo mạch: *vòng băm
+      chọn N máy cho mỗi khóa → coordinator gửi ghi chờ W, đọc hỏi R → nêu W + R > N và cho một ví dụ
+      số đúng (N = 3, W = 2, R = 2) → chỉnh R/W theo yêu cầu (đọc nhiều cho R nhỏ W lớn, cần ghi chắc
+      cho W lớn) → read repair và hinted handoff giữ các bản sao hội tụ → gossip lo membership và phát
+      hiện máy chết*. Luôn **gắn mỗi lựa chọn với một trade-off** (nhanh hơn ↔ dễ đọc cũ hơn); đó là
+      thứ người phỏng vấn chấm, không phải việc kể tên sản phẩm.
+  - id: b10
+    type: summary
+    bullets_vi:
+      - "Kho leaderless kiểu Dynamo: mỗi khóa chép ra **N** máy (chọn bằng vòng băm nhất quán); không có leader, một coordinator gửi ghi và đọc tới các bản sao."
+      - "Quorum: ghi chờ **W** xác nhận, đọc hỏi **R** máy; **W + R > N** bắt tập ghi và tập đọc giao nhau nên đọc thấy bản mới (đọc-thấy-ghi). Ví dụ N = 3, W = 2, R = 2 (vì 2 + 2 = 4 > 3)."
+      - "Chỉnh được (tunable): W lớn = ghi bền nhưng chậm; W = 1 = nhanh nhưng yếu; đọc nhiều thì R = 1, W = N; cân bằng R = W = ⌈(N + 1)/2⌉ (N = 3 → 2)."
+      - "**Read repair** sửa bản cũ ngay khi đọc; **hinted handoff** cho máy khác giữ hộ ghi rồi trả lại khi máy gốc sống lại; cả hai giúp các bản sao hội tụ (sloppy quorum thì W + R > N tạm thời không còn chắc)."
+      - "**Gossip**: mỗi máy định kỳ hỏi thăm vài máy ngẫu nhiên để lan trạng thái (số máy biết tin gần gấp đôi mỗi vòng), lo membership và phát hiện máy chết mà không cần sổ đăng ký trung tâm."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S148], l2: [S149], l3: [S150]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

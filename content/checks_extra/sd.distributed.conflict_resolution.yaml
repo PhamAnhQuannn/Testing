@@ -1,0 +1,58 @@
+subtopic_id: sd.distributed.conflict_resolution
+items:
+  - id: S145
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Nói ngắn gọn: **LWW** (last-write-wins) ghép hai ghi đồng thời bằng cách nào, và **nhược điểm**
+      chính của nó là gì?
+    answer_md: |
+      LWW gắn mỗi ghi một **mốc thời gian (timestamp)** và khi ghép thì **bản có giờ muộn hơn
+      thắng**, bản kia bị bỏ. Nhược điểm: (1) **âm thầm mất một edit** (bản thua biến mất mà không ai
+      biết), và (2) **phụ thuộc đồng hồ máy** — đồng hồ lệch thì "ai ghi sau" có thể sai.
+    rubric_md: "Đạt khi nêu đúng cơ chế (chọn bản theo timestamp muộn hơn) VÀ ít nhất một nhược điểm cốt lõi (mất một edit âm thầm, hoặc phụ thuộc đồng hồ). Đủ cả hai: điểm 1; chỉ nói 'ai sau thắng' mà không nêu nhược điểm: tối đa điểm 0."
+  - id: S146
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Hai máy đếm lượt xem khi mất kết nối rồi đồng bộ lại: máy A thấy **{A:3, B:0}**, máy B thấy
+      **{A:2, B:4}**. (1) Nếu dùng **LWW** thì kết quả đếm có thể sai thế nào? (2) Dùng **G-counter**
+      (CRDT) hãy ghép đúng và cho ra **tổng**, nêu rõ quy tắc ghép. (3) Vì sao cách G-counter không
+      bị "đếm dư" khi cùng một gói đồng bộ đến hai lần?
+    answer_md: |
+      (1) LWW coi cả bộ đếm như **một giá trị** và chỉ giữ bản có timestamp muộn hơn, nên nó **vứt
+      bỏ** phần đếm của máy kia → tổng bị hụt (ví dụ chỉ còn một trong hai bản thay vì gộp cả hai).
+      (2) G-counter ghép **theo từng máy, lấy max**: max(3,2)=3 cho A, max(0,4)=4 cho B → {A:3, B:4};
+      **giá trị = tổng các bộ đếm = 3 + 4 = 7**.
+      (3) Vì ghép là **lấy max** (lũy đẳng/idempotent): nhận lại cùng một bộ đếm lần nữa thì max
+      không đổi, nên không cộng dồn dư — khác với việc cộng thẳng sẽ đếm trùng.
+    rubric_md: "Đạt (điểm 2) khi nêu đủ 3 ý: LWW làm mất/hụt một phần đếm; G-counter ghép bằng max từng máy rồi cộng ra ĐÚNG 7; và max là lũy đẳng nên không đếm dư khi trùng. Ghép sai (ví dụ cộng 3+0+2+4) hoặc không giải thích được tính idempotent: tối đa điểm 1."
+  - id: S147
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      Ở mức phỏng vấn, hãy **so sánh LWW, OT và CRDT** cho bài toán ghép ghi đồng thời, bám vào các
+      ví dụ cụ thể: (1) văn bản **'ab'** khi hai người cùng chèn ký tự lúc offline — cho thấy OT xử
+      lý thế nào và vì sao LWW không đủ; (2) **G-counter** với {A:3, B:0} và {A:2, B:4}; (3) dùng
+      **vector clock** để nhận ra hai bản là xung đột song song hay con cháu; và (4) nêu **chi phí
+      của tombstone** trong CRDT. Kết lại khi nào chọn cái nào.
+    answer_md: |
+      - **Văn bản 'ab':** An chèn 'X' @vị trí 0, Bình cùng lúc chèn 'Y' @vị trí 2. **LWW** chỉ giữ
+        một bản → mất một lần chèn (sai ý định). **OT** biến đổi thao tác: áp của An trước ('Xab'),
+        rồi **dịch** thao tác của Bình từ vị trí 2 → 3 (đã thêm 1 ký tự phía trước) → 'XabY' ở mọi
+        máy; thường cần **server trung tâm** sắp thứ tự. CRDT văn bản gán **ID cho mỗi ký tự** nên
+        chèn không phụ thuộc vị trí, hội tụ mà không cần server.
+      - **G-counter:** ghép max từng máy {A:3, B:0} ⊔ {A:2, B:4} = {A:3, B:4} → tổng **7**; hội tụ
+        không cần phối hợp.
+      - **Vector clock:** {A:2, B:1} so với {A:1, B:1} → bộ đầu ≥ ở mọi chỉ số nên là **con cháu**
+        (chỉ cần thay); {A:2, B:0} so với {A:1, B:1} → mỗi bên có một chỉ số lớn hơn nên **song song
+        = xung đột**, phải ghép (hoặc giữ siblings).
+      - **Chi phí tombstone:** khi xóa phải để lại dấu 'đã xóa' để bản cũ ở replica khác không làm
+        phần tử **sống lại** khi ghép; tombstone **tích tụ, tốn chỗ**, cần **dọn (GC)** định kỳ — một
+        phần của việc CRDT làm **metadata phình to**.
+      - **Kết:** LWW khi mất một edit chấp nhận được (giá trị đơn lẻ); OT cho soạn thảo chung giữ ý
+        định (có server); CRDT khi cần offline/P2P hội tụ không phối hợp, đổi lấy metadata + tombstone.
+    rubric_md: "Đạt mức 3 (phỏng vấn) khi: (1) dùng đúng ví dụ 'ab' để cho thấy OT dịch vị trí 2→3 ra 'XabY' và vì sao LWW mất edit; (2) ghép G-counter đúng ra 7; (3) dùng vector clock phân biệt đúng con cháu vs song song; (4) nêu đúng chi phí tombstone (resurrection nếu xóa sạch, tích tụ, cần GC); và kết lại tiêu chí chọn. Sót ví dụ 'ab' hoặc tombstone, hoặc không phân biệt phát hiện (vector clock) với giải quyết: chưa đạt mức 3."

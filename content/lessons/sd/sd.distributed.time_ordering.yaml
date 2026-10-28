@@ -1,0 +1,127 @@
+id: sd.distributed.time_ordering
+version: 1
+status: published
+title_vi: "Thời gian, thứ tự và đồng hồ logic (logical clocks)"
+est_minutes: 13
+objectives_vi:
+  - "Giải thích vì sao không thể tin giờ đồng hồ thật (wall-clock time) để sắp thứ tự sự kiện giữa nhiều máy."
+  - "Mô tả đúng đồng hồ Lamport (Lamport clock) và quy tắc cập nhật khi nhận tin, và biết nó không chứng minh được nhân quả."
+  - "Chọn đúng công cụ sắp thứ tự cho một tình huống: số thứ tự (sequence number), Lamport clock hay vector clock."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Trong một hệ phân tán (distributed system), mỗi máy có **đồng hồ riêng** và các đồng hồ này
+      **không khớp nhau**. Có ba lý do khiến ta **không thể dùng giờ thật (wall-clock time)** để biết
+      việc nào xảy ra trước:
+      - **Lệch đồng hồ (clock skew):** đồng hồ hai máy lệch nhau từ vài mili-giây đến vài giây.
+      - **NTP nhảy giờ:** NTP (Network Time Protocol, cách máy chỉnh giờ qua mạng) chỉnh lại đồng hồ
+        theo từng đợt, nên giờ có thể **nhảy tới** hoặc **nhảy lùi** đột ngột.
+      - **Đồng hồ chạy ngược:** sau một lần chỉnh, thời điểm đọc sau có thể **nhỏ hơn** thời điểm đọc
+        trước trên cùng một máy.
+      Hậu quả rất thực tế: nếu ta sắp xếp hay giải quyết xung đột bằng **"ghi sau thắng theo giờ"
+      (last-write-wins by timestamp)**, một bản ghi **mới** mang timestamp nhỏ (vì máy đó chạy chậm
+      giờ) sẽ bị một bản **cũ** đè lên — **mất dữ liệu một cách âm thầm**, không báo lỗi.
+  - id: b02
+    type: text
+    md: |
+      Công cụ sắp thứ tự **đơn giản nhất** không phải là đồng hồ, mà là **số thứ tự tăng dần đơn điệu
+      (monotonic sequence number) từ một nguồn duy nhất**. Thay vì hỏi "việc này xảy ra lúc mấy giờ",
+      ta hỏi "việc này là cái **thứ mấy**". Vài ví dụ:
+      - **Offset của Kafka:** mỗi phân vùng (partition) gán cho mỗi message một số tăng dần; đọc theo
+        offset là đọc đúng thứ tự ghi vào.
+      - **Sequence / auto-increment của database:** một DB cấp số 1, 2, 3... làm thứ tự chung.
+      Ưu điểm: dễ hiểu, không phụ thuộc đồng hồ. Giới hạn: cần **một nguồn duy nhất** cấp số, nên nguồn
+      đó là điểm nghẽn và điểm chết (single point) — chỉ dùng được khi mọi sự kiện đi qua được một chỗ.
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao giải quyết xung đột bằng **last-write-wins theo timestamp** của đồng hồ máy là nguy hiểm?"
+    options:
+      - {id: a, text_md: "Vì so sánh timestamp chậm hơn so sánh số nguyên nên làm hệ chậm đi."}
+      - {id: b, text_md: "Vì đồng hồ các máy lệch nhau (và có thể nhảy/chạy ngược), nên một bản ghi mới có thể mang timestamp nhỏ hơn bản cũ và bị đè mất một cách âm thầm."}
+      - {id: c, text_md: "Vì NTP làm mọi đồng hồ khớp tuyệt đối nên timestamp luôn bằng nhau và không phân định được."}
+    answer: [b]
+    explain_md: "Giờ máy không đáng tin: clock skew, NTP nhảy giờ và đồng hồ chạy ngược khiến timestamp không phản ánh đúng thứ tự thật, nên bản mới có thể thua bản cũ và mất dữ liệu. (a) sai trọng tâm; (c) sai vì NTP giảm lệch chứ không làm khớp tuyệt đối."
+  - id: b04
+    type: text
+    md: |
+      **Đồng hồ Lamport (Lamport logical clock)** bỏ giờ thật, chỉ dùng một **bộ đếm (counter) cho mỗi
+      máy**. Quy tắc:
+      - Mỗi khi máy làm một sự kiện (event) nội bộ hoặc gửi tin: **tăng bộ đếm lên 1**, rồi gửi kèm số
+        đó trong tin.
+      - Khi **nhận** một tin mang số `received`: đặt lại bộ đếm **local = max(local, received) + 1**.
+      Ví dụ: máy B đang đếm 1, nhận tin kèm số 3 thì B đặt bộ đếm = max(1, 3) + 1 = **4**. Cách này cho
+      một **thứ tự toàn phần (total order) nhất quán với nhân quả (causality)**: nếu A thực sự gây ra B
+      (A gửi, B nhận) thì số của A luôn nhỏ hơn số của B. **Nhưng chiều ngược lại không đúng:** chỉ vì
+      số a nhỏ hơn số b **không chứng minh** a gây ra b — hai việc có thể hoàn toàn độc lập (đồng thời)
+      mà vẫn có số khác nhau. Lamport clock **sắp được thứ tự**, nhưng **không phát hiện được** hai
+      việc có phải song song hay không.
+  - id: b05
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Theo quy tắc Lamport (khi nhận: `local = max(local, received) + 1`): máy B đang có bộ đếm là **5**,
+      nhận một tin mang số **9**. Sau khi nhận, bộ đếm của B bằng bao nhiêu? (điền một số)
+    blanks:
+      - accept: ["10"]
+    explain_md: "max(5, 9) + 1 = 10. Nhận tin thì lấy giá trị lớn hơn giữa bộ đếm của mình và số nhận được, rồi cộng 1 — nhờ vậy số của sự kiện nhận luôn lớn hơn số của sự kiện gửi."
+  - id: b06
+    type: text
+    md: |
+      **Vector clock (đồng hồ vector)** mạnh hơn Lamport ở một điểm: nó **phát hiện được tính song song
+      (concurrency)**. Mỗi máy giữ **một bộ đếm cho mỗi máy** trong hệ và gửi kèm cả bộ (ví dụ với hai
+      máy A, B: một giá trị dạng A=2, B=1). So sánh hai vector:
+      - Nếu vector này **lớn hơn hoặc bằng ở mọi vị trí** (và lớn hơn hẳn ở ít nhất một vị trí) thì nó
+        **đến sau** — hai sự kiện **so sánh được (comparable)**, có quan hệ nhân quả rõ ràng.
+      - Nếu **mỗi bên có một vị trí lớn hơn bên kia** (ví dụ A=2,B=0 so với A=1,B=1) thì không bên nào
+        đến sau bên nào: đó là hai sự kiện **đồng thời / xung đột (concurrent)**.
+      Đây là điều Lamport clock không làm được: vector clock cho ta **biết chắc** hai việc là nối tiếp
+      hay song song, nên nó là nền tảng để nhận ra xung đột khi đồng bộ dữ liệu.
+  - id: b07
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Hai bản ghi có vector clock là (A=2, B=0) và (A=1, B=1). Vector clock cho ta kết luận gì?"
+    options:
+      - {id: a, text_md: "Bản (A=2, B=0) đến sau vì tổng các số của nó (2) lớn hơn (2 so với 2)... nên chọn nó."}
+      - {id: b, text_md: "Hai bản là **đồng thời (concurrent)**: mỗi bên có một vị trí lớn hơn bên kia, nên không bản nào đến sau — đây là xung đột cần xử lý."}
+      - {id: c, text_md: "Bản (A=1, B=1) đến sau vì nó có nhiều máy khác 0 hơn."}
+    answer: [b]
+    explain_md: "A=2,B=0 lớn hơn ở vị trí A nhưng nhỏ hơn ở vị trí B so với A=1,B=1, nên không vector nào trội ở mọi vị trí → hai sự kiện song song (concurrent), tức xung đột. So tổng hay đếm số khác 0 đều là cách so sai."
+  - id: b08
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn (đạt mức 3).** Khi đề nói đến "sắp thứ tự sự kiện" hay "giải quyết xung đột", hãy
+      nói hai ý: (1) **không dựa vào đồng hồ vật lý (physical clock)** để quyết thứ tự vì clock skew,
+      NTP nhảy giờ và đồng hồ chạy ngược khiến last-write-wins mất dữ liệu; (2) **chọn công cụ logic**
+      cho đúng nhu cầu: cần một thứ tự toàn cục đơn giản và mọi việc đi qua một chỗ thì dùng **số thứ
+      tự / offset**; cần một thứ tự nhất quán với nhân quả thì dùng **Lamport clock**; cần **phát hiện
+      xung đột** (hai việc song song) thì dùng **vector clock**. Nêu rõ "dùng cái gì và vì sao" quan
+      trọng hơn kể tên công nghệ.
+  - id: b09
+    type: text
+    md: |
+      Có cần hoàn toàn bỏ giờ thật không? Không — nhưng phải dùng nó **an toàn**. **TrueTime** của
+      Google (dùng trong Spanner) là ví dụ: thay vì trả về một thời điểm chính xác, TrueTime trả về một
+      **khoảng bất định có chặn (bounded uncertainty)** — "giờ hiện tại nằm trong đoạn [sớm nhất, muộn
+      nhất]". Khi cần chắc một giao dịch đã xong trước một giao dịch khác, Spanner **chờ (commit-wait)**
+      cho qua hết khoảng bất định rồi mới xác nhận. Nhờ phần cứng đồng bộ tốt (GPS, đồng hồ nguyên tử),
+      khoảng này rất nhỏ. Ý tưởng để nhớ: dùng giờ thật thì phải **biết sai số tối đa của nó và chờ qua
+      sai số đó** — đừng bao giờ coi giờ máy là chính xác tuyệt đối.
+  - id: b10
+    type: summary
+    bullets_vi:
+      - "Không tin giờ đồng hồ thật (wall-clock) để sắp thứ tự: clock skew, NTP nhảy giờ và đồng hồ chạy ngược khiến last-write-wins theo timestamp đè mất dữ liệu một cách âm thầm."
+      - "Công cụ đơn giản nhất là số thứ tự tăng dần đơn điệu từ một nguồn duy nhất (offset Kafka, sequence của DB) — dễ nhưng cần mọi việc đi qua một chỗ."
+      - "Lamport clock: mỗi máy một bộ đếm; khi nhận đặt local = max(local, received) + 1. Cho thứ tự toàn phần nhất quán với nhân quả, nhưng số nhỏ hơn KHÔNG chứng minh nhân quả."
+      - "Vector clock: một bộ đếm cho mỗi máy → phát hiện được hai sự kiện so sánh được (comparable) hay đồng thời/xung đột (concurrent)."
+      - "TrueTime (Spanner): dùng giờ thật an toàn bằng khoảng bất định có chặn và chờ qua sai số (commit-wait) trước khi xác nhận."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S142], l2: [S143], l3: [S144]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

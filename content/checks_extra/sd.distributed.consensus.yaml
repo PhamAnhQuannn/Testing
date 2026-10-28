@@ -1,0 +1,59 @@
+subtopic_id: sd.distributed.consensus
+items:
+  - id: S133
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Nói ngắn gọn: **consensus** (đồng thuận) giải bài toán gì, và **quorum đa số (majority quorum)**
+      của một cụm **n** máy là bao nhiêu máy?
+    answer_md: |
+      Consensus = làm cho một nhóm máy (nodes) cùng **đồng ý trên một giá trị / một thứ tự duy nhất**
+      (ví dụ ai là leader, giá trị config) **dù có máy chết hoặc mạng chập chờn**. Quorum đa số của
+      **n** máy là **⌊n/2⌋ + 1** máy (quá nửa) — ví dụ 5 máy cần 3, 7 máy cần 4.
+    rubric_md: "Đạt khi nêu đúng cả hai: (1) consensus = nhiều máy đồng ý một giá trị/thứ tự dù có lỗi; (2) quorum đa số = ⌊n/2⌋+1 (quá nửa). Đúng ý: bằng chứng điểm 1; thiếu một vế hoặc nói sai công thức đa số: tối đa điểm 0."
+  - id: S134
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Bạn thiết kế một cụm consensus (ví dụ dùng Raft) để giữ "ai là leader". **(1)** Nên chọn số máy
+      lẻ (3 hoặc 5) hay chẵn (4), và vì sao? **(2)** Cụm **5 máy** chịu được mấy máy chết? **(3)** Vì
+      sao khi dùng quorum đa số thì **không thể xuất hiện hai leader cùng lúc** (chống split brain)?
+    answer_md: |
+      (1) Nên chọn **số lẻ**: với 2f+1 máy mới chịu được f máy chết, nên 3 máy chịu 1, 5 máy chịu 2.
+      Thêm máy chẵn (4) *không* tăng sức chịu lỗi so với 3 (vẫn chỉ chịu 1) mà còn cần nhiều phiếu hơn
+      để đạt đa số, nên lãng phí.
+      (2) **5 máy chịu được 2 máy chết**: đa số là ⌊5/2⌋+1 = 3, còn sống 3 vẫn tạo được đa số (f = 2
+      trong 2f+1 = 5).
+      (3) Vì leader phải được **đa số** bầu, mà **hai nhóm đa số bất kỳ luôn chồng nhau ít nhất một
+      máy**. Máy chung đó chỉ bỏ một phiếu trong mỗi term, nên không thể vừa bầu leader này vừa bầu
+      leader khác — do đó mỗi term tối đa một leader, không có hai sự thật song song.
+    rubric_md: "Đạt khi nêu đúng cả 3 ý: (1) chọn số lẻ vì 2f+1 chịu f lỗi, số chẵn không tăng sức chịu lỗi; (2) 5 máy chịu 2 (đa số = 3); (3) đa số luôn chồng nhau nên chỉ một leader / chống split brain. Đúng, trong time-box, tự giải thích được: bằng chứng điểm 2. Tính sai số máy chịu lỗi, hoặc không giải thích được vì sao đa số chồng nhau ngăn hai leader: tối đa điểm 1."
+  - id: S135
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      Phỏng vấn hỏi: "**Giải thích Raft bầu leader và nhân bản dữ liệu như thế nào, và khi nào bạn
+      dùng etcd/ZooKeeper?**" Hãy trả lời ở mức: **(1)** vai trò của **term (nhiệm kỳ)**; **(2)** các
+      bước **bầu leader (leader election)**; **(3)** **chép log (log replication)** và điều kiện
+      **commit**; **(4)** vì sao quorum đa số đảm bảo một sự thật; **(5)** hai ví dụ nên giao cho
+      etcd/ZooKeeper và một giới hạn của chúng. Có thể nhắc **Paxos** một câu.
+    answer_md: |
+      (1) **Term** là các kỷ nguyên bầu cử được đánh số tăng dần, đóng vai đồng hồ logic; **mỗi term
+      tối đa một leader**, và term cao hơn luôn thắng term thấp hơn nên leader cũ lỗi thời bị loại.
+      (2) **Bầu leader:** follower không nghe heartbeat của leader quá lâu thì **tăng term**, thành
+      **candidate** và **xin phiếu**; ai gom đủ **đa số phiếu** thành leader mới. Vì mỗi máy bỏ một
+      phiếu mỗi term và cần đa số, không thể có hai leader trong cùng term.
+      (3) **Chép log:** mọi thay đổi qua leader; leader **ghi lệnh vào log**, **gửi bản sao cho
+      follower**, và **commit** (báo thành công) khi **đa số đã ack**. Chỉ lệnh nằm trên một quorum mới
+      coi là chốt.
+      (4) Vì **hai quorum đa số luôn chồng nhau ≥ 1 máy**, mọi leader tương lai (cũng cần đa số bầu)
+      chắc chắn gặp một máy đang giữ lệnh đã commit, nên **lệnh đã commit không mất** và chỉ có một thứ
+      tự log thống nhất — chống split brain.
+      (5) Nên giao cho **etcd/ZooKeeper**: giữ **config/metadata dùng chung**, **bầu leader / distributed
+      lock**, hoặc **service discovery**. Giới hạn: **chỉ hợp vài KB dữ liệu quan trọng, không làm kho
+      dữ liệu chính** vì mỗi lần ghi phải đợi quorum (thêm độ trễ, không mở rộng tải ghi). Có thể nhắc:
+      **Paxos** giải cùng bài toán, mạnh ngang Raft nhưng khó hiểu hơn nên thực tế mô tả bằng Raft.
+    rubric_md: "Đạt mức 3 (mức phỏng vấn theo mastery bar) khi trình bày đúng và mạch lạc cả: term (mỗi term tối đa một leader, đánh số tăng), bầu leader (timeout → candidate → xin đủ đa số phiếu), log replication + commit khi đa số ack, lập luận quorum chồng nhau → một sự thật/chống split brain, và biết khi nào dùng etcd/ZooKeeper kèm một giới hạn (chỉ vài KB, không mở rộng tải ghi). Đúng, trong time-box, tự giải thích rõ: bằng chứng điểm 3. Thiếu phần log replication/commit theo quorum, hoặc không nêu được khi nào dùng etcd/ZooKeeper: chưa đạt mức 3."

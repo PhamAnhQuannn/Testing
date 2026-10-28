@@ -1,0 +1,141 @@
+id: sd.distributed.failures_model
+version: 1
+status: published
+title_vi: "Mô hình lỗi và partial failure (failure models) trong hệ phân tán"
+est_minutes: 13
+objectives_vi:
+  - "Giải thích **partial failure** và vì sao nó là cái khó đặc trưng của hệ phân tán (distributed system)."
+  - "Kể đúng các kiểu lỗi: crash-stop, crash-recovery, omission, network partition và Byzantine."
+  - "Giải thích vì sao **timeout** và **heartbeat** không phải sự thật tuyệt đối, và cách **fencing token** chặn hậu quả của một quyết định sai."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Trên **một máy** mọi thứ đơn giản: hoặc máy chạy, hoặc máy chết — chết thì chết hẳn, bạn biết
+      ngay. Trong **hệ phân tán** (distributed system) nhiều máy nối qua mạng thì xuất hiện cái khó
+      đặc trưng: **partial failure** (hỏng một phần). Một vài node chết hoặc mạng tới chúng đứt, trong
+      khi phần còn lại vẫn chạy bình thường. Hệ không "tắt gọn" mà rơi vào trạng thái nửa sống nửa
+      chết, và tệ hơn: **node đang chạy thường không biết chắc node kia còn sống hay đã chết**. Mọi
+      kỹ thuật trong hệ phân tán (timeout, retry, replication, consensus) sinh ra để sống chung với
+      sự thật này.
+  - id: b02
+    type: text
+    md: |
+      Để nói chuyện cho rõ, ta phân loại **kiểu lỗi** (failure model) — một node hoặc một kênh mạng
+      có thể hỏng theo kiểu nào:
+      - **Crash-stop:** node dừng và không bao giờ quay lại. Đơn giản nhất để suy luận.
+      - **Crash-recovery:** node chết rồi **sống lại** sau một lúc, có thể mất phần trạng thái trong
+        RAM nhưng giữ được phần đã ghi xuống đĩa. Đây là kiểu hay gặp nhất ngoài thực tế.
+      - **Omission (mất tin):** node vẫn chạy nhưng **tin nhắn bị rớt** — gói tin đi mất, hoặc câu
+        trả lời về không tới. Nhìn từ bên ngoài rất giống node chết.
+      - **Network partition (phân mảnh mạng):** mạng chia hệ thành hai (hay nhiều) nhóm không nói
+        chuyện được với nhau, dù mỗi nhóm bên trong vẫn hoạt động. Hai nhóm đều tưởng nhóm kia đã chết.
+      - **Byzantine (tùy tiện/gian lận):** node làm **sai lệch tùy ý** — gửi dữ liệu mâu thuẫn, nói
+        dối, hoặc bị chiếm quyền. Rất khó chống, chi phí cao; trong hệ **nội bộ** (một công ty, một
+        datacenter) thường **bỏ qua** và chỉ lo tới ở blockchain hay hệ nhiều bên không tin nhau.
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Trong một datacenter nội bộ (các node đều do cùng một đội vận hành), kiểu lỗi nào thường được coi là **ngoài phạm vi** (out of scope) khi thiết kế?"
+    options:
+      - {id: a, text_md: "Crash-recovery — node chết rồi sống lại."}
+      - {id: b, text_md: "Network partition — mạng chia hệ thành các nhóm không liên lạc được."}
+      - {id: c, text_md: "Byzantine — node làm sai lệch tùy ý hoặc gian lận."}
+      - {id: d, text_md: "Omission — tin nhắn bị rớt trên đường đi."}
+    answer: [c]
+    explain_md: "Lỗi **Byzantine** (tùy tiện/gian lận) tốn kém để chống và hiếm trong hệ nội bộ tin cậy lẫn nhau, nên thường bỏ qua; nó quan trọng ở blockchain hay hệ nhiều bên không tin nhau. Crash-recovery, network partition và omission đều là lỗi **bình thường phải xử lý** trong mọi hệ phân tán."
+  - id: b04
+    type: text
+    md: |
+      Giờ tới trái tim của chủ đề: **bạn không thể phân biệt một node đã chết với một node chỉ đang
+      chậm (hoặc một mạng đang rớt tin).** Giả sử A gọi B và sau 5 giây vẫn im lặng. Có ít nhất ba
+      khả năng mà A **không cách nào** tách ra được:
+      - B đã chết thật.
+      - B vẫn sống nhưng **chậm** (đang kẹt tải, hoặc dừng vì GC pause).
+      - B xử lý xong rồi, nhưng **câu trả lời bị rớt** trên đường về (omission).
+      Trong một mạng **bất đồng bộ** (asynchronous network) không có giới hạn trên cho thời gian
+      truyền, nên "im lặng" không mang thông tin chắc chắn nào. Thực tế ta đành chọn một ngưỡng chờ —
+      **timeout** — rồi tuyên bố "chắc B chết". Nhưng hãy nhớ: **timeout là một phỏng đoán, không phải
+      sự thật.** Chờ ngắn thì hay báo nhầm node còn sống là chết; chờ dài thì phát hiện lỗi chậm.
+  - id: b05
+    type: text
+    md: |
+      Cơ chế phát hiện lỗi phổ biến là **heartbeat** (nhịp tim): mỗi node định kỳ gửi một tín hiệu
+      "tôi còn sống"; ai im quá hạn thì bị **failure detector** nghi là đã chết. Vấn đề là heartbeat
+      **cũng chỉ dựa trên timeout**, nên nó **false-positive** (báo chết nhầm) được: một **GC pause**
+      (máy ảo dừng mọi thứ vài giây để dọn rác) hay một **network blip** (mạng chớp giật ngắn) khiến
+      nhịp tim trễ, và node hoàn toàn khỏe mạnh bị kết luận là đã chết. Nói cách khác, heartbeat không
+      nâng phỏng đoán thành sự thật — nó chỉ là cách đóng gói cùng một phỏng đoán timeout.
+  - id: b06
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền một từ tiếng Anh cho chính xác: Khi A gọi B mà quá hạn chờ vẫn không thấy trả lời, A chỉ
+      có thể **phỏng đoán** rằng B đã chết; quyết định này dựa trên một ngưỡng chờ gọi là ______. Cơ
+      chế gửi nhịp tim định kỳ để phát hiện node chết gọi là ______, và nó có thể báo chết nhầm khi có
+      GC pause hoặc network blip.
+    blanks:
+      - {accept: ["timeout", "time-out", "time out"]}
+      - {accept: ["heartbeat", "heartbeats", "heart-beat"]}
+    explain_md: "**Timeout** là ngưỡng chờ ta tự chọn để kết luận node đã chết — một phỏng đoán, không phải sự thật. **Heartbeat** là nhịp tim định kỳ; vì nó cũng dựa trên timeout nên một GC pause hay network blip đủ để nó báo chết nhầm (false-positive)."
+  - id: b07
+    type: text
+    md: |
+      Vì sao phỏng đoán sai lại nguy hiểm? Vì hệ **hành động** dựa trên kết luận "nó chết rồi". Hình
+      dung node A đang giữ vai trò leader (hoặc đang cầm một **lock** để ghi vào kho dùng chung). A bị
+      một GC pause 10 giây; cả hệ tưởng A chết nên **bầu B lên làm leader mới** (hoặc cấp lock cho B).
+      Rồi A tỉnh dậy — nó **không hề biết mình đã bị thay** — và tiếp tục ghi như chưa có gì xảy ra.
+      Bây giờ **cả A lẫn B đều tin mình là leader / đều cầm lock** và cùng ghi vào kho: đây chính là
+      **split brain** (não chẻ đôi), dẫn tới dữ liệu hỏng, ghi đè lẫn nhau. Gốc rễ: một phỏng đoán
+      timeout sai đã biến thành hành động thật.
+  - id: b08
+    type: text
+    md: |
+      Cách chặn hậu quả là **fencing token** (vé chặn): mỗi lần hệ cấp quyền leader/lock, nó kèm một
+      **số tăng dần đều** (monotonic) — ví dụ A nhận token 33, khi B được cấp sau thì B nhận token 34.
+      Điều cốt lõi là **kho tài nguyên (resource) kiểm tra con số này ở mỗi lần ghi** và **từ chối bất
+      kỳ token nào nhỏ hơn số lớn nhất nó đã thấy**. Kịch bản split brain ở trên được hóa giải: sau khi
+      B ghi với token 34, kho đã "thấy" 34; A tỉnh dậy ghi với token 33 cũ, kho so sánh 33 < 34 và
+      **từ chối** — kẻ cũ bị chặn trước khi gây hại. Mấu chốt: không cần biết chắc A đã chết hay chưa;
+      chỉ cần đảm bảo **một tay chơi cũ (stale) không thể làm hỏng dữ liệu**. Fencing token không ngăn
+      được việc phỏng đoán sai, nó **chặn hậu quả** của phỏng đoán sai.
+  - id: b09
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Node cũ A (token 33) bị treo rồi tỉnh dậy và cố ghi vào kho, trong khi B (token 34) đã ghi trước đó. Vì sao **fencing token** chặn được A?"
+    options:
+      - {id: a, text_md: "Vì fencing token giúp hệ biết chắc chắn A đã chết nên không cho A chạy lại."}
+      - {id: b, text_md: "Vì **kho** so sánh token kèm lệnh ghi với số lớn nhất đã thấy (34) và **từ chối** token 33 nhỏ hơn, dù A vẫn tưởng mình là leader."}
+      - {id: c, text_md: "Vì A khi tỉnh dậy sẽ tự động biết token của mình đã cũ và không ghi nữa."}
+      - {id: d, text_md: "Vì fencing token làm cho mạng không bao giờ rớt tin nữa."}
+    answer: [b]
+    explain_md: "Sức mạnh nằm ở chỗ **kho tài nguyên tự kiểm tra** token: nó nhớ số lớn nhất đã thấy (34) và từ chối mọi token nhỏ hơn. (a) sai — không ai biết chắc A chết; chính vì **không** biết nên mới cần fencing. (c) sai — A không hề biết mình đã bị thay. (d) sai — fencing token không sửa được mạng, nó chỉ chặn tay chơi cũ gây hại."
+  - id: b10
+    type: callout
+    kind: interview
+    md: |
+      **Chuẩn mức 3 (hỏi đúng là ra).** Khi được hỏi "làm sao phát hiện một node chết", đừng trả lời
+      cụt "dùng timeout". Hãy ghi điểm theo đúng ba ý: (1) **kể các kiểu lỗi** — crash-stop,
+      crash-recovery, omission, network partition, và nói rõ Byzantine thường ngoài phạm vi hệ nội bộ;
+      (2) **giải thích vì sao timeout/heartbeat không tuyệt đối** — không tách được "chết" với "chậm"
+      hay "tin bị rớt", nên chúng là phỏng đoán và false-positive được (GC pause, network blip);
+      (3) **chốt bằng cách chặn hậu quả** — fencing token với số tăng dần được **kho kiểm tra** để
+      loại một leader/lock-holder cũ, tránh split brain. Người phỏng vấn chấm việc bạn hiểu "timeout
+      là phỏng đoán" và biết chặn hậu quả, chứ không chấm tên công nghệ.
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "**Partial failure** là cái khó đặc trưng của hệ phân tán: vài node/mạng hỏng trong khi phần còn lại vẫn chạy, và node sống không biết chắc node kia còn sống hay đã chết."
+      - "Các kiểu lỗi: **crash-stop**, **crash-recovery**, **omission** (mất tin), **network partition**, và **Byzantine** (tùy tiện/gian lận — thường ngoài phạm vi hệ nội bộ)."
+      - "Không thể phân biệt node **chết** với node **chậm** hay **tin bị rớt**; **timeout** chỉ là một phỏng đoán, không phải sự thật."
+      - "**Heartbeat** + failure detector cũng dựa trên timeout nên **báo chết nhầm** (false-positive) được khi có GC pause hoặc network blip."
+      - "Phỏng đoán sai mà đem ra hành động gây **split brain** (hai leader / hai node cùng cầm lock cùng ghi) và hỏng dữ liệu."
+      - "**Fencing token** (số tăng dần, được **kho** kiểm tra và từ chối số cũ) không ngăn phỏng đoán sai nhưng **chặn hậu quả**: một tay chơi cũ không thể làm hỏng dữ liệu."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S130], l2: [S131], l3: [S132]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"
