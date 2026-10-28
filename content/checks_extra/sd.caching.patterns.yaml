@@ -1,0 +1,59 @@
+subtopic_id: sd.caching.patterns
+items:
+  - id: S073
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Nói ngắn gọn: **cache-aside (lazy loading)** và **write-through** khác nhau thế nào về cách xử lý
+      đọc và ghi?
+    answer_md: |
+      **Cache-aside** là pattern *đọc*: app hỏi cache trước; nếu **miss** thì app đọc DB, bỏ kết quả
+      vào cache rồi trả về (chỉ nạp thứ được hỏi tới — nạp lười). **Write-through** là pattern *ghi*:
+      mỗi lần ghi, ghi **cache và DB cùng lúc (đồng bộ)** rồi mới báo xong, nên cache luôn khớp DB
+      (nhất quán) nhưng ghi chậm hơn. Hai cái trả lời hai câu hỏi khác nhau (đọc so với ghi) và thường
+      được ghép với nhau.
+    rubric_md: "Đạt khi nêu đúng: cache-aside = đọc, app nạp cache khi miss; write-through = ghi, ghi cache và DB cùng lúc để nhất quán. Đúng ý: bằng chứng điểm 1; lẫn lộn đọc/ghi hoặc thiếu một vế: tối đa điểm 0."
+  - id: S074
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Một trang **sản phẩm** đọc rất nhiều, giá thỉnh thoảng mới đổi, và khi giá đổi thì người dùng
+      **phải thấy giá mới ngay** (không được thấy giá cũ). Hãy chọn pattern caching và giải thích:
+      (1) pattern **đọc** nào; (2) pattern **ghi** nào để bảo đảm thấy giá mới ngay; (3) nếu thay bằng
+      **write-back** thì rủi ro gì xuất hiện?
+    answer_md: |
+      (1) Chiều đọc dùng **cache-aside (lazy loading)**: tải read-heavy, chỉ nạp sản phẩm được xem,
+      và cache chết thì vẫn đọc được DB.
+      (2) Chiều ghi dùng **write-through**: mỗi lần đổi giá ghi cache và DB cùng lúc, nên cache luôn
+      khớp DB và lần đọc ngay sau đó thấy **giá mới** (nhất quán). Ghi chậm hơn một chút nhưng giá đổi
+      hiếm nên không sao. (Có thể bổ sung: hoặc ghi DB rồi *vô hiệu hóa/invalidate* khóa cache để lần
+      đọc sau nạp lại giá mới.)
+      (3) Nếu dùng **write-back**: lần đổi giá được báo "xong" khi mới chỉ vào cache, DB chưa có; nếu
+      cache chết trước khi flush thì **giá mới đã ghi bị mất**, và trong lúc chờ flush DB vẫn giữ giá
+      cũ — không hợp với yêu cầu "thấy giá mới ngay / không mất".
+    rubric_md: "Đạt khi nêu đúng cả 3 ý: đọc = cache-aside (và vì sao, read-heavy/chịu lỗi), ghi = write-through cho nhất quán (hoặc write + invalidate), và chỉ ra write-back gây mất dữ liệu/không khớp. Đúng, trong time-box, tự giải thích được: bằng chứng điểm 2. Chọn đúng nhưng không giải thích được vì sao write-through nhất quán, hoặc không nêu rủi ro write-back: tối đa điểm 1."
+  - id: S075
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      Một dịch vụ nhận **40.000 đọc/giây**; DB phía sau chịu an toàn tối đa **4.000 đọc/giây**. Tải
+      **ghi** cũng rất lớn (đếm sự kiện) và chấp nhận mất một ít dữ liệu khi sự cố. Hãy: (1) chọn
+      pattern **đọc** và **ghi** theo tỉ lệ đọc/ghi và giải thích; (2) **tính hit ratio tối thiểu**
+      cần đạt để cache đỡ đủ tải (ghi rõ công thức); (3) nêu **rủi ro mất dữ liệu của write-back** và
+      một cách giảm nhẹ.
+    answer_md: |
+      (1) **Đọc**: cache-aside (lazy loading) — tải đọc lớn, chỉ nạp thứ được hỏi, cache chết vẫn đọc
+      được DB. **Ghi**: vì ghi rất nhiều và chấp nhận mất mát nhỏ, dùng **write-back (write-behind)** —
+      ghi vào cache trước, gộp lại đẩy xuống DB theo lô để hạ độ trễ và tải ghi.
+      (2) Chỉ phần đọc **miss** mới xuống DB, nên cần (1 − hit) × 40.000 ≤ 4.000. Công thức:
+      **hit ≥ 1 − (sức DB / tổng tải) = 1 − 4.000/40.000 = 1 − 0,10 = 0,90 → hit ≥ 90%.** Nếu dữ liệu
+      không đủ "nóng" để đạt 90% thì caching không đáng và phải đổi cách (thêm replica, tăng DB...).
+      (3) **Rủi ro write-back**: những lần ghi **đã báo thành công** nằm trong cache nhưng chưa flush;
+      nếu cache chết trước lần flush thì số liệu đó **mất vĩnh viễn**, và DB tạm thời không khớp cache.
+      Giảm nhẹ: flush thường xuyên hơn (giảm cửa sổ mất), dùng cache có ghi bền/nhân bản (ví dụ AOF của
+      Redis, replica), hoặc chỉ áp write-back cho dữ liệu chịu được mất (đếm/log) chứ không cho dữ liệu
+      tiền bạc.
+    rubric_md: "Đạt (mức phỏng vấn) khi làm đủ: (1) chọn đúng cache-aside + write-back kèm lý do dựa trên tỉ lệ đọc/ghi; (2) tính đúng hit ≥ 90% với công thức hit ≥ 1 − sức DB/tổng tải; (3) nêu đúng rủi ro mất dữ liệu đã ack của write-back và ít nhất một cách giảm nhẹ. Đúng, trong time-box, tự giải thích rõ ràng: bằng chứng điểm 3. Sai phép tính hit ratio, hoặc không nêu được rủi ro/giảm nhẹ của write-back: chưa đạt mức 3."

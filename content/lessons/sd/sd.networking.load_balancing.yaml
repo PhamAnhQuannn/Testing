@@ -1,0 +1,147 @@
+id: sd.networking.load_balancing
+version: 1
+status: published
+title_vi: "Cân bằng tải (load balancing): L4/L7, thuật toán, health check"
+est_minutes: 13
+objectives_vi:
+  - "Phân biệt cân bằng tải **L4** (tầng giao vận, transport, TCP/UDP) và **L7** (tầng ứng dụng, application, HTTP) và nêu đúng đánh đổi giữa chúng."
+  - "Chọn đúng **thuật toán** chia tải cho API thường so với kết nối giữ lâu, và giải thích health check (active/passive) để loại server chết."
+  - "Giải thích vì sao **chính load balancer** cũng là điểm chết (SPOF) và cách làm nó dự phòng."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Nhắc lại từ bài **scalability**: muốn scale ngang (horizontal) thì service phải **stateless** —
+      không giữ phiên (session) trong RAM riêng — để request bất kỳ vào máy nào cũng xử lý được. Thứ
+      đứng trước nhóm máy stateless đó và rải request chính là **load balancer (LB)**:
+
+      - Client chỉ biết **một địa chỉ** (của LB); phía sau có bao nhiêu server là chuyện của LB.
+      - LB nhận request, chọn một server **còn khỏe**, chuyển cho nó, rồi trả kết quả về client.
+      - Thêm server chỉ cần báo cho LB; bỏ server chết cũng là việc của LB.
+
+      Vậy LB phải trả lời ba câu: chia ở **tầng nào** (L4 hay L7), chia theo **thuật toán nào**, và làm
+      sao biết server nào **đang chết** để khỏi gửi request vào đó.
+  - id: b02
+    type: text
+    md: |
+      **L4 (tầng giao vận, transport — TCP/UDP) so với L7 (tầng ứng dụng, application — HTTP).**
+
+      - **L4:** chia theo **kết nối mạng** (TCP/UDP), **không đọc nội dung** gói tin. Nó chỉ nhìn
+        IP/port rồi đẩy luồng byte sang một server. Rất **nhanh**, nhẹ CPU, chịu được lượng kết nối
+        khổng lồ — nhưng **"mù"**: không biết URL, không biết header, không thể định tuyến theo đường
+        dẫn hay kết thúc TLS.
+      - **L7:** **đọc được HTTP** (URL, header, cookie) nên **định tuyến thông minh**: `/api` về nhóm
+        A, `/images` về nhóm B; chia theo header/cookie; **kết thúc TLS (TLS termination)** — giải mã
+        HTTPS ngay tại LB rồi nói HTTP thuần với server phía sau. Đổi lại, nó phải parse và giải mã nên
+        **tốn CPU hơn** và chậm hơn L4.
+
+      **Đánh đổi (tradeoff):** L4 nhanh và đơn giản nhưng không hiểu nội dung; L7 hiểu nội dung nên
+      định tuyến/bảo mật tinh vi hơn nhưng làm nhiều việc hơn. Cần routing theo path/header hay cần
+      kết thúc TLS thì chọn L7; chỉ cần rải luồng TCP/UDP thô thật nhanh thì L4 là đủ.
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Bạn cần đưa `/api/*` về nhóm server ứng dụng và `/static/*` về nhóm phục vụ ảnh, đồng thời kết thúc TLS (TLS termination) ngay tại cửa. Nên dùng LB tầng nào, và vì sao?"
+    options:
+      - {id: a, text_md: "L4, vì nó nhanh hơn và mọi việc định tuyến theo đường dẫn đều làm được ở tầng giao vận."}
+      - {id: b, text_md: "L7, vì chỉ L7 đọc được URL/header HTTP để chia theo path và có thể kết thúc TLS; L4 'mù' nội dung nên không làm được."}
+      - {id: c, text_md: "Tầng nào cũng được, vì L4 và L7 chỉ khác nhau ở tốc độ chứ không khác khả năng."}
+    answer: [b]
+    explain_md: "Chia theo `/api` vs `/static` là định tuyến theo **nội dung HTTP**, và TLS termination cũng là việc ở tầng ứng dụng — chỉ **L7** làm được. (a) sai vì L4 không đọc URL; (c) sai vì chúng khác nhau về khả năng, không chỉ tốc độ."
+  - id: b04
+    type: text
+    md: |
+      **Thuật toán chia tải** — LB chọn server phía sau theo một trong các cách:
+
+      - **Round robin:** lần lượt A, B, C, A, B, C... Đơn giản, công bằng khi các server **đồng đều**
+        và mỗi request **tốn gần như nhau**.
+      - **Weighted (có trọng số):** máy mạnh nhận nhiều hơn. Trọng số 1:1:2 nghĩa là C gánh gấp đôi A
+        và B. Dùng khi phần cứng **không đồng đều**.
+      - **Least connections (ít kết nối nhất):** gửi tới server **đang giữ ít kết nối nhất**. Tốt khi
+        thời lượng mỗi request **chênh lệch lớn** hoặc kết nối **sống lâu**, vì round robin dễ dồn
+        nhiều kết nối dài vào cùng một máy.
+      - **Hash theo IP / consistent hash:** băm IP khách (hoặc một khóa) để **cùng một khách luôn vào
+        cùng một server** (affinity). Giúp tận dụng cache cục bộ; **consistent hash** còn hạn chế xáo
+        trộn khi thêm/bớt server. Đây cũng là cách làm **sticky session** (dính phiên).
+
+      **Lưu ý về sticky session:** buộc một khách về đúng một máy khiến **tải lệch** và **mất phiên khi
+      máy đó chết**. Giải pháp sạch hơn vẫn là **đẩy phiên ra kho chung** (DB/Redis) để service
+      stateless — đúng tinh thần bài scalability; chỉ dùng sticky khi bắt buộc.
+  - id: b05
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Hệ của bạn giữ **1 triệu kết nối WebSocket sống rất lâu** (mỗi kết nối tồn tại hàng giờ). Nên ưu tiên thuật toán chia tải nào, và vì sao **round robin** dễ gây lệch?"
+    options:
+      - {id: a, text_md: "Round robin, vì nó luôn chia đều tuyệt đối trong mọi tình huống."}
+      - {id: b, text_md: "Least connections, vì kết nối sống lâu khiến round robin dồn nhiều kết nối còn-sống vào cùng một máy; chọn máy đang ít kết nối nhất mới cân bằng được số kết nối đang mở."}
+      - {id: c, text_md: "IP hash, vì mục tiêu chính ở đây là giữ mỗi khách vào đúng một máy cố định."}
+    answer: [b]
+    explain_md: "Với kết nối giữ lâu, số kết nối **đang mở** mới là tải thật, nên **least connections** cân bằng tốt nhất. Round robin chỉ đếm 'lượt phát' chứ không biết kết nối cũ vẫn còn sống, nên theo thời gian một số máy phình kết nối. (a) sai vì round robin chỉ đều khi tải mỗi lượt gần nhau; (c) sai vì affinity không phải mục tiêu ở đây."
+  - id: b06
+    type: text
+    md: |
+      **Health check — làm sao LB biết server nào đã chết để loại ra.**
+
+      - **Active (chủ động):** LB **tự gọi thử** một endpoint (ví dụ `GET /health`) theo chu kỳ (vài
+        giây một lần). Thất bại vài lần liên tiếp thì LB **tạm bỏ** server khỏi danh sách; khỏe lại
+        (vài lần thành công) thì **thêm vào lại**. Phát hiện sớm, nhưng tốn thêm lưu lượng thăm dò.
+      - **Passive (bị động):** LB **quan sát chính traffic thật** đi qua — nếu một server liên tục trả
+        lỗi/timeout, LB suy ra nó hỏng và ngừng gửi tới. Không tốn request thăm dò, nhưng chỉ biết sau
+        khi đã có khách bị dính lỗi.
+
+      Thực tế thường **kết hợp cả hai**. Điểm mấu chốt: nhờ service **stateless**, loại một server ra
+      hay thêm vào lại đều **không làm mất dữ liệu phiên** của khách — phiên nằm ở kho chung, không nằm
+      trong máy vừa chết.
+  - id: b07
+    type: quiz_fill
+    graded: true
+    prompt_md: "Điền thuật ngữ. LB **tự gọi thử** một endpoint theo chu kỳ để kiểm tra server là health check loại ___(1)___; còn khi LB **suy ra** server hỏng từ chính lỗi của traffic thật đi qua nó là health check loại ___(2)___."
+    blanks:
+      - accept: ["active", "chủ động", "active (chủ động)", "chủ động (active)", "chu dong"]
+      - accept: ["passive", "bị động", "passive (bị động)", "bị động (passive)", "bi dong"]
+    explain_md: "**Active (chủ động)** = LB tự thăm dò `/health` định kỳ, phát hiện sớm. **Passive (bị động)** = LB nhìn lỗi/timeout của request thật để kết luận server hỏng. Thực tế thường dùng kết hợp cả hai."
+  - id: b08
+    type: text
+    md: |
+      **Chính LB cũng là một điểm chết (single point of failure — SPOF).** Nếu chỉ có một LB mà nó
+      sập thì toàn hệ không nhận được request nào, dù server phía sau vẫn khỏe. Vì vậy phải cho **bản
+      thân LB dự phòng**:
+
+      - **Active–passive (chính – dự phòng):** hai LB, một đang chạy và một chờ. Chúng chia nhau một
+        **IP nổi (floating IP / VIP)** qua giao thức như **VRRP**; LB chính chết thì LB dự phòng
+        **giành lấy IP đó (failover)** và tiếp tục phục vụ — client không phải đổi địa chỉ.
+      - **Active–active:** nhiều LB **cùng nhận việc**, chia lưu lượng bằng **anycast/ECMP** (nhiều LB
+        quảng bá cùng một IP, mạng tự rải) hoặc bằng **DNS** (trả về nhiều IP LB; một cái chết thì bỏ
+        khỏi danh sách DNS). Vừa chịu lỗi vừa tăng thông lượng.
+      - **Toàn cầu (GSLB):** dùng DNS/anycast đưa khách tới **vùng (region) gần và còn khỏe**; vùng
+        chết thì chuyển sang vùng khác.
+
+      Ý cốt lõi cho phỏng vấn: **đừng để bất cứ một hộp nào đứng một mình** trên đường đi của request —
+      kể cả cái hộp sinh ra để chống chết là load balancer.
+  - id: b09
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn.** Khi được hỏi "đặt load balancer thế nào", trả lời theo bốn nhịp gọn: (1)
+      **tầng** — cần routing theo path/header hay TLS termination thì **L7**, chỉ rải TCP/UDP thô thật
+      nhanh thì **L4**; (2) **thuật toán** — API thường, request ngắn, server đồng đều thì **round
+      robin/weighted**, còn kết nối **giữ lâu** (WebSocket) thì **least connections**; (3) **health
+      check** active + passive để **loại server chết**; (4) **LB dự phòng** (active–passive với
+      floating IP, hoặc active–active qua anycast/DNS) để LB **không thành SPOF**. Luôn gắn với ý
+      service **stateless** để biện minh vì sao rải tự do và tránh sticky session.
+  - id: b10
+    type: summary
+    bullets_vi:
+      - "LB đứng trước nhóm server stateless, rải request và bỏ qua server chết; client chỉ biết một địa chỉ."
+      - "**L4** (TCP/UDP) nhanh nhưng 'mù' nội dung; **L7** (HTTP) đọc URL/header nên định tuyến theo path và kết thúc TLS được, đổi lại tốn CPU hơn."
+      - "Thuật toán: round robin/weighted cho API thường; **least connections** cho kết nối giữ lâu (WebSocket); hash IP/consistent hash để affinity nhưng sticky session thì nên tránh (đẩy phiên ra kho chung)."
+      - "Health check **active** (LB tự gọi `/health`) và **passive** (quan sát lỗi traffic thật) để loại và thêm lại server; thường kết hợp cả hai."
+      - "Chính LB cũng là **SPOF**: dùng nhiều LB dự phòng — active–passive với floating IP (VRRP/failover) hoặc active–active qua anycast/ECMP/DNS (và GSLB cho đa vùng)."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S088], l2: [S089], l3: [S090]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

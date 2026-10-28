@@ -1,0 +1,154 @@
+id: sd.caching.failure_modes
+version: 1
+status: published
+title_vi: "Sự cố cache: stampede, penetration, avalanche, hot key"
+est_minutes: 13
+objectives_vi:
+  - "Gọi tên và nhận ra đủ 4 tai nạn cache kinh điển: stampede (thundering herd), penetration, avalanche, hot key."
+  - "Nêu đúng cách chữa từng tai nạn và hiểu vì sao cách đó hiệu quả."
+  - "Áp đúng các cách chữa vào một thiết kế đang bàn khi cache bắt đầu làm sập database."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Cache đứng trước database (DB) để chắn phần lớn lượt đọc: khi cache **trúng** (hit), DB gần như
+      không phải làm gì. Nguy hiểm nằm ở lúc lá chắn này **thủng** — khi cache trượt (miss), hết hạn,
+      hoặc chính cụm cache chết. Lúc đó tải dồn thẳng xuống DB, mà DB vốn được thiết kế cho **tải đã
+      được cache làm nhẹ đi**, nên dễ sập theo kiểu dây chuyền (cascading failure).
+
+      Có **bốn tai nạn cache kinh điển** mà người phỏng vấn hay hỏi. Cả bốn đều có chung một hậu quả —
+      DB bị đổ ập — nhưng khác nhau ở **nguyên nhân**, nên cách chữa cũng khác nhau. Hãy học theo cặp
+      "hiện tượng → cách chữa":
+      - **Cache stampede (thundering herd)** — một khóa nóng vừa hết hạn.
+      - **Cache penetration** — hỏi những khóa **không tồn tại**.
+      - **Cache avalanche** — **nhiều** khóa cùng hết hạn, hoặc cả cụm cache chết.
+      - **Hot key** — **một** khóa bị hỏi quá nhiều, dồn vào một máy.
+  - id: b02
+    type: text
+    md: |
+      **1) Cache stampede (còn gọi là thundering herd — "đàn trâu húc").** Một khóa phổ biến (ví dụ
+      dữ liệu trang chủ) hết hạn đúng lúc đang có hàng nghìn yêu cầu/giây. Tất cả cùng thấy cache
+      trống trong cùng một khoảnh khắc, nên **cùng lúc** đổ xuống DB để tính lại một giá trị giống
+      hệt nhau. DB nhận một cú đấm tập trung cho **một** khóa.
+
+      Cách chữa là đảm bảo **chỉ một** yêu cầu đi tính lại, số còn lại chờ hoặc dùng giá trị cũ:
+      - **Gộp yêu cầu / khóa đơn luồng (request coalescing / single-flight lock):** yêu cầu đầu tiên
+        giành một khóa (lock) rồi đi lấy dữ liệu; các yêu cầu khác thấy khóa đã bị giữ thì **chờ** kết
+        quả đó thay vì cũng xuống DB.
+      - **Tính lại sớm (early recomputation):** làm mới giá trị **trước** khi nó hết hạn (ví dụ khi
+        gần hết hạn, một yêu cầu được chọn ngẫu nhiên sẽ đi tính lại trong nền), để khóa không bao giờ
+        thực sự trống dưới tải cao.
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một khóa cache rất nóng vừa hết hạn và hàng nghìn yêu cầu đồng thời cùng đổ xuống DB để tính lại **đúng một** giá trị. Đây là tai nạn gì và cách chữa trực tiếp nhất là gì?"
+    options:
+      - {id: a, text_md: "Cache penetration; chữa bằng cách cache kết quả 'không có' (null caching)."}
+      - {id: b, text_md: "Cache stampede (thundering herd); chữa bằng gộp yêu cầu / khóa đơn luồng (single-flight) để chỉ một yêu cầu đi tính lại, hoặc tính lại sớm trước khi hết hạn."}
+      - {id: c, text_md: "Hot key; chữa bằng cách tăng TTL của khóa đó lên thật dài."}
+    answer: [b]
+    explain_md: "Nhiều yêu cầu cùng dồn vào **một** khóa vừa hết hạn chính là stampede/thundering herd; cách chữa là để chỉ một yêu cầu tính lại (single-flight) hoặc làm mới sớm. (a) penetration là hỏi khóa *không tồn tại*, khác nguyên nhân. (c) tăng TTL không ngăn cú đổ dồn tại thời điểm hết hạn, và hot key là vấn đề *lượng truy cập* chứ không phải hết hạn."
+  - id: b04
+    type: text
+    md: |
+      **2) Cache penetration (xuyên cache).** Các yêu cầu hỏi những khóa **không tồn tại** — ví dụ bot
+      quét ID sản phẩm ngẫu nhiên không có thật. Vì giá trị không tồn tại, cache **không bao giờ** có
+      để trả về, nên **mọi** yêu cầu đều trượt cache và xuống thẳng DB. Đây là lỗ hổng hay bị kẻ xấu
+      khai thác để ép tải DB.
+
+      Hai cách chữa chuẩn:
+      - **Cache cả kết quả rỗng (null caching / negative caching):** khi DB trả về "không có", vẫn ghi
+        vào cache một dấu "rỗng" với TTL **ngắn**. Lần hỏi sau cho cùng khóa đó sẽ trúng cache (dấu
+        rỗng) và không chạm DB. TTL ngắn để nếu dữ liệu được tạo thật thì ta không chặn nhầm quá lâu.
+      - **Bloom filter:** một cấu trúc nhỏ, đặt trước cache, trả lời nhanh câu "khóa này **chắc chắn
+        không** tồn tại". Nếu Bloom filter nói không có, ta chặn ngay, không cần hỏi cache lẫn DB.
+        Bloom filter có thể báo nhầm "có" (false positive) nhưng **không bao giờ** báo nhầm "không có",
+        nên dùng để chặn là an toàn.
+  - id: b05
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Tại sao việc liên tục hỏi những khóa **không tồn tại** lại nguy hiểm, và **null caching** (cache kết quả rỗng) chữa nó bằng cách nào?"
+    options:
+      - {id: a, text_md: "Nguy hiểm vì khóa không tồn tại thì cache không bao giờ có để trả, nên mọi yêu cầu đều trượt xuống DB; null caching ghi một dấu 'rỗng' (TTL ngắn) để lần sau trúng cache và không chạm DB."}
+      - {id: b, text_md: "Nguy hiểm vì khóa không tồn tại chiếm hết RAM của cache; null caching giải phóng RAM bằng cách xóa chúng."}
+      - {id: c, text_md: "Nguy hiểm vì nhiều khóa cùng hết hạn một lúc; null caching rải TTL ra để chúng hết hạn lệch nhau."}
+    answer: [a]
+    explain_md: "Khóa không tồn tại luôn trượt cache nên mọi lượt hỏi đều xuống DB (penetration); null caching lưu dấu 'rỗng' với TTL ngắn để chặn các lượt hỏi lặp lại. (b) sai về cơ chế. (c) là mô tả avalanche và TTL jitter, không phải penetration."
+  - id: b06
+    type: text
+    md: |
+      **3) Cache avalanche (lở tuyết cache).** Khác với stampede (một khóa), avalanche là **rất nhiều**
+      khóa cùng biến mất gần như đồng thời. Hai kiểu thường gặp: (a) một loạt khóa được nạp cùng lúc
+      nên có **cùng TTL** và **cùng hết hạn** một lượt; (b) **cả cụm cache chết** (restart, mất mạng),
+      làm toàn bộ lượt đọc rơi xuống DB cùng lúc. Kết quả: DB nhận tải gấp nhiều lần mức nó chịu được.
+
+      Cách chữa đi theo ba lớp:
+      - **TTL lệch ngẫu nhiên (TTL jitter / staggered TTL):** thêm một lượng ngẫu nhiên vào TTL (ví dụ
+        10 phút ± vài phút) để các khóa hết hạn **rải ra** chứ không cùng một lúc.
+      - **Cache nhiều tầng (layered cache):** thêm một tầng cache cục bộ trong tiến trình (in-process,
+        L1) trước tầng cache dùng chung (L2); nếu L2 trống hoặc chết, L1 vẫn đỡ được một phần.
+      - **Bảo vệ DB (DB protection):** đặt giới hạn tốc độ / số kết nối (rate limit, circuit breaker)
+        trước DB, và **làm nóng cache (warm-up)** trước khi mở lưu lượng, để một đợt trượt ồ ạt không
+        kéo sập DB. Cache chết thì app vẫn phải chạy, nhưng xuống DB **có kiểm soát**.
+  - id: b07
+    type: quiz_fill
+    graded: true
+    prompt_md: "Nhiều khóa được nạp cùng lúc nên có cùng TTL và cùng hết hạn một lượt, khiến DB bị đổ ập. Tai nạn này gọi là cache ______ (một từ tiếng Anh). Cách chữa đơn giản nhất là thêm một lượng ______ vào TTL để các khóa hết hạn lệch nhau."
+    blanks:
+      - accept: ["avalanche"]
+      - accept: ["ngẫu nhiên", "jitter", "ngau nhien", "random", "ngẫu nhiên (jitter)"]
+    explain_md: "Nhiều khóa cùng hết hạn (hoặc cả cụm cache chết) là **avalanche**; thêm một lượng **ngẫu nhiên** vào TTL (TTL jitter) để chúng hết hạn rải ra, không dồn vào một thời điểm. Kèm theo là cache nhiều tầng và bảo vệ DB."
+  - id: b08
+    type: text
+    md: |
+      **4) Hot key (khóa nóng).** Đây **không** phải vấn đề hết hạn mà là vấn đề **phân bố tải**: một
+      khóa duy nhất (ví dụ bài của người nổi tiếng) bị hỏi quá nhiều — hàng trăm nghìn lượt/giây — và
+      vì khóa đó nằm trên **một** node cache, chính node đó quá tải dù cả cụm còn rảnh. Lưu ý: ở đây
+      cache vẫn **trúng**, nhưng một máy không kham nổi lượng truy cập dồn vào.
+
+      Cách chữa là **tản** tải của khóa nóng ra:
+      - **Bản sao cục bộ / cache phía client (local replica / client-side cache):** cache luôn giá trị
+        của khóa nóng ngay trong RAM của mỗi app server, với TTL rất ngắn; phần lớn lượt đọc được phục
+        vụ tại chỗ, không chạm tới cụm cache.
+      - **Tách khóa (split key / key replication):** nhân khóa nóng thành nhiều bản `key_1..key_N` nằm
+        trên các node khác nhau; mỗi yêu cầu chọn ngẫu nhiên một bản, nhờ đó tải được chia đều ra nhiều
+        máy thay vì dồn vào một node.
+  - id: b09
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một bài viết của người nổi tiếng bị hỏi 200.000 lần/giây, tất cả vào **cùng một** khóa cache nằm trên một node; node đó quá tải dù các node khác còn rảnh. Cách chữa **phù hợp nhất** là gì?"
+    options:
+      - {id: a, text_md: "Cache kết quả rỗng (null caching) cho khóa đó."}
+      - {id: b, text_md: "Tản tải của khóa nóng: cache bản sao cục bộ trong mỗi app server (TTL ngắn) và/hoặc tách khóa thành nhiều bản trên nhiều node (key_1..key_N)."}
+      - {id: c, text_md: "Để đúng một khóa và chỉ cho một yêu cầu tính lại bằng khóa đơn luồng (single-flight)."}
+    answer: [b]
+    explain_md: "Đây là **hot key**: cache vẫn trúng nhưng tải dồn vào một node; chữa bằng cách tản tải — bản sao cục bộ phía client và tách khóa ra nhiều node. (a) null caching dành cho khóa *không tồn tại* (penetration). (c) single-flight chỉ chống việc đổ dồn khi *hết hạn* (stampede), không giảm được lượng đọc khi cache đang trúng."
+  - id: b10
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn.** Mức 3 của chủ đề này là: **gọi tên đủ 4 tai nạn, nêu cách chữa từng cái, và
+      áp đúng vào thiết kế đang bàn**. Khi giám khảo nói "nếu cache hỏng thì sao?", đừng gộp chung mà
+      hãy phân loại theo nguyên nhân: *một khóa hết hạn* → stampede (single-flight / tính lại sớm);
+      *hỏi khóa không có* → penetration (null caching / Bloom filter); *nhiều khóa cùng hết hạn hoặc
+      cụm cache chết* → avalanche (TTL jitter + cache nhiều tầng + bảo vệ DB); *một khóa quá nóng* →
+      hot key (bản sao cục bộ / tách khóa). Chốt lại bằng một câu phòng thủ chung: **cache chết thì app
+      vẫn phải chạy** — xuống DB nhưng có giới hạn tốc độ. Giám khảo chấm việc bạn *chẩn đoán đúng
+      nguyên nhân rồi chọn đúng thuốc*, không chấm việc kể tên.
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "Cache che chắn DB; khi cache thủng (trượt, hết hạn, hoặc cụm chết) tải dồn xuống DB và dễ gây sập dây chuyền. Có 4 tai nạn kinh điển, chung hậu quả nhưng khác nguyên nhân."
+      - "Stampede (thundering herd): một khóa nóng hết hạn, nhiều yêu cầu cùng tính lại → chữa bằng gộp yêu cầu / khóa đơn luồng (single-flight) hoặc tính lại sớm."
+      - "Penetration: hỏi khóa **không tồn tại** nên luôn trượt cache → chữa bằng cache kết quả rỗng (null caching, TTL ngắn) hoặc Bloom filter chặn trước."
+      - "Avalanche: **nhiều** khóa cùng hết hạn hoặc cụm cache chết → chữa bằng TTL lệch ngẫu nhiên (jitter), cache nhiều tầng, và bảo vệ/làm nóng DB."
+      - "Hot key: **một** khóa bị hỏi quá nhiều dồn vào một node (cache vẫn trúng) → chữa bằng bản sao cục bộ / cache phía client và tách khóa ra nhiều node."
+      - "Nguyên tắc chung: chẩn đoán theo nguyên nhân rồi chọn đúng cách chữa, và luôn lo sẵn đường lui khi cache chết (xuống DB có giới hạn tốc độ)."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S079], l2: [S080], l3: [S081]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

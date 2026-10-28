@@ -1,0 +1,155 @@
+id: sd.caching.eviction_invalidation
+version: 1
+status: published
+title_vi: "Eviction và invalidation của cache: LRU, TTL và race ghi DB/xóa cache"
+est_minutes: 13
+objectives_vi:
+  - "Phân biệt **eviction** (bỏ bớt khi cache đầy) và **invalidation** (bỏ bản cũ khi dữ liệu gốc đổi), và chọn đúng chính sách eviction (LRU, LFU, FIFO, random, TTL) cho từng tình huống."
+  - "Giải thích cơ chế **LRU** ở mức ý tưởng: hash map cho tra cứu O(1) và danh sách liên kết đôi (doubly linked list) cho dịch chuyển thứ tự mới-dùng O(1)."
+  - "Mô tả **race** giữa ghi database và xóa/cập nhật cache bằng một timeline khiến cache giữ giá trị cũ, và nêu các cách giảm (xóa sau commit, delayed double delete, TTL ngắn, write-through)."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Cache là một kho nhanh nhưng **hữu hạn** (thường nằm trong RAM), đặt trước một kho chậm hơn
+      (database). Vì hữu hạn và vì dữ liệu gốc thay đổi, cache sinh ra hai bài toán khác nhau — đừng
+      lẫn lộn:
+      - **Eviction (bỏ bớt):** cache đầy thì phải *bỏ một mục đang còn hợp lệ* để lấy chỗ cho mục mới.
+        Câu hỏi là "bỏ *cái nào*?" — đây là chuyện **dung lượng**.
+      - **Invalidation (vô hiệu hóa):** dữ liệu gốc trong DB đã đổi, nên bản trong cache **sai** và
+        phải bị bỏ/cập nhật. Câu hỏi là "làm sao cache không trả *bản cũ*?" — đây là chuyện **tính
+        đúng (correctness / consistency)**.
+      Một mục có thể bị bỏ vì hết chỗ (eviction) *hoặc* vì đã cũ (invalidation); hai lý do độc lập nhau.
+  - id: b02
+    type: text
+    md: |
+      **Các chính sách eviction** thường gặp và khi nào hợp:
+      - **LRU (Least Recently Used):** bỏ mục **lâu nhất không được dùng**. Hợp với **tính cục bộ theo
+        thời gian (temporal locality)** — cái vừa dùng dễ được dùng lại. Đây là mặc định tốt cho hầu
+        hết cache đọc.
+      - **LFU (Least Frequently Used):** bỏ mục **ít được dùng nhất** (đếm tần suất). Hợp khi có một
+        nhóm nhỏ "hot" bền vững; nhưng dễ kẹt bởi mục cũ từng rất nóng nhưng nay nguội (cần cơ chế lão
+        hóa đếm).
+      - **FIFO (First In First Out):** bỏ mục **vào sớm nhất**, bất kể có hay dùng. Đơn giản nhưng
+        kém LRU vì không đoái tới việc mục có đang nóng hay không.
+      - **Random:** bỏ một mục **ngẫu nhiên**. Rẻ nhất về bộ nhớ sổ sách, chấp nhận được khi mọi mục
+        gần như ngang giá trị hoặc khi cần tránh chi phí theo dõi thứ tự.
+      - **TTL (Time To Live):** mỗi mục có **hạn sống**; hết hạn thì bị coi là bỏ (hết hạn — expiry).
+        TTL không chọn "cái nào theo dung lượng" mà giới hạn **độ cũ tối đa** — nên nó vừa là eviction
+        theo thời gian, vừa là một công cụ invalidation (sẽ gặp lại ở dưới).
+      Thực tế thường kết hợp: ví dụ LRU cho quyết định dung lượng + TTL cho giới hạn độ cũ.
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một cache đọc có **tính cục bộ theo thời gian** mạnh (mục vừa truy cập rất dễ được truy cập lại ngay sau đó). Chính sách eviction nào thường là mặc định hợp lý nhất?"
+    options:
+      - {id: a, text_md: "FIFO, vì cứ bỏ theo thứ tự vào là công bằng và đơn giản nhất."}
+      - {id: b, text_md: "LRU, vì nó giữ lại đúng những mục vừa được dùng — thứ dễ được dùng lại."}
+      - {id: c, text_md: "Random, vì nó không cần theo dõi gì nên luôn nhanh hơn mọi chính sách khác."}
+    answer: [b]
+    explain_md: "Temporal locality nghĩa là mục mới dùng dễ được dùng lại, nên giữ lại chúng (bỏ mục lâu-nhất-không-dùng) cho tỉ lệ trúng (hit rate) cao — đó chính là LRU. (a) FIFO bỏ theo thứ tự vào, có thể bỏ nhầm mục đang nóng. (c) Random rẻ về sổ sách nhưng bỏ bừa, hit rate kém hơn khi có locality rõ."
+  - id: b04
+    type: text
+    md: |
+      **Cơ chế LRU ở mức ý tưởng** (mô tả, không viết code). LRU cần hai thao tác đều phải **O(1)**:
+      tìm một mục theo khóa, và cập nhật "mục này vừa được dùng". Dùng **hai cấu trúc phối hợp**:
+      - **Hash map** (khóa → nút): cho **tra cứu O(1)**. Từ khóa, nhảy thẳng tới nút chứa giá trị,
+        không phải quét.
+      - **Danh sách liên kết đôi (doubly linked list)** xếp các nút theo **thứ tự mới-dùng**: một đầu
+        là "mới dùng nhất (most recently used)", đầu kia là "lâu nhất không dùng (least recently
+        used)". Liên kết **đôi** (mỗi nút biết nút trước và nút sau) cho phép **gỡ một nút ra khỏi
+        giữa danh sách trong O(1)** mà không phải dò từ đầu.
+      Luồng hoạt động:
+      - **get(key):** tra hash map → nếu có, lấy nút, **gỡ nó khỏi vị trí hiện tại và móc lại vào đầu
+        "mới dùng nhất"** (O(1) nhờ liên kết đôi), rồi trả giá trị.
+      - **put(key, value):** nếu đã có thì cập nhật và đưa lên đầu; nếu mới thì tạo nút, đưa lên đầu
+        và thêm vào hash map. Nếu **vượt sức chứa**, lấy nút ở đầu "lâu nhất không dùng", **xóa khỏi
+        cả danh sách lẫn hash map** — đó là mục bị evict.
+      Mấu chốt: hash map lo "tìm nhanh", danh sách liên kết đôi lo "đổi thứ tự recency nhanh"; thiếu
+      một trong hai thì hoặc tra cứu, hoặc cập nhật thứ tự sẽ không còn O(1).
+  - id: b05
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền hai cấu trúc dữ liệu trong cách cài LRU O(1): dùng một {{blank}} để tra cứu nút theo khóa
+      trong O(1), và một {{blank}} để gỡ/chèn nút theo thứ tự mới-dùng cũng trong O(1).
+    blanks:
+      - accept: ["hash map", "hashmap", "hash table", "bảng băm", "dictionary", "dict"]
+      - accept: ["doubly linked list", "danh sách liên kết đôi", "danh sách liên kết hai chiều", "linked list đôi"]
+    explain_md: "Hash map (bảng băm) cho tra cứu khóa → nút trong O(1); danh sách liên kết đôi cho phép gỡ một nút ở giữa và móc lại vào đầu trong O(1) nhờ mỗi nút biết cả nút trước lẫn nút sau. Hai cấu trúc phối hợp làm cả get lẫn put đạt O(1)."
+  - id: b06
+    type: text
+    md: |
+      **Invalidation — giữ cache không trả bản cũ.** Ba cách chính, đổi nhau giữa *đơn giản* và *độ
+      tươi*:
+      - **TTL (hết hạn theo thời gian):** gắn hạn sống cho mỗi mục; hết hạn thì lần đọc sau nạp lại từ
+        DB. **Đơn giản nhất, không cần phối hợp**, nhưng chấp nhận cache **cũ tới khi hết TTL**. TTL
+        ngắn ⇒ tươi hơn nhưng nhiều lần nạp lại (miss) hơn.
+      - **Xóa/cập nhật tường minh khi ghi (explicit delete on write):** mỗi lần ghi DB thì đồng thời
+        **xóa (hoặc cập nhật) khóa tương ứng** trong cache. **Tươi gần như tức thời**, nhưng phức tạp
+        hơn và dễ sinh **race** (phần dưới): phải nhớ mọi đường ghi, và thao tác cache có thể lỗi.
+      - **Khóa có phiên bản (versioned keys):** nhúng phiên bản vào khóa, ví dụ `v2:user:5`. Khi dữ
+        liệu đổi, **tăng phiên bản** ⇒ khóa mới là một khóa khác, nên **bản cũ tự bị bỏ qua** (không
+        ai đọc trúng nó nữa) và sẽ được eviction dọn dần. Tránh phải xóa đúng khóa cũ, đổi lại là có
+        rác tồn tạm thời trong cache.
+  - id: b07
+    type: text
+    md: |
+      **Race kinh điển: ghi DB và xóa cache.** Khi dùng xóa-khi-ghi, một luồng **đọc chậm** có thể
+      **nạp lại giá trị cũ** vào cache *sau* khi luồng ghi đã xóa — làm cache kẹt bản cũ tới khi hết
+      TTL. Timeline (A = luồng đọc, B = luồng ghi), giá trị DB ban đầu là `V0`:
+      ```
+      T1  A: đọc cache → MISS (khóa không có)
+      T2  A: đọc DB → nhận giá trị cũ V0   (A bị khựng/chậm ngay sau bước này)
+      T3  B: ghi DB  → V1 (giá trị mới)
+      T4  B: xóa khóa trong cache          (lúc này khóa đang rỗng — không có gì để xóa)
+      T5  A: (tỉnh dậy) ghi V0 vào cache    ← nạp lại BẢN CŨ
+      ----
+      Kết quả: cache giữ V0 (cũ) trong khi DB là V1 (mới), kéo dài tới khi khóa hết TTL
+      ```
+      Gốc rễ: A đã đọc `V0` **trước** khi B ghi, nhưng lại **ghi cache sau** thao tác xóa của B. Thao
+      tác xóa của B rơi vào khoảng trống nên vô dụng.
+  - id: b08
+    type: callout
+    kind: interview
+    md: |
+      **Cách giảm race (nói được vài cách là ăn điểm):**
+      - **Xóa cache *sau* khi commit DB (delete-after-commit), không xóa trước.** Nếu xóa *trước* khi
+        ghi DB xong, một lần đọc xen vào sẽ nạp lại ngay bản cũ — gần như chắc chắn hỏng. Xóa sau
+        commit thu hẹp cửa sổ lỗi.
+      - **Delayed double delete (xóa hai lần):** xóa khóa ngay sau khi ghi, rồi **hẹn xóa khóa lần
+        nữa sau một khoảng ngắn** (vài trăm ms) — đủ để những lần đọc chậm kịp ghi bản cũ xong thì bị
+        lần xóa thứ hai dọn đi.
+      - **TTL ngắn:** không chặn được race, nhưng **giới hạn thời gian sai**: dù kẹt bản cũ thì cũng
+        chỉ tới khi hết TTL. Là tấm lưới an toàn rẻ, nên gần như luôn đặt kèm.
+      - **Write-through / cập nhật thay vì xóa:** ghi đi *qua* cache (ghi cache và DB như một đường
+        thống nhất) để cache luôn phản ánh lần ghi mới nhất, thay vì để một lần đọc cũ nạp đè. Đổi
+        lại là đường ghi phức tạp/đắt hơn.
+      Khung trả lời gọn: *"xóa sau commit + TTL ngắn làm lưới an toàn; nếu cần chặt hơn thì delayed
+      double delete hoặc write-through."*
+  - id: b09
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Trong race ở trên, vì sao **xóa khóa cache *trước* khi ghi xong DB** (thay vì sau khi commit) lại tệ hơn?"
+    options:
+      - {id: a, text_md: "Vì xóa trước làm database ghi chậm hơn do phải chờ cache."}
+      - {id: b, text_md: "Vì sau khi xóa mà DB chưa có giá trị mới, một lần đọc xen vào sẽ miss, đọc được **bản cũ** từ DB và nạp lại nó vào cache — tạo bản cũ gần như chắc chắn."}
+      - {id: c, text_md: "Vì xóa trước làm mất khóa vĩnh viễn nên lần đọc sau không bao giờ tìm thấy dữ liệu."}
+    answer: [b]
+    explain_md: "Nếu xóa cache trước khi DB kịp có giá trị mới, cửa sổ giữa 'đã xóa' và 'DB đã mới' để ngỏ cho một lần đọc nạp lại bản cũ — nên xóa *sau* khi commit thu hẹp cửa sổ đó. (a) sai về nhân quả; (c) sai — khóa chỉ bị xóa khỏi cache, lần đọc sau vẫn nạp lại được từ DB."
+  - id: b10
+    type: summary
+    bullets_vi:
+      - "**Eviction** = bỏ bớt khi cache **đầy** (chuyện dung lượng); **invalidation** = bỏ bản **cũ** khi DB đổi (chuyện tính đúng) — hai bài toán độc lập."
+      - "Chính sách eviction: **LRU** (bỏ lâu-nhất-không-dùng, hợp temporal locality — mặc định tốt), **LFU** (bỏ ít-dùng-nhất), **FIFO** (bỏ vào-sớm-nhất), **random** (rẻ sổ sách), **TTL** (giới hạn độ cũ); thực tế hay kết hợp LRU + TTL."
+      - "**LRU O(1)** = **hash map** (tra cứu khóa → nút O(1)) + **danh sách liên kết đôi** (gỡ/móc nút theo thứ tự mới-dùng O(1)); get/put đều đưa nút lên đầu, khi đầy thì bỏ nút ở đuôi lâu-nhất-không-dùng."
+      - "Invalidation: **TTL** (đơn giản, cũ tới khi hết hạn), **xóa tường minh khi ghi** (tươi nhưng dễ race), **khóa có phiên bản** (bản cũ tự bị bỏ qua)."
+      - "**Race ghi DB/xóa cache:** đọc chậm lấy bản cũ *trước* khi ghi, rồi ghi cache *sau* khi xóa ⇒ cache kẹt bản cũ tới hết TTL. Giảm bằng: **xóa sau commit**, **delayed double delete**, **TTL ngắn**, **write-through**."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S076], l2: [S077], l3: [S078]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

@@ -1,0 +1,143 @@
+id: sd.networking.realtime_protocols
+version: 1
+status: published
+title_vi: "Giao thức real-time: polling, SSE, WebSocket, gRPC streaming"
+est_minutes: 14
+objectives_vi:
+  - "Phân biệt 4 cách đẩy tin tức thì (short polling, long polling, SSE, WebSocket) và biết gRPC streaming dùng ở đâu."
+  - "Chọn đúng giao thức theo tình huống: news feed/thông báo, chat, live score, chatbot stream từng token."
+  - "Mô tả cách scale hàng triệu kết nối đồng thời: gateway có state, pub/sub để fan-out, sticky routing, reconnect/backpressure, giới hạn kết nối mỗi node."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      HTTP gốc là **client hỏi, server trả** (request–response): server không tự nhiên "gọi" được tới
+      client. Nhưng nhiều tính năng cần tin **tức thì** — tin nhắn chat, tỉ số trực tiếp, thông báo,
+      chatbot hiện dần từng chữ. Bài này đi qua các cách để có **đẩy tin real-time** và đánh đổi của
+      từng cách, rồi cách **giữ hàng triệu kết nối đồng thời**. Ba câu hỏi lọc nhanh một lựa chọn:
+      tin đi **một chiều** (server → client) hay **hai chiều**? Tần suất tin **dày hay thưa**? Có cần
+      chạy qua được **proxy/firewall** và tiết kiệm **pin điện thoại** không?
+  - id: b02
+    type: text
+    md: |
+      Hai cách "vẫn dùng HTTP thường", không cần hạ tầng đặc biệt:
+      - **Short polling (hỏi lại liên tục):** client cứ mỗi vài giây lại gọi "có tin mới không?".
+        Rất **đơn giản** nhưng **lãng phí**: phần lớn câu trả lời là "chưa có gì", và độ trễ bằng đúng
+        chu kỳ hỏi. 1 triệu người hỏi mỗi 5 giây ≈ 200.000 request/giây chủ yếu để nghe "không".
+      - **Long polling (hỏi rồi chờ):** client gọi một request, server **giữ request đó mở** cho đến
+        khi *có* tin mới mới trả lời (hoặc hết thời gian chờ); client nhận xong gọi lại ngay. Đỡ tốn
+        hơn polling và tin tới gần như tức thì, nhưng mỗi tin vẫn là một vòng request mới, và server
+        phải ôm nhiều kết nối đang chờ.
+  - id: b03
+    type: text
+    md: |
+      Hai cách giữ **một đường kết nối sống lâu**:
+      - **Server-Sent Events (SSE):** một kết nối HTTP giữ mở, server **đẩy một chiều** (server →
+        client) liên tục các sự kiện. Chạy trên HTTP thường nên qua proxy/firewall dễ, và trình duyệt
+        **tự nối lại** khi đứt, gửi kèm `Last-Event-ID` để server đẩy bù các tin bỏ lỡ. Hạn chế: chỉ
+        một chiều (client muốn gửi lên vẫn dùng request HTTP riêng).
+      - **WebSocket:** sau một bước **bắt tay (handshake)** nâng cấp từ HTTP, mở một kênh **hai chiều
+        (full-duplex)** giữ lâu: cả client và server đẩy tin bất cứ lúc nào, độ trễ thấp. Mạnh nhất
+        cho tương tác hai chiều liên tục, nhưng là giao thức riêng (không phải request HTTP thường) nên
+        tốn công hơn ở hạ tầng, và cần **heartbeat** + logic **nối lại** tự viết.
+  - id: b04
+    type: text
+    md: |
+      **gRPC streaming** là lựa chọn cho **giữa các service với nhau** (service-to-service), không
+      phải cho trình duyệt. Nó chạy trên **HTTP/2**, dữ liệu **có kiểu chặt (typed)** bằng protobuf, và
+      hỗ trợ ba kiểu luồng: **server streaming** (một yêu cầu, server đẩy về một dòng nhiều tin),
+      **client streaming** (client đẩy lên một dòng), và **bidirectional** (cả hai chiều cùng lúc). Hợp
+      khi một service nội bộ cần nhận luồng cập nhật từ service khác với độ trễ thấp và hợp đồng rõ
+      ràng. (Cho gọi video/âm thanh trực tiếp giữa hai thiết bị thì dùng **WebRTC** peer-to-peer, một
+      nhánh riêng không bàn sâu ở đây.)
+  - id: b05
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Điểm khác nhau **cốt lõi** giữa **SSE** và **WebSocket** là gì?"
+    options:
+      - {id: a, text_md: "SSE đẩy **một chiều** (server → client) trên HTTP thường và tự nối lại; WebSocket mở kênh **hai chiều (full-duplex)** sau khi bắt tay."}
+      - {id: b, text_md: "SSE nhanh hơn WebSocket vì không cần giữ kết nối, còn WebSocket phải hỏi lại liên tục như polling."}
+      - {id: c, text_md: "WebSocket chỉ dùng được giữa các service nội bộ, còn SSE chỉ dùng cho trình duyệt."}
+    answer: [a]
+    explain_md: "SSE là kênh một chiều server→client trên HTTP, có tự reconnect kèm `Last-Event-ID`; WebSocket là kênh hai chiều giữ lâu. (b) sai: cả hai đều giữ kết nối mở, không ai phải hỏi lại như polling. (c) sai: cả hai đều dùng được cho trình duyệt; gRPC streaming mới là lựa chọn service-to-service."
+  - id: b06
+    type: text
+    md: |
+      **Chọn theo tình huống** (trả lời được 4 ca này là đạt mức phỏng vấn):
+      - **News feed / thông báo (notifications):** tin một chiều, thưa → **SSE** (hoặc **long polling**
+        nếu cần tương thích hạ tầng cũ). Không cần hai chiều nên WebSocket là thừa.
+      - **Chat:** hai người/nhóm gửi qua lại liên tục, hai chiều, độ trễ thấp → **WebSocket**.
+      - **Live score (tỉ số trực tiếp):** server đẩy một chiều cho rất nhiều người xem → **SSE** là vừa
+        đủ; **WebSocket** cũng được nếu sau này cần client gửi lên (đặt cược, bình luận).
+      - **Chatbot LLM hiện từng token:** server đẩy một chiều từng mẩu chữ khi model sinh ra → **SSE**
+        là lựa chọn phổ biến (đơn giản, qua proxy dễ, tự nối lại); prompt của người dùng gửi bằng một
+        request HTTP riêng.
+      Quy tắc chung: **cần hai chiều liên tục → WebSocket; chỉ server → client → SSE/long polling;
+      giữa service → gRPC streaming.** Đừng mặc định chọn WebSocket cho mọi thứ.
+  - id: b07
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một **chatbot LLM** cần hiện câu trả lời **dần từng token** cho người dùng trên web. Giao thức nào **thường hợp nhất**?"
+    options:
+      - {id: a, text_md: "Short polling: client hỏi lại mỗi 200ms xem có token mới chưa."}
+      - {id: b, text_md: "**SSE**: một kết nối, server đẩy một chiều từng token khi sinh ra; prompt gửi bằng request HTTP riêng."}
+      - {id: c, text_md: "gRPC bidirectional streaming trực tiếp từ trình duyệt tới model."}
+    answer: [b]
+    explain_md: "Luồng token là **một chiều** server→client, hợp đúng với SSE: đơn giản, qua proxy dễ, tự nối lại. (a) polling trễ và lãng phí. (c) gRPC streaming là cho service-to-service, không phải kênh trực tiếp từ trình duyệt; đây cũng không cần hai chiều liên tục."
+  - id: b08
+    type: text
+    md: |
+      **Scale tới hàng triệu kết nối đồng thời.** Khác với API stateless, mỗi kết nối real-time là
+      **có state** và sống lâu, chiếm bộ nhớ + một **file descriptor**; một máy thường giữ khoảng
+      100.000 kết nối, nên 1 triệu kết nối ≈ 10 máy + dự phòng. Kiến trúc điển hình:
+      - **Tầng gateway kết nối riêng (stateful):** tách các máy chỉ lo **giữ kết nối** ra khỏi logic
+        nghiệp vụ; mỗi gateway nhớ "user nào đang nối vào tôi" (một **connection map**).
+      - **Xương sống pub/sub để fan-out (Redis/Kafka):** khi cần gửi một tin cho user X, không máy nào
+        đi dò khắp nơi; tin được **publish** lên pub/sub, gateway đang giữ X **subscribe** và đẩy xuống.
+        Đây là cách phát một tin cho đúng (hoặc rất nhiều) người nhận.
+      - **Sticky routing:** load balancer (thường **L4**, vì WebSocket giữ kết nối lâu) phải giữ một
+        kết nối ở **đúng gateway** suốt vòng đời của nó; nên dùng **least-connections** thay vì round
+        robin vì kết nối sống rất lâu, round robin dễ làm lệch tải.
+      - **Reconnect & backpressure:** client mất mạng thì **nối lại với backoff** (chờ tăng dần) và gửi
+        **last event id** để nhận bù; khi client nhận chậm hơn tốc độ server đẩy, phải có
+        **backpressure** (dồn hàng có giới hạn, bỏ bớt, hoặc làm chậm nguồn) kẻo gateway phình bộ nhớ.
+      - **Giới hạn kết nối mỗi node:** đặt trần số kết nối/máy (file descriptor, port, RAM) và tự co
+        giãn số gateway theo đó; khi app đóng hẳn, không còn socket để giữ thì chuyển sang **push của
+        hệ điều hành** (APNs/FCM) để đánh thức.
+  - id: b09
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Trong hệ WebSocket nhiều gateway, **vai trò của pub/sub (Redis/Kafka)** là gì?"
+    options:
+      - {id: a, text_md: "Thay thế load balancer, để client không cần kết nối tới gateway nữa."}
+      - {id: b, text_md: "**Fan-out tin giữa các gateway**: tin được publish lên, gateway đang giữ người nhận subscribe và đẩy xuống — không gateway nào phải tự dò người nhận ở đâu."}
+      - {id: c, text_md: "Lưu lâu dài toàn bộ lịch sử tin nhắn thay cho database."}
+    answer: [b]
+    explain_md: "Người nhận có thể đang nối vào một gateway khác với người gửi; pub/sub là xương sống để phát tin tới đúng gateway đang giữ họ (fan-out). (a) sai: pub/sub không thay LB, client vẫn nối tới gateway. (c) sai: pub/sub để chuyển tin tức thời, lưu trữ lâu dài là việc của database."
+  - id: b10
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn.** Khi được hỏi "làm real-time thế nào", đừng bật ngay "WebSocket". Hãy nói
+      **hướng tin (một hay hai chiều) và tần suất** trước, rồi chọn: *một chiều → SSE/long polling,
+      hai chiều → WebSocket, giữa service → gRPC streaming*. Khi hỏi tới quy mô, trình bày theo trục:
+      *gateway stateful giữ kết nối → pub/sub fan-out → sticky routing (L4, least-connections) →
+      heartbeat + reconnect/backoff + last-event-id → backpressure → trần kết nối mỗi node + APNs/FCM
+      khi app đóng*. Người phỏng vấn chấm việc bạn **biện minh lựa chọn**, không chấm việc kể tên công
+      nghệ.
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "4 cách đẩy real-time: **short polling** (đơn giản, lãng phí), **long polling** (giữ request tới khi có tin), **SSE** (một chiều server→client trên HTTP, tự nối lại), **WebSocket** (hai chiều, giữ lâu); **gRPC streaming** (HTTP/2, typed, server/client/bidi) là cho service-to-service."
+      - "Lọc lựa chọn bằng: hướng (một/hai chiều), tần suất, qua proxy/firewall, pin di động."
+      - "Chọn theo ca: feed/thông báo → SSE/long poll; chat → WebSocket; live score → SSE (hoặc WebSocket); chatbot LLM stream token → SSE."
+      - "Scale triệu kết nối: tầng **gateway stateful** + **connection map**, **pub/sub (Redis/Kafka)** để fan-out, **sticky routing** qua L4 (least-connections)."
+      - "Giữ bền: heartbeat, **reconnect có backoff** + last-event-id để nhận bù, **backpressure** khi client nhận chậm, trần kết nối mỗi node, và **APNs/FCM** khi app đóng."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S097], l2: [S098], l3: [S099]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

@@ -1,0 +1,138 @@
+id: sd.caching.patterns
+version: 1
+status: published
+title_vi: "Các pattern caching (caching patterns): đọc, ghi và cách chọn"
+est_minutes: 13
+objectives_vi:
+  - "Phân biệt 5 pattern caching (cache-aside, read-through, write-through, write-back, write-around) và cách mỗi cái xử lý đọc/ghi."
+  - "Chọn pattern theo **tỉ lệ đọc/ghi (read/write ratio)** và so được đánh đổi về nhất quán, độ trễ, rủi ro mất dữ liệu."
+  - "Tính **hit ratio** cần đạt để cache gánh đủ tải, và nêu rủi ro mất dữ liệu của **write-back**."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      **Cache** là một kho nhỏ, nhanh (thường trong RAM, ví dụ Redis) đặt trước database (DB) để giữ
+      dữ liệu hay dùng ngay cạnh tay. Một lần đọc trúng cache (**cache hit**) nhanh hơn đi vào DB
+      nhiều lần; đọc trượt (**cache miss**) thì phải xuống DB. Lợi ích đong đếm bằng **hit ratio** =
+      số lần hit / tổng số lần hỏi: hit 90% nghĩa là DB chỉ còn chịu 10% tải.
+
+      Các **pattern caching** trả lời hai câu hỏi riêng biệt:
+      - **Khi đọc**, app nói chuyện với cache và DB như thế nào? (cache-aside, read-through)
+      - **Khi ghi**, dữ liệu mới đi vào cache và DB theo thứ tự nào? (write-through, write-back,
+        write-around)
+
+      Một thiết kế thật thường ghép *một pattern đọc* với *một pattern ghi*, nên hãy học hai nhóm này tách nhau.
+  - id: b02
+    type: text
+    md: |
+      **Hai pattern đọc:**
+      - **Cache-aside (lazy loading):** app tự điều khiển. Đọc → hỏi cache; nếu **miss** thì app đọc
+        DB, bỏ kết quả vào cache rồi trả về. Chỉ dữ liệu *được hỏi tới* mới vào cache (nạp lười).
+        Phổ biến nhất vì: cache chết thì app vẫn đọc thẳng DB (hệ vẫn chạy), và cache chỉ chứa dữ liệu
+        thực sự dùng. Nhược: lần đọc đầu luôn miss (chậm), và app phải tự lo chuyện cập nhật/làm mới cache.
+      - **Read-through:** app chỉ hỏi **cache**; khi miss, *chính cache* (qua một lớp thư viện/provider)
+        đi lấy từ DB và tự nạp. Code app gọn hơn (không phải viết logic nạp ở mọi chỗ), nhưng phụ thuộc
+        thư viện cache và cache nằm trên đường đi bắt buộc — cache chết là đọc cũng chết nếu không có
+        đường vòng.
+
+      Điểm chung: cả hai chỉ nạp cache **khi có người đọc**. Khác nhau ở chỗ *ai* chịu trách nhiệm nạp
+      (app hay cache).
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao **cache-aside (lazy loading)** là lựa chọn mặc định an toàn so với read-through?"
+    options:
+      - {id: a, text_md: "Vì cache-aside luôn cho hit ratio cao hơn read-through trong mọi tình huống."}
+      - {id: b, text_md: "Vì khi cache chết, app cache-aside vẫn đọc thẳng DB nên hệ tiếp tục chạy (chỉ chậm hơn); còn read-through đặt cache trên đường đi bắt buộc."}
+      - {id: c, text_md: "Vì cache-aside ghi vào DB và cache cùng lúc nên luôn nhất quán tuyệt đối."}
+    answer: [b]
+    explain_md: "Cache-aside để app tự rẽ xuống DB khi cache miss hoặc cache chết, nên mất cache chỉ làm chậm chứ không sập. (a) sai — hit ratio phụ thuộc khối lượng truy cập, không phải pattern đọc; (c) sai — đó là chuyện của pattern *ghi* (write-through), không phải cache-aside."
+  - id: b04
+    type: text
+    md: |
+      **Ba pattern ghi** (khác nhau ở thứ tự và thời điểm chạm DB):
+      - **Write-through:** mỗi lần ghi, ghi **cache và DB cùng lúc (đồng bộ)** rồi mới báo xong. Cache
+        luôn khớp DB → đọc sau đó nhất quán, không bao giờ cũ. Giá phải trả: ghi **chậm hơn** (phải đợi
+        cả hai), và cache có thể chứa dữ liệu chẳng ai đọc.
+      - **Write-back (write-behind):** ghi vào **cache trước**, báo xong ngay, rồi *mới* đẩy xuống DB
+        sau (theo lô/định kỳ). Ghi **cực nhanh** và gộp được nhiều lần ghi vào một. Giá phải trả:
+        **rủi ro mất dữ liệu** — nếu cache chết trước khi kịp đẩy (flush) xuống DB, những lần ghi đã
+        báo thành công sẽ **biến mất**; và DB tạm thời không khớp cache.
+      - **Write-around:** ghi **thẳng xuống DB**, *không* đụng cache; cache chỉ được nạp sau đó qua
+        đường đọc (cache-aside/read-through). Hợp với dữ liệu ghi xong **ít khi đọc lại ngay** (tránh
+        làm bẩn cache bằng thứ không ai cần). Giá phải trả: lần đọc đầu sau khi ghi sẽ miss.
+
+      Lưu ý: write-around là *cách ghi*, thường ghép với cache-aside ở chiều đọc.
+  - id: b05
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Rủi ro **đặc trưng** của **write-back (write-behind)** mà bạn phải nêu trong phỏng vấn là gì?"
+    options:
+      - {id: a, text_md: "Mỗi lần ghi bị chậm vì phải đợi cả cache lẫn DB xác nhận."}
+      - {id: b, text_md: "Các lần ghi **đã báo thành công** có thể **mất** nếu cache chết trước khi kịp đẩy (flush) xuống DB."}
+      - {id: c, text_md: "Cache không bao giờ chứa dữ liệu mới nên đọc luôn trả về giá trị cũ."}
+    answer: [b]
+    explain_md: "Write-back báo 'xong' ngay sau khi ghi vào cache, nhưng DB chưa có dữ liệu đó; nếu cache sập trước lần flush, dữ liệu đã ack bị mất vĩnh viễn. (a) là đặc điểm của write-through (ghi chậm), không phải write-back; (c) sai — write-back cập nhật cache trước nên đọc lại thấy giá trị mới."
+  - id: b06
+    type: text
+    md: |
+      **Chọn pattern theo tỉ lệ đọc/ghi (read/write ratio) và yêu cầu:**
+      - **Đọc nhiều hơn ghi rất nhiều (read-heavy, ví dụ 100:1):** cache-aside là mặc định — chỉ nạp
+        thứ được đọc, chịu lỗi tốt. Ghi ít nên dùng write-through cho nhất quán, hoặc write-around nếu
+        dữ liệu vừa ghi ít khi đọc lại ngay.
+      - **Cần dữ liệu đọc luôn mới (nhất quán mạnh):** ghép với **write-through** để cache không bao giờ cũ.
+      - **Ghi rất nhiều và chấp nhận mất một ít khi sự cố (write-heavy, ví dụ đếm lượt xem, log):**
+        **write-back** để gộp ghi và hạ độ trễ — đổi lấy rủi ro mất dữ liệu.
+
+      **Tính hit ratio cần đạt** để cache gánh đủ tải: phần đọc trượt (miss) mới xuống DB, nên
+      cần (1 − hit) × (tổng tải đọc) ≤ (sức chịu của DB). Suy ra **hit ≥ 1 − (sức DB / tổng tải)**.
+
+      Ví dụ: 20.000 đọc/giây, DB chịu tối đa 2.000/giây → cần miss ≤ 2.000/20.000 = 10% → **hit ≥ 90%**.
+      Nếu dữ liệu quá "lạnh" (ít lặp lại) không đạt nổi hit ratio này thì caching **không đáng** — phải
+      đổi cách khác (tăng DB, đọc từ replica, đổi mô hình dữ liệu).
+  - id: b07
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Một API có **10.000 đọc/giây**, DB phía sau chịu tối đa **500 đọc/giây**. Để cache đỡ đủ tải,
+      **hit ratio tối thiểu** cần đạt là bao nhiêu phần trăm? (Điền số phần trăm, ví dụ dạng `95%`.)
+    blanks:
+      - accept: ["95%", "95", "0.95", "95 %", "hit >= 95%", ">=95%"]
+        regex: "^\\s*(>=\\s*)?0?\\.?95\\s*%?\\s*$"
+    explain_md: "Miss cho phép ≤ 500/10.000 = 5% (đó là phần được xuống DB). Vậy hit ≥ 1 − 5% = **95%**. Công thức: hit ≥ 1 − (sức DB / tổng tải) = 1 − 500/10000 = 0,95."
+  - id: b08
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn (đúng mức 3 của chủ đề này).** Khi được hỏi "thêm cache thế nào", hãy trả lời
+      theo 3 nhịp: (1) **nhìn tỉ lệ đọc/ghi** để chọn pattern — read-heavy thì cache-aside, cần nhất
+      quán thì write-through, ghi cực nhiều mà chấp nhận mất thì write-back; (2) **tính hit ratio cần
+      đạt** từ tổng tải và sức chịu của DB (hit ≥ 1 − sức DB/tổng tải) để chứng minh cache thực sự
+      giảm tải; (3) **nói rõ đánh đổi**, đặc biệt **rủi ro mất dữ liệu của write-back** (ghi đã ack mất
+      nếu cache chết trước khi flush). Người phỏng vấn chấm việc bạn **biết đánh đổi và biết tính**, không chấm việc kể tên pattern.
+  - id: b09
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một dịch vụ **đếm lượt xem (view count)** nhận hàng chục nghìn lượt ghi/giây; số liệu có thể lệch/mất một ít khi sự cố cũng chấp nhận được. Pattern **ghi** nào hợp nhất, và vì sao?"
+    options:
+      - {id: a, text_md: "Write-through, vì mỗi lượt xem phải vào DB ngay lập tức để không bao giờ sai."}
+      - {id: b, text_md: "Write-back (write-behind), vì ghi vào cache trước rồi gộp lại đẩy xuống DB theo lô giúp hạ độ trễ và tải ghi; chấp nhận rủi ro mất một ít dữ liệu khi cache chết."}
+      - {id: c, text_md: "Write-around, vì ghi thẳng DB và không bao giờ đụng cache là nhanh nhất cho tải ghi lớn."}
+    answer: [b]
+    explain_md: "Tải ghi rất lớn + chịu được mất mát nhỏ chính là tình huống của write-back: gộp nhiều lần tăng đếm thành một lần ghi DB, độ trễ thấp. (a) write-through sẽ bắt mỗi lượt xem chờ DB — quá chậm với tải này; (c) write-around ghi thẳng DB nên *không* giảm tải ghi, lại còn chậm hơn ghi vào RAM."
+  - id: b10
+    type: summary
+    bullets_vi:
+      - "Tách hai nhóm: pattern **đọc** (cache-aside tự app nạp / read-through để cache tự nạp) và pattern **ghi** (write-through / write-back / write-around)."
+      - "**Cache-aside** là mặc định: nạp lười, cache chết vẫn đọc được DB; **write-through** cho nhất quán (ghi chậm hơn); **write-around** ghi thẳng DB, hợp dữ liệu ít đọc lại ngay."
+      - "**Write-back** ghi cache trước nên cực nhanh nhưng **mất dữ liệu đã ack** nếu cache chết trước khi flush xuống DB."
+      - "Chọn theo **tỉ lệ đọc/ghi**: read-heavy → cache-aside; cần nhất quán → write-through; write-heavy chấp nhận mất → write-back."
+      - "Hit ratio cần đạt: **hit ≥ 1 − (sức DB / tổng tải đọc)**; không đạt nổi thì caching không đáng."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S073], l2: [S074], l3: [S075]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

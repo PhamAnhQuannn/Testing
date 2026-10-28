@@ -1,0 +1,143 @@
+id: sd.networking.service_discovery_mesh
+version: 1
+status: published
+title_vi: "Service discovery và service mesh: tìm nhau và gọi nhau an toàn"
+est_minutes: 14
+objectives_vi:
+  - "Giải thích vì sao trong một hạ tầng động (autoscaling, container) các service cần **discovery** thay vì ghi cứng địa chỉ, và vai trò của **service registry**."
+  - "Phân biệt **client-side discovery** và **server-side discovery** cùng tradeoff của mỗi bên."
+  - "Mô tả **service mesh** với **sidecar proxy**: nó làm hộ gì, khi nào đáng chi phí, và thêm độ trễ ở đâu."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Trong hệ nhiều service (microservices) chạy trên cloud, địa chỉ (IP:port) của mỗi service
+      **đổi liên tục**: autoscaling thêm/bớt máy theo tải, container bị lên lịch lại sang node khác,
+      một bản sao (instance) chết và một bản mới mọc lên với IP khác. Vì vậy **không thể ghi cứng
+      (hardcode) địa chỉ** của service B vào code của service A — địa chỉ đó sẽ sai chỉ sau vài phút.
+      **Service discovery** là cơ chế để A tìm ra "ngay bây giờ B đang ở những địa chỉ nào" một cách
+      tự động. Hãy coi nó như một **danh bạ (directory) luôn tự cập nhật** cho cả đội service.
+  - id: b02
+    type: text
+    md: |
+      Trái tim của discovery là **service registry** — cái danh bạ đó. Cách hoạt động:
+      - Khi một instance của B khởi động, nó **tự đăng ký (register)** địa chỉ của mình vào registry.
+      - Nó gửi **nhịp tim (heartbeat)** đều đặn để chứng tỏ còn sống; registry gắn mỗi bản ghi một
+        **TTL (time-to-live)**. Im lặng quá hạn (ví dụ quá vài chu kỳ heartbeat) thì bản ghi bị
+        **xóa (deregister)** — registry luôn chỉ chứa các instance đang khỏe.
+      - Phần mềm phổ biến: **Consul**, **etcd**, (trước đây **Eureka/ZooKeeper**). Trên
+        **Kubernetes** thì registry là **built-in**: mỗi *Service* có một tên DNS nội bộ
+        (ví dụ `payment.default.svc.cluster.local`) và cụm tự theo dõi các Pod khỏe đứng sau tên đó.
+      Cảnh báo kinh điển với discovery kiểu **DNS**: client hay **cache** kết quả theo TTL, nên sau
+      khi một máy đã đổi, client vẫn có thể giữ **địa chỉ cũ** cho tới khi cache hết hạn.
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao trong một fleet **autoscaling/containerized** ta cần service discovery thay vì ghi cứng địa chỉ của service khác vào code?"
+    options:
+      - {id: a, text_md: "Vì ghi cứng địa chỉ làm code chạy chậm hơn khi gọi qua mạng."}
+      - {id: b, text_md: "Vì địa chỉ (IP:port) của các instance đổi liên tục khi máy được thêm/bớt hay lên lịch lại, nên địa chỉ ghi cứng nhanh chóng trở nên sai."}
+      - {id: c, text_md: "Vì discovery giúp mã hóa toàn bộ lưu lượng giữa các service."}
+    answer: [b]
+    explain_md: "Trong hạ tầng động, instance đến và đi liên tục nên địa chỉ không ổn định — đó là lý do cần một danh bạ tự cập nhật. (a) sai, discovery không phải để tăng tốc tính toán; (c) mã hóa là việc của mTLS trong service mesh, không phải bản thân discovery."
+  - id: b04
+    type: text
+    md: |
+      Có hai kiểu discovery, khác nhau ở chỗ **ai** chọn instance đích:
+      - **Client-side discovery:** client (A) **tự hỏi registry** lấy danh sách địa chỉ khỏe của B
+        rồi **tự load-balance** (tự chọn một địa chỉ để gọi, ví dụ round-robin). Không cần một chặng
+        trung gian nên **bớt một hop** (độ trễ thấp hơn) và client quyết định được chiến lược chọn;
+        nhưng **logic discovery/LB nằm trong client**, phải có thư viện cho mỗi ngôn ngữ — khó khi
+        đội dùng **nhiều ngôn ngữ (polyglot)**. gRPC client-side load balancing là ví dụ tiêu biểu.
+      - **Server-side discovery:** client chỉ gọi **một địa chỉ cố định** — một **load balancer /
+        gateway** (hoặc một tên DNS). Thành phần đó hỏi registry và chuyển request tới instance khỏe.
+        Client **đơn giản** (không cần biết registry), dễ cho đội polyglot; đổi lại **thêm một hop**
+        qua LB và chính LB thành thứ phải scale và lo sẵn sàng. **Kubernetes Service** đi theo kiểu
+        server-side này.
+  - id: b05
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Đâu là tradeoff **đúng** giữa client-side và server-side discovery?"
+    options:
+      - {id: a, text_md: "Client-side bớt một hop và cho client tự chọn instance, nhưng đẩy logic discovery/LB vào client (khó với đội đa ngôn ngữ); server-side giữ client đơn giản nhưng thêm một chặng LB/gateway."}
+      - {id: b, text_md: "Server-side luôn nhanh hơn vì không bao giờ phải hỏi registry."}
+      - {id: c, text_md: "Client-side không cần registry, còn server-side thì cần."}
+    answer: [a]
+    explain_md: "Khác biệt cốt lõi là ai chọn instance và cái giá kèm theo: client-side đổi sự đơn giản của client lấy việc bớt một hop; server-side đổi một hop LB lấy client gọn nhẹ, hợp đội polyglot. (b) sai: server-side vẫn phải tra registry (do LB làm) và thêm một hop; (c) sai: cả hai đều dựa trên registry."
+  - id: b06
+    type: text
+    md: |
+      **Service mesh** (Istio, Linkerd) đẩy ý tưởng đi xa hơn: đặt **cạnh mỗi service một proxy nhỏ**
+      gọi là **sidecar** (thường là **Envoy**). A không gọi thẳng B nữa — A gọi **sidecar của chính
+      mình**; sidecar A gửi qua mạng tới **sidecar của B**; sidecar B mới chuyển cho B.
+
+      Sơ đồ đường đi một request: `[A] → [sidecar A] ══ mạng ══ [sidecar B] → [B]`.
+
+      Vì mọi lưu lượng vào/ra đều đi qua sidecar, **sidecar làm hộ phần networking** mà trước đây mỗi
+      service phải tự viết: **mTLS** (mutual TLS — hai chiều: cả A lẫn B đưa chứng chỉ để mã hóa và
+      xác minh danh tính nhau), **retry** (thử lại khi lỗi), **timeout**, **circuit breaking** (cầu
+      dao: tạm ngừng gọi service đang hỏng), **traffic-splitting** (chia lưu lượng, ví dụ 5% sang bản
+      mới để canary) và **observability** (số liệu, trace cho mọi lời gọi). Các sidecar hợp thành
+      **data plane** (chuyển dữ liệu thật); một **control plane** là "bộ não" đẩy cấu hình/luật xuống
+      tất cả sidecar. Điểm mấu chốt: những việc này được **lấy ra khỏi code ứng dụng**, chuẩn hóa
+      giống nhau cho mọi service bất kể viết bằng ngôn ngữ gì.
+  - id: b07
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền thuật ngữ (tiếng Anh): Trong service mesh, proxy nhỏ đặt cạnh mỗi service gọi là
+      ___(1)___ (một ví dụ phổ biến là Envoy). Tính năng cho phép hai service **vừa mã hóa vừa xác
+      minh danh tính lẫn nhau** bằng chứng chỉ hai chiều gọi là ___(2)___.
+    blanks:
+      - accept: ["sidecar", "sidecar proxy", "sidecar (proxy)"]
+      - accept: ["mTLS", "mutual TLS", "mutual tls"]
+    explain_md: "Sidecar là proxy chạy cạnh service, chặn mọi lưu lượng vào/ra; Envoy là bản hay dùng. mTLS (mutual TLS) là TLS hai chiều: cả hai đầu cùng đưa chứng chỉ nên vừa mã hóa vừa xác thực danh tính của nhau."
+  - id: b08
+    type: callout
+    kind: interview
+    md: |
+      **Khi nào mesh đáng chi phí?** Mesh không miễn phí: thêm một sidecar cho **mỗi** instance (tốn
+      RAM/CPU), thêm một control plane phải vận hành, và **thêm độ trễ** mỗi lời gọi. Hãy trả lời
+      theo quy mô:
+      - **Ít service (ví dụ ~5), một ngôn ngữ:** mesh thường **quá mức (overkill)**. Một **thư viện
+        chung** (shared library) lo retry/timeout/mTLS trong code là đủ, rẻ và đơn giản hơn.
+      - **Nhiều service (hàng chục–hàng trăm), đa ngôn ngữ (polyglot):** mesh **đáng giá** — không
+        thể bắt mọi đội viết lại cùng logic mTLS/retry bằng mỗi ngôn ngữ; mesh đảm bảo mọi nơi mã
+        hóa, thử lại và quan sát **giống nhau**, và đổi luật chỉ cần sửa control plane.
+      Câu chốt khi phỏng vấn: *"Mesh chuyển độ phức tạp networking từ code ứng dụng sang hạ tầng —
+      đáng khi số service và sự đa dạng ngôn ngữ đủ lớn để cái lợi chuẩn-hóa vượt cái giá sidecar."*
+  - id: b09
+    type: text
+    md: |
+      **Mesh thêm độ trễ ở đâu?** Mỗi lời gọi giờ đi qua **hai chặng proxy**: một lần ra khỏi sidecar
+      của người gọi và một lần vào sidecar của người nhận (so với gọi thẳng). Mỗi chặng thêm một
+      chút xử lý (mã hóa mTLS, áp luật, ghi số liệu) và một lần "nhảy" trong máy. Với từng request
+      thường chỉ là **mili-giây nhỏ**, nhưng trên một chuỗi gọi dài (A→B→C→D) nó **cộng dồn**. Đây
+      chính là lý do với hệ nhỏ, bỏ sidecar và gọi trực tiếp (hoặc client-side discovery bớt hop) lại
+      nhanh hơn — và là điểm bạn nên nêu rõ khi cân nhắc chi phí của mesh.
+  - id: b10
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một startup có **5 service**, tất cả viết bằng cùng một ngôn ngữ. Nhận định nào **hợp lý nhất** về việc dùng service mesh?"
+    options:
+      - {id: a, text_md: "Bắt buộc dùng mesh, vì không có mesh thì không thể làm mTLS hay retry."}
+      - {id: b, text_md: "Mesh thường là quá mức ở quy mô này; một thư viện chung lo mTLS/retry/timeout là đủ, tránh được chi phí sidecar và độ trễ hai chặng proxy."}
+      - {id: c, text_md: "Dùng mesh sẽ làm mỗi lời gọi nhanh hơn vì sidecar bỏ bớt các chặng mạng."}
+    answer: [b]
+    explain_md: "Với ít service và một ngôn ngữ, cái lợi chuẩn-hóa của mesh nhỏ còn cái giá (một sidecar mỗi instance, control plane, hai chặng proxy mỗi lời gọi) thì vẫn đủ. (a) sai: mTLS/retry làm được bằng thư viện trong code; (c) sai: mesh **thêm** độ trễ vì chèn hai chặng proxy, không bớt."
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "Hạ tầng động (autoscaling, container) khiến địa chỉ instance đổi liên tục, nên cần **service discovery** — một danh bạ tự cập nhật — thay vì ghi cứng địa chỉ."
+      - "**Service registry** (Consul/etcd, hay Kubernetes Service/DNS): instance tự đăng ký + gửi heartbeat, hết TTL thì bị xóa; discovery kiểu DNS dễ dính bẫy cache TTL giữ địa chỉ cũ."
+      - "**Client-side discovery**: client tự hỏi registry và tự load-balance (bớt một hop, nhưng logic nằm trong client, khó cho đội polyglot). **Server-side**: gọi một LB/gateway cố định (client gọn, nhưng thêm một hop) — Kubernetes đi kiểu này."
+      - "**Service mesh** = **sidecar proxy** (Envoy, qua Istio/Linkerd) cạnh mỗi service, làm hộ mTLS, retry, timeout, traffic-splitting, observability — kéo networking ra khỏi code ứng dụng (data plane do sidecar, control plane là bộ não)."
+      - "Mesh **đáng** khi nhiều service + đa ngôn ngữ; **quá mức** khi ít service một ngôn ngữ (dùng thư viện chung). Nó **thêm độ trễ** vì mỗi lời gọi qua **hai chặng proxy**."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S094], l2: [S095], l3: [S096]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

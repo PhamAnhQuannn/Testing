@@ -1,0 +1,160 @@
+id: sd.caching.distributed_cache
+version: 1
+status: published
+title_vi: "Cache phân tán (distributed cache): Redis và Memcached"
+est_minutes: 14
+objectives_vi:
+  - "Phân biệt Memcached (kho khóa-giá trị đa luồng, đơn giản) và Redis (nhiều kiểu dữ liệu, chạy lệnh một luồng, lưu đĩa và có bản sao)."
+  - "Chọn đúng kiểu Redis cho ba bài toán kinh điển — bảng xếp hạng (leaderboard), giới hạn tần suất (rate limit), phiên đăng nhập (session) — và viết các lệnh chính với đúng tham số."
+  - "Giải thích Redis Cluster chia khóa bằng 16384 hash slot và vì sao mô hình một luồng khiến một lệnh chậm chặn tất cả."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Cache trong RAM của **từng** app server có hai vấn đề: mỗi máy giữ một bản riêng (không chia sẻ,
+      dễ lệch nhau) và mất sạch khi máy khởi động lại. **Cache phân tán (distributed cache)** là một
+      cụm máy giữ cache **dùng chung**: mọi app server (đã stateless) đều tra cùng một chỗ, nên thấy
+      cùng dữ liệu. Hai lựa chọn phổ biến nhất:
+      - **Memcached:** kho **khóa-giá trị (key-value)** thuần, **đa luồng (multithreaded)**, cố tình
+        đơn giản. Chỉ có `get`/`set` chuỗi, không kiểu dữ liệu giàu, không lưu xuống đĩa. Hợp khi
+        chỉ cần một cache tạm cực nhanh và đơn giản.
+      - **Redis:** cũng là key-value trong RAM nhưng giàu hơn nhiều — **nhiều kiểu dữ liệu** (string,
+        hash, list, set, sorted set...), **chạy lệnh một luồng (single-threaded command execution)**
+        nên mỗi lệnh nguyên vẹn (atomic), có **lưu xuống đĩa (persistence)**, **bản sao (replication)**
+        và **pub/sub**. Chính vì giàu kiểu dữ liệu, Redis giải được nhiều bài toán mà Memcached không.
+  - id: b02
+    type: text
+    md: |
+      Mẹo cốt lõi khi dùng Redis: **chọn kiểu dữ liệu khớp với bài toán**, đừng ép mọi thứ vào chuỗi
+      JSON. Ba bài toán hay gặp trong phỏng vấn và kiểu Redis tương ứng:
+      - **Bảng xếp hạng (leaderboard)** → **sorted set (ZSET)**: mỗi phần tử gắn một điểm (score),
+        tập luôn được sắp theo điểm, nên lấy top-K và hỏi hạng đều nhanh (cỡ O(log n)).
+      - **Giới hạn tần suất (rate limiting)** → **bộ đếm bằng `INCR` + `EXPIRE`**: một khóa đếm số
+        request trong cửa sổ thời gian, tự xóa khi hết hạn.
+      - **Phiên đăng nhập (session)** → **hash** (nhiều trường) hoặc **string** (một khối JSON) kèm
+        **TTL**: mọi server tra được cùng session nên ai cũng phục vụ được khách.
+  - id: b03
+    type: text
+    md: |
+      **Bảng xếp hạng với sorted set.** Giả sử tập tên `board`:
+
+      ```
+      ZADD board 150 an          # đặt điểm 150 cho "an" (đã có thì sửa điểm)
+      ZADD board 200 binh        # đặt điểm 200 cho "binh"
+      ZREVRANGE board 0 9        # lấy phần tử hạng 0..9 theo điểm cao -> thấp = top 10
+      ZREVRANK board an          # hạng của "an" (0 là cao nhất)
+      ```
+
+      `ZADD key score member` thêm/sửa điểm; `ZREVRANGE key start stop` lấy một dải hạng từ cao xuống
+      thấp (thêm `WITHSCORES` nếu muốn kèm điểm); `ZREVRANK key member` trả hạng (đếm từ 0). Nhờ ZSET
+      được sắp sẵn, ba việc "cộng điểm / top-K / hỏi hạng" đều rẻ — điều mà một `string` JSON không
+      làm được nếu không đọc và sắp lại toàn bộ.
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Cần một bảng xếp hạng (leaderboard) trả **top 10** và **hạng của một người** tức thì khi điểm đổi liên tục. Nên dùng kiểu Redis nào?"
+    options:
+      - {id: a, text_md: "Một `string` chứa JSON của cả danh sách, mỗi lần đổi điểm thì đọc ra, sắp lại rồi ghi đè."}
+      - {id: b, text_md: "**Sorted set (ZSET)**: `ZADD` để cập nhật điểm, `ZREVRANGE board 0 9` lấy top 10, `ZREVRANK` hỏi hạng — đều cỡ O(log n)."}
+      - {id: c, text_md: "Một `list`, mỗi lần đổi điểm thì `LPUSH` thêm một phần tử vào đầu danh sách."}
+    answer: [b]
+    explain_md: "Sorted set giữ các phần tử luôn sắp theo điểm, nên `ZADD`/`ZREVRANK` là O(log n) và `ZREVRANGE` lấy top-K rất rẻ. (a) phải đọc + sắp lại toàn bộ mỗi lần, O(n log n) và không atomic giữa nhiều client. (c) `list` không sắp theo điểm, hỏi hạng phải quét cả danh sách."
+  - id: b05
+    type: text
+    md: |
+      **Giới hạn tần suất (rate limit): cho mỗi người tối đa 100 request/phút.** Dùng một khóa đếm
+      kèm hết hạn:
+
+      ```
+      INCR rl:user7             # tăng bộ đếm lên 1, trả số mới (chưa có thì coi như 0 rồi tăng)
+      EXPIRE rl:user7 60        # chỉ gọi khi kết quả INCR == 1: để bộ đếm tự xóa sau 60 giây
+      # nếu kết quả INCR > 100 -> từ chối request (HTTP 429)
+      ```
+
+      `INCR` là atomic nên nhiều request đồng thời không đếm sai. Chỉ đặt `EXPIRE` ở lần đầu (khi kết
+      quả bằng 1) để mỗi phút là một cửa sổ mới; qua giây đầu của phút kế tiếp, khóa đã hết hạn và biến
+      mất, lần `INCR` tiếp theo lại tạo khóa mới đếm từ 1.
+
+      **Phiên đăng nhập (session):** key là `session_id`, value giữ thông tin người dùng, kèm TTL:
+
+      ```
+      SET session:abc "{\"uid\":7,\"name\":\"an\"}" EX 1800   # string + TTL 1800s (30 phút)
+      GET session:abc                                          # mọi server đều tra được
+      # hoặc dùng hash khi muốn đọc/sửa từng trường:
+      HSET session:abc uid 7 name an
+      EXPIRE session:abc 1800
+      ```
+
+      Mỗi lần người dùng còn hoạt động thì **gia hạn** bằng `EXPIRE session:abc 1800` để TTL trượt theo.
+  - id: b06
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền tên lệnh Redis (viết HOA) cho rate limiter "100 request/phút cho mỗi người". Lệnh tăng bộ
+      đếm `rl:user7` lên 1 và trả về số mới là `____` (ô 1); ngay sau lần đầu tiên, để bộ đếm tự xóa
+      sau 60 giây ta gọi `____ rl:user7 60` (ô 2).
+    blanks:
+      - {accept: ["INCR", "incr"]}
+      - {accept: ["EXPIRE", "expire"]}
+    explain_md: "`INCR rl:user7` tăng và trả số mới (atomic, nên đồng thời vẫn đếm đúng); `EXPIRE rl:user7 60` chỉ đặt một lần ở lần đầu (kết quả `INCR` == 1) để khóa sống đúng một cửa sổ 60 giây rồi tự biến mất."
+  - id: b07
+    type: text
+    md: |
+      **Redis Cluster: chia khóa khi dữ liệu lớn hơn RAM một máy.** Cluster định nghĩa **16384 hash
+      slot** (ngăn đánh số 0..16383). Mỗi khóa được băm `CRC16(key) mod 16384` ra **một** slot; mỗi
+      node giữ một **dải slot** (và có replica dự phòng). Thêm node mới thì chỉ cần **chuyển vài slot**
+      sang node đó — không phải băm lại toàn bộ.
+
+      Hệ quả quan trọng khi phỏng vấn: **lệnh đa khóa (multi-key) chỉ chạy được nếu các khóa cùng một
+      slot.** Ví dụ một lệnh đụng hai khóa nằm ở hai node khác nhau sẽ bị từ chối (lỗi `CROSSSLOT`).
+      Muốn ép vài khóa về cùng slot, dùng **hash tag**: phần trong `{...}` của tên khóa mới được băm,
+      nên `user:{7}:profile` và `user:{7}:session` cùng slot vì cùng tag `7`.
+  - id: b08
+    type: callout
+    kind: warning
+    md: |
+      **Một luồng ⇒ một lệnh chậm chặn tất cả.** Redis chạy lệnh **lần lượt bằng một luồng**: đó là
+      điều cho ta tính atomic, nhưng cũng nghĩa là **một lệnh chậm làm mọi client phải chờ**. Kinh
+      điển là `KEYS *` (quét toàn bộ không gian khóa) trên production — nó khóa server trong lúc duyệt.
+      Dùng `SCAN` (duyệt từng đoạn, không chặn) thay cho `KEYS *`. Tương tự, tránh các lệnh O(n) trên
+      tập rất lớn (ví dụ `ZRANGE` lấy cả triệu phần tử) trong đường nóng.
+  - id: b09
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Trong Redis Cluster, vì sao một lệnh dùng **nhiều khóa cùng lúc** có thể bị từ chối (`CROSSSLOT`)?"
+    options:
+      - {id: a, text_md: "Vì Redis không cho phép quá 2 khóa trong một lệnh, bất kể chúng ở đâu."}
+      - {id: b, text_md: "Vì mỗi khóa băm ra một trong 16384 slot và các node giữ các dải slot khác nhau; nếu các khóa rơi vào slot ở các node khác nhau thì lệnh đa khóa không chạy được — phải dùng hash tag `{...}` để ép chúng về cùng slot."}
+      - {id: c, text_md: "Vì cluster luôn băm lại toàn bộ khóa mỗi khi có lệnh đa khóa, làm chúng đổi node liên tục."}
+    answer: [b]
+    explain_md: "Khóa được băm `CRC16(key) mod 16384` ra một slot; node chỉ xử lý được lệnh khi mọi khóa nằm trên slot của chính nó. Hash tag `user:{7}:...` băm phần trong `{}` để nhóm khóa về cùng slot. (a) sai — giới hạn là cùng slot, không phải số lượng khóa. (c) sai — thêm node mới chỉ chuyển vài slot, không băm lại toàn bộ."
+  - id: b10
+    type: text
+    md: |
+      **Khi cache đầy RAM.** Cache là bộ nhớ hữu hạn, nên phải đặt trần **`maxmemory`** và chọn
+      **chính sách khi hết chỗ (eviction policy)**:
+      - **`noeviction`** — từ chối lệnh ghi khi đầy (báo lỗi). An toàn cho dữ liệu *không được mất*
+        (ví dụ Redis dùng như hàng đợi/sổ cái), nhưng ghi sẽ fail.
+      - **`allkeys-lru`** (hoặc `allkeys-lfu`) — bỏ khóa ít dùng gần đây (hoặc ít dùng nhất) trong
+        **mọi** khóa. Hợp khi Redis thuần làm cache: cho phép đẩy khóa cũ ra để nhận khóa mới.
+      - **`volatile-lru` / `volatile-ttl`** — chỉ bỏ trong nhóm khóa **có đặt TTL**, ưu tiên khóa
+        sắp hết hạn; dùng khi trộn dữ liệu "được phép bay" (có TTL) với dữ liệu "phải giữ".
+      Chọn sai gây hậu quả thật: để `noeviction` cho một cache thuần sẽ làm **ghi fail** lúc cao điểm;
+      để `allkeys-lru` cho dữ liệu quan trọng sẽ **mất im lặng** dữ liệu không có TTL.
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "Cache phân tán = cụm máy giữ cache dùng chung; Memcached là key-value đa luồng đơn giản, Redis giàu kiểu dữ liệu, chạy lệnh một luồng (atomic), có persistence/replication/pub-sub."
+      - "Khớp kiểu Redis với bài toán: leaderboard → sorted set (ZADD/ZREVRANGE/ZREVRANK); rate limit → INCR + EXPIRE; session → hash/string kèm TTL."
+      - "Rate limit 100 req/phút: `INCR rl:user7`, đặt `EXPIRE rl:user7 60` ở lần đầu (kết quả == 1), > 100 thì từ chối; cửa sổ mới khi khóa hết hạn."
+      - "Redis Cluster có 16384 hash slot; khóa băm CRC16 % 16384 ra một slot, node giữ dải slot; lệnh đa khóa chỉ chạy khi các khóa cùng slot (dùng hash tag `{...}`)."
+      - "Một luồng: một lệnh chậm (như `KEYS *`) chặn mọi client — dùng `SCAN` và tránh lệnh O(n) trên tập lớn trong đường nóng."
+      - "Khi hết RAM: đặt `maxmemory` + eviction policy — `allkeys-lru` cho cache thuần, `volatile-*` khi trộn TTL, `noeviction` khi không được mất dữ liệu (đổi lại ghi fail lúc đầy)."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S082], l2: [S083], l3: [S084]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"
