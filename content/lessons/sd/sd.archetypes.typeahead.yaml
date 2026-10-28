@@ -1,0 +1,136 @@
+id: sd.archetypes.typeahead
+version: 1
+status: published
+title_vi: "Thiết kế gợi ý khi gõ (typeahead / autocomplete)"
+est_minutes: 13
+objectives_vi:
+  - "Giải thích vì sao typeahead dựng sẵn top-k gợi ý cho mỗi tiền tố (prefix) thay vì xếp hạng lúc nhận request."
+  - "Mô tả kiến trúc đầy đủ: trie (prefix tree) hoặc bảng tiền tố, cập nhật offline từ log, cache ở biên, chia tải (sharding) và debounce ở client."
+  - "Trả lời được vì sao độ trễ chỉ vài chục ms mỗi lần gõ là ràng buộc chi phối toàn bộ thiết kế."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      **Typeahead** (gợi ý khi gõ, autocomplete) nhận vài ký tự đầu người dùng gõ và trả về vài truy
+      vấn phổ biến bắt đầu bằng các ký tự đó — như ô tìm kiếm Google. Hai ràng buộc định hình cả thiết kế:
+      - **Mỗi lần gõ một ký tự là một request**, nên độ trễ phải cực thấp: mục tiêu phần tra cứu chỉ
+        **vài chục mili-giây (a few tens of ms)**, để tổng vòng (gồm mạng) vẫn dưới khoảng 100 ms.
+      - **Đọc nhiều hơn ghi rất nhiều (read-heavy):** hàng triệu lượt gõ mỗi giây, nhưng tập gợi ý đổi
+        chậm. Xu hướng tìm kiếm chỉ cần **tươi theo giờ/ngày**, không cần tức thời.
+
+      Vì thế câu hỏi cốt lõi không phải "xếp hạng thế nào cho nhanh" mà là: **làm sao để mỗi phím gõ
+      chỉ còn một phép tra cứu, không phải một lần xếp hạng tại chỗ.**
+  - id: b02
+    type: text
+    md: |
+      Ý tưởng trung tâm là **dựng sẵn (precompute) top-k gợi ý cho mỗi tiền tố**. Dùng một **trie
+      (prefix tree / cây tiền tố)** — mỗi nút là một ký tự, đường từ gốc tới nút là một tiền tố (đã học
+      ở DSA). Tại **mỗi nút**, ta lưu sẵn danh sách **top-k** (ví dụ 5) truy vấn phổ biến nhất trong
+      nhánh dưới nút đó.
+
+      Khi người dùng gõ tiền tố "ca", hệ chỉ **đi xuống trie theo 2 ký tự** rồi đọc thẳng danh sách đã
+      lưu — chi phí **O(độ dài tiền tố)**, không phụ thuộc số truy vấn trong hệ. Việc xếp hạng nặng (đếm
+      tần suất, sắp xếp) đã làm **từ trước**, ngoài đường đi của request. Đây là đánh đổi kinh điển:
+      **đổi tính toán lúc ghi/ngoại tuyến lấy độ trễ lúc đọc.**
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao ta **dựng sẵn top-k cho mỗi tiền tố** thay vì khi nhận mỗi phím gõ mới đi quét và xếp hạng các truy vấn khớp?"
+    options:
+      - {id: a, text_md: "Vì xếp hạng tại chỗ cho mỗi phím gõ quá chậm; dựng sẵn biến mỗi phím thành một phép tra cứu O(độ dài tiền tố), đáp ứng mục tiêu vài chục ms."}
+      - {id: b, text_md: "Vì dựng sẵn giúp tiết kiệm bộ nhớ so với lưu toàn bộ truy vấn."}
+      - {id: c, text_md: "Vì xếp hạng tại chỗ cho kết quả tươi hơn, mà typeahead bắt buộc phải tươi theo từng giây."}
+    answer: [a]
+    explain_md: "Mỗi phím là một request với ngân sách vài chục ms; quét và xếp hạng tại chỗ không kịp. Dựng sẵn đẩy công việc nặng ra ngoài đường đọc, còn lúc đọc chỉ là tra cứu O(độ dài tiền tố). (b) sai — dựng sẵn top-k tốn thêm bộ nhớ, đó là cái giá ta chấp nhận; (c) sai — typeahead chỉ cần tươi theo giờ/ngày, không cần từng giây."
+  - id: b04
+    type: text
+    md: |
+      Có thể hiện thực top-k-theo-tiền-tố bằng **hai cách**, chọn theo nhu cầu:
+      - **Trie trong bộ nhớ** giữ top-k tại mỗi nút: tiết kiệm bộ nhớ nhờ dùng chung tiền tố, và dễ xử
+        lý tiền tố chưa từng thấy.
+      - **Bảng key-value "tiền tố -> [gợi ý]"** (prefix hashing in a KV store): bỏ hẳn trie, lưu thẳng
+        cặp "ca" -> [cafe, car, cat, ...]. Đơn giản, **dễ phân tán** và cache hơn, nhưng lặp dữ liệu.
+
+      Khi bảng/trie quá lớn cho một máy, ta **chia tải (sharding)** — thường theo **tiền tố** (ví dụ
+      theo chữ cái đầu). Lưu ý tải lệch: tiền tố bắt đầu bằng 's' nhiều hơn 'x', nên chia **theo tải
+      thực tế** chứ không chia đều theo bảng chữ cái.
+  - id: b05
+    type: callout
+    kind: tip
+    md: |
+      **Xếp hạng bằng gì?** Mặc định là **độ phổ biến / tần suất (popularity / frequency)** — đếm số
+      lần mỗi truy vấn xuất hiện trong log tìm kiếm. Nâng cao hơn là **cá nhân hoá (personalisation)**:
+      trộn thêm lịch sử của chính người dùng hoặc theo vùng/ngôn ngữ. Trong phỏng vấn, hãy nêu
+      popularity làm cơ sở rồi *đề cập* personalisation như một lớp xếp hạng thêm — đừng sa đà, vì nó
+      làm phức tạp việc dựng sẵn (không thể precompute một bảng chung cho mọi người).
+  - id: b06
+    type: text
+    md: |
+      **Cập nhật chỉ mục (index) thế nào?** Vì chỉ cần tươi theo giờ/ngày, ta **dựng lại theo lô
+      (batch rebuild) ngoại tuyến**: một job định kỳ đọc **log truy vấn**, đếm tần suất, rồi dựng lại
+      trie/bảng và nạp (swap) bản mới vào dịch vụ đang chạy. Không cập nhật trie **từng truy vấn một**
+      vì vừa tốn kém vừa không cần — near-real-time **không bắt buộc** cho bài này.
+
+      Nếu đề yêu cầu một chủ đề "bỗng hot" phải xuất hiện trong vài phút, ta **không** dựng lại cả bảng:
+      chỉ chạy một lớp bổ sung tần suất cao hơn thường xuyên hơn, hoặc trộn một danh sách "đang trending"
+      nhỏ lên trên kết quả dựng sẵn.
+  - id: b07
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Chiến lược **cập nhật** nào phù hợp nhất cho typeahead, và vì sao?"
+    options:
+      - {id: a, text_md: "Cập nhật trie ngay cho **mỗi** truy vấn người dùng gõ, để gợi ý luôn chính xác tới từng giây."}
+      - {id: b, text_md: "Dựng lại chỉ mục theo lô (batch) từ log tìm kiếm mỗi giờ/ngày rồi swap bản mới vào, vì xu hướng chỉ cần tươi theo giờ và cập nhật từng truy vấn quá tốn kém."}
+      - {id: c, text_md: "Không bao giờ cập nhật; dựng một lần lúc khởi tạo rồi giữ cố định."}
+    answer: [b]
+    explain_md: "Typeahead read-heavy và chỉ cần tươi theo giờ/ngày, nên dựng lại theo lô ngoại tuyến từ log rồi swap là đúng mức. (a) tốn kém và không cần — cập nhật mỗi truy vấn đè nặng lên đường ghi mà không đổi lại lợi ích tương xứng; (c) khiến gợi ý lỗi thời, mất tính phổ biến hiện tại."
+  - id: b08
+    type: text
+    md: |
+      **Phục vụ (serving) và cache.** Dịch vụ typeahead giữ trie/bảng **trong bộ nhớ (in-memory)** để
+      tra cứu nhanh, chạy nhiều bản sao sau load balancer. Trước nó đặt **cache ở biên (edge / CDN)**:
+      các tiền tố ngắn như "a", "ca" bị hỏi **cực nhiều** và kết quả gần như không đổi giữa người dùng,
+      nên cache chúng cắt phần lớn tải và độ trễ.
+
+      Cuối cùng là một mẹo **phía client**: **debounce** — chờ người dùng ngừng gõ khoảng 100-200 ms rồi
+      mới gửi request, và huỷ request cũ khi có phím mới. Điều này giảm mạnh số request vô ích (không cần
+      gửi cho mọi phím trung gian) và là phần rẻ nhất để cải thiện độ trễ cảm nhận.
+  - id: b09
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền thuật ngữ (tiếng Anh) cho đúng:
+
+      (1) Cấu trúc cây mà mỗi nút là một ký tự, dùng để tra cứu theo tiền tố, gọi là ____.
+
+      (2) Mẹo phía client chờ người dùng ngừng gõ rồi mới gửi request (và huỷ request cũ) gọi là ____.
+    blanks:
+      - accept: ["trie", "prefix tree", "prefix-tree"]
+      - accept: ["debounce", "debouncing"]
+    explain_md: "(1) **trie** (prefix tree / cây tiền tố) cho tra cứu O(độ dài tiền tố). (2) **debounce**: chờ ~100-200 ms sau phím cuối rồi mới gửi, huỷ request cũ — giảm số request và tải vô ích."
+  - id: b10
+    type: callout
+    kind: interview
+    md: |
+      **Khung trả lời khi phỏng vấn.** (1) Chốt ràng buộc: read-heavy, mỗi phím một request, độ trễ vài
+      chục ms, chỉ cần tươi theo giờ. (2) Nêu ý lõi: **dựng sẵn top-k cho mỗi tiền tố** để mỗi phím chỉ
+      còn tra cứu — bằng **trie** (top-k mỗi nút) hoặc **bảng tiền tố KV**. (3) Xếp hạng theo **độ phổ
+      biến**, nhắc personalisation như lớp thêm. (4) **Cập nhật**: batch rebuild offline từ log, swap
+      bản mới. (5) **Scale**: cache ở biên cho tiền tố ngắn, nhiều bản sao in-memory, **sharding theo
+      tiền tố** (chia theo tải vì phân bố lệch), và **debounce** ở client. Mỗi bước nói rõ nó gỡ nghẽn gì.
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "Ý lõi: **dựng sẵn (precompute) top-k gợi ý cho mỗi tiền tố** để mỗi phím gõ chỉ là tra cứu O(độ dài tiền tố), không xếp hạng tại chỗ — đổi tính toán ngoại tuyến lấy độ trễ đọc vài chục ms."
+      - "Hiện thực: **trie** giữ top-k tại mỗi nút, hoặc **bảng key-value 'tiền tố -> [gợi ý]'** (dễ phân tán/cache hơn nhưng lặp dữ liệu)."
+      - "Xếp hạng theo **độ phổ biến/tần suất** (và tuỳ chọn **cá nhân hoá**), đếm từ log tìm kiếm."
+      - "**Cập nhật** bằng batch rebuild ngoại tuyến mỗi giờ/ngày rồi swap bản mới; không cập nhật từng truy vấn vì read-heavy và near-real-time không bắt buộc."
+      - "**Scale**: cache ở biên (CDN) cho tiền tố ngắn bị hỏi nhiều, nhiều bản sao in-memory sau load balancer, **sharding theo tiền tố** (chia theo tải vì phân bố lệch), và **debounce** ở client."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S190], l2: [S191], l3: [S192]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

@@ -1,0 +1,144 @@
+id: sd.archetypes.ride_hailing
+version: 1
+status: published
+title_vi: "Thiết kế hệ gọi xe (ride-hailing) và tìm theo vị trí (proximity)"
+est_minutes: 14
+objectives_vi:
+  - "Mô tả luồng một chuyến gọi xe end-to-end: nhận cập nhật vị trí tài xế, lập chỉ mục địa lý (geospatial index), ghép tài xế gần nhất, theo dõi trực tiếp và đi qua máy trạng thái chuyến đi."
+  - "Giải thích vì sao vị trí tài xế được giữ trong bộ nhớ theo ô bản đồ (geohash/quadtree/S2) thay vì ghi từng cái vào database, và tìm tài xế gần là tra ô của khách cộng các ô kề."
+  - "Giải thích cách tránh gán đôi một tài xế bằng khoá/claim nguyên tử (atomic claim) và trừ tiền đúng một lần (exactly-once) bằng mã chống lặp (idempotency key)."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Bài toán **gọi xe (ride-hailing)** kiểu Uber/Grab là một archetype phỏng vấn kinh điển: khách
+      bấm gọi, hệ phải tìm tài xế **gần nhất** còn rảnh trong vài giây, gửi lời mời, rồi theo dõi
+      chuyến cho đến khi hoàn thành. Cái khó không nằm ở một tính năng đơn lẻ mà ở chỗ **vị trí tài
+      xế luôn thay đổi**: ta phải vừa nhận lượng cập nhật vị trí khổng lồ, vừa trả lời truy vấn
+      "ai gần tôi" nhanh. Bài này ghép lại bốn mảnh đã học: chỉ mục địa lý (**sd.data.geo_indexing**),
+      giao thức thời gian thực (**sd.networking.realtime_protocols**), khoá phân tán
+      (**sd.distributed.distributed_locks**) và hàng đợi/pub-sub (**sd.async.queues_pubsub**).
+  - id: b02
+    type: text
+    md: |
+      **Cập nhật vị trí (location updates) là tải ghi cực lớn.** Mỗi tài xế đang bật app gửi vị trí
+      (ping) vài giây một lần. Ví dụ 100.000 tài xế ping mỗi 4 giây = **25.000 lần ghi mỗi giây** —
+      nếu ghi từng cái xuống một database quan hệ thì chết DB ngay. Cách xử lý: giữ vị trí **nóng**
+      trong **bộ nhớ** (in-memory / Redis), coi nó là trạng thái "mới nhất thắng" (chỉ cần giá trị
+      hiện tại, không cần lịch sử từng ping). Nếu cần lưu lịch sử để phân tích thì **gom lô (batch)**
+      hoặc **lấy mẫu (sample)** rồi đẩy xuống kho lạnh qua hàng đợi, thay vì ghi đồng bộ từng ping.
+  - id: b03
+    type: text
+    md: |
+      **Chỉ mục địa lý (geospatial index).** Để trả lời "tài xế nào gần khách", ta chia bản đồ thành
+      **ô (cell)** bằng một trong các sơ đồ đã học: **geohash** (mã chuỗi theo lưới), **quadtree**
+      (chia tư đệ quy, dày ở vùng đông) hoặc **S2** (ô trên mặt cầu của Google). Mỗi ô giữ danh sách
+      tài xế đang ở trong đó. Tìm tài xế gần = xác định ô chứa khách rồi **quét ô đó và các ô kề
+      (neighbors)**, thay vì duyệt toàn bộ tài xế. Đây đúng là đánh đổi của **sd.data.geo_indexing**:
+      ô to thì mỗi ô đông, truy vấn trả nhiều ứng viên phải lọc; ô nhỏ thì phải gộp nhiều ô kề mới đủ
+      bán kính. Vì vị trí đổi liên tục, chỉ mục này sống **trong RAM** và được cập nhật mỗi ping, chứ
+      không phải một index trên đĩa cập nhật chậm.
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao vị trí tài xế thường được giữ **trong bộ nhớ (Redis/in-memory)** thay vì ghi mỗi ping xuống database quan hệ?"
+    options:
+      - {id: a, text_md: "Vì database quan hệ không thể lưu toạ độ (latitude/longitude)."}
+      - {id: b, text_md: "Vì lượng ghi quá lớn (hàng chục nghìn ghi/giây) và ta chỉ cần vị trí mới nhất; giữ trong RAM mới đủ nhanh để vừa nhận cập nhật vừa trả lời truy vấn gần nhất."}
+      - {id: c, text_md: "Vì Redis bảo đảm bền vững (durable) tốt hơn mọi database nên không bao giờ mất dữ liệu."}
+    answer: [b]
+    explain_md: "Ping vị trí là tải ghi khổng lồ và chỉ cần giá trị hiện tại (mới nhất thắng), nên RAM/Redis là nơi hợp lý; muốn lịch sử thì batch/sample xuống kho lạnh. (a) sai, DB lưu toạ độ được; (c) sai — Redis không bền vững hơn, ta chấp nhận đánh đổi độ bền vì đây là dữ liệu tạm, đổi liên tục."
+  - id: b05
+    type: text
+    md: |
+      **Ghép xe và điều phối (matching / dispatch).** Khi có yêu cầu, dịch vụ matching: (1) **truy vấn
+      ô** để lấy các tài xế rảnh gần khách; (2) **xếp hạng (rank)** theo khoảng cách/ETA, đánh giá,
+      v.v.; (3) **gửi lời mời (offer)** cho tài xế tốt nhất kèm **hạn trả lời (offer timeout)**, ví dụ
+      15 giây. Nếu tài xế không nhận trong hạn, chuyển sang người tiếp theo. Việc gửi offer và nhận
+      phản hồi thường đi qua **hàng đợi/pub-sub** (sd.async.queues_pubsub) để tách rời và chịu được
+      tải tăng đột biến khi nhiều yêu cầu đến cùng lúc.
+  - id: b06
+    type: text
+    md: |
+      **Tránh gán đôi (double-assign).** Một tài xế có thể nằm trong vùng của nhiều yêu cầu cùng lúc;
+      nếu hai luồng matching cùng "chọn" anh ta, ta gán đôi. Lời giải là **khoá / claim nguyên tử
+      (atomic claim)** từ sd.distributed.distributed_locks: khi định offer cho một tài xế, thực hiện
+      một thao tác **nguyên tử** đặt anh ta sang trạng thái "đang được giữ" — chỉ **một** luồng thắng,
+      các luồng khác thấy đã bị giữ và bỏ qua. Khoá này nên có **TTL** bằng đúng thời gian chờ nhận
+      offer: nếu tài xế không nhận kịp, khoá tự hết hạn và anh ta rảnh trở lại, không cần ai nhớ mở
+      khoá — tránh kẹt vĩnh viễn khi luồng giữ khoá chết.
+  - id: b07
+    type: quiz_mcq
+    graded: true
+    prompt_md: |
+      Khách đứng ở ranh giới giữa hai ô. Truy vấn "tài xế gần nhất" nên làm gì để không bỏ sót tài
+      xế thực sự ở gần?
+    options:
+      - {id: a, text_md: "Chỉ quét đúng ô chứa khách; tài xế ở ô khác coi như quá xa."}
+      - {id: b, text_md: "Quét ô chứa khách **và các ô kề (neighbors)**, gộp ứng viên rồi lọc theo bán kính/khoảng cách thật."}
+      - {id: c, text_md: "Duyệt toàn bộ tài xế trong thành phố cho chắc chắn, bỏ hẳn chỉ mục ô."}
+    answer: [b]
+    explain_md: "Một tài xế ở ô kề có thể gần hơn tài xế cùng ô khi khách đứng sát ranh giới, nên phải gộp ô chứa khách cộng các ô kề rồi lọc theo khoảng cách thật. (a) bỏ sót ứng viên sát ranh giới; (c) đúng kết quả nhưng vứt bỏ lợi ích của chỉ mục, quá chậm ở quy mô lớn."
+  - id: b08
+    type: text
+    md: |
+      **Theo dõi trực tiếp và máy trạng thái chuyến (trip state machine).** Sau khi ghép, app khách cần
+      thấy xe tới gần theo thời gian thực: dùng **WebSocket** (sd.networking.realtime_protocols) để
+      đẩy vị trí tài xế xuống khách liên tục, thay vì để khách hỏi lặp (poll). Bản thân chuyến đi là
+      một **máy trạng thái**: *requested (đã yêu cầu) -> matched (đã ghép) -> enroute (đang đón) ->
+      ongoing (đang đi) -> completed (hoàn thành)*. Mỗi **chuyển trạng thái** phải đáng tin cậy và ghi
+      lại được, vì nhiều thứ phụ thuộc vào nó (tính tiền, hoàn tiền, khiếu nại). Khi chuyến hoàn thành,
+      **trừ tiền đúng một lần (exactly-once)** bằng **mã chống lặp (idempotency key)** — hệt như bài
+      thanh toán: nếu yêu cầu tính tiền bị gửi lại do lỗi mạng, bản sao thứ hai không trừ thêm lần nữa.
+  - id: b09
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền thuật ngữ:
+      (1) Để hai luồng matching không cùng gán một tài xế cho hai khách, ta dùng một ______ nguyên tử
+      (atomic) có TTL bằng thời gian chờ nhận offer.
+      (2) Để trừ tiền cuối chuyến chỉ đúng một lần dù yêu cầu bị gửi lại, ta gắn một ______ (mã chống
+      lặp) cho giao dịch.
+    blanks:
+      - {accept: ["khoá", "khóa", "lock", "claim", "khoá/claim", "atomic claim"]}
+      - {accept: ["idempotency key", "mã chống lặp", "idempotency-key", "idempotency", "khoá idempotency"]}
+    explain_md: "(1) Khoá/claim nguyên tử với TTL = thời gian chờ offer bảo đảm chỉ một luồng giữ được tài xế và tự nhả khi hết hạn. (2) Idempotency key khiến bản sao thứ hai của cùng yêu cầu tính tiền không trừ thêm — đó là exactly-once charging."
+  - id: b10
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn.** Khi được hỏi "Design Uber", hãy chia lời giải theo đúng các mảnh: *nhận cập
+      nhật vị trí (tải ghi lớn -> giữ trong RAM) -> chỉ mục địa lý theo ô để tìm gần nhất -> matching:
+      truy vấn ô + rank + offer có hạn -> khoá/claim để không gán đôi -> theo dõi real-time bằng
+      WebSocket -> máy trạng thái chuyến + trừ tiền exactly-once*. Luôn **nói rõ con số tải** (ví dụ
+      25.000 ghi/giây) để biện minh việc giữ vị trí trong bộ nhớ, và **nối ngược về các khái niệm đã
+      học** (geohash, distributed lock, idempotency) thay vì kể tên công nghệ. Người phỏng vấn chấm
+      việc bạn nhận ra *đâu là nghẽn và vì sao chọn cách đó*.
+  - id: b11
+    type: text
+    md: |
+      **Hai điểm mở rộng hay bị hỏi thêm.** (a) **Giá linh hoạt (surge pricing):** tính theo tỉ lệ
+      cầu/cung **trong từng ô** — nhiều yêu cầu mà ít tài xế rảnh trong ô thì nâng hệ số giá ô đó; vì
+      dữ liệu vị trí và yêu cầu đã gom theo ô nên tính surge theo ô là tự nhiên. (b) **Chia theo vùng
+      (geo-sharding):** khách và tài xế hiếm khi vượt thành phố, nên mỗi thành phố/vùng là một **shard
+      riêng** — vừa chia tải, vừa giữ cho truy vấn gần nhất chỉ chạy trong một vùng. **ETA** (thời gian
+      đến) thường tách sang một dịch vụ bản đồ/định tuyến riêng; lúc đầu có thể ước lượng thô theo
+      khoảng cách đường chim bay. Archetype này là **tiền đề cho delivery_maps** (giao hàng), nơi thêm
+      quán đứng yên và gom nhiều đơn.
+  - id: b12
+    type: summary
+    bullets_vi:
+      - "Cập nhật vị trí tài xế là tải ghi khổng lồ (ví dụ 25.000 ghi/giây); giữ vị trí nóng trong bộ nhớ (Redis/in-memory, mới nhất thắng), muốn lịch sử thì batch/sample, không ghi từng ping xuống DB."
+      - "Chỉ mục địa lý chia bản đồ thành ô (geohash/quadtree/S2); tìm tài xế gần = quét ô của khách cộng các ô kề rồi lọc theo khoảng cách thật — đúng đánh đổi của geo_indexing, và chỉ mục sống trong RAM vì vị trí đổi liên tục."
+      - "Matching/dispatch: truy vấn ô -> rank theo khoảng cách/ETA -> gửi offer có hạn (offer timeout); không nhận thì sang người kế tiếp, thường điều phối qua hàng đợi/pub-sub."
+      - "Tránh gán đôi tài xế bằng khoá/claim nguyên tử (atomic claim) có TTL bằng thời gian chờ offer, để khoá tự nhả nếu tài xế không nhận kịp hoặc luồng giữ khoá chết."
+      - "Theo dõi trực tiếp bằng WebSocket; chuyến đi là máy trạng thái requested -> matched -> enroute -> ongoing -> completed với chuyển trạng thái đáng tin cậy; trừ tiền cuối chuyến exactly-once bằng idempotency key."
+      - "Mở rộng: surge pricing theo cầu/cung trong từng ô, geo-sharding mỗi thành phố một shard; archetype này là tiền đề của delivery_maps."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S202], l2: [S203], l3: [S204]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

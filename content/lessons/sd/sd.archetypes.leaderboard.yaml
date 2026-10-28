@@ -1,0 +1,138 @@
+id: sd.archetypes.leaderboard
+version: 1
+status: published
+title_vi: "Thiết kế bảng xếp hạng (leaderboard): Redis sorted set, chia bảng và hạng của một người"
+est_minutes: 14
+objectives_vi:
+  - "Nêu đúng ba yêu cầu lõi của một leaderboard: top-N, hạng của chính một người (a user's own rank) và cập nhật real-time."
+  - "Giải thích vì sao Redis sorted set (ZSET) là câu trả lời gốc — O(log n) cho cả cập nhật điểm và hỏi hạng — và vì sao SQL ORDER BY ... LIMIT + COUNT quá chậm ở quy mô lớn."
+  - "Xử lý được bài toán quy mô: chia bảng (sharded leaderboard), hạng gần đúng (approximate rank) cho đuôi dài, lưu bền (persistence) và bảng theo thời gian (time window)."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      **Bảng xếp hạng (leaderboard)** là một kiểu bài thiết kế lặp đi lặp lại: game điểm cao, bảng
+      bình chọn (voting), xếp hạng người dùng. Trước khi chọn công nghệ, chốt **ba yêu cầu lõi** vì
+      chúng quyết định cấu trúc dữ liệu:
+      - **Top-N:** lấy N người điểm cao nhất (ví dụ top 10, top 100).
+      - **Hạng của chính một người (a user's own rank):** "mình đang đứng thứ mấy?" — câu này tốn kém
+        hơn top-N nhiều, vì phải biết *có bao nhiêu người trên mình*.
+      - **Cập nhật real-time:** điểm đổi liên tục, bảng phải phản ánh gần như tức thì (chậm nhất vài giây).
+
+      Chính yêu cầu "hạng của một người" cộng với "real-time" là thứ loại bỏ các giải pháp ngây thơ.
+  - id: b02
+    type: text
+    md: |
+      **Câu trả lời gốc: Redis sorted set (ZSET).** Sorted set giữ các cặp (thành viên, điểm số) và
+      **luôn sắp sẵn theo điểm**, nên mọi thao tác của leaderboard đều rẻ:
+      - **Cập nhật điểm — ZADD:** đặt/đổi điểm của một người, chi phí **O(log n)**.
+      - **Top-N — ZREVRANGE:** lấy N phần tử điểm cao nhất theo đúng thứ tự, **O(log n + N)**.
+      - **Hạng của một người — ZREVRANK:** trả về vị trí (0 là cao nhất), cũng **O(log n)**.
+
+      Điểm mấu chốt cho phỏng vấn: ZSET cho câu "hạng của tôi" trong **O(log n)** mà không phải quét
+      toàn bảng. Đây là lý do leaderboard gần như luôn gắn với Redis (một kho khóa-giá trị chạy trong
+      RAM — xem *sd.caching.distributed_cache*).
+  - id: b03
+    type: text
+    md: |
+      **Vì sao không chỉ dùng SQL?** Trực giác đầu tiên là một bảng `scores(user_id, score)` rồi:
+      - Top-N: `SELECT ... ORDER BY score DESC LIMIT N` — với **index** trên `score` thì top-N còn ổn.
+      - Hạng của một người: `SELECT COUNT(*) FROM scores WHERE score > :my_score` — đây mới là chỗ chết.
+
+      Câu `COUNT(*)` đó phải **đếm mọi hàng có điểm cao hơn bạn** cho *mỗi* lần hỏi hạng, chi phí **O(n)**.
+      Với hàng triệu người và điểm đổi liên tục (không cache được lâu), mỗi lần bấm "hạng của tôi" là một
+      lần quét lớn — DB sập tải. ZSET duy trì sẵn thứ tự trong RAM nên tránh được chính cái quét này.
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao một bảng SQL với `ORDER BY score DESC LIMIT N` cộng `COUNT(*) WHERE score > :x` để lấy hạng lại không ổn ở quy mô lớn, trong khi Redis sorted set thì ổn?"
+    options:
+      - {id: a, text_md: "Vì SQL không thể sắp xếp theo điểm, còn Redis thì có thể."}
+      - {id: b, text_md: "Vì hỏi hạng bằng `COUNT(*)` phải đếm mọi hàng điểm cao hơn (O(n)) cho mỗi lần hỏi, còn ZSET giữ sẵn thứ tự nên ZREVRANK chỉ tốn O(log n)."}
+      - {id: c, text_md: "Vì Redis lưu dữ liệu xuống đĩa nhanh hơn SQL."}
+    answer: [b]
+    explain_md: "Top-N trên SQL có index còn chấp nhận được; chỗ nghẽn là hỏi hạng: `COUNT(*) WHERE score > x` quét O(n) mỗi lần, mà điểm đổi liên tục nên không cache lâu được. ZSET giữ cây sắp sẵn nên ZREVRANK là O(log n). (a) sai — SQL sắp được; (c) sai — vấn đề là chi phí truy vấn hạng, không phải tốc độ ghi đĩa."
+  - id: b05
+    type: text
+    md: |
+      **Quy mô: hàng triệu người chơi.** Một ZSET nằm gọn trong RAM của một máy Redis là đủ cho hầu hết
+      hệ; nhưng khi dữ liệu vượt RAM một máy, có hai hướng:
+      - **Chia bảng (sharded leaderboard):** chia người chơi ra nhiều ZSET trên nhiều máy Redis. Đổi lại,
+        **top-N phải hỏi mọi shard rồi gộp (merge):** lấy top-N của từng shard rồi trộn lại để ra top-N
+        toàn cục (vì người đứng đầu toàn cục chắc chắn nằm trong top-N của shard chứa họ).
+      - **Hạng gần đúng (approximate rank) cho đuôi dài:** đếm hạng tuyệt đối xuyên nhiều shard rất đắt.
+        Với người ở **đuôi dài** (không phải top), trả về **phần trăm / nhóm (buckets, percentiles)** —
+        "bạn thuộc top 5%" thay vì "hạng 273.914" — là đủ dùng và rẻ hơn nhiều. Chỉ top mới cần hạng chính xác.
+  - id: b06
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền tên lệnh Redis sorted set (viết HOA) cho từng việc trên một bảng tên `board`:
+      - Cộng/đặt điểm cho một người chơi: lệnh ___ (1)
+      - Lấy hạng của một người (0 là cao nhất): lệnh ___ (2)
+    blanks:
+      - {accept: ["ZADD", "zadd"]}
+      - {accept: ["ZREVRANK", "zrevrank"]}
+    explain_md: "ZADD đặt/đổi điểm (O(log n)); ZREVRANK trả hạng theo điểm giảm dần, 0 là cao nhất (O(log n)). Lấy top-N thì dùng ZREVRANGE board 0 N-1."
+  - id: b07
+    type: text
+    md: |
+      **Lưu bền và phục hồi (persistence / durability).** ZSET sống trong RAM của Redis, mà Redis **không
+      phải kho gốc (source of truth) cho dữ liệu quan trọng** — máy chết có thể mất vài giây gần nhất. Hai
+      cách thường kết hợp:
+      - **Ảnh chụp định kỳ (periodic snapshot):** Redis tự ghi ảnh xuống đĩa (RDB) và/hoặc nhật ký ghi (AOF)
+        để dựng lại ZSET sau khi khởi động lại.
+      - **DB làm nguồn gốc:** mỗi lần cộng điểm cũng ghi vào một DB bền (ví dụ bảng `score_events`); nếu
+        Redis mất sạch, **dựng lại (rebuild)** ZSET từ DB. Redis chỉ là bản chiếu nhanh để phục vụ truy vấn.
+
+      Trong phỏng vấn, nói rõ "Redis phục vụ đọc/ghi nóng, DB giữ sự thật để phục hồi" là một điểm cộng.
+  - id: b08
+    type: text
+    md: |
+      **Hòa điểm (ties) và bảng theo thời gian (time window).**
+      - **Hòa điểm:** khi hai người cùng điểm, sorted set xếp theo thứ tự thành viên (lexicographic) — thường
+        chấp nhận được. Nếu muốn ổn định theo luật nghiệp vụ (ai đạt điểm trước xếp trên), **nhét thời gian
+        vào điểm số**: ví dụ dùng điểm thực ở phần nguyên và phần bù thời gian ở phần lẻ, để một con số vừa
+        là điểm vừa phá hòa.
+      - **Bảng theo thời gian:** bảng ngày/tuần dùng **khóa riêng theo kỳ** (ví dụ `board:2026-W41`) và đặt
+        **TTL (thời gian sống)** để Redis tự xóa khi hết kỳ; muốn giữ lịch sử thì snapshot sang DB trước khi bỏ.
+        Cách này tách bảng "mọi thời" khỏi bảng "tuần này" mà không phải lọc theo ngày lúc truy vấn.
+  - id: b09
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Cách gọn nhất để làm **bảng xếp hạng theo tuần** (tự hết hiệu lực khi sang tuần mới) trên Redis là gì?"
+    options:
+      - {id: a, text_md: "Dùng một ZSET duy nhất rồi mỗi truy vấn lọc theo cột ngày của từng người chơi."}
+      - {id: b, text_md: "Mỗi tuần một khóa ZSET riêng (ví dụ `board:2026-W41`) và đặt TTL để Redis tự xóa khi hết kỳ; cần giữ lịch sử thì snapshot sang DB trước."}
+      - {id: c, text_md: "Xóa toàn bộ Redis vào mỗi đầu tuần bằng tay."}
+    answer: [b]
+    explain_md: "Khóa riêng theo kỳ + TTL tách bảng tuần khỏi bảng mọi-thời và tự dọn, không phải lọc theo ngày lúc truy vấn (ZSET không lưu thời gian theo phần tử). (a) sai vì phần tử ZSET chỉ có điểm, không có cột ngày để lọc; (c) nguy hiểm và xóa luôn dữ liệu khác."
+  - id: b10
+    type: callout
+    kind: interview
+    md: |
+      **Khung trả lời mức 3 (full design).** Khi được hỏi "thiết kế leaderboard real-time", đi theo mạch:
+      1. **Chốt yêu cầu:** top-N, hạng của một người, độ trễ (real-time, chậm nhất vài giây), quy mô (bao nhiêu người chơi).
+      2. **Lõi:** Redis **sorted set** — ZADD cộng điểm O(log n), ZREVRANGE lấy top-N, ZREVRANK lấy hạng O(log n).
+         Nêu *vì sao không SQL*: `COUNT(*)` cho hạng là O(n) mỗi lần, chết ở quy mô lớn.
+      3. **Quy mô:** một ZSET đủ xa; khi vượt RAM thì **chia bảng (sharded) + gộp top-N**, và **hạng gần đúng
+         (percentile/buckets)** cho đuôi dài, chỉ top mới cần hạng chính xác.
+      4. **Bền & phục hồi:** Redis không phải kho gốc — **snapshot định kỳ** và/hoặc ghi **score_events vào DB**
+         để rebuild ZSET khi mất.
+      5. **Biến thể:** **bảng theo thời gian** bằng khóa theo kỳ + TTL; **phá hòa** bằng cách nhét thời gian vào điểm.
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "Ba yêu cầu lõi: top-N, hạng của chính một người (a user's own rank) và cập nhật real-time; yêu cầu 'hạng của tôi' + real-time là thứ loại các giải pháp ngây thơ."
+      - "Lõi là Redis sorted set (ZSET): ZADD cộng điểm O(log n), ZREVRANGE lấy top-N, ZREVRANK lấy hạng O(log n) — không phải quét toàn bảng."
+      - "SQL quá chậm vì hỏi hạng bằng `COUNT(*) WHERE score > x` là O(n) mỗi lần, mà điểm đổi liên tục nên không cache lâu được."
+      - "Quy mô lớn: chia bảng (sharded leaderboard) rồi gộp top-N; hạng gần đúng (percentile/buckets) cho đuôi dài, chỉ top cần hạng chính xác."
+      - "Redis không phải kho gốc: snapshot định kỳ và/hoặc ghi score_events vào DB để rebuild khi mất; bảng theo thời gian dùng khóa theo kỳ + TTL, phá hòa bằng cách nhét thời gian vào điểm."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S175], l2: [S176], l3: [S177]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

@@ -1,0 +1,68 @@
+subtopic_id: sd.archetypes.url_shortener
+items:
+  - id: S169
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Trong một URL shortener, vì sao người ta hay sinh mã ngắn bằng **bộ đếm + base62 (counter +
+      base62)** thay vì **băm (hash)**? Nêu một nhược điểm của cách bộ đếm. Và base62 với **7 ký tự**
+      cho khoảng bao nhiêu mã?
+    answer_md: |
+      Bộ đếm cấp số nguyên tăng dần (duy nhất), base62 chỉ đổi cách viết số đó nên mã **không bao giờ
+      trùng** — khỏi phải kiểm tra va chạm (collision) như cách băm. Nhược điểm: bộ đếm toàn cục là một
+      điểm nghẽn/điểm chết, và mã **đoán được** mã kế tiếp (khắc phục bằng phát dải số cho mỗi server
+      hoặc một key-generation service với mã đúc sẵn). Base62 với 7 ký tự ≈ 62^7 ≈ **3,5 nghìn tỷ
+      (3.5e12)** mã.
+    rubric_md: "Đạt khi nêu: counter+base62 luôn duy nhất (khỏi kiểm va chạm), một nhược điểm (nghẽn bộ đếm hoặc mã đoán được), và con số 62^7 ≈ 3,5 nghìn tỷ. Đúng ý: bằng chứng điểm 1; thiếu con số hoặc thiếu lý do duy nhất: tối đa điểm 0."
+  - id: S170
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Một URL shortener đo được **tỉ lệ đọc/ghi khoảng 100:1** (đọc nặng, read-heavy) và cần **thống kê
+      số click** cho mỗi link. Hãy đề xuất: (1) đặt thành phần nào trước cơ sở dữ liệu để chịu tải đọc,
+      theo mẫu nào; (2) chọn redirect **301 hay 302** và vì sao điều đó liên quan tới việc đếm click;
+      (3) làm sao đếm click mà **không làm chậm** lúc chuyển hướng.
+    answer_md: |
+      (1) Đặt một lớp **cache** trước key-value store theo mẫu **cache-aside**: đọc tra cache trước,
+      trúng thì trả redirect ngay, trượt thì đọc DB rồi nạp lại cache; nhờ đọc nặng 100:1, phần lớn
+      lượt mở dừng ở cache (có thể thêm CDN/edge).
+      (2) Chọn **302 (tạm thời)**: trình duyệt hỏi lại server mỗi lần mở nên server còn thấy từng click
+      để đếm. **301** bị trình duyệt cache, đi thẳng tới đích, server không thấy các lần sau → mất phần
+      lớn số đếm (bù lại 301 nhẹ tải hơn).
+      (3) Khi chuyển hướng, chỉ **ghi một sự kiện click vào queue** rồi trả redirect ngay; một worker
+      xử lý **bất đồng bộ (async)** để cộng dồn thống kê — việc đếm không nằm trên đường phản hồi.
+    rubric_md: "Đạt khi nêu đủ 3 ý: cache (cache-aside) trước DB vì read-heavy; chọn 302 và giải thích đúng quan hệ 301-cache-trình-duyệt làm mất click; đếm click async qua queue để không chậm redirect. Đúng, trong time-box, tự giải thích: bằng chứng điểm 2. Chọn sai 301/302 hoặc bỏ ý async: tối đa điểm 1."
+  - id: S171
+    difficulty: 3
+    type: concept
+    minutes: 12
+    prompt_md: |
+      Thiết kế **đầy đủ** một dịch vụ rút gọn URL (URL shortener) cỡ bit.ly: ~100 triệu link mới mỗi
+      tháng, đọc nặng gấp ~100 lần ghi. Trình bày theo khung: (1) yêu cầu + **ước lượng** (ghi/giây,
+      đọc/giây, dung lượng); (2) **API** và **mô hình dữ liệu**; (3) **luồng ghi và luồng đọc** (vẽ/kể
+      các thành phần: load balancer, app stateless, cache, key-value store, CDN); (4) hai quyết định
+      đặc trưng — **cách sinh mã không trùng** (và length math) và **301 vs 302** — nêu rõ đánh đổi.
+      Bàn thêm **custom alias** và **expiry**.
+    answer_md: |
+      **(1) Yêu cầu + ước lượng.** Core: rút gọn link và chuyển hướng; tùy chọn custom alias, expiry,
+      analytics. Ghi ≈ 100e6 / (30×86400) ≈ **~40/giây**; đọc ≈ 100× ≈ **~4.000/giây** (read-heavy);
+      lưu trữ ≈ 100e6 × 60 tháng × ~500 byte ≈ **~3 TB** trong 5 năm. Kết luận: đọc nặng ⇒ tối ưu luồng
+      đọc.
+      **(2) API + dữ liệu.** `POST /shorten(long_url, custom_alias?, expiry?) -> short_code`;
+      `GET /{short_code} -> redirect`. Dữ liệu: ánh xạ `short_code -> {long_url, created_at, expiry,
+      owner}`, tra theo khóa chính `short_code` ⇒ **key-value store** có sharding theo `short_code`.
+      **(3) Luồng.** *Ghi:* client → load balancer → app server **stateless** → sinh `short_code` chưa
+      dùng → ghi vào key-value store. *Đọc:* client → LB → app → tra **cache (cache-aside)**; trúng trả
+      redirect, trượt đọc DB rồi nạp cache; đặt **CDN/edge** để chuyển hướng gần người dùng. Nhờ 100:1,
+      đa số request dừng ở cache.
+      **(4) Quyết định đặc trưng.** *Sinh mã:* **counter + base62** (duy nhất, mã ngắn, nhưng bộ đếm là
+      điểm nghẽn và mã đoán được — khắc phục bằng phát dải số cho mỗi server hoặc **key-generation
+      service** với **pre-generated keys**) vs **hash + kiểm va chạm** (phải kiểm tra trùng rồi băm
+      lại). **7 ký tự base62 ≈ 62^7 ≈ 3,5 nghìn tỷ (3.5e12)** mã — thừa cho 6 tỷ link. *Redirect:*
+      **302** nếu cần đếm click/kiểm soát (server thấy mỗi lần mở; đếm đẩy qua queue async), **301** nếu
+      ưu tiên giảm tải (trình duyệt cache, mất khả năng đếm).
+      **Custom alias:** kiểm tra tên tự chọn **chưa ai dùng** (uniqueness) trước khi ghi. **Expiry:**
+      lưu mốc hết hạn; link quá hạn trả 404/gone, và một job dọn nền xóa bản ghi cũ.
+    rubric_md: "Đạt (mức phỏng vấn, theo mastery_bar mức 3) khi tự vẽ/kể được luồng tạo mã → chuyển hướng với đúng thành phần (LB, app stateless, cache, key-value store, CDN), chọn được cách sinh mã không trùng kèm length math 62^7, và nói đúng khi nào dùng 301 vs 302; có ước lượng hợp lý và xử lý custom alias + expiry. Đúng, mạch lạc, tự giải thích đánh đổi: bằng chứng điểm 3. Thiếu luồng đọc/ghi rõ ràng, hoặc không phân biệt được 301/302, hoặc bỏ cách sinh mã: chưa đạt mức 3."

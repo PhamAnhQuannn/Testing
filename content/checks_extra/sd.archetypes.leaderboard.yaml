@@ -1,0 +1,56 @@
+subtopic_id: sd.archetypes.leaderboard
+items:
+  - id: S175
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Một bảng xếp hạng (leaderboard) có ba việc lõi. Kể tên cả ba, và cho biết cấu trúc dữ liệu Redis
+      nào là câu trả lời gốc cho chúng.
+    answer_md: |
+      Ba việc lõi: (1) **cập nhật điểm** của một người, (2) lấy **top-N** (N người điểm cao nhất), và
+      (3) hỏi **hạng của một người** (a user's own rank — "mình thứ mấy?"). Câu trả lời gốc là **Redis
+      sorted set (ZSET)**: nó giữ các cặp (thành viên, điểm) luôn sắp sẵn theo điểm, nên ZADD cộng điểm,
+      ZREVRANGE lấy top-N và ZREVRANK lấy hạng đều rẻ (cỡ O(log n)).
+    rubric_md: "Đạt khi nêu đúng cả ba việc (cập nhật điểm, top-N, hạng của một người) và gọi đúng sorted set/ZSET. Đúng ý: bằng chứng điểm 1; thiếu việc 'hạng của một người' hoặc không nêu ZSET: tối đa điểm 0."
+  - id: S176
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Một kỹ sư đề xuất làm leaderboard bằng bảng SQL `scores(user_id, score)` có index trên `score`,
+      lấy top-N bằng `ORDER BY score DESC LIMIT N` và lấy hạng bằng `SELECT COUNT(*) WHERE score > :x`.
+      Hệ có hàng triệu người chơi, điểm đổi liên tục. Hãy chỉ ra: (1) truy vấn nào là nghẽn và vì sao;
+      (2) phương án thay thế bằng Redis và độ phức tạp của nó.
+    answer_md: |
+      (1) Nghẽn là **truy vấn hạng** `SELECT COUNT(*) WHERE score > :x`: nó phải **đếm mọi hàng có điểm
+      cao hơn** cho *mỗi* lần hỏi hạng, chi phí **O(n)**. Vì điểm đổi liên tục nên kết quả không cache lâu
+      được, mỗi lần bấm "hạng của tôi" là một lần quét lớn — với hàng triệu hàng thì DB quá tải. (Top-N với
+      index trên `score` thì còn chấp nhận được, không phải chỗ chết.)
+      (2) Thay bằng **Redis sorted set (ZSET)**: ZADD cập nhật điểm **O(log n)**, ZREVRANGE lấy top-N
+      **O(log n + N)**, và ZREVRANK lấy hạng **O(log n)** nhờ giữ sẵn thứ tự trong RAM — tránh đúng cái
+      quét O(n) của SQL.
+    rubric_md: "Đạt khi: chỉ đúng truy vấn COUNT(*) hạng là nghẽn O(n) mỗi lần (và nói được vì sao không cache được), rồi đề xuất ZSET với ZREVRANK/ZADD O(log n). Đúng, trong time-box, tự giải thích được: bằng chứng điểm 2. Chỉ nói 'dùng Redis nhanh hơn' mà không chỉ ra nghẽn hạng O(n) hoặc nhầm top-N là nghẽn: tối đa điểm 1."
+  - id: S177
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      Thiết kế một bảng xếp hạng real-time cho game 10 triệu người chơi: hiển thị top-100 và trả lời
+      "hạng của tôi" trong tích tắc. Trình bày **thiết kế đầy đủ**: cấu trúc lõi và các lệnh; làm gì khi
+      dữ liệu vượt RAM một máy (chia bảng và cách lấy top-N, hạng cho đuôi dài); lưu bền/phục hồi khi Redis
+      mất; và cách làm **bảng theo tuần**.
+    answer_md: |
+      **Lõi:** Redis **sorted set (ZSET)** cho mỗi bảng. ZADD cộng/đổi điểm O(log n), ZREVRANGE board 0 99
+      lấy top-100, ZREVRANK board :user lấy hạng của một người O(log n). Không dùng SQL cho hạng vì
+      `COUNT(*)` là O(n) mỗi lần, chết ở 10 triệu người và điểm đổi liên tục.
+      **Vượt RAM một máy — chia bảng (sharded leaderboard):** chia người chơi ra nhiều ZSET trên nhiều máy
+      Redis. **Top-N toàn cục:** lấy top-N của từng shard rồi **gộp (merge)** (người đứng đầu toàn cục chắc
+      chắn nằm trong top-N của shard chứa họ). **Hạng cho đuôi dài:** đếm hạng tuyệt đối xuyên shard rất đắt,
+      nên với người không thuộc top trả về **hạng gần đúng (approximate rank)** dạng phần trăm/nhóm
+      (percentile/buckets) — "top 5%" — chỉ top mới cần hạng chính xác.
+      **Lưu bền/phục hồi:** Redis không phải kho gốc; kết hợp **snapshot định kỳ** (RDB/AOF) và ghi mỗi lần
+      cộng điểm vào một **DB bền (score_events)** để **rebuild** ZSET nếu Redis mất.
+      **Bảng theo tuần:** mỗi tuần một **khóa ZSET riêng** như `board:2026-W41` với **TTL** để Redis tự dọn
+      khi hết kỳ; muốn giữ lịch sử thì snapshot sang DB trước khi bỏ.
+    rubric_md: "Đạt (mức phỏng vấn, đúng mastery bar level-3) khi trình bày đủ: ZSET + đúng lệnh (ZADD/ZREVRANGE/ZREVRANK) và vì sao không SQL; chia bảng khi quá lớn kèm cách gộp top-N; hạng gần đúng (percentile/buckets) cho đuôi dài; persistence/rebuild từ DB; và bảng theo thời gian bằng khóa riêng + TTL. Đúng, trong time-box, tự giải thích rõ: bằng chứng điểm 3. Thiếu phần chia bảng/hạng gần đúng hoặc thiếu persistence: chưa đạt mức 3."

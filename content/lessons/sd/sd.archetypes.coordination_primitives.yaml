@@ -1,0 +1,154 @@
+id: sd.archetypes.coordination_primitives
+version: 1
+status: published
+title_vi: "Thiết kế bộ sinh ID duy nhất phân tán (distributed unique ID generator) kiểu Snowflake"
+est_minutes: 13
+objectives_vi:
+  - "Giải thích vì sao sinh ID duy nhất trên nhiều máy lại khó, và vì sao cần ID vừa duy nhất vừa gần đúng thứ tự thời gian (k-sortable)."
+  - "Ghép được bố cục Snowflake 64 bit (timestamp + machine id + sequence), tính dung lượng mỗi bit và xử lý đồng hồ lùi (clock rollback) cùng tràn bộ đếm trong một mili-giây."
+  - "So sánh Snowflake với UUIDv4, UUIDv7, auto-increment của DB và ticket/range server để biện minh lựa chọn trong phỏng vấn."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      **Bài toán.** Ta cần cấp **mã định danh duy nhất (unique ID)** cho hàng triệu bản ghi mỗi giây
+      (tin nhắn, đơn hàng, bài đăng), trên **nhiều máy** đặt ở nhiều nơi. Hai cách ngây thơ đều hỏng:
+      - Mỗi máy **tự đếm** 1, 2, 3... riêng thì hai máy sẽ sinh trùng ID.
+      - Hỏi **một máy trung tâm** để lấy số kế tiếp cho *từng* ID thì chậm (mỗi ID một vòng mạng) và
+        máy đó là **điểm chết duy nhất (single point of failure)**.
+
+      Mục tiêu khó là: ID **duy nhất toàn cục**, sinh được **cực nhanh không cần phối hợp cho từng
+      ID**, và tốt nhất là **gần đúng thứ tự thời gian** để sắp xếp và lập chỉ mục (index) hiệu quả.
+  - id: b02
+    type: text
+    md: |
+      Vì sao cần **gần đúng thứ tự thời gian (k-sortable)**? Đây là chỗ bài này nối tiếp bài **thứ tự
+      thời gian trong hệ phân tán (time ordering)**. Nếu ID lớn dần theo thời gian tạo, thì sắp theo ID
+      gần như sắp theo thời gian, và khi dùng làm khóa chính thì các bản ghi mới ghi **gần nhau** ở cuối
+      chỉ mục B-tree — ít phân mảnh, chèn nhanh. Ngược lại ID **ngẫu nhiên** rải khắp cây chỉ mục, làm
+      mỗi lần chèn đụng một trang khác nhau (index-unfriendly). "k-sortable" nghĩa là thứ tự **gần đúng**:
+      hai ID sinh trong cùng một mili-giây ở hai máy khác nhau có thể đảo nhau, nhưng tính theo mốc
+      mili-giây thì vẫn đúng chiều thời gian.
+  - id: b03
+    type: text
+    md: |
+      **Bố cục Snowflake (của X / Twitter).** Nhét cả ba thứ vào một số nguyên **64 bit**:
+
+      - **1 bit dấu (sign)**: luôn để 0 cho ID dương.
+      - **~41 bit thời gian (timestamp, tính bằng mili-giây)** kể từ một mốc (epoch) tự chọn. 41 bit đủ
+        đếm khoảng 2^41 mili-giây ≈ **69 năm**.
+      - **~10 bit số máy (machine / worker id)**: phân biệt tối đa 2^10 = **1024 máy**.
+      - **~12 bit bộ đếm (sequence)** trong cùng một mili-giây: 2^12 = **4096** giá trị.
+
+      Cộng lại 1 + 41 + 10 + 12 = **64 bit**. Thời gian nằm ở **bit cao** nên ID càng sinh sau càng lớn
+      (đúng chiều thời gian ở mức mili-giây); số máy đảm bảo hai máy khác nhau không trùng; bộ đếm phân
+      biệt các ID sinh trong **cùng một mili-giây trên cùng một máy**. Không máy nào phải hỏi máy khác để
+      sinh một ID.
+  - id: b04
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Với bố cục Snowflake ở trên: một máy sinh tối đa bao nhiêu ID trong **một mili-giây** (điền số vào
+      ô 1), và tối đa bao nhiêu **máy** phân biệt được bằng trường machine id (điền số vào ô 2)?
+    blanks:
+      - accept: ["4096", "4,096", "2^12", "2**12"]
+      - accept: ["1024", "1,024", "2^10", "2**10"]
+    explain_md: |
+      12 bit bộ đếm cho 2^12 = **4096** ID mỗi mili-giây trên mỗi máy (tức ~4,096,000 ID/giây/máy); 10 bit
+      số máy cho 2^10 = **1024** máy. Nếu một máy cần hơn 4096 ID trong cùng một mili-giây thì phải **chờ
+      sang mili-giây kế tiếp** (xem phần xử lý tràn bộ đếm bên dưới).
+  - id: b05
+    type: text
+    md: |
+      **Hai ca biên phải xử lý — đây là chỗ phỏng vấn hay hỏi sâu:**
+
+      - **Tràn bộ đếm trong một mili-giây (sequence overflow).** Nếu đã dùng hết 4096 giá trị của bộ đếm
+        mà vẫn trong cùng mili-giây đó, máy **chờ bận (busy-wait) sang mili-giây kế tiếp** rồi reset bộ
+        đếm về 0. Đây là lý do 4096 là trần cứng cho mỗi máy mỗi mili-giây.
+      - **Đồng hồ chạy lùi (clock rollback / NTP adjust).** Phần timestamp lấy từ đồng hồ tường
+        (wall clock). Nếu đồng hồ bị **chỉnh lùi** (ví dụ NTP kéo lại), máy có thể sinh một timestamp đã
+        dùng rồi, gây **trùng ID**. Cách xử lý: nhớ mốc thời gian lớn nhất đã phát; nếu đồng hồ hiện tại
+        **nhỏ hơn** mốc đó thì **từ chối sinh (refuse / báo lỗi)** hoặc **chờ** cho đến khi đồng hồ vượt
+        lại qua mốc cũ. Tuyệt đối không phát ID với timestamp đã lùi.
+  - id: b06
+    type: text
+    md: |
+      **Cấp số máy (machine id) từ đâu?** Mỗi máy cần một số máy **khác nhau**, nếu không hai máy cùng số
+      sẽ trùng ID. Thực tế lấy số này lúc khởi động từ một dịch vụ phối hợp (coordination service) như
+      **ZooKeeper** hoặc **etcd** — máy đăng ký và nhận một số còn trống. Đây chính là chỗ "phối hợp" duy
+      nhất của hệ: ta chỉ phối hợp **một lần lúc khởi động** để lấy số máy, chứ **không** phối hợp cho
+      từng ID. Nhờ vậy đường sinh ID (hot path) hoàn toàn cục bộ và nhanh.
+  - id: b07
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Đồng hồ của một node Snowflake bị NTP chỉnh **lùi** 20 ms. Cách xử lý **đúng** để không sinh ID trùng là gì?"
+    options:
+      - {id: a, text_md: "Cứ sinh ID bình thường với timestamp mới (nhỏ hơn), vì bộ đếm sequence sẽ tự tránh trùng."}
+      - {id: b, text_md: "So với mốc thời gian lớn nhất đã phát: nếu đồng hồ hiện tại nhỏ hơn mốc đó thì **từ chối sinh hoặc chờ** đến khi đồng hồ vượt lại qua mốc cũ."}
+      - {id: c, text_md: "Chuyển sang dùng số ngẫu nhiên thay cho timestamp cho đến khi đồng hồ ổn định."}
+    answer: [b]
+    explain_md: |
+      Bộ đếm chỉ phân biệt ID **trong cùng một mili-giây trên cùng một máy**, nên nó không cứu được khi
+      timestamp lùi về một mili-giây **đã dùng** — vẫn trùng, nên (a) sai. (c) phá vỡ tính gần đúng thứ tự
+      thời gian và bố cục bit. Cách đúng là nhớ timestamp lớn nhất đã phát rồi **từ chối hoặc chờ** khi
+      đồng hồ lùi xuống dưới mốc đó.
+  - id: b08
+    type: text
+    md: |
+      **So sánh các lựa chọn (phần lõi để biện minh trong phỏng vấn):**
+
+      - **UUIDv4**: 128 bit, phần lớn **ngẫu nhiên**. Ưu: không cần phối hợp, gần như không trùng. Nhược:
+        **dài gấp đôi** (128 vs 64 bit) và **không theo thứ tự thời gian** nên **xấu cho chỉ mục**
+        (index-unfriendly) khi làm khóa chính.
+      - **UUIDv7**: cũng 128 bit nhưng đặt **timestamp ở đầu**, nên **theo thứ tự thời gian** — thân thiện
+        với chỉ mục hơn UUIDv4, vẫn không cần phối hợp. Giá phải trả là **128 bit** (to gấp đôi Snowflake).
+      - **Auto-increment / sequence của một DB**: đơn giản, số liên tục. Nhược: mọi lệnh sinh ID phải về
+        **một DB** — **cổ chai (bottleneck)** và **điểm chết duy nhất (SPOF)**; khó scale ghi.
+      - **Ticket / range server**: một máy cấp **từng khối (block/range)** số, ví dụ mỗi lần cấp 1000 số,
+        máy con dùng dần trong bộ nhớ. Giảm số vòng mạng (không hỏi cho từng ID), nhưng vẫn phụ thuộc
+        server cấp khối và số có thể **không liên tục** khi một máy con chết giữa khối.
+
+      **Snowflake** chọn điểm cân bằng: **64 bit** (gọn), **không phối hợp cho từng ID**, **gần đúng thứ
+      tự thời gian** — đổi lại cần cấp machine id lúc khởi động và phải xử lý đồng hồ lùi.
+  - id: b09
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một hệ cần khóa chính **gọn (64 bit)**, sinh **không cần hỏi máy trung tâm cho từng ID**, và **thân thiện với chỉ mục** (ghi mới nằm gần nhau). Lựa chọn nào hợp nhất và vì sao?"
+    options:
+      - {id: a, text_md: "UUIDv4, vì ngẫu nhiên nên chắc chắn không trùng và không cần phối hợp."}
+      - {id: b, text_md: "Auto-increment của một DB trung tâm, vì số liên tục và đơn giản nhất."}
+      - {id: c, text_md: "Snowflake, vì nó là số 64 bit sinh cục bộ (không phối hợp cho từng ID) và có timestamp ở bit cao nên gần đúng thứ tự thời gian, ghi mới nằm gần nhau trong chỉ mục."}
+    answer: [c]
+    explain_md: |
+      (a) UUIDv4 là **128 bit** và **ngẫu nhiên** nên xấu cho chỉ mục — trái cả yêu cầu gọn lẫn thân thiện
+      chỉ mục. (b) Auto-increment buộc mọi ID về **một DB** — cổ chai và điểm chết duy nhất, trái yêu cầu
+      không hỏi trung tâm. Chỉ **Snowflake** đạt cả ba: 64 bit, sinh cục bộ, và k-sortable. (UUIDv7 cũng
+      k-sortable nhưng **128 bit** nên trượt tiêu chí "gọn".)
+  - id: b10
+    type: callout
+    kind: interview
+    md: |
+      **Khung trả lời khi được hỏi "thiết kế bộ sinh ID duy nhất".** (1) Hỏi yêu cầu: throughput cần bao
+      nhiêu ID/giây, có cần **thứ tự thời gian** không, độ dài ID có quan trọng không (khóa chính DB?).
+      (2) Đề xuất **Snowflake 64 bit** và vẽ bố cục bit (1 + 41 + 10 + 12), nói rõ dung lượng (**4096
+      ID/ms/máy**, **1024 máy**, **~69 năm**). (3) Chủ động nêu hai ca biên: **đồng hồ lùi** (từ chối/chờ)
+      và **tràn bộ đếm** (chờ sang ms kế). (4) Nói machine id lấy từ **ZooKeeper/etcd** lúc khởi động.
+      (5) **Biện minh so với lựa chọn khác**: UUIDv4 (128 bit, xấu chỉ mục), UUIDv7 (k-sortable nhưng 128
+      bit), auto-increment (cổ chai/SPOF), ticket server (cấp khối, số không liên tục). Người phỏng vấn
+      chấm việc bạn **nêu được trade-off**, không chỉ nhớ bố cục bit.
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "Snowflake nhét ID duy nhất vào **64 bit**: 1 bit dấu + ~41 bit timestamp (ms) + ~10 bit machine id + ~12 bit sequence; timestamp ở bit cao nên ID **gần đúng thứ tự thời gian (k-sortable)**, thân thiện chỉ mục."
+      - "Dung lượng cần nhớ: **4096 ID/ms/máy** (12 bit), **1024 máy** (10 bit), **~69 năm** (41 bit)."
+      - "Mỗi ID sinh **cục bộ, không phối hợp**; chỉ phối hợp **một lần lúc khởi động** để lấy machine id từ ZooKeeper/etcd."
+      - "Hai ca biên: **đồng hồ lùi** → từ chối sinh hoặc chờ đến khi đồng hồ vượt mốc cũ (không phát timestamp đã lùi); **tràn bộ đếm** trong 1 ms → chờ sang mili-giây kế tiếp."
+      - "So sánh: UUIDv4 (128 bit, ngẫu nhiên, xấu chỉ mục), UUIDv7 (128 bit nhưng k-sortable), auto-increment DB (cổ chai + SPOF), ticket/range server (cấp khối, số có thể không liên tục); Snowflake cân bằng gọn + không phối hợp + k-sortable."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S193], l2: [S194], l3: [S195]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"
