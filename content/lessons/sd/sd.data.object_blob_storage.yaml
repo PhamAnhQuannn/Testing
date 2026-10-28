@@ -1,0 +1,154 @@
+id: sd.data.object_blob_storage
+version: 1
+status: published
+title_vi: "Lưu trữ đối tượng (object/blob storage): presigned URL và độ bền dữ liệu"
+est_minutes: 14
+objectives_vi:
+  - "Giải thích object/blob storage (kiểu S3) là gì: ánh xạ khóa → đối tượng (key → object) phẳng, có metadata, API qua HTTP, rẻ và cực bền — và vì sao nó hợp file nhị phân lớn chứ không hợp đọc giao dịch độ trễ thấp."
+  - "Nói rõ vì sao ta để nội dung file trong object storage và chỉ giữ một URL/khóa trong database (DB)."
+  - "Thiết kế luồng tải file lớn bằng presigned URL (client tải thẳng lên kho, bỏ qua app server) kèm multipart upload."
+  - "So sánh độ bền (durability): chép 3 bản (3-way replication) vs erasure coding (ví dụ 10+4) bằng con số (3x so với 1,4x dung lượng)."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      **Object storage** (lưu trữ đối tượng, điển hình là **Amazon S3**) là một kho lưu *cả file*
+      (gọi là **object**) theo một **khóa** (key) trong một **bucket** (thùng). Vài tính chất cốt lõi:
+      - **Không gian khóa phẳng (flat key → object):** mỗi object được tra bằng một chuỗi khóa, ví dụ
+        `users/42/avatar.png`. Trông như thư mục nhưng thực chất chỉ là một khóa phẳng, không có cây
+        thư mục thật.
+      - **Mỗi object = dữ liệu (bytes) + metadata** (kích thước, kiểu nội dung, thời gian, nhãn tự đặt).
+      - **API qua HTTP:** PUT để ghi cả object, GET để đọc cả object. **Không sửa tại chỗ** một vài byte
+        giữa file — muốn đổi thì ghi đè cả object (hoặc ghi một phiên bản mới).
+      - **Rẻ và cực bền (durable):** giá mỗi GB thấp hơn nhiều so với đĩa của database, và được thiết kế
+        để gần như không bao giờ mất dữ liệu (S3 quảng cáo 11 số 9 độ bền, tức 99,999999999%).
+  - id: b02
+    type: text
+    md: |
+      Vì vậy object storage **hợp** để chứa **file nhị phân lớn**: ảnh, video, bản sao lưu (backup),
+      log nén, file người dùng tải lên. Nó **không hợp** làm nơi đọc **giao dịch độ trễ thấp**
+      (low-latency transactional reads): mỗi lần đọc là một request HTTP kéo cả object, không có chỉ mục
+      (index) để lọc/sắp xếp, không có transaction. Những truy vấn kiểu "lấy 20 đơn hàng mới nhất của
+      user X" thuộc về database, không thuộc về object storage.
+
+      **Nguyên tắc vàng:** để **nội dung file** (blob) trong object storage, và chỉ giữ một **URL/khóa**
+      (cùng vài metadata như tên, chủ sở hữu, kích thước) trong **database**. Lý do không nhét file vào
+      cột của DB quan hệ:
+      - File lớn làm phình DB, sao lưu/khôi phục chậm, và tốn tiền trên đĩa đắt của DB thay vì kho rẻ.
+      - DB phải tải cả blob qua mỗi lần đọc dòng, bào mòn bộ nhớ đệm (cache) và băng thông cho dữ liệu
+        mà phần lớn truy vấn không cần.
+      - Object storage đã cho sẵn phân phát qua HTTP, đặt **CDN** phía trước, và độ bền cao — DB không có.
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao ta thường lưu ảnh vào object storage và chỉ để một **URL/khóa** trong database, thay vì nhét cả file ảnh vào một cột của DB?"
+    options:
+      - {id: a, text_md: "Vì database không thể lưu dữ liệu nhị phân dưới bất kỳ hình thức nào."}
+      - {id: b, text_md: "Vì file lớn làm phình DB (sao lưu chậm, tốn đĩa đắt, bào mòn cache), còn object storage thì rẻ, bền và phân phát HTTP/CDN sẵn; DB chỉ cần giữ con trỏ tới file."}
+      - {id: c, text_md: "Vì object storage cho phép sửa tại chỗ vài byte giữa file nhanh hơn database."}
+    answer: [b]
+    explain_md: "Tách blob ra kho rẻ/bền và giữ con trỏ trong DB giúp DB gọn, sao lưu nhanh, cache sạch, và tận dụng HTTP/CDN. (a) sai — DB *lưu được* nhị phân (BLOB), chỉ là không nên; (c) sai — object storage **không** sửa tại chỗ, muốn đổi phải ghi đè cả object."
+  - id: b04
+    type: text
+    md: |
+      **Luồng tải file lớn bằng presigned URL.** Nếu client gửi file *qua* app server rồi server mới
+      đẩy lên kho, thì app server phải nuốt toàn bộ băng thông và bộ nhớ cho mọi lần upload — không
+      scale. Giải pháp là **presigned URL** (URL có chữ ký tạm): một đường link do server ký, cho phép
+      **client tải thẳng lên object storage**, bỏ qua app server.
+
+      Các bước:
+      1. **Client xin phép:** gọi app server "tôi muốn tải `video.mp4`, 500 MB".
+      2. **Server cấp presigned URL:** server (đang giữ khóa bí mật của kho) ký một URL có hạn dùng
+        (ví dụ 15 phút), giới hạn đúng khóa/bucket và quyền PUT, rồi trả về cho client. Server **không**
+        nhận byte nào của file.
+      3. **Client PUT thẳng lên kho:** client dùng URL đó tải file trực tiếp vào object storage.
+      4. **Xác nhận + ghi metadata:** sau khi tải xong, client báo server (hoặc kho bắn sự kiện), server
+        ghi một dòng vào DB: khóa object, chủ sở hữu, kích thước, trạng thái "sẵn sàng".
+
+      Nhờ đó app server chỉ làm việc nhẹ (ký URL, ghi một dòng), còn phần nặng (truyền byte) do kho lo.
+  - id: b05
+    type: text
+    md: |
+      **Multipart upload (tải nhiều phần).** File rất lớn (hàng GB) mà tải một phát thì đứt mạng là phải
+      làm lại từ đầu. Multipart cắt file thành nhiều **phần** (part, ví dụ mỗi phần 5–100 MB), mỗi phần
+      có presigned URL riêng và được tải song song; tải xong hết thì gọi một bước "hoàn tất" để kho ghép
+      các phần thành một object. Lợi ích: **resumable** (lỗi phần nào chỉ gửi lại phần đó), tải song song
+      nhanh hơn, và vượt được giới hạn kích thước của một PUT đơn.
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Trong luồng upload bằng **presigned URL**, vai trò của app server là gì?"
+    options:
+      - {id: a, text_md: "Nhận toàn bộ byte của file từ client rồi mới đẩy lên object storage."}
+      - {id: b, text_md: "Ký một URL tạm có hạn và quyền giới hạn để client tải **thẳng** lên kho, rồi ghi metadata vào DB — server không truyền byte file."}
+      - {id: c, text_md: "Lưu cả file vào database để làm bản sao dự phòng trước khi chuyển sang kho."}
+    answer: [b]
+    explain_md: "Presigned URL cho client PUT trực tiếp vào object storage; app server chỉ ký link và ghi metadata, nên không bị nghẽn băng thông/bộ nhớ. (a) chính là mô hình đi-vòng-qua-server mà presigned URL muốn tránh; (c) sai — ta không để file trong DB."
+  - id: b07
+    type: text
+    md: |
+      **Độ bền (durability): làm sao file gần như không bao giờ mất?** Đĩa và cả máy chủ đều hỏng, nên
+      kho phải giữ **dư thừa** (redundancy). Hai cách chính:
+
+      - **Chép 3 bản (3-way replication):** lưu 3 bản sao y hệt của object trên 3 đĩa/máy khác nhau.
+        - Dung lượng: **3x** (muốn giữ 1 PB dữ liệu thật thì tốn 3 PB đĩa).
+        - Chịu lỗi: mất tối đa **2 bản** vẫn còn 1 bản đọc được.
+        - Ưu: đơn giản, đọc nhanh (bản nào cũng là object đầy đủ). Nhược: tốn gấp 3 dung lượng.
+
+      - **Erasure coding (mã xóa/mã sửa lỗi), ví dụ 10+4:** cắt object thành **10 mảnh dữ liệu** (data
+        shards) rồi tính thêm **4 mảnh kiểm tra** (parity shards) từ chúng → tổng **14 mảnh** rải trên
+        14 đĩa/máy.
+        - Dung lượng: 14/10 = **1,4x** (giữ 1 PB thật chỉ tốn ~1,4 PB đĩa).
+        - Chịu lỗi: mất **bất kỳ 4 mảnh** nào trong 14 vẫn tính lại được object từ 10 mảnh còn lại.
+        - Ưu: bền hơn (chịu 4 lỗi) mà **rẻ hơn nhiều** so với 3x. Nhược: đọc/ghi tốn CPU để mã hóa/giải
+          mã và phải gom nhiều mảnh, nên độ trễ cao hơn — hợp dữ liệu lớn, ít đọc nóng (ảnh gốc, backup).
+
+      **Chốt bằng con số:** erasure coding 10+4 chịu được **4** lỗi với chỉ **1,4x** dung lượng, trong
+      khi chép 3 bản chỉ chịu **2** lỗi mà tốn tới **3x**. Vì vậy kho quy mô lớn thường dùng erasure
+      coding cho phần lớn dữ liệu, và chỉ chép-bản cho dữ liệu nhỏ/nóng cần đọc nhanh.
+  - id: b08
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Với erasure coding kiểu **10+4** (10 mảnh dữ liệu + 4 mảnh kiểm tra), các con số đúng là gì?"
+    options:
+      - {id: a, text_md: "Tốn 1,4x dung lượng và chịu được mất tối đa 4 mảnh bất kỳ trong 14."}
+      - {id: b, text_md: "Tốn 3x dung lượng và chịu được mất tối đa 2 mảnh."}
+      - {id: c, text_md: "Tốn 1,4x dung lượng nhưng chỉ chịu được mất đúng 1 mảnh."}
+    answer: [a]
+    explain_md: "Tổng 14 mảnh cho 10 mảnh dữ liệu → overhead 14/10 = 1,4x; cần 10 mảnh bất kỳ để dựng lại nên mất tối đa 4 mảnh vẫn an toàn. (b) là con số của chép-3-bản (3x, chịu 2 lỗi); (c) sai về khả năng chịu lỗi của 10+4."
+  - id: b09
+    type: callout
+    kind: interview
+    md: |
+      **Thanh điểm mức 3 (level-3 bar).** Khi gặp câu "thiết kế dịch vụ tải ảnh/video", hãy làm đủ hai
+      việc: (1) **vẽ luồng upload file lớn bằng presigned URL** — client xin link → server ký presigned
+      URL (có hạn, giới hạn quyền) → client PUT thẳng lên kho (multipart cho file lớn) → server ghi
+      metadata (khóa object) vào DB, và nói rõ *vì sao* bỏ qua app server (không nghẽn băng thông); và
+      (2) **so sánh độ bền bằng con số** — chép 3 bản = 3x dung lượng, chịu 2 lỗi; erasure coding 10+4 =
+      1,4x dung lượng, chịu 4 lỗi. Kết: EC rẻ hơn và bền hơn nhưng đọc/ghi tốn CPU, nên dùng cho dữ liệu
+      lớn/ít nóng. Người phỏng vấn chấm việc bạn *đưa ra con số đúng* và *giải thích đánh đổi*, không chỉ
+      kể tên công nghệ.
+  - id: b10
+    type: text
+    md: |
+      **CDN phía trước cho đọc.** Object storage bền và rẻ nhưng không tối ưu cho đọc nóng toàn cầu: mỗi
+      GET vẫn đi tới kho. Với dữ liệu đọc nhiều (ảnh, video), đặt một **CDN** (mạng phân phối nội dung)
+      trước kho: CDN **cache** object ở các điểm gần người dùng, nên lần đọc sau được phục vụ từ biên
+      (edge) — nhanh hơn, giảm tải và chi phí băng thông cho kho gốc. Mẫu hình quen thuộc:
+      *client → CDN → object storage*, còn metadata vẫn tra từ DB.
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "Object/blob storage (S3) = ánh xạ khóa → object phẳng, có metadata, API HTTP (ghi đè cả object, không sửa tại chỗ), rẻ và cực bền; hợp file nhị phân lớn (ảnh/video/backup), không hợp đọc giao dịch độ trễ thấp."
+      - "Để blob trong object storage và chỉ giữ URL/khóa trong DB: DB gọn, sao lưu nhanh, cache sạch, tận dụng HTTP/CDN."
+      - "Presigned URL: server ký link tạm có hạn/giới hạn quyền để client tải **thẳng** lên kho, bỏ qua app server; multipart cắt file lớn thành nhiều phần để tải song song và resumable."
+      - "Độ bền: chép 3 bản = **3x** dung lượng, chịu **2** lỗi; erasure coding 10+4 = **1,4x** dung lượng, chịu **4** lỗi (bền hơn, rẻ hơn, nhưng đọc/ghi tốn CPU)."
+      - "Đặt CDN trước kho cho dữ liệu đọc nóng để phục vụ từ biên, giảm tải và chi phí cho kho gốc."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S058], l2: [S059], l3: [S060]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

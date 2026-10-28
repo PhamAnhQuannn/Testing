@@ -1,0 +1,170 @@
+id: sd.data.search_indexing
+version: 1
+status: published
+title_vi: "Chỉ mục tìm kiếm: inverted index và Elasticsearch"
+est_minutes: 14
+objectives_vi:
+  - "Giải thích vì sao index B-tree thường của DB không hợp cho tìm kiếm toàn văn (full-text search), và **inverted index** giải quyết điều đó thế nào."
+  - "Mô tả xếp hạng liên quan bằng **BM25** ở mức ý tưởng, và cách giữ index đồng bộ với DB gốc bằng **CDC** (độ trễ nhất quán cuối cùng)."
+  - "Nói được cách **scale cụm tìm kiếm** bằng shard và replica (Elasticsearch/OpenSearch)."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Giả sử có cột `description` chứa cả câu, và người dùng gõ từ "cafe" để tìm **mọi** bài có
+      chứa từ đó ở bất kỳ đâu trong câu. Index **B-tree** thường của DB sắp xếp giá trị theo thứ tự
+      từ đầu chuỗi, nên nó chỉ nhanh khi tìm theo **tiền tố** (`LIKE 'cafe%'`). Còn tìm từ ở **giữa**
+      câu (`LIKE '%cafe%'`) thì B-tree vô dụng: DB phải quét **toàn bộ bảng**, đọc từng dòng, so từng
+      chữ — chậm tuyến tính theo số dòng. B-tree trả lời tốt câu hỏi "giá trị này nằm ở đâu", nhưng
+      tìm kiếm toàn văn (full-text search) cần câu hỏi ngược lại: "**từ này xuất hiện trong những
+      tài liệu nào**". Đó là lý do ta cần một cấu trúc khác.
+  - id: b02
+    type: text
+    md: |
+      **Inverted index** (chỉ mục ngược) đúng là cấu trúc trả lời câu hỏi đó. Thay vì "tài liệu ->
+      các từ", nó lưu ngược lại: **từ (term) -> danh sách tài liệu chứa từ đó** (posting list, là
+      một danh sách doc id). Giống **mục lục** cuối sách: tra từ, ra ngay các trang.
+
+      Ví dụ 3 bài: D1 "cafe sữa đá", D2 "cafe đen", D3 "trà sữa". Inverted index:
+
+      - `cafe -> {D1, D2}`
+      - `sữa  -> {D1, D3}`
+      - `đá   -> {D1}`
+      - `đen  -> {D2}`
+      - `trà  -> {D3}`
+
+      Tìm "cafe sữa" = lấy posting list của từng từ rồi **giao nhau** (intersect): `{D1,D2}` giao
+      `{D1,D3}` = `{D1}`. Ta không hề quét bảng — chỉ đọc đúng vài danh sách ngắn rồi giao, nên tốc
+      độ không phụ thuộc tổng số tài liệu mà phụ thuộc số tài liệu chứa các từ đó.
+  - id: b03
+    type: text
+    md: |
+      Trước khi vào index, văn bản phải qua bước **phân tích (analysis)** để quyết định "từ" là gì:
+
+      - **Tách từ (tokenization):** cắt câu thành các token ("cafe sữa đá" -> `cafe`, `sữa`, `đá`).
+      - **Chuẩn hóa (normalization):** đưa về chữ thường, bỏ dấu câu, có thể bỏ dấu tiếng Việt.
+      - **Bỏ từ vô nghĩa (stop words):** bỏ các từ quá phổ biến như "the", "và" vì chúng không giúp
+        phân biệt tài liệu.
+      - **Đưa về gốc từ (stemming):** `running`, `runs` -> `run`, để truy vấn một dạng vẫn khớp các
+        dạng khác.
+
+      Điểm cốt lõi: **cùng một bộ phân tích phải áp cho cả lúc lập index lẫn lúc truy vấn**, nếu
+      không truy vấn sẽ không khớp được với term đã lưu. Vì vậy đổi cách tách từ nghĩa là phải
+      **lập lại index (reindex)** toàn bộ — việc rất tốn.
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao tìm một từ ở **giữa** câu (`LIKE '%cafe%'`) lại chậm với index B-tree thường, còn inverted index thì nhanh?"
+    options:
+      - {id: a, text_md: "B-tree sắp xếp theo thứ tự từ đầu chuỗi nên chỉ nhanh với tiền tố; tìm từ ở giữa phải quét toàn bảng. Inverted index lưu thẳng 'từ -> danh sách tài liệu chứa từ' nên tra là ra."}
+      - {id: b, text_md: "Vì B-tree chỉ chạy được trên số, không chạy được trên chuỗi, còn inverted index chạy được trên chuỗi."}
+      - {id: c, text_md: "Vì inverted index giữ toàn bộ bảng trong RAM nên nhanh hơn, bản chất vẫn là quét bảng."}
+    answer: [a]
+    explain_md: "B-tree chỉ hữu ích cho tìm theo tiền tố (sắp xếp từ đầu chuỗi); từ ở giữa buộc quét toàn bảng. Inverted index đảo chiều dữ liệu thành term -> posting list nên tra trực tiếp. (b) sai — B-tree index được cả chuỗi nhưng chỉ cho tiền tố; (c) sai — inverted index tra danh sách, không quét bảng, và không bắt buộc nằm hết trong RAM."
+  - id: b05
+    type: text
+    md: |
+      Tìm đúng tài liệu chứa từ chưa đủ — thường có hàng nghìn tài liệu khớp, nên cần **xếp hạng
+      liên quan (relevance ranking)** để bài hợp nhất lên đầu. Công thức phổ biến là **BM25**. Không
+      cần thuộc công thức, chỉ cần ba trực giác:
+
+      - **Tần suất từ trong tài liệu (term frequency) tăng -> điểm tăng:** bài nhắc "cafe" 5 lần
+        hợp hơn bài nhắc 1 lần. Nhưng tăng **giảm dần** (nhắc 50 lần không hơn gấp 50).
+      - **Độ phổ biến của từ trong cả kho (document frequency) tăng -> điểm giảm:** từ hiếm (xuất
+        hiện ở ít tài liệu) mang nhiều thông tin hơn từ phổ biến. Khớp một từ hiếm đáng giá hơn khớp
+        một từ ai cũng có.
+      - **Chuẩn hóa theo độ dài (length normalization):** một bài dài tự nhiên chứa nhiều từ hơn,
+        nên BM25 hạ bớt điểm của bài dài để nó không thắng chỉ nhờ dài.
+
+      Tóm lại: khớp **từ hiếm, nhiều lần, trong bài không quá dài** thì điểm cao. Đó là ý tưởng của
+      BM25 (và của TF-IDF, tiền thân cùng tư tưởng).
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Theo ý tưởng BM25, giữa hai bài cùng chứa từ truy vấn, điều nào làm **tăng** điểm liên quan của một bài?"
+    options:
+      - {id: a, text_md: "Bài đó khớp một từ **hiếm** trong cả kho (ít tài liệu khác chứa từ đó)."}
+      - {id: b, text_md: "Bài đó **dài hơn** nhiều so với bài kia nên chứa nhiều từ hơn."}
+      - {id: c, text_md: "Từ truy vấn là một **stop word** rất phổ biến xuất hiện khắp nơi."}
+    answer: [a]
+    explain_md: "Từ càng hiếm trong kho (document frequency thấp) càng mang nhiều thông tin, nên khớp nó làm tăng điểm. (b) sai — BM25 chuẩn hóa theo độ dài để bài dài **không** thắng chỉ nhờ dài; (c) sai — từ quá phổ biến gần như không tăng điểm (và thường bị loại khi lập index)."
+  - id: b07
+    type: text
+    md: |
+      Index tìm kiếm **không phải** nguồn dữ liệu gốc — nó là một **bản phụ (secondary index)** chép
+      từ DB gốc để tìm cho nhanh. DB gốc (ví dụ Postgres) vẫn là **sự thật**; mất index thì dựng lại
+      được từ DB gốc. Vậy khi DB gốc thay đổi, làm sao index biết để cập nhật?
+
+      Cách bền vững là **CDC (Change Data Capture)**: một đường ống (indexing pipeline) **nghe nhật
+      ký thay đổi** của DB gốc (ví dụ WAL / binlog) — mỗi lần có insert/update/delete, nó đẩy bản ghi
+      đã đổi sang cập nhật index. Ưu điểm so với cách "ghi vào DB rồi ghi thẳng vào index" trong cùng
+      request: pipeline **tách rời**, DB gốc không phải chờ index, và nếu index tạm sập thì các thay
+      đổi vẫn xếp hàng trong log để xử lý sau.
+
+      Hệ quả quan trọng cho phỏng vấn: index **trễ hơn DB gốc một chút** (thường vài giây) — đây là
+      **nhất quán cuối cùng (eventual consistency)**. Vừa tạo một bài viết xong, nó có thể chưa hiện
+      ngay trong kết quả tìm kiếm. Phải chấp nhận độ trễ này và thiết kế trải nghiệm quanh nó (ví dụ
+      đọc bài vừa tạo trực tiếp từ DB gốc, không từ index).
+  - id: b08
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao giữ index tìm kiếm đồng bộ với DB gốc bằng **CDC** lại dẫn tới **nhất quán cuối cùng** (eventual consistency)?"
+    options:
+      - {id: a, text_md: "Vì CDC đọc nhật ký thay đổi của DB gốc rồi cập nhật index **không đồng bộ**, nên index trễ hơn DB gốc một chút (thường vài giây)."}
+      - {id: b, text_md: "Vì CDC ghi vào index **trước** rồi mới ghi vào DB gốc, nên DB gốc mới là bản trễ."}
+      - {id: c, text_md: "Vì CDC khóa DB gốc trong lúc cập nhật index nên mọi thứ luôn khớp tức thì."}
+    answer: [a]
+    explain_md: "CDC là đường ống bất đồng bộ nghe log thay đổi của DB gốc rồi mới cập nhật index, nên có độ trễ -> index tạm thời cũ hơn DB gốc, cuối cùng mới khớp. (b) sai — DB gốc là sự thật, ghi trước; (c) sai — CDC không khóa DB gốc, chính vì tách rời nên mới có độ trễ."
+  - id: b09
+    type: text
+    md: |
+      Khi dữ liệu và lượng truy vấn lớn lên, ta **scale cụm tìm kiếm** (ví dụ **Elasticsearch** hay
+      **OpenSearch** — OpenSearch là bản tách ra từ Elasticsearch, cách dùng gần giống; cả hai dựng
+      trên thư viện Lucene) bằng hai trục:
+
+      - **Shard (phân mảnh để chia dữ liệu):** index quá lớn cho một máy nên chia thành nhiều shard,
+        mỗi shard giữ một **phần** tài liệu và nằm trên một node khác nhau. Truy vấn được gửi tới
+        **mọi** shard, mỗi shard trả top vài kết quả, rồi gộp lại (scatter-gather). Nhờ vậy vừa
+        chứa được nhiều dữ liệu hơn vừa chạy song song.
+      - **Replica (bản sao để chịu tải đọc và chịu lỗi):** mỗi shard có thêm bản sao trên node khác.
+        Replica vừa **gánh thêm truy vấn đọc** (nhiều bản sao phục vụ song song) vừa **chịu lỗi**
+        (một node chết, bản sao lên thay, không mất dữ liệu).
+
+      Nói gọn: **shard chia dữ liệu để chứa và chạy song song; replica nhân bản để tăng throughput
+      đọc và chịu lỗi.** Thêm dữ liệu -> thêm shard; thêm truy vấn -> thêm replica.
+  - id: b10
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Trong một cụm Elasticsearch/OpenSearch, **shard** và **replica** khác vai trò thế nào?"
+    options:
+      - {id: a, text_md: "Shard chia tài liệu thành nhiều phần trên các node (để chứa nhiều dữ liệu và chạy song song); replica là bản sao của shard (để gánh thêm đọc và chịu lỗi khi một node chết)."}
+      - {id: b, text_md: "Shard là bản sao để chịu lỗi; replica chia tài liệu thành nhiều phần để chứa nhiều dữ liệu."}
+      - {id: c, text_md: "Cả shard lẫn replica đều chỉ để sao lưu, không liên quan đến việc chia dữ liệu hay tăng tốc truy vấn."}
+    answer: [a]
+    explain_md: "Shard = chia dữ liệu (mỗi shard một phần tài liệu, truy vấn chạy song song rồi gộp); replica = bản sao mỗi shard (tăng throughput đọc và chịu lỗi). (b) đảo ngược vai trò; (c) sai — chúng chính là cơ chế để scale dung lượng và tải đọc."
+  - id: b11
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn.** Khi được hỏi "thiết kế tìm kiếm", kể theo lớp: (1) **inverted index** (từ ->
+      posting list) vì B-tree không hợp full-text; (2) **phân tích văn bản** (tách từ, chuẩn hóa) áp
+      cùng một bộ cho lúc index và lúc truy vấn; (3) **xếp hạng BM25** ở mức ý tưởng (từ hiếm, nhiều
+      lần, bài không quá dài -> điểm cao); (4) index là **bản phụ** đồng bộ từ DB gốc qua **CDC**,
+      chấp nhận trễ vài giây (eventual consistency); (5) **scale bằng shard + replica**. Luôn nói rõ
+      "DB gốc là sự thật, mất index dựng lại được" — đây là câu người phỏng vấn muốn nghe.
+  - id: b12
+    type: summary
+    bullets_vi:
+      - "B-tree chỉ nhanh với tìm tiền tố; tìm từ ở giữa câu phải quét toàn bảng. **Inverted index** lưu 'từ (term) -> danh sách tài liệu (posting list)' nên tra là ra, và truy vấn nhiều từ = giao các danh sách."
+      - "Văn bản qua bước **phân tích**: tách từ (tokenization), chuẩn hóa, bỏ stop words, đưa về gốc (stemming) — cùng một bộ cho lúc index và lúc truy vấn; đổi cách tách từ phải reindex."
+      - "**BM25** xếp hạng ở mức ý tưởng: từ xuất hiện nhiều lần trong bài (TF, tăng giảm dần) và từ hiếm trong cả kho (document frequency thấp) -> điểm cao; chuẩn hóa theo độ dài để bài dài không thắng chỉ nhờ dài."
+      - "Index là **bản phụ** chép từ DB gốc qua **CDC** (nghe log thay đổi), cập nhật bất đồng bộ nên trễ vài giây = **nhất quán cuối cùng**; DB gốc là sự thật, mất index dựng lại được."
+      - "Scale cụm (Elasticsearch/OpenSearch): **shard** chia dữ liệu để chứa nhiều và chạy song song (scatter-gather); **replica** nhân bản để tăng throughput đọc và chịu lỗi."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S064], l2: [S065], l3: [S066]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

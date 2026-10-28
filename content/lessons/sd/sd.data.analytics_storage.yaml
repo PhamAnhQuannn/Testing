@@ -1,0 +1,173 @@
+id: sd.data.analytics_storage
+version: 1
+status: published
+title_vi: "Lưu trữ phân tích (analytics storage): OLAP, warehouse, lake, time-series"
+est_minutes: 14
+objectives_vi:
+  - "Phân biệt OLTP và OLAP, và giải thích vì sao lưu theo cột (columnar) thắng lưu theo hàng (row) cho truy vấn tổng hợp."
+  - "Chọn đúng kho phân tích: data warehouse vs data lake vs lakehouse, và time-series DB cho số đo (metrics)."
+  - "Thiết kế rollup (gộp trước) + retention cho dữ liệu metric/click và giải thích vì sao cardinality cao làm time-series DB phình và chậm."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      DB chính của app làm **OLTP** (online transaction processing): ghi/đọc từng đơn nhỏ, rất nhiều,
+      phải nhanh và chính xác (thêm một đơn hàng, đọc hồ sơ một người dùng). Nhưng khi sếp hỏi *"doanh
+      thu theo tháng của từng khu vực trong 2 năm"* trên hàng tỉ dòng, đó là **OLAP** (online analytical
+      processing): ít truy vấn nhưng mỗi cái **quét rất nhiều dòng và cộng/nhóm lại**.
+
+      Hai việc này cần hai cách lưu khác nhau, nên ta tách ra một **kho phân tích (analytics store)**
+      riêng. Lý do: nếu bắt DB chính chạy mấy truy vấn quét-cả-bảng nặng nề này, nó sẽ **giành tài
+      nguyên** với luồng OLTP đang phục vụ người dùng thật — app chậm theo. Dữ liệu được **chép** từ DB
+      chính sang kho phân tích (bằng ETL theo lịch hoặc CDC gần tức thì); kho phân tích vì vậy luôn **trễ
+      một chút** và **không phải nguồn sự thật**.
+  - id: b02
+    type: text
+    md: |
+      Khác biệt kỹ thuật cốt lõi: DB OLTP lưu **theo hàng (row-oriented)** — cả một đơn hàng
+      `[id, tên, ngày, tiền, ...]` nằm liền nhau trên đĩa, rất hợp khi cần đọc/ghi **nguyên một bản ghi**.
+      Kho OLAP lưu **theo cột (columnar)** — tất cả giá trị của cột `tiền` nằm liền nhau, tách khỏi cột
+      `tên`, cột `ngày`...
+
+      Vì sao columnar thắng cho phân tích:
+      - **Chỉ đọc cột cần dùng.** Bảng 1 tỉ dòng, 20 cột; tính `SUM(amount)` chỉ cần đọc **1 cột** —
+        khoảng 1/20 lượng dữ liệu. Lưu theo hàng phải đọc cả 20 cột của mọi dòng rồi vứt đi 19.
+      - **Nén tốt hơn.** Các giá trị cùng một cột cùng kiểu, hay lặp lại (ví dụ cột `quốc_gia` chỉ vài
+        chục giá trị), nên nén rất mạnh → đọc ít byte từ đĩa hơn nữa.
+      - **Quét vector hoá.** CPU cộng cả một dãy số liền mạch nhanh hơn nhảy qua từng dòng rời rạc.
+
+      Đổi lại, columnar **ghi/sửa một dòng lẻ thì đắt** (phải chạm nhiều cột rời nhau) — nên nó dành cho
+      đọc-phân-tích hàng loạt, không dành cho OLTP.
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Truy vấn `SELECT SUM(amount) FROM orders` trên bảng 1 tỉ dòng, 20 cột. Vì sao kho lưu **theo cột (columnar)** nhanh hơn nhiều so với DB lưu **theo hàng**?"
+    options:
+      - {id: a, text_md: "Vì columnar giữ toàn bộ bảng trong RAM, còn row-oriented thì không."}
+      - {id: b, text_md: "Vì columnar chỉ cần đọc riêng cột `amount` (khoảng 1/20 dữ liệu) và nén tốt hơn, trong khi row-oriented phải đọc cả 20 cột của mọi dòng."}
+      - {id: c, text_md: "Vì columnar luôn có nhiều index hơn nên không phải quét dữ liệu."}
+    answer: [b]
+    explain_md: "Columnar tách từng cột ra, nên truy vấn tổng hợp chỉ đọc đúng cột cần dùng và nén mạnh (giá trị cùng cột, cùng kiểu). (a) sai: không cần cả bảng trong RAM, lợi thế là đọc ít byte từ đĩa; (c) sai: lợi thế đến từ bố cục lưu trữ, không phải từ index."
+  - id: b04
+    type: text
+    md: |
+      Có ba kiểu kho phân tích hay bị hỏi phân biệt:
+      - **Data warehouse (kho dữ liệu):** dữ liệu đã **có cấu trúc**, làm sạch, theo **schema-on-write**
+        (định nghĩa schema *trước khi* nạp; dữ liệu sai khuôn bị chặn). Truy vấn SQL nhanh, gọn. Ví dụ
+        2026: **BigQuery, Amazon Redshift, Snowflake**. Hợp cho báo cáo BI, bảng số liệu tài chính.
+      - **Data lake (hồ dữ liệu):** **bãi chứa file thô** giá rẻ (JSON, CSV, Parquet, log, ảnh...) trên
+        object storage như **S3/GCS**, theo **schema-on-read** (chưa áp khuôn khi lưu; áp khuôn *lúc đọc*).
+        Rẻ và nạp được mọi thứ, nhưng dễ thành "đầm lầy dữ liệu" nếu không quản lý.
+      - **Lakehouse:** lưu file rẻ như lake **cộng** một lớp quản lý bảng (table format như **Apache
+        Iceberg, Delta Lake**) mang lại transaction, schema và truy vấn kiểu warehouse ngay trên file.
+        Mục tiêu: một chỗ vừa rẻ-linh hoạt như lake vừa truy vấn ngăn nắp như warehouse.
+
+      Quy tắc chọn thô: dữ liệu sạch, cần SQL/BI nhanh → **warehouse**; dữ liệu thô đủ loại, khối lượng
+      lớn, chưa biết sẽ dùng sao → **lake** (hoặc **lakehouse** nếu vẫn muốn truy vấn có cấu trúc).
+  - id: b05
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Đội của bạn đổ **log sự kiện thô đủ loại định dạng**, khối lượng rất lớn, chưa biết sau này phân tích thế nào, và muốn chi phí lưu trữ thấp nhất. Nên chọn gì **trước tiên**?"
+    options:
+      - {id: a, text_md: "Data warehouse với schema-on-write chặt, định nghĩa schema đầy đủ trước khi nạp."}
+      - {id: b, text_md: "Data lake (file thô trên object storage, schema-on-read), có thể thêm lớp lakehouse khi cần truy vấn có cấu trúc."}
+      - {id: c, text_md: "Chính DB OLTP của app, để khỏi phải chép dữ liệu đi nơi khác."}
+    answer: [b]
+    explain_md: "Dữ liệu thô, đa định dạng, chưa rõ cách dùng và cần rẻ là đúng kịch bản của data lake (schema-on-read, lưu file rẻ). (a) schema-on-write đòi khuôn cứng trước khi nạp, không hợp dữ liệu chưa định hình; (c) đổ phân tích vào DB OLTP sẽ giành tài nguyên với luồng phục vụ người dùng."
+  - id: b06
+    type: text
+    md: |
+      Một họ kho riêng cho **số đo theo thời gian (metrics)**: **time-series DB (TSDB)** — ví dụ 2026:
+      **Prometheus, InfluxDB, TimescaleDB, VictoriaMetrics**. Dữ liệu là chuỗi điểm `(thời điểm, giá trị)`
+      gắn nhãn, ví dụ `cpu{service="web", host="h1"}` lấy mẫu mỗi vài giây. TSDB nén rất tốt theo trục
+      thời gian và truy vấn theo khoảng thời gian rất nhanh.
+
+      Giữ mọi điểm ở độ chi tiết cao **mãi mãi** thì nổ dung lượng: 1 chỉ số lấy mẫu mỗi giây = **86.400
+      dòng/ngày**. Hai công cụ để kiềm chế:
+      - **Rollup / downsampling (gộp trước, giảm độ chi tiết):** gộp dữ liệu cũ sang độ phân giải thô hơn.
+        Cùng chỉ số đó gộp theo phút còn **1.440 dòng/ngày**, theo giờ còn **24**. Truy vấn trên khoảng dài
+        chỉ đọc bản đã gộp nên nhẹ hẳn.
+      - **Retention (chính sách giữ theo tầng):** mỗi độ phân giải giữ một thời hạn rồi xoá. Ví dụ: giây
+        → giữ 7 ngày; phút → 90 ngày; giờ → 2 năm. Cũ hơn thì xoá hoặc đẩy xuống kho lạnh (object storage).
+
+      Dữ liệu **click quảng cáo** cũng dùng cùng khuôn: ghi click **thô** vào lake/queue, rồi **gộp trước**
+      thành bảng "click theo giờ × chiến dịch" để dashboard đọc nhanh, và đặt retention cho dữ liệu thô
+      (ví dụ giữ thô 30 ngày, giữ bản tổng hợp theo giờ 2 năm).
+  - id: b07
+    type: text
+    md: |
+      **Bẫy cardinality cao (high cardinality) — câu hỏi phỏng vấn kinh điển.** TSDB lưu **riêng một chuỗi
+      cho mỗi tổ hợp nhãn khác nhau**. Số chuỗi = tích số giá trị của các nhãn. Thêm nhãn ít giá trị thì ổn:
+      `service` (vài chục) × `host` (vài trăm) = vài nghìn chuỗi. Nhưng gắn một nhãn **nhiều giá trị** như
+      `user_id` (1 triệu người) hay `request_id`/`url` (gần như vô hạn) thì số chuỗi **nổ**: 1 triệu chuỗi
+      cho một metric.
+
+      Vì sao điều đó làm TSDB sụp: mỗi chuỗi cần **chỉ mục riêng trong bộ nhớ** (để biết chuỗi nào tồn tại
+      và tra nhanh), tốn RAM và làm chậm cả ghi lẫn truy vấn; nén theo thời gian cũng mất tác dụng vì mỗi
+      chuỗi chỉ có lác đác vài điểm. **Nguyên tắc:** nhãn trong TSDB phải là **tập giá trị nhỏ, bị chặn**.
+      Thứ có cardinality cao (user_id, id yêu cầu, URL đầy đủ) thuộc về **log hoặc kho phân tích theo cột**,
+      không phải nhãn của metric.
+  - id: b08
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một metric `request_latency` đang ổn. Có người đề xuất thêm nhãn `user_id` (hệ có ~1 triệu người dùng) để xem độ trễ theo từng người. Vì sao đây là ý tồi với time-series DB?"
+    options:
+      - {id: a, text_md: "Vì `user_id` là chuỗi chữ, mà TSDB chỉ lưu được số."}
+      - {id: b, text_md: "Vì mỗi tổ hợp nhãn là một chuỗi riêng, nên ~1 triệu user_id tạo ~1 triệu chuỗi (cardinality cao) — phình chỉ mục trong RAM, chậm ghi và truy vấn; nhu cầu đó nên để cho log/kho phân tích."}
+      - {id: c, text_md: "Vì TSDB không cho phép có quá 3 nhãn trên một metric."}
+    answer: [b]
+    explain_md: "Cardinality = tích số giá trị các nhãn; user_id nhiều giá trị khiến số chuỗi nổ, mỗi chuỗi tốn chỉ mục bộ nhớ và làm chậm mọi thứ. (a) sai: nhãn vẫn là chuỗi văn bản, vấn đề là *số lượng* giá trị; (c) sai: không có giới hạn cứng 3 nhãn — vấn đề là cardinality của từng nhãn."
+  - id: b09
+    type: text
+    md: |
+      Hai kiểu **nạp dữ liệu (ingestion)** vào kho phân tích, ở mức ý tưởng:
+      - **Batch (theo lô):** gom dữ liệu rồi nạp theo lịch (mỗi giờ, mỗi đêm) bằng job ETL/ELT. Đơn giản,
+        rẻ, chịu được lỗi (chạy lại cả lô), nhưng dữ liệu **trễ** tới lần chạy sau. Hợp báo cáo không cần
+        tức thời.
+      - **Streaming (theo dòng):** dữ liệu chảy liên tục qua một log như **Kafka** và được xử lý ngay
+        (ví dụ **Flink**), nạp vào kho **real-time OLAP** (ví dụ 2026: **ClickHouse, Apache Druid, Pinot**)
+        để dashboard thấy số liệu chỉ trễ vài giây. Mạnh hơn nhưng phức tạp và tốn kém vận hành hơn.
+
+      Chọn theo yêu cầu **độ tươi (freshness)**: báo cáo cuối ngày thì batch là đủ; bảng theo dõi trực tiếp
+      (gian lận, giám sát, click đang chạy) mới cần streaming.
+  - id: b10
+    type: callout
+    kind: interview
+    md: |
+      **Khung trả lời khi được bảo "thiết kế kho phân tích cho X".** Đi theo bốn câu hỏi:
+      1. **Dạng dữ liệu + truy vấn?** Số đo theo thời gian → **time-series DB**. Tổng hợp SQL trên dữ liệu
+         sạch → **warehouse**. Thô, đa định dạng, khối lớn → **lake/lakehouse**. Dashboard tức thời trên
+         dữ liệu vừa tới → **real-time OLAP (ClickHouse/Druid/Pinot)**.
+      2. **Vì sao kho riêng?** Tách khỏi OLTP để truy vấn nặng không giành tài nguyên với app; lưu **theo
+         cột** để quét tổng hợp nhanh.
+      3. **Gộp trước + giữ bao lâu?** Nêu rõ **rollup** (giây→phút→giờ) và **retention theo tầng** cho
+         metric/click, kèm con số.
+      4. **Cạm bẫy?** Chủ động nói về **cardinality cao** (đừng gắn user_id/URL làm nhãn metric) và về
+         **độ tươi** (batch vs streaming). Người phỏng vấn chấm việc bạn *tự nêu* hai điểm này.
+  - id: b11
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Hệ giám sát nhận ~1 triệu điểm đo mỗi giây và cần bảng theo dõi gần thời gian thực. Phương án nào **hợp lý nhất**?"
+    options:
+      - {id: a, text_md: "Ghi mọi điểm ở mức giây và giữ mãi trong DB OLTP chính của app, gắn thêm nhãn `request_id` để truy vết từng yêu cầu."}
+      - {id: b, text_md: "Dùng time-series DB; nạp theo dòng (streaming); rollup giây→phút→giờ với retention theo tầng; chỉ gắn nhãn cardinality thấp (service, host), không gắn `user_id`/`request_id`."}
+      - {id: c, text_md: "Đổ hết vào data lake dạng file thô và chạy ETL theo lô mỗi đêm để dựng dashboard."}
+    answer: [b]
+    explain_md: "Số đo theo thời gian + bảng theo dõi tức thời là đúng chỗ của TSDB nạp streaming, với rollup + retention để kiềm chế dung lượng và nhãn cardinality thấp. (a) dồn tải phân tích vào OLTP và gắn nhãn cardinality cao — hỏng cả hai mặt; (c) ETL theo đêm quá trễ cho nhu cầu gần thời gian thực."
+  - id: b12
+    type: summary
+    bullets_vi:
+      - "OLTP (đơn nhỏ, nhanh, nhiều — DB chính) khác OLAP (truy vấn tổng hợp nặng trên nhiều dòng — kho phân tích riêng); tách ra để truy vấn nặng không giành tài nguyên với app, và kho phân tích luôn trễ, không phải nguồn sự thật."
+      - "Kho OLAP lưu **theo cột (columnar)**: tổng hợp chỉ đọc đúng cột cần (một phần nhỏ dữ liệu) và nén tốt — thắng lưu theo hàng cho truy vấn quét-nhiều-dòng."
+      - "Warehouse = có cấu trúc, schema-on-write, SQL/BI (BigQuery/Redshift/Snowflake); data lake = file thô rẻ, schema-on-read (S3); lakehouse = file rẻ + lớp bảng (Iceberg/Delta) để truy vấn như warehouse."
+      - "Time-series DB cho metrics: dùng **rollup/downsampling** (giây→phút→giờ) + **retention theo tầng** để không nổ dung lượng; cùng khuôn áp cho dữ liệu click (thô → bảng tổng hợp theo giờ)."
+      - "**Cardinality cao** làm TSDB phình: mỗi tổ hợp nhãn là một chuỗi riêng, nhãn nhiều giá trị (user_id, URL) tạo hàng triệu chuỗi, ngốn chỉ mục RAM và chậm — để thứ đó cho log/kho theo cột."
+      - "Ingestion: **batch** (theo lịch, đơn giản, trễ) vs **streaming** (Kafka/Flink + real-time OLAP như ClickHouse/Druid/Pinot, tức thời nhưng phức tạp); chọn theo yêu cầu độ tươi."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S061], l2: [S062], l3: [S063]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

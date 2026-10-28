@@ -1,0 +1,157 @@
+id: sd.data.sql_vs_nosql
+version: 1
+status: published
+title_vi: "SQL và NoSQL: chọn kho dữ liệu (data store selection)"
+est_minutes: 13
+objectives_vi:
+  - "Nêu đúng điểm mạnh của SQL quan hệ (lược đồ, ACID, join, secondary index) và bốn họ NoSQL (key-value, document, wide-column, graph) giỏi/dở việc gì."
+  - "Dùng **checklist 5 câu** (access pattern, quy mô/QPS, mức nhất quán, hình dạng truy vấn/join, độ linh hoạt lược đồ) để chọn kho cho một dữ liệu."
+  - "Chỉ ra **giới hạn quy mô (scale limit)** của mỗi lựa chọn và vì sao tải ghi là chỗ chạm trần trước."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      **SQL (kho quan hệ / relational):** dữ liệu nằm trong các **bảng** có **lược đồ cố định**
+      (schema), hàng/cột rõ ràng, có **ràng buộc** (constraint) để giữ dữ liệu sạch. Bốn thứ làm SQL
+      mạnh:
+      - **Join:** ghép nhiều bảng theo khóa, trả lời được truy vấn *ad-hoc* (tùy ý) mà không cần biết
+        trước câu hỏi.
+      - **Giao dịch ACID:** một nhóm thay đổi **làm hết hoặc không làm gì** (atomic), luôn đúng
+        (consistent), cô lập (isolated), ghi xong là bền (durable) — bắt buộc cho tiền, tồn kho.
+      - **Secondary index:** đánh thêm chỉ mục trên cột không phải khóa chính để lọc/sắp xếp nhanh
+        theo nhiều tiêu chí.
+      - **Chuẩn hóa (normalization):** mỗi sự thật lưu một nơi, tránh trùng lặp và sai lệch.
+
+      Giá phải trả: muốn chạy nhanh khi dữ liệu rất lớn thì khó, vì join và giao dịch khó chia ra
+      nhiều máy. PostgreSQL và MySQL là hai RDBMS phổ biến nhất năm 2026.
+  - id: b02
+    type: text
+    md: |
+      **NoSQL** không phải một thứ, mà là **bốn họ** kho; mỗi họ **bỏ bớt tính năng** của SQL để đổi
+      lấy ghi nhanh hoặc chia máy dễ:
+      - **Key-value** (Redis, DynamoDB): chỉ tra theo **một khóa**, cực nhanh. *Tốt:* giỏ hàng, phiên
+        đăng nhập (session), cache. *Dở:* không truy vấn theo nội dung, không join.
+      - **Document** (MongoDB): lưu cả **tài liệu JSON**, lược đồ **linh hoạt** (mỗi bản ghi có thể
+        khác thuộc tính). *Tốt:* hồ sơ sản phẩm, nội dung thay đổi hình dạng. *Dở:* join yếu, giao
+        dịch nhiều tài liệu bị giới hạn.
+      - **Wide-column** (Cassandra): ghi **cực nhiều**, chia theo **partition key** (cột quyết định
+        dòng nằm máy nào). *Tốt:* log, lịch sử chat, chuỗi thời gian. *Dở:* phải thiết kế bảng theo
+        sẵn câu truy vấn (query-first), không join, không truy vấn ad-hoc.
+      - **Graph** (Neo4j): lưu **quan hệ nhiều tầng**, đi theo cạnh rất nhanh. *Tốt:* mạng bạn bè,
+        gợi ý, chống gian lận. *Dở:* khó chia ngang vì quan hệ cắt ngang phân vùng.
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một dịch vụ cần lưu **phiên đăng nhập (session)** và tra lại **chỉ bằng session id**, với độ trễ cực thấp. Họ kho nào hợp nhất?"
+    options:
+      - {id: a, text_md: "Kho quan hệ (SQL) với nhiều secondary index."}
+      - {id: b, text_md: "Key-value, vì chỉ tra theo một khóa và cần cực nhanh."}
+      - {id: c, text_md: "Graph, vì session có quan hệ với người dùng."}
+    answer: [b]
+    explain_md: "Access pattern là tra theo đúng một khóa (session id), không cần join hay truy vấn ad-hoc, nên **key-value** là hợp nhất và nhanh nhất. (a) SQL dùng được nhưng thừa tính năng và đắt hơn cho việc đơn giản này; (c) graph dành cho đi theo quan hệ nhiều tầng, không phải tra một khóa."
+  - id: b04
+    type: text
+    md: |
+      **Checklist 5 câu để chọn kho** — hỏi lần lượt, mỗi câu đẩy bạn về SQL hoặc một họ NoSQL:
+      1. **Access pattern (cách truy cập):** tra theo **một khóa**? quét theo **dải**? hay phải **nối
+         nhiều thực thể**? → một khóa nghiêng về key-value/document; nối nhiều thực thể nghiêng về SQL.
+      2. **Quy mô & QPS (scale of data / queries per second):** bao nhiêu dữ liệu, bao nhiêu **ghi mỗi
+         giây**? → ghi khổng lồ vượt một máy nghiêng về wide-column.
+      3. **Mức nhất quán (consistency):** cần **đúng tuyệt đối ngay** (ACID) hay chấp nhận **nhất quán
+         cuối** (eventual consistency)? → tiền/tồn kho cần ACID → SQL.
+      4. **Hình dạng truy vấn / join (query shape):** có cần **join, tổng hợp đa chiều, truy vấn
+         ad-hoc** không, hay chỉ vài câu cố định biết trước? → nhiều câu linh hoạt → SQL; vài câu cố
+         định → NoSQL query-first.
+      5. **Độ linh hoạt lược đồ (schema flexibility):** cấu trúc **cố định** và cần ràng buộc, hay
+         **đổi liên tục**, mỗi bản ghi mỗi khác? → đổi liên tục nghiêng về document.
+  - id: b05
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền thuật ngữ còn thiếu:
+
+      Giao dịch kiểu "làm hết hoặc không làm gì", đúng tuyệt đối ngay, gọi tắt là ____ (viết hoa,
+      4 chữ cái).
+    blanks:
+      - accept: ["ACID", "acid"]
+    explain_md: "**ACID** (Atomicity, Consistency, Isolation, Durability) là tính chất giao dịch của kho quan hệ; đối lập là **BASE** (sẵn sàng cơ bản, trạng thái mềm, nhất quán cuối) ở nhiều kho NoSQL."
+  - id: b06
+    type: callout
+    kind: interview
+    md: |
+      **PostgreSQL mạnh hơn người ta tưởng.** Nhiều người nhảy sang NoSQL quá sớm. Trong phỏng vấn
+      năm 2026, nên biết Postgres đã nuốt nhiều việc "NoSQL":
+      - **JSONB + GIN index:** lưu tài liệu JSON linh hoạt *và* đánh chỉ mục để truy vấn trong đó —
+        giống document store nhưng vẫn còn join và ACID.
+      - **Partial index:** đánh chỉ mục chỉ trên phần dữ liệu hay dùng, nhẹ và nhanh.
+      - **`SELECT ... FOR UPDATE SKIP LOCKED`:** biến một bảng thành **hàng đợi công việc (job
+        queue)** an toàn nhiều consumer mà không cần thêm hệ thống riêng.
+
+      Quy tắc thực chiến: **bắt đầu bằng một RDBMS**, chỉ thêm kho khác khi có lý do đo được. Dùng
+      nhiều loại kho trong một hệ, mỗi loại cho một việc, gọi là **polyglot persistence**.
+  - id: b07
+    type: text
+    md: |
+      **Giới hạn quy mô (scale limit) của mỗi lựa chọn** — câu interviewer luôn truy:
+      - **RDBMS một node:** mọi lệnh **ghi** dồn về **một primary**; chỉ scale dọc (máy mạnh hơn) có
+        trần, hoặc thêm **read replica** để giảm tải *đọc*. Vượt trần ghi phải **sharding** — và khi
+        sharding thì **mất join và giao dịch xuyên shard** dễ dàng. Đây là trần chính của SQL.
+      - **Key-value:** chia ngang theo khóa rất xa, nhưng **hot key** (một khóa quá nóng) và bộ nhớ
+        (với Redis in-memory) là trần; không truy vấn được theo nội dung.
+      - **Document:** chia theo **shard key**; chọn sai shard key gây **lệch tải (hotspot)**; join và
+        giao dịch nhiều tài liệu vẫn yếu khi rất lớn.
+      - **Wide-column:** ghi **gần như tuyến tính** khi thêm node — trần cao nhất cho tải ghi — nhưng
+        phải cố định câu truy vấn trước, và nhất quán là **eventual** (chỉnh bằng quorum).
+      - **Graph:** truy vấn nhiều tầng rất mạnh nhưng **khó chia ngang** vì quan hệ cắt ngang phân
+        vùng; đồ thị khổng lồ thường chạm trần một máy.
+  - id: b08
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Lịch sử chat ghi hàng tỉ tin mỗi ngày, **luôn đọc lại theo từng cuộc trò chuyện** (conversation id), không cần join hay truy vấn ad-hoc. Qua checklist 5 câu, chọn kho nào?"
+    options:
+      - {id: a, text_md: "RDBMS một node với secondary index trên conversation id."}
+      - {id: b, text_md: "Wide-column (Cassandra) với partition key = conversation id."}
+      - {id: c, text_md: "Graph, vì tin nhắn nối người gửi với người nhận."}
+    answer: [b]
+    explain_md: "Checklist: access = tra theo một khóa phân vùng (conversation id); QPS ghi **khổng lồ**; không cần join/ad-hoc; nhất quán cuối chấp nhận được. Tất cả trỏ về **wide-column** — ghi tuyến tính, partition key gom tin cùng cuộc trò chuyện vào một chỗ. (a) RDBMS một node chạm trần ghi; (c) graph không hợp vì ta không đi theo quan hệ nhiều tầng mà chỉ đọc theo một khóa."
+  - id: b09
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Bạn chọn **RDBMS (Postgres)** cho **số dư tài khoản** vì cần ACID. Đâu là **giới hạn quy mô** đúng của lựa chọn này cần nói ra?"
+    options:
+      - {id: a, text_md: "Không có giới hạn: Postgres scale ngang vô hạn cho cả ghi lẫn đọc."}
+      - {id: b, text_md: "Mọi lệnh ghi dồn về một primary; vượt trần ghi phải sharding, và khi đó mất join/giao dịch xuyên shard dễ dàng."}
+      - {id: c, text_md: "Giới hạn chỉ là bộ nhớ RAM, giống hệt Redis."}
+    answer: [b]
+    explain_md: "Trần của RDBMS là **tải ghi về một primary**: read replica chỉ giúp *đọc*, còn ghi vượt trần buộc sharding — đánh đổi bằng mất join và giao dịch xuyên shard. (a) sai, ghi không scale ngang tự do; (c) sai, Postgres ghi ra đĩa, không phải in-memory như Redis."
+  - id: b10
+    type: callout
+    kind: interview
+    md: |
+      **Khung trả lời cho câu "chọn kho cho thiết kế này".** Với **mỗi dữ liệu** trong hệ, làm đúng
+      ba bước:
+      1. Chạy **checklist 5 câu** (access pattern → quy mô/QPS → nhất quán → join/query shape → lược
+         đồ) và nói câu nào quyết định.
+      2. **Chốt một họ kho** và nêu lý do bằng chính các câu đó.
+      3. **Nêu giới hạn quy mô** của lựa chọn (ghi về một primary? hot key? shard key lệch? eventual
+         consistency?) — đây là chỗ ghi điểm mức 3.
+
+      Ví dụ một hệ thương mại điện tử: **số dư/đơn hàng → SQL** (ACID), **giỏ hàng/session →
+      key-value**, **hồ sơ sản phẩm thuộc tính đa dạng → document**, **log sự kiện/hoạt động →
+      wide-column**. Đó chính là polyglot persistence.
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "SQL quan hệ mạnh ở **join, giao dịch ACID, secondary index, ràng buộc lược đồ** — bắt buộc cho dữ liệu cần đúng tuyệt đối (tiền, tồn kho)."
+      - "NoSQL = bốn họ bỏ bớt tính năng để đổi tốc độ/chia máy: **key-value** (tra một khóa), **document** (JSON linh hoạt), **wide-column** (ghi khổng lồ, query-first), **graph** (quan hệ nhiều tầng)."
+      - "Chọn kho bằng **checklist 5 câu**: access pattern → quy mô & QPS → mức nhất quán (ACID vs eventual) → hình dạng truy vấn/join → độ linh hoạt lược đồ."
+      - "Mỗi lựa chọn có **giới hạn quy mô**: RDBMS chạm trần ở **ghi về một primary** (sharding thì mất join xuyên shard); key-value sợ hot key; document sợ shard key lệch; wide-column phải cố định truy vấn và nhất quán cuối; graph khó chia ngang."
+      - "Thực chiến: **bắt đầu bằng một RDBMS** (Postgres: JSONB, GIN, partial index, SKIP LOCKED làm được nhiều việc), chỉ thêm kho khác khi đo được lý do — dùng nhiều loại kho cho nhiều việc là **polyglot persistence**."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S043], l2: [S044], l3: [S045]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"
