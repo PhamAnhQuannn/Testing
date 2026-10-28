@@ -1,0 +1,140 @@
+id: sd.archetypes.payments_wallet
+version: 1
+status: published
+title_vi: "Thiết kế hệ thống thanh toán và ví điện tử (payments and wallet)"
+est_minutes: 14
+objectives_vi:
+  - "Giải thích vì sao thanh toán ưu tiên **đúng tiền (correctness)** hơn quy mô thô, và dùng **sổ cái kép (double-entry ledger)** làm nguồn sự thật."
+  - "Dùng **mã chống lặp (idempotency key)** và **ghi nợ có điều kiện (conditional debit)** để không trừ tiền hai lần và không chi vượt số dư (double-spend)."
+  - "Chuyển tiền xuyên dịch vụ bằng **saga + bước bù (compensating action)** (hoặc 2PC khi chung một DB), tích hợp **cổng thanh toán (payment gateway/PSP)** qua webhook, và xử lý **timeout không rõ kết quả** + **đối soát (reconciliation)**."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Hệ thanh toán và ví (payments and wallet) xử lý **tiền thật**, nên bài toán khác hẳn một web
+      service thường: cái khó không phải phục vụ thật nhiều request, mà là **tuyệt đối đúng** — không
+      bao giờ **mất tiền, trừ tiền hai lần, hay tạo tiền từ hư không**. Ta đánh đổi: chấp nhận chậm
+      hơn, chọn **nhất quán mạnh (strong consistency)** cho số dư, miễn là mỗi đồng đều truy vết được.
+      Vì mỗi lệnh có thể bị thử lại (retry) do mạng chập chờn, toàn hệ phải đạt **hiệu ứng đúng một
+      lần (exactly-once effect)**: gửi lại bao nhiêu lần thì tiền cũng chỉ chuyển một lần.
+  - id: b02
+    type: text
+    md: |
+      Nguồn sự thật là **sổ cái kép (double-entry ledger)**. Mọi biến động tiền ghi thành **cặp dòng
+      cân nhau**: một dòng **nợ (debit)** và một dòng **có (credit)** có tổng bằng 0. A chuyển 100k
+      cho B = hai dòng: A -100k và B +100k. Quy tắc cốt lõi: **không bao giờ sửa số dư tại chỗ** —
+      chỉ **thêm (append)** dòng mới; **số dư = tổng các dòng** của tài khoản đó.
+      Lợi ích: mỗi thay đổi có dấu vết (audit trail) bất biến; luôn kiểm được **bất biến toàn cục**
+      "tổng mọi dòng toàn hệ thống = 0" (không tiền nào tự sinh ra). Đây là lý do kế toán dùng nó
+      hàng trăm năm, và là nền để **đối soát (reconciliation)** về sau.
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao sổ cái kép (double-entry ledger) **chỉ thêm dòng (append-only)** thay vì sửa trực tiếp số dư trong một ô?"
+    options:
+      - {id: a, text_md: "Vì ghi thêm dòng nhanh hơn cập nhật một ô số dư trên đĩa."}
+      - {id: b, text_md: "Vì append-only giữ **dấu vết bất biến** để truy soát, và cho phép kiểm bất biến tổng mọi dòng = 0; số dư luôn tính lại bằng tổng các dòng nên không mất lịch sử."}
+      - {id: c, text_md: "Vì sửa trực tiếp số dư là bất khả thi trên mọi cơ sở dữ liệu quan hệ."}
+    answer: [b]
+    explain_md: "Append-only cho audit trail và khả năng chứng minh không tiền nào tự sinh/mất; số dư là **tổng (sum)** các dòng. (a) không phải lý do chính (và không luôn đúng); (c) sai — sửa ô là làm được về kỹ thuật, ta **chủ động không làm** vì mất lịch sử và khó đối soát."
+  - id: b04
+    type: text
+    md: |
+      **Mã chống lặp (idempotency key)** cho hiệu ứng đúng một lần. Client sinh một mã **duy nhất**
+      cho mỗi ý định trả tiền (ví dụ một UUID cho "lần mua này") và gửi kèm. Server lưu kết quả theo
+      mã: nếu mã đã xử lý, **trả lại kết quả cũ**, tuyệt đối không ghi sổ hay trừ thẻ lần nữa. Nhờ vậy
+      một lần bấm mua bị gửi lại 3 lần vẫn chỉ trừ một lần. Điều này xây trên kiến thức
+      **sd.api.idempotency** — ở đây mã chống lặp bảo vệ một **tác dụng phụ không thể hoàn tác dễ dàng**
+      (đã trừ tiền) nên càng quan trọng.
+  - id: b05
+    type: text
+    md: |
+      Không chỉ chống lặp, ta còn phải chống **chi vượt số dư (double-spend)**: hai lệnh rút cùng lúc
+      từ một ví 100k, mỗi lệnh 80k — nếu cả hai cùng đọc "còn 100k" rồi cùng ghi, ví âm. Vì số dư cần
+      **nhất quán mạnh**, ta chặn bằng một trong hai cách:
+      - **Ghi nợ có điều kiện / nguyên tử (conditional / atomic debit):** chỉ ghi dòng trừ tiền *nếu*
+        số dư hiện tại đủ, trong **một giao dịch (transaction)** — lệnh thua sẽ thất bại sạch sẽ.
+      - **Khoá (lock) dòng tài khoản** khi tính rồi ghi, để hai lệnh không xen kẽ.
+      Điểm mấu chốt: quyết định "đủ tiền không" và "ghi dòng trừ" phải **không thể tách rời**.
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một lệnh trừ tiền bị **timeout** (hết giờ chờ) khi gọi cổng thanh toán: ta **không biết** cổng đã trừ thẻ hay chưa. Cách xử lý **đúng** là gì?"
+    options:
+      - {id: a, text_md: "Gửi lại ngay như một lệnh **mới** với mã chống lặp mới, cho chắc là tiền được trừ."}
+      - {id: b, text_md: "Coi như thất bại và báo khách thử lại từ đầu bằng một lệnh khác."}
+      - {id: c, text_md: "**Hỏi cổng trạng thái** lệnh cũ trước khi làm gì, hoặc gửi lại với **chính mã chống lặp cũ** để cổng trả kết quả cũ thay vì trừ lần hai."}
+    answer: [c]
+    explain_md: "Timeout là **kết quả không rõ (unknown outcome)**, không phải thất bại. (a) gửi mã mới có thể trừ tiền **hai lần**; (b) ép khách tạo lệnh khác cũng có thể trừ hai lần. (c) query-before-retry hoặc dùng lại cùng idempotency key là cách an toàn giữ hiệu ứng đúng một lần."
+  - id: b07
+    type: text
+    md: |
+      **Chuyển tiền xuyên dịch vụ** (ví A ở dịch vụ này, ví B ở dịch vụ khác, hoặc gọi cổng ngoài) là
+      một **giao dịch phân tán (distributed transaction)**. Hai lựa chọn:
+      - Nếu mọi tài khoản nằm trong **một cơ sở dữ liệu**: dùng một **giao dịch ACID** (hoặc 2PC khi
+        chỉ vài tài nguyên) là gọn nhất — trừ A và cộng B cùng cam kết hoặc cùng huỷ.
+      - Nếu nằm trên **nhiều dịch vụ**: dùng **saga** — chuỗi bước cục bộ, mỗi bước có **bước bù
+        (compensating action)** để quay lại khi bước sau hỏng (đã trừ A nhưng cộng B thất bại thì chạy
+        bù "hoàn lại A"). Dựa trên **sd.distributed.distributed_transactions**.
+      Hai quy tắc sống còn: **mỗi bước và mỗi bước bù phải idempotent** (bù chạy lại nhiều lần vẫn
+      đúng), và trao đổi giữa các dịch vụ dùng **đảm bảo giao hàng at-least-once + khử trùng lặp
+      (sd.async.delivery_guarantees)** để không bao giờ mất hay nhân đôi một lệnh tiền.
+  - id: b08
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Trong saga chuyển tiền A -> B, vì sao **bước bù (compensating action)** bắt buộc phải **idempotent**?"
+    options:
+      - {id: a, text_md: "Vì bước bù luôn chạy nhanh hơn bước xuôi nên cần tối ưu riêng."}
+      - {id: b, text_md: "Vì khi hỏng, bước bù có thể bị **kích hoạt và thử lại nhiều lần** (do timeout, retry, giao lại message); nếu không idempotent, nó có thể hoàn tiền hai lần hoặc tạo lệch sổ."}
+      - {id: c, text_md: "Vì saga cấm dùng mã chống lặp nên bước bù phải tự khác đi mỗi lần chạy."}
+    answer: [b]
+    explain_md: "Phối hợp phân tán luôn phải giả định **thử lại**; bù không idempotent sẽ nhân đôi hiệu ứng (ví dụ cộng trả A hai lần). (a) không liên quan; (c) sai — saga vẫn dùng idempotency key/khử trùng lặp, chính là cách làm bù idempotent."
+  - id: b09
+    type: text
+    md: |
+      **Cổng thanh toán (payment gateway/PSP, như Stripe)** là bên trừ thẻ thật. Ta gọi cổng; vì kết
+      quả có thể đến sau, cổng **gọi ngược (webhook)** vào URL của ta để báo "đã capture / đã refund".
+      Ba điều cần nhớ khi tích hợp:
+      - Gọi cổng **kèm idempotency key** để một lần bấm mua không trừ thẻ hai lần dù ta có retry.
+      - Webhook có thể đến **trùng hoặc không đúng thứ tự**, nên bộ nhận webhook phải **idempotent** và
+        xác thực chữ ký; cập nhật **vòng đời trạng thái** của lệnh (authorize -> capture -> settle ->
+        refund) theo kiểu chỉ-tiến, bỏ qua tin lặp.
+      - **Timeout không rõ kết quả:** như đã nói, hỏi trạng thái trước khi thử lại, hoặc retry với
+        cùng mã cũ.
+  - id: b10
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn.** Khi được yêu cầu "thiết kế hệ thanh toán/ví", mở đầu bằng **đúng tiền trước,
+      quy mô sau**. Khung trả lời chắc tay: (1) **sổ cái kép append-only** là nguồn sự thật, số dư =
+      tổng dòng; (2) **mã chống lặp** cho exactly-once; (3) **ghi nợ có điều kiện/khoá** chống
+      double-spend; (4) chuyển xuyên dịch vụ bằng **saga + bước bù idempotent** (hoặc một giao dịch
+      ACID khi chung DB); (5) cổng ngoài qua **webhook idempotent** + xử lý **timeout không rõ kết
+      quả**; (6) **đối soát** định kỳ để bắt lệch. Luôn nêu rõ **một lệnh bị thử lại thì điều gì giữ
+      cho tiền chỉ chuyển một lần** — đó là câu người phỏng vấn chờ nghe."
+  - id: b11
+    type: text
+    md: |
+      Dù thiết kế kỹ, thực tế vẫn trôi (drift): webhook mất, lỗi phần mềm, số lệch giữa ta và cổng.
+      Vì vậy luôn có **đối soát (reconciliation)**: một job chạy định kỳ **so sổ cái của ta với báo
+      cáo của cổng và ngân hàng**, tìm khoản lệch và dựng cảnh báo để người xử lý. Cùng với **audit
+      trail** bất biến từ sổ cái kép, đối soát cho ta khả năng **chứng minh** mọi đồng tiền đã đi đâu
+      — yêu cầu bắt buộc với tiền thật. (Archetype này cũng là tiền đề cho **giao dịch/môi giới
+      chứng khoán — trading_brokerage**, nơi tính đúng và đối soát còn khắt khe hơn.)
+  - id: b12
+    type: summary
+    bullets_vi:
+      - "Thanh toán ưu tiên **đúng tiền** hơn quy mô: không mất/không trùng/không tạo tiền, nhắm **hiệu ứng đúng một lần (exactly-once effect)**."
+      - "**Sổ cái kép append-only** là nguồn sự thật: mỗi biến động = cặp nợ/có cân nhau, **không sửa số dư tại chỗ**, số dư = tổng các dòng, tổng toàn hệ = 0."
+      - "**Mã chống lặp (idempotency key)** chống trừ hai lần; **ghi nợ có điều kiện/khoá** chống **chi vượt số dư (double-spend)** nhờ nhất quán mạnh."
+      - "Chuyển xuyên dịch vụ dùng **saga + bước bù idempotent** (hoặc giao dịch ACID/2PC khi chung DB); mọi bước và bù phải idempotent, trao đổi at-least-once + khử trùng lặp."
+      - "Tích hợp cổng (PSP) qua **webhook idempotent** theo vòng đời trạng thái; **timeout không rõ kết quả** thì hỏi trạng thái hoặc retry cùng mã cũ, không tạo lệnh mới."
+      - "**Đối soát (reconciliation)** định kỳ + **audit trail** bắt drift và chứng minh dòng tiền."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S199], l2: [S200], l3: [S201]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

@@ -1,0 +1,148 @@
+id: sd.archetypes.rate_limiter
+version: 1
+status: published
+title_vi: "Thiết kế bộ giới hạn tần suất (rate limiter): thuật toán đếm và bộ đếm phân tán"
+est_minutes: 14
+objectives_vi:
+  - "Chọn được thuật toán đếm phù hợp (token bucket, leaky bucket, fixed window, sliding window) theo yêu cầu cho phép burst hay làm mượt."
+  - "Giải thích bài toán **phân tán**: vì sao cần bộ đếm dùng chung và **thao tác nguyên tử** (atomic) khi nhiều server cùng đếm."
+  - "Thiết kế đầy đủ một rate limiter chạy trên nhiều server: chọn thuật toán, chọn cách đếm (Redis), và chọn fail-open hay fail-closed khi bộ đếm chết."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      **Rate limiter** (bộ giới hạn tần suất) là người gác cổng: đếm số yêu cầu của mỗi **khoá
+      đếm** (limit key) trong một khoảng thời gian và **từ chối** khi vượt mức, ví dụ *tối đa 100
+      yêu cầu mỗi phút cho mỗi user*. Trước khi thiết kế, làm rõ **yêu cầu**:
+      - **Giới hạn theo gì** — khoá đếm là **user**, **địa chỉ IP**, **API key**, hay từng
+        **endpoint**? Mỗi khoá có một bộ đếm riêng.
+      - **Mức và cửa sổ** — bao nhiêu yêu cầu trên bao nhiêu giây; có cho phép **dồn đợt** (burst)
+        không.
+      - **Đặt ở đâu** — thường đặt sớm, tại **cổng vào (API gateway)** hoặc trong **middleware**
+        (đoạn code chạy trước logic chính của service) để chặn trước khi tốn tài nguyên xử lý.
+      Đây là một **archetype**: ta sẽ ghép lại các ý đã học (cache dùng chung, service stateless)
+      chứ không học lại từ đầu.
+  - id: b02
+    type: text
+    md: |
+      **Hai thuật toán "cái xô"** quyết định hình dạng lưu lượng cho qua:
+      - **Token bucket (xô token):** mỗi khoá có một xô được **nạp token đều đặn với tốc độ R**
+        (ví dụ 100 token/phút), lên tới dung lượng tối đa của xô. Mỗi yêu cầu lấy 1 token; hết
+        token thì bị từ chối. Vì xô có thể đầy sẵn, nó **cho phép một đợt dồn (burst)** đến bằng
+        dung lượng xô, rồi về lại tốc độ R. Phù hợp API muốn linh hoạt với lưu lượng gồ ghề.
+      - **Leaky bucket (xô rò):** yêu cầu **xếp hàng** rồi được xử lý (rò ra) với **tốc độ cố
+        định**, nên đầu ra luôn **đều, mượt**, không có burst. Phù hợp khi hệ phía sau cần một
+        dòng vào ổn định (ví dụ bảo vệ một worker có công suất cố định).
+      Ý khác nhau cốt lõi: token bucket **cho phép burst**, leaky bucket **làm mượt** thành tốc độ
+      không đổi.
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Bạn cần một limiter cho phép người dùng thỉnh thoảng **dồn một đợt ngắn** rồi quay về tốc độ trung bình. Thuật toán nào hợp nhất, và vì sao?"
+    options:
+      - {id: a, text_md: "**Leaky bucket**, vì nó làm đầu ra luôn mượt nên chịu được đợt dồn."}
+      - {id: b, text_md: "**Token bucket**, vì xô có thể đầy sẵn nên cho qua một đợt bằng dung lượng xô, rồi giới hạn lại về tốc độ nạp R."}
+      - {id: c, text_md: "**Fixed window**, vì nó luôn cho qua đúng N yêu cầu mỗi cửa sổ không lệch."}
+    answer: [b]
+    explain_md: "Token bucket cho phép burst đến bằng dung lượng xô (token tích sẵn), sau đó về tốc độ nạp R — đúng yêu cầu. (a) leaky bucket *làm mượt* và triệt tiêu burst, ngược yêu cầu; (c) fixed window không nhằm cho phép burst và còn hở ở ranh giới cửa sổ (xem dưới)."
+  - id: b04
+    type: text
+    md: |
+      **Hai thuật toán "cửa sổ"** đếm theo mốc thời gian:
+      - **Fixed window (cửa sổ cố định):** đếm theo từng phút của đồng hồ (00:00–00:59, …). Rất
+        **đơn giản** (một bộ đếm, reset mỗi phút) nhưng **hở ở ranh giới**: 100 yêu cầu vào cuối
+        phút này cộng 100 yêu cầu đầu phút sau là **200 yêu cầu trong vài giây** vắt qua mốc, dù
+        mức là 100/phút.
+      - **Sliding window log (cửa sổ trượt bản log):** lưu **dấu thời gian của từng yêu cầu** trong
+        60 giây gần nhất và đếm chúng. **Chính xác** nhưng **tốn bộ nhớ** (nhớ mọi yêu cầu).
+      - **Sliding window counter (cửa sổ trượt bản đếm):** **ước lượng** từ bộ đếm của cửa sổ hiện
+        tại và cửa sổ trước theo tỉ lệ trôi qua. Gần đúng, nhưng **nhẹ** hơn log nhiều và loại được
+        phần lớn lỗi burst ở ranh giới. Đây là lựa chọn cân bằng phổ biến.
+      Đánh đổi: **đơn giản/nhẹ** (fixed, sliding counter) đổi lấy **độ chính xác** (sliding log).
+  - id: b05
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao **fixed window** có thể cho qua tới **gấp đôi** mức giới hạn trong một khoảnh khắc ngắn?"
+    options:
+      - {id: a, text_md: "Vì bộ đếm reset đột ngột ở mốc cửa sổ, nên một đợt ở **cuối** cửa sổ này và một đợt ở **đầu** cửa sổ sau cộng lại vắt qua ranh giới."}
+      - {id: b, text_md: "Vì fixed window lưu dấu thời gian từng yêu cầu nên tốn bộ nhớ và đếm sai."}
+      - {id: c, text_md: "Vì fixed window cần thao tác nguyên tử mà Redis không hỗ trợ."}
+    answer: [a]
+    explain_md: "Lỗi **boundary burst**: ví dụ 100 yêu cầu lúc 00:59 và 100 lúc 01:00 là 200 trong ~1 giây, dù mức 100/phút. Sliding window khắc phục điều này. (b) mô tả sliding window *log*, không phải fixed window; (c) sai — Redis hỗ trợ thao tác nguyên tử tốt."
+  - id: b06
+    type: text
+    md: |
+      **Bài toán phân tán.** Khi có **nhiều app server** (đã stateless) sau load balancer, nếu mỗi
+      server tự đếm trong RAM riêng thì mức thật bị nhân lên theo số server — 100 server mỗi cái
+      cho 100/phút thành 10.000/phút cho một user. Muốn cả hệ **đồng ý một con số**, cần **bộ đếm
+      dùng chung** mà mọi server cùng đọc/ghi, điển hình là **Redis** (kho key–value trong RAM,
+      rất nhanh):
+      - Tăng đếm bằng **INCR** rồi đặt hạn sống cho khoá bằng **EXPIRE** (để cửa sổ tự hết hạn).
+      - Việc "đọc, kiểm tra mức, rồi trừ/tăng" phải là **một bước liền — thao tác nguyên tử
+        (atomic)**. Nếu không, hai yêu cầu cùng thấy "còn 1 lượt" và **cùng được qua** (race
+        condition). Redis cho đếm nguyên tử bằng chính INCR, hoặc gói cả khối logic (gồm token
+        bucket) vào một **script Lua** chạy trọn vẹn một mạch bên trong Redis.
+      Đánh đổi **độ chính xác vs chi phí/độ trễ**: gọi Redis mỗi yêu cầu cho con số **chính xác**
+      nhưng thêm một chặng mạng; cách **nhanh hơn** là đếm **cục bộ gần đúng** ở mỗi server rồi
+      **đồng bộ bất đồng bộ (async)** về trung tâm — ít độ trễ nhưng mức có thể **vượt một chút**.
+  - id: b07
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền thuật ngữ:
+
+      Nếu bước "đọc bộ đếm, kiểm tra mức, rồi tăng" không phải là một thao tác ______ (một bước
+      liền, tiếng Anh), hai yêu cầu đồng thời có thể cùng thấy còn lượt và cùng được qua — lỗi
+      này gọi là ______ condition.
+    blanks:
+      - {accept: ["nguyên tử", "atomic", "nguyên tố"]}
+      - {accept: ["race", "tranh chấp", "đua"]}
+    explain_md: |
+      Thao tác **nguyên tử (atomic)** bảo đảm bước đọc–kiểm tra–ghi không bị chen giữa; thiếu nó
+      sinh **race condition**. Trên bộ đếm dùng chung (Redis) ta đạt nguyên tử bằng INCR hoặc
+      script Lua.
+  - id: b08
+    type: text
+    md: |
+      **Phản hồi và cấu hình.** Khi từ chối, trả mã HTTP **429 Too Many Requests**, kèm header
+      **Retry-After** báo bao lâu nữa thử lại được, và thường thêm các **rate-limit header** (ví
+      dụ số lượt còn lại, thời điểm cửa sổ reset) để client tự điều tiết. Với nhiều mức cùng lúc,
+      có thể dùng **giới hạn nhiều tầng** (per-tenant và per-user cùng áp): công ty khách (tenant)
+      có hạn mức theo gói, mỗi user trong đó có hạn mức nhỏ hơn — hai khoá đếm cùng kiểm tra, vượt
+      khoá nào thì chặn theo khoá đó.
+  - id: b09
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn — fail-open vs fail-closed.** Luôn nói rõ: *nếu bộ đếm (Redis) chết thì làm
+      gì?* Hai lựa chọn: **fail-open** (cho qua hết — sản phẩm vẫn chạy, nhưng mất bảo vệ trong
+      lúc đó) hay **fail-closed** (chặn hết — an toàn hơn nhưng có thể làm sập trải nghiệm). Với
+      rate limiter dùng cho **fair-use** (chia đều tài nguyên), thường chọn **fail-open** vì đừng
+      để lớp bảo vệ làm chết dịch vụ; với limiter nhằm **chống lạm dụng/DDoS** hoặc bảo vệ tài
+      nguyên đắt, cân nhắc **fail-closed**. Nêu được đánh đổi này là điểm cộng lớn.
+  - id: b10
+    type: quiz_mcq
+    graded: true
+    prompt_md: "100 app server stateless sau load balancer, cần giới hạn **100 yêu cầu/phút cho mỗi user trên toàn hệ thống**. Cách đếm nào đúng và vì sao?"
+    options:
+      - {id: a, text_md: "Mỗi server tự đếm trong RAM riêng của nó, vì service đã stateless nên con số tự đồng bộ."}
+      - {id: b, text_md: "Dùng một **bộ đếm dùng chung** (ví dụ Redis) mà mọi server cùng tăng bằng thao tác **nguyên tử** (INCR hoặc Lua), để cả hệ thống thống nhất một con số."}
+      - {id: c, text_md: "Để load balancer dùng sticky session ghim mỗi user vào một server rồi server đó tự đếm."}
+    answer: [b]
+    explain_md: "Chỉ bộ đếm dùng chung nguyên tử mới cho mức đúng trên toàn hệ; đếm cục bộ sẽ nhân mức lên ~100 lần. (a) stateless không hề tự đồng bộ bộ đếm; (c) sticky session rải tải kém và vẫn hỏng khi server đó chết, không phải cách chuẩn cho giới hạn toàn cục."
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "Rate limiter đếm theo **khoá đếm** (user/IP/API key/endpoint) và từ chối khi vượt mức; đặt sớm ở **API gateway** hoặc **middleware**."
+      - "**Token bucket** cho phép **burst** (xô nạp tốc độ R, đầy sẵn thì dồn được một đợt); **leaky bucket** **làm mượt** thành tốc độ cố định."
+      - "**Fixed window** đơn giản nhưng **hở ở ranh giới** (burst gấp đôi); **sliding window log** chính xác mà tốn RAM, **sliding window counter** nhẹ và gần đúng — đổi độ chính xác lấy chi phí."
+      - "Phân tán: nhiều server cần **bộ đếm dùng chung** (Redis INCR+EXPIRE hoặc script Lua) với thao tác **nguyên tử** để tránh **race condition**; đếm cục bộ + đồng bộ async thì nhanh hơn nhưng mức vượt một chút."
+      - "Từ chối bằng **HTTP 429 + Retry-After** (và rate-limit header); khi bộ đếm chết, chọn **fail-open** (cho qua, thường dùng cho fair-use) hay **fail-closed** (chặn, an toàn hơn)."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S172], l2: [S173], l3: [S174]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

@@ -1,0 +1,66 @@
+subtopic_id: sd.archetypes.job_scheduler
+items:
+  - id: S196
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Nói ngắn gọn: một bộ lập lịch job (job scheduler) phục vụ những **kiểu job** nào, và vì sao mỗi job
+      được lưu kèm cột **giờ chạy (run_at) có chỉ mục**?
+    answer_md: |
+      Ba kiểu: chạy ngay, hẹn một lần (one-off), và lặp theo lịch (recurring / cron, ví dụ "0 8 * * *" là
+      8 giờ mỗi sáng). Mỗi job lưu kèm **run_at** (giờ chạy kế tiếp) và trạng thái; **chỉ mục (index) trên
+      run_at** — hoặc gom theo khe thời gian (time bucket) — cho phép lấy nhanh các job **đến hạn**
+      (run_at <= bây giờ) mà không phải quét cả bảng mỗi chu kỳ.
+    rubric_md: "Đạt (điểm 1) khi nêu đúng ≥2 kiểu job (phải có one-off và recurring/cron) **và** ý chỉ mục run_at để tìm job đến hạn mà không quét toàn bảng. Thiếu một trong hai vế: điểm 0."
+  - id: S197
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Bạn chạy **hai (hoặc nhiều) scheduler** để tránh một điểm chết. Hãy giải thích: (1) rủi ro gì xuất
+      hiện khi nhiều scheduler cùng quét job đến hạn; (2) hai cách chống lại rủi ro đó; (3) với cách **nhận
+      job nguyên tử (atomic claim)**, nêu ý tưởng lệnh cập nhật và giải thích vì sao **chỉ một** scheduler
+      kích hoạt được job.
+    answer_md: |
+      (1) Rủi ro **chạy trùng (duplicate execution)**: hai scheduler cùng thấy job X đến hạn và cùng kích
+      hoạt → job chạy hai lần.
+      (2) Hai cách: **bầu leader / khóa phân tán (leader election / distributed lock)** để chỉ một
+      scheduler được quét tại một thời điểm; hoặc **nhận job nguyên tử (atomic claim)** bằng cập nhật có
+      điều kiện (conditional update).
+      (3) Lệnh dạng: UPDATE job SET state = 'running', owner = S WHERE id = X AND state = 'waiting'. Cả hai
+      scheduler cùng chạy, nhưng cập nhật nguyên tử của DB chỉ cho **một** lệnh đổi được dòng: sau khi dòng
+      thành 'running' thì điều kiện state = 'waiting' không còn đúng, nên lệnh thứ hai khớp 0 dòng và bỏ
+      qua. Scheduler thắng (thấy 1 dòng đổi) tiếp tục đẩy job vào worker pool.
+    rubric_md: "Đạt (điểm 2) khi nêu đủ cả 3: rủi ro chạy trùng; hai cách (lock/leader election **và** atomic claim); giải thích atomic claim thắng nhờ điều kiện trạng thái + tính nguyên tử của cập nhật (chỉ một dòng đổi được). Chỉ nêu một cách, hoặc không giải thích được vì sao chỉ một scheduler thắng: tối đa điểm 1."
+  - id: S198
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      Thiết kế một **bộ lập lịch job phân tán** hỗ trợ cả job one-off và recurring ở quy mô lớn (nhiều
+      scheduler, nhiều worker). Trình bày: (1) lưu job và tìm job đến hạn; (2) tầng scheduler đẩy job vào
+      worker pool; (3) chống chạy trùng khi có nhiều scheduler; (4) vì sao hệ chỉ đạt at-least-once nên job
+      phải **idempotent** và cách khử trùng; (5) **nhịp tim/lease (heartbeat/lease)** cho worker, retry +
+      DLQ, missed executions (catch-up) và trạng thái/visibility.
+    answer_md: |
+      (1) **Lưu job + tìm đến hạn**: mỗi job có run_at (giờ chạy kế tiếp) và trạng thái, lưu trong DB với
+      **chỉ mục trên run_at** (hoặc time bucket / timing wheel / delay queue). Mỗi chu kỳ truy vấn "run_at
+      <= bây giờ và còn chờ" để lấy đúng nhóm đến hạn, không quét toàn bảng. Job recurring: sau khi chạy
+      xong, tính giờ chạy kế tiếp từ biểu thức cron rồi cập nhật run_at.
+      (2) **Scheduler → worker pool**: tầng scheduler quét job đến hạn rồi đẩy (enqueue) vào hàng đợi cho
+      nhóm worker (sd.async.task_workers). Scheduler chỉ quyết định "đến giờ chưa", worker làm việc nặng —
+      tách để scale độc lập.
+      (3) **Chống chạy trùng**: chạy nhiều scheduler nhưng chống trùng bằng **leader election / khóa phân
+      tán**, hoặc **atomic claim** bằng cập nhật có điều kiện (UPDATE ... SET state='running' WHERE
+      id=X AND state='waiting') — chỉ một lệnh đổi được dòng.
+      (4) **At-least-once ⇒ idempotent**: vì máy có thể chết sau khi nhận job, hệ chỉ đảm bảo kích hoạt ít
+      nhất một lần. Do đó job phải **idempotent**, **khử trùng (dedupe) theo một run id duy nhất**: kiểm
+      tra run id đã xử lý chưa trước khi gây hiệu ứng (gửi email, trừ tiền).
+      (5) **Phần phân tán còn lại**: worker giữ job phải báo **nhịp tim (heartbeat)**; quá hạn **thuê
+      (lease)** mà im lặng thì job được **giao lại** cho máy khác (đây là nguồn gốc của at-least-once). Job
+      lỗi **thử lại giãn cách (retry with backoff)**; quá số lần thì vào **DLQ (dead-letter queue)**. Xử lý
+      **missed executions** bằng chính sách **catch-up** (chạy bù / chỉ lần gần nhất / bỏ qua). Thêm
+      backpressure, priority/fairness; mỗi job có **máy trạng thái** (waiting → running → done/failed) để
+      tra cứu và giám sát.
+    rubric_md: "Đạt mức 3 (mức phỏng vấn, theo mastery_bar) khi trình bày được một thiết kế đầy đủ gồm: chỉ mục theo run_at để tìm job đến hạn; tầng scheduler đẩy vào worker pool; chống chạy trùng bằng atomic claim/leader election; giải thích at-least-once ⇒ job idempotent (dedupe theo run id); và cơ chế heartbeat/lease giao lại job, kèm retry + DLQ, catch-up cho missed executions, trạng thái/visibility. Sót một trong các trụ cột (nhất là idempotent hoặc chống trùng), hoặc không giải thích được vì sao chỉ đạt at-least-once: chưa đạt mức 3."

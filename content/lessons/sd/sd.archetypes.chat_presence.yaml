@@ -1,0 +1,161 @@
+id: sd.archetypes.chat_presence
+version: 1
+status: published
+title_vi: "Thiết kế hệ chat và trạng thái online (chat and presence)"
+est_minutes: 14
+objectives_vi:
+  - "Vẽ được đường đi một tin nhắn từ người gửi qua gateway và pub/sub backbone đến đúng thiết bị người nhận."
+  - "Giải thích lưu trữ, đánh số thứ tự (ordering), biên nhận gửi/đã đọc (delivery/read receipt) và gửi bù khi offline."
+  - "Thiết kế presence (online status) bằng heartbeat + khóa TTL, và so sánh fan-out 1:1 với nhóm (write-fanout vs read-fanout)."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Một hệ **chat** cần ba thứ mà web request/response thường không có: tin đến **tức thì**
+      (không chờ người nhận hỏi), **hai chiều** (server chủ động đẩy xuống client), và biết **ai
+      đang online** (presence). Bài này ráp lại hai thứ đã học — **kết nối thời gian thực**
+      (realtime protocols) và **pub/sub** (hàng đợi/phát tin) — thành một kiến trúc hoàn chỉnh.
+      Mục tiêu cuối: vẽ được đường đi của một tin nhắn từ máy người gửi đến đúng thiết bị người
+      nhận, và biết hệ xử lý ra sao khi người nhận đang offline.
+  - id: b02
+    type: text
+    md: |
+      **Kết nối bền (persistent connection).** Mỗi client mở một **WebSocket** tới một
+      **gateway server** (còn gọi connection server) và giữ mở suốt phiên. Khác với app server
+      stateless, gateway là **stateful**: nó nhớ "socket này là của user U nào". Vì một người có
+      thể nối vào gateway bất kỳ (và nhiều thiết bị cùng lúc), hệ cần một **sổ định tuyến
+      (routing/session registry)** — thường là Redis — ánh xạ *user → (gateway, các kết nối)*.
+      Muốn gửi cho U, trước hết phải tra sổ: "U đang cắm ở gateway nào?".
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: |
+      Alice nối WebSocket vào **gateway G1**, Bob nối vào **gateway G2**. Alice gửi tin cho Bob.
+      Vì sao G1 **không thể** tự đẩy thẳng tin xuống Bob?
+    options:
+      - {id: a, text_md: "Vì WebSocket chỉ cho phép client gửi lên server, server không đẩy xuống được."}
+      - {id: b, text_md: "Vì kết nối của Bob nằm ở G2, không ở G1; G1 không giữ socket của Bob nên phải nhờ G2 (nơi đang giữ socket đó) đẩy giúp."}
+      - {id: c, text_md: "Vì mọi tin nhắn bắt buộc phải đi qua database trước khi tới người nhận."}
+    answer: [b]
+    explain_md: |
+      Gateway là stateful: mỗi socket chỉ tồn tại ở đúng một gateway. Tin của Bob phải được
+      chuyển tới **G2** — nơi đang giữ socket của Bob — rồi G2 mới đẩy xuống. Đây chính là lý do
+      cần một **backbone** nối các gateway. (a) sai: WebSocket hai chiều, server đẩy xuống được;
+      (c) lưu DB là để bền/đánh số, không phải điều kiện để chuyển tin.
+  - id: b04
+    type: text
+    md: |
+      **Xương sống pub/sub (pub/sub backbone).** Để G1 chuyển tin cho G2 mà không cần biết địa
+      chỉ mạng của nhau, các gateway nối qua một lớp phát tin dùng chung (Redis Pub/Sub, hoặc
+      Kafka khi cần lưu bền và tua lại). Mô hình thường gặp: mỗi gateway **đăng ký (subscribe)**
+      kênh của những user nó đang giữ; khi có tin cho Bob, hệ tra sổ định tuyến, **publish** tin
+      vào kênh của Bob, và chỉ G2 (đang giữ Bob) nhận rồi đẩy xuống. Nhờ vậy số gateway cứ thêm
+      tự do, không gateway nào phải biết toàn bộ các gateway còn lại — đúng tinh thần **fan-out**
+      của pub/sub đã học.
+  - id: b05
+    type: text
+    md: |
+      **Lưu trữ và thứ tự (storage & ordering).** Tin không chỉ đẩy đi mà còn phải **lưu bền**
+      để người nhận offline đọc lại và để đồng bộ nhiều thiết bị. Mỗi tin ghi vào kho tin nhắn
+      (thường NoSQL phân mảnh theo `conversation_id` để tải ghi lớn chia đều). Vì mạng có thể đảo
+      thứ tự, mỗi hội thoại cần một **số thứ tự (sequence number) tăng dần theo từng conversation**
+      (không phải timestamp đồng hồ, vì đồng hồ các máy lệch nhau): client sắp xếp tin theo seq
+      này, và dùng nó để phát hiện thiếu tin. Trên nền đó xây **biên nhận (receipts)**: *đã gửi
+      tới server → đã chuyển tới thiết bị (delivered) → đã đọc (read)* — mỗi mốc là một cập nhật
+      đẩy ngược về người gửi.
+  - id: b06
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Để các tin trong **một** hội thoại luôn hiển thị đúng thứ tự dù mạng đảo gói hay đồng hồ các
+      máy lệch nhau, ta gắn cho mỗi tin một ______ (tăng dần theo từng conversation) thay vì tin
+      cậy vào timestamp đồng hồ. Điền thuật ngữ (tiếng Anh).
+    blanks:
+      - accept:
+          - "sequence number"
+          - "sequence"
+          - "seq"
+          - "sequence id"
+          - "sequence number (seq)"
+    explain_md: |
+      Một **sequence number** tăng dần trong phạm vi từng hội thoại cho một thứ tự tổng (total
+      order) ổn định mà client dựa vào để sắp xếp và phát hiện thiếu tin. Timestamp đồng hồ không
+      đáng tin vì đồng hồ các máy lệch nhau (clock skew) và có thể trùng.
+  - id: b07
+    type: text
+    md: |
+      **Khi người nhận offline.** Tra sổ định tuyến thấy Bob không có kết nối nào: tin đã lưu bền
+      rồi, nên hệ chuyển sang **push notification** (APNs/FCM) để báo Bob. Khi Bob mở lại app và
+      nối WebSocket, client nói "tôi đang ở seq X", server **gửi bù (sync)** mọi tin có seq > X.
+      Đây là lý do seq theo từng hội thoại quý giá: nó biến việc "đồng bộ lại sau khi mất kết nối"
+      thành một phép so sánh số đơn giản.
+  - id: b08
+    type: text
+    md: |
+      **Presence (trạng thái online).** Cách bền vững là **heartbeat + khóa TTL**: client (hoặc
+      gateway) định kỳ ghi một khóa `online:U` vào Redis với **TTL** ngắn (ví dụ 30 giây) và làm
+      mới mỗi nhịp tim. Nếu client chết/mất mạng, không ai làm mới, **khóa tự hết hạn (expire)** →
+      U thành offline. Ưu điểm: không cần ai chủ động báo "tôi offline" (mà một client sập thì
+      cũng không báo được). Cạm bẫy kinh điển: **thundering herd của presence** — một người có
+      hàng nghìn bạn vừa online, nếu ta fan-out "U online" tới mọi bạn ngay lập tức thì tạo một
+      cơn bão cập nhật. Cách giảm: chỉ đẩy presence cho người đang **thực sự mở cửa sổ chat** với
+      U (hoặc client *hỏi* presence khi mở danh sách), gộp (batch) và tiết lưu (throttle) cập nhật.
+  - id: b09
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao dùng **khóa TTL hết hạn** cho presence tốt hơn là bắt client gửi một tin 'tôi offline' lúc thoát?"
+    options:
+      - {id: a, text_md: "Vì khóa TTL luôn chính xác tới từng mili-giây, còn tin 'offline' thì không."}
+      - {id: b, text_md: "Vì client sập, mất mạng hay hết pin thì **không kịp gửi** tin 'offline'; heartbeat ngừng làm mới nên khóa **tự hết hạn**, hệ vẫn phát hiện đúng mà không cần client hợp tác."}
+      - {id: c, text_md: "Vì TTL giúp loại bỏ hoàn toàn nhu cầu có sổ định tuyến user → gateway."}
+    answer: [b]
+    explain_md: |
+      Điểm cốt lõi của presence là xử lý **mất kết nối đột ngột** — đúng lúc client không thể gửi
+      gì. Heartbeat + TTL suy ra offline từ việc *vắng* nhịp tim, không phụ thuộc client báo. (a)
+      sai: presence trễ cỡ TTL, không tức thì; (c) sai: sổ định tuyến vẫn cần để chuyển tin.
+  - id: b10
+    type: quiz_mcq
+    graded: true
+    prompt_md: |
+      Một tin trong **nhóm 100 người** tới server. So sánh **write-fanout** (ghi sẵn một bản vào
+      hộp thư từng thành viên) và **read-fanout** (lưu một bản trong nhóm, thành viên đọc khi mở),
+      cách nào hợp lý hơn cho **nhóm lớn/đông người đọc thưa**, và vì sao?
+    options:
+      - {id: a, text_md: "Write-fanout, vì luôn ít tốn tài nguyên hơn bất kể quy mô nhóm."}
+      - {id: b, text_md: "Read-fanout, vì write-fanout phải nhân một tin thành 100 lượt ghi (tốn ghi và phình kho) dù nhiều người có thể không đọc; nhóm lớn nên lưu một bản và fan-out lúc đọc."}
+      - {id: c, text_md: "Hai cách y hệt nhau về chi phí, chỉ khác tên gọi."}
+    answer: [b]
+    explain_md: |
+      **Write-fanout** cho độ trễ đọc thấp nhưng chi phí ghi tỉ lệ số thành viên — với nhóm lớn
+      là lãng phí. **Read-fanout** lưu một bản, fan-out lúc đọc, hợp với nhóm đông/đọc thưa. Thực
+      tế thường **lai**: 1:1 và nhóm nhỏ dùng write-fanout cho nhanh, nhóm rất lớn dùng
+      read-fanout. (a)/(c) bỏ qua chính sự đánh đổi ghi-nhiều vs đọc-nhiều.
+  - id: b11
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn.** Khi được hỏi "thiết kế WhatsApp/Messenger", hãy đi theo lát cắt: *client
+      giữ WebSocket tới gateway (stateful) → sổ định tuyến user→gateway (Redis) → pub/sub backbone
+      để chuyển tin giữa gateway → lưu bền + sequence number để sắp thứ tự và gửi bù → receipts
+      (sent/delivered/read) → offline thì push → presence bằng heartbeat+TTL*. Hai câu "ăn điểm"
+      hay bị hỏi sâu: **ordering** (vì sao dùng seq theo hội thoại chứ không timestamp) và
+      **fan-out nhóm** (write vs read, và cơn bão presence với friend list lớn). Nhớ nói rõ
+      *cái gì đang là nghẽn* ở mỗi lớp khi lên tới hàng triệu kết nối đồng thời (mỗi gateway giữ
+      được hữu hạn socket → thêm gateway; sổ định tuyến và pub/sub trở thành điểm nóng → phân mảnh).
+  - id: b12
+    type: summary
+    bullets_vi:
+      - "Client giữ **WebSocket** tới **gateway stateful**; một **sổ định tuyến (Redis)** ánh xạ user → gateway/kết nối để biết đẩy tin đi đâu."
+      - "Các gateway nối qua **pub/sub backbone** (Redis/Kafka): tra sổ rồi publish vào kênh người nhận, chỉ gateway đang giữ họ nhận và đẩy xuống — fan-out, thêm gateway tự do."
+      - "Tin được **lưu bền** và gắn **sequence number tăng dần theo từng hội thoại** để sắp thứ tự (không dùng timestamp đồng hồ) và để **gửi bù** khi nối lại; trên đó là **receipts** sent/delivered/read."
+      - "Người nhận **offline** → tin đã lưu nên chuyển sang **push notification**; khi online lại thì sync theo seq."
+      - "**Presence** = heartbeat + khóa **TTL tự hết hạn** (suy ra offline từ việc vắng nhịp tim); cảnh giác **thundering herd** khi fan-out presence cho friend list lớn."
+      - "**1:1/nhóm nhỏ → write-fanout** (đọc nhanh); **nhóm rất lớn → read-fanout** (lưu một bản, fan-out lúc đọc); scale tới hàng triệu kết nối bằng thêm gateway và phân mảnh sổ định tuyến/backbone."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S181], l2: [S182], l3: [S183]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

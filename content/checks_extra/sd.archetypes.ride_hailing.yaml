@@ -1,0 +1,71 @@
+subtopic_id: sd.archetypes.ride_hailing
+items:
+  - id: S202
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Trong hệ gọi xe, vì sao vị trí tài xế được giữ **trong bộ nhớ** (in-memory/Redis) thay vì ghi
+      mỗi lần cập nhật (ping) xuống database quan hệ? Và để tìm tài xế gần một khách, chỉ mục địa lý
+      (geospatial index) làm gì?
+    answer_md: |
+      Mỗi tài xế ping vị trí vài giây một lần, nên tổng tải ghi cực lớn (ví dụ 100.000 tài xế mỗi 4
+      giây ~ 25.000 ghi/giây); ta chỉ cần **vị trí mới nhất**, không cần lịch sử từng ping, nên giữ
+      trong **RAM/Redis** (mới nhất thắng) mới đủ nhanh và không làm chết DB; muốn lịch sử thì gom lô
+      (batch) hoặc lấy mẫu rồi đẩy xuống kho lạnh.
+      Chỉ mục địa lý chia bản đồ thành **ô (cell)** (geohash/quadtree/S2), mỗi ô giữ các tài xế trong
+      đó; tìm gần = lấy **ô chứa khách và các ô kề (neighbors)** rồi lọc theo khoảng cách, thay vì
+      duyệt toàn bộ tài xế.
+    rubric_md: "Đạt khi nêu đúng cả hai ý: (1) tải ghi quá lớn + chỉ cần giá trị mới nhất nên giữ trong RAM/Redis; (2) chỉ mục địa lý chia ô và tra ô của khách + ô kề. Đúng cả hai ý: bằng chứng điểm 1. Thiếu một vế (chỉ nói RAM nhanh mà không nói tải ghi/mới-nhất, hoặc không mô tả ô + ô kề): tối đa điểm 0."
+  - id: S203
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Một dịch vụ matching đôi khi **gán cùng một tài xế cho hai khách** vì hai yêu cầu gần nhau xử lý
+      đồng thời. Hãy đề xuất cách sửa: (1) dùng cơ chế gì để chỉ một yêu cầu "giành" được tài xế;
+      (2) vì sao cơ chế đó cần **TTL** (thời gian sống) và nên đặt TTL bằng bao nhiêu; (3) liên hệ cùng
+      ý tưởng "đúng một lần" cho việc **trừ tiền** cuối chuyến.
+    answer_md: |
+      (1) Dùng **khoá / claim nguyên tử (atomic claim)** từ distributed locks: khi định gửi offer cho
+      một tài xế, thực hiện một thao tác nguyên tử đặt anh ta sang trạng thái "đang được giữ"; chỉ
+      **một** luồng thắng, luồng khác thấy đã bị giữ thì bỏ qua -> không gán đôi.
+      (2) Khoá cần **TTL** để tự nhả khi luồng giữ khoá chết hoặc tài xế không trả lời, tránh kẹt tài
+      xế vĩnh viễn; nên đặt TTL **bằng đúng thời gian chờ nhận offer (offer timeout, ví dụ 15 giây)**:
+      hết hạn mà chưa nhận thì tài xế rảnh trở lại cho yêu cầu khác.
+      (3) Cùng tinh thần "đúng một lần" (exactly-once): khi trừ tiền cuối chuyến, gắn một **idempotency
+      key (mã chống lặp)** cho giao dịch, để nếu yêu cầu bị gửi lại do lỗi mạng thì bản sao thứ hai
+      không trừ thêm lần nữa.
+    rubric_md: "Đạt khi nêu đúng cả 3 ý: khoá/claim nguyên tử để chỉ một luồng giành được tài xế; TTL để tự nhả khi không nhận/khi luồng chết và đặt ~ offer timeout; liên hệ idempotency key cho trừ tiền exactly-once. Đúng, trong time-box, tự giải thích được: bằng chứng điểm 2. Thiếu ý TTL (vì sao + đặt bao nhiêu) hoặc không liên hệ được exactly-once: tối đa điểm 1."
+  - id: S204
+    difficulty: 3
+    type: concept
+    minutes: 12
+    prompt_md: |
+      Thiết kế hệ **gọi xe (ride-hailing)** ở mức tổng quát. Đi qua đủ các mảnh và nêu đánh đổi:
+      (1) nhận cập nhật vị trí tài xế ở quy mô lớn; (2) chỉ mục địa lý để tìm tài xế gần nhất (và vì
+      sao phải quét cả ô kề); (3) luồng matching/dispatch với offer có hạn; (4) tránh gán đôi tài xế;
+      (5) theo dõi real-time và **máy trạng thái chuyến đi**; (6) trừ tiền đúng một lần. Nêu thêm một
+      hướng mở rộng (surge pricing theo ô hoặc geo-sharding) và vì sao nó hợp lý.
+    answer_md: |
+      1. **Cập nhật vị trí:** mỗi tài xế ping vài giây/lần -> tải ghi khổng lồ (ví dụ ~25.000 ghi/giây
+         với 100.000 tài xế mỗi 4 giây). Giữ vị trí nóng trong **RAM/Redis** (mới nhất thắng), không
+         ghi từng ping xuống DB quan hệ; cần lịch sử thì **batch/sample** xuống kho lạnh qua hàng đợi.
+      2. **Chỉ mục địa lý:** chia bản đồ thành ô (**geohash/quadtree/S2**), mỗi ô giữ các tài xế trong
+         đó, cập nhật trong RAM mỗi ping. Tìm gần = lấy **ô chứa khách + các ô kề (neighbors)** rồi lọc
+         theo khoảng cách thật; phải quét ô kề vì khách đứng sát ranh giới có thể gần tài xế ở ô bên
+         cạnh hơn. Đánh đổi kích thước ô: ô to -> mỗi ô đông, lọc nhiều; ô nhỏ -> phải gộp nhiều ô kề.
+      3. **Matching/dispatch:** truy vấn ô lấy tài xế rảnh -> **rank** theo khoảng cách/ETA/đánh giá ->
+         gửi **offer có hạn (offer timeout, ví dụ 15 giây)**; không nhận thì sang người kế tiếp. Điều
+         phối qua **hàng đợi/pub-sub** để chịu tải tăng đột biến và tách rời thành phần.
+      4. **Tránh gán đôi:** dùng **khoá/claim nguyên tử (atomic claim)** có **TTL = offer timeout**;
+         chỉ một luồng giữ được tài xế, khoá tự nhả khi hết hạn hoặc luồng chết.
+      5. **Real-time + state machine:** đẩy vị trí tài xế xuống khách qua **WebSocket** thay vì poll;
+         chuyến đi là máy trạng thái *requested -> matched -> enroute -> ongoing -> completed*, mỗi
+         chuyển trạng thái được ghi lại đáng tin cậy vì tính tiền/khiếu nại phụ thuộc vào nó.
+      6. **Trừ tiền đúng một lần:** gắn **idempotency key** cho giao dịch cuối chuyến để yêu cầu gửi
+         lại không trừ thêm (exactly-once charging).
+      Mở rộng: **surge pricing theo ô** (tỉ lệ cầu/cung trong từng ô; dữ liệu đã gom theo ô nên tính
+      tự nhiên) hoặc **geo-sharding** (mỗi thành phố một shard vì khách/tài xế hiếm khi vượt vùng, vừa
+      chia tải vừa giữ truy vấn gần nhất gói trong một vùng).
+    rubric_md: "Đạt mức phỏng vấn (mức 3) khi đi đủ 6 mảnh đúng thứ tự logic và nêu được đánh đổi chính ở mỗi mảnh: vị trí trong RAM vì tải ghi lớn, chỉ mục ô + lý do quét ô kề, offer có hạn, khoá/claim có TTL chống gán đôi, WebSocket + máy trạng thái chuyến, idempotency key cho trừ tiền, cộng một hướng mở rộng hợp lý. Đúng, mạch lạc, tự biện minh được lựa chọn: bằng chứng điểm 3. Sót một mảnh hoặc không giải thích được vì sao phải quét ô kề / vì sao cần khoá có TTL: chưa đạt mức 3."

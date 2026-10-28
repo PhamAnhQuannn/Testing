@@ -1,0 +1,157 @@
+id: sd.archetypes.web_crawler
+version: 1
+status: published
+title_vi: "Thiết kế web crawler (web crawler): hàng đợi URL, lọc trùng và chính sách tải lại"
+est_minutes: 14
+objectives_vi:
+  - "Vẽ được khung một web crawler: hàng đợi URL (URL frontier) có politeness, đội fetcher phân tán, lọc trùng URL và lọc trùng nội dung."
+  - "Dùng đúng Bloom filter (Bloom filter) cho tập 'đã thấy' (seen-set) ở quy mô lớn và hiểu vì sao dương tính giả (false positive) là chấp nhận được ở đây."
+  - "Xử lý robots.txt, DNS caching, bẫy crawler (crawler trap), và lên lịch tải lại (re-crawl) theo tần suất thay đổi."
+  - "Ước lượng được số fetcher cần từ mục tiêu trang/giây và độ trễ mỗi lần tải."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      **Web crawler** là chương trình đi qua các trang web theo liên kết (link), tải nội dung về
+      rồi lưu lại — về bản chất là một **BFS (duyệt theo chiều rộng)** trên đồ thị toàn Internet:
+      mỗi trang là một đỉnh, mỗi liên kết là một cạnh. Khác với BFS trong bộ nhớ, ở đây "đồ thị"
+      gần như vô hạn, nằm trên hàng triệu máy chủ của người khác, nên bài toán không phải thuật
+      toán mà là **hệ phân tán**: làm sao tải nhanh, không tải trùng, không làm phiền máy chủ
+      người ta, và không bị kẹt trong vòng lặp vô tận.
+
+      Bốn khối chính cần nhớ: **hàng đợi URL (URL frontier)** chứa các trang chờ tải; **đội
+      fetcher (fetcher workers)** tải song song; **bộ lọc trùng (dedup)** để không tải lại trang
+      đã thấy; và **kho lưu** nội dung đã tải. Xoay quanh chúng là politeness, robots.txt, DNS
+      caching và lịch tải lại.
+  - id: b02
+    type: text
+    md: |
+      **Hàng đợi URL (URL frontier)** là trái tim của crawler: một hàng đợi (queue) chứa các URL
+      đã phát hiện nhưng chưa tải. Fetcher lấy URL ra, tải trang, trích các liên kết mới, rồi đẩy
+      chúng trở lại hàng đợi — đúng vòng của BFS. Vì đây là hệ phân tán, frontier thường là một
+      **hàng đợi bền (durable queue / pub-sub)** như đã học ở `sd.async.queues_pubsub`, để nhiều
+      fetcher cùng rút việc và không mất URL khi một worker chết.
+
+      Điểm cốt lõi là **politeness (lịch sự)**: không được dội bom một website. Nếu cứ rút URL
+      tuần tự, nhiều trang cùng một tên miền (domain) sẽ bị tải dồn dập và máy chủ người ta sập —
+      ta trở thành kẻ tấn công từ chối dịch vụ. Giải pháp: **hàng đợi theo tên miền (per-domain
+      queue)** cộng với **giới hạn tốc độ theo tên miền (per-domain rate limit)**, ví dụ mỗi domain
+      tối đa 1 request mỗi vài giây. Frontier vì thế không phải một hàng đợi phẳng, mà là **nhiều
+      hàng con theo host**, và một bộ lập lịch chọn host nào tới lượt được tải.
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao URL frontier của một crawler nghiêm túc lại chia thành **hàng đợi theo tên miền (per-domain queue)** thay vì một hàng đợi phẳng duy nhất?"
+    options:
+      - {id: a, text_md: "Để tiết kiệm bộ nhớ, vì hàng đợi phẳng tốn RAM gấp nhiều lần."}
+      - {id: b, text_md: "Để thực thi **politeness**: giới hạn tốc độ tải theo từng tên miền, tránh dội bom một máy chủ và bị coi như tấn công DoS."}
+      - {id: c, text_md: "Vì BFS bắt buộc mỗi tên miền phải có hàng đợi riêng về mặt thuật toán."}
+    answer: [b]
+    explain_md: "Hàng đợi theo tên miền cho phép áp giới hạn tốc độ riêng cho mỗi host, nên crawler rải tải đều và không làm sập máy chủ người ta. (a) không phải lý do chính; (c) sai — BFS không đòi hỏi điều đó, đây là yêu cầu vận hành (politeness), không phải ràng buộc thuật toán."
+  - id: b04
+    type: text
+    md: |
+      **Đội fetcher (fetcher workers)** là nhiều tiến trình/máy chạy song song, mỗi worker lặp:
+      rút URL (theo politeness) → phân giải DNS → tải HTTP → lưu nội dung → trích liên kết → đẩy
+      URL mới vào frontier. Vì chúng **stateless** (không giữ trạng thái riêng, mọi trạng thái nằm
+      ở frontier và kho dùng chung), ta cứ thêm máy là tăng được thông lượng (throughput).
+
+      Một nghẽn hay bị bỏ quên là **DNS**: mỗi lần tải phải đổi tên miền thành địa chỉ IP, và tra
+      DNS đồng bộ có thể chậm bằng cả lần tải trang. Ở quy mô hàng nghìn request mỗi giây, DNS
+      thành nút cổ chai. Cách gỡ là **DNS caching**: lưu lại kết quả phân giải (theo TTL) trong một
+      cache cục bộ hoặc một resolver riêng, để các lần tải sau cùng domain không phải tra lại.
+  - id: b05
+    type: text
+    md: |
+      **Lọc trùng URL (URL dedup)** trả lời câu hỏi "URL này đã thấy/đã tải chưa?" trước khi đẩy
+      vào frontier — nếu không, crawler sẽ tải lại vô số trang và BFS không bao giờ dừng. Vấn đề là
+      **quy mô**: tập "đã thấy" (seen-set) có thể lên hàng tỉ URL, không thể giữ nguyên văn trong
+      RAM.
+
+      Đây đúng là chỗ dùng **Bloom filter (Bloom filter)** đã học ở `sd.data.probabilistic_structures`:
+      một cấu trúc xác suất trả lời câu hỏi **thành viên (membership)** — "phần tử này có trong tập
+      không?" — bằng vài bit thay vì lưu cả URL. Bloom filter có thể cho **dương tính giả (false
+      positive)**: thỉnh thoảng nói "đã thấy" một URL thực ra chưa thấy; nhưng **không bao giờ âm
+      tính giả (no false negative)**: đã nói "chưa thấy" thì chắc chắn chưa thấy. Hậu quả của một
+      dương tính giả ở đây chỉ là **bỏ sót tải một trang** — chấp nhận được, đổi lại tiết kiệm bộ
+      nhớ khổng lồ. Thực tế thường ghép Bloom filter (chặn nhanh phần lớn trùng) với một **kho
+      chính xác** (ví dụ bảng băm trên đĩa/DB) để kiểm lại khi cần chắc chắn.
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Dùng **Bloom filter** cho tập 'đã thấy' URL, một **dương tính giả (false positive)** gây hậu quả gì, và vì sao vẫn chấp nhận được?"
+    options:
+      - {id: a, text_md: "Crawler tải **trùng lặp** một trang đã tải; nguy hiểm nên phải tránh tuyệt đối."}
+      - {id: b, text_md: "Crawler **bỏ sót** (không tải) một trang thực ra chưa thấy; chấp nhận được vì đổi lại tiết kiệm bộ nhớ, và Bloom filter không bao giờ cho âm tính giả nên không tải trùng."}
+      - {id: c, text_md: "Crawler bị kẹt vòng lặp vô tận, vì false positive làm hỏng BFS."}
+    answer: [b]
+    explain_md: "Bloom filter báo dương tính giả nghĩa là nói 'đã thấy' nhầm, nên ta bỏ qua (không tải) một trang mới — chỉ mất một chút độ phủ, đổi lại giảm bộ nhớ rất lớn. Vì không có âm tính giả, cái gì nó nói 'chưa thấy' là thật sự mới, nên không gây tải trùng và không gây vòng lặp. (a) nhầm chiều lỗi; (c) sai."
+  - id: b07
+    type: text
+    md: |
+      Vài cơ chế còn lại để crawler chạy đúng và văn minh:
+
+      - **robots.txt:** mỗi website công bố luật cho bot ở `/robots.txt` (được phép/bị cấm đường
+        dẫn nào, tần suất). Crawler lịch sự phải tải và **cache robots.txt theo domain**, rồi tôn
+        trọng nó trước khi tải bất kỳ URL nào của domain đó.
+      - **Lọc trùng nội dung (content dedup):** hai URL khác nhau có thể cùng một nội dung (trang
+        nhân bản, mirror). Ta băm (hash) thân trang để bỏ bản sao y hệt; với trang **gần giống**
+        (chỉ khác quảng cáo, ngày tháng) thì dùng **simhash** để nhận ra nội dung tương tự.
+      - **Bẫy crawler (crawler trap) và giới hạn độ sâu:** có những "không gian vô tận" như lịch
+        sinh ra URL mới mãi mãi, hoặc URL lồng nhau vô hạn. Phải đặt **giới hạn độ sâu (depth cap)**,
+        giới hạn số URL mỗi domain, và phát hiện mẫu URL lặp để không sa vào bẫy.
+      - **Lịch tải lại (re-crawl / freshness):** web thay đổi, nên crawler phải quay lại. Lên lịch
+        tải lại **theo tần suất thay đổi**: trang tin tức tải lại thường xuyên, trang tĩnh thì
+        thưa — cân giữa độ tươi (freshness) và chi phí.
+  - id: b08
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền thuật ngữ (tiếng Anh) còn thiếu:
+
+      "Để biết một URL ở quy mô hàng tỉ đã từng thấy chưa mà không giữ nguyên văn trong RAM, ta
+      dùng một ___ cho tập 'đã thấy'; nó có thể cho dương tính giả nhưng không bao giờ cho ___ giả."
+    blanks:
+      - accept: ["Bloom filter", "bloom filter", "Bloom Filter", "bộ lọc Bloom"]
+      - accept: ["âm tính", "âm tính giả", "false negative", "negative"]
+    explain_md: "Bloom filter trả lời câu hỏi thành viên bằng vài bit; đặc tính 'có thể dương tính giả, không bao giờ âm tính giả' chính là lý do nó hợp cho seen-set của crawler."
+  - id: b09
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn.** Khi được yêu cầu "thiết kế web crawler", hãy dựng khung theo thứ tự:
+      *(1) hàng đợi URL + politeness (hàng đợi theo domain) → (2) đội fetcher stateless + DNS
+      caching → (3) lọc trùng URL bằng Bloom filter + kho chính xác → (4) robots.txt, lọc trùng
+      nội dung, bẫy crawler/giới hạn độ sâu → (5) lịch tải lại theo độ tươi*. Luôn tự nêu con số:
+      mục tiêu bao nhiêu trang/giây, suy ra bao nhiêu fetcher. Người phỏng vấn chấm việc bạn nghĩ
+      tới **politeness, dedup ở quy mô, và bẫy vô tận** — đó là thứ phân biệt người đã dựng crawler
+      thật với người chỉ viết vòng lặp tải trang.
+  - id: b10
+    type: text
+    md: |
+      **Ước lượng số fetcher.** Đây là phép tính Little's Law quen thuộc. Giả sử mục tiêu là tải
+      **1.000 trang/giây**, mỗi lần tải (gồm chờ mạng) mất trung bình **0,2 giây**. Mỗi fetcher nếu
+      làm tuần tự, một lúc chỉ "giữ" một request đang chờ, nên xử lý được khoảng **1 / 0,2 = 5
+      trang/giây**. Cần khoảng **1.000 / 5 = 200 fetcher** (luồng/worker) chạy song song — thực tế
+      nhân thêm hệ số dự phòng cho lỗi và tải lại.
+
+      Ý quan trọng: phần lớn thời gian một lần tải là **chờ I/O mạng**, không phải CPU. Nên thông
+      lượng bị chặn bởi **mức song song** (số request đồng thời) chứ không phải số lõi CPU — vì vậy
+      một máy có thể chạy nhiều luồng chờ; và chính politeness (giới hạn theo domain) mới là thứ
+      quyết định ta phải trải tải trên **nhiều domain** để đạt tổng tốc độ mong muốn.
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "Web crawler là BFS trên Internet; bài toán là hệ phân tán: hàng đợi URL (URL frontier) + đội fetcher stateless + lọc trùng + kho lưu."
+      - "Politeness là bắt buộc: dùng hàng đợi theo tên miền (per-domain queue) và giới hạn tốc độ theo domain để không dội bom/DoS máy chủ người ta; tôn trọng robots.txt (cache theo domain)."
+      - "Lọc trùng URL ở quy mô tỉ dùng Bloom filter cho seen-set: có dương tính giả (chỉ bỏ sót một trang, chấp nhận được) nhưng không âm tính giả; ghép thêm kho chính xác khi cần chắc."
+      - "DNS caching gỡ nghẽn phân giải tên miền; lọc trùng nội dung bằng hash/simhash; chặn bẫy crawler bằng giới hạn độ sâu và số URL mỗi domain; tải lại theo tần suất thay đổi (freshness)."
+      - "Số fetcher ≈ (trang/giây mục tiêu) × (độ trễ mỗi lần tải); thông lượng bị chặn bởi mức song song I/O, không phải CPU."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S184], l2: [S185], l3: [S186]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

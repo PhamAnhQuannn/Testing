@@ -1,0 +1,172 @@
+id: sd.archetypes.data_pipeline
+version: 1
+status: published
+title_vi: "Thiết kế pipeline dữ liệu: thu thập, xử lý, hai nhánh lưu"
+est_minutes: 14
+objectives_vi:
+  - "Vẽ được dây chuyền ba tầng thu thập -> xử lý -> kho (ingestion -> processing -> sinks), với Kafka là bộ đệm bền (durable buffer) tách nhịp nguồn khỏi đích."
+  - "Phân biệt xử lý luồng và lô, và tranh luận lambda vs kappa; chọn đúng khi nào cần nhánh lô."
+  - "Giải thích các mối lo xuyên suốt: ghi idempotent/exactly-once vào kho đích, quản lý schema (schema registry) và cách tính lại (replay/backfill) khi lỗi."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      **Pipeline dữ liệu (data pipeline)** là dây chuyền đưa hàng triệu **sự kiện (event)** — lượt
+      xem, click, log, số đo cảm biến — từ app vào kho để phân tích. Mục này **ghép lại** các khối
+      bạn đã học, không giải thích lại chúng:
+      - **Kafka và partition** (ở `sd.async.kafka_log`): log phân vùng bền, chia tải song song.
+      - **Cửa sổ và watermark** (ở `sd.async.stream_processing`): gộp theo thời gian xảy ra thật
+        (event time), chịu được sự kiện đến muộn.
+      - **At-least-once và idempotent** (ở `sd.async.delivery_guarantees`): giao ít nhất một lần nên
+        có thể trùng, muốn kết quả đúng thì ghi phải chịu được lặp.
+
+      Khung chung của **mọi** bài data pipeline là ba tầng: **thu thập (ingestion) -> xử lý
+      (processing) -> kho đích (sinks)**. Nắm khung này thì các bài như metrics/logging hay đếm
+      click quảng cáo chỉ là biến thể.
+  - id: b02
+    type: text
+    md: |
+      **Tầng thu thập (ingestion).** App nhúng một **SDK** gom sự kiện thành lô rồi gửi tới
+      **collector** — một service **stateless** sau load balancer — và collector **ghi vào Kafka**.
+      Nếu nguồn là một database thì thay vì gọi SDK, ta đọc nhật ký thay đổi của DB bằng **CDC
+      (change data capture)** rồi đẩy vào Kafka.
+
+      Kafka đứng giữa làm **bộ đệm bền (durable buffer)** và **tách nhịp (decouple)** nguồn khỏi
+      đích: nguồn ghi vào với tốc độ của nó, bộ xử lý tiêu thụ với tốc độ của nó, lúc đích chậm thì
+      Kafka **hấp thụ dồn ứ (backpressure)** thay vì làm mất sự kiện. Vì Kafka còn **giữ lại** sự kiện
+      trong thời gian retention, ta có thể **đọc lại** về sau.
+
+      Chọn **khoá phân vùng (partition key)** quyết định mức song song và độ **lệch tải (skew)**:
+      phải chia đều, nhưng các sự kiện cần gộp chung (ví dụ cùng một sản phẩm) nên về **cùng một
+      partition** để giữ thứ tự. Một khoá quá nóng (một sản phẩm chiếm phần lớn lưu lượng) làm một
+      partition quá tải — khi đó phải **băm nhỏ khoá nóng (salting)**.
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Trong tầng thu thập, vì sao đặt một **log phân vùng Kafka** giữa collector và bộ xử lý, thay vì để collector gọi thẳng kho OLAP?"
+    options:
+      - {id: a, text_md: "Kafka là **bộ đệm bền** tách nhịp nguồn khỏi đích: nguồn ghi nhanh, đích tiêu thụ theo nhịp của nó, hấp thụ lúc dồn ứ, và còn **giữ lại** sự kiện để tính lại sau."}
+      - {id: b, text_md: "Kafka tự tính sẵn số liệu tổng hợp nên bộ xử lý không cần chạy nữa."}
+      - {id: c, text_md: "Kafka thay thế luôn kho OLAP nên hệ không cần kho phục vụ truy vấn."}
+    answer: [a]
+    explain_md: "Kafka là lớp đệm bền + tách nhịp, chịu dồn ứ và cho phép đọc lại (b02). (b) sai — Kafka chỉ chứa log sự kiện, việc gộp số là của bộ xử lý; (c) sai — Kafka là log, không phục vụ truy vấn tổng hợp nhanh như kho OLAP."
+  - id: b04
+    type: text
+    md: |
+      **Tầng xử lý (processing).** Có hai kiểu, và cách ghép chúng là tranh luận kinh điển:
+      - **Xử lý luồng (stream):** đọc sự kiện ngay khi tới, gộp theo cửa sổ thời gian, cho số liệu
+        **độ trễ thấp** (vài giây) nhưng dễ sai khi có sự kiện muộn hay lỗi code.
+      - **Xử lý lô (batch):** quét lại toàn bộ dữ liệu thô định kỳ, **chậm** (phút/giờ) nhưng **chính
+        xác** và dễ **tính lại**.
+
+      **Lambda vs kappa:**
+      - **Lambda** chạy **hai nhánh**: một nhánh luồng cho số gần thời gian thực + một nhánh lô tính
+        lại cho chính xác; nhược điểm là **duy trì hai bộ code** cho cùng logic.
+      - **Kappa** chỉ giữ **một nhánh luồng**; khi cần tính lại thì **phát lại (replay)** chính dòng
+        sự kiện cũ (từ Kafka hoặc data lake) qua pipeline mới. Đơn giản hơn, miễn là nguồn còn lưu
+        đủ để đọc lại.
+  - id: b05
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Điểm **cốt lõi** phân biệt kiến trúc **lambda** và **kappa** là gì?"
+    options:
+      - {id: a, text_md: "Lambda giữ **hai nhánh** (luồng cho gần thời gian thực + lô để tính lại chính xác), còn kappa giữ **một nhánh luồng** và tính lại bằng cách **phát lại (replay)** chính dòng sự kiện đó."}
+      - {id: b, text_md: "Lambda chỉ xử lý theo lô, kappa chỉ xử lý theo luồng, và không kiến trúc nào tính lại được."}
+      - {id: c, text_md: "Lambda dành cho dữ liệu nhỏ còn kappa cho dữ liệu lớn; khác nhau ở dung lượng chứ không ở cách xử lý."}
+    answer: [a]
+    explain_md: "Lambda = luồng + lô song song (phải nuôi hai bộ code); kappa = chỉ luồng, tính lại bằng replay dòng sự kiện (b04). (b) sai vì lambda có cả nhánh luồng và cả hai đều tính lại được; (c) sai — khác biệt là ở số nhánh và cách tính lại, không phải dung lượng."
+  - id: b06
+    type: text
+    md: |
+      **Tầng kho đích (sinks) — hai nhánh lưu.** Một pipeline điển hình ghi ra **hai nơi** từ cùng
+      dòng Kafka:
+      - **Nhánh phục vụ (serving):** Kafka -> bộ xử lý luồng -> **kho OLAP** (cột hoá, truy vấn tổng
+        hợp dưới giây) để **dashboard** đọc nhanh.
+      - **Nhánh lưu trữ thô (data lake):** Kafka -> **data lake** — file thô giá rẻ dạng **Parquet**
+        (định dạng file **cột** đã nén) trên **S3**, chia thư mục theo ngày — để **tính lại** và phân
+        tích sâu về sau.
+
+      Lý do có hai nhánh: kho OLAP nhanh nhưng đắt và không giữ hết dữ liệu thô mãi; data lake rẻ,
+      giữ được tất cả, là **nguồn sự thật** để đọc lại khi nhánh luồng sai. Đây chính là "hai nhánh
+      lưu" mà mức 3 yêu cầu vẽ được.
+  - id: b07
+    type: callout
+    kind: tip
+    md: |
+      **Ước lượng dung lượng (cần nói trong phỏng vấn).** Ví dụ **100.000 sự kiện/giây**, mỗi sự
+      kiện **1 KB**:
+      - Thô = 100.000 x 1 KB = **100 MB/giây** = khoảng **8,6 TB/ngày**.
+      - Lưu dạng **cột nén khoảng 5 lần** còn gần **1,7 TB/ngày** trong data lake.
+      - **Kafka** giữ **7 ngày** x **3 bản sao** => cỡ 100 MB/s x 86.400 s x 7 x 3, tính nhanh để
+        biết cần bao nhiêu đĩa.
+
+      Luôn quy ra "mỗi giây -> mỗi ngày" và nhân hệ số nén + bản sao: người phỏng vấn muốn thấy bạn
+      ràng buộc được chi phí lưu trữ, không chỉ vẽ hộp.
+  - id: b08
+    type: text
+    md: |
+      **Các mối lo xuyên suốt (cross-cutting).** Chúng xuất hiện ở mọi tầng:
+      - **Exactly-once / ghi idempotent:** vì giao **at-least-once** nên một sự kiện có thể tới đích
+        hai lần (nhất là khi **replay**). Để không đếm đúp, kho đích phải ghi **idempotent**: khử
+        trùng theo `event_id` duy nhất, hoặc **upsert** theo khoá (ví dụ theo cặp (sản phẩm, giờ))
+        thay vì cộng dồn mù quáng.
+      - **Quản lý schema (schema registry):** nơi lưu các phiên bản **schema** của sự kiện và kiểm
+        tra **tương thích**. **Tiến hoá schema (schema evolution):** bên gửi **thêm** cột mới thì bên
+        đọc cũ **bỏ qua** cột đó và vẫn chạy (tương thích); nhưng **đổi kiểu** một cột (price số ->
+        chữ) làm bên đọc cũ hỏng, nên bị **chặn** ngay tại registry.
+  - id: b09
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Pipeline giao **at-least-once** nên một sự kiện có thể tới kho đích hai lần, nhất là khi tính
+      lại. Để chạy lại mà **không đếm đúp**, kho đích phải ghi theo kiểu ______ (điền thuật ngữ tiếng
+      Anh một từ cho "chạy lại nhiều lần vẫn ra cùng kết quả").
+    blanks:
+      - accept: ["idempotent", "Idempotent", "upsert"]
+    explain_md: "Ghi **idempotent** (chạy lại cho cùng kết quả) — thực hiện bằng khử trùng theo event_id hoặc **upsert** theo khoá — là điều kiện để replay/backfill không đếm đúp (b08). Đây là cầu nối trực tiếp từ bài delivery_guarantees sang pipeline."
+  - id: b10
+    type: text
+    md: |
+      **Tính lại dữ liệu và giám sát.**
+      - **Replay / backfill:** sửa xong lỗi code thì **đọc lại** sự kiện cũ — từ Kafka (nếu còn trong
+        retention) hoặc từ data lake — qua pipeline mới để **ghi đè** số liệu sai. Việc này chỉ an
+        toàn khi kho đích ghi **idempotent** (b08). "Backfill" còn là cách nạp số liệu lịch sử cho một
+        chỉ số mới thêm vào.
+      - **Chất lượng dữ liệu và giám sát:** đo **độ trễ** từ lúc sự kiện xảy ra đến lúc lên dashboard;
+        cảnh báo khi **lag của consumer** (số sự kiện chưa xử lý trong Kafka) vượt ngưỡng; theo dõi
+        **tỷ lệ rớt/sai**. Sự kiện **sai schema** không nên chặn cả dòng chảy — đẩy vào **hàng chết
+        (DLQ, dead-letter queue)** để sửa sau.
+  - id: b11
+    type: callout
+    kind: interview
+    md: |
+      **Khung trả lời "thiết kế một data pipeline".** Đi theo thứ tự cố định để không sót:
+      1. **Làm rõ**: loại sự kiện, tần suất (sự kiện/giây), độ trễ chấp nhận, số liệu cần (theo khoá
+         gì, cửa sổ nào), độ chính xác (xem nhanh hay tính tiền).
+      2. **Thu thập**: SDK/collector hoặc CDC -> Kafka; **chọn partition key** và nói về skew.
+      3. **Ước lượng**: quy ra TB/ngày, Kafka giữ bao lâu x mấy bản sao (b07).
+      4. **Xử lý**: luồng cho dashboard; cần tính tiền/chính xác tuyệt đối thì thêm **nhánh lô**
+         (lambda) hoặc **replay** (kappa).
+      5. **Kho**: **hai nhánh** — OLAP phục vụ + data lake thô.
+      6. **Xuyên suốt**: ghi **idempotent**, **schema registry**, **replay/backfill** khi lỗi, giám
+         sát **lag** và DLQ.
+
+      Người phỏng vấn chấm việc bạn **ghép đúng các khối đã học** và **biện minh từng lựa chọn**, không
+      chấm việc kể tên công nghệ.
+  - id: b12
+    type: summary
+    bullets_vi:
+      - "Mọi data pipeline có ba tầng: thu thập (SDK/collector hoặc CDC -> Kafka) -> xử lý (luồng/lô) -> kho đích; Kafka là bộ đệm bền tách nhịp nguồn khỏi đích và cho phép đọc lại."
+      - "Chọn **partition key** để chia đều mà vẫn gộp đúng; khoá nóng gây skew thì băm nhỏ (salting)."
+      - "Lambda = hai nhánh (luồng + lô, hai bộ code); kappa = một nhánh luồng, tính lại bằng replay dòng sự kiện."
+      - "Hai nhánh lưu: kho OLAP cho dashboard nhanh + data lake (Parquet/S3) thô giá rẻ làm nguồn sự thật để tính lại."
+      - "Xuyên suốt: ghi **idempotent** để replay/backfill không đếm đúp; **schema registry** kiểm tra tiến hoá schema; giám sát độ trễ, lag consumer và dùng DLQ cho sự kiện sai schema."
+      - "Ước lượng: quy sự kiện/giây ra TB/ngày, nhân hệ số nén và số bản sao Kafka để ràng buộc chi phí lưu trữ."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S178], l2: [S179], l3: [S180]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"
