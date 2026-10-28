@@ -108,7 +108,10 @@ export function ProfileStep({
           { v: "ai", label: "AI engineer" },
         ]}
       />
-      <p className="muted">MVP chỉ có nền tảng Python + DSA dùng chung cho cả hai track.</p>
+      <p className="muted">
+        Cả hai track học chung nền tảng Python + DSA; SWE có thêm System Design, AI engineer có thêm
+        track LLM (RAG, agent, eval/serving). Track chỉ đổi vòng đích hiển thị, không đổi thứ tự học.
+      </p>
       <Radio
         legend="Ngôn ngữ"
         name="language"

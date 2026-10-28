@@ -121,7 +121,7 @@ def test_drafts_hidden_by_default_and_served_in_dev(tmp_path, settings, clock, d
 
 def test_real_content_loads(tmp_path):
     store = ContentStore.load(REPO_ROOT / "content", serve_drafts=True)
-    assert len(store.subtopics) == 40
+    assert len(store.subtopics) == 165  # 40 plan + 86 sd + 39 ml (System Design + AI-engineer)
     assert "ransom-note" in store.problems
     assert store.hidden_tests(store.problems["ransom-note"])
     s = Settings(
@@ -131,6 +131,6 @@ def test_real_content_loads(tmp_path):
         serve_drafts=True,
     )
     with TestClient(create_app(s)) as c:
-        assert len(c.get("/api/map").json()["subtopics"]) == 40
+        assert len(c.get("/api/map").json()["subtopics"]) == 165
         assert c.get("/api/lessons/py.datastructs.dict").status_code == 200
         assert c.get("/api/problems/ransom-note").json()["id"] == "ransom-note"

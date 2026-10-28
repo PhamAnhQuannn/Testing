@@ -8,7 +8,9 @@ has one), clean or not; a wrong answer or "give up" goes down to level 1 as a di
 1 item: stop, "learn the lesson"). Only a wrong (not given-up) answer starts the 24 h lock. `clean`
 (no solution, <= 1 hint, in time) alone gates score-2/3 evidence. Level 1 never changes the score.
 A subtopic whose level 2 is already (clean) passed starts at level 3. `concept` items are
-self-graded: they are recorded but never `clean`, so they are never evidence for score 2 or 3.
+self-graded: on a code subtopic they are recorded but never `clean`, so they are never evidence
+for score 2 or 3; on a concept subtopic (System Design + the AI-engineer LLM track, no code to
+measure) a correct in-time self-graded pass is `clean` and is the approved score-2/3 evidence.
 """
 
 from __future__ import annotations
@@ -69,7 +71,13 @@ def _step(item: dict[str, Any], level: int) -> dict[str, Any]:
 
 
 def level_passed(db: Session, user_id: int, subtopic_id: str, level: int) -> bool:
-    """A clean pass of this level that counts as evidence (so never a self-graded concept)."""
+    """A clean pass of this level that counts as evidence.
+
+    On a code subtopic a self-graded concept is never clean, so it never qualifies here; on a
+    concept subtopic a clean self-graded concept pass does (level 3 still narrows to write_code,
+    which concept subtopics lack, so their level-3 ladder stays re-attemptable — scoring reads
+    `check_results` directly and is unaffected).
+    """
     q = select(t.CheckResult.id).where(
         t.CheckResult.user_id == user_id,
         t.CheckResult.subtopic_id == subtopic_id,
@@ -207,10 +215,12 @@ def start(
             return sess, True
 
     level = 3 if level_passed(db, user_id, subtopic_id, 2) else 2
-    if level == 3 and (
-        not any(i["type"] == "write_code" for i in content.check_items(subtopic_id)[3])
-        or level_passed(db, user_id, subtopic_id, 3)
-    ):
+    # The level-3 gate is a write_code item, or on a concept subtopic (no code) any level-3 item.
+    l3_items = content.check_items(subtopic_id)[3]
+    has_l3_gate = any(i["type"] == "write_code" for i in l3_items) or (
+        content.spec_for(subtopic_id).is_concept and bool(l3_items)
+    )
+    if level == 3 and (not has_l3_gate or level_passed(db, user_id, subtopic_id, 3)):
         raise ApiError(409, "check_already_passed", "Nothing left to check for this subtopic")
     until = retry_after(db, user_id, subtopic_id, level, now)
     if until is not None:
@@ -318,13 +328,19 @@ def _grade(
     if kind == "concept":
         if body.self_grade is None:
             raise ApiError(422, "missing_field", "self_grade is required for a concept item")
-        # self-graded: recorded, but never clean, so never evidence for score 2 or 3
+        passed = bool(body.self_grade)
+        # On a concept subtopic (System Design + the AI-engineer LLM track, SPEC 5.2) there is no
+        # code to measure, so a correct, in-time self-graded concept pass IS the approved evidence
+        # for score 2/3. On every other subtopic a self-graded concept is recorded but never clean,
+        # so it can never be evidence (the score-2 bar still rests on measured code there).
+        is_concept = content.spec_for(sess.subtopic_id).is_concept
+        clean = passed and in_time if is_concept else False
         return {
-            "correct": bool(body.self_grade),
-            "passed": bool(body.self_grade),
-            "clean": False,
+            "correct": passed,
+            "passed": passed,
+            "clean": clean,
             "gave_up": False,
-            "counts_as_evidence": False,
+            "counts_as_evidence": is_concept and clean,
         }
 
     if kind == "read_code":

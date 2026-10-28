@@ -15,21 +15,37 @@ def spec_table_ids() -> list[str]:
     return re.findall(r"^\| \d+ \| \d+ \| `([^`]+)` \|", section, flags=re.M)
 
 
-def test_index_holds_the_40_subtopics_of_spec_4_1():
+EXTRA_MODULES = {"ml.llm", "ml.rag_agents", "ml.llm_eval_serving", "ml.system_design"}
+
+
+def test_index_starts_with_the_40_subtopics_of_spec_4_1():
     ids = [s["id"] for s in SUBTOPICS]
-    assert len(ids) == 40
-    assert ids == spec_table_ids()
+    assert len(ids) == 165  # 40 plan (py/dsa/cs) + 86 sd + 39 ml (the AI-engineer LLM track)
+    assert ids[:40] == spec_table_ids()
 
 
-def test_every_subtopic_has_a_lesson_file_named_after_it():
+def test_extra_track_section_counts():
+    sections = [s["section"] for s in SUBTOPICS]
+    assert sections.count("sd") == 86
+    assert sections.count("ml") == 39
+    assert sum(1 for s in SUBTOPICS if s["module"] in EXTRA_MODULES) == 39
+
+
+def test_every_plan_subtopic_has_a_lesson_file_named_after_it():
+    # The py/dsa/cs MVP subtopics ship lessons. The System Design (sd) and AI-engineer (ml) tracks
+    # are authored incrementally, so their lesson files may not exist yet.
     for s in SUBTOPICS:
-        assert (CONTENT / "lessons" / s["section"] / f"{s['id']}.yaml").is_file()
+        if s["section"] in ("py", "dsa", "cs"):
+            assert (CONTENT / "lessons" / s["section"] / f"{s['id']}.yaml").is_file()
 
 
 def test_assumed_prerequisites():
-    assert load_json(CONTENT / "index/assumed.json")["assumed"] == [
-        "cs.onramp.computer_programming_model"
-    ]
+    assumed = load_json(CONTENT / "index/assumed.json")["assumed"]
+    shipped = {s["id"] for s in SUBTOPICS}
+    assert len(assumed) == 43  # prereqs of the sd + ml tracks that are not themselves shipped
+    assert "cs.onramp.computer_programming_model" in assumed
+    assert set(assumed).isdisjoint(shipped)
+    assert assumed == sorted(assumed)
 
 
 def test_mvp_ids_skip_behavioural_nodes_and_count_each_id_once():
@@ -43,20 +59,23 @@ def test_mvp_ids_skip_behavioural_nodes_and_count_each_id_once():
     assert mvp_ids(plan) == ["py.a.b", "dsa.c.d", "late.e.f"]
 
 
-def test_unplanned_outside_prerequisite_is_an_error():
-    node = {"id": "py.a.b", "prerequisites": ["cs.x.y"], "lang_prereqs": {"python": []}}
-    plan = {"selection": {"assumed_known": []}}
+def test_prerequisite_missing_from_the_tree_is_an_error():
+    sub = {"id": "sd.a.b", "prerequisites": ["ghost.x.y"], "lang_prereqs": {"python": []}}
+    nodes = {"sd.a.b": ("sd", "sd.a", {})}  # the prereq is not a node in the tree
     try:
-        build_assumed([node], plan)
+        build_assumed([sub], nodes)
     except SystemExit as error:
-        assert "cs.x.y" in str(error)
+        assert "ghost.x.y" in str(error)
     else:
         raise AssertionError("expected SystemExit")
 
 
 def test_objectives_always_have_two_to_four_sentences():
+    # Only for the sections whose lessons are authored from stubs (py/dsa/cs). The sd/ml tracks are
+    # authored directly, so their mastery_bar_vi is not required to split into sentences here.
     for s in SUBTOPICS:
-        assert 2 <= len(objectives_from(s["mastery_bar_vi"])) <= 4, s["id"]
+        if s["section"] in ("py", "dsa", "cs"):
+            assert 2 <= len(objectives_from(s["mastery_bar_vi"])) <= 4, s["id"]
 
 
 def test_stub_matches_the_lesson_schema():

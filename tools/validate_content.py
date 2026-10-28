@@ -28,6 +28,7 @@ from jsonschema.exceptions import best_match
 from common import CONTENT, load_json, load_yaml, read_jsonl
 from gen_hidden import generate_hidden, load_generator
 from run_problem import engine_limit_ms, load_tests, run_native, run_pyodide
+from sync_tree import EXTRA_MODULES, EXTRA_SECTIONS
 
 SOLUTION_TIME_SHARE = 0.3  # solution.py must use at most this share of limits.time_ms
 SLOW_TIME_FACTOR = 3  # slow/*.py must still be running after this many times limits.time_ms
@@ -138,7 +139,15 @@ class Validator:
             self.check_lesson_blocks(path, lesson, problem_ids)
             self.check_lesson_problems(path, lesson)
             self.check_mastery_refs(path, lesson)
-        missing = ids - {p.stem for p in files}
+        # Every subtopic must have a lesson EXCEPT the concept tracks (System Design + the
+        # AI-engineer LLM track, sync_tree.EXTRA_*), which are authored incrementally; any lesson
+        # that IS present is still validated by the loop above.
+        required = {
+            s["id"]
+            for s in subtopics
+            if s.get("section") not in EXTRA_SECTIONS and s.get("module") not in EXTRA_MODULES
+        }
+        missing = required - {p.stem for p in files}
         if missing:
             self.fail(self.content / "lessons", f"missing lessons: {sorted(missing)}")
         return len(files)
