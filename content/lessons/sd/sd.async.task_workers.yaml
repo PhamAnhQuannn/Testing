@@ -1,0 +1,136 @@
+id: sd.async.task_workers
+version: 1
+status: published
+title_vi: "Background job, retry và worker: làm việc nền an toàn khi chạy trùng"
+est_minutes: 13
+objectives_vi:
+  - "Giải thích vì sao đẩy việc chậm sang **background job** (queue + worker pool) thay vì làm ngay trong request."
+  - "Thiết kế **retry** đúng: exponential backoff + jitter, giới hạn số lần, và DLQ; và vì sao job phải **idempotent** khi delivery là at-least-once."
+  - "Thêm **điều tốc/đồng thời** (rate control, concurrency, per-tenant fairness) và **theo dõi trạng thái job** để hệ worker an toàn và quan sát được."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Có những việc **chậm** không nên làm ngay trong lúc xử lý request: gửi email, tạo ảnh thu nhỏ
+      (thumbnail), xuất báo cáo (export), nén/chuyển mã. Nếu làm đồng bộ, người dùng phải ngồi chờ và
+      một luồng web bị giữ suốt thời gian đó. Cách chuẩn là **background job**: request chỉ **bỏ việc
+      vào hàng đợi (queue)** rồi trả lời ngay ("đã nhận, đang xử lý"); một **đội worker (worker pool)**
+      — các tiến trình chạy nền — lấy việc từ queue ra làm. Khung quen thuộc: **Celery** (Python),
+      **Sidekiq** (Ruby), hay nói chung **queue + worker**. Đây là phần tiếp của queue/pub-sub đã học
+      (**sd.async.queues_pubsub**): giờ ta tập trung vào *con worker* lấy việc ra làm sao cho **đáng
+      tin cậy**.
+  - id: b02
+    type: text
+    md: |
+      Worker làm việc có thể **hỏng**: API bên ngoài timeout, DB nghẽn tạm thời, mạng chập chờn. Nên
+      cần **retry** (thử lại). Nhưng thử lại ngay lập tức và liên tục sẽ **đập** vào thứ đang yếu
+      (retry storm). Hai kỹ thuật đi cùng nhau:
+      - **Exponential backoff:** mỗi lần hỏng chờ gấp đôi — 1s, 2s, 4s, 8s, 16s... — để thứ phía dưới
+        có thời gian hồi.
+      - **Jitter (nhiễu ngẫu nhiên):** cộng thêm một lượng ngẫu nhiên vào thời gian chờ, để hàng nghìn
+        job hỏng cùng lúc **không** cùng thử lại đúng một thời điểm (nếu không sẽ tạo sóng dồn đập chết
+        hệ thống).
+
+      Và phải có **giới hạn**: sau **số lần tối đa (max attempts)** mà vẫn hỏng, đừng thử mãi — chuyển
+      job sang **DLQ (dead-letter queue)**, một hàng đợi riêng cho việc chết. DLQ giúp một **poison
+      job** (việc luôn làm hỏng worker) không chặn cả hàng và cho người vận hành xem lại sau.
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao retry nên dùng exponential backoff **kèm jitter**, chứ không chỉ thử lại đều đặn ngay lập tức?"
+    options:
+      - {id: a, text_md: "Jitter làm job chạy nhanh hơn vì bỏ qua được bước chờ."}
+      - {id: b, text_md: "Backoff cho thứ phía dưới thời gian hồi phục; jitter tránh việc hàng loạt job hỏng cùng lúc lại cùng thử lại một thời điểm và tạo sóng dồn (thundering herd)."}
+      - {id: c, text_md: "Vì nếu không có jitter thì job sẽ bị đưa vào DLQ ngay lần hỏng đầu tiên."}
+    answer: [b]
+    explain_md: "Backoff giãn khoảng cách giữa các lần thử để dependency đang yếu kịp hồi; jitter phá vỡ sự đồng bộ nên các lần retry rải ra thay vì dồn thành một đợt đập. (a) jitter thêm chờ chứ không bỏ chờ; (c) DLQ xảy ra sau khi vượt max attempts, không liên quan tới có jitter hay không."
+  - id: b04
+    type: text
+    md: |
+      Vì sao một job có thể **chạy hai lần**? Hệ hàng đợi thực tế đảm bảo **at-least-once** (ít nhất một
+      lần): worker lấy việc ra, làm xong rồi báo đã-xong (**ack**). Nếu worker **chết sau khi làm xong
+      nhưng trước khi kịp ack** (hoặc hết **visibility timeout** vì làm quá lâu), queue tưởng việc chưa
+      xong và **giao lại** cho worker khác — việc chạy lần hai. Muốn chắc chạy đúng-một-lần
+      (exactly-once) end-to-end gần như bất khả thi, nên cách thực dụng là: **làm job an toàn khi chạy
+      hai lần** — tức **idempotent**.
+
+      Idempotent nghĩa là chạy lại cho **cùng kết quả**, không gây hại thêm. Cách làm: gắn mỗi job một
+      **khóa idempotency** (ví dụ `order_id` hoặc `job_id`), và **ghi lại việc đã làm** theo khóa đó:
+      trước khi gửi email thì kiểm tra "order_id này đã gửi chưa?"; trừ tiền thì ghi có điều kiện theo
+      một payment_id duy nhất. Lần chạy thứ hai thấy "đã làm rồi" nên **bỏ qua** phần gây hiệu ứng ra
+      ngoài. Đây là ý quan trọng nhất của cả bài: **at-least-once buộc job phải idempotent**.
+  - id: b05
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một worker gửi email xác nhận đơn hàng. Vì queue là at-least-once, job có thể được giao lại và chạy lần hai. Cách đúng để khách **không** nhận hai email là gì?"
+    options:
+      - {id: a, text_md: "Tắt retry hoàn toàn để job không bao giờ chạy lại."}
+      - {id: b, text_md: "Làm job **idempotent**: lưu trạng thái 'đã gửi' theo order_id, lần chạy sau thấy đã gửi thì bỏ qua."}
+      - {id: c, text_md: "Tăng visibility timeout lên thật lớn để worker không bao giờ bị giao lại việc."}
+    answer: [b]
+    explain_md: "At-least-once nghĩa là chạy trùng sẽ xảy ra (worker chết trước khi ack, timeout...), nên phải thiết kế job chịu được điều đó: ghi dấu theo khóa idempotency và bỏ qua nếu đã làm. (a) tắt retry làm mất độ tin cậy, job hỏng sẽ không bao giờ hoàn thành; (c) timeout lớn không loại bỏ được việc worker chết, và còn làm việc kẹt lâu khi worker thật sự chết."
+  - id: b06
+    type: text
+    md: |
+      Có việc rồi, giờ phải **điều tốc độ và mức đồng thời (rate control, concurrency)** để worker
+      không tự đạp đổ thứ khác:
+      - **Giới hạn số worker / số job đồng thời:** mỗi worker mở một kết nối DB; chạy 500 worker song
+        song có thể làm **cạn connection pool** của DB hay làm sập một API ngoài. Đặt trần đồng thời
+        hợp lý.
+      - **Rate limiting downstream:** nếu gọi một API ngoài chỉ cho 100 request/giây, worker phải tự
+        giới hạn phát ra đúng mức đó (token bucket), kẻo bị API chặn.
+      - **Per-tenant fairness (công bằng giữa khách):** một khách đẩy 1 triệu job không được làm job
+        của khách khác chờ vô hạn. Dùng **hàng đợi riêng/ưu tiên** hoặc round-robin giữa các tenant để
+        chia lượt. Việc gấp (đặt lại mật khẩu) đi queue ưu tiên cao, việc chậm (xuất báo cáo) đi queue
+        thấp, để việc gấp không kẹt sau việc chậm.
+  - id: b07
+    type: quiz_fill
+    graded: true
+    prompt_md: "Điền thuật ngữ (tiếng Anh) còn thiếu: Sau khi vượt số lần thử tối đa mà vẫn hỏng, job được chuyển vào một hàng đợi riêng cho việc chết, viết tắt là ___ ; và để một job chạy hai lần vẫn cho cùng kết quả mà không gây hại, ta thiết kế job sao cho nó có tính ___ ."
+    blanks:
+      - accept: ["DLQ", "dead-letter queue", "dead letter queue", "dead-letter"]
+      - accept: ["idempotent", "idempotency", "idempotent (bất biến khi chạy lại)"]
+    explain_md: "DLQ (dead-letter queue) hứng job đã vượt max attempts để không chặn hàng và cho người vận hành xem lại. Idempotent là tính chất 'chạy lại cho cùng kết quả, không gây hại thêm', bắt buộc vì delivery là at-least-once."
+  - id: b08
+    type: text
+    md: |
+      Cuối cùng, hệ job nền phải **quan sát được**: client bỏ việc xong muốn biết "xong chưa?", người
+      vận hành muốn biết việc nào kẹt. Lưu một bản ghi trạng thái cho mỗi job với **máy trạng thái**
+      đơn giản: **pending** (đang chờ worker) -> **running** (đang làm) -> **succeeded** hoặc
+      **failed**. Thêm vào đó:
+      - **Tiến độ (progress):** với việc dài (xuất 1 triệu dòng), ghi phần trăm hoàn thành để hiển thị.
+      - **Lưu kết quả (result storage):** kết quả (đường dẫn file export, ảnh thumbnail) lưu ở nơi
+        client lấy được, kèm job_id.
+      - **Số lần đã thử và lỗi gần nhất:** để biết job đang retry hay đã rơi vào DLQ.
+
+      Nhờ bản ghi này, client **hỏi trạng thái (polling)** hoặc được **thông báo** khi xong, thay vì
+      ngồi chờ request đồng bộ. Nó cũng là nền để đo độ sâu hàng đợi và **tự thêm worker
+      (autoscaling)** khi queue dài ra.
+  - id: b09
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn (chạm đúng thanh mức 3).** Khi được hỏi "thiết kế hệ chạy job nền đáng tin cậy",
+      hãy đi theo bốn trụ và **nói ra từng cái**: (1) **queue + worker pool** để tách việc chậm khỏi
+      request; (2) **retry** có exponential backoff + jitter, max attempts rồi **DLQ** cho poison job;
+      (3) **idempotency** — nêu thẳng "vì delivery là at-least-once nên job có thể chạy hai lần, tôi
+      gắn khóa idempotency theo order_id và ghi dấu đã-làm để chạy lại không gây hại"; (4) **rate
+      control + per-tenant fairness** và **theo dõi trạng thái job** (pending/running/succeeded/failed,
+      tiến độ, kết quả). Người phỏng vấn thường gài câu "nếu worker chết giữa chừng thì sao?" — câu trả
+      lời ăn điểm là idempotency + visibility timeout giao lại việc, **không** phải "cố làm exactly-once".
+  - id: b10
+    type: summary
+    bullets_vi:
+      - "Background job = request bỏ việc chậm vào **queue** rồi trả lời ngay; một **worker pool** lấy ra làm (Celery/Sidekiq). Tách việc chậm khỏi đường request."
+      - "**Retry** dùng exponential backoff **kèm jitter** để dependency kịp hồi và tránh sóng dồn; vượt **max attempts** thì vào **DLQ** (tránh poison job chặn hàng)."
+      - "Delivery là **at-least-once** -> job **có thể chạy hai lần** (worker chết trước khi ack, hết visibility timeout) -> job phải **idempotent**: gắn khóa (order_id) và ghi dấu đã-làm để chạy lại không gây hại."
+      - "**Điều tốc/đồng thời:** giới hạn số worker (tránh cạn connection pool), rate-limit downstream, và **per-tenant fairness** + queue ưu tiên để việc gấp không kẹt sau việc chậm."
+      - "**Theo dõi trạng thái job:** máy trạng thái pending/running/succeeded/failed + tiến độ + lưu kết quả, để client hỏi/được báo và để autoscale theo độ sâu queue."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S124], l2: [S125], l3: [S126]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

@@ -1,0 +1,73 @@
+subtopic_id: sd.async.task_workers
+items:
+  - id: S124
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Nói ngắn gọn: một **background job system** (queue + worker pool) để làm gì, và khi một job
+      **hỏng** thì cơ chế **retry** nên xử lý thế nào — gồm cả điều gì xảy ra sau khi đã thử quá
+      nhiều lần?
+    answer_md: |
+      Background job system dùng để **đẩy việc chậm ra khỏi đường request**: request bỏ việc (gửi
+      email, tạo thumbnail, xuất báo cáo) vào **queue** rồi trả lời ngay, và một **đội worker (worker
+      pool)** lấy ra làm nền. Khi job hỏng, **retry** nên dùng **exponential backoff** (chờ 1s, 2s,
+      4s... gấp đôi mỗi lần) kèm **jitter** để tránh dồn sóng. Sau khi vượt **số lần tối đa (max
+      attempts)** mà vẫn hỏng thì không thử mãi, mà chuyển job vào **DLQ (dead-letter queue)** để xem
+      lại và để không chặn các job khác.
+    rubric_md: "Nêu đúng cả hai ý: (1) queue + worker pool để tách việc chậm khỏi request; (2) retry dùng backoff (và lý tưởng là jitter), vượt max attempts thì vào DLQ. Đúng ý: bằng chứng điểm 1; thiếu DLQ/giới hạn thử lại hoặc thiếu mục đích offload: tối đa điểm 0."
+  - id: S125
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Một worker xử lý thanh toán: nó gọi API trừ tiền rồi báo đã-xong (ack). Có lần worker **trừ
+      tiền xong nhưng chết trước khi kịp ack**, nên queue **giao lại** job cho worker khác và khách bị
+      trừ tiền **hai lần**. (1) Vì sao tình huống này xảy ra dù hệ hàng đợi vẫn "đúng"? (2) Đề xuất
+      cách sửa để chạy lại không gây hại. (3) Vì sao "cố làm exactly-once" không phải là câu trả lời
+      thực dụng?
+    answer_md: |
+      (1) Vì hệ hàng đợi thực tế đảm bảo **at-least-once**: nếu worker chết sau khi làm xong nhưng
+      **trước khi ack** (hoặc hết **visibility timeout**), queue tưởng việc chưa xong và **giao lại**
+      cho worker khác — nên chạy trùng là điều bình thường, không phải lỗi của queue.
+      (2) Làm job **idempotent**: gắn một **khóa idempotency** duy nhất (ví dụ payment_id/order_id) và
+      **ghi có điều kiện** — chỉ trừ tiền nếu chưa có bản ghi cho khóa đó; lần chạy thứ hai thấy "đã
+      xử lý payment_id này" nên **bỏ qua** việc trừ tiền. Khách chỉ bị trừ một lần dù job chạy mấy lần.
+      (3) Exactly-once end-to-end gần như bất khả thi khi có mạng và máy chết bất kỳ lúc nào (không
+      thể vừa tạo hiệu ứng ra ngoài vừa ack một cách nguyên tử); nên cách thực dụng là chấp nhận
+      at-least-once và thiết kế job **an toàn khi chạy hai lần** (idempotent).
+    rubric_md: "Đạt khi nêu đúng cả 3 ý: (1) nguyên nhân là at-least-once + chết trước khi ack/visibility timeout nên bị giao lại; (2) sửa bằng idempotency (khóa duy nhất + ghi có điều kiện/kiểm tra đã-làm); (3) exactly-once không thực dụng nên mới cần idempotent. Đúng, trong time-box, tự giải thích được: bằng chứng điểm 2. Thiếu ý idempotency hoặc không chỉ ra nguyên nhân at-least-once: tối đa điểm 1."
+  - id: S126
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      Thiết kế một **hệ worker chạy job nền** cho tác vụ tạo ảnh thu nhỏ (thumbnail) sau khi người
+      dùng upload, sao cho **an toàn dưới retry và việc chạy trùng, có điều tốc độ, và theo dõi được
+      trạng thái job**. Hãy trình bày: (1) đường đi của một job từ lúc nhận tới lúc xong (queue +
+      worker pool); (2) chính sách **retry** và xử lý **poison job**; (3) vì sao cần **idempotency** ở
+      đây và làm thế nào; (4) **điều tốc độ/đồng thời và per-tenant fairness**; (5) cách **theo dõi
+      trạng thái job**. Nêu rõ điều gì xảy ra nếu một worker chết giữa chừng.
+    answer_md: |
+      (1) **Đường đi:** API nhận upload, lưu ảnh gốc, **bỏ job vào queue** (kèm job_id, ảnh nguồn,
+      tenant) rồi trả lời ngay; một **worker pool** lấy job ra, tạo thumbnail, lưu kết quả, rồi **ack**.
+      (2) **Retry + poison job:** worker hỏng (ảnh lỗi, API lưu trữ timeout) thì retry với
+      **exponential backoff + jitter**; sau **max attempts** (ví dụ 5) vẫn hỏng thì chuyển vào **DLQ**
+      để không chặn hàng và cho người vận hành xem lại — đây cũng là cách cô lập **poison job** (ảnh
+      luôn làm sập worker).
+      (3) **Idempotency:** vì queue là **at-least-once**, nếu worker chết **sau khi tạo xong nhưng
+      trước khi ack** (hoặc hết **visibility timeout**), job bị **giao lại** và chạy lần hai. Để chạy
+      lại không gây hại: dùng **khóa idempotency = job_id** (hoặc hash của ảnh), ghi kết quả theo khóa
+      đó; lần chạy sau thấy thumbnail cho job_id này đã tồn tại thì **bỏ qua/ghi đè cùng kết quả** thay
+      vì tạo trùng hay làm hỏng trạng thái.
+      (4) **Điều tốc/fairness:** giới hạn **số worker đồng thời** để không cạn connection pool/CPU của
+      dịch vụ lưu trữ; **rate-limit** lời gọi ra dịch vụ ngoài; bảo đảm **per-tenant fairness** bằng
+      queue ưu tiên hoặc round-robin giữa tenant để một người upload hàng loạt không làm người khác
+      chờ vô hạn; có thể **autoscale** số worker theo độ sâu queue.
+      (5) **Theo dõi trạng thái:** mỗi job có bản ghi **pending -> running -> succeeded/failed**, kèm
+      **tiến độ**, **số lần đã thử**, lỗi gần nhất, và **đường dẫn kết quả** (thumbnail) lưu theo
+      job_id; client **hỏi trạng thái** hoặc được **thông báo** khi xong.
+      **Worker chết giữa chừng:** job không bị ack nên sau visibility timeout được **giao lại** và
+      chạy lại; nhờ idempotency theo job_id, lần chạy lại không tạo ra kết quả trùng/hỏng — hệ vẫn
+      đúng.
+    rubric_md: "Đạt (mức phỏng vấn) khi nêu đủ và mạch lạc cả 5 trụ: (1) queue + worker pool tách khỏi request; (2) retry backoff+jitter, max attempts -> DLQ, poison job; (3) idempotency vì at-least-once (khóa job_id + ghi theo khóa) và xử lý đúng khi worker chết trước ack/visibility timeout; (4) giới hạn đồng thời + rate-limit downstream + per-tenant fairness; (5) máy trạng thái pending/running/succeeded/failed + tiến độ + lưu kết quả. Đúng, trong time-box, tự giải thích rõ 'worker chết thì sao': bằng chứng điểm 3. Sót trụ idempotency/at-least-once hoặc không trả lời được 'worker chết giữa chừng': chưa đạt mức 3."

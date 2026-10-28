@@ -1,0 +1,133 @@
+id: sd.async.batch_processing
+version: 1
+status: published
+title_vi: "Xử lý lô (batch) và MapReduce: map, shuffle, reduce, data skew và job chạy lại được"
+est_minutes: 13
+objectives_vi:
+  - "Phân biệt xử lý lô (batch) với xử lý luồng (stream) và biết khi nào batch là lựa chọn đủ dùng."
+  - "Giải thích mô hình **MapReduce** qua ví dụ đếm từ (word count): map, shuffle, reduce — và vì sao shuffle là pha đắt nhất."
+  - "Nhận ra **data skew** (một khóa nóng làm một reducer thành straggler) và nêu cách gỡ; làm một batch job **chạy lại được (idempotent)** để không hỏng hay đếm đúp dữ liệu."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Ở bài trước (xử lý luồng — stream processing) ta xử lý **sự kiện đến liên tục**, không có điểm
+      kết thúc. **Xử lý lô (batch processing)** thì ngược lại: dữ liệu là một **khối hữu hạn** đã nằm
+      sẵn (cả kho log của hôm qua, toàn bộ bảng đơn hàng), ta chạy **một lượt** trên trọn khối đó rồi
+      ra kết quả khi xong. Batch thường **chạy theo lịch** (mỗi đêm một lần) và chấp nhận độ trễ
+      hàng phút tới hàng giờ.
+      - Khi **không cần kết quả tức thời** (báo cáo ngày, tính lại chỉ số, huấn luyện lại mô hình),
+        batch **đủ dùng và thường rẻ hơn** stream vì không phải giữ hệ chạy 24/7 và xử lý từng sự kiện.
+      - Điểm cốt lõi của bài này: khối dữ liệu quá lớn cho một máy, nên ta phải **chia việc ra nhiều
+        máy chạy song song** — và đó là lý do có mô hình **MapReduce**.
+  - id: b02
+    type: text
+    md: |
+      **MapReduce** là khuôn mẫu chia một phép tính trên dữ liệu khổng lồ thành ba pha, với một ví dụ
+      kinh điển: **đếm số lần mỗi từ xuất hiện (word count)** trong 1 TB văn bản nằm trên 100 máy.
+      - **Map (ánh xạ):** mỗi máy đọc **phần dữ liệu của riêng nó** và phát ra các cặp
+        **(khóa, giá trị)**. Với word count, map biến câu `a b a` thành ba cặp: (a, 1), (b, 1),
+        (a, 1) — nghĩa là "thấy từ này một lần". Pha này **song song hoàn toàn**: mỗi máy làm độc lập,
+        không cần nói chuyện với máy khác.
+      - **Shuffle (gom theo khóa):** hệ thống **gom mọi cặp có cùng khóa về cùng một máy** (máy chạy
+        pha reduce). Tất cả cặp khóa `a` dù ở máy nào đều được chuyển về một chỗ: a → [1, 1], b → [1].
+        Đây là bước **chuyển dữ liệu qua mạng giữa các máy**, nên là **pha đắt nhất** của MapReduce.
+  - id: b03
+    type: text
+    md: |
+      - **Reduce (gộp):** mỗi máy reduce nhận một nhóm (một khóa và danh sách giá trị của nó) rồi
+        **gộp lại** — với word count là **cộng dồn**: a → 1 + 1 = 2, b → 1. Kết quả cuối: a = 2, b = 1.
+      Ý tưởng chung: **map làm song song cục bộ** (rẻ, không qua mạng), **shuffle di chuyển dữ liệu**
+      (đắt, qua mạng), **reduce tổng hợp từng khóa**. Nhớ công thức "map → shuffle → reduce" và ví dụ
+      đếm từ là đủ trả lời phần lớn câu hỏi phỏng vấn về batch. Nhiều phép tính lớn (đếm, tính tổng,
+      join, lọc trùng) đều quy về đúng khuôn này.
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Trong MapReduce, pha nào thường **đắt nhất** và vì sao?"
+    options:
+      - {id: a, text_md: "Map, vì mỗi máy phải đọc toàn bộ 1 TB dữ liệu."}
+      - {id: b, text_md: "Shuffle, vì nó phải gom mọi cặp cùng khóa về cùng một máy, tức là chuyển dữ liệu qua mạng giữa các máy."}
+      - {id: c, text_md: "Reduce, vì phép cộng dồn các giá trị là thao tác tốn CPU nhất."}
+    answer: [b]
+    explain_md: "Map chạy song song cục bộ trên phần dữ liệu của từng máy nên rẻ; reduce chỉ cộng dồn theo từng khóa. Shuffle phải di chuyển dữ liệu qua mạng để gom cùng khóa về một chỗ, nên là pha đắt nhất. (a) sai vì mỗi máy chỉ đọc phần của mình, không phải cả 1 TB; (c) sai vì cộng dồn rất nhẹ."
+  - id: b05
+    type: text
+    md: |
+      **Data skew (lệch dữ liệu)** là lỗi hay gặp: một **khóa nóng** chiếm phần lớn dữ liệu, nên **một
+      máy reduce** nhận gần hết việc trong khi các máy khác chơi không. Ví dụ: đếm từ thì một **stop
+      word** như "the" xuất hiện cực nhiều; hay đếm tương tác thì id của một **người nổi tiếng
+      (celebrity)** chiếm phần lớn bản ghi; hay 99% bản ghi có cùng khóa `null`. Máy ôm khóa nóng trở
+      thành **straggler** — kẻ chạy mãi không xong — và cả job phải chờ nó.
+      Cách gỡ:
+      - **Combiner / gộp trước (pre-aggregation):** cộng dồn **ngay tại máy map** trước khi shuffle,
+        để thay vì gửi "the → 1" một triệu lần thì gửi "the → 1000000" một lần — giảm mạnh dữ liệu
+        qua mạng.
+      - **Salting (thêm muối) khóa nóng:** gắn một số ngẫu nhiên vào khóa nóng (the_0, the_1, …,
+        the_9) để chia nó cho **nhiều máy reduce**, rồi **gộp lại** ở một bước sau — gọi là **gộp hai
+        tầng (two-stage aggregation)**: tầng một gộp từng mảnh đã salt, tầng hai cộng các mảnh lại
+        thành kết quả cuối.
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một job đếm tương tác bị **một khóa duy nhất** (id người nổi tiếng) chiếm phần lớn bản ghi, khiến một máy reduce chạy mãi. Cách xử lý nào đúng với tinh thần chống data skew?"
+    options:
+      - {id: a, text_md: "Salt khóa nóng ra nhiều mảnh (id_0..id_9) cho nhiều reducer chạy, rồi gộp các mảnh lại ở một tầng sau (gộp hai tầng)."}
+      - {id: b, text_md: "Tăng RAM cho đúng một máy reduce đang chạy khóa nóng và giữ nguyên mọi thứ khác."}
+      - {id: c, text_md: "Bỏ pha shuffle đi để khỏi phải gom khóa về một chỗ."}
+    answer: [a]
+    explain_md: "Salting chia khóa nóng cho nhiều reducer rồi gộp hai tầng, nên không còn một máy ôm hết — đúng gốc vấn đề. (b) chỉ vá tạm: một máy vẫn ôm cả khóa nóng và vẫn là straggler; (c) sai vì bỏ shuffle thì không gom được cùng khóa để đếm, phá luôn phép tính."
+  - id: b07
+    type: text
+    md: |
+      Batch job chạy trên nhiều máy nên **hỏng giữa chừng là chuyện thường** (một máy chết, mạng lỗi),
+      và ta sẽ phải **chạy lại**. Nếu không cẩn thận, lần chạy lại **cộng thêm** vào kết quả cũ → **đếm
+      đúp**; hoặc một lần chạy hỏng để lại **kết quả dở dang** mà bước sau lại đọc nhầm. Mục tiêu:
+      làm job **chạy lại được (idempotent)** — chạy một lần hay mười lần trên cùng input đều cho **đúng
+      một kết quả**.
+      Hai kỹ thuật cốt lõi:
+      - **Ghi ra thư mục output mới rồi tráo đổi nguyên tử (atomic swap):** mỗi lần chạy ghi vào một
+        thư mục tạm **mới toanh**; chỉ khi chạy **xong trọn vẹn** mới đổi tên/trỏ con trỏ sang thư mục
+        đó trong một bước nguyên tử. Lần chạy hỏng để lại rác trong thư mục tạm, **không đụng** tới
+        output đang dùng; chạy lại thì ghi đè (overwrite) theo ngày/partition chứ không cộng thêm.
+      - **Output tất định (deterministic):** cùng input phải cho cùng output, không phụ thuộc thứ tự
+        hay thời điểm chạy — nhờ vậy chạy lại là **thay thế**, không phải **cộng dồn**, nên an toàn.
+  - id: b08
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền thuật ngữ: một batch job mà chạy lại nhiều lần trên cùng input vẫn cho đúng một kết quả
+      (không đếm đúp, không hỏng dữ liệu) được gọi là job ______. Mẹo an toàn thường dùng: ghi ra thư
+      mục output mới rồi ______ nguyên tử khi chạy xong.
+    blanks:
+      - accept: ["idempotent", "chạy lại được", "chạy lại được (idempotent)", "idempotent (chạy lại được)"]
+      - accept: ["tráo đổi", "atomic swap", "tráo đổi (atomic swap)", "swap", "đổi tên", "tráo"]
+    explain_md: "Job idempotent (chạy lại được) cho cùng kết quả dù chạy bao nhiêu lần. Kỹ thuật an toàn: ghi vào thư mục mới rồi tráo đổi (atomic swap) khi hoàn tất, nên lần chạy hỏng không đụng output đang dùng và chạy lại là ghi đè chứ không cộng thêm."
+  - id: b09
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn (bám đúng thước đo mức 3).** Khi gặp bài kiểu "đếm từ trên 1 TB" hay "job Spark
+      bị đếm đúp / chạy mãi", hãy trả lời theo đúng ba ý chấm điểm: (1) **giải thích map → shuffle →
+      reduce bằng ví dụ đếm từ**, nói rõ shuffle là pha đắt vì qua mạng; (2) **xử lý data skew** — chỉ
+      ra khóa nóng làm một reducer thành straggler, rồi nêu combiner/gộp trước, salting và gộp hai
+      tầng; (3) **làm job chạy lại được** — ghi thư mục mới + tráo đổi nguyên tử, output tất định để
+      không đếm đúp. Công cụ hiện đại như **Spark** chỉ là hiện thực ý tưởng này (giữ dữ liệu trong
+      RAM, chạy lười — lazy — chỉ tính khi cần kết quả); người phỏng vấn chấm **tư duy chia việc và
+      chống lỗi**, không chấm việc kể tên công cụ.
+  - id: b10
+    type: summary
+    bullets_vi:
+      - "Batch xử lý một **khối dữ liệu hữu hạn** trong một lượt (thường theo lịch); khi không cần kết quả tức thời thì batch đủ dùng và rẻ hơn stream."
+      - "**MapReduce** = map (mỗi máy phát (khóa, giá trị) từ phần dữ liệu của mình) → shuffle (gom cùng khóa về một máy, **đắt nhất** vì qua mạng) → reduce (gộp từng khóa). Đếm từ: 'a b a' → (a,1)(b,1)(a,1) → a:[1,1] b:[1] → a=2, b=1."
+      - "**Data skew**: một khóa nóng (stop word, id người nổi tiếng, khóa null) làm một reducer thành **straggler**; gỡ bằng combiner/gộp trước, **salting** khóa nóng và **gộp hai tầng**."
+      - "**Job chạy lại được (idempotent)**: ghi ra thư mục output mới rồi **tráo đổi nguyên tử**, output **tất định** — chạy lại là ghi đè chứ không cộng thêm, nên không đếm đúp hay để lại dữ liệu dở dang."
+      - "Thước đo mức 3: giải thích map/shuffle/reduce bằng đếm từ, xử lý data skew, và làm job chạy lại được. Spark chỉ là hiện thực của chính các ý tưởng này."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S127], l2: [S128], l3: [S129]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

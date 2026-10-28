@@ -1,0 +1,125 @@
+id: sd.async.delivery_guarantees
+version: 1
+status: published
+title_vi: "Ngữ nghĩa giao nhận: at-most-once, at-least-once, exactly-once"
+est_minutes: 13
+objectives_vi:
+  - "Phân biệt ba ngữ nghĩa giao nhận (delivery semantics) và biết at-least-once là mặc định thực tế."
+  - "Giải thích vì sao 'exactly-once' trong thực tế = at-least-once + idempotency/khử trùng (dedup) ở bên nhận."
+  - "Vẽ được mẫu transactional outbox 2 bước để tránh bài toán ghi đôi (dual-write)."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Khi một service gửi tin qua mạng cho một service khác (qua message queue hay broker như Kafka),
+      mạng có thể rớt gói, worker có thể chết giữa chừng, nên ta phải **thử lại (retry)**. Chính việc
+      thử lại đẻ ra câu hỏi: mỗi tin được xử lý **bao nhiêu lần**? Có đúng ba **ngữ nghĩa giao nhận
+      (delivery semantics)**:
+      - **At-most-once** (nhiều nhất một lần): có thể **mất**, không bao giờ **trùng**.
+      - **At-least-once** (ít nhất một lần): không bao giờ mất, có thể **trùng**.
+      - **Exactly-once** (đúng một lần): không mất, không trùng — nghe lý tưởng nhưng **khó nhất**.
+      Mấu chốt cần nhớ: qua một đường truyền không tin cậy, bạn chỉ **thật sự** chọn được giữa *có thể
+      mất* và *có thể trùng*. "Đúng một lần" không phải một phép màu của đường truyền, mà đạt được bằng
+      cách khác (xem phần sau).
+  - id: b02
+    type: text
+    md: |
+      Sự khác nhau giữa at-most-once và at-least-once nằm ở **thời điểm báo nhận (ack)** so với lúc
+      **xử lý (process)**:
+      - **At-most-once:** bên nhận **ack trước rồi mới xử lý**. Nếu nó chết sau khi ack nhưng trước khi
+        xử lý xong, tin coi như đã nhận và **không được giao lại** — tin **mất**. Bù lại, không bao giờ
+        xử lý một tin hai lần. Hợp cho dữ liệu mất một ít cũng không sao (metric, log, click đếm thô).
+      - **At-least-once:** bên nhận **xử lý xong rồi mới ack**. Nếu nó xử lý xong nhưng **chết trước khi
+        kịp ack**, broker không thấy ack nên **giao lại** tin đó — việc xử lý chạy **lần hai**, gây
+        **trùng**. Đổi lại không bao giờ mất tin. Đây là **mặc định thực tế** của hầu hết hệ thống,
+        vì mất tin thường tệ hơn xử lý trùng (và trùng còn chữa được).
+      Ví dụ kinh điển của trùng: worker gửi email xác nhận xong, nhưng chết **trước khi ack**; queue
+      tưởng chưa xong nên giao lại, khách nhận **hai** email.
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một worker **xử lý tin xong rồi mới gửi ack**, và nếu nó chết trước khi ack thì broker giao lại tin. Đây là ngữ nghĩa nào, và hệ quả là gì?"
+    options:
+      - {id: a, text_md: "At-most-once — tin có thể bị mất."}
+      - {id: b, text_md: "At-least-once — tin không mất nhưng có thể bị xử lý trùng."}
+      - {id: c, text_md: "Exactly-once — broker tự bảo đảm mỗi tin xử lý đúng một lần."}
+    answer: [b]
+    explain_md: "Ack sau khi xử lý nghĩa là không mất tin, nhưng nếu chết trước khi ack thì tin được giao lại và xử lý lần hai — đó là at-least-once, hệ quả là có thể trùng. (a) at-most-once là ack *trước* khi xử lý (có thể mất); (c) broker thường không tự cho exactly-once, phải dựng thêm ở bên nhận."
+  - id: b04
+    type: text
+    md: |
+      Vậy "exactly-once" thật sự là gì? Câu chốt để nói trong phỏng vấn:
+      **"exactly-once" trong thực tế = at-least-once (giao nhận) + idempotency/khử trùng (dedup) ở bên
+      nhận.** Nghĩa là: cứ để broker giao ít nhất một lần (chấp nhận có thể trùng), rồi làm cho việc
+      **xử lý trùng không gây tác dụng phụ** — xử lý tin lần hai cho ra đúng kết quả như lần một.
+      Cách làm phổ biến: mỗi tin mang một **id tin (message id)** hoặc **idempotency key** duy nhất;
+      bên nhận giữ một **kho khử trùng (dedup store)** lưu các id đã xử lý; khi một tin tới, nó kiểm
+      tra id — **đã thấy thì bỏ qua**, chưa thấy thì xử lý rồi ghi id vào kho. Đây chính là ý tưởng
+      **consumer idempotent** nối tiếp từ bài idempotency của API (sd.api.idempotency). Nhờ vậy "tác
+      dụng" (effect) chỉ xảy ra **một lần** dù tin được **giao** nhiều lần — ta gọi đó là **hiệu lực
+      đúng một lần (exactly-once effect)**. Với tin quan trọng như tiền, đây là cách chuẩn; với metric
+      hay log thì at-most-once hoặc at-least-once thô đều chấp nhận được.
+  - id: b05
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Trong phỏng vấn, cách đúng và thực tế nhất để đạt **exactly-once** cho một consumer xử lý sự kiện thanh toán là gì?"
+    options:
+      - {id: a, text_md: "Chuyển sang at-most-once để chắc chắn không bao giờ xử lý trùng."}
+      - {id: b, text_md: "Dùng at-least-once rồi làm consumer idempotent: lưu id tin đã xử lý vào kho dedup và bỏ qua id đã thấy."}
+      - {id: c, text_md: "Tin tưởng broker tự bảo đảm mỗi tin tới đúng một lần, không cần xử lý gì thêm ở consumer."}
+    answer: [b]
+    explain_md: "Exactly-once thực chất = at-least-once + idempotency/dedup ở bên nhận: chấp nhận giao trùng, nhưng khử trùng theo id nên tác dụng chỉ xảy ra một lần. (a) at-most-once có thể **mất** sự kiện thanh toán — không chấp nhận được; (c) đường truyền không tin cậy nên không thể phó mặc cho broker."
+  - id: b06
+    type: text
+    md: |
+      Còn một cái bẫy ngược: làm sao **vừa ghi vào database vừa bắn tin ra broker** mà không lệch nhau?
+      Đây là **bài toán ghi đôi (dual-write problem)**: nếu ghi DB xong rồi mới publish, có thể **DB đã
+      commit nhưng publish lại rớt** (service chết giữa hai thao tác) — mất tin; nếu publish trước rồi
+      mới ghi DB, có thể **đã bắn tin nhưng DB lại rollback** — tin "ma" cho một việc chưa từng xảy ra.
+      Hai thao tác ở hai hệ khác nhau nên **không thể gói chung một giao dịch (transaction)**.
+      Lời giải là **transactional outbox**, vẽ thành **hai bước** tách bạch:
+      - **Bước 1 (ghi):** trong **một giao dịch DB duy nhất**, ghi **dòng nghiệp vụ** (ví dụ đơn hàng)
+        **và** một **dòng outbox** (bản ghi mô tả tin cần gửi) vào **cùng** database. Hai dòng cùng
+        commit hoặc cùng rollback, nên không bao giờ lệch.
+      - **Bước 2 (đẩy):** một **relay** riêng (hoặc **CDC** đọc nhật ký thay đổi của DB — change data
+        capture) **đọc bảng outbox**, **publish** tin ra broker, rồi **đánh dấu đã gửi (mark sent)**.
+      Bước 2 chạy theo kiểu **at-least-once** (có thể publish lại tin nếu chết trước khi đánh dấu), nên
+      bên nhận vẫn phải **idempotent/dedup** như trên. Outbox lo cho tin **không mất**; dedup lo cho tin
+      **không gây tác dụng trùng** — hai mảnh ghép lại thành hiệu lực đúng một lần.
+  - id: b07
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Transactional outbox giải quyết **bài toán ghi đôi (dual-write)** bằng cách nào ở **bước 1**?"
+    options:
+      - {id: a, text_md: "Publish tin ra broker trước, rồi mới ghi dòng nghiệp vụ vào DB."}
+      - {id: b, text_md: "Ghi dòng nghiệp vụ và dòng outbox vào cùng một DB trong **một giao dịch duy nhất**, để chúng cùng commit hoặc cùng rollback."}
+      - {id: c, text_md: "Ghi dòng nghiệp vụ vào DB, ngay sau đó publish ra broker trong cùng lời gọi, không cần bảng outbox."}
+    answer: [b]
+    explain_md: "Bước 1 đặt dòng nghiệp vụ và dòng outbox trong **một** giao dịch DB, nên không thể có cảnh DB commit mà tin mất (hay ngược lại). Bước 2 mới là relay/CDC đọc outbox và publish. (a) publish trước có thể tạo tin ma nếu DB rollback; (c) ghi DB rồi publish ngay chính là dual-write — publish vẫn có thể rớt sau khi DB đã commit."
+  - id: b08
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn.** Khi được hỏi "làm exactly-once thế nào", đừng hứa đường truyền đúng một lần.
+      Hãy nói đúng ba câu: (1) qua mạng chỉ có at-most-once (có thể mất) hoặc at-least-once (có thể
+      trùng); (2) **exactly-once thực chất = at-least-once + idempotency/dedup theo id ở bên nhận**, cho
+      ra **hiệu lực đúng một lần**; (3) để tin không mất khi vừa ghi DB vừa bắn tin, dùng **outbox 2
+      bước** (một giao dịch ghi dữ liệu + dòng outbox; relay/CDC đẩy ra broker rồi đánh dấu đã gửi).
+      Chốt thêm **đối soát (reconciliation)** định kỳ như lưới an toàn cuối cùng. Người phỏng vấn chấm
+      việc bạn **chịu được tin trùng**, không chấm việc bạn gọi tên công nghệ.
+  - id: b09
+    type: summary
+    bullets_vi:
+      - "Qua mạng chỉ có hai lựa chọn thật: at-most-once (ack trước khi xử lý, có thể **mất**) và at-least-once (ack sau khi xử lý, có thể **trùng**); at-least-once là **mặc định thực tế**."
+      - "Trùng xảy ra khi bên nhận xử lý xong nhưng chết trước khi ack, nên broker giao lại (ví dụ gửi email hai lần)."
+      - "'Exactly-once' trong thực tế = **at-least-once + idempotency/dedup** ở bên nhận: lưu id tin (message id / idempotency key) vào kho dedup, id đã thấy thì bỏ qua — cho ra **hiệu lực đúng một lần**."
+      - "Bài toán ghi đôi (dual-write): không thể gói 'ghi DB' và 'publish ra broker' trong một giao dịch, nên dễ lệch (mất tin hoặc tin ma)."
+      - "Transactional outbox 2 bước: (1) một giao dịch DB ghi dòng nghiệp vụ **và** dòng outbox; (2) relay/CDC đọc outbox, publish, rồi đánh dấu đã gửi. Bước 2 là at-least-once nên bên nhận vẫn cần dedup."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S115], l2: [S116], l3: [S117]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

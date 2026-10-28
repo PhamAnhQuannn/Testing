@@ -1,0 +1,63 @@
+subtopic_id: sd.api.async_apis
+items:
+  - id: S106
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Khi một request không thể phục vụ ngay vì việc chạy lâu, mẫu **async request-reply** làm gì?
+      Nêu mã HTTP server trả về ngay và client dùng **hai** cách nào để biết kết quả sau đó.
+    answer_md: |
+      Server **không** giữ kết nối chờ làm xong; nó nhận việc, đẩy ra chạy ở **nền** và trả ngay
+      **202 Accepted** kèm một **job id** và một **đường dẫn trạng thái (status URL)**, ví dụ
+      `GET /jobs/X`. Sau đó client biết kết quả bằng một trong hai cách: **(a) polling** — tự gọi lại
+      status URL mỗi vài giây tới khi trạng thái thành `done`; hoặc **(b) callback/webhook** — server
+      gọi ngược sang URL mà client đã đăng ký khi việc xong.
+    rubric_md: "Đúng khi nêu được: trả **202 Accepted** + job id/status URL (việc chạy ở nền), và hai cách biết kết quả là **polling** và **webhook/callback**. Đủ ý: điểm 1. Thiếu 202, hoặc chỉ nêu một cách: tối đa điểm 0."
+  - id: S107
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Đội bạn gửi **webhook** báo "đơn hàng đã thanh toán" sang hệ thống của đối tác. Thỉnh thoảng
+      đối tác **bảo trì hoặc trả lỗi 5xx**, và có lúc họ báo bị **cộng tiền hai lần**. Hãy nêu cách
+      thiết kế để webhook **đáng tin cậy**: (1) bên **gửi** làm gì khi lần gọi thất bại và khi thất
+      bại kéo dài; (2) làm sao đối tác **xác minh tin thật sự đến từ bạn**; (3) vì sao đối tác vẫn bị
+      cộng tiền hai lần và cách sửa ở **phía nhận**.
+    answer_md: |
+      (1) Bên gửi **retry có backoff**: gọi lại sau khoảng thời gian tăng dần (1s, 2s, 4s, 8s…) thay
+      vì bỏ ngay hay dội liên tục; nếu sau nhiều lần vẫn thất bại thì đẩy sự kiện sang một
+      **dead-letter queue (DLQ)** để xử lý/gửi lại thủ công, khỏi mất dữ liệu.
+      (2) **Ký payload bằng HMAC**: tính chữ ký từ nội dung + một **khóa bí mật dùng chung**, gắn vào
+      header; đối tác tính lại và so khớp để chắc tin đến từ bạn và chưa bị sửa. Kèm **timestamp** trong
+      phần ký để **chống phát lại (replay)** — từ chối tin quá cũ.
+      (3) Vì có retry nên webhook là **at-least-once**: cùng một sự kiện có thể tới hai lần, nên nếu
+      đối tác cứ cộng tiền mỗi lần nhận thì bị nhân đôi. Sửa ở phía nhận bằng **idempotent**: mỗi sự
+      kiện mang **event id**, đối tác lưu id đã xử lý và **bỏ qua bản trùng**.
+    rubric_md: "Đạt khi nêu đúng cả 3 ý: (1) retry có backoff + DLQ cho thất bại kéo dài; (2) ký HMAC bằng secret chung (và/hoặc chống replay bằng timestamp) để xác minh nguồn; (3) nhận biết webhook là at-least-once nên phải idempotent theo event id để khỏi cộng tiền hai lần. Đúng, trong time-box, tự giải thích được: bằng chứng điểm 2. Thiếu ý idempotent/at-least-once hoặc thiếu cách xác minh chữ ký: tối đa điểm 1."
+  - id: S108
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      Thiết kế **ba** API, mỗi cái nêu endpoint/mã trả về và cách xử lý thất bại: (1) API cho một
+      **job dài** (ví dụ xuất báo cáo 2 phút) — client biết kết quả thế nào, và làm sao retry tạo job
+      không đẻ job trùng; (2) một **webhook đáng tin cậy** báo job xong — kể đủ việc ở bên gửi và bên
+      nhận; (3) API **stream token cho ứng dụng LLM** — chọn cơ chế gì và vì sao.
+    answer_md: |
+      **(1) Job dài — async request-reply.** `POST /reports` (kèm **Idempotency-Key** để retry không
+      tạo job trùng) đẩy việc vào queue và trả **202 Accepted** + `job id` + status URL (header
+      `Location: /jobs/{id}`). Trạng thái đi `queued → running → done/failed`. Client **poll**
+      `GET /jobs/{id}` (server trả kèm `Retry-After` để không hỏi dồn); khi `done` trả kết quả hoặc
+      một **link tải**. (Hoặc đăng ký callback thay cho poll.)
+      **(2) Webhook báo xong.** Bên **gửi**: ký payload **HMAC** bằng secret chung + kèm **timestamp**;
+      **retry có backoff** khi gặp timeout/5xx; sau nhiều lần vẫn hỏng thì đẩy sang **dead-letter
+      queue**. Bên **nhận**: **xác minh chữ ký**, **chống replay** (từ chối tin quá cũ theo timestamp),
+      và **idempotent** theo **event id** — vì webhook là **at-least-once** nên nhận trùng không được
+      gây tác dụng kép.
+      **(3) Stream token cho LLM.** Dùng **SSE (Server-Sent Events)**: `GET`/`POST` mở một kết nối
+      `text/event-stream`, server đẩy **từng token** khi mô hình sinh ra, client hiện chữ dần; kết thúc
+      bằng một sự kiện "done" rồi đóng. Chọn SSE vì luồng **một chiều** (chỉ server gửi token xuống)
+      nên nhẹ và đơn giản hơn WebSocket (hai chiều); nó cũng giảm **thời gian tới chữ đầu** và cho phép
+      client **hủy giữa chừng** bằng cách đóng kết nối.
+    rubric_md: "Đạt (mức phỏng vấn) khi thiết kế đủ cả ba, đúng và tự biện minh: (1) 202 + job id + status URL, client poll/callback, và idempotency key chống job trùng khi retry; (2) webhook với ký HMAC + retry backoff + DLQ ở bên gửi và xác minh chữ ký + chống replay + idempotent (at-least-once) ở bên nhận; (3) stream token qua SSE và lý do chọn SSE (một chiều, nhẹ hơn WebSocket) + lợi ích (tới chữ đầu nhanh, hủy giữa chừng). Đúng, trong time-box, giải thích rõ ràng: bằng chứng điểm 3. Sót một trong ba thiết kế, hoặc không nêu được cơ chế xử lý thất bại (retry/DLQ/idempotent): chưa đạt mức 3."

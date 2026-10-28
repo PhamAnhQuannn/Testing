@@ -1,0 +1,144 @@
+id: sd.api.idempotency
+version: 1
+status: published
+title_vi: "Idempotency và retry an toàn giữa các service"
+est_minutes: 12
+objectives_vi:
+  - "Định nghĩa **idempotency** và nói được method HTTP nào idempotent tự nhiên (GET/PUT/DELETE) và cái nào không (POST)."
+  - "Thiết kế mẫu **idempotency key** (client gửi mã duy nhất; server lưu mã kèm kết quả; gửi lại cùng mã trả về kết quả cũ)."
+  - "Xử lý đúng ca **timeout không rõ kết quả** và tranh chấp khi hai request cùng mã đến đồng thời."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      **Idempotency** là tính chất: một thao tác làm **một lần hay nhiều lần** đều cho **cùng một
+      kết quả** (same effect). Gửi lại request không gây hại thêm. Ví dụ dễ nhớ: bấm nút gọi thang
+      máy hai lần cũng chỉ gọi một chuyến — đó là idempotent. Ngược lại, "trừ tài khoản 100k" mà làm
+      hai lần thì trừ **200k** — không idempotent.
+
+      Vì sao điều này quan trọng giữa các service? Vì **mạng không đáng tin**: client gửi một lệnh
+      ghi, server xử lý xong, nhưng **câu trả lời bị mất** trên đường về (timeout, mất kết nối).
+      Client không biết lệnh đã "ăn" hay chưa, nên phải **thử lại (retry)**. Nếu thao tác không an
+      toàn khi lặp, retry sẽ làm hỏng dữ liệu (trừ tiền hai lần, tạo hai đơn hàng).
+  - id: b02
+    type: text
+    md: |
+      Theo quy ước HTTP, một số method **idempotent tự nhiên**:
+      - **GET**: chỉ đọc, không đổi state — gọi bao nhiêu lần cũng như nhau.
+      - **PUT**: ghi đè toàn bộ tài nguyên về một trạng thái cho trước ("đặt tên = An") — lặp lại
+        vẫn ra đúng trạng thái đó.
+      - **DELETE**: xoá một tài nguyên — xoá lần hai thì nó đã mất rồi, kết quả vẫn là "không còn".
+
+      Còn **POST thì không idempotent** theo mặc định: POST thường mang nghĩa "tạo mới" hoặc "thực
+      hiện một hành động" ("trừ tiền", "tạo đơn"). Lặp lại POST tạo thêm bản ghi / thực hiện thêm một
+      lần. Đây chính là chỗ nguy hiểm cần xử lý riêng, vì các endpoint quan trọng nhất (thanh toán,
+      đặt hàng) đều là POST.
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Trong các thao tác sau, cái nào **không idempotent** theo mặc định, tức là cần bảo vệ riêng khi client retry?"
+    options:
+      - {id: a, text_md: "GET /orders/42 (đọc một đơn hàng)."}
+      - {id: b, text_md: "PUT /users/7 với body đặt tên = An (ghi đè hồ sơ về một trạng thái cho trước)."}
+      - {id: c, text_md: "POST /charges để trừ tiền một thẻ (tạo một giao dịch mới)."}
+    answer: [c]
+    explain_md: "GET chỉ đọc; PUT ghi đè về một trạng thái cố định nên lặp lại vẫn ra kết quả đó — cả hai idempotent tự nhiên. POST trừ tiền tạo một hành động mới mỗi lần gọi, nên retry có thể trừ tiền hai lần: đây là thao tác cần mẫu idempotency key bảo vệ."
+  - id: b04
+    type: text
+    md: |
+      Cách chuẩn để làm một POST thành idempotent là mẫu **idempotency key** (mã chống lặp):
+      1. **Client sinh một mã duy nhất** cho mỗi ý định (ví dụ một UUID cho "lần trả tiền đơn #42
+         này") và gửi kèm request, thường trong header Idempotency-Key.
+      2. **Server lưu lại mã đó cùng kết quả** của request: nói nôm na là một bảng ánh xạ
+         mã -> (trạng thái, response đã trả).
+      3. Khi một request **mang lại cùng mã** đến, server thấy mã đã có thì **trả thẳng kết quả đã
+         lưu**, **không thực hiện hành động lần nữa**.
+
+      Điểm cốt lõi: mã do **client** gắn với *ý định*, không phải server tự sinh — nhờ vậy một lần
+      retry của **cùng một ý định** mới mang đúng mã cũ, còn một lần trả tiền *mới* sẽ có mã mới.
+  - id: b05
+    type: quiz_fill
+    graded: true
+    prompt_md: "Điền thuật ngữ: Mẫu trong đó client gắn một mã duy nhất cho mỗi ý định ghi, server lưu mã kèm kết quả, và một request mang lại cùng mã sẽ nhận lại kết quả cũ thay vì thực hiện hành động lần nữa, gọi là mẫu ____ (tên tiếng Anh, 2 từ)."
+    blanks:
+      - accept: ["idempotency key", "idempotency-key", "khóa idempotency", "khoá idempotency", "mã chống lặp"]
+    explain_md: "Đó là idempotency key (mã chống lặp). Client sinh mã (thường là UUID), gửi trong header Idempotency-Key; server lưu mã -> kết quả để một retry cùng mã chỉ trả lại kết quả đã lưu, không trừ tiền hay tạo đơn lần hai."
+  - id: b06
+    type: text
+    md: |
+      Ca khó nhất là **timeout không rõ kết quả (unknown result)**: client gửi lệnh ghi, hết thời
+      gian chờ mà **không nhận được câu trả lời**. Lúc này client **không biết** server đã làm xong
+      hay chưa — có thể lệnh đã "ăn" nhưng response mất trên đường về, cũng có thể lệnh chưa tới.
+
+      Nhờ có idempotency key, xử lý rất gọn: **cứ retry với đúng mã cũ**. Hai khả năng, kết quả đều
+      an toàn:
+      - Nếu lần trước **đã landed** (server đã làm): server thấy mã đã có, **trả lại kết quả cũ**,
+        không làm lại.
+      - Nếu lần trước **chưa landed**: server thấy mã mới, thực hiện **đúng một lần**.
+
+      Hai chi tiết lưu trữ cần nhớ: server phải lưu **mã cùng với response đã trả** (để lần retry trả
+      lại y hệt, kể cả mã giao dịch), và nên đặt **hạn sống (expiry / TTL)** cho bản ghi mã — giữ đủ
+      lâu để bao các lần retry hợp lý (ví dụ 24 giờ), rồi dọn đi để bảng không phình mãi.
+  - id: b07
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Client gọi POST /charges (có kèm idempotency key K1), rồi **timeout** mà không nhận được response. Client **không biết** tiền đã bị trừ hay chưa. Cách xử lý an toàn nhất là gì?"
+    options:
+      - {id: a, text_md: "Gửi lại request với **một mã mới** cho chắc, vì mã cũ có thể đã hỏng."}
+      - {id: b, text_md: "Gửi lại request với **đúng mã K1 cũ**; nếu lần trước đã trừ tiền thì server trả lại kết quả cũ, nếu chưa thì thực hiện đúng một lần."}
+      - {id: c, text_md: "Không retry gì cả và coi như giao dịch thất bại, để tránh trừ tiền hai lần."}
+    answer: [b]
+    explain_md: "Retry với đúng mã cũ K1 là an toàn vì server dùng mã để nhận ra đây là cùng một ý định: đã landed thì trả kết quả cũ, chưa landed thì làm một lần. (a) mã mới biến retry thành một giao dịch mới nên có thể trừ tiền hai lần. (c) bỏ luôn có thể để khách chưa được phục vụ dù tiền đã trừ hoặc chưa trừ — không xác định được."
+  - id: b08
+    type: text
+    md: |
+      Còn một ca đua nữa: **hai request cùng mã đến gần như đồng thời** (client nôn nóng retry trong
+      khi lần đầu vẫn đang chạy). Nếu cả hai cùng kiểm tra "mã đã có chưa?" rồi cùng thấy "chưa", cả
+      hai sẽ cùng thực hiện — trừ tiền hai lần.
+
+      Cách chặn là làm bước **kiểm-tra-rồi-ghi mã thành một thao tác nguyên tử (atomic)**:
+      - Dùng một **ràng buộc duy nhất (unique constraint)** trên cột mã: cả hai cùng INSERT, DB chỉ
+        cho **một** cái thắng, cái kia bị từ chối và chuyển sang chờ / đọc lại kết quả.
+      - Hoặc dùng một **khoá (lock)** theo mã: ai chiếm khoá trước thì xử lý, cái sau chờ rồi nhận
+        kết quả đã lưu.
+
+      Nguyên tắc chung: *đăng ký mã* và *quyết định có thực hiện hay không* phải xảy ra trong **một
+      bước không thể chen ngang**, nếu không mẫu idempotency key vẫn hở ngay giữa hai request trùng.
+  - id: b09
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn — thiết kế endpoint thanh toán idempotent.** Khi được hỏi "làm sao POST /charges
+      không trừ tiền hai lần", hãy trả lời theo mạch: (1) client sinh **idempotency key** gắn với
+      *ý định trả tiền* này và gửi kèm; (2) server **đăng ký mã nguyên tử** (unique constraint hoặc
+      lock) rồi mới trừ tiền, và **lưu mã cùng response**; (3) retry cùng mã thì **trả lại kết quả
+      cũ**. Điểm ăn điểm nhất là chủ động nêu ca **timeout không rõ kết quả**: client timeout không
+      biết tiền đã trừ chưa thì **retry đúng mã cũ** là an toàn — đã landed trả kết quả cũ, chưa
+      landed làm một lần. Nhắc thêm mã có **TTL**, và với tiền thì cuối ngày **đối soát
+      (reconciliation)** để bắt ca lệch — nhưng đừng sa đà nếu chưa được hỏi.
+  - id: b10
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao bước 'kiểm tra mã đã tồn tại chưa' và 'ghi mã rồi thực hiện' phải là **một thao tác nguyên tử** (ví dụ unique constraint hoặc lock)?"
+    options:
+      - {id: a, text_md: "Để giảm dung lượng lưu trữ cho bảng mã."}
+      - {id: b, text_md: "Vì nếu không, hai request cùng mã đến đồng thời có thể cùng thấy 'mã chưa có' rồi cùng thực hiện — trừ tiền hai lần dù đã có idempotency key."}
+      - {id: c, text_md: "Vì HTTP bắt buộc mọi POST phải chạy trong một transaction duy nhất."}
+    answer: [b]
+    explain_md: "Nếu kiểm tra và ghi tách rời, hai bản sao cùng mã có thể xen vào giữa, cùng thấy mã chưa tồn tại và cùng hành động — mẫu idempotency key hở ngay chỗ này. Unique constraint (chỉ một INSERT thắng) hoặc lock theo mã đóng khe hở đó. (a) không liên quan; (c) HTTP không quy định điều này."
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "**Idempotency**: làm một lần hay nhiều lần đều cùng kết quả, nên gửi lại an toàn — cần vì mạng có thể timeout và client phải retry."
+      - "HTTP: GET/PUT/DELETE idempotent tự nhiên; **POST thì không** — mà các endpoint quan trọng (thanh toán, đặt hàng) đều là POST."
+      - "Mẫu **idempotency key**: client gửi một mã duy nhất cho mỗi ý định; server lưu mã kèm response; retry cùng mã trả lại kết quả cũ, không làm lại."
+      - "**Timeout không rõ kết quả**: client cứ retry với đúng mã cũ — đã landed thì trả kết quả cũ, chưa landed thì làm đúng một lần; lưu mã kèm response và đặt TTL."
+      - "Hai request cùng mã đồng thời: **đăng ký mã nguyên tử** (unique constraint hoặc lock) để chỉ một cái thực hiện; với tiền còn có đối soát làm lưới an toàn cuối."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S103], l2: [S104], l3: [S105]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"
