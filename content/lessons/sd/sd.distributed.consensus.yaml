@@ -1,0 +1,149 @@
+id: sd.distributed.consensus
+version: 1
+status: published
+title_vi: "Consensus và bầu leader (consensus, leader election): Paxos, Raft, ZooKeeper/etcd"
+est_minutes: 14
+objectives_vi:
+  - "Phát biểu được **consensus** là gì: nhiều máy thống nhất một giá trị / một thứ tự dù có máy chết, và vì sao cần **quorum đa số** (majority quorum)."
+  - "Giải thích Raft ở mức phỏng vấn: **nhiệm kỳ (term)**, **bầu leader (leader election)**, **chép log (log replication)** và vì sao hai quorum luôn chồng nhau nên chỉ có một sự thật."
+  - "Biết khi nào dùng **etcd / ZooKeeper** làm sẵn (config, bầu leader, service discovery, distributed lock) thay vì tự viết consensus."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      **Consensus** (đồng thuận) là bài toán làm cho **một nhóm máy (nodes) cùng đồng ý trên một giá
+      trị duy nhất, hoặc một thứ tự duy nhất của các lệnh**, dù một số máy chết hay mạng chập chờn.
+      Ví dụ điển hình: cả cụm phải nhất trí "**ai đang là leader**", hoặc nhất trí giá trị một dòng
+      config. Nếu mỗi máy tự quyết một kiểu, hệ sẽ phân rã (ví dụ hai máy cùng tưởng mình là leader —
+      **split brain**).
+
+      Hầu hết hệ consensus thực tế được xây quanh hai mảnh: **bầu một leader (leader election)** để có
+      một nơi ra quyết định, và một **log được nhân bản (replicated log)** — một danh sách lệnh có thứ
+      tự mà mọi máy chép lại y hệt. Thống nhất được *thứ tự các lệnh trong log* chính là thống nhất
+      được *trạng thái* của cả hệ.
+  - id: b02
+    type: text
+    md: |
+      Chìa khoá là **quorum đa số (majority quorum)**: một quyết định chỉ có hiệu lực khi **quá nửa**
+      số máy đồng ý. Với cụm **n** máy, đa số là **⌊n/2⌋ + 1** máy (5 máy cần 3; 7 máy cần 4).
+
+      Vì sao đa số mà không phải "vài máy"? Vì **hai nhóm đa số bất kỳ luôn chồng lên nhau ít nhất một
+      máy** (hai nửa-cộng-một của cùng một tập không thể rời nhau). Máy chung đó không thể đồng thời nói
+      "có" cho hai quyết định mâu thuẫn, nên **không thể tồn tại hai sự thật song song** — đây chính là
+      cách consensus chống split brain và đảm bảo có **một sự thật duy nhất**.
+
+      Từ đó suy ra số máy chịu lỗi: để chịu được **f** máy chết, cần **2f + 1** máy (vì phần sống sót
+      vẫn phải là đa số). Nên người ta dùng **cụm lẻ (3 hoặc 5 máy)**: **3 máy chịu 1 chết, 5 máy chịu
+      2 chết**. Thêm một máy chẵn (4 máy) *không* tăng sức chịu lỗi so với 3 — vẫn chỉ chịu 1 — mà còn
+      làm đa số khó đạt hơn.
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một cụm consensus có **5 máy**. Cần bao nhiêu máy đồng ý để chốt một quyết định, và cụm chịu được tối đa mấy máy chết?"
+    options:
+      - {id: a, text_md: "Cần 2 máy đồng ý; chịu được 3 máy chết."}
+      - {id: b, text_md: "Cần 3 máy đồng ý (đa số = ⌊5/2⌋ + 1); chịu được 2 máy chết."}
+      - {id: c, text_md: "Cần cả 5 máy đồng ý; chịu được 0 máy chết."}
+    answer: [b]
+    explain_md: "Đa số của 5 là ⌊5/2⌋ + 1 = 3. Còn sống 3 máy vẫn tạo được đa số, nên chịu được 5 − 3 = 2 máy chết (đúng công thức 2f + 1 với f = 2). (a) 2 máy không phải đa số của 5; (c) đòi đủ 5 máy thì mất một máy là cả cụm dừng — như vậy không còn chịu lỗi."
+  - id: b04
+    type: text
+    md: |
+      **Raft** là thuật toán consensus được thiết kế cho *dễ hiểu*, và là thứ nên nắm ở mức phỏng vấn.
+      Raft chia thời gian thành các **nhiệm kỳ (term)** — những "kỷ nguyên bầu cử" được đánh số tăng
+      dần; **mỗi term có tối đa một leader**. Term vừa là đồng hồ logic vừa là cách loại bỏ leader cũ
+      lỗi thời (một leader đời cũ, term thấp, sẽ bị từ chối ngay khi gặp term cao hơn).
+
+      **Bầu leader (leader election):** mỗi follower chạy một đồng hồ đếm ngược. Nếu quá lâu không nghe
+      thấy leader (không có nhịp heartbeat), nó nghi leader đã chết, **tăng term lên**, tự biến thành
+      **candidate** và đi **xin phiếu (request votes)** từ các máy khác. Máy nào gom đủ **phiếu của đa
+      số** thì trở thành leader mới của term đó. Vì mỗi máy chỉ bỏ một phiếu cho mỗi term và leader cần
+      đa số, hai quorum chồng nhau đảm bảo **không thể có hai leader trong cùng một term**.
+  - id: b05
+    type: text
+    md: |
+      **Chép log (log replication):** sau khi có leader, mọi thay đổi đều đi qua nó. Leader **ghi lệnh
+      mới vào cuối log của mình**, rồi **gửi bản sao cho các follower**. Khi **đa số máy đã xác nhận
+      (ack)** rằng chúng đã ghi lệnh đó, leader **commit** — đánh dấu lệnh "đã chốt, chắc chắn không
+      mất" — rồi áp dụng vào trạng thái và báo kết quả cho client.
+
+      Điểm cốt lõi: một lệnh chỉ được coi là chốt khi **đã nằm trên một quorum đa số**. Nhờ hai quorum
+      luôn chồng nhau, bất kỳ leader tương lai nào (muốn thắng cử cũng phải được đa số bầu) chắc chắn
+      sẽ "gặp" ít nhất một máy đang giữ lệnh đã commit — nên **lệnh đã commit không bao giờ biến mất**,
+      kể cả khi leader hiện tại chết ngay sau đó. Đó là lý do một log nhân bản bằng quorum cho ta một
+      thứ tự lệnh **thống nhất và bền**.
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Trong Raft, khi nào leader được phép **commit** một lệnh (coi là đã chốt, báo thành công cho client)?"
+    options:
+      - {id: a, text_md: "Ngay khi leader vừa ghi lệnh vào log của riêng nó, chưa cần hỏi ai."}
+      - {id: b, text_md: "Khi **đa số (quorum)** các máy đã xác nhận đã chép được lệnh đó vào log của chúng."}
+      - {id: c, text_md: "Chỉ khi **tất cả** follower, không sót máy nào, đã xác nhận."}
+    answer: [b]
+    explain_md: "Raft commit khi một **đa số** đã có lệnh — nhờ hai quorum luôn chồng nhau, lệnh đã commit sẽ sống sót qua mọi lần bầu leader mới. (a) chưa có đa số thì leader chết là có thể mất lệnh; (c) đòi *tất cả* sẽ khiến chỉ một follower chậm/chết là cả hệ không commit được — mất luôn khả năng chịu lỗi mà quorum vốn mang lại."
+  - id: b07
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền số. Một cụm Raft có **7 máy**. Số máy tối thiểu tạo thành đa số (majority quorum) là ___ ;
+      cụm này chịu được tối đa ___ máy chết mà vẫn hoạt động.
+    blanks:
+      - {accept: ["4", "bốn"]}
+      - {accept: ["3", "ba"]}
+    explain_md: "Đa số của 7 là ⌊7/2⌋ + 1 = 4. Còn sống 4 máy vẫn là đa số, nên chịu được 7 − 4 = 3 máy chết (khớp 2f + 1 với f = 3). Đây là lý do cụm thường có số lẻ: 7 máy chịu 3 lỗi, trong khi 8 máy cũng chỉ chịu 3 mà lại cần tới 5 phiếu mỗi quyết định."
+  - id: b08
+    type: callout
+    kind: interview
+    md: |
+      **Paxos và mẹo trả lời.** **Paxos** là thuật toán consensus kinh điển (Leslie Lamport) — **mạnh
+      ngang Raft** về mặt lý thuyết nhưng nổi tiếng **khó hiểu, khó cài đúng**; Raft ra đời sau chính là
+      để dạy và cài cho dễ. Ở phỏng vấn, chỉ cần nói "Paxos giải đúng bài toán consensus nhưng khó hiểu,
+      nên thực tế mình mô tả bằng Raft" là đủ — đừng sa vào chi tiết Paxos.
+
+      Khung trả lời an toàn cho câu "làm sao các máy đồng ý được / làm sao bầu leader": **(1)** cần đồng
+      ý một giá trị / một thứ tự log dù có máy chết; **(2)** dùng **quorum đa số** (⌊n/2⌋+1), hai quorum
+      chồng nhau nên một sự thật, chống split brain; **(3)** Raft = **term + bầu leader + chép log,
+      commit khi đa số ack**; **(4)** thực tế **không tự viết** — dùng **etcd/ZooKeeper**.
+  - id: b09
+    type: text
+    md: |
+      **Dùng ở đâu — và đừng tự viết.** Cài đúng một thuật toán consensus rất dễ sai, nên gần như luôn
+      dùng dịch vụ làm sẵn: **etcd** (nền tảng của Kubernetes) hay **ZooKeeper**. Chúng cho ta một kho
+      nhỏ, cực kỳ nhất quán và bền, với các "primitive" tiện dụng (ví dụ **ephemeral node** tự biến mất
+      khi máy giữ nó chết, và **watch** để được báo khi có thay đổi). Việc nên giao cho chúng:
+      - **Config / metadata** cần mọi máy đọc giống nhau (cờ bật/tắt, danh sách shard).
+      - **Bầu leader (leader election)** cho các service khác — ví dụ chọn một "primary" trong cụm worker.
+      - **Service discovery**: ai đang sống, địa chỉ ở đâu.
+      - **Distributed lock / hàng rào (fencing)**: đảm bảo chỉ một tiến trình làm việc nhạy cảm tại một thời điểm.
+
+      Giới hạn cần nhớ: consensus **chỉ hợp để giữ vài KB dữ liệu quan trọng, không phải kho dữ liệu
+      chính** — vì **mỗi lần ghi phải đợi một quorum xác nhận**, nên có thêm độ trễ (cỡ mili-giây trong
+      cùng vùng, hàng chục mili-giây giữa các vùng) và **không giúp mở rộng tải ghi**. Nó mua **tính
+      nhất quán**, phải trả bằng **độ trễ và thông lượng ghi**.
+  - id: b10
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Việc nào dưới đây là chỗ **phù hợp** để giao cho etcd / ZooKeeper?"
+    options:
+      - {id: a, text_md: "Làm database chính lưu toàn bộ hàng trăm GB dữ liệu người dùng và chịu tải ghi rất cao."}
+      - {id: b, text_md: "Giữ config dùng chung và bầu leader / distributed lock cho các service khác (vài KB dữ liệu cần thật nhất quán)."}
+      - {id: c, text_md: "Làm cache dung lượng lớn thay cho Redis để tăng tốc đọc."}
+    answer: [b]
+    explain_md: "etcd/ZooKeeper hợp cho lượng dữ liệu nhỏ nhưng cần cực kỳ nhất quán và bền: config, bầu leader, lock, service discovery. (a) sai vì mỗi lần ghi cần quorum nên không chịu được tải ghi lớn và không hợp làm kho dữ liệu chính; (c) sai vì chúng tối ưu cho nhất quán chứ không phải cache thông lượng cao."
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "**Consensus** = nhiều máy đồng ý một giá trị / một thứ tự log dù có máy chết; thường gồm **bầu leader (leader election)** + một **log nhân bản (replicated log)**."
+      - "**Quorum đa số = ⌊n/2⌋ + 1**; hai quorum luôn chồng nhau → một sự thật duy nhất, chống split brain. Chịu **f** lỗi cần **2f+1** máy, nên dùng cụm lẻ: **3 máy chịu 1, 5 máy chịu 2**."
+      - "**Raft** (dễ hiểu hơn **Paxos** nhưng mạnh ngang nhau): **term** (kỷ nguyên bầu cử, mỗi term tối đa một leader), **bầu leader** (candidate xin đủ phiếu đa số), **chép log** và **commit khi đa số ack** — nên lệnh đã commit không mất."
+      - "**Paxos** là bản gốc, tương đương về sức mạnh nhưng khó hiểu/khó cài; phỏng vấn cứ mô tả bằng Raft."
+      - "Thực tế **không tự viết consensus** — dùng **etcd / ZooKeeper** cho config, bầu leader, service discovery, distributed lock; chỉ giữ vài KB vì mỗi lần ghi phải đợi quorum (thêm độ trễ, không mở rộng tải ghi)."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S133], l2: [S134], l3: [S135]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

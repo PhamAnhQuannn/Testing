@@ -1,0 +1,60 @@
+subtopic_id: sd.distributed.distributed_transactions
+items:
+  - id: S139
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Nói ngắn gọn: trong **2PC (two-phase commit)**, điều phối viên (coordinator) làm gì ở **hai
+      pha**, và hai điểm yếu lớn của 2PC là gì?
+    answer_md: |
+      Hai pha: **pha 1 (prepare)** điều phối viên hỏi mọi bên "sẵn sàng commit chưa?", mỗi bên làm
+      phần việc, **giữ khóa** và trả lời sẵn sàng/không; **pha 2 (commit)** nếu tất cả sẵn sàng thì
+      ra lệnh commit, ngược lại abort. Hai điểm yếu: (1) **blocking** — khóa bị giữ suốt cả hai pha
+      nên thông lượng kém; (2) điều phối viên là **điểm chết đơn (single point of failure)** —
+      chết sau prepare thì các bên kẹt giữ khóa, không biết commit hay abort.
+    rubric_md: "Nêu đúng hai pha (prepare rồi commit/abort) và cả hai điểm yếu (blocking do giữ khóa; coordinator là điểm chết đơn khiến các bên kẹt). Đúng ý: bằng chứng điểm 1; thiếu một vế (ví dụ chỉ nói blocking mà quên SPOF, hoặc không mô tả đúng hai pha): tối đa điểm 0."
+  - id: S140
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Một luồng **đặt vé** gồm hai bước ở hai service: *trừ tiền ví* rồi *giữ một ghế*. Nhóm chọn
+      dùng **saga** thay vì 2PC. Hãy trả lời: (1) saga xử lý trường hợp bước "giữ ghế" thất bại như
+      thế nào; (2) saga đánh đổi điều gì về tính nhất quán và isolation so với 2PC; (3) vì sao bước
+      bù (hoàn tiền) phải **idempotent**.
+    answer_md: |
+      (1) Mỗi bước là một giao dịch cục bộ đã commit, không rollback được, nên khi "giữ ghế" thất
+      bại saga chạy **bước bù (compensating action)** của bước trước — ở đây là **hoàn tiền** — để
+      đưa hệ về trạng thái hợp lệ.
+      (2) Saga cho availability cao hơn (không khóa chéo như 2PC) nhưng chỉ **nhất quán cuối cùng
+      (eventual consistency)** và **không có isolation**: giữa chừng có thể thấy trạng thái dở dang
+      (tiền đã trừ nhưng chưa có ghế), trong khi 2PC cho atomic/isolation tức thời.
+      (3) Vì retry (gửi lại lệnh, orchestrator gọi lại) có thể kích hoạt bước bù **nhiều lần**; nếu
+      hoàn tiền không idempotent thì hoàn hai lần là sai. Idempotent (thường kèm idempotency key /
+      kiểm tra trạng thái trước) bảo đảm gọi lại cho cùng kết quả.
+    rubric_md: "Đạt khi nêu đúng cả 3 ý: (1) chạy bước bù/hoàn tiền khi bước sau hỏng; (2) đánh đổi = eventual consistency + no isolation lấy availability; (3) idempotent vì retry gọi lại bước bù. Đúng, trong time-box, tự giải thích được: bằng chứng điểm 2. Thiếu ý isolation/eventual hoặc không giải thích được vì sao cần idempotent: tối đa điểm 1."
+  - id: S141
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      Cho một luồng **thanh toán** (ví dụ: trừ tiền người mua → cộng tiền người bán → ghi đơn
+      hàng). Hãy: (1) chọn **2PC hay saga** và biện minh dựa trên số hệ tham gia, độ dài giao dịch
+      và yêu cầu nhất quán; (2) thiết kế các **bước bù (compensating steps)** cho luồng này và nói
+      rõ cách làm chúng **idempotent**; (3) nêu một rủi ro của phương án đã chọn và cách giảm nhẹ.
+    answer_md: |
+      (1) Nhiều service tách rời và giao dịch có thể kéo dài (chờ xác nhận, retry) → nên dùng
+      **saga** (hoặc TCC), không 2PC: 2PC sẽ **blocking** và coordinator là điểm chết đơn, không
+      hợp khi xuyên nhiều microservice. 2PC chỉ cân nhắc nếu rất ít DB gần nhau và bắt buộc atomic
+      tức thời.
+      (2) Chuỗi: trừ tiền người mua → cộng tiền người bán → ghi đơn. Bước bù chạy ngược khi một
+      bước sau hỏng: nếu "cộng tiền người bán" hỏng → bù **hoàn tiền người mua**; nếu "ghi đơn"
+      hỏng → bù **trừ lại người bán** rồi **hoàn tiền người mua**. Làm idempotent bằng
+      **idempotency key** gắn với giao dịch và **kiểm tra trạng thái trước khi thực hiện** (nếu đã
+      hoàn rồi thì bỏ qua), để retry gọi lại bước bù không cộng/trừ hai lần.
+      (3) Rủi ro: **no isolation / trạng thái dở dang** bị thấy giữa chừng (tiền đã trừ nhưng đơn
+      chưa ghi), hoặc bước bù thất bại dai dẳng. Giảm nhẹ: dùng **TCC** (Try giữ tiền trước rồi
+      Confirm) để thu hẹp cửa sổ dở dang, chạy **đối soát (reconciliation)** định kỳ để bắt và sửa
+      giao dịch kẹt, và retry bước bù có giới hạn + cảnh báo khi vượt ngưỡng.
+    rubric_md: "Đạt (mức phỏng vấn, theo mastery bar) khi: (1) chọn saga/TCC có biện minh đúng (2PC blocking + điểm chết đơn, không hợp nhiều service); (2) thiết kế bước bù chạy ngược đúng cho luồng thanh toán VÀ chỉ ra cách idempotent (idempotency key / kiểm tra trạng thái trước); (3) nêu một rủi ro thật (no isolation / bù thất bại) kèm giảm nhẹ hợp lý (TCC, reconciliation, retry có giới hạn). Đúng, trong time-box, tự giải thích rõ ràng: bằng chứng điểm 3. Thiếu phần idempotent hoặc không biện minh được lựa chọn 2PC/saga: chưa đạt mức 3."

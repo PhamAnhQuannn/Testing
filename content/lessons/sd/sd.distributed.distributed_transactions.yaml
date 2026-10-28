@@ -1,0 +1,130 @@
+id: sd.distributed.distributed_transactions
+version: 1
+status: published
+title_vi: "Giao dịch phân tán (distributed transactions): 2PC, saga, TCC"
+est_minutes: 14
+objectives_vi:
+  - "Giải thích 2PC (two-phase commit): pha prepare rồi commit, vì sao nó **chặn** (blocking) và điều phối viên là **điểm chết đơn** (single point of failure)."
+  - "Mô tả saga là chuỗi giao dịch cục bộ có **bước bù** (compensating action), phân biệt choreography với orchestration, và vì sao bước bù phải **idempotent**."
+  - "Nêu TCC (try-confirm-cancel) như một saga có bước giữ chỗ tường minh, và chọn được 2PC hay saga cho một luồng thanh toán/đặt chỗ."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      **Giao dịch phân tán (distributed transaction)** là một thao tác phải **thành công hoặc thất
+      bại trọn vẹn** (atomic) nhưng lại chạm vào **nhiều database hoặc nhiều service**. Ví dụ: đặt
+      vé máy bay = trừ tiền ví + giữ một ghế, hai việc nằm ở hai service khác nhau. Ta muốn: hoặc cả
+      hai cùng xảy ra, hoặc không cái nào xảy ra — không được trừ tiền mà lại mất ghế.
+
+      Trong **một** database, engine lo chuyện này giúp ta (ACID). Nhưng khi thao tác trải qua
+      nhiều hệ, không còn một engine chung để bảo đảm tính nguyên tử — nên ta phải tự chọn một
+      **giao thức phối hợp**. Bài này so ba cách: **2PC**, **saga**, và **TCC**.
+  - id: b02
+    type: text
+    md: |
+      **2PC (two-phase commit)** dùng một **điều phối viên (coordinator)** chạy hai pha:
+      - **Pha 1 — prepare:** điều phối viên hỏi mọi bên "sẵn sàng commit chưa?". Mỗi bên làm xong
+        phần việc, **giữ khóa (lock)** và trả lời "sẵn sàng" (hoặc "không").
+      - **Pha 2 — commit:** nếu *tất cả* nói sẵn sàng, điều phối viên ra lệnh **commit**; chỉ cần
+        một bên từ chối thì ra lệnh **abort**.
+
+      2PC cho **tính nguyên tử** thật sự, nhưng có hai điểm chí tử. Thứ nhất, nó **chặn
+      (blocking)**: khóa bị giữ suốt cả hai pha, nên trong lúc chờ các bên khác không ai dùng được
+      dữ liệu đó — thông lượng tụt. Thứ hai, điều phối viên là **điểm chết đơn (single point of
+      failure)**: nếu nó **chết sau pha prepare**, các bên đã "giơ tay sẵn sàng" bị **kẹt** — vẫn
+      giữ khóa, không biết nên commit hay abort cho tới khi điều phối viên sống lại. Vì availability
+      kém như vậy, 2PC **hiếm khi** được dùng xuyên nhiều microservice; nó hợp hơn khi chỉ có vài DB
+      gần nhau và cần đúng tuyệt đối.
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao người ta nói 2PC có **availability kém** khi điều phối viên (coordinator) chết **sau pha prepare**?"
+    options:
+      - {id: a, text_md: "Vì điều phối viên tự động abort mọi thứ, nên dữ liệu quay về trạng thái cũ ngay."}
+      - {id: b, text_md: "Vì các bên đã trả lời 'sẵn sàng' bị **kẹt giữ khóa**, không biết nên commit hay abort cho tới khi điều phối viên sống lại."}
+      - {id: c, text_md: "Vì mỗi bên tự quyết commit riêng, dẫn tới dữ liệu không nhất quán giữa các service."}
+    answer: [b]
+    explain_md: "Sau prepare, các participant đã khóa dữ liệu và chờ lệnh pha 2; coordinator chết thì không ai được quyền tự quyết, nên họ **blocking** và giữ khóa — đó là điểm chết đơn của 2PC. (a) sai vì không có lệnh nào tới nên không tự abort được; (c) sai vì 2PC không cho bên nào tự quyết."
+  - id: b04
+    type: text
+    md: |
+      **Saga** đi theo hướng ngược lại: thay vì một giao dịch lớn khóa mọi thứ, saga là một **chuỗi
+      giao dịch cục bộ (local transactions)**, mỗi bước commit ngay trong hệ của nó. Vì không thể
+      "rollback" một giao dịch đã commit, mỗi bước đi kèm một **bước bù (compensating action)** để
+      **hoàn tác** khi một bước sau thất bại. Ví dụ đặt vé: *trừ tiền → giữ chỗ*; nếu giữ chỗ lỗi,
+      chạy bù **hoàn tiền**.
+
+      Có hai cách điều khiển saga:
+      - **Choreography:** không có bộ điều phối trung tâm; mỗi service nghe sự kiện (event) của
+        bước trước rồi tự làm bước của mình và phát sự kiện tiếp (xây trên nền event-driven). Ít
+        ghép nối nhưng khó nhìn tổng thể khi nhiều bước.
+      - **Orchestration:** một **orchestrator** ra lệnh từng bước và quyết định khi nào chạy bù.
+        Dễ theo dõi, nhưng orchestrator trở thành phần cần chăm.
+
+      Đổi lại tính sẵn sàng cao, saga chỉ cho **nhất quán cuối cùng (eventual consistency)** và
+      **không có isolation**: ở giữa chuỗi, trạng thái **dở dang** bị thấy (tiền đã trừ nhưng chưa
+      có chỗ). Và vì một bước bù có thể bị gọi lại (do retry), **bước bù phải idempotent** — hoàn
+      tiền hai lần là sai.
+  - id: b05
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Đâu là mô tả **đúng** về đánh đổi của saga so với 2PC?"
+    options:
+      - {id: a, text_md: "Saga giữ khóa suốt chuỗi nên có isolation mạnh hơn 2PC."}
+      - {id: b, text_md: "Saga cho tính sẵn sàng cao hơn nhưng chỉ **nhất quán cuối cùng** và **không có isolation** — trạng thái dở dang bị thấy giữa chừng."}
+      - {id: c, text_md: "Saga bảo đảm nguyên tử tức thời như 2PC mà không cần bước bù."}
+    answer: [b]
+    explain_md: "Saga commit từng bước cục bộ nên không khóa chéo (availability tốt) nhưng giữa chừng lộ trạng thái dở dang (no isolation) và chỉ hội tụ về đúng sau khi chạy xong/chạy bù (eventual). (a) sai — saga không giữ khóa chéo; (c) sai — chính vì không nguyên tử tức thời nên mới cần bước bù."
+  - id: b06
+    type: text
+    md: |
+      **TCC (Try-Confirm-Cancel)** là một dạng saga có **bước giữ chỗ tường minh**, chia mỗi bước
+      thành ba hành động:
+      - **Try:** *đặt trước / giữ tạm* tài nguyên (như đặt cọc) — ví dụ "giữ ghế 10 phút", "tạm giữ
+        số tiền" — nhưng chưa dùng thật.
+      - **Confirm:** biến phần đã giữ thành chính thức (ghi nhận ghế, trừ tiền thật).
+      - **Cancel:** nhả phần đã giữ nếu có bước nào hỏng.
+
+      So với saga "thuần", TCC thể hiện ý **reservation** rõ ràng: nhờ đã *giữ chỗ* ở pha Try nên
+      Confirm gần như chắc thành công, và Cancel là bước bù sạch sẽ. Confirm và Cancel cũng phải
+      **idempotent** vì chúng có thể bị gọi lại khi retry.
+  - id: b07
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn — chọn 2PC hay saga.** Hỏi trước: *bao nhiêu hệ tham gia, giao dịch dài hay
+      ngắn, cần đúng tuyệt đối tức thời hay chấp nhận nhất quán cuối cùng?* Quy tắc nhanh: **ít DB,
+      gần nhau, cần atomic tức thời → cân nhắc 2PC (hoặc tránh phải chia giao dịch); nhiều service,
+      giao dịch dài → saga/TCC + đối soát (reconciliation) định kỳ.** Với một luồng thanh toán/đặt
+      chỗ, hãy nói rõ từng **bước bù** và nhấn mạnh chúng **idempotent** (kèm mã chống lặp
+      idempotency key, kiểm tra trạng thái trước khi thực hiện lại), vì retry sẽ gọi lại bước bù.
+      Người phỏng vấn chấm việc bạn nhận ra 2PC **blocking + điểm chết đơn** và saga **đổi isolation
+      lấy availability**, chứ không chấm việc kể tên công nghệ.
+  - id: b08
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền thuật ngữ (tiếng Anh) còn thiếu: Trong saga, mỗi bước đã commit không thể rollback, nên
+      để hoàn tác khi bước sau thất bại ta chạy một ______ action; action này phải ______ để việc
+      gọi lại nó khi retry không gây sai (ví dụ không hoàn tiền hai lần).
+    blanks:
+      - accept: ["compensating", "compensation"]
+      - accept: ["idempotent", "idempotency"]
+    explain_md: "Bước hoàn tác trong saga là **compensating action**; vì retry có thể gọi lại nó, nó phải **idempotent** — chạy nhiều lần cho cùng kết quả như chạy một lần."
+  - id: b09
+    type: summary
+    bullets_vi:
+      - "Giao dịch phân tán = một thao tác phải atomic nhưng trải qua nhiều DB/service; không còn một engine chung lo ACID nên phải chọn giao thức phối hợp."
+      - "**2PC**: coordinator chạy prepare → commit, cho atomic thật nhưng **blocking** (giữ khóa cả hai pha) và coordinator là **điểm chết đơn** (chết sau prepare thì các bên kẹt) → hiếm dùng xuyên microservice."
+      - "**Saga**: chuỗi giao dịch cục bộ, mỗi bước có **bước bù** (compensating) để hoàn tác; choreography (theo event) hoặc orchestration (có orchestrator); đổi lấy availability là **eventual consistency + no isolation**."
+      - "Bước bù (và Confirm/Cancel của TCC) phải **idempotent** vì retry có thể gọi lại chúng."
+      - "**TCC (try-confirm-cancel)**: saga có giữ chỗ tường minh — Try đặt trước tài nguyên, rồi Confirm hoặc Cancel."
+      - "Chọn: ít DB cần atomic tức thời → 2PC; nhiều service, giao dịch dài → saga/TCC + đối soát định kỳ."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S139], l2: [S140], l3: [S141]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"
