@@ -1,0 +1,143 @@
+id: ml.llm.finetuning_peft
+version: 1
+status: published
+title_vi: "Fine-tuning: SFT, LoRA, QLoRA — khi nào dạy thêm cho model và dạy sao cho rẻ"
+est_minutes: 14
+objectives_vi:
+  - "Hiểu supervised fine-tuning (SFT): dạy thêm cho một model có sẵn bằng các cặp (đầu vào → đầu ra) để đổi hành vi, giọng điệu hay định dạng; biết chất lượng dữ liệu quan trọng hơn số lượng và loss masking là gì."
+  - "Phân biệt full fine-tune (sửa mọi trọng số, tốn bộ nhớ) với PEFT/LoRA (đóng băng model, chỉ học một adapter nhỏ) và QLoRA (nén model gốc xuống 4-bit rồi gắn LoRA)."
+  - "Quyết định đúng: khi nào fine-tune giúp, khi nào nên dùng RAG (thiếu kiến thức) hay chỉ prompt (việc một lần)."
+  - "Đánh giá trước và sau khi fine-tune trên một tập hold-out để chứng minh có tiến bộ và không quên việc cũ (catastrophic forgetting)."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      **Fine-tuning (tinh chỉnh)** là lấy một model đã huấn luyện sẵn (base hoặc instruct) rồi **dạy
+      thêm** nó trên dữ liệu của chính bạn. Cách phổ biến nhất với AI engineer là **supervised
+      fine-tuning (SFT)**: cho model nhiều cặp **(đầu vào mong muốn → đầu ra mong muốn)** và huấn
+      luyện tiếp để nó học **phong cách, định dạng, hoặc một tác vụ hẹp** của bạn.
+
+      Điểm cốt lõi cần nhớ: fine-tune giỏi **đổi *hành vi*** (nói giọng công ty, luôn trả về đúng một
+      cấu trúc JSON, làm tốt một loại việc rất hẹp), chứ **không phải cách tốt để nhồi *kiến thức*
+      mới** (sự kiện, tài liệu nội bộ). Dạy kiến thức bằng fine-tune vừa đắt vừa dễ sai và khó cập
+      nhật — việc đó để cho RAG (retrieval-augmented generation: tra tài liệu rồi nhét vào ngữ cảnh).
+  - id: b02
+    type: callout
+    kind: interview
+    md: |
+      **Thứ tự thử (câu hỏi phỏng vấn rất hay gặp):** luôn đi từ rẻ và dễ đảo ngược tới đắt.
+      - **Prompt trước**: việc một lần, hoặc chỉ cần chỉnh định dạng/giọng điệu đơn giản — sửa prompt
+        là xong, không tốn gì.
+      - **RAG khi thiếu *kiến thức***: model không biết dữ liệu riêng/mới của bạn → cho nó tài liệu
+        lúc chạy, đừng fine-tune.
+      - **Fine-tune khi cần *hành vi* ổn định**: một định dạng/giọng điệu/tác vụ hẹp lặp lại hàng
+        triệu lần mà prompt dài không kham nổi, hoặc muốn một model **nhỏ hơn, rẻ hơn, nhanh hơn** làm
+        tốt đúng một việc. Mỗi bước đều **đo bằng eval set** rồi mới quyết.
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Sếp muốn chatbot trả lời chính xác về **chính sách nội bộ công ty vừa cập nhật tuần này**. Nên làm gì trước, và vì sao?"
+    options:
+      - {id: a, text_md: "Dùng RAG: nạp tài liệu chính sách vào ngữ cảnh lúc chạy, vì đây là vấn đề thiếu *kiến thức* mới — fine-tune không hợp để nhồi sự kiện và khó cập nhật khi chính sách đổi."}
+      - {id: b, text_md: "Fine-tune ngay model trên các câu hỏi về chính sách, vì fine-tune là cách chính để model nhớ sự kiện mới."}
+      - {id: c, text_md: "QLoRA, vì nó rẻ nên cứ fine-tune cho mọi nhu cầu kể cả thêm kiến thức."}
+    answer: [a]
+    explain_md: "Đây là bài toán *kiến thức* (fact mới, hay đổi) nên RAG là đúng hướng: tra tài liệu rồi đưa vào ngữ cảnh, cập nhật chỉ cần sửa tài liệu. (b) sai vì fine-tune dạy *hành vi*, không phải kho sự kiện, và mỗi lần chính sách đổi lại phải train lại. (c) QLoRA chỉ làm việc fine-tune rẻ hơn, không đổi bản chất là fine-tune vẫn không hợp để thêm kiến thức."
+  - id: b04
+    type: text
+    md: |
+      **Dữ liệu SFT trông thế nào?** Một tập các ví dụ, mỗi ví dụ gồm phần **đầu vào (prompt)** và
+      phần **đầu ra mong muốn (câu trả lời mẫu)**. Thường lưu dạng JSONL — file văn bản mà **mỗi dòng
+      là một JSON** gồm trường prompt và trường answer.
+
+      Hai điều quan trọng:
+      - **Chất lượng hơn số lượng.** Vài trăm tới vài nghìn ví dụ *sạch, nhất quán, đúng phong cách
+        bạn muốn* thường tốt hơn hàng chục nghìn ví dụ lẫn lộn. Dữ liệu mâu thuẫn sẽ dạy model thói
+        xấu.
+      - **Loss masking (che mất phần prompt khi tính lỗi).** Khi train, ta **chỉ tính loss trên phần
+        *câu trả lời***, không tính trên phần prompt. Lý do: ta muốn model học *cách trả lời*, chứ
+        không cần nó học thuộc lòng câu hỏi của người dùng.
+  - id: b05
+    type: text
+    md: |
+      **Full fine-tune vs PEFT — vì sao đây là câu chuyện về *bộ nhớ*.** Khi train và cập nhật **mọi
+      trọng số** của model (full fine-tune), GPU không chỉ phải chứa trọng số, mà còn **gradient** và
+      **optimizer state** (ví dụ Adam giữ thêm 2 con số cho mỗi tham số). Tổng cộng có thể gấp **nhiều
+      lần** kích thước model — rất đắt, cần GPU lớn, và còn rủi ro **catastrophic forgetting** (quên
+      mất kỹ năng cũ vì mọi trọng số đều bị xê dịch).
+
+      **PEFT (parameter-efficient fine-tuning)** đi lối khác: **đóng băng** gần như toàn bộ model gốc
+      và chỉ huấn luyện **một phần rất nhỏ** tham số thêm vào. Vì chỉ phần nhỏ đó cần gradient và
+      optimizer state, bộ nhớ train tụt xuống mạnh. **LoRA** là kỹ thuật PEFT phổ biến nhất.
+  - id: b06
+    type: text
+    md: |
+      **LoRA (low-rank adaptation):** giữ nguyên ma trận trọng số lớn **W** (đóng băng, không đụng
+      tới), và học thêm **hai ma trận mỏng B và A**. Khi chạy, model dùng **W cộng với tích B·A** (có
+      một hệ số alpha chỉnh độ mạnh). Cặp **B·A gọi là adapter (miếng vá)**; **r (rank)** là độ "rộng"
+      của miếng vá, thường chọn nhỏ như 8 hay 16.
+
+      Vì sao tiết kiệm? Lấy ví dụ W cỡ 4096×4096 = **16.777.216** số, giữ nguyên. Với r = 8: B là
+      4096×8 và A là 8×4096, cộng lại chỉ **65.536** số — khoảng **0,4%** của W. Ta chỉ train đúng
+      0,4% đó, nên gradient và optimizer state cũng chỉ tính trên phần nhỏ xíu này. Lợi thêm: adapter
+      rất nhẹ nên **hoán đổi được** — một model gốc có thể gắn nhiều adapter cho nhiều việc khác nhau.
+  - id: b07
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Phát biểu nào về LoRA là **đúng**?"
+    options:
+      - {id: a, text_md: "LoRA đóng băng trọng số gốc W và chỉ huấn luyện hai ma trận nhỏ B, A (adapter); vì chỉ phần nhỏ này cần gradient/optimizer state nên train rẻ hơn nhiều so với full fine-tune."}
+      - {id: b, text_md: "LoRA cập nhật trực tiếp toàn bộ trọng số gốc W, chỉ khác là nhanh hơn."}
+      - {id: c, text_md: "LoRA xoá bớt lớp của model để model nhỏ lại rồi train phần còn lại."}
+    answer: [a]
+    explain_md: "LoRA **không** sửa W (W bị đóng băng); nó học thêm adapter B·A nhỏ và chạy với W + (alpha/r)·B·A. Vì chỉ adapter cần train nên bộ nhớ gradient/optimizer tụt mạnh. (b) sai — đó là full fine-tune. (c) sai — LoRA không cắt bỏ lớp nào, kiến trúc model gốc giữ nguyên."
+  - id: b08
+    type: text
+    md: |
+      **QLoRA = nén model gốc xuống 4-bit *rồi* gắn LoRA lên trên.** Bình thường model gốc lưu mỗi số
+      bằng 16 bit (FP16). QLoRA **quantize** (lưu số bằng ít bit hơn) model gốc đã-đóng-băng xuống chỉ
+      **4 bit**, rồi vẫn train một adapter LoRA bên trên phần gốc nén đó.
+
+      Hiệu quả rất lớn về bộ nhớ: một model 7B từ khoảng **14 GB (FP16) còn cỡ 3,5 GB** ở 4-bit — đủ
+      để fine-tune trên **một GPU tầm trung** (loại một card phổ thông) thay vì phải thuê cụm GPU đắt.
+      Nói gọn để nhớ: **LoRA = đóng băng gốc + học adapter nhỏ; QLoRA = (gốc nén 4-bit) + LoRA.** Chính
+      vì rẻ như vậy mà QLoRA khiến việc tự fine-tune model mở trở nên khả thi với đội nhỏ.
+  - id: b09
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền số/thuật ngữ còn thiếu: QLoRA tiết kiệm bộ nhớ bằng cách **nén (quantize)** model gốc đã
+      đóng băng xuống chỉ ______ bit, rồi vẫn gắn một adapter ______ lên trên để huấn luyện.
+    blanks:
+      - accept: ["4", "4-bit", "bốn", "4 bit"]
+      - accept: ["LoRA", "lora", "low-rank adaptation"]
+    explain_md: "QLoRA = model gốc nén xuống **4-bit** (giảm bộ nhớ chứa model) **cộng LoRA** (chỉ train adapter nhỏ). Nhờ cả hai, một model cỡ 7B fine-tune được trên một GPU tầm trung. Chú ý: phần gốc vẫn bị đóng băng, chỉ adapter LoRA được train."
+  - id: b10
+    type: callout
+    kind: warning
+    md: |
+      **Luôn đo trước và sau trên một tập hold-out.** Hold-out là tập ví dụ **giữ riêng, không dùng để
+      train**. Trước khi fine-tune, chạy model gốc trên tập này để có **điểm gốc (baseline)**; sau khi
+      fine-tune, chạy lại và so. Có vậy mới biết mình **thật sự tiến bộ** ở tác vụ đích chứ không phải
+      cảm tính.
+
+      Quan trọng không kém: cho vào hold-out **cả vài việc cũ** (ngoài tác vụ mới) để bắt
+      **catastrophic forgetting** — nếu điểm việc cũ tụt mạnh thì model đã quên kỹ năng cũ, cần giảm
+      cường độ train hoặc trộn thêm dữ liệu đa dạng. Dữ liệu ít mà sạch, cộng với eval trung thực,
+      đánh bại dữ liệu nhiều mà lẫn lộn.
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "**SFT** = dạy thêm model có sẵn bằng cặp (đầu vào → đầu ra mong muốn) để đổi **hành vi/giọng/định dạng**; dùng cho *hành vi*, không phải để nhồi *kiến thức* (kiến thức → RAG; việc một lần → prompt)."
+      - "Dữ liệu SFT: lưu JSONL, **chất lượng > số lượng**; **loss masking** = chỉ tính loss trên phần *câu trả lời*, không trên prompt."
+      - "**Full fine-tune** sửa mọi trọng số → tốn bộ nhớ (weights + gradient + optimizer state), đắt, dễ **catastrophic forgetting**."
+      - "**LoRA (PEFT)**: đóng băng W, chỉ train adapter nhỏ B·A (rank r, ví dụ ~0,4% tham số) → rẻ, adapter hoán đổi được. **QLoRA** = model gốc nén **4-bit** + LoRA → fine-tune 7B vừa một GPU tầm trung."
+      - "Luôn **đánh giá trước/sau trên tập hold-out** (gồm cả việc cũ) để chứng minh tiến bộ và phát hiện quên kỹ năng cũ."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S280], l2: [S281], l3: [S282]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

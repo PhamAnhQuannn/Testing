@@ -1,0 +1,75 @@
+subtopic_id: ml.rag_agents.hybrid_rerank
+items:
+  - id: S298
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Nói ngắn gọn: tìm theo **nghĩa** (dense/vector/semantic) và tìm theo **từ khóa**
+      (sparse/lexical, BM25) khác nhau thế nào — mỗi bên mạnh và yếu ở đâu?
+    answer_md: |
+      **Dense (vector/semantic):** embed câu hỏi và đoạn thành vector rồi lấy đoạn gần nhất; **mạnh**
+      ở nghĩa và từ đồng nghĩa ("xe hơi" khớp "ô tô"), **yếu** với từ chính xác như tên riêng, mã lỗi,
+      mã sản phẩm, từ hiếm (bị nhòe trong vector).
+      **Sparse/lexical (BM25):** chấm theo mức trùng từ trên inverted index; **mạnh** ở từ chính xác
+      (khớp đúng mặt chữ mã/tên), **yếu** với diễn đạt khác và từ đồng nghĩa (hai token khác nhau nên
+      không khớp). Gọn: dense hiểu nghĩa nhưng mờ mặt chữ; lexical chắc mặt chữ nhưng mù nghĩa.
+    rubric_md: "Đúng khi nêu được: dense = tìm theo nghĩa, mạnh ở đồng nghĩa/paraphrase, yếu với từ chính xác (mã/tên/hiếm); lexical/BM25 = tìm theo từ khóa, mạnh với từ chính xác, yếu với diễn đạt khác. Đủ cả hai chiều mạnh-yếu: bằng chứng điểm 1. Chỉ nêu một bên hoặc lẫn lộn mạnh-yếu: tối đa điểm 0."
+  - id: S299
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Một hệ RAG đang chỉ dùng tìm theo vector (dense). Người dùng phàn nàn hai điều: (1) hỏi bằng từ
+      đồng nghĩa thì ổn, nhưng **tra theo mã sản phẩm/tên riêng chính xác lại hay trượt**; (2) với các
+      câu hỏi khó, đoạn đúng **có xuất hiện** trong kết quả nhưng **xếp thấp**, không lọt top-3 đưa vào
+      prompt nên model trả lời sai. Hãy đề xuất cách sửa: (a) chữa vấn đề tra chính xác; (b) chữa vấn
+      đề thứ tự; (c) nói cách hợp nhất kết quả ở (a) mà **không phải** chuẩn hóa thang điểm.
+    answer_md: |
+      (a) **Thêm nhánh lexical/BM25** để thành **hybrid search**: chạy cả dense lẫn BM25. BM25 khớp
+      đúng mặt chữ nên bắt được mã sản phẩm/tên riêng chính xác mà vector làm nhòe.
+      (b) **Thêm tầng rerank hai bước:** retrieve rộng (ví dụ top-50) rồi cho một **cross-encoder
+      reranker** đọc cặp (câu hỏi, đoạn) cùng lúc, xếp lại và lấy top-3. Nó chính xác hơn bi-encoder
+      nên đẩy đoạn đúng lên cao; chỉ chạy trên tập nhỏ vì cross-encoder chậm/đắt.
+      (c) Hợp nhất hai danh sách bằng **RRF (reciprocal rank fusion)**: cộng `1/(k + hạng)` từ mỗi
+      nguồn rồi xếp lại. Vì RRF chỉ dùng **thứ hạng** nên không cần quy đổi thang điểm BM25 và vector.
+    rubric_md: "Đạt khi nêu đúng cả 3: (a) thêm BM25/lexical thành hybrid để bắt mã/tên chính xác; (b) thêm cross-encoder rerank trên tập ứng viên nhỏ để sửa thứ tự (đoạn đúng xếp thấp); (c) hợp nhất bằng RRF vì trộn theo hạng nên khỏi chuẩn hóa thang điểm. Đúng, trong time-box, tự giải thích được: bằng chứng điểm 2. Thiếu phần hybrid (cốt lõi của tra chính xác) hoặc nhầm rerank chạy trên cả kho: tối đa điểm 1."
+  - id: S300
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      **(Phỏng vấn AI engineer)** Bạn thiết kế retrieval cho một trợ lý hỏi-đáp trên kho tài liệu kỹ
+      thuật (có cả câu hỏi đồng nghĩa lẫn tra mã lỗi/tên API chính xác). Hãy trình bày:
+      (1) **so sánh** lexical (BM25) với semantic (vector) — khi nào bên nào thắng;
+      (2) **thiết kế pipeline** hybrid + reranking đầy đủ (các tầng, kích thước ứng viên, cách hợp nhất
+      như RRF, vai trò bi-encoder và cross-encoder);
+      (3) **biện luận đánh đổi bằng số liệu** — dùng metric nào, và quyết định có thêm reranker hay
+      không dựa trên gì (nêu rõ vì sao không chốt bằng cảm giác).
+    answer_md: |
+      **(1) So sánh lexical vs semantic:**
+      - **BM25/lexical** khớp đúng mặt chữ, thắng ở mã lỗi (`ORA-00942`), tên API, mã sản phẩm, từ
+        hiếm; nhưng trượt từ đồng nghĩa/diễn đạt khác.
+      - **Vector/semantic** bắt nghĩa và đồng nghĩa ("xe hơi" ~ "ô tô"), thắng ở câu hỏi diễn đạt tự
+        do; nhưng làm nhòe và dễ trượt token chính xác, hiếm.
+      - Kho này có cả hai loại câu hỏi nên không bên nào đủ một mình.
+
+      **(2) Pipeline hybrid + rerank:**
+      - **Tầng 1 (retrieve, rẻ, rộng):** chạy song song BM25 và dense (bi-encoder — embed đoạn sẵn,
+        embed câu hỏi lúc truy vấn, so vector bằng ANN). Mỗi nhánh lấy top-N (ví dụ 100).
+      - **Hợp nhất:** gộp hai danh sách bằng **RRF** — cộng `1/(k + hạng)` (k≈60) từ mỗi nguồn — vì chỉ
+        dựa trên hạng nên không phải chuẩn hóa thang điểm BM25 và cosine vốn khác nhau; có thể kèm
+        metadata filter.
+      - **Tầng 2 (rerank, đắt, hẹp):** đưa top-50/100 sau fusion qua **cross-encoder reranker** (đọc
+        cặp câu hỏi+đoạn cùng lúc, chính xác hơn bi-encoder) để xếp lại, lấy **top-k** (3-5) nhét vào
+        prompt. Không chạy cross-encoder trên cả kho vì phải chấm từng cặp, quá chậm/tốn.
+
+      **(3) Biện luận bằng số liệu:**
+      - Đo **recall@k** (có bỏ sót đoạn đúng không) và **MRR/NDCG** (đoạn đúng có đứng cao không) trên
+        một tập câu hỏi có nhãn; đo cả **p95 latency** và chi phí.
+      - Ví dụ: lexical-only recall@5 = 0,62 → hybrid = 0,78 → +cross-encoder = 0,88, nhưng p95 từ
+        40 ms lên ~180 ms + chi phí GPU. **Thêm reranker** khi độ chính xác top-k quan trọng và ngân
+        sách ngữ cảnh hẹp mà độ trễ còn chịu được; nếu phải dưới ngưỡng latency gắt thì dừng ở hybrid
+        hoặc dùng reranker nhẹ/ít ứng viên. Chốt bằng con số so sánh được chứ không bằng "thấy ổn hơn",
+        vì cảm giác không nói lên recall thật và che mất chi phí độ trễ.
+    rubric_md: "Đạt (mức phỏng vấn, điểm 3) khi: (1) so sánh lexical vs semantic đúng cả hai chiều với ví dụ khi nào bên nào thắng; (2) thiết kế pipeline đủ ý — retrieve song song BM25+dense (bi-encoder) lấy ứng viên rộng, hợp nhất bằng RRF (nêu được RRF trộn theo hạng nên khỏi chuẩn hóa thang), rồi cross-encoder rerank tập nhỏ ra top-k, và biết KHÔNG rerank cả kho; (3) biện luận đánh đổi bằng recall@k (+MRR/NDCG) so với latency/chi phí và nêu vì sao không chốt bằng cảm tính. Đúng, trong time-box, tự giải thích rõ: bằng chứng điểm 3. Thiếu phần hợp nhất RRF, thiếu vai trò cross-encoder, hoặc không biện luận bằng số: chưa đạt mức 3."

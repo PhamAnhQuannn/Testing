@@ -1,0 +1,80 @@
+subtopic_id: ml.rag_agents.multi_step_workflows
+items:
+  - id: S307
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Nói ngắn gọn: một **workflow cố định (orchestrated workflow)** khác một **agent tự do
+      (autonomous agent)** ở điểm nào, và vì sao với tác vụ **đã biết trước các bước** ta thường ưu
+      tiên workflow?
+    answer_md: |
+      **Workflow cố định:** code quyết định trình tự các bước theo một sơ đồ định sẵn, LLM chỉ lo
+      từng bước nhỏ. **Agent tự do:** chính model tự quyết số bước và trình tự (tự chọn công cụ, tự
+      lặp) mỗi lần chạy.
+
+      Với tác vụ **đã biết các bước**, ta ưu tiên workflow vì nó **dễ đoán, rẻ hơn, dễ test và dễ
+      giám sát** — không phải trả giá cho sự tự do (khó đoán, tốn token, độ trễ cao) của agent. Chỉ
+      nâng lên agent tự do khi tác vụ thật sự **mở**, không biết trước cần bao nhiêu bước.
+    rubric_md: "Đúng khi nêu được: workflow = các bước cố định do code điều phối; agent = model tự quyết các bước; và một lý do ưu tiên workflow cho việc đã biết (dễ đoán / rẻ / dễ test). Đủ ý: bằng chứng điểm 1. Thiếu một trong hai định nghĩa, hoặc đảo ngược (cho rằng agent dễ đoán hơn): tối đa điểm 0."
+  - id: S308
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Một đội hỗ trợ khách hàng có tác vụ: **đọc ticket, phân loại (hoàn tiền / kỹ thuật / hỏi
+      chung), rồi soạn thư trả lời đúng loại; với ticket hoàn tiền thì phải gọi hệ thống thanh toán
+      để thực hiện.** Hãy thiết kế một luồng cụ thể: (1) chọn **workflow hay agent** và vì sao; (2)
+      chọn **(các) pattern** và mô tả các bước; (3) chỉ ra chỗ cần **bước người duyệt
+      (human-in-the-loop)** và vì sao.
+    answer_md: |
+      (1) **Workflow cố định**: các bước đã biết và ổn định (phân loại → soạn thư → có thể gọi thanh
+      toán), nên không cần agent tự do; workflow dễ đoán, rẻ và dễ test hơn.
+      (2) **Pattern = routing + chaining**:
+      - **Routing:** một bước phân loại ticket thành hoàn tiền / kỹ thuật / hỏi chung.
+      - **Chaining:** mỗi nhánh dùng một prompt soạn thư **chuyên biệt** cho loại đó (đầu ra phân loại
+        là đầu vào/điều hướng cho bước soạn thư). Có thể đặt một **cổng kiểm tra (gate)** trước khi
+        gửi.
+      (3) **Human-in-the-loop** ở nhánh **hoàn tiền**, ngay **trước khi gọi hệ thống thanh toán** thực
+      hiện hoàn tiền: đây là hành động **không thể hoàn tác** và có rủi ro tiền bạc, nên luồng nên
+      **tạm dừng tại checkpoint chờ người duyệt** rồi mới thực thi. (Các nhánh chỉ soạn thư, không
+      đụng tiền, thì không cần duyệt.)
+    rubric_md: "Đạt khi nêu đúng cả 3: (1) chọn workflow vì bước đã biết; (2) routing (phân loại) + chaining (soạn thư theo nhánh) mô tả được các bước; (3) đặt bước người duyệt đúng chỗ — trước hành động hoàn tiền/gọi thanh toán, vì không hoàn tác được. Đúng, trong time-box, tự giải thích được: bằng chứng điểm 2. Thiếu phần người duyệt ở hành động rủi ro, hoặc chọn agent tự do mà không có lý do: tối đa điểm 1."
+  - id: S309
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      **(Phỏng vấn AI engineer)** Bạn được giao xây một **trợ lý nghiên cứu**: nhận một câu hỏi lớn,
+      tra nhiều nguồn, rồi tổng hợp thành báo cáo. Hãy trình bày mức thiết kế:
+      (1) chọn **(các) pattern workflow** và mô tả luồng (vẽ bằng lời các hộp);
+      (2) luồng chạy **lâu** và có thể lỗi giữa chừng — nêu cách dùng **state/checkpoint và retry** để
+      chạy lại được;
+      (3) có nên dùng **hệ nhiều agent (multi-agent)** cho việc này không? Nêu rõ **đánh đổi** và điều
+      kiện để nó **đáng** hay **không đáng**.
+    answer_md: |
+      **(1) Pattern — orchestrator-workers (có thể kèm evaluator-optimizer):**
+      - Một **orchestrator** đọc câu hỏi lớn và **chia động** thành các câu hỏi con (số lượng tuỳ chủ
+        đề).
+      - Mỗi câu con giao cho một **worker** tra cứu/tóm tắt, các worker chạy **song song
+        (parallelization)**.
+      - Orchestrator **tổng hợp (aggregate)** các kết quả thành báo cáo. Có thể thêm vòng
+        **evaluator-optimizer**: chấm bản báo cáo theo tiêu chí (đủ ý, có nguồn) rồi sửa, với **điều
+        kiện dừng** (đạt chuẩn hoặc hết số vòng/ngân sách).
+
+      **(2) State/checkpoint + retry:**
+      - Lưu **trạng thái sau mỗi bước** (danh sách câu con, kết quả từng worker, bản tổng hợp) vào DB
+        — mỗi điểm lưu là một **checkpoint**. Nếu một worker lỗi hoặc server khởi động lại, luồng
+        **chạy tiếp từ checkpoint gần nhất**, chỉ làm lại phần chưa xong (durable execution).
+      - **Retry** với lỗi tạm thời (rate limit, mạng) kèm backoff và **giới hạn số lần**; chỉ retry ở
+        bước an toàn khi làm lại (idempotent), tránh gọi trùng hoặc lặp vô tận.
+
+      **(3) Multi-agent — đáng hay không:**
+      - **Đánh đổi:** nhiều agent cho phép **tách ngữ cảnh riêng** cho từng nhánh và chạy song song,
+        nhưng tốn **coordination overhead** (truyền ngữ cảnh qua lại → nhiều token, chậm hơn) và dễ
+        **error propagation** (một nhánh sai làm hỏng báo cáo), khó debug hơn.
+      - **Khi đáng:** các câu hỏi con **độc lập, song song, mỗi câu ngốn nhiều ngữ cảnh** — đúng đặc
+        điểm của nghiên cứu nhiều nhánh — thì tách worker (context isolation) mang lại lợi ích thật.
+      - **Khi KHÔNG đáng:** nếu việc nhỏ, các bước tuần tự và phụ thuộc nhau, thì một **agent đơn** hay
+        một **workflow đơn** thiết kế tốt vẫn thắng — không nên tách agent chỉ cho "hiện đại".
+    rubric_md: "Đạt (mức phỏng vấn, điểm 3) khi: (1) chọn pattern hợp lý (orchestrator-workers / parallelization, có thể kèm evaluator-optimizer) và mô tả được luồng; (2) nêu state/checkpoint để resume từ chỗ dừng + retry có kiểm soát (backoff/giới hạn/idempotent); VÀ (3) cân nhắc multi-agent có đánh đổi rõ — coordination overhead, error propagation — và nêu điều kiện đáng (việc con độc lập, song song, ngốn ngữ cảnh) vs không đáng (một agent/workflow đơn đủ). Đúng, trong time-box, tự giải thích rõ: bằng chứng điểm 3. Thiếu phần checkpoint/resume, hoặc không cân nhắc được khi nào multi-agent không đáng: chưa đạt mức 3."

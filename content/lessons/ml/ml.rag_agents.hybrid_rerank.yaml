@@ -1,0 +1,149 @@
+id: ml.rag_agents.hybrid_rerank
+version: 1
+status: published
+title_vi: "Hybrid search và reranking: trộn tìm theo nghĩa với tìm theo từ khóa rồi xếp lại cho chuẩn"
+est_minutes: 13
+objectives_vi:
+  - "Phân biệt tìm theo nghĩa (dense/semantic) và tìm theo từ khóa (sparse/lexical, BM25): mỗi bên mạnh và yếu ở đâu."
+  - "Thiết kế hybrid search: chạy cả hai rồi hợp nhất danh sách bằng reciprocal rank fusion (RRF) hoặc cộng điểm có trọng số."
+  - "Thiết kế pipeline hai tầng retrieve-then-rerank với cross-encoder; nêu khi nào nên thêm reranker."
+  - "Biện luận đánh đổi độ chính xác với độ trễ/chi phí bằng số liệu (recall@k, latency)."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Trong RAG, chất lượng câu trả lời phụ thuộc vào việc **tìm đúng đoạn tài liệu** để nhét vào
+      prompt. Có hai họ cách tìm (retrieval), mạnh yếu ngược nhau.
+
+      **Tìm theo nghĩa (dense / vector / semantic retrieval):** embed câu hỏi và từng đoạn tài liệu
+      thành vector rồi lấy các đoạn có vector gần nhất (ANN trên vector index đã học ở bài trước). Nó
+      **bắt được ý nghĩa và từ đồng nghĩa**: hỏi "xe hơi tiết kiệm xăng" vẫn khớp đoạn viết "ô tô ít
+      hao nhiên liệu" dù không trùng một chữ nào. Điểm yếu: nó hay **trượt các từ chính xác** như tên
+      riêng, mã lỗi `E1234`, mã sản phẩm, số hiệu, hay từ khóa hiếm — những thứ bị nén nhòe trong
+      vector.
+  - id: b02
+    type: text
+    md: |
+      **Tìm theo từ khóa (sparse / lexical retrieval, điển hình là BM25):** dựa trên inverted index và
+      chấm điểm theo mức trùng từ — từ xuất hiện nhiều trong một đoạn mà hiếm trong cả kho thì được
+      coi là quan trọng. Nó **nắm chắc các từ chính xác**: tìm `E1234`, tên riêng hay mã sản phẩm rất
+      tốt vì khớp đúng mặt chữ. Điểm yếu ngược lại: nó **trượt diễn đạt khác** (paraphrase) và từ đồng
+      nghĩa — "xe hơi" và "ô tô" là hai token khác nhau nên không khớp, trừ khi có thêm xử lý như
+      stemming hay mở rộng từ.
+
+      Nói gọn: dense hiểu *nghĩa* nhưng mờ *mặt chữ*; lexical chắc *mặt chữ* nhưng mù *nghĩa*. Một
+      kho tri thức thật luôn có cả câu hỏi kiểu đồng nghĩa lẫn câu hỏi kiểu tra mã/tên, nên chỉ dùng
+      một bên là tự bỏ một nửa.
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Người dùng tìm theo mã lỗi chính xác `ORA-00942` trong kho tài liệu kỹ thuật. Cách tìm nào thường nhỉnh hơn ở ca này, và vì sao?"
+    options:
+      - {id: a, text_md: "Tìm theo từ khóa (BM25/lexical) thường nhỉnh hơn, vì nó khớp đúng mặt chữ của mã hiếm; tìm theo vector dễ làm nhòe mã đó và trượt."}
+      - {id: b, text_md: "Tìm theo vector (dense) luôn nhỉnh hơn vì nó hiểu nghĩa, nên mã lỗi cũng được hiểu đúng hơn từ khóa."}
+      - {id: c, text_md: "Cả hai như nhau, vì mã lỗi là một chuỗi ký tự nên cách nào cũng khớp giống hệt."}
+    answer: [a]
+    explain_md: "Mã lỗi hiếm, chính xác là địa hạt của lexical/BM25 (khớp đúng token). Dense retrieval nén chuỗi thành vector nên dễ nhòe mã hiếm và trả về đoạn chỉ 'na ná'. Đây chính là lý do thực tế phải trộn cả hai (hybrid)."
+  - id: b04
+    type: text
+    md: |
+      **Hybrid search** = chạy **cả hai** cách tìm cho cùng một câu hỏi rồi **hợp nhất (fuse)** hai
+      danh sách kết quả thành một. Có hai cách hợp nhất hay gặp:
+
+      - **Cộng điểm có trọng số (weighted score):** `điểm = a * điểm_dense + b * điểm_lexical`. Vấn đề:
+        điểm của hai bên ở hai thang hoàn toàn khác nhau (cosine 0..1 so với BM25 không chặn trên), nên
+        phải chuẩn hóa thang điểm cẩn thận, dễ sai và phải chỉnh tay.
+      - **Reciprocal Rank Fusion (RRF):** chỉ nhìn **thứ hạng (rank)**, không nhìn điểm thô. Mỗi tài
+        liệu được cộng `1 / (k + hạng)` từ mỗi danh sách (k là hằng, thường 60), rồi xếp lại theo tổng.
+        Vì chỉ dùng hạng nên **không cần quy đổi thang điểm** giữa hai bên — đó là lý do RRF phổ biến:
+        đơn giản, bền (robust), và trộn được bao nhiêu nguồn cũng được.
+
+      Kết quả: hybrid lấy được cái tốt của cả hai — câu đồng nghĩa nhờ dense, câu tra mã/tên nhờ lexical.
+  - id: b05
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền thuật ngữ còn thiếu: Cách hợp nhất danh sách chỉ dựa trên **thứ hạng** (cộng 1/(k + hạng)
+      từ mỗi nguồn) nên **không cần chuẩn hóa thang điểm** giữa BM25 và vector, được gọi là ______.
+    blanks:
+      - accept: ["RRF", "reciprocal rank fusion", "reciprocal rank fusion (RRF)", "rrf"]
+    explain_md: "RRF (reciprocal rank fusion) hợp nhất theo hạng, không theo điểm thô, nên tránh được rắc rối quy đổi thang điểm khác nhau của hai bên; mỗi tài liệu được cộng 1/(k + hạng) từ mỗi danh sách rồi xếp lại."
+  - id: b06
+    type: text
+    md: |
+      Tìm nhanh (dù hybrid) cho ra danh sách ứng viên **xấp xỉ** — đủ tốt nhưng chưa thật tinh. Mẫu
+      thiết kế chuẩn là **hai tầng: retrieve rồi rerank**.
+
+      - **Tầng 1 — retrieve (rẻ, rộng):** dùng ANN/hybrid lấy một tập ứng viên **lớn hơn mức cần**, ví
+        dụ top-100. Ở đây mỗi đoạn được embed **riêng lẻ** từ trước (gọi là **bi-encoder**): câu hỏi và
+        đoạn thành hai vector tách rời rồi so khoảng cách. Rất nhanh và scale được vì embed đoạn làm
+        sẵn, nhưng vì hai bên không "nhìn nhau" nên độ tinh có hạn.
+      - **Tầng 2 — rerank (đắt, hẹp):** đưa top-100 qua một **cross-encoder reranker** — model đọc
+        **cặp (câu hỏi, đoạn) cùng lúc** trong một lần chạy nên chấm liên quan **chính xác hơn hẳn**
+        bi-encoder. Đổi lại nó **chậm**: phải chạy một lần cho mỗi cặp, không embed trước được. Vì vậy
+        chỉ cho nó xếp lại trên tập ứng viên nhỏ (top-100 → chọn top-k, ví dụ 3-5) để đưa vào prompt.
+
+      Ý tưởng cốt lõi: **lọc thô rẻ để thu hẹp, rồi lọc tinh đắt chỉ trên phần còn lại.** Không bao giờ
+      chạy cross-encoder trên cả kho vì sẽ quá chậm và quá tốn.
+  - id: b07
+    type: callout
+    kind: interview
+    md: |
+      **Khi nào nên thêm reranker?** Câu hỏi phỏng vấn kinh điển. Thêm khi: (1) **độ chính xác của
+      top-k quan trọng** — câu trả lời sai vì đoạn đúng xếp thứ 8 không lọt vào top-3; (2) **ngân sách
+      ngữ cảnh (context budget) hẹp** — chỉ nhét được vài đoạn vào prompt nên phải chắc chắn chúng là
+      tốt nhất; (3) retrieve tầng 1 cho recall cao nhưng thứ tự còn lộn xộn. **Chưa cần** khi độ trễ
+      cực gắt, kho nhỏ/dễ, hoặc hybrid đã đủ tốt theo số đo. Luôn chốt bằng **recall@k đo được**, đừng
+      chốt bằng cảm giác.
+  - id: b08
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một hệ RAG đã dùng hybrid retrieve, nhưng đáp án vẫn hay sai vì đoạn đúng tồn tại trong top-50 mà lại không lọt top-3 đưa vào prompt. Bước nào hợp lý nhất để chữa, và vì sao không chạy nó trên cả kho?"
+    options:
+      - {id: a, text_md: "Thêm một cross-encoder reranker xếp lại top-50 rồi lấy top-3; không chạy trên cả kho vì cross-encoder phải chấm từng cặp (câu hỏi, đoạn), quá chậm và tốn ở quy mô lớn."}
+      - {id: b, text_md: "Bỏ hẳn tầng retrieve và cho cross-encoder chấm toàn bộ kho để chắc chắn nhất, vì càng nhiều đoạn được chấm kỹ càng tốt."}
+      - {id: c, text_md: "Tăng số đoạn nhét vào prompt lên top-50 để không bỏ sót, không cần rerank gì thêm."}
+    answer: [a]
+    explain_md: "Đoạn đúng đã nằm trong ứng viên (recall tốt) nhưng thứ tự chưa chuẩn — đúng việc của reranker. Cross-encoder chính xác nhưng đắt theo từng cặp, nên chỉ xếp lại tập nhỏ (top-50). (b) chạy cả kho là bất khả thi về độ trễ/chi phí; (c) nhồi 50 đoạn làm loãng ngữ cảnh, tốn token và dễ khiến model lạc."
+  - id: b09
+    type: text
+    md: |
+      **Biện luận đánh đổi bằng số liệu** — đây là điều phân biệt một AI engineer với người chỉ ghép
+      thư viện. Đo retrieval bằng các metric chuẩn:
+
+      - **recall@k:** trong top-k trả về, có bao nhiêu phần đoạn thật sự liên quan được tìm thấy. Đây
+        là thước đo "có bỏ sót đoạn đúng không".
+      - **MRR / NDCG:** thưởng khi đoạn đúng đứng **cao** trong danh sách (vị trí 1 nặng hơn vị trí 5)
+        — đo chất lượng **thứ tự**, đúng thứ reranker cải thiện.
+
+      Cách trình bày đánh đổi: "lexical-only recall@5 = 0,62; hybrid = 0,78; thêm cross-encoder rerank
+      lên 0,88 **nhưng** p95 latency tăng từ 40 ms lên 180 ms và thêm chi phí GPU." Rồi quyết định theo
+      ràng buộc sản phẩm: nếu độ trễ cho phép và độ chính xác quan trọng thì thêm rerank; nếu phải dưới
+      50 ms thì dừng ở hybrid hoặc dùng reranker nhẹ/ít ứng viên hơn. **Mọi lựa chọn đều phải quy về
+      một con số so sánh được, không phải "thấy ổn hơn".**
+  - id: b10
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao RRF thường được chọn để hợp nhất kết quả BM25 và vector thay vì cộng điểm thô có trọng số?"
+    options:
+      - {id: a, text_md: "Vì RRF chỉ dùng thứ hạng nên không cần chuẩn hóa hai thang điểm vốn rất khác nhau (cosine bị chặn 0..1 so với BM25 không chặn trên), đơn giản và bền hơn."}
+      - {id: b, text_md: "Vì RRF huấn luyện lại embedding model để hai bên cùng thang điểm trước khi trộn."}
+      - {id: c, text_md: "Vì RRF luôn cho recall cao hơn mọi cách khác trong mọi kho tài liệu, không có đánh đổi nào."}
+    answer: [a]
+    explain_md: "Điểm thô của BM25 và vector ở hai thang khác hẳn nên cộng trực tiếp (có trọng số) đòi hỏi chuẩn hóa tỉ mỉ và dễ lệch. RRF chỉ nhìn hạng nên bỏ qua rắc rối đó — đơn giản, bền. (b) RRF không huấn luyện gì; (c) không có cách nào luôn thắng mọi lúc — vẫn phải đo."
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "**Dense (vector/semantic)** bắt nghĩa và từ đồng nghĩa nhưng trượt từ chính xác (tên, mã, từ hiếm); **sparse/lexical (BM25)** chắc mặt chữ nhưng mù diễn đạt khác."
+      - "**Hybrid search** chạy cả hai rồi hợp nhất: **RRF** (trộn theo hạng, khỏi chuẩn hóa thang điểm) hoặc cộng điểm có trọng số (phải chuẩn hóa)."
+      - "**Hai tầng retrieve-then-rerank:** tầng 1 bi-encoder/hybrid lấy ứng viên rộng (top-100) rẻ và nhanh; tầng 2 **cross-encoder** đọc cặp (câu hỏi, đoạn) cùng lúc, chính xác hơn nhưng chậm nên chỉ xếp lại tập nhỏ ra top-k."
+      - "**Thêm reranker** khi độ chính xác top-k quan trọng và ngân sách ngữ cảnh hẹp; không chạy cross-encoder trên cả kho vì quá chậm/tốn."
+      - "**Biện luận đánh đổi bằng số:** recall@k, MRR/NDCG so với p95 latency và chi phí — chọn theo ràng buộc sản phẩm, không chốt bằng cảm giác."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S298], l2: [S299], l3: [S300]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

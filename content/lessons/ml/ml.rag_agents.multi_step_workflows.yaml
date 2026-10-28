@@ -1,0 +1,166 @@
+id: ml.rag_agents.multi_step_workflows
+version: 1
+status: published
+title_vi: "Workflow nhiều bước và multi-agent: chọn đúng mẫu và biết khi nào KHÔNG cần nhiều agent"
+est_minutes: 13
+objectives_vi:
+  - "Phân biệt workflow cố định/được điều phối (orchestrated workflow) với agent tự do (autonomous agent) và biết khi nào nên ưu tiên workflow."
+  - "Nhận biết và chọn đúng các mẫu (pattern): prompt chaining, routing, parallelization, orchestrator-workers, evaluator-optimizer."
+  - "Giải thích chi phí của hệ nhiều agent (multi-agent): coordination overhead, error propagation, và khi nào một agent/workflow đơn còn tốt hơn."
+  - "Thiết kế luồng nhiều bước có state/checkpoint, retry và bước người duyệt (human-in-the-loop) cho tác vụ chạy lâu."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Ở bài agent trước, ta coi **agent** là một LLM được phép tự quyết: nó tự chọn bước tiếp theo,
+      tự gọi công cụ (tool), lặp cho tới khi xong. Mạnh nhưng **khó đoán** — mỗi lần chạy một kiểu,
+      khó debug, dễ tốn token.
+
+      Phần lớn việc thực tế **không cần** sự tự do đó. Khi ta đã biết các bước, ta ghép các lần gọi
+      LLM theo một **sơ đồ cố định** — đây gọi là **workflow (luồng được điều phối, orchestrated
+      workflow)**. Hai thái cực:
+      - **Workflow cố định:** code quyết định thứ tự các bước; LLM chỉ lo từng bước nhỏ. **Dễ đoán,
+        rẻ hơn, dễ test và dễ giám sát (observability).**
+      - **Agent tự do (autonomous agent):** model tự quyết số bước và trình tự. Chỉ nên dùng khi bài
+        toán **mở** — không biết trước cần bao nhiêu bước hay sẽ gọi công cụ nào.
+  - id: b02
+    type: callout
+    kind: interview
+    md: |
+      **Câu chốt hay được hỏi:** "Khi nào dùng workflow, khi nào dùng agent?" Trả lời mạch lạc:
+      **mặc định chọn giải pháp đơn giản nhất chạy được.** Nếu các bước đã biết và ổn định thì dùng
+      **workflow cố định** (dễ đoán, rẻ, dễ test). Chỉ nâng lên **agent tự do** khi tác vụ thật sự
+      **mở** và cần model tự quyết — và chấp nhận đánh đổi độ khó đoán, chi phí, độ trễ.
+  - id: b03
+    type: text
+    md: |
+      Ba mẫu workflow nền tảng (đầu ra một lần gọi là đầu vào/điều hướng cho lần sau):
+      - **Prompt chaining (nối tiếp):** chia việc thành chuỗi bước, **đầu ra bước trước là đầu vào
+        bước sau** (vd: tóm tắt tài liệu → dịch bản tóm tắt). Dễ đặt một **cổng kiểm tra (gate)** giữa
+        các bước để bắt lỗi sớm.
+      - **Routing (rẽ nhánh):** **phân loại** yêu cầu trước, rồi gửi tới một prompt/công cụ **chuyên
+        biệt** cho loại đó (vd: câu hỏi hoàn tiền → luồng hoàn tiền; hỏi kỹ thuật → luồng kỹ thuật).
+        Tách mối lo giúp mỗi nhánh được tối ưu riêng và rẻ hơn một prompt "biết tuốt".
+      - **Parallelization (chạy song song):** **toả** (fan out) nhiều lần gọi độc lập **cùng lúc** rồi
+        **gộp** (aggregate) kết quả. Hai kiểu: chia nhỏ việc (sectioning) hoặc bỏ phiếu/nhiều góc
+        nhìn (voting) — vd chấm một câu trả lời theo nhiều tiêu chí song song. Lợi: giảm độ trễ và
+        tách biệt từng mối lo.
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Tác vụ: 'phân loại ticket hỗ trợ rồi soạn thư trả lời theo đúng loại'. Các bước đã biết rõ và ổn định. Thiết kế nào **hợp lý và dễ đoán nhất**?"
+    options:
+      - id: a
+        text_md: "Một **workflow cố định** ghép **routing** (phân loại ticket) rồi **chaining** (dùng prompt soạn thư chuyên biệt cho loại đó) — các bước đã biết nên không cần agent tự do."
+      - id: b
+        text_md: "Một **agent tự do** được cấp mọi công cụ, để model tự quyết từng bước mỗi lần chạy cho linh hoạt."
+      - id: c
+        text_md: "Một prompt khổng lồ duy nhất bắt model vừa phân loại vừa soạn mọi loại thư trong một lần gọi, không tách bước."
+    answer: [a]
+    explain_md: "Việc đã biết các bước → ưu tiên **workflow cố định**: routing để chọn nhánh, chaining để soạn thư theo nhánh. (b) agent tự do thừa sự tự do, khó đoán và tốn hơn cho việc đã rõ. (c) prompt 'biết tuốt' khó tối ưu từng loại và khó test; tách nhánh (routing) tốt hơn."
+  - id: b05
+    type: text
+    md: |
+      Hai mẫu cho việc phức tạp hơn:
+      - **Orchestrator-workers (quản lý - thợ):** một LLM **điều phối (orchestrator)** **chia việc
+        động** thành các việc con rồi giao cho nhiều **worker** (có thể chạy song song), sau đó **tổng
+        hợp** kết quả. Khác parallelization ở chỗ **số việc con không cố định** — orchestrator tự
+        quyết dựa trên đầu vào (vd: trợ lý nghiên cứu tách câu hỏi lớn thành 3 câu con tuỳ chủ đề).
+      - **Evaluator-optimizer (làm - chấm - sửa):** một lần gọi **tạo** bản nháp, một lần gọi khác
+        **chấm/phê bình (critique)**, rồi **sửa** theo góp ý; lặp vòng cho tới khi **đạt tiêu chí**
+        hoặc hết số vòng cho phép. Hợp khi ta có tiêu chí chất lượng rõ và việc phê bình giúp cải
+        thiện thật (vd dịch thuật, viết có ràng buộc).
+
+      Quan trọng: phải có **điều kiện dừng** (đạt chuẩn, hoặc giới hạn số vòng/ngân sách token) để
+      vòng lặp không chạy mãi.
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Bạn cần sinh một đoạn văn **đạt một bộ tiêu chí rõ ràng** (giọng văn, độ dài, không sai thuật ngữ). Chất lượng lần đầu thường chưa đạt nhưng phê bình rồi sửa thì tốt lên. Mẫu nào phù hợp nhất?"
+    options:
+      - id: a
+        text_md: "**Evaluator-optimizer**: tạo bản nháp → một lần gọi chấm theo tiêu chí → sửa, lặp tới khi đạt hoặc hết số vòng cho phép."
+      - id: b
+        text_md: "**Parallelization**: toả ra 10 bản nháp cùng lúc rồi lấy đại bản đầu tiên, không chấm gì."
+      - id: c
+        text_md: "**Routing**: phân loại đoạn văn thành 'đạt' hoặc 'không đạt' một lần rồi dừng."
+    answer: [a]
+    explain_md: "Có tiêu chí rõ + phê bình giúp cải thiện → **evaluator-optimizer** (làm/chấm/sửa có vòng lặp và điều kiện dừng) là đúng mẫu. (b) chạy song song không có bước chấm nên không bảo đảm đạt tiêu chí; (c) routing chỉ phân nhánh, không có cơ chế sửa để nâng chất lượng."
+  - id: b07
+    type: text
+    md: |
+      **Hệ nhiều agent (multi-agent)** là nhiều agent chuyên biệt phối hợp, mỗi agent có **ngữ cảnh
+      riêng (context isolation)** và trao đổi với nhau bằng tin nhắn. Nghe hấp dẫn, nhưng kèm **chi
+      phí thật**:
+      - **Coordination overhead (phí phối hợp):** truyền ngữ cảnh qua lại tốn nhiều token và nhiều
+        lượt gọi → **đắt và chậm** hơn hẳn.
+      - **Error propagation (lan truyền lỗi):** một agent hiểu sai ở đầu chuỗi làm hỏng mọi bước sau;
+        càng nhiều mắt xích càng nhiều chỗ hỏng và càng khó debug.
+
+      **Mẹo thực dụng (2026):** đừng mặc định "nhiều agent cho oai". Một **agent đơn thiết kế tốt**
+      (prompt rõ, bộ công cụ gọn) hoặc một **workflow cố định** thường **thắng** một mớ agent cho các
+      việc có cấu trúc. Chỉ dùng multi-agent khi lợi ích thật sự vượt phí phối hợp — ví dụ các việc
+      con **song song, độc lập, ngốn nhiều ngữ cảnh** (như nghiên cứu nhiều nhánh) mà việc tách ngữ
+      cảnh riêng cho mỗi agent mang lại lợi ích rõ.
+  - id: b08
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một pipeline xử lý dữ liệu có **các bước cố định, tuần tự**, đang chạy ổn bằng một workflow đơn. Có người đề xuất 'tách thành 5 agent cho hiện đại'. Phản biện nào **đúng nhất** ở buổi phỏng vấn?"
+    options:
+      - id: a
+        text_md: "Với bước cố định tuần tự, nhiều agent chỉ thêm **coordination overhead** (token/độ trễ) và **error propagation**, khó debug hơn mà không thêm lợi ích; nên giữ workflow đơn."
+      - id: b
+        text_md: "Luôn nên tách nhiều agent vì nhiều agent thì luôn chính xác hơn một agent."
+      - id: c
+        text_md: "Nên tách vì nhiều agent luôn rẻ hơn do mỗi agent xử lý ít việc hơn."
+    answer: [a]
+    explain_md: "Việc cố định, tuần tự thì multi-agent chỉ thêm phí phối hợp và điểm hỏng, chứ không thêm giá trị → giữ workflow đơn. (b)/(c) sai: nhiều agent KHÔNG mặc nhiên chính xác hơn hay rẻ hơn — truyền ngữ cảnh qua lại thường tốn token và chậm hơn."
+  - id: b09
+    type: text
+    md: |
+      Luồng **chạy lâu (long-running)** — nhiều bước, chờ công cụ bên ngoài, có khi chờ người duyệt —
+      cần được thiết kế để **không mất việc khi có sự cố**:
+      - **State và checkpoint:** lưu trạng thái sau **mỗi bước** (vào dict hoặc DB). Nếu một bước lỗi
+        hay server khởi động lại, luồng **chạy tiếp từ checkpoint gần nhất**, không phải làm lại từ
+        đầu. Đây chính là ý tưởng **durable execution (thực thi bền)**: trạng thái sống qua cả sự cố;
+        **queue (hàng đợi)** = danh sách việc chờ xử lý, giúp chạy lại và trải tải.
+      - **Retry (thử lại) có kiểm soát:** với lỗi tạm thời (mạng, rate limit) thì thử lại (kèm
+        backoff), nhưng chỉ ở bước an toàn khi làm lại (idempotent); đặt giới hạn để tránh lặp vô tận.
+      - **Human-in-the-loop (người duyệt):** chèn một bước **người xác nhận** ở chỗ rủi ro — trước
+        hành động không thể hoàn tác như hoàn tiền, gửi mail, xoá dữ liệu. Luồng **tạm dừng tại
+        checkpoint**, chờ duyệt, rồi mới đi tiếp.
+  - id: b10
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền thuật ngữ còn thiếu: Để một luồng chạy lâu có thể **chạy tiếp từ chỗ dừng** sau khi lỗi
+      hoặc sau khi server khởi động lại (thay vì làm lại từ đầu), ta lưu trạng thái sau mỗi bước — mỗi
+      điểm lưu như vậy gọi là một ______.
+    blanks:
+      - accept: ["checkpoint", "điểm checkpoint", "checkpoints", "điểm lưu", "điểm lưu trạng thái"]
+    explain_md: "Checkpoint (điểm lưu trạng thái) cho phép luồng resume từ bước gần nhất thay vì chạy lại từ đầu — nền của durable execution. Đây cũng là nơi tự nhiên để tạm dừng chờ người duyệt (human-in-the-loop)."
+  - id: b11
+    type: callout
+    kind: interview
+    md: |
+      **Khung trả lời cho câu thiết kế mức 3 (design):** khi được cho một tác vụ, trả lời theo trình
+      tự — (1) **workflow hay agent?** nêu lý do (bước đã biết → workflow); (2) **chọn pattern** và vẽ
+      các hộp: chaining / routing / parallelization / orchestrator-workers / evaluator-optimizer; (3)
+      chỉ ra **state/checkpoint, retry, và bước người duyệt** nằm ở đâu; (4) nói rõ **multi-agent có
+      đáng không** — thường một agent/workflow đơn đã đủ, chỉ tách agent khi lợi ích vượt phí phối hợp.
+  - id: b12
+    type: summary
+    bullets_vi:
+      - "**Workflow cố định** (code quyết định các bước) dễ đoán, rẻ, dễ test — ưu tiên khi bước đã biết; **agent tự do** chỉ khi tác vụ thật sự mở."
+      - "Năm mẫu: **chaining** (nối tiếp), **routing** (phân loại rồi rẽ nhánh chuyên biệt), **parallelization** (toả song song rồi gộp), **orchestrator-workers** (chia việc động cho thợ), **evaluator-optimizer** (làm/chấm/sửa có điều kiện dừng)."
+      - "**Multi-agent** tốn **coordination overhead** và dễ **error propagation**; một agent/workflow đơn thiết kế tốt thường thắng — chỉ tách khi lợi ích vượt chi phí (việc con song song, độc lập, ngốn ngữ cảnh)."
+      - "Luồng chạy lâu cần **state/checkpoint** (durable execution: chạy tiếp từ chỗ dừng), **retry** có kiểm soát ở bước idempotent, và **human-in-the-loop** ở chỗ rủi ro/không hoàn tác được."
+      - "Mức 3: chọn đúng pattern cho bài toán và thiết kế luồng có state, checkpoint, retry, bước người duyệt — đồng thời nói được khi nào multi-agent KHÔNG đáng."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S307], l2: [S308], l3: [S309]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

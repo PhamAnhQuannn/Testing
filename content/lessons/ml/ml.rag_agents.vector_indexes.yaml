@@ -1,0 +1,166 @@
+id: ml.rag_agents.vector_indexes
+version: 1
+status: published
+title_vi: "Vector search và chỉ mục ANN: tìm vector gần nhất trong kho hàng triệu vector"
+est_minutes: 14
+objectives_vi:
+  - "Giải thích vì sao tìm chính xác (exact / flat search) trên hàng triệu vector nhiều chiều quá chậm, và vì sao approximate nearest neighbor (ANN) đổi một chút recall lấy tốc độ lớn."
+  - "Phân biệt các thước đo tương tự (cosine / dot product / L2) và nắm ý tưởng các loại chỉ mục HNSW, IVF, PQ ở mức khái niệm."
+  - "Hiểu đánh đổi recall - độ trễ (latency) - bộ nhớ (memory) và các nút chỉnh (efSearch, nprobe); biết filtered search và một vài vector DB phổ biến."
+  - "Mức 3: chọn và biện minh một loại chỉ mục ANN, rồi chỉnh nút recall - latency theo một yêu cầu cụ thể."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Sau khi đã nhúng (embedding) văn bản thành **vector** nhiều chiều (ví dụ 768 hay 1536 chiều),
+      câu hỏi kỹ thuật là: cho một vector truy vấn (query), làm sao tìm **k vector gần nhất** trong
+      kho? Cách ngây thơ là **tìm chính xác** (exact / flat / brute-force): so query với **từng**
+      vector trong kho rồi lấy k cái gần nhất.
+
+      Cách này luôn đúng, nhưng chi phí mỗi truy vấn là khoảng **O(N · d)**: N là số vector, d là số
+      chiều. Với 10 triệu vector 768 chiều, mỗi truy vấn phải làm khoảng 7-8 tỉ phép nhân-cộng - quá
+      chậm để trả lời trong vài mili-giây. Khi kho lên tới hàng triệu đến hàng tỉ vector, flat search
+      không còn khả thi cho tìm kiếm thời gian thực. Đây chính là lý do ta cần **chỉ mục (index)**.
+  - id: b02
+    type: text
+    md: |
+      Trước khi nói về chỉ mục, phải rõ "gần" nghĩa là gì - tức **thước đo tương tự
+      (similarity metric)**:
+
+      - **Dot product (tích vô hướng)**: nhân từng chiều rồi cộng; càng lớn càng giống.
+      - **Cosine similarity**: góc giữa hai vector, bỏ qua độ dài; chỉ quan tâm *hướng*.
+      - **L2 (khoảng cách Euclid)**: độ dài đường thẳng giữa hai điểm; càng nhỏ càng gần.
+
+      Một điểm hay gặp trong phỏng vấn: nếu các vector đã được **chuẩn hoá (normalize)** về độ dài 1
+      thì **cosine tương đương dot product**, và thứ tự theo cosine cũng trùng thứ tự theo L2. Nhiều
+      mô hình embedding khuyến nghị chuẩn hoá rồi dùng dot product cho nhanh. Việc chọn metric phải
+      **khớp với cách mô hình embedding được huấn luyện** - dùng sai metric sẽ cho kết quả tệ dù chỉ
+      mục có tốt tới đâu.
+  - id: b03
+    type: text
+    md: |
+      **Approximate nearest neighbor (ANN - tìm gần nhất xấp xỉ)** là ý tưởng cốt lõi: chấp nhận
+      **thỉnh thoảng bỏ sót** vài kết quả đúng để đổi lấy tốc độ nhanh hơn rất nhiều (thường nhanh
+      hơn flat hàng chục đến hàng trăm lần). "Xấp xỉ" nghĩa là kết quả **không bảo đảm** đúng tuyệt
+      đối như flat.
+
+      Ta đo chất lượng bằng **recall@k**: trong k kết quả mà flat (đáp án chuẩn) trả về, ANN tìm lại
+      được bao nhiêu phần trăm. Ví dụ recall@10 = 0,95 nghĩa là trung bình ANN lấy đúng 9,5 trên 10
+      láng giềng thật. Với hầu hết ứng dụng RAG hay tìm kiếm ngữ nghĩa, recall 0,95-0,99 là **quá đủ**
+      vì tài liệu hơi lệch một chút không làm hỏng trải nghiệm - nên đánh đổi này gần như luôn đáng.
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Kho của bạn có 20 triệu vector 1024 chiều và cần trả kết quả trong vài mili-giây. Vì sao nên dùng chỉ mục ANN thay vì flat search, và 'approximate' đánh đổi điều gì?"
+    options:
+      - {id: a, text_md: "Flat search tốn khoảng O(N · d) mỗi truy vấn nên quá chậm ở quy mô này; ANN nhanh hơn nhiều bằng cách chấp nhận bỏ sót một ít kết quả (recall < 100%) để đổi lấy tốc độ."}
+      - {id: b, text_md: "ANN luôn trả đúng y hệt flat nhưng nhanh hơn vì nó nén vector xuống ít chiều hơn mà không mất mát gì."}
+      - {id: c, text_md: "Flat search chậm vì nó phải huấn luyện lại mô hình embedding ở mỗi truy vấn; ANN bỏ bước huấn luyện đó nên nhanh."}
+    answer: [a]
+    explain_md: "Flat so với từng vector, chi phí ~O(N · d), không kịp ở quy mô triệu vector. ANN đổi một chút recall lấy tốc độ - đó chính là nghĩa của 'approximate'. (b) sai: ANN KHÔNG bảo đảm đúng y hệt flat, đó mới là bản chất xấp xỉ. (c) sai: search không hề huấn luyện embedding; embedding đã được tính sẵn trước đó."
+  - id: b05
+    type: text
+    md: |
+      **HNSW (Hierarchical Navigable Small World - đồ thị thế giới nhỏ nhiều tầng)** là loại chỉ mục
+      **mặc định phổ biến nhất** hiện nay. Ý tưởng: dựng một **đồ thị (graph)** nối mỗi vector với
+      các vector gần nó, xếp thành **nhiều tầng** - tầng trên thưa như đường cao tốc (nhảy xa), tầng
+      dưới dày như đường làng (dò sát). Truy vấn đi từ tầng trên xuống, mỗi bước nhảy sang điểm gần
+      đích hơn, nên chỉ cần thăm một phần rất nhỏ của kho thay vì toàn bộ.
+
+      Các nút chỉnh chính: **M** (số láng giềng mỗi điểm) và **efConstruction** (độ kỹ khi dựng) ảnh
+      hưởng chất lượng đồ thị; **efSearch** là nút chỉnh lúc tìm - **efSearch lớn thì recall cao hơn
+      nhưng chậm hơn**. Điểm mạnh: recall và độ trễ đều rất tốt. Điểm yếu: **tốn bộ nhớ hơn** (phải
+      lưu cả đồ thị các liên kết) và chỉnh sửa / xoá vector không dễ bằng vài loại khác.
+  - id: b06
+    type: text
+    md: |
+      **IVF (Inverted File - chỉ mục theo cụm)** đi theo hướng khác: trước tiên **gom kho thành
+      nhiều cụm (cluster / cell)** bằng k-means, mỗi cụm có một tâm. Khi truy vấn, ta chỉ **lục các
+      cụm có tâm gần query nhất** thay vì cả kho.
+
+      Nút chỉnh then chốt là **nprobe** = số cụm được lục. **nprobe nhỏ**: chỉ xem vài cụm nên nhanh,
+      nhưng dễ bỏ sót nếu láng giềng thật nằm ở cụm kế bên (recall thấp). **nprobe lớn**: xem nhiều
+      cụm hơn nên recall cao hơn nhưng chậm hơn. Vậy nprobe chính là nút vặn recall - latency của
+      IVF, giống vai trò efSearch của HNSW. IVF thường tốn ít bộ nhớ hơn HNSW và dựng nhanh, nhưng
+      recall ở cùng mức tốc độ thường kém HNSW một chút.
+  - id: b07
+    type: callout
+    kind: interview
+    md: |
+      **PQ (Product Quantization - nén vector để tiết kiệm bộ nhớ).** Bộ nhớ hay là nút thắt: 10
+      triệu vector 768 chiều dạng float32 cần khoảng 10⁷ × 768 × 4 byte ≈ **30 GB** chỉ để lưu vector
+      thô. PQ **cắt mỗi vector thành nhiều đoạn**, mỗi đoạn được thay bằng một **mã ngắn** tra trong
+      một bảng nhỏ (codebook), nhờ đó vector nén xuống còn vài chục byte - có thể nhỏ hơn hàng chục
+      lần. Đổi lại, vì vector bị làm tròn nên **recall giảm**.
+
+      Trong phỏng vấn, cụm từ **IVF-PQ** rất hay gặp: dùng IVF để thu hẹp vùng tìm *và* PQ để nén
+      vector, cho phép phục vụ **hàng tỉ vector** trong RAM có hạn. Hãy nhớ thứ tự đánh đổi: HNSW cho
+      recall/latency tốt nhất nhưng tốn RAM; thêm PQ tiết kiệm RAM mạnh nhưng phải chấp nhận mất
+      recall.
+  - id: b08
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Nhận định nào về các loại chỉ mục ANN là **đúng**?"
+    options:
+      - {id: a, text_md: "HNSW là đồ thị nhiều tầng, thường cho recall/latency tốt nhất nhưng tốn bộ nhớ hơn; IVF gom vector thành cụm và dùng nprobe để chỉnh recall so với tốc độ; PQ nén vector để tiết kiệm bộ nhớ, đổi lại giảm recall."}
+      - {id: b, text_md: "IVF luôn cho recall cao hơn HNSW ở mọi mức tốc độ, và PQ làm tăng recall vì nó loại bỏ nhiễu trong vector."}
+      - {id: c, text_md: "HNSW tiết kiệm bộ nhớ nhất trong ba loại vì nó không lưu vector gốc, còn nprobe là nút chỉnh của HNSW chứ không phải IVF."}
+    answer: [a]
+    explain_md: "(a) đúng toàn bộ: HNSW = đồ thị nhiều tầng, recall/latency tốt nhưng ngốn RAM; IVF = cụm + nprobe; PQ = nén, giảm recall. (b) sai: PQ làm *giảm* recall (làm tròn vector), và IVF không luôn thắng HNSW. (c) sai: HNSW tốn thêm bộ nhớ cho đồ thị, và nprobe là nút của IVF, không phải HNSW (HNSW dùng efSearch)."
+  - id: b09
+    type: text
+    md: |
+      Ba trục đánh đổi luôn đi cùng nhau: **recall - độ trễ (latency) - bộ nhớ (memory)**. Hầu như
+      không thể tối ưu cả ba; cải thiện một trục thường phải hy sinh trục khác. Cách làm đúng của một
+      AI engineer là **xuất phát từ yêu cầu** (recall tối thiểu, ngân sách độ trễ p95, RAM/chi phí có
+      sẵn) rồi mới chọn chỉ mục và chỉnh nút:
+
+      - Cần recall cao, độ trễ thấp, RAM dư dả → **HNSW**, tăng **efSearch** tới khi đạt recall mục tiêu.
+      - RAM là nút thắt hoặc quy mô cực lớn → **IVF-PQ**, chỉnh **nprobe** để cân recall với tốc độ.
+      - Cách đo: dựng một tập truy vấn thử có đáp án flat làm chuẩn, rồi **đo recall@k và độ trễ** ở
+        vài giá trị efSearch/nprobe và chọn điểm vừa đủ yêu cầu.
+
+      **Filtered search (lọc theo metadata):** thực tế thường cần "tìm vector gần nhất *mà* thuộc
+      năm 2026 và nguồn X". **Pre-filter** lọc theo metadata trước rồi mới tìm vector (chính xác hơn
+      nhưng có thể chậm/khó với vài loại index); **post-filter** tìm vector trước rồi lọc sau (nhanh
+      nhưng dễ **thiếu kết quả** nếu top-k ban đầu bị lọc rụng gần hết).
+  - id: b10
+    type: text
+    md: |
+      Ở mức gọi tên, bạn nên biết vài **vector database / thư viện** thường gặp và hợp cảnh nào:
+
+      - **pgvector**: thêm khả năng vector vào Postgres sẵn có; gọn và đủ cho tới vài triệu vector,
+        tiện khi đã dùng Postgres và muốn một hệ thống duy nhất.
+      - **FAISS**: thư viện (của Meta) chạy ngay trong tiến trình/code, rất linh hoạt để thử nghiệm
+        HNSW/IVF/PQ; nó là thư viện chứ không phải một dịch vụ có sẵn API/độ bền.
+      - **Milvus / Qdrant / Weaviate / Pinecone**: các vector DB chuyên dụng (tự vận hành hoặc dịch
+        vụ đám mây) lo liệu sharding, lọc metadata, cập nhật và mở rộng ở quy mô lớn.
+
+      Nguyên tắc chọn: quy mô nhỏ và đã có Postgres thì pgvector; cần kiểm soát sâu và nhúng vào code
+      thì FAISS; quy mô lớn, cần vận hành và mở rộng thì chọn vector DB chuyên dụng.
+  - id: b11
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền thuật ngữ còn thiếu: Trong chỉ mục **IVF**, vector được gom thành các cụm; nút chỉnh
+      ______ quyết định có bao nhiêu cụm được lục khi truy vấn - đặt lớn hơn thì recall tăng nhưng
+      độ trễ cũng tăng.
+    blanks:
+      - accept: ["nprobe", "n_probe", "nProbe"]
+    explain_md: "nprobe = số cụm (cell) được lục trong IVF. nprobe lớn → xem nhiều cụm hơn → recall cao hơn nhưng chậm hơn; đó là nút cân bằng recall - latency của IVF, tương ứng với efSearch của HNSW."
+  - id: b12
+    type: summary
+    bullets_vi:
+      - "**Flat/exact search** so query với từng vector (~**O(N · d)**), đúng tuyệt đối nhưng quá chậm ở quy mô triệu/tỉ vector → cần chỉ mục ANN."
+      - "**ANN** đổi một ít **recall** (recall@k = % láng giềng flat tìm lại được) lấy tốc độ lớn; với RAG recall 0,95-0,99 thường là quá đủ. Metric: **cosine / dot product / L2**; vector chuẩn hoá thì cosine = dot product."
+      - "**HNSW** = đồ thị nhiều tầng, recall/latency tốt nhưng tốn RAM (nút **efSearch**); **IVF** = cụm + nút **nprobe**; **PQ** nén vector tiết kiệm RAM nhưng giảm recall (hay kết hợp **IVF-PQ** cho quy mô tỉ)."
+      - "Đánh đổi **recall - latency - memory**: xuất phát từ yêu cầu rồi chọn chỉ mục và chỉnh efSearch/nprobe, đo bằng recall@k và độ trễ trên tập truy vấn thử. **Filtered search**: pre-filter so với post-filter."
+      - "**Vector DB**: pgvector (gắn vào Postgres, vài triệu), FAISS (thư viện trong code), Milvus/Qdrant/Weaviate/Pinecone (chuyên dụng cho quy mô lớn); chọn theo quy mô và nhu cầu vận hành."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S295], l2: [S296], l3: [S297]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

@@ -1,0 +1,78 @@
+subtopic_id: ml.llm.llm_app_engineering
+items:
+  - id: S277
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Nói ngắn gọn: gọi LLM kiểu **streaming (SSE)** khác gọi **đồng bộ (sync)** ở chỗ nào, và vì sao
+      streaming làm trải nghiệm chờ của người dùng tốt hơn — dù nó **không** làm model nhanh hơn?
+    answer_md: |
+      **Sync (đồng bộ):** gửi request rồi **chờ model sinh xong toàn bộ** mới nhận một cục chữ —
+      người dùng nhìn màn hình trống tới khi xong. **Streaming (SSE):** server giữ kết nối mở và
+      **đẩy chữ về từng mảnh (token/chunk)** ngay khi sinh ra, nên chữ chạy dần ra màn hình.
+
+      Streaming tốt hơn vì **chữ đầu tiên xuất hiện rất sớm** — **TTFT (time-to-first-token)** thấp —
+      nên **độ trễ cảm nhận (perceived latency)** giảm, người dùng thấy app phản hồi ngay và bắt đầu
+      đọc được. Nhưng model vẫn sinh đủ bằng ấy token, nên **tổng thời gian không đổi**: streaming
+      chỉ *giấu* độ trễ chứ không làm model nhanh hơn.
+    rubric_md: "Đúng khi nêu được: sync = chờ xong cả câu mới nhận; streaming = nhận từng mảnh ngay khi sinh; VÀ lý do tốt hơn = chữ đầu/ TTFT hiện sớm → độ trễ cảm nhận giảm, dù tổng thời gian không đổi. Đủ ý: bằng chứng điểm 1. Thiếu định nghĩa một bên, hoặc tưởng streaming làm model/ tổng thời gian nhanh hơn: tối đa điểm 0."
+  - id: S278
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      App của bạn gọi một LLM để tóm tắt bài báo. Gần đây gặp hai vấn đề: (1) **hoá đơn token cao hơn
+      dự kiến**, và (2) khi nhà cung cấp quá tải, app thỉnh thoảng **ném lỗi 429/500 ra tận người
+      dùng**. Hãy đề xuất cách xử lý cụ thể: (a) hai cách **giảm chi phí**; (b) **chiến lược xử lý lỗi**
+      tạm thời (429/5xx) cho đúng; (c) nếu vẫn hỏng thì làm gì để người dùng không thấy lỗi thô.
+    answer_md: |
+      **(a) Giảm chi phí** (nêu đúng 2 trong các cách sau, đúng lý do):
+      - **Giới hạn `max_tokens`** cho bản tóm tắt (token ra là phần đắt nhất) và/hoặc **cắt bớt ngữ
+        cảnh** đầu vào (chỉ nhét phần cần tóm tắt);
+      - **Prompt caching** cho phần hướng dẫn cố định lặp lại mỗi request; **chọn model nhỏ/rẻ** vì
+        tóm tắt thường không cần model mạnh nhất; **cache phản hồi** cho các bài trùng.
+
+      **(b) Xử lý lỗi tạm thời:** **retry với exponential backoff + jitter** cho **429 và 5xx** (chờ
+      1s, 2s, 4s... cộng chút ngẫu nhiên để tránh nhiều client dồn lại cùng lúc), **giới hạn số lần**
+      (ví dụ tối đa 5), và luôn đặt **timeout**. Không retry các lỗi vĩnh viễn (400/401).
+
+      **(c) Khi vẫn hỏng:** **fallback** sang model/nhà cung cấp dự phòng; nếu vẫn không được thì
+      **graceful degradation** — trả kết quả từ cache, hoặc một thông báo lịch sự 'đang bận, thử lại
+      sau' — thay vì ném 429/500 thô cho người dùng.
+    rubric_md: "Đạt khi nêu đúng cả 3: (a) hai đòn bẩy chi phí hợp lý kèm lý do (max_tokens/trim/caching/model nhỏ...); (b) retry 429/5xx bằng exponential backoff + jitter, có giới hạn lần và timeout (không retry lỗi vĩnh viễn); (c) fallback và/hoặc graceful degradation thay vì lộ lỗi thô. Đúng, trong time-box, tự giải thích được: bằng chứng điểm 2. Thiếu backoff/jitter (chỉ nói 'thử lại'), hoặc không nêu cách che lỗi cho người dùng: tối đa điểm 1."
+  - id: S279
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      **(Phỏng vấn AI engineer)** Bạn được giao dựng backend cho một **trợ lý chat** dùng LLM, có cả
+      một **job nền** chạy phân loại hàng loạt (hàng trăm nghìn bản ghi). Hãy trình bày thiết kế cho
+      năm mặt: **(1) API** (gọi model thế nào), **(2) streaming & độ trễ**, **(3) chi phí theo token**
+      và cách kiểm soát, **(4) độ tin cậy** (timeout/retry/fallback/degrade, rate limit), **(5) phần
+      chạy hàng loạt** nên khác phần chat ở đâu. Nêu rõ lý do từng lựa chọn.
+    answer_md: |
+      **(1) API:** gọi LLM như API web — gửi **messages** (system đặt luật + lịch sử + user) và
+      **params** (`model`, `temperature`, `max_tokens`); đọc **`usage`** (token vào/ra) từ mỗi phản
+      hồi để tính tiền và giám sát.
+
+      **(2) Streaming & độ trễ:** phần **chat có người ngồi chờ → bật streaming (SSE)** để hạ
+      **TTFT** (chữ hiện sớm), cải thiện độ trễ *cảm nhận*; nhớ rằng streaming không rút ngắn **tổng
+      thời gian** (tăng theo token ra), nên vẫn đặt `max_tokens` hợp lý. Đo tách **TTFT vs tổng**.
+
+      **(3) Chi phí:** tiền = **token vào x giá vào + token ra x giá ra** (ra đắt hơn, gồm reasoning
+      token). Kiểm soát: **prompt caching** cho system/ngữ cảnh lặp, **cắt ngữ cảnh**, **`max_tokens`**,
+      **routing** model nhỏ cho việc dễ và model mạnh khi cần, **cache phản hồi**. Ước lượng hoá đơn
+      trước bằng số request x token trung bình.
+
+      **(4) Độ tin cậy:** **timeout** cho mọi lời gọi; **retry exponential backoff + jitter** cho
+      **429/5xx** có giới hạn lần (không retry 400/401); tôn trọng **rate limit/quota (RPM/TPM)** và
+      `Retry-After`; **fallback** model/nhà cung cấp; **graceful degradation** (cache/thông báo lịch
+      sự) khi cạn lựa chọn. Tất cả **log + trace** (token, chi phí, độ trễ, lỗi/retry) để quan sát
+      và cảnh báo.
+
+      **(5) Job hàng loạt khác chat:** không có người chờ nên **không cần streaming**; ưu tiên
+      **Batch API** (rẻ hơn, trả sau nhiều giờ) hoặc **gọi song song có kiểm soát** (asyncio +
+      semaphore) để bám sát rate limit mà không vượt; chấp nhận độ trễ cao đổi lấy chi phí thấp và
+      thông lượng lớn — ngược với chat vốn tối ưu độ trễ cảm nhận.
+    rubric_md: "Đạt (mức phỏng vấn, điểm 3) khi phủ hợp lý cả năm mặt: (1) API messages+params+usage; (2) streaming/SSE hạ TTFT cho chat, phân biệt TTFT vs tổng thời gian; (3) công thức chi phí token vào/ra + ít nhất 2 đòn bẩy kiểm soát (caching/trim/max_tokens/model nhỏ); (4) timeout + retry backoff+jitter trên 429/5xx + fallback + degrade + tôn trọng rate limit; (5) job hàng loạt dùng batch/song song có kiểm soát, bỏ streaming, đánh đổi độ trễ lấy chi phí. Đúng, trong time-box, tự giải thích rõ: bằng chứng điểm 3. Thiếu hẳn một mặt (đặc biệt độ tin cậy hoặc chi phí), hoặc không phân biệt được job hàng loạt với chat: chưa đạt mức 3."

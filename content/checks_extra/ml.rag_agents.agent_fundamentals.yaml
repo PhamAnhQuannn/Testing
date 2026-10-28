@@ -1,0 +1,77 @@
+subtopic_id: ml.rag_agents.agent_fundamentals
+items:
+  - id: S301
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Nói ngắn gọn: một **agent** khác một prompt một-lần (one-shot) ở chỗ nào, và ba thành phần cốt
+      lõi của một agent là gì?
+    answer_md: |
+      **Agent** là một LLM chạy trong một **vòng lặp (loop)**: mỗi vòng nó quan sát kết quả, **tự
+      quyết gọi tool nào**, chương trình chạy tool rồi trả kết quả, và nó lặp lại tới khi xong. Một
+      prompt **one-shot** chỉ sinh đầu ra **một lần**, không tự quyết bước tiếp theo.
+
+      Ba thành phần cốt lõi:
+      1. **Tool** — các hàm model gọi được, khai báo bằng chữ ký JSON-schema (tái dùng function
+         calling).
+      2. **Agent loop (ReAct)** — mẫu nghĩ → hành động → quan sát, lặp lại.
+      3. **Memory/context** — lịch sử và kết quả các bước được mang qua các vòng (ngắn hạn trong
+         context; dài hạn lưu ngoài).
+    rubric_md: "Đúng khi nêu được: (a) agent = LLM trong vòng lặp, tự quyết bước/gọi tool theo kết quả, khác one-shot sinh đầu ra một lần; VÀ (b) ít nhất hai trong ba trụ tool / agent loop (ReAct) / memory. Đủ ý: bằng chứng điểm 1. Nhầm agent là model đã fine-tune, hoặc không nêu được vòng lặp: tối đa điểm 0."
+  - id: S302
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Sếp giao: "Làm một tính năng tự động **đổi định dạng ngày** trong các tệp CSV khách gửi, và
+      một tính năng **trợ lý đặt vé du lịch** nhận yêu cầu mô tả tự do rồi tự tra chuyến, so giá, hỏi
+      lại khi thiếu thông tin." Với **từng tính năng**, hãy nói nên dùng **agent** hay **workflow/pipeline
+      cố định**, và **giải thích vì sao**. Nêu thêm một rủi ro của việc chọn agent cho việc đáng lẽ
+      chỉ cần workflow.
+    answer_md: |
+      - **Đổi định dạng ngày trong CSV → workflow/pipeline cố định.** Luật cố định, mọi bước đoán
+        trước được (đọc tệp → parse ngày → xuất ISO). Không có tình huống mở, không cần model tự
+        quyết. Workflow sẽ **rẻ hơn, nhanh hơn, ổn định và dễ kiểm thử hơn**.
+      - **Trợ lý đặt vé theo yêu cầu tự do → agent.** Bài toán **mở, nhiều bước, đường đi chưa biết
+        trước** (tra bao nhiêu chuyến, có phải hỏi lại không là tuỳ tình huống) và **cần hành động ra
+        ngoài** (gọi nhiều tool: tìm chuyến, so giá, hỏi lại). Đúng chỗ cho một LLM chạy trong vòng
+        lặp tự quyết bước kế tiếp.
+      - **Rủi ro khi lạm dụng agent cho việc đáng lẽ chỉ cần workflow:** chậm và tốn hơn (mỗi vòng
+        một lần gọi model), khó đoán/khó kiểm thử, và có thể **lặp vô tận** hay đi lạc nếu không có
+        ngân sách bước. Nguyên tắc: chọn thứ đơn giản nhất chạy được.
+    rubric_md: "Đạt khi: (1) CSV → workflow cố định, có lý do 'đoán trước được / rẻ-ổn định hơn'; (2) đặt vé → agent, có lý do 'mở, nhiều bước, cần hành động ngoài, đường đi chưa biết'; (3) nêu một rủi ro hợp lý của việc lạm dụng agent (tốn/chậm/khó đoán/lặp vô tận). Đúng cả ba, tự giải thích được: bằng chứng điểm 2. Chọn đúng nhưng không giải thích được vì sao, hoặc đảo ngược một lựa chọn: tối đa điểm 1."
+  - id: S303
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      **(Phỏng vấn AI engineer)** Bạn được yêu cầu **thiết kế một agent** hỗ trợ khách hàng: đọc câu
+      hỏi của khách, tra đơn hàng, và khi cần thì hoàn tiền. Hãy trình bày:
+      (1) thiết kế agent gồm **bộ tool** (nêu tool, mô tả, và vì sao chữ ký tool nên dựa trên
+      JSON-schema) và **vòng lặp (loop)** hoạt động ra sao, kèm **điều kiện dừng / ngân sách bước**;
+      (2) bạn có cân nhắc dùng **MCP** không và nó giúp gì;
+      (3) **khi nào** một bài toán như vậy nên dùng agent và khi nào một **workflow cố định** lại tốt
+      hơn.
+    answer_md: |
+      **(1) Thiết kế agent:**
+      - **Bộ tool** (mỗi tool có tên rõ, mô tả 'khi nào dùng', ít tham số, lỗi hữu ích):
+        `tra_don_hang(ma_don)` → trả trạng thái/giá; `hoan_tien(ma_don, so_tien)` → thực hiện hoàn;
+        `chuyen_nhan_vien(ly_do)` → bàn giao cho người khi vượt khả năng. Chữ ký khai báo bằng
+        **JSON-schema** để model biết tên, kiểu và ràng buộc tham số — chính là function calling đã
+        học, nhờ đó model sinh lời gọi hợp lệ, parse được.
+      - **Vòng lặp (ReAct):** mỗi vòng model **nghĩ** (cần dữ kiện gì), **hành động** (đề nghị gọi
+        một tool), chương trình chạy tool và trả kết quả, model **quan sát** rồi nghĩ tiếp; lịch sử
+        giữ trong **context (memory ngắn hạn)**. Lặp tới khi trả lời xong.
+      - **Điều kiện dừng / ngân sách bước:** đặt **max_steps** (ví dụ 5–8) và điều kiện 'đã trả lời /
+        đã chuyển người'; nếu một tool có tác dụng phụ như `hoan_tien` thì nên có **bước người xác
+        nhận** hoặc hạn mức, để agent không lặp vô tận hay hoàn nhầm.
+      **(2) MCP:** có thể cân nhắc **MCP (Model Context Protocol)** nếu các tool (CRM, cổng thanh
+      toán) đã có **MCP server**: khai báo tool một lần qua chuẩn mở, rồi dùng lại được ở nhiều
+      app/client ('USB-C cho tool'), đỡ phải viết lại tích hợp cho từng sản phẩm. Nếu chỉ một app
+      nhỏ, function calling trực tiếp cũng đủ.
+      **(3) Khi nào agent / khi nào workflow:** dùng **agent** khi yêu cầu khách **mở, nhiều bước,
+      cần quyết định tuỳ tình huống** (tra rồi mới biết có cần hoàn tiền hay chuyển người). Nếu luồng
+      **đoán trước được** (ví dụ chỉ 'tra trạng thái đơn theo mã' rồi đọc mẫu câu), một **workflow cố
+      định** sẽ rẻ hơn, nhanh hơn, ổn định và dễ kiểm thử hơn — chọn thứ đơn giản nhất chạy được.
+    rubric_md: "Đạt (mức phỏng vấn, điểm 3) khi: (1) thiết kế bộ tool hợp lý (tên/mô tả/lỗi hữu ích) VÀ nêu chữ ký JSON-schema tái dùng function calling, mô tả đúng vòng lặp ReAct, VÀ có điều kiện dừng/ngân sách bước (bonus: người xác nhận cho tool có tác dụng phụ); (2) nêu đúng ý MCP (chuẩn mở, tool dùng lại giữa app/client) và dùng khi nào; (3) nêu được tiêu chí agent vs workflow cố định kèm lý do (mở/nhiều bước vs đoán trước được; đơn giản nhất chạy được). Đủ cả ba trụ, tự giải thích rõ: bằng chứng điểm 3. Thiếu phần loop + giới hạn bước, hoặc không nêu được tiêu chí agent vs workflow: chưa đạt mức 3."

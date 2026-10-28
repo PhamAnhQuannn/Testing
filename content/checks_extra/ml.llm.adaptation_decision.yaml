@@ -1,0 +1,77 @@
+subtopic_id: ml.llm.adaptation_decision
+items:
+  - id: S286
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Nói ngắn gọn **câu heuristic (thần chú)** để chọn hướng khi LLM trả lời chưa tốt: khi nào nên
+      dùng **RAG**, khi nào nên **fine-tune**, và kỹ thuật nào nên **thử trước tiên**? Vì sao?
+    answer_md: |
+      Heuristic: **"kiến thức mới → RAG; hành vi mới → fine-tune; thử prompt trước."**
+      - **RAG** khi lỗi là **thiếu hoặc hay thay đổi kiến thức** (sự thật, tài liệu riêng, tin mới):
+        nạp tài liệu liên quan vào ngữ cảnh để model bám theo.
+      - **Fine-tune** khi lỗi là **hành vi / giọng / phong cách / định dạng / tính nhất quán** (model
+        đã biết nhưng trả lời sai *kiểu*) và **có dữ liệu gán nhãn tốt**.
+      - **Thử prompt engineering trước tiên** vì nó **rẻ nhất, nhanh lặp lại và dễ đảo ngược** — chỉ
+        leo lên RAG rồi fine-tune khi prompt chưa đủ.
+    rubric_md: "Đúng khi nêu được cả ba vế: RAG cho thiếu/đổi kiến thức; fine-tune cho sai hành vi/giọng/định dạng (lý tưởng là có data); và thử prompt trước vì rẻ/nhanh/dễ đảo ngược. Đủ ý: bằng chứng điểm 1. Nhầm RAG dùng để sửa hành vi hoặc fine-tune để bơm kiến thức tươi, hoặc thiếu 'thử prompt trước': tối đa điểm 0."
+  - id: S287
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Một chatbot nội bộ có hai vấn đề cùng lúc: (a) nó **không biết tài liệu quy trình nội bộ** vừa
+      ban hành nên trả lời sai nhiều dữ kiện; (b) khi biết thông tin thì nó lại trả lời **quá dài và
+      sai giọng** công ty muốn (bạn có sẵn ~1.000 câu trả lời mẫu đúng giọng). Hãy:
+      (1) **chẩn đoán từng vấn đề** thuộc loại lỗi nào (kiến thức / hành vi / định dạng);
+      (2) chọn **hướng chữa cho mỗi vấn đề** và giải thích vì sao;
+      (3) nói rõ vì sao **không nên chỉ fine-tune cho cả hai**.
+    answer_md: |
+      (1) **Chẩn đoán:**
+      - (a) Không biết tài liệu quy trình mới = lỗi **thiếu / đổi kiến thức (missing knowledge)**.
+      - (b) Dài dòng, sai giọng dù đã biết thông tin = lỗi **hành vi / phong cách (behavior)**.
+      (2) **Hướng chữa:**
+      - (a) → **RAG**: nạp tài liệu quy trình nội bộ vào ngữ cảnh để model trả lời bám theo và truy
+        nguồn; đổi tài liệu là cập nhật ngay, không cần tune lại.
+      - (b) → **fine-tune** trên ~1.000 câu mẫu để model học **giọng và độ dài** nhất quán (đã có dữ
+        liệu gán nhãn tốt; nên thử prompt trước, nếu chưa ổn định thì fine-tune).
+      - Kết quả thực tế là **kết hợp**: một model đã fine-tune lo *cách trả lời*, RAG lo *dữ kiện tươi*.
+      (3) **Vì sao không chỉ fine-tune cho cả hai:** fine-tune **không bơm được kiến thức tươi** một
+      cách tin cậy — kiến thức đổi là phải tune lại, đắt, dễ lỗi thời và vẫn có thể bịa; phần kiến
+      thức (a) thuộc về RAG. Fine-tune chỉ đúng cho phần hành vi (b).
+    rubric_md: "Đạt (điểm 2) khi: (1) chẩn đoán đúng (a)=kiến thức, (b)=hành vi; (2) ghép đúng (a)→RAG, (b)→fine-tune, và nhận ra nên kết hợp cả hai; (3) giải thích fine-tune không giải quyết được phần kiến thức tươi (đắt/lỗi thời/vẫn bịa) nên không nên chỉ fine-tune. Đúng, trong time-box, tự giải thích được: bằng chứng điểm 2. Chẩn đoán sai loại lỗi, hoặc ghép RAG/fine-tune ngược, hoặc không nêu được vì sao fine-tune không chữa kiến thức: tối đa điểm 1."
+  - id: S288
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      **(Phỏng vấn AI engineer)** Một ngân hàng muốn trợ lý nội bộ giúp nhân viên tra cứu **chính
+      sách tín dụng** (tài liệu riêng, cập nhật hàng tháng) và trả lời theo **đúng khuôn mẫu, giọng
+      chuẩn mực** của ngân hàng. Dữ liệu khách hàng **nhạy cảm, không được gửi ra ngoài** theo quy
+      định; đội có khả năng vận hành hạ tầng. Hãy trình bày quyết định ở **cả hai trục**:
+      (1) chọn giữa **prompt / RAG / fine-tune** (hoặc kết hợp) và vì sao, theo chẩn đoán lỗi;
+      (2) chọn **API có sẵn hay self-host model mở** và vì sao;
+      nêu rõ **trade-off chi phí, độ trễ và quyền riêng tư** cho lựa chọn của bạn.
+    answer_md: |
+      **(1) Trục prompt / RAG / fine-tune — kết hợp, theo chẩn đoán lỗi:**
+      - Phần **tra cứu chính sách** (tài liệu riêng, đổi hàng tháng) là lỗi **thiếu/đổi kiến thức**
+        → **RAG**: nạp chính sách liên quan vào ngữ cảnh, truy nguồn được, đổi tài liệu là cập nhật
+        ngay — không phải tune lại mỗi tháng.
+      - Phần **đúng khuôn mẫu / giọng chuẩn mực** là lỗi **hành vi/định dạng** → bắt đầu bằng
+        **prompt** (system prompt + few-shot + ép định dạng); nếu đã có dữ liệu mẫu đủ tốt mà prompt
+        chưa ổn định thì **fine-tune** để giọng/khuôn ổn định và prompt ngắn gọn hơn.
+      - Tổng hợp: **RAG + (prompt, có thể thêm fine-tune)**; luôn **thử prompt trước** và **đo bằng
+        eval set** mỗi bước.
+      **(2) Trục triển khai → self-host model mở:**
+      - Ràng buộc **quyền riêng tư / tuân thủ** (dữ liệu khách hàng không được rời hệ thống) loại
+        phương án gửi dữ liệu ra API ngoài; đội **có năng lực ops** nên self-host khả thi.
+      **Trade-off của lựa chọn (self-host + RAG + prompt/fine-tune):**
+      - **Quyền riêng tư:** tốt nhất — dữ liệu ở trong ranh giới ngân hàng, đáp ứng tuân thủ; tránh
+        cả vendor lock-in.
+      - **Chi phí:** GPU **cố định**, dùng nhiều thì rẻ hơn trả theo token; đổi lại tốn chi phí vận
+        hành và đầu tư hạ tầng ban đầu.
+      - **Độ trễ:** kiểm soát được (model/GPU trong nhà), có thể thêm **routing/cascade** (model rẻ
+        trước, ca khó mới lên model mạnh) hoặc **distillation** sang model nhỏ để giảm độ trễ và
+        chi phí.
+    rubric_md: "Đạt (mức phỏng vấn, điểm 3) khi: (1) chẩn đoán đúng và ghép chính sách→RAG, giọng/khuôn→prompt-rồi-fine-tune, nêu kết hợp và thử prompt trước / đo bằng eval; VÀ (2) chọn self-host vì ràng buộc quyền riêng tư/tuân thủ + đội có ops, KÈM nêu trade-off chi phí (GPU cố định vs theo token + chi phí ops), độ trễ (kiểm soát được, có thể routing/distillation) và quyền riêng tư (dữ liệu trong nhà, tránh lock-in). Đúng, trong time-box, tự giải thích rõ: bằng chứng điểm 3. Thiếu một trong hai trục, hoặc chọn API mà bỏ qua ràng buộc dữ liệu không được ra ngoài, hoặc không nêu được trade-off chi phí/độ trễ/quyền riêng tư: chưa đạt mức 3."
