@@ -1,0 +1,65 @@
+subtopic_id: sd.framework.requirements
+items:
+  - id: S028
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Phân biệt ngắn gọn yêu cầu **chức năng** (functional) và **phi chức năng** (non-functional),
+      và kể tên ít nhất **ba** trục phi chức năng.
+    answer_md: |
+      **Chức năng** = hệ thống *làm gì* cho ai, tức các tính năng / use case cốt lõi (đăng ảnh, xem
+      feed, follow). **Phi chức năng** = hệ thống *tốt đến mức nào*, không phải làm gì mà làm tốt
+      ra sao. Ba (hoặc hơn) trục phi chức năng: quy mô (scale/DAU/QPS), độ trễ (latency), tính sẵn
+      sàng (availability), nhất quán (consistency), độ bền (durability), bảo mật (security), chi phí
+      (cost).
+    rubric_md: "Đạt khi: nêu đúng chức năng = làm gì (use case), phi chức năng = tốt đến mức nào, VÀ kể đúng ≥3 trục phi chức năng. Đúng cả hai vế: bằng chứng điểm 1. Lẫn lộn hai khái niệm hoặc kể được <3 trục đúng: điểm 0."
+  - id: S029
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Đề: **Design Instagram**. Hãy làm rõ yêu cầu như trong 5 phút đầu phỏng vấn: (1) viết **3 yêu
+      cầu chức năng** cốt lõi; (2) viết **3 yêu cầu phi chức năng** ở các trục khác nhau; (3) chỉ ra
+      **một tính năng bạn nói rõ là KHÔNG làm**; và (4) với nhất quán, nêu một dữ liệu cần **strong**
+      và một dữ liệu chỉ cần **eventual**, giải thích vì sao.
+    answer_md: |
+      (1) Chức năng (ví dụ): đăng ảnh kèm chú thích; xem feed của những người mình follow; follow /
+      unfollow người khác.
+      (2) Phi chức năng, khác trục: quy mô ~ hàng chục triệu DAU, **read-heavy** (xem nhiều hơn
+      đăng); độ trễ feed p99 < ~200ms; tính sẵn sàng ~ 99.9%. (Có thể thay bằng durability: ảnh đã
+      đăng không được mất.)
+      (3) Không làm (chọn một): nhắn tin trực tiếp, livestream, quảng cáo, hoặc tìm kiếm nâng cao.
+      (4) **Strong**: dữ liệu như quan hệ follow / quyền riêng tư của bài (đọc phải thấy ngay trạng
+      thái mới để không lộ bài sai người). **Eventual**: bộ đếm lượt like / lượt xem — trễ vài giây
+      không sao, đổi lại dễ scale. (Chấp nhận lập luận hợp lý khác miễn phân biệt đúng strong vs
+      eventual theo tính năng.)
+    rubric_md: "Đạt (mức 2) khi đủ cả 4 phần: ≥3 chức năng là use case thật; ≥3 phi chức năng ở các trục KHÁC nhau (không phải 3 biến thể của latency); nêu rõ 1 phần ngoài phạm vi; và chốt nhất quán theo tính năng với lý do (strong cho dữ liệu cần đúng ngay, eventual cho dữ liệu đếm/hiển thị). Đúng, trong time-box, tự giải thích được: bằng chứng điểm 2. Thiếu phần (3) hoặc (4), hoặc trộn lẫn chức năng/phi chức năng: tối đa điểm 1."
+  - id: S030
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      Mô phỏng **5 phút đầu** của một buổi phỏng vấn system design cho một đề do bạn tự chọn (ví dụ
+      app gọi xe, rút gọn URL, hay news feed). Hãy làm trọn ba việc đúng thứ tự và nói thành lời:
+      (1) đặt **đủ bộ câu hỏi làm rõ**; (2) từ câu trả lời (bạn tự giả định hợp lý), **viết ra yêu cầu
+      chức năng và phi chức năng CÓ ƯU TIÊN** (đánh dấu cái nào MVP); (3) **chốt phạm vi** bằng một
+      câu scope rõ ràng. Giải thích vì sao chốt phạm vi quan trọng.
+    answer_md: |
+      Ví dụ với đề **rút gọn URL (URL shortener)**:
+      (1) Bộ câu hỏi: Ai dùng và làm gì (tạo link ngắn, truy cập link)? Bao nhiêu lượt tạo / lượt
+      đọc mỗi ngày — **read-heavy** mạnh? Latency chuyển hướng cần cỡ nào? Availability bao nhiêu
+      (link chết là hỏng trải nghiệm)? Link có hết hạn / sửa / xoá không? Cần link tuỳ biến
+      (custom alias) không? Dữ liệu nhất quán ra sao khi vừa tạo là đọc được ngay? Có ràng buộc
+      (chống lạm dụng/spam) không? Phần nào KHÔNG làm?
+      (2) Chức năng có ưu tiên — **MVP**: tạo link ngắn từ URL dài; chuyển hướng link ngắn → URL gốc.
+      *Nice-to-have*: custom alias, thống kê lượt click, link hết hạn.
+      Phi chức năng có ưu tiên — **MVP**: read-heavy (đọc >> ghi), chuyển hướng p99 thấp (~ chục ms),
+      availability cao (99.9%+), link đã tạo là bền (durability). Nhất quán: tạo xong đọc được gần
+      như ngay (đủ dùng eventual trong vài trăm ms).
+      (3) Câu chốt scope: *"Tôi sẽ thiết kế tạo + chuyển hướng link cho hệ read-heavy quy mô lớn,
+      ưu tiên latency và availability; tạm bỏ qua phân tích click, custom alias và hết hạn."*
+      Chốt phạm vi quan trọng vì nó giữ 45 phút còn lại tập trung vào lõi, cho bạn một phạm vi gọn
+      để đào sâu (data model, scale đọc, sinh key) thay vì lan man; phạm vi vẫn đổi được nếu người
+      phỏng vấn yêu cầu.
+    rubric_md: "Đạt (mức phỏng vấn, level-3 bar) khi trong ~5 phút làm trọn ba việc: (1) hỏi ĐỦ bộ câu hỏi (actor+use case, quy mô & đọc/ghi, latency, availability, nhất quán, durability, ràng buộc, phần không làm); (2) viết ra yêu cầu chức năng VÀ phi chức năng có đánh dấu ưu tiên/MVP; (3) phát biểu MỘT câu chốt phạm vi rõ ràng, kèm lý do vì sao chốt phạm vi. Trôi chảy, có hệ thống, tự dẫn dắt không chờ gợi ý: bằng chứng điểm 3. Sót một nhánh câu hỏi lớn, quên đánh dấu ưu tiên, hoặc không chốt được câu scope: chưa đạt mức 3."

@@ -1,0 +1,163 @@
+id: sd.framework.deep_dive_tradeoffs
+version: 1
+status: published
+title_vi: "Deep dive: tìm nút thắt (bottleneck), nêu trade-off và trả lời câu hỏi lỗi"
+est_minutes: 13
+objectives_vi:
+  - "Tự tìm **nút thắt (bottleneck)** trong sơ đồ của mình: nơi tải dồn lại (hot key, một DB gánh mọi lệnh ghi, fan-out) hoặc một điểm chết (single point of failure)."
+  - "Trình bày một lựa chọn theo **mẫu A/B trade-off**: hai phương án, tiêu chí so sánh, rồi **chọn một và nói rõ lý do**."
+  - "Trả lời câu hỏi lỗi 'nếu thành phần X chết thì sao' bằng SPOF, nhân bản (replication) và giảm cấp êm (graceful degradation)."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Sau khi vẽ xong sơ đồ tổng quan (HLD diagram), phỏng vấn system design bước vào phần
+      **deep dive**: người phỏng vấn soi sâu một chỗ và hỏi "chỗ này chịu tải thế nào?", "nếu
+      cái này chết thì sao?". Phần này chấm xem bạn có **tự nhìn ra chỗ yếu** của chính thiết kế
+      mình hay không — chứ không chờ người ta chỉ. Ba việc cần làm chủ động:
+      **(1) tìm nút thắt (bottleneck)**, **(2) nêu 2 phương án theo mẫu trade-off rồi chọn một**,
+      và **(3) trả lời câu hỏi lỗi "nếu X chết"**. Bài này đi lần lượt ba việc đó.
+  - id: b02
+    type: text
+    md: |
+      **Nút thắt (bottleneck)** là nơi tải dồn lại nhiều hơn phần còn lại, nên nó vỡ trước khi
+      bạn scale. Cách tìm: nhìn từng mũi tên và từng hộp trong sơ đồ rồi hỏi "tải dồn về đâu?".
+      Vài dạng hay gặp:
+      - **Một database gánh mọi lệnh ghi (single write DB):** mọi app server đọc/ghi về cùng một
+        primary; đọc còn nhân bản (read replica) được, nhưng **ghi** vẫn dồn về một nơi.
+      - **Hot key / hot partition:** một khóa hay một phần dữ liệu bị hỏi quá nhiều so với phần
+        còn lại, khiến đúng cái máy giữ nó quá tải dù các máy khác rảnh.
+      - **Fan-out (toả ra nhiều nơi):** một hành động sinh ra rất nhiều việc — ví dụ người nổi
+        tiếng 50 triệu follower đăng một bài, phải đẩy vào 50 triệu feed.
+      - **Điểm chết duy nhất (single point of failure, SPOF):** chỗ chỉ có **một** cái; nó chết
+        là cả hệ chết.
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: |
+      Sơ đồ của bạn: nhiều app server **stateless** sau một load balancer, tất cả đọc/ghi về
+      **một** database primary (có thêm vài read replica cho đọc). Lưu lượng **ghi** đang tăng
+      mạnh. Nút thắt (bottleneck) tiếp theo nằm ở đâu?
+    options:
+      - {id: a, text_md: "Load balancer, vì nó phải nhớ session của từng người dùng."}
+      - {id: b, text_md: "Database primary, vì mọi lệnh **ghi** đều dồn về một nơi — read replica chỉ gánh được tải đọc, không gánh ghi."}
+      - {id: c, text_md: "Các app server, vì thêm máy stateless không bao giờ đủ."}
+    answer: [b]
+    explain_md: |
+      Đọc đã được read replica chia tải, nhưng **ghi** vẫn về một primary duy nhất — đó là nút
+      thắt và cũng là một SPOF cho đường ghi. (a) sai: app stateless nên LB không giữ session;
+      (c) sai: app stateless nhân bản thoải mái, chúng không phải chỗ nghẽn ở đây.
+  - id: b04
+    type: text
+    md: |
+      Tìm ra nút thắt rồi thì **đừng chỉ nói một cách sửa**. Người phỏng vấn muốn thấy bạn biết
+      có nhiều hướng và cân nhắc được. Dùng **mẫu A/B trade-off**:
+      > "**Phương án A:** ... — ưu: ...; nhược: ...
+      > **Phương án B:** ... — ưu: ...; nhược: ...
+      > **Tiêu chí** quan trọng ở đây là ... → **Em chọn A (hoặc B) vì ...**"
+
+      Điểm mấu chốt: mỗi trade-off là **được cái này thì mất cái kia**. Vài trục so sánh kinh điển:
+      - **Độ trễ (latency) vs tính nhất quán (consistency):** trả nhanh từ cache/replica (có thể
+        thấy dữ liệu cũ) hay trả đúng tuyệt đối từ primary (chậm hơn).
+      - **Chi phí (cost) vs độ phức tạp / hiệu năng:** thêm cache, sharding làm nhanh hơn nhưng
+        tốn tiền và khó vận hành hơn.
+      - **Tối ưu đọc vs tối ưu ghi:** ví dụ feed — dựng sẵn khi **ghi** (fan-out-on-write, đọc
+        nhanh) hay dựng lúc **đọc** (fan-out-on-read, ghi nhẹ nhưng đọc nặng).
+  - id: b05
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn.** Câu quan trọng nhất của phần trade-off không phải là liệt kê A và B,
+      mà là **câu chọn**: "Em chọn ... **vì** ...". Chọn dựa trên **yêu cầu đã chốt ở đầu buổi**
+      (ví dụ "feed phải đọc rất nhanh, chấp nhận trễ vài giây") chứ không chọn bừa. Không có
+      phương án nào đúng tuyệt đối — người phỏng vấn chấm **lý do**, không chấm việc bạn chọn A
+      hay B.
+  - id: b06
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền hai từ còn thiếu (tiếng Anh) vào mẫu trade-off cho bài feed:
+
+      "Phương án A — dựng feed sẵn lúc **ghi** (________-on-write): đọc rất nhanh, nhưng người
+      nổi tiếng gây fan-out khổng lồ. Phương án B — dựng feed lúc **đọc** (fan-out-on-________):
+      ghi nhẹ, nhưng mỗi lần đọc phải gộp bài từ nhiều người nên đọc chậm hơn."
+    blanks:
+      - accept: ["fan-out", "fanout", "fan out"]
+      - accept: ["read"]
+    explain_md: |
+      A là **fan-out-on-write** (đẩy bài vào sẵn mọi feed khi đăng → đọc nhanh, ghi nặng), B là
+      **fan-out-on-read** (gộp bài lúc người dùng mở feed → ghi nhẹ, đọc nặng). Trục so sánh ở
+      đây là **tối ưu đọc vs tối ưu ghi**; thực tế thường kết hợp cả hai (lai) cho người nổi tiếng.
+  - id: b07
+    type: quiz_mcq
+    graded: true
+    prompt_md: |
+      Yêu cầu đã chốt: hệ hiển thị **số lượt thích** của bài viết, cần **tải rất nhanh** và
+      **chấp nhận sai lệch vài giây** là bình thường. Chọn giữa A (đọc thẳng primary, luôn chính
+      xác tuyệt đối) và B (đọc từ cache, có thể trễ vài giây). Trả lời nào đúng **tinh thần
+      trade-off** nhất?
+    options:
+      - {id: a, text_md: "Chọn A, vì dữ liệu lúc nào cũng phải chính xác tuyệt đối trong mọi hệ thống."}
+      - {id: b, text_md: "Chọn B, **vì** yêu cầu ưu tiên độ trễ (latency) và chấp nhận dữ liệu hơi cũ — đổi một chút nhất quán (consistency) lấy tốc độ là xứng đáng ở đây."}
+      - {id: c, text_md: "Không chọn, liệt kê cả A và B rồi để người phỏng vấn tự quyết."}
+    answer: [b]
+    explain_md: |
+      Trade-off phải **gắn với yêu cầu đã chốt**: ở đây ưu tiên tốc độ và chấp nhận trễ, nên B
+      hợp lý và phải nói rõ **vì sao**. (a) sai: không phải hệ nào cũng cần nhất quán tuyệt đối —
+      đổi đúng chỗ mới là kỹ năng; (c) sai: né việc chọn là mất điểm, phần chọn + lý do mới là
+      phần được chấm.
+  - id: b08
+    type: text
+    md: |
+      Việc cuối của deep dive: trả lời câu hỏi lỗi **"nếu thành phần X chết thì sao?"**. Với mỗi
+      hộp quan trọng trong sơ đồ, chuẩn bị sẵn một câu trả lời theo ba ý:
+      - **Nó có phải SPOF không?** Nếu chỉ có một cái thì nó chết là hệ chết — cần **nhân bản
+        (replication)**: chạy nhiều bản, một bản chết thì bản khác gánh (ví dụ DB có primary +
+        standby, tự đổi vai — failover).
+      - **Mất gì, bao lâu phục hồi?** DB primary chết: các lệnh ghi chưa kịp nhân bản có thể mất;
+        thời gian đổi sang standby là vài giây đến vài phút tuỳ cấu hình.
+      - **Giảm cấp êm (graceful degradation):** khi một phần chết, phục vụ **bản kém hơn** thay
+        vì sập hẳn — ví dụ cache chết thì đọc thẳng DB (chậm hơn nhưng vẫn chạy); dịch vụ gợi ý
+        chết thì hiện danh sách mặc định thay vì trang trắng.
+  - id: b09
+    type: quiz_mcq
+    graded: true
+    prompt_md: |
+      Trong sơ đồ có một **cache (Redis)** đứng trước database để giảm tải đọc. Người phỏng vấn
+      hỏi: "Nếu cache chết thì sao?". Câu trả lời nào thể hiện **giảm cấp êm (graceful
+      degradation)** đúng nhất?
+    options:
+      - {id: a, text_md: "Hệ trả lỗi cho mọi request cho tới khi cache sống lại, vì không có cache thì không phục vụ được."}
+      - {id: b, text_md: "Các request **đọc thẳng database** (chậm hơn, DB chịu tải cao hơn) nên hệ vẫn chạy; đồng thời cảnh giác **cache stampede** khi cache vừa chết, tải dồn hết về DB."}
+      - {id: c, text_md: "Tắt toàn bộ hệ thống để tránh dữ liệu sai, rồi bật lại sau."}
+    answer: [b]
+    explain_md: |
+      Cache là lớp tăng tốc, không phải nguồn sự thật — mất cache thì **đọc thẳng DB**, chậm hơn
+      nhưng vẫn phục vụ (giảm cấp êm). Rủi ro cần nói thêm: khi cache vừa chết, mọi tải dồn về DB
+      cùng lúc (**cache stampede**) có thể làm DB quá tải. (a) và (c) biến một sự cố nhỏ thành
+      sập toàn hệ — ngược với giảm cấp êm.
+  - id: b10
+    type: callout
+    kind: tip
+    md: |
+      **Khung 4 bước cho cả phần deep dive** (nhớ để dùng lại cho mọi câu): **(1)** chỉ ra nút
+      thắt / SPOF trong sơ đồ của mình; **(2)** nêu 2 phương án A/B kèm ưu–nhược; **(3)** chọn
+      một và nói **vì sao** (gắn với yêu cầu đã chốt); **(4)** trả lời "nếu X chết thì sao" bằng
+      replication + giảm cấp êm. Nếu có phần bạn cố ý bỏ qua, hãy **nói rõ là bỏ qua và vì sao**,
+      đừng im lặng.
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "Deep dive chấm khả năng **tự tìm chỗ yếu** của chính thiết kế: soi từng hộp/mũi tên hỏi 'tải dồn về đâu' và 'nếu cái này chết thì sao'."
+      - "Nút thắt (bottleneck) hay gặp: một DB gánh mọi lệnh **ghi**, **hot key / hot partition**, **fan-out**, và điểm chết duy nhất (SPOF)."
+      - "Trình bày lựa chọn theo **mẫu A/B trade-off**: 2 phương án + ưu/nhược, nêu **tiêu chí**, rồi **chọn một và nói rõ lý do** — các trục kinh điển: latency vs consistency, cost vs complexity, tối ưu đọc vs ghi."
+      - "Phần được chấm là **câu chọn + lý do** (gắn với yêu cầu đã chốt), không phải việc liệt kê A và B rồi né chọn."
+      - "Câu hỏi lỗi 'nếu X chết': trả lời bằng **SPOF → nhân bản (replication/failover)**, mất gì/phục hồi bao lâu, và **giảm cấp êm (graceful degradation)** thay vì sập hẳn."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S040], l2: [S041], l3: [S042]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"
