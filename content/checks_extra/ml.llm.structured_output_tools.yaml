@@ -1,0 +1,62 @@
+subtopic_id: ml.llm.structured_output_tools
+items:
+  - id: S022
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Nói ngắn gọn sự khác nhau giữa **JSON mode** và **structured outputs (schema-constrained
+      decoding)**. Mỗi cách bảo đảm điều gì về đầu ra của model?
+    answer_md: |
+      **JSON mode** bảo đảm đầu ra là **JSON hợp lệ (valid JSON)** — tức parse được — nhưng *không*
+      bảo đảm đúng schema của bạn (vẫn có thể thiếu/thừa trường, sai kiểu).
+      **Structured outputs** đưa một **JSON Schema** và ép khuôn ngay lúc sinh (**constrained
+      decoding** bằng logit masking), nên đầu ra vừa hợp lệ **vừa đúng schema** (đủ trường, đúng kiểu,
+      đúng enum). Nói gọn: JSON mode = hợp lệ; structured outputs = hợp lệ *và* đúng schema.
+    rubric_md: "Đạt khi nêu đúng cả hai: JSON mode chỉ bảo đảm JSON hợp lệ/parse được, structured outputs bảo đảm đúng schema (ép khuôn lúc giải mã). Đúng ý cả hai vế: bằng chứng điểm 1; chỉ nói chung chung 'cả hai trả JSON' hoặc thiếu một vế: tối đa điểm 0."
+  - id: S023
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Bạn trích xuất `{seller, date, total}` từ hóa đơn dạng chữ bằng một model **không** hỗ trợ
+      structured outputs (chỉ JSON mode). Có lần model trả JSON **thiếu trường `total`**. Hãy mô tả
+      cách xử lý đúng: (1) phát hiện vấn đề này bằng cách nào; (2) bước tiếp theo nên làm gì để model
+      sửa; (3) nếu thử vài lần vẫn sai thì làm gì — và vì sao không lặp vô hạn.
+    answer_md: |
+      (1) **Validate** đầu ra bằng **JSON Schema** hoặc **Pydantic**: parse JSON rồi kiểm tra các
+      trường bắt buộc — ở đây validate thất bại vì thiếu `total`.
+      (2) **Retry kèm thông báo lỗi cụ thể:** gửi lại cho model nói rõ "thiếu trường bắt buộc `total`,
+      hãy trả lại JSON đủ trường". Cho model *biết sai ở đâu* giúp nó sửa đúng, tốt hơn là xin lại từ đầu.
+      (3) Đặt **giới hạn retry** (ví dụ 2-3 lần). Hết lần vẫn sai thì **fallback/degrade**: trả lỗi có
+      kiểm soát, chuyển cho người xử lý, hoặc để trống trường kèm cảnh báo — **không** lặp vô hạn vì
+      mỗi vòng tốn tiền + độ trễ mà không có gì bảo đảm model sẽ sửa được.
+    rubric_md: "Đạt khi nêu đủ 3 ý: (1) validate bằng schema/Pydantic phát hiện thiếu trường, (2) retry có đưa lỗi validate về cho model, (3) giới hạn số lần rồi fallback (và lý do không lặp vô hạn). Đúng, trong time-box, tự giải thích được: bằng chứng điểm 2. Thiếu ý 'gửi lỗi về cho model' hoặc thiếu ý 'giới hạn + fallback': tối đa điểm 1."
+  - id: S024
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      Thiết kế mức phỏng vấn: dựng **(a) pipeline trích xuất JSON có validate và retry** và **(b) một
+      vòng tool call hoàn chỉnh**. Trong câu trả lời hãy chỉ rõ: bước nào do **model** làm và bước nào
+      do **code của bạn** làm; xử lý **refusal** ra sao; và xử lý **lỗi tool (tool error / timeout)**
+      ra sao để vòng lặp không vỡ và không chạy vô hạn.
+    answer_md: |
+      **(a) Pipeline trích xuất JSON.** Định nghĩa **schema** (Pydantic/JSON Schema). Nếu model hỗ trợ
+      **structured outputs** thì dùng (đúng schema ngay lúc sinh); nếu không, dùng JSON mode rồi
+      **validate** (code bạn làm). Sai → **retry kèm lỗi validate** cụ thể cho model sửa (model làm phần
+      sửa), tối đa N lần; hết lần → **fallback/báo lỗi**. Luôn kiểm tra **stop reason**: nếu
+      `max_tokens` (cắt cụt/truncation) thì JSON đứt giữa chừng → tăng max_tokens hoặc chia nhỏ rồi retry.
+
+      **(b) Vòng tool call.** 1) **Code bạn** gửi câu hỏi kèm danh sách tool (tên, mô tả, schema tham
+      số). 2) **Model** trả một *lời đề nghị* tool call `{name, args}` — chưa chạy gì. 3) **Code bạn**
+      thực sự chạy hàm, lấy kết quả, trả về làm **tool message**. 4) **Model** đọc kết quả rồi trả lời
+      cuối hoặc đề nghị gọi thêm — lặp 2-3, có **giới hạn số vòng**.
+
+      **Refusal:** model có thể từ chối thay vì trả schema — **phát hiện refusal** (qua stop reason/nội
+      dung), **không** parse như JSON; xử lý riêng: hỏi lại người dùng, trả thông báo lịch sự, hoặc degrade.
+
+      **Tool error / timeout:** bọc lệnh chạy tool trong try/catch + **timeout**; khi lỗi, gửi về model
+      một **tool message dạng lỗi** ("API timeout") để model thử tool khác / hỏi lại / xin lỗi — không để
+      exception làm sập request và không bịa kết quả. **Giới hạn số vòng** để không lặp vô hạn.
+    rubric_md: "Đạt (mức phỏng vấn) khi: (a) nêu pipeline validate+retry có giới hạn và fallback, nhắc structured outputs vs JSON mode và xử lý truncation; (b) mô tả đúng 4 bước vòng tool và tách rõ model chỉ *đề nghị* còn *code bạn chạy* tool; cộng xử lý refusal (không parse như JSON) và tool error (bắt lỗi, trả tool message lỗi, có timeout + giới hạn vòng). Đúng, trong time-box, tự giải thích rõ: bằng chứng điểm 3. Sót một trong: validate/retry có giới hạn, 'ai chạy tool', refusal, tool error — thì chưa đạt mức 3."

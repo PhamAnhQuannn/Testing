@@ -1,0 +1,147 @@
+id: ml.llm.context_engineering
+version: 1
+status: published
+title_vi: "Quản lý context, long context và prompt caching (context engineering)"
+est_minutes: 13
+objectives_vi:
+  - "Kể đúng cái gì chiếm chỗ trong **context window** và vì sao app phải tự gửi lại lịch sử (API **stateless**)."
+  - "Chọn chiến lược cho hội thoại dài: cắt/cửa sổ trượt, **tóm tắt/compaction** (summarization), **memory**, và **RAG** so với **long-context**."
+  - "Giải thích **prompt caching** và cách sắp xếp prompt để tận dụng; nhận ra **lost-in-the-middle** / context-rot."
+  - "Ước lượng **chi phí mỗi request theo token** (token cost)."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Mỗi lần gọi LLM, model chỉ "nhìn thấy" đúng những gì nằm trong **cửa sổ ngữ cảnh**
+      (context window) của lần gọi đó — một ngân sách token hữu hạn (ví dụ 128k hay 200k token).
+      Trên tờ giấy có hạn đó thường có bốn thứ:
+      - **System prompt / hướng dẫn:** vai trò, luật, định dạng đầu ra.
+      - **Lịch sử hội thoại (history):** các lượt hỏi–đáp trước.
+      - **Tài liệu lấy về (retrieved docs):** đoạn văn bản dán kèm để model trả lời có căn cứ.
+      - **Định nghĩa công cụ (tools) + kết quả gọi tool:** mô tả tool và output trả về.
+
+      Điểm cốt lõi: **API là stateless** — server không nhớ lượt trước. "Bộ nhớ hội thoại" không có
+      sẵn; chính **code của bạn** phải gom lịch sử và gửi lại trong mỗi request. Càng nhiều lượt,
+      prompt càng phồng, và tới lúc nào đó sẽ **vượt context** (context-length-exceeded).
+  - id: b02
+    type: text
+    md: |
+      **Ước lượng chi phí theo token (token cost).** Chi phí một request xấp xỉ:
+
+      `cost ≈ (input_tokens × giá_input) + (output_tokens × giá_output)`
+
+      trong đó `input_tokens` = toàn bộ system prompt + lịch sử + tài liệu + tool mà bạn gửi lên,
+      `output_tokens` = phần model sinh ra. Giá tính theo token (thường niêm yết trên 1 triệu
+      token), và **giá output cao hơn input** vài lần. Quy đổi thô: ~1 token ≈ 0,75 từ tiếng Anh.
+
+      Hệ quả thực chiến: trong hội thoại dài, phần **input phình theo lịch sử** mới là khoản tốn
+      nhất, chứ không phải câu trả lời. Dán cả tài liệu 50k token vào *mỗi* lượt nghĩa là trả tiền
+      50k token input *mỗi lượt*. Đây chính là lý do ta cần các chiến lược quản lý context ở dưới.
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Chatbot của bạn trả lời đúng ở lượt 1 nhưng tới lượt 20 lại 'quên' tên người dùng đã nói ở lượt 2. Nguyên nhân gốc rễ nhiều khả năng nhất là gì?"
+    options:
+      - {id: a, text_md: "Model bị hỏng và cần fine-tune lại để nhớ tên."}
+      - {id: b, text_md: "API là stateless và code đã cắt bớt lịch sử cũ, nên lượt chứa tên không còn nằm trong context window gửi lên."}
+      - {id: c, text_md: "Context window của model tự co lại sau mỗi lượt gọi."}
+    answer: [b]
+    explain_md: "API không nhớ gì giữa các lần gọi; mọi 'trí nhớ' là lịch sử mà code bạn gửi lại. Nếu bạn cắt lịch sử (truncation/cửa sổ trượt) thì phần bị cắt biến mất khỏi context. (a) sai — không phải lỗi model; (c) sai — context window là hằng số của model, không tự co."
+  - id: b04
+    type: text
+    md: |
+      **Quản lý hội thoại dài** — ba nhóm kỹ thuật, thường kết hợp:
+      - **Cắt / cửa sổ trượt (truncation / sliding window):** chỉ giữ N lượt gần nhất. Đơn giản,
+        rẻ, nhưng **mất thông tin cũ** (như ví dụ quên tên ở trên).
+      - **Tóm tắt / nén (summarization / compaction):** khi lịch sử dài, gọi model nén các lượt cũ
+        thành vài dòng tóm tắt rồi thay thế chúng. Giữ được ý chính với ít token hơn nhiều; đánh đổi
+        là mất chi tiết và tốn thêm một lần gọi để tóm tắt.
+      - **Memory (bộ nhớ ngoài):** ghi các sự kiện bền (tên, sở thích, quyết định) ra kho ngoài
+        (file/DB) và chỉ nạp lại thứ liên quan khi cần. Tách "trí nhớ dài hạn" khỏi cửa sổ ngữ cảnh.
+
+      Khi gặp lỗi **vượt context**: bắt lỗi, rồi **cắt bớt hoặc tóm tắt** lịch sử và gọi lại — đừng
+      để request chết.
+  - id: b05
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Trợ lý hỗ trợ khách hàng chạy nhiều giờ, hội thoại rất dài và bắt đầu chạm trần context. Yêu cầu: giữ được các quyết định quan trọng đã chốt từ đầu phiên, mà token mỗi lượt không tăng mãi. Chiến lược nào phù hợp nhất?"
+    options:
+      - {id: a, text_md: "Cửa sổ trượt thuần: chỉ giữ 5 lượt gần nhất và bỏ phần còn lại."}
+      - {id: b, text_md: "Dán lại toàn bộ lịch sử mỗi lượt để chắc chắn không mất gì."}
+      - {id: c, text_md: "Tóm tắt/compaction các lượt cũ thành bản tóm tắt ngắn (kèm memory cho sự kiện bền), rồi nối với vài lượt gần nhất."}
+    answer: [c]
+    explain_md: "Compaction nén lịch sử cũ thành vài dòng nên token không phình mãi mà vẫn giữ quyết định quan trọng; memory giữ sự kiện bền. (a) cửa sổ trượt thuần sẽ đánh rơi quyết định đầu phiên; (b) dán lại toàn bộ chính là thứ gây tràn context và tốn token nhất."
+  - id: b06
+    type: text
+    md: |
+      **RAG so với long-context** — hai cách đưa tài liệu vào câu trả lời:
+      - **Long-context:** dán thẳng cả tài liệu vào prompt. Đơn giản, không cần hạ tầng tìm kiếm,
+        nhưng **tốn token mỗi lượt** và dễ dính "lost in the middle" khi tài liệu quá dài.
+      - **RAG (retrieval-augmented generation):** chỉ tìm và dán **vài đoạn liên quan** (ví dụ 3
+        đoạn × 500 token thay vì cả 50k token). Rẻ hơn nhiều, mở rộng được tới kho tài liệu lớn,
+        nhưng cần hạ tầng (embedding, vector search) và chất lượng phụ thuộc vào bước tìm kiếm.
+
+      Quy tắc ngón tay: tài liệu nhỏ, dùng một hai lần, cần toàn cảnh → long-context. Kho lớn, hỏi
+      nhiều lần, nhạy chi phí → RAG. (Chi tiết RAG học ở `ml.llm.rag_agents`.)
+  - id: b07
+    type: text
+    md: |
+      **Prompt caching** giúp cắt chi phí và độ trễ (latency) khi nhiều request dùng chung một phần
+      đầu prompt giống hệt. Provider lưu lại phần tính toán cho **tiền tố ổn định** (stable prefix);
+      lần sau nếu phần đầu **khớp chính xác (exact-prefix match)**, phần đó được **đọc từ cache với
+      giá rẻ hơn nhiều** (cache read discount) thay vì tính lại.
+
+      Muốn cache ăn, hãy **đặt phần cố định lên đầu, phần hay đổi xuống cuối**:
+      `[system prompt ổn định] → [tài liệu/ngữ cảnh dùng lại] → [lịch sử] → [câu hỏi mới của user]`.
+      Nếu bỏ câu hỏi (phần đổi liên tục) lên đầu, mọi token phía sau không còn khớp tiền tố và
+      **cache trượt sạch**. Lưu ý: cache có **TTL** (hết hạn sau một khoảng) và ghi vào cache lần
+      đầu thường đắt hơn một chút — chỉ lời khi tiền tố được tái dùng đủ nhiều.
+  - id: b08
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Bạn gọi model nhiều lần với cùng một system prompt dài và cùng một tài liệu 20 trang, chỉ thay đổi câu hỏi của user mỗi lần. Thứ tự prompt nào tận dụng prompt caching tốt nhất?"
+    options:
+      - {id: a, text_md: "[câu hỏi user] → [system prompt] → [tài liệu 20 trang]"}
+      - {id: b, text_md: "[system prompt] → [tài liệu 20 trang] → [câu hỏi user]"}
+      - {id: c, text_md: "Trộn câu hỏi xen vào giữa tài liệu để model chú ý hơn."}
+    answer: [b]
+    explain_md: "Prompt caching khớp theo tiền tố chính xác, nên phần cố định (system prompt + tài liệu) phải nằm ở đầu để được tái dùng, còn phần đổi mỗi lần (câu hỏi) để cuối. (a) đặt câu hỏi lên đầu làm mọi token sau nó lệch tiền tố → cache trượt; (c) phá luôn tiền tố ổn định và không liên quan tới cache."
+  - id: b09
+    type: text
+    md: |
+      **Lost in the middle / context-rot.** Nhồi thật nhiều vào context window không miễn phí về
+      *chất lượng*: model có xu hướng **chú ý tốt phần đầu và phần cuối, kém phần giữa** của một
+      prompt dài. Khi context càng gần đầy, chất lượng trả lời có thể **giảm dần** (context rot),
+      dù vẫn "vừa" cửa sổ.
+
+      Vì vậy "dán thêm cho chắc" là phản tác dụng. Hãy đưa **đúng và đủ** thông tin liên quan, đặt
+      phần quan trọng ở **đầu hoặc cuối**, và ưu tiên **ít mà trúng** (RAG, tóm tắt, memory) hơn là
+      **nhiều mà loãng**. Đây cũng là một lý do RAG thường thắng long-context khi tài liệu quá lớn.
+  - id: b10
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn (AI engineer).** Khi được hỏi "thiết kế context cho một chatbot chạy dài hơi",
+      hãy trả lời theo khung: *(1) cái gì cần nằm trong context mỗi lượt (system + memory liên quan
+      + vài lượt gần + tài liệu cần)*; *(2) quản lý độ dài: cửa sổ trượt + tóm tắt/compaction cho
+      lịch sử cũ, memory cho sự kiện bền*; *(3) tài liệu: RAG hay long-context, nêu đánh đổi*;
+      *(4) tối ưu chi phí: đặt phần ổn định lên đầu để prompt caching ăn, và tránh nhồi gây lost-in-
+      the-middle*; *(5) ước lượng token cost mỗi request*. Người phỏng vấn chấm việc bạn **biết cái
+      gì chiếm token, cắt ở đâu, và vì sao**, chứ không chấm tên sản phẩm.
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "Context window chứa system prompt + lịch sử + tài liệu (retrieved docs) + tool; API **stateless** nên code phải tự gửi lại lịch sử mỗi lần."
+      - "Chi phí mỗi request ≈ input_tokens × giá_input + output_tokens × giá_output; trong hội thoại dài, **input phình theo lịch sử** là khoản tốn nhất."
+      - "Hội thoại dài: **cắt/cửa sổ trượt** (rẻ nhưng mất thông tin), **tóm tắt/compaction** (giữ ý, token không phình), **memory** (sự kiện bền ra kho ngoài); vượt context thì bắt lỗi rồi cắt/tóm tắt và gọi lại."
+      - "**RAG** (chỉ dán vài đoạn liên quan) rẻ và mở rộng được so với **long-context** (dán cả tài liệu, đơn giản nhưng tốn token)."
+      - "**Prompt caching**: đặt tiền tố ổn định (system + tài liệu) lên đầu, phần đổi (câu hỏi) xuống cuối để khớp exact-prefix và đọc cache giá rẻ."
+      - "**Lost-in-the-middle / context-rot**: model chú ý kém phần giữa và chất lượng giảm khi context đầy — ưu tiên 'ít mà trúng'."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S019], l2: [S020], l3: [S021]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

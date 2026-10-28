@@ -1,0 +1,172 @@
+id: ml.llm.structured_output_tools
+version: 1
+status: published
+title_vi: "Output có cấu trúc (structured output) và function/tool calling"
+est_minutes: 13
+objectives_vi:
+  - "Giải thích vì sao cần output có cấu trúc (structured output) để nối LLM vào phần mềm, và phân biệt JSON mode với structured outputs (schema-constrained decoding)."
+  - "Dựng được vòng validate + retry: khi model trả JSON sai thì gửi lỗi về cho model sửa, thử tối đa vài lần."
+  - "Mô tả đúng vòng gọi tool (function/tool calling) đầy đủ và chỉ ra bước nào do model, bước nào do code của bạn."
+  - "Xử lý gọn refusal, stop reason bất thường và lỗi tool trong vòng lặp."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Một LLM mặc định trả **văn bản tự do** cho con người đọc. Nhưng khi bạn nối LLM vào phần mềm,
+      *code* mới là bên đọc câu trả lời — và code cần dữ liệu **đúng khuôn** để parse, không phải một
+      đoạn văn. Đó là lý do có **output có cấu trúc (structured output)**: bắt model trả **JSON** theo
+      một **khuôn (schema)** cố định, ví dụ `{"sentiment": "positive", "score": 0.9}`, để bước sau
+      (ghi database, gọi API, rẽ nhánh if/else) chạy được tin cậy.
+
+      Nếu để model trả văn bản rồi dùng regex vá víu, bạn sẽ gãy ngay khi model đổi cách diễn đạt.
+      Structured output biến LLM từ "chatbot" thành một **thành phần phần mềm** có đầu ra dự đoán được.
+  - id: b02
+    type: text
+    md: |
+      Có ba mức "ép khuôn", mạnh dần:
+
+      - **Chỉ nhắc trong prompt (prompt-only):** bảo model "trả JSON". Dễ, nhưng model vẫn có thể thêm
+        lời dẫn ("Đây là JSON của bạn:"), quên dấu ngoặc, hay sai kiểu. Không bảo đảm gì.
+      - **JSON mode:** nhà cung cấp bảo đảm đầu ra là **JSON hợp lệ (valid JSON)** — parse được. Nhưng
+        *không* bảo đảm **đúng schema** của bạn: có thể thiếu trường, thừa trường, sai kiểu.
+      - **Structured outputs / schema-constrained decoding:** bạn đưa một **JSON Schema**, và hệ thống
+        **ép khuôn ngay lúc sinh (constrained decoding)** — ở mỗi token, mọi token làm JSON lệch schema
+        bị chặn (đặt logit = âm vô cực, gọi là **logit masking**). Kết quả **luôn đúng schema** (trường,
+        kiểu, enum). Đây là mức đáng tin nhất.
+
+      Phân biệt cốt lõi: **JSON mode = hợp lệ** (parse được); **structured outputs = hợp lệ *và* đúng
+      schema**.
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Khác biệt chính giữa **JSON mode** và **structured outputs (schema-constrained decoding)** là gì?"
+    options:
+      - {id: a, text_md: "JSON mode nhanh hơn còn structured outputs chậm hơn, ngoài ra giống nhau."}
+      - {id: b, text_md: "JSON mode chỉ bảo đảm JSON **hợp lệ** (parse được); structured outputs bảo đảm JSON hợp lệ **và đúng schema** (trường, kiểu, enum) vì ép khuôn ngay lúc giải mã."}
+      - {id: c, text_md: "JSON mode ép đúng schema còn structured outputs chỉ xin model trả JSON trong prompt."}
+    answer: [b]
+    explain_md: "JSON mode chỉ hứa 'parse được'; nó vẫn có thể thiếu/thừa trường hay sai kiểu. Structured outputs dùng constrained decoding (logit masking) để mọi token đều giữ đầu ra bám đúng JSON Schema. (c) nói ngược; (a) sai vì khác nhau ở *bảo đảm*, không phải tốc độ."
+  - id: b04
+    type: text
+    md: |
+      Khi bạn **không** có structured outputs (model hoặc nhà cung cấp không hỗ trợ), bạn phải tự bảo vệ
+      bằng vòng **validate + retry**:
+
+      1. **Validate:** parse JSON và kiểm tra bằng **JSON Schema** hoặc **Pydantic**. Nếu đạt → dùng.
+      2. **Retry khi sai:** gửi lại cho model **kèm thông báo lỗi cụ thể** ("thiếu trường `total`",
+         "`unit` phải là 'C' hoặc 'F'"), yêu cầu sửa. Model sửa tốt hơn nhiều khi được *cho biết sai ở đâu*.
+      3. **Giới hạn số lần:** thử tối đa vài lần (ví dụ 2-3). Hết lần vẫn sai → **báo lỗi/degrade**
+         (trả fallback, chuyển cho người), **không** lặp vô hạn.
+
+      Minh họa khuôn một schema (chỉ để đọc, không phải code chạy):
+
+      ```json
+      {
+        "type": "object",
+        "properties": {
+          "seller": {"type": "string"},
+          "date":   {"type": "string"},
+          "total":  {"type": "number"}
+        },
+        "required": ["seller", "date", "total"]
+      }
+      ```
+  - id: b05
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền thuật ngữ: Khi model trả JSON không đạt kiểm tra, cách hiệu quả nhất là gửi lại cho model
+      kèm ______ cụ thể (thông báo lỗi validate) để nó sửa, và đặt giới hạn số lần thử gọi là ______.
+    blanks:
+      - {accept: ["lỗi", "thông báo lỗi", "lỗi validate", "validation error", "error", "thông báo lỗi validate"]}
+      - {accept: ["retry", "retry limit", "giới hạn retry", "số lần retry", "max retries", "số lần thử"]}
+    explain_md: "Đưa **lỗi validate** về cho model giúp nó sửa đúng chỗ, thay vì đoán lại từ đầu; và luôn chặn bằng **giới hạn retry** để không lặp vô hạn, hết lần thì fallback."
+  - id: b06
+    type: text
+    md: |
+      **Function calling / tool calling** cho phép model *dùng* code của bạn. Điểm hay bị hiểu nhầm:
+      **model không tự chạy hàm** — nó chỉ **đề nghị gọi** bằng cách trả một structured output đặc biệt.
+
+      Vòng lặp đầy đủ (4 bước, chú ý bên nào làm):
+
+      1. **Bạn (code):** gửi câu hỏi của người dùng **kèm danh sách tool** (mỗi tool có tên + mô tả +
+         schema tham số).
+      2. **Model:** nếu cần, trả một **tool call**, ví dụ `{"name": "get_weather", "args": {"city": "Hà Nội"}}`
+         — đây chỉ là *lời đề nghị*, chưa có gì chạy.
+      3. **Bạn (code):** **thực sự chạy** `get_weather("Hà Nội")`, lấy kết quả, gửi lại cho model như một
+         **tool message** (gắn với id của lời gọi).
+      4. **Model:** đọc kết quả tool rồi **nói tiếp** — hoặc trả lời cuối cho người dùng, hoặc đề nghị gọi
+         thêm tool (lặp lại bước 2-3).
+
+      Các nút điều khiển: **`tool_choice`** (`auto` để model tự quyết, `required`/bắt buộc có tool, hoặc
+      ép một tool cụ thể) và **parallel tool calls** (model đề nghị nhiều tool cùng lúc, bạn chạy rồi trả
+      nhiều kết quả). Thiết kế tool tốt: **tên rõ**, **mô tả khi nào dùng**, tham số dùng **enum** (danh
+      sách giá trị cho phép) và **strict mode** để model ít sai.
+  - id: b07
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Trong vòng tool calling, khi model trả một **tool call** `{\"name\": \"get_weather\", ...}`, điều gì vừa xảy ra?"
+    options:
+      - {id: a, text_md: "Model đã tự chạy hàm `get_weather` và trong câu trả lời là kết quả thời tiết thật."}
+      - {id: b, text_md: "Model chỉ **đề nghị gọi** hàm; **code của bạn** phải thực sự chạy `get_weather` rồi gửi kết quả về làm tool message để model nói tiếp."}
+      - {id: c, text_md: "Nhà cung cấp API tự động chạy hàm trên server của họ và tính tiền theo lần chạy."}
+    answer: [b]
+    explain_md: "Model **không** chạy code; nó chỉ phát ra một structured output mô tả lời gọi. Việc chạy hàm, truy cập DB/API thật, và trả kết quả về là của **code bạn** — đó là lý do bạn kiểm soát được bảo mật và lỗi. (a) và (c) đều hiểu sai ai chạy tool."
+  - id: b08
+    type: text
+    md: |
+      Vòng lặp thật phải chịu được trục trặc. Ba thứ hay gặp:
+
+      - **Stop reason bất thường:** luôn kiểm tra *vì sao* model dừng. Nếu **`max_tokens`** (bị cắt cụt,
+        truncation), JSON có thể đứt giữa chừng → **không parse được**; cách xử lý là tăng `max_tokens`,
+        hoặc chia nhỏ yêu cầu, rồi retry.
+      - **Refusal (từ chối):** model có thể từ chối (nội dung nhạy cảm, không đủ thông tin) thay vì trả
+        schema. Đừng ép parse refusal như JSON — **phát hiện refusal**, rồi xử lý riêng: hỏi lại người
+        dùng, trả thông báo lịch sự, hoặc degrade. Một refusal *không* phải lỗi JSON.
+      - **Lỗi tool (tool error):** hàm bạn chạy có thể ném exception, hết thời gian (timeout), hay trả
+        rỗng. **Đừng để vỡ vòng lặp** — bắt lỗi và gửi về model một **tool message dạng lỗi** ("API thời
+        tiết timeout"), để model thử tool khác, hỏi lại, hoặc xin lỗi người dùng. Luôn đặt **timeout** và
+        **giới hạn số vòng** để không lặp vô hạn.
+  - id: b09
+    type: callout
+    kind: interview
+    md: |
+      **Khung trả lời mức phỏng vấn (level 3).** Khi được hỏi "dựng pipeline trích xuất JSON đáng tin" hay
+      "vòng gọi tool xử lý lỗi thế nào", trả lời theo hai mạch:
+
+      1. **Pipeline trích xuất JSON:** định nghĩa **schema** (Pydantic/JSON Schema) → ưu tiên
+         **structured outputs** nếu có; nếu không thì JSON mode + **validate** → sai thì **retry kèm lỗi
+         validate** (tối đa N lần) → hết lần thì **fallback/báo lỗi**. Nói rõ xử lý **truncation** (kiểm tra
+         stop reason = max_tokens).
+      2. **Vòng tool call:** model đề nghị gọi → **code bạn chạy** → trả tool message → model nói tiếp,
+         *lặp đến khi có câu trả lời cuối*, có **giới hạn vòng**. Chèn xử lý **refusal** (không parse như JSON)
+         và **tool error** (bắt exception, timeout, trả tool message lỗi để model phục hồi).
+
+      Người phỏng vấn chấm: bạn có tách đúng **ai chạy tool**, có **validate + retry có giới hạn**, và có
+      **degrade an toàn** khi mọi thứ hỏng không.
+  - id: b10
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Giữa vòng tool call, hàm `get_weather` của bạn bị **timeout**. Cách xử lý tốt nhất là gì?"
+    options:
+      - {id: a, text_md: "Để exception ném ra và làm sập cả request — người dùng sẽ tự thử lại."}
+      - {id: b, text_md: "Bắt lỗi, gửi về model một **tool message dạng lỗi** ('API timeout') để model thử cách khác hoặc xin lỗi người dùng; vẫn giữ **giới hạn số vòng**."}
+      - {id: c, text_md: "Bỏ qua lỗi và gửi cho model một kết quả thời tiết bịa ra để vòng lặp tiếp tục."}
+    answer: [b]
+    explain_md: "Lỗi tool nên được *đưa về model như thông tin* (tool message lỗi) để nó phục hồi gọn, đồng thời có giới hạn vòng để không lặp mãi. (a) làm vỡ trải nghiệm; (c) bịa dữ liệu là nguy hiểm — model sẽ trả lời sai tự tin."
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "Structured output (bắt LLM trả JSON theo schema) biến LLM thành thành phần phần mềm đọc được bằng code, thay vì văn bản tự do phải vá bằng regex."
+      - "JSON mode chỉ bảo đảm JSON **hợp lệ** (parse được); structured outputs / schema-constrained decoding (logit masking) bảo đảm **đúng schema** ngay lúc sinh — mức tin cậy cao nhất."
+      - "Không có structured outputs thì tự bảo vệ bằng **validate + retry**: sai thì gửi lại **kèm lỗi validate**, giới hạn số lần, hết lần thì fallback."
+      - "Tool calling: model chỉ **đề nghị gọi**; **code của bạn** chạy hàm thật rồi trả kết quả (tool message) để model nói tiếp — lặp đến câu trả lời cuối, có giới hạn vòng."
+      - "Chịu lỗi: kiểm tra **stop reason** (max_tokens = cắt cụt), phát hiện **refusal** (không parse như JSON), bắt **tool error** và trả về model dưới dạng tool message lỗi; luôn có timeout + giới hạn vòng."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S022], l2: [S023], l3: [S024]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

@@ -1,0 +1,139 @@
+id: sd.fundamentals.performance_metrics
+version: 1
+status: published
+title_vi: "Latency, throughput, percentile (p99) và availability (SLO)"
+est_minutes: 12
+objectives_vi:
+  - "Phân biệt độ trễ (latency), thông lượng (throughput) và băng thông (bandwidth), và biết cái nào đo cái gì."
+  - "Đọc được percentile p50/p95/p99 và giải thích vì sao đặt mục tiêu theo đuôi chậm (tail latency, p99) chứ không theo trung bình (mean)."
+  - "Đổi số chín (nines) của availability sang phút chết mỗi năm, và tính availability của chuỗi nối tiếp và cụm song song."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Ba con số hay bị lẫn khi mô tả hiệu năng một hệ thống:
+      - **Độ trễ (latency):** một yêu cầu *chờ bao lâu* mới xong, đo bằng mili-giây (ms). Đây là trải
+        nghiệm của **một** người dùng.
+      - **Thông lượng (throughput):** mỗi giây hệ thống *phục vụ được bao nhiêu* yêu cầu, đo bằng
+        request/giây (RPS) hay query/giây (QPS). Đây là sức chứa tổng.
+      - **Băng thông (bandwidth):** lượng *dữ liệu* tối đa truyền được mỗi giây (ví dụ MB/s).
+
+      Ví dụ quán phở: bạn chờ 5 phút để có tô phở là **latency**; quán ra 100 tô mỗi giờ là
+      **throughput**. Hai thứ này **độc lập**: giảm latency (phục vụ nhanh hơn cho một người) không
+      tự động tăng throughput, và ngược lại một hệ throughput cao vẫn có thể có latency tệ cho từng
+      người.
+  - id: b02
+    type: text
+    md: |
+      Một con số latency trung bình (mean) **che mất** người chậm, nên ta dùng **percentile**. Sắp
+      mọi lần đo từ nhanh đến chậm rồi cắt theo mốc phần trăm:
+      - **p50** (trung vị / median): 50% yêu cầu nhanh hơn mức này.
+      - **p95 / p99:** 95% / 99% yêu cầu nhanh hơn mức này. Nếu **p99 = 2s** thì cứ 100 yêu cầu có 1
+        yêu cầu phải chờ **trên** 2s.
+
+      Phần chậm nhất này gọi là **đuôi chậm (tail latency)**. Vì sao đặt mục tiêu theo p99 chứ không
+      theo mean? Vì một người dùng xui gặp p99 vẫn là trải nghiệm thật; mean có thể đẹp trong khi 1%
+      người dùng chờ rất lâu. Nhưng cũng **không** đặt theo p100 (lần chậm nhất tuyệt đối): luôn có
+      vài lần đo chậm bất thường (lỗi mạng, GC...), bám theo p100 thì mục tiêu không bao giờ đạt.
+  - id: b03
+    type: callout
+    kind: warning
+    md: |
+      **Fan-out khuếch đại đuôi chậm.** Nếu một trang gọi **song song** 10 dịch vụ con, mỗi dịch vụ
+      chậm 1% số lần (p99), thì xác suất **cả 10** đều nhanh chỉ là 0,99^10 ≈ 90%. Nghĩa là gần
+      **10%** số trang bị chậm — dù từng dịch vụ "chỉ 1% chậm". Càng nhiều lời gọi con, đuôi chậm
+      càng lộ ra, nên p99 của từng dịch vụ rất quan trọng trong hệ phân tán.
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Latency trung bình (mean) của một API là 50ms nhưng **p99 = 1,5s**. Vì sao nên đặt mục tiêu (SLO) theo p99 thay vì theo mean?"
+    options:
+      - {id: a, text_md: "Vì mean luôn tính sai, chỉ p99 mới là số đúng."}
+      - {id: b, text_md: "Vì mean che mất đuôi chậm: 1% yêu cầu vẫn chờ tới 1,5s là trải nghiệm thật của người dùng xui, p99 bắt đúng nhóm đó."}
+      - {id: c, text_md: "Vì p99 luôn nhỏ hơn mean nên mục tiêu dễ đạt hơn."}
+    answer: [b]
+    explain_md: "Mean gộp mọi lần đo lại nên một nhóm nhỏ rất chậm bị số đông nhanh làm mờ; p99 phản ánh đuôi chậm mà người dùng thực sự gặp. (c) sai vì với phân phối latency thực tế (lệch phải) p99 hầu như luôn **lớn hơn hoặc bằng** mean, không hề nhỏ hơn; (a) sai vì mean không 'sai', chỉ là không phản ánh đuôi."
+  - id: b05
+    type: text
+    md: |
+      **Độ sẵn sàng (availability)** = phần thời gian hệ thống phục vụ được, viết bằng **số chín
+      (nines)**. Một năm có **365 × 24 × 60 = 525.600 phút**. Lấy phần trăm *chết* nhân với số phút
+      này ra thời gian chết mỗi năm:
+      - **99.9%** ("three nines"): 0,1% × 525.600 ≈ **526 phút ≈ 8,8 giờ** chết/năm.
+      - **99.99%** ("four nines"): 0,01% × 525.600 ≈ **53 phút** chết/năm.
+      - **99.999%** ("five nines"): 0,001% × 525.600 ≈ **5 phút** chết/năm.
+
+      Mỗi lần thêm một số chín, thời gian chết cho phép **giảm 10 lần** — và chi phí để đạt nó tăng
+      vọt. Lưu ý phân biệt với **độ bền (durability)**: durability hỏi dữ liệu *đã ghi* có bị mất
+      không, khác với availability là hệ *có đang phục vụ* hay không.
+  - id: b06
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Một năm có 525.600 phút. Một dịch vụ cam kết **99.99%** availability thì mỗi năm được phép
+      chết khoảng bao nhiêu **phút** (làm tròn tới phút)? Điền số: ___
+    blanks:
+      - accept: ["53", "52.56", "52,56", "52.6", "~53"]
+    explain_md: "0,01% × 525.600 = 52,56 ≈ **53 phút/năm**. Đây là 'four nines'. So sánh: 99.9% ≈ 526 phút (8,8 giờ), 99.999% ≈ 5 phút."
+  - id: b07
+    type: text
+    md: |
+      Khi ghép nhiều thành phần, availability tổng đổi theo cách ghép:
+      - **Nối tiếp (serial):** một yêu cầu phải qua *mọi* thành phần, chỉ cần **một** cái chết là
+        hỏng. Nhân các availability lại: ba dịch vụ mỗi cái 99.9% nối tiếp → 0,999³ ≈ **99.7%**.
+        Càng nhiều mắt xích nối tiếp, tổng càng **thấp** hơn mắt xích yếu nhất.
+      - **Song song / dự phòng (parallel / redundant):** chạy nhiều bản, chỉ **chết khi tất cả**
+        cùng chết. Lấy 1 trừ tích của các phần chết: hai bản mỗi cái 99.9% song song →
+        1 − 0,001² = 1 − 0,000001 = **99.9999%**.
+
+      Đây là lý do thêm **bản dự phòng (redundancy)** giúp tăng availability, còn **nối thêm phụ
+      thuộc (dependency)** thì kéo nó xuống.
+  - id: b08
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một yêu cầu phải đi qua **3 dịch vụ nối tiếp**, mỗi dịch vụ có availability 99.9%. Availability của **cả chuỗi** xấp xỉ bao nhiêu?"
+    options:
+      - {id: a, text_md: "Vẫn 99.9%, vì tất cả đều bằng nhau."}
+      - {id: b, text_md: "Khoảng 99.7% — nhân lại: 0,999 × 0,999 × 0,999 ≈ 0,997."}
+      - {id: c, text_md: "Khoảng 99.9999%, vì ba bản cùng chạy làm hệ bền hơn."}
+    answer: [b]
+    explain_md: "Nối tiếp thì nhân các availability: 0,999³ ≈ 0,997 = 99.7%, thấp hơn từng mắt xích. (c) là công thức cho **song song** (dự phòng), không phải nối tiếp; (a) sai vì rủi ro cộng dồn qua từng mắt xích."
+  - id: b09
+    type: text
+    md: |
+      Bộ ba hay bị hỏi trong phỏng vấn — phân biệt cho sạch:
+      - **SLI (Service Level Indicator):** con số *đo thực tế*, ví dụ tỉ lệ yêu cầu thành công trong
+        30 ngày qua.
+      - **SLO (Service Level Objective):** *mục tiêu nội bộ* đặt trên SLI, ví dụ "availability ≥
+        99.9%".
+      - **SLA (Service Level Agreement):** *cam kết với khách hàng*, vi phạm thì phải đền bù (tiền,
+        tín dụng dịch vụ). SLA thường đặt **lỏng hơn** SLO để có đệm.
+
+      Phần được phép hỏng của SLO gọi là **error budget** (99.9% → ngân sách lỗi 0,1%). Nếu tháng đó
+      xài hết ngân sách lỗi, đội thường **dừng ra tính năng mới** và quay sang lo độ ổn định — đây là
+      cách error budget biến độ tin cậy thành một quyết định có dữ liệu, không cảm tính.
+  - id: b10
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn.** Khi người phỏng vấn nói "hệ cần đáng tin cậy", hãy ép ra **số**: hỏi mục
+      tiêu theo **p99 latency** là bao nhiêu và **availability** mấy số chín, rồi tự quy ra phút chết
+      mỗi năm để thấy nó khả thi hay không. Khi họ thêm dịch vụ phụ thuộc, nhắc rằng **nối tiếp làm
+      availability giảm** (nhân lại) và đề xuất **dự phòng song song** cho thành phần tới hạn. Biết
+      quy nines ↔ phút và biết công thức serial/parallel là tín hiệu rõ của ứng viên vững.
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "Latency = một yêu cầu chờ bao lâu (ms, trải nghiệm một người); throughput = số yêu cầu/giây (sức chứa); bandwidth = dữ liệu/giây. Chúng độc lập nhau."
+      - "Đặt mục tiêu theo percentile đuôi (p99) chứ không theo mean (mean che người chậm) và cũng không theo p100 (nhiễu bất thường, không bao giờ đạt)."
+      - "Availability tính bằng nines trên 525.600 phút/năm: 99.9% ≈ 526 phút (8,8 giờ), 99.99% ≈ 53 phút, 99.999% ≈ 5 phút; thêm một số chín = giảm 10 lần thời gian chết."
+      - "Nối tiếp (serial) → nhân availability (giảm); song song/dự phòng (parallel) → 1 trừ tích phần chết (tăng mạnh)."
+      - "SLI (số đo) < SLO (mục tiêu nội bộ) ≤ SLA (cam kết với khách, có phạt); phần được phép hỏng của SLO là error budget."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S004], l2: [S005], l3: [S006]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

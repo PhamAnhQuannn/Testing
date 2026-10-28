@@ -1,0 +1,146 @@
+id: ml.llm.decoding_sampling
+version: 1
+status: published
+title_vi: "Decoding và sampling: greedy, temperature, top-k và top-p (decoding)"
+est_minutes: 12
+objectives_vi:
+  - "Giải thích chuỗi logit → softmax → xác suất và vì sao **decoding** chỉ là bước chọn một token từ bảng xác suất đó."
+  - "Mô tả **temperature** định hình lại phân phối softmax thế nào, và **top-k** / **top-p (nucleus)** lọc tập token ra sao."
+  - "Chọn tham số decoding phù hợp cho từng tác vụ (trích xuất & code dùng thấp, sáng tạo dùng cao)."
+  - "Giải thích vì sao **temperature 0** gần như tất định nhưng vẫn không giống hệt từng bit."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Mỗi bước sinh, LLM không trả về một từ mà trả về **điểm thô (logit / logits)** cho *mọi* token
+      trong từ điển. Hàm **softmax** đổi các logit đó thành **xác suất** cộng lại bằng 1 — một bảng
+      "token này khả năng là token kế tiếp bao nhiêu phần trăm". **Decoding** (còn gọi là sampling)
+      chính là *luật chọn* một token từ bảng xác suất đó, rồi nối vào câu và lặp lại ở bước sau.
+      Model là cố định; đổi luật decoding là đổi hành vi đầu ra mà **không** cần huấn luyện lại — đây
+      là các "núm vặn" (temperature, top-k, top-p) bạn chỉnh lúc gọi API.
+  - id: b02
+    type: text
+    md: |
+      **Greedy decoding** là luật đơn giản nhất: mỗi bước luôn lấy token có xác suất **cao nhất**
+      (`argmax`). Ưu điểm: ổn định, cùng một bảng xác suất luôn cho cùng một token. Nhược điểm: dễ
+      **lặp** và nhàm, và vì chỉ nhìn một bước nên có thể bỏ lỡ câu tổng thể tốt hơn. Trái lại,
+      **sampling** (bốc ngẫu nhiên) chọn token *theo* xác suất của nó — token 0,5 được bốc ~50% số
+      lần — nên cùng một prompt có thể cho nhiều câu khác nhau, đa dạng hơn nhưng kém ổn định.
+  - id: b03
+    type: text
+    md: |
+      **Temperature (T)** định hình lại phân phối *trước* khi bốc: chia mỗi logit cho T rồi mới
+      softmax (`softmax(logit / T)`).
+      - **T < 1** (ví dụ 0,2): kéo các logit xa nhau hơn → softmax **nhọn** hơn, dồn xác suất vào vài
+        token đầu → ổn định, gần greedy.
+      - **T > 1** (ví dụ 1,3): kéo các logit gần nhau → softmax **phẳng** hơn, token hiếm có cơ hội
+        hơn → đa dạng/liều hơn, dễ lạc đề.
+      - **T = 1**: giữ nguyên phân phối gốc.
+
+      Ý quan trọng: temperature **không** thêm thông tin mới; nó chỉ làm phân phối nhọn hay phẳng đi.
+      Khi T → 0 thì softmax tiến về chọn đúng token lớn nhất, tức là **gần như greedy**.
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Giảm **temperature** từ 1,0 xuống 0,2 làm phân phối softmax thay đổi thế nào?"
+    options:
+      - {id: a, text_md: "Phân phối **nhọn** hơn: xác suất dồn vào các token điểm cao nhất, đầu ra ổn định/gần greedy hơn."}
+      - {id: b, text_md: "Phân phối **phẳng** hơn: các token hiếm được chọn nhiều hơn, đầu ra đa dạng hơn."}
+      - {id: c, text_md: "Không đổi hình phân phối, chỉ đổi số lượng token được xét như top-k."}
+    answer: [a]
+    explain_md: "Chia logit cho T < 1 kéo các logit xa nhau nên softmax nhọn hơn, dồn khối lượng vào token đầu → ổn định hơn. (b) là tác dụng của T > 1 (phẳng hơn). (c) sai — temperature đổi *hình* phân phối, còn việc cắt tập token là top-k/top-p."
+  - id: b05
+    type: text
+    md: |
+      **Top-k** và **top-p (nucleus)** không đổi hình phân phối mà **cắt bớt** tập token được phép bốc
+      (thường áp dụng *sau* temperature), rồi chuẩn hoá lại xác suất trên phần còn lại:
+      - **Top-k**: chỉ giữ **k** token xác suất cao nhất (ví dụ k = 50), bỏ phần đuôi. Nhược điểm: k
+        cố định — có lúc quá rộng (khi model đã rất chắc chắn), có lúc quá hẹp.
+      - **Top-p (nucleus)**: giữ **nhóm nhỏ nhất** mà xác suất **cộng dồn ≥ p** (ví dụ p = 0,9), bỏ
+        phần còn lại. Số token được giữ **tự co giãn** theo độ chắc chắn: model chắc chắn thì nhóm nhỏ,
+        model phân vân thì nhóm lớn. Vì vậy top-p thường được ưa dùng hơn top-k.
+
+      Cả hai cắt bớt "cái đuôi dài" xác suất thấp để tránh model lỡ bốc trúng token vô nghĩa, trong khi
+      vẫn cho phép đa dạng ở nhóm đầu.
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: |
+      Ở một bước sinh, model cho 5 token với xác suất (đã qua softmax):
+      `A = 0,50`, `B = 0,20`, `C = 0,15`, `D = 0,10`, `E = 0,05`.
+      Với **top-p = 0,8**, tập token nào được giữ lại để bốc?
+    options:
+      - {id: a, text_md: "Chỉ `{A}`, vì A đã là token xác suất cao nhất."}
+      - {id: b, text_md: "`{A, B, C}`, vì cộng dồn 0,50 + 0,20 = 0,70 còn < 0,8 nên phải thêm C (0,70 + 0,15 = 0,85 ≥ 0,8)."}
+      - {id: c, text_md: "Cả 5 token `{A, B, C, D, E}`, vì top-p luôn giữ toàn bộ rồi mới chuẩn hoá."}
+    answer: [b]
+    explain_md: "Top-p giữ nhóm nhỏ nhất có xác suất cộng dồn ≥ p. Cộng từ cao xuống: 0,50 → 0,70 (<0,8) → 0,85 (≥0,8), dừng ở C. Vậy nucleus = {A, B, C}; D và E bị loại rồi xác suất được chuẩn hoá lại trên {A,B,C}. (a) là greedy, không phải top-p; (c) sai vì top-p chính là để cắt phần đuôi."
+  - id: b07
+    type: text
+    md: |
+      **Chọn tham số theo tác vụ** (khung tư duy cho AI engineer):
+      - **Trích xuất / phân loại / gọi tool / sinh code / toán**: cần **đúng và lặp lại được** →
+        **temperature thấp (0–0,3)** hoặc **greedy**, top-p hẹp (hoặc để mặc định). Ở đây đa dạng là
+        *hại*: bạn muốn cùng input cho cùng output để debug và kiểm thử.
+      - **Viết sáng tạo / brainstorm / nhiều phương án**: cần **đa dạng** → **temperature cao hơn
+        (0,7–1,0+)** kèm **top-p ~0,9–0,95** để vừa đa dạng vừa chặn đuôi vô nghĩa.
+      - Nguyên tắc chung: **chỉ chỉnh một trong hai** (temperature *hoặc* top-p) để dễ suy luận; chỉnh
+        cả hai cùng lúc khiến khó biết cái gì gây ra thay đổi. top-p/top-k là **lưới an toàn** chặn
+        token rác, còn temperature là núm chỉnh "độ liều".
+  - id: b08
+    type: quiz_mcq
+    graded: true
+    prompt_md: |
+      Bạn xây pipeline **trích xuất các trường JSON** từ văn bản và cần cùng một input luôn cho cùng
+      một kết quả để kiểm thử. Cấu hình decoding nào hợp lý nhất?
+    options:
+      - {id: a, text_md: "temperature ≈ 0 (hoặc greedy), đa dạng không cần thiết ở tác vụ trích xuất."}
+      - {id: b, text_md: "temperature 1,2 kèm top-p 0,95 để model 'sáng tạo' ra cấu trúc tốt hơn."}
+      - {id: c, text_md: "temperature cao và tắt mọi top-k/top-p để không bỏ sót token nào."}
+    answer: [a]
+    explain_md: "Trích xuất cần đúng và lặp lại được, không cần đa dạng → temperature thấp/0 hoặc greedy. (b) nhiệt độ cao làm đầu ra dao động, dễ sai cấu trúc JSON. (c) càng làm đầu ra ngẫu nhiên và dễ bốc trúng token rác hơn."
+  - id: b09
+    type: text
+    md: |
+      **Vì sao temperature 0 gần như tất định nhưng không giống hệt từng bit?** Về lý thuyết T = 0 là
+      greedy (luôn lấy argmax) nên "nên" ra cùng kết quả. Thực tế gọi API hai lần vẫn có thể lệch vài
+      token, vì:
+      - **Số thực dấu phẩy động (floating point) không kết hợp được**: `(a + b) + c` có thể khác
+        `a + (b + c)` ở vài bit cuối. Trên GPU, thứ tự cộng/giảm (reduction) giữa hàng nghìn luồng có
+        thể đổi giữa các lần chạy, nên logit lệch ở chữ số cuối.
+      - **Batching và hạ tầng không tất định**: request của bạn bị gộp chung lô (batch) với request
+        khác tuỳ lúc; kích thước lô, kernel được chọn, hay cả phiên bản model phục vụ có thể khác nhau,
+        làm phép tính đi theo đường hơi khác.
+      - **Hệ quả tại điểm quyết định**: khi hai token xác suất **sát nhau**, một lệch nhỏ ở logit đủ
+        để argmax đổi lựa chọn; chọn khác một token rồi ngữ cảnh lệch tiếp nên câu sau có thể khác hẳn.
+
+      Vì vậy T = 0 cho **độ ổn định cao** chứ không bảo đảm **bit-for-bit**. Muốn tái lập tốt hơn thì
+      đặt **seed** (khi nhà cung cấp hỗ trợ) và cố định phiên bản model, nhưng vẫn không có bảo đảm
+      tuyệt đối khi chạy trên hạ tầng dùng chung.
+  - id: b10
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn.** Khi được hỏi "temperature / top-k / top-p khác nhau thế nào", hãy tách hai
+      việc: **temperature định hình lại phân phối** (nhọn/phẳng) còn **top-k/top-p cắt tập token**
+      (giữ k token đầu, hay giữ nhóm cộng dồn tới p). Nói rõ **top-p tự co giãn** theo độ chắc chắn nên
+      thường ưa hơn top-k. Nếu bị hỏi "temperature 0 có tất định không", trả lời: "gần như, nhưng
+      không bit-for-bit" rồi nêu **floating point + batching/thứ tự reduction trên GPU** — đó là câu
+      chốt ăn điểm.
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "Mỗi bước LLM cho logit mọi token → softmax thành xác suất; **decoding** là luật chọn một token từ bảng đó mà không cần huấn luyện lại model."
+      - "**Greedy** luôn lấy token cao nhất (ổn định, dễ lặp); **sampling** bốc theo xác suất (đa dạng, kém ổn định)."
+      - "**Temperature** định hình lại phân phối: T thấp → nhọn/ổn định (gần greedy), T cao → phẳng/đa dạng; nó không thêm thông tin, chỉ chỉnh độ liều."
+      - "**Top-k** giữ k token đầu; **top-p (nucleus)** giữ nhóm nhỏ nhất có xác suất cộng dồn ≥ p và tự co giãn theo độ chắc chắn — thường ưa hơn top-k."
+      - "Chọn tham số theo tác vụ: trích xuất/code/tool → temperature thấp hoặc greedy; sáng tạo → temperature cao + top-p ~0,9; chỉ nên chỉnh một núm mỗi lần."
+      - "**Temperature 0** gần như tất định nhưng không bit-for-bit vì floating point không kết hợp được và batching/thứ tự reduction trên GPU đổi logit ở chữ số cuối, đủ lật argmax khi hai token sát nhau."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S016], l2: [S017], l3: [S018]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

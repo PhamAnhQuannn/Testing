@@ -1,0 +1,148 @@
+id: ml.llm.llm_basics_pretraining
+version: 1
+status: published
+title_vi: "LLM được huấn luyện thế nào: pretraining, SFT, preference tuning"
+est_minutes: 12
+objectives_vi:
+  - "Kể đúng thứ tự ba giai đoạn huấn luyện một LLM: pretraining → SFT → preference tuning (RLHF/DPO)."
+  - "Phân biệt base model, instruct/chat model và reasoning model, và nói mỗi loại dùng cho việc gì."
+  - "Giải thích context window là gì, giới hạn của nó, và nhớ rằng model có knowledge cutoff."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Một LLM (large language model) như loại đứng sau ChatGPT học bằng **một trò chơi duy nhất**:
+      nhìn một đoạn văn bản rồi **đoán mẩu tiếp theo**. Mẩu đó không phải là một từ mà là một **token**
+      — một mảnh chữ (một từ ngắn, một phần từ, hay một dấu câu). Ví dụ "huấn luyện" có thể bị cắt thành
+      hai, ba token. Model đọc chuỗi token cho đến hiện tại và trả về **xác suất của token kế tiếp**
+      ("Hôm nay trời ___" → "nắng" khả năng cao, "bàn" khả năng thấp). Đây gọi là **next-token
+      prediction** (dự đoán token tiếp theo, hay causal LM). Hiểu token là quan trọng với kỹ sư AI vì
+      **bạn trả tiền theo token** và **context window cũng đo bằng token** (nói ở cuối bài).
+  - id: b02
+    type: text
+    md: |
+      **Giai đoạn 1 — Pretraining (tiền huấn luyện).** Model được cho đọc một lượng văn bản khổng lồ
+      (web, sách, code — hàng nghìn tỉ token) và chơi trò đoán-token-tiếp-theo hàng tỉ lần. Qua đó nó
+      học ngữ pháp, kiến thức, văn phong, cả một chút khả năng suy luận — tất cả nén vào trọng số
+      (weights). Kết quả của giai đoạn này là một **base model**: nó chỉ biết **nối chữ cho mượt**, chưa
+      biết "trả lời câu hỏi". Nếu bạn gõ "Thủ đô của Pháp là gì?" vào một base model, nó có thể **viết
+      tiếp thành một danh sách câu hỏi khác** (vì trên web, câu hỏi hay đi kèm nhiều câu hỏi), thay vì
+      đáp "Paris". Base model là **nguyên liệu thô**, chưa phải sản phẩm để trò chuyện.
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Sau giai đoạn **pretraining**, ta thu được loại model nào và nó làm được gì?"
+    options:
+      - {id: a, text_md: "Một **instruct model** đã biết trả lời câu hỏi và làm theo chỉ dẫn."}
+      - {id: b, text_md: "Một **base model** chỉ biết dự đoán token tiếp theo (nối chữ cho mượt), chưa biết trả lời theo yêu cầu."}
+      - {id: c, text_md: "Một **reasoning model** biết suy luận nhiều bước và tự kiểm tra lời giải."}
+    answer: [b]
+    explain_md: "Pretraining chỉ dạy next-token prediction trên văn bản thô, nên sản phẩm là **base model** — giỏi nối chữ nhưng chưa biết làm theo chỉ dẫn. Biết trả lời (instruct) hay suy luận nhiều bước (reasoning) là nhờ các giai đoạn huấn luyện **sau** pretraining."
+  - id: b04
+    type: text
+    md: |
+      Để base model thành một trợ lý biết nghe lời, ta huấn luyện thêm (**post-training**) theo đúng
+      thứ tự:
+      - **Giai đoạn 2 — SFT (supervised fine-tuning / instruction tuning).** Dạy model bằng các **cặp
+        (yêu cầu → câu trả lời mẫu)** do người viết. Model học rằng khi gặp một chỉ dẫn thì nên **trả
+        lời**, chứ không viết tiếp câu hỏi. Sau SFT ta có một **instruct model** (hay chat model).
+      - **Giai đoạn 3 — Preference tuning (chỉnh theo sở thích con người).** Cho model sinh hai câu trả
+        lời, người (hoặc một model chấm) **chọn câu tốt hơn**; model được điều chỉnh để thiên về kiểu
+        trả lời được ưa chuộng (hữu ích, an toàn, đúng văn phong). Hai kỹ thuật phổ biến là **RLHF**
+        (reinforcement learning from human feedback) và **DPO** (direct preference optimization) — DPO
+        đơn giản và rẻ hơn, nay rất thông dụng.
+
+      Thứ tự cần nhớ: **pretraining → SFT → preference tuning (RLHF/DPO)**. Pretraining tốn kém nhất và
+      cho hầu hết "kiến thức"; hai bước sau rẻ hơn nhiều và chủ yếu dạy **hành vi** (cách cư xử, cách
+      trả lời), không bơm thêm nhiều kiến thức mới.
+  - id: b05
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền đúng **thứ tự** ba giai đoạn huấn luyện một LLM trợ lý.
+
+      Giai đoạn 1 là _______ (học next-token trên dữ liệu khổng lồ) → giai đoạn 2 là _______
+      (dạy làm theo chỉ dẫn bằng cặp hỏi-đáp mẫu) → giai đoạn 3 là _______ (chỉnh theo lựa chọn
+      của con người, ví dụ RLHF hoặc DPO).
+    blanks:
+      - {accept: ["pretraining", "tiền huấn luyện", "pre-training", "pretrain"]}
+      - {accept: ["SFT", "supervised fine-tuning", "instruction tuning", "fine-tuning có giám sát"]}
+      - {accept: ["preference tuning", "preference-tuning", "chỉnh theo sở thích", "RLHF/DPO", "alignment"]}
+    explain_md: "Thứ tự đúng là **pretraining → SFT → preference tuning**. Pretraining cho kiến thức; SFT dạy làm theo chỉ dẫn (ra instruct model); preference tuning (RLHF/DPO) chỉnh hành vi theo lựa chọn con người."
+  - id: b06
+    type: text
+    md: |
+      Ngày nay bạn sẽ gặp **ba loại model**, khác nhau ở chỗ đã đi qua bao nhiêu giai đoạn:
+      - **Base model**: chỉ pretraining. Chỉ nối chữ; dùng để fine-tune tiếp hoặc nghiên cứu, **không**
+        nên gọi trực tiếp cho sản phẩm chat.
+      - **Instruct / chat model**: pretraining + SFT (+ preference tuning). Biết làm theo chỉ dẫn, trò
+        chuyện, trả lời gọn. Đây là loại kỹ sư AI dùng **mặc định** cho đa số sản phẩm (chatbot, tóm
+        tắt, trích xuất...).
+      - **Reasoning model (model suy luận)**: được luyện thêm (thường bằng RL với phần thưởng khi ra
+        đáp án đúng) để **nghĩ nhiều bước trước khi trả lời** — sinh một chuỗi suy nghĩ dài rồi mới chốt.
+        Mạnh hơn hẳn ở toán, lập trình, bài logic khó, nhưng **chậm hơn và tốn token/tiền hơn**.
+
+      Lựa chọn của kỹ sư AI: việc đơn giản (phân loại, tóm tắt, viết lại) → dùng **instruct model** cho
+      nhanh và rẻ; việc cần suy luận nhiều bước (gỡ lỗi code khó, bài toán nhiều ràng buộc) → cân nhắc
+      **reasoning model**, chấp nhận chậm và đắt hơn.
+  - id: b07
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Bạn gõ đúng câu 'Thủ đô của Pháp là gì?' vào một **base model** và vào một **instruct model**. Khác biệt điển hình là gì?"
+    options:
+      - {id: a, text_md: "Cả hai đều đáp 'Paris'; base model chỉ chậm hơn."}
+      - {id: b, text_md: "Base model có thể **viết tiếp thêm các câu hỏi khác** (nối chữ theo kiểu dữ liệu web) thay vì trả lời; instruct model đáp thẳng 'Paris' vì đã qua SFT."}
+      - {id: c, text_md: "Base model đáp 'Paris', còn instruct model từ chối vì lý do an toàn."}
+    answer: [b]
+    explain_md: "Base model chỉ học nối chữ, nên dễ **viết tiếp** thành một chuỗi câu hỏi giống văn bản web, chứ chưa có thói quen 'gặp chỉ dẫn thì trả lời'. SFT mới dạy instruct model trả lời thẳng — đó là khác biệt cốt lõi giữa hai loại."
+  - id: b08
+    type: text
+    md: |
+      **Context window (cửa sổ ngữ cảnh)** là **lượng token tối đa** model đọc được trong **một lần
+      gọi** — gồm *cả* prompt bạn gửi (chỉ dẫn, dữ liệu, lịch sử hội thoại, tài liệu đính kèm) *và* phần
+      model sinh ra. Mỗi model có một trần cố định (ví dụ vài chục nghìn đến hàng trăm nghìn token, một
+      số model mới tới cỡ triệu token). Hệ quả thực tế cho kỹ sư AI:
+      - **Vượt trần là lỗi hoặc bị cắt (truncation).** Nhồi cả một cuốn sách vào một lần gọi có thể
+        không vừa → phải **chia nhỏ** hoặc dùng **RAG** (chỉ nạp phần tài liệu liên quan).
+      - **Dài hơn = chậm hơn và đắt hơn**, và chất lượng có thể giảm ở khúc giữa ngữ cảnh (model dễ "bỏ
+        quên" thông tin nằm giữa — hiện tượng *lost in the middle*).
+      - Context window **khác** với **knowledge cutoff** (ngày cuối cùng có trong dữ liệu train): sau mốc
+        đó model **không tự biết** sự kiện mới. Muốn nó biết tin mới, bạn phải **đưa vào trong prompt**
+        (ví dụ qua tìm kiếm/RAG), chứ mở rộng context window không làm model cập nhật kiến thức.
+  - id: b09
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn (vị trí kỹ sư AI).** Khi được hỏi "LLM được huấn luyện thế nào", hãy trả lời theo
+      **ba nhịp**: (1) *pretraining* — next-token prediction trên dữ liệu khổng lồ, ra **base model**;
+      (2) *SFT* — dạy làm theo chỉ dẫn, ra **instruct model**; (3) *preference tuning (RLHF/DPO)* —
+      chỉnh hành vi theo lựa chọn con người. Nói rõ **pretraining cho kiến thức, hai bước sau cho hành
+      vi**. Nếu được hỏi tiếp, phân biệt **base/instruct/reasoning** và nhắc **context window có trần +
+      có knowledge cutoff**. Người phỏng vấn chấm việc bạn nói **đúng thứ tự** và biết **mỗi bước thay
+      đổi gì**, không bắt bạn thuộc chi tiết toán học.
+  - id: b10
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Phát biểu nào về **context window** là **đúng**?"
+    options:
+      - {id: a, text_md: "Context window là tổng số token model đọc được **trong một lần gọi**, tính **cả** prompt gửi vào lẫn phần sinh ra; vượt trần thì bị lỗi hoặc cắt bớt."}
+      - {id: b, text_md: "Context window là ngày cuối cùng có trong dữ liệu train, sau đó model không biết tin mới."}
+      - {id: c, text_md: "Mở rộng context window sẽ tự động cập nhật kiến thức mới cho model mà không cần đưa gì vào prompt."}
+    answer: [a]
+    explain_md: "Context window đo bằng token cho **một lần gọi** và gồm cả input lẫn output; vượt trần → lỗi/cắt. (b) nhầm sang **knowledge cutoff**. (c) sai: muốn model biết tin mới phải **đưa vào prompt** (ví dụ RAG), context window to hơn chỉ cho chứa nhiều token hơn chứ không cập nhật kiến thức."
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "LLM học bằng **next-token prediction** (đoán token tiếp theo) trên văn bản; **token** là mảnh chữ và là đơn vị tính tiền lẫn đo context window."
+      - "Thứ tự huấn luyện: **pretraining → SFT → preference tuning (RLHF/DPO)**. Pretraining cho **kiến thức** (ra base model); SFT + preference tuning cho **hành vi** (ra instruct model)."
+      - "**Base** = chỉ nối chữ; **instruct/chat** = biết làm theo chỉ dẫn (mặc định cho sản phẩm); **reasoning** = nghĩ nhiều bước, mạnh hơn nhưng chậm và đắt hơn."
+      - "**Context window** = số token tối đa cho một lần gọi (cả input lẫn output); vượt trần thì lỗi/cắt, và dài hơn thì chậm + đắt hơn."
+      - "**Knowledge cutoff** khác context window: sau mốc train model không tự biết tin mới — phải đưa vào prompt (RAG), không phải cứ mở rộng context là cập nhật được."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S010], l2: [S011], l3: [S012]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

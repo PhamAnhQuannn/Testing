@@ -1,0 +1,135 @@
+id: sd.fundamentals.cap_consistency
+version: 1
+status: published
+title_vi: "CAP, PACELC và các mô hình nhất quán (consistency)"
+est_minutes: 12
+objectives_vi:
+  - "Phát biểu **đúng** định lý CAP: khi mạng đứt (partition) buộc phải chọn **nhất quán (Consistency)** hoặc **sẵn sàng (Availability)** — không phải 'chọn 2 trong 3' một cách mơ hồ."
+  - "Giải thích nhánh **else** của PACELC: kể cả khi không đứt mạng vẫn phải đánh đổi giữa **độ trễ (Latency)** và **nhất quán (Consistency)**."
+  - "Chọn nhất quán **mạnh (strong)** hay **cuối cùng (eventual)** cho từng loại dữ liệu, và nêu ví dụ kho thiên CP và kho thiên AP."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Dữ liệu quan trọng thường được **chép ra nhiều máy** (replication) để không mất khi một máy
+      chết và để đọc nhanh hơn. Cái giá là: các bản sao (replica) có lúc **lệch nhau** — một máy đã
+      nhận lệnh ghi mới, máy kia còn giữ bản cũ. **Nhất quán (consistency)** ở đây là mức bảo đảm
+      rằng khi bạn đọc, bạn thấy **dữ liệu mới nhất** chứ không phải một bản cũ. Cả bài này xoay
+      quanh một câu hỏi: khi các bản có thể lệch, ta **chấp nhận** điều đó tới đâu.
+  - id: b02
+    type: text
+    md: |
+      **Partition (đứt mạng)** là tình huống trung tâm của CAP: hai nhóm máy **không nói chuyện được
+      với nhau qua mạng** dù mỗi bên vẫn còn sống và vẫn nhận request. Đây là một **lỗi mạng**, không
+      phải máy chết — và trên một hệ phân tán thật, nó **luôn có thể xảy ra** (cáp đứt, switch lỗi,
+      một vùng mất kết nối). Vì partition là điều không tránh được, câu hỏi không phải "có nên lo
+      partition không" mà là "**khi** partition xảy ra, hệ xử sự thế nào".
+  - id: b03
+    type: callout
+    kind: beginner
+    md: |
+      **Bắt đầu từ đây.** Hai mức nhất quán cần nắm trước:
+      - **Nhất quán mạnh (strong):** đọc **luôn** thấy lần ghi mới nhất. Gửi tiền ở máy A thì rút ở
+        máy B **phải** thấy số dư mới.
+      - **Nhất quán cuối cùng (eventual):** các bản **sẽ** giống nhau sau một lúc, nhưng tạm thời
+        có thể đọc ra bản cũ. Số like trễ vài giây thì không sao.
+      Nếu mới học, nắm vững được *strong vs eventual* và chọn đúng cho từng loại dữ liệu là đã đủ
+      cho phần lớn câu hỏi phỏng vấn fresher.
+  - id: b04
+    type: text
+    md: |
+      **Phát biểu CAP cho đúng.** CAP **không** phải "chọn 2 trong 3 (Consistency, Availability,
+      Partition-tolerance)" như cách nói tắt hay gặp. Phát biểu đúng là: **khi đang có partition**,
+      một hệ phân tán **buộc phải chọn một trong hai**:
+      - **CP — giữ nhất quán (Consistency):** từ chối hoặc trì hoãn trả lời ở phía không chắc dữ
+        liệu còn đúng, để **không bao giờ trả về dữ liệu sai/cũ**. Cái mất là **tính sẵn sàng**.
+      - **AP — giữ sẵn sàng (Availability):** vẫn trả lời bằng dữ liệu **có thể đã cũ**, để hệ
+        **luôn sống**. Cái mất là **tính nhất quán** trong lúc đứt mạng.
+
+      Chịu được partition (**P**) là điều kiện bắt buộc của mọi hệ phân tán thật, nên lựa chọn thực
+      sự chỉ là **C hay A trong lúc đứt mạng**. Khi **không** có partition, ta có **cả C lẫn A**.
+  - id: b05
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Phát biểu nào về định lý **CAP** là **đúng** nhất?"
+    options:
+      - {id: a, text_md: "Một hệ phân tán chỉ được chọn 2 trong 3 (C, A, P) tại mọi thời điểm, kể cả khi mạng bình thường."}
+      - {id: b, text_md: "**Khi đang có partition (đứt mạng)**, hệ buộc phải chọn giữ nhất quán (C, có thể từ chối trả lời) hoặc giữ sẵn sàng (A, trả lời bằng dữ liệu có thể cũ); khi mạng bình thường thì có cả hai."}
+      - {id: c, text_md: "Partition là thứ có thể tránh được nếu thiết kế tốt, nên hệ tốt luôn đạt cả C và A mọi lúc."}
+    answer: [b]
+    explain_md: "CAP nói về **hành vi khi đang đứt mạng**: lúc đó phải chọn C hoặc A. (a) sai vì khi không partition ta được cả C lẫn A — mâu thuẫn chỉ xuất hiện *trong* partition; (c) sai vì partition là lỗi mạng không tránh được, nên P là bắt buộc."
+  - id: b06
+    type: text
+    md: |
+      CAP chỉ nói chuyện gì xảy ra **khi** đứt mạng, mà partition lại hiếm. **PACELC** mở rộng để
+      nói cả lúc mạng bình thường:
+      - **P → A hoặc C** (nếu **Partition**, chọn **A**vailability hoặc **C**onsistency) — đúng như CAP.
+      - **E → L hoặc C** (**Else**, nghĩa là bình thường, vẫn phải đổi giữa **L**atency và
+        **C**onsistency).
+
+      Nhánh **else** mới là phần hay bị quên: kể cả khi **không** đứt mạng, muốn nhất quán mạnh hơn
+      thì phải **chờ nhiều bản sao xác nhận** một lệnh ghi trước khi báo xong — tức là **chậm hơn
+      (độ trễ cao hơn)**. Nếu chỉ chờ một bản để trả lời **nhanh**, bạn chấp nhận các bản khác tạm
+      lệch — tức **nhất quán yếu đi**. Vậy đánh đổi nhất quán không chỉ xuất hiện lúc sự cố; nó có
+      mặt **mỗi ngày** dưới dạng độ trễ.
+  - id: b07
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền hai chữ còn thiếu trong PACELC. Nếu có **Partition** thì chọn giữa Availability và
+      Consistency; **Else** (bình thường) thì chọn giữa ___(1)___ (viết tắt L, tiếng Anh) và
+      ___(2)___ (viết tắt C, tiếng Anh).
+    blanks:
+      - {accept: ["Latency", "latency", "độ trễ", "do tre"]}
+      - {accept: ["Consistency", "consistency", "nhất quán", "nhat quan"]}
+    explain_md: "Nhánh else của PACELC là **Latency vs Consistency**: khi mạng bình thường, muốn nhất quán hơn phải chờ nhiều bản sao xác nhận (trễ hơn); muốn nhanh hơn thì chấp nhận bản sao tạm lệch."
+  - id: b08
+    type: text
+    md: |
+      **Chọn theo loại dữ liệu** — đây là kỹ năng được chấm trong phỏng vấn:
+      - **Cần nhất quán mạnh:** số dư tài khoản, tồn kho, đặt chỗ/đặt vé — đọc sai một bản cũ là
+        mất tiền hoặc bán trùng. Thà **từ chối/chậm** còn hơn sai.
+      - **Nhất quán cuối cùng là đủ:** số like, lượt xem, bảng tin (feed), gợi ý — trễ vài giây
+        không gây hại, đổi lại luôn sống và nhanh.
+
+      Trong thực tế, các kho dữ liệu nghiêng về một phía: **thiên CP (ưu tiên đúng)** như
+      **etcd, ZooKeeper** (dùng cho cấu hình, bầu leader — sai là hỏng cả hệ); **thiên AP (ưu tiên
+      sống)** như **Cassandra, DynamoDB** (dùng cho dữ liệu lớn chịu được lệch tạm thời). Lưu ý:
+      Cassandra và DynamoDB còn **chỉnh được mức nhất quán theo từng truy vấn**, nên không "AP
+      tuyệt đối".
+  - id: b09
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Cho **số dư tài khoản ngân hàng** và **số lượt thích (like) của một bài đăng**, nên chọn mức nhất quán nào?"
+    options:
+      - {id: a, text_md: "Số dư: nhất quán **mạnh (strong)**; số like: nhất quán **cuối cùng (eventual)**."}
+      - {id: b, text_md: "Số dư: nhất quán **cuối cùng**; số like: nhất quán **mạnh** — vì like nhiều người xem hơn."}
+      - {id: c, text_md: "Cả hai đều phải nhất quán **mạnh**, vì mọi dữ liệu đều cần đúng tuyệt đối."}
+    answer: [a]
+    explain_md: "Số dư đọc sai một bản cũ là mất tiền → cần strong. Số like trễ vài giây vô hại → eventual là đủ và cho hệ luôn sống/nhanh. (b) đảo ngược; (c) bắt mọi thứ strong là trả giá vô ích về độ trễ và tính sẵn sàng cho dữ liệu không cần."
+  - id: b10
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn.** Khi được hỏi về CAP, đừng nói "chọn 2 trong 3". Hãy phát biểu chuẩn:
+      *"Partition là điều không tránh được, nên khi **đang đứt mạng** tôi phải chọn **C hoặc A**;
+      lúc mạng bình thường tôi có cả hai."* Rồi ghi điểm thêm bằng **PACELC**: *"kể cả khi không
+      đứt mạng vẫn có đánh đổi **độ trễ ↔ nhất quán**."* Cuối cùng **gắn với dữ liệu cụ thể** (tiền
+      → CP như etcd; feed/like → AP như Cassandra/DynamoDB). Người phỏng vấn chấm việc bạn phát
+      biểu **đúng** và **biết chọn theo ngữ cảnh**, không chấm việc kể tên kho.
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "Khi dữ liệu chép ra nhiều máy, các bản có thể lệch; **nhất quán (consistency)** là mức bảo đảm đọc thấy dữ liệu mới nhất."
+      - "**CAP (phát biểu đúng):** khi **đang có partition** buộc chọn **C** (từ chối/trì hoãn để giữ đúng) hoặc **A** (trả lời bằng dữ liệu có thể cũ để luôn sống); không partition thì có cả hai — không phải 'chọn 2 trong 3'."
+      - "**PACELC:** P → A hay C (như CAP); **E (else, bình thường) → L hay C** — muốn nhất quán hơn phải chờ nhiều bản xác nhận nên **độ trễ cao hơn**."
+      - "Chọn theo dữ liệu: tiền/tồn kho/đặt chỗ → **strong**; like/feed/lượt xem → **eventual**."
+      - "Kho **thiên CP**: etcd, ZooKeeper (ưu tiên đúng). Kho **thiên AP**: Cassandra, DynamoDB (ưu tiên sống, chỉnh được mức nhất quán theo truy vấn)."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S007], l2: [S008], l3: [S009]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"
