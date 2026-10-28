@@ -1,0 +1,63 @@
+subtopic_id: sd.reliability_ops.multi_region_dr
+items:
+  - id: S163
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Định nghĩa ngắn gọn và **đúng** hai con số mục tiêu của disaster recovery: **RPO** (recovery
+      point objective) và **RTO** (recovery time objective). Mỗi con số đo *cái gì*, và lựa chọn thiết
+      kế nào kéo nó xuống?
+    answer_md: |
+      - **RPO = mất tối đa bao nhiêu *dữ liệu*** (tính theo thời gian) là chấp nhận được sau thảm hoạ.
+        Hạ RPO bằng cách **chép dữ liệu / sao lưu dày hơn** (giảm độ trễ sao chép hoặc tăng tần suất
+        backup) — RPO = 0 cần chép đồng bộ.
+      - **RTO = mất tối đa bao lâu *thời gian ngừng* (downtime)** là chấp nhận được, tức bao lâu thì
+        hệ chạy lại. Hạ RTO bằng cách **chuyển vùng (failover) nhanh hơn**, ví dụ giữ sẵn warm standby
+        thay vì khôi phục từ backup nguội.
+      Nhớ gọn: RPO = mất *dữ liệu*, RTO = mất *thời gian* ngừng.
+    rubric_md: "Đạt khi nêu đúng cả hai: RPO = mất dữ liệu (hạ bằng chép/backup dày hơn), RTO = thời gian ngừng (hạ bằng failover nhanh hơn). Đảo ngược hai định nghĩa, hoặc nói RPO là downtime / RTO là mất dữ liệu: chưa đạt (tối đa điểm 0). Đúng cả hai và nói được cách hạ: bằng chứng điểm 1."
+  - id: S164
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Một dịch vụ đặt **RPO = 5 phút** và **RTO = 30 phút**, ngân sách vừa phải. Hãy: (1) nói rõ hai
+      con số này *cho phép* điều gì; (2) chọn chép dữ liệu xuyên vùng **đồng bộ hay bất đồng bộ** và vì
+      sao; (3) chọn một chiến lược DR (backup-restore / pilot light / warm standby / active-active) khớp
+      với RTO và ngân sách, giải thích ngắn.
+    answer_md: |
+      (1) RPO = 5 phút ⇒ chấp nhận **mất tối đa 5 phút dữ liệu** cuối; RTO = 30 phút ⇒ chấp nhận
+      **ngừng tối đa 30 phút** trước khi chạy lại.
+      (2) Vì RPO cho phép mất tới 5 phút nên **không cần chép đồng bộ** (đồng bộ chỉ cần khi RPO = 0 và
+      phải trả bằng độ trễ ghi cao). **Chép bất đồng bộ** là đủ: nhanh, rẻ, miễn độ trễ sao chép giữ
+      dưới ~5 phút.
+      (3) RTO 30 phút không quá gắt và ngân sách vừa phải ⇒ **pilot light** (giữ database chép liên tục
+      + phần còn lại tắt, khi sập thì bật to) hoặc **warm standby** mức tối thiểu là hợp lý;
+      **active-active** thì quá đắt so với yêu cầu, còn **backup-restore** thuần có thể vượt 30 phút vì
+      phải dựng lại từ đầu. Cần diễn tập failover để chắc đạt RTO.
+    rubric_md: "Đạt khi: (1) đọc đúng RPO = mất 5 phút dữ liệu và RTO = ngừng tối đa 30 phút; (2) chọn **bất đồng bộ** và giải thích vì RPO > 0 nên không cần đồng bộ; (3) chọn pilot light hoặc warm standby khớp RTO/ngân sách, loại active-active (đắt) và backup-restore thuần (RTO quá lớn). Đúng cả ba, trong time-box, tự giải thích: bằng chứng điểm 2. Chọn chép đồng bộ (thừa) mà không biện minh, hoặc đọc sai RPO/RTO: tối đa điểm 1."
+  - id: S165
+    difficulty: 3
+    type: concept
+    minutes: 12
+    prompt_md: |
+      Thiết kế một hệ đa vùng cho một dịch vụ đặt mục tiêu **RPO = 0** và **RTO ≈ 1 phút**. Trình bày:
+      (1) topology (active-passive hay active-active) và chiến lược DR; (2) cách chép dữ liệu xuyên
+      vùng để đạt RPO = 0; (3) **nói rõ đánh đổi nhất quán** mà lựa chọn đó bắt bạn chấp nhận (về độ
+      trễ, sẵn sàng, và xung đột nếu có); (4) một điều bạn phải làm để *tin* được rằng hệ đạt RTO.
+    answer_md: |
+      (1) RTO ≈ 1 phút đòi vùng kia phải **chạy sẵn**, nên chọn **active-active** (hoặc tối thiểu là
+      warm standby đã nóng với failover tự động) — không kịp dựng từ backup. Vùng còn sống đã phục vụ
+      nên gián đoạn gần như bằng 0.
+      (2) RPO = 0 ⇒ **chép dữ liệu đồng bộ (synchronous)** xuyên vùng: mỗi lệnh ghi chỉ báo thành công
+      sau khi vùng kia đã nhận, nên không có cửa sổ mất dữ liệu.
+      (3) **Đánh đổi:** chép đồng bộ xuyên vùng khiến **mỗi lệnh ghi phải chờ một vòng mạng xuyên
+      vùng ⇒ độ trễ ghi cao hơn hẳn**; và nếu vùng kia chậm/mất liên lạc thì ghi bị treo ⇒ **giảm
+      tính sẵn sàng (availability)** — đúng tinh thần CAP/PACELC: xuyên vùng không thể vừa nhất quán
+      mạnh, vừa độ trễ thấp, vừa luôn sẵn sàng. Nếu dùng active-active với ghi ở cả hai nơi còn phải
+      **giải quyết xung đột ghi** (ví dụ phân vùng khóa theo vùng, hoặc đồng thuận/quorum) — thực tế
+      RPO = 0 + ghi đa vùng thường kéo về một primary đồng bộ cho mỗi khóa.
+      (4) Phải **diễn tập failover định kỳ** (và khôi phục thử từ bản sao): backup/failover chưa từng
+      thử thì coi như chưa có; chỉ khi bấm nút chuyển vùng và đo được thời gian < RTO mới tin con số.
+    rubric_md: "Đạt (mức phỏng vấn, level-3 bar) khi: (1) chọn topology chạy-sẵn (active-active/warm standby nóng) phù hợp RTO ~1 phút; (2) chọn chép đồng bộ để đạt RPO = 0; (3) **gọi tên rõ đánh đổi nhất quán**: đồng bộ ⇒ độ trễ ghi cao + rủi ro giảm availability khi vùng kia mất liên lạc (và xung đột ghi nếu active-active); (4) nêu diễn tập failover/khôi phục để kiểm chứng RTO. Đúng, trong time-box, tự biện minh gắn vào RPO/RTO: bằng chứng điểm 3. Thiếu phần nêu đánh đổi nhất quán, hoặc chọn chép bất đồng bộ (mâu thuẫn RPO = 0): chưa đạt mức 3."

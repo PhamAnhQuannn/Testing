@@ -1,0 +1,140 @@
+id: sd.technologies.cache_search
+version: 1
+status: published
+title_vi: "Chọn công nghệ cache và search: Redis và Elasticsearch"
+est_minutes: 13
+objectives_vi:
+  - "Nói đúng Redis là gì (in-memory data-structure store) và các việc nó hợp: cache, phiên (session), bộ đếm/giới hạn tần suất (rate limit), bảng xếp hạng (leaderboard)."
+  - "Nói đúng Elasticsearch/OpenSearch là gì (search/analytics engine dựa trên inverted index) và việc nó hợp: tìm kiếm văn bản, lọc, tổng hợp (aggregation)."
+  - "Chọn đúng Redis hay Elasticsearch theo yêu cầu và nêu được một giới hạn của mỗi cái (Redis: bộ nhớ/dễ mất dữ liệu; Elasticsearch: độ tươi của index/không phải nguồn gốc)."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Bài này nối tiếp hai bài trước: **distributed cache** (sd.caching.distributed_cache) và
+      **search index** (sd.data.search_indexing). Ở đây ta không học lại *cơ chế*, mà học **chọn
+      công nghệ**: khi nào dùng **Redis**, khi nào dùng **Elasticsearch/OpenSearch**. Hai thứ này
+      hay bị gộp làm một ("kho phụ cho nhanh"), nhưng chúng giải hai bài toán khác hẳn nhau:
+      - **Redis** = kho dữ liệu trong bộ nhớ (in-memory data-structure store) cho truy cập **độ trễ
+        thấp** theo **khóa (key)** đã biết.
+      - **Elasticsearch** = cỗ máy tìm kiếm/phân tích (search engine) dựa trên **inverted index**,
+        cho **tìm văn bản (full-text), lọc và tổng hợp** khi ta *chưa biết trước* khóa chính xác.
+      Trong phỏng vấn, chọn sai chỗ (ví dụ nhét tìm kiếm văn bản vào Redis, hay dùng Elasticsearch
+      làm kho chính) là tín hiệu trừ điểm. Mục tiêu bài: chọn đúng và nêu được giới hạn.
+  - id: b02
+    type: text
+    md: |
+      **Redis** giữ dữ liệu trong **RAM** và cung cấp sẵn nhiều **cấu trúc dữ liệu** (string, hash,
+      list, set, sorted set, stream, pub/sub). Vì nằm trong RAM nên đọc/ghi rất nhanh (dưới
+      mili-giây). Các việc Redis hợp nhất:
+      - **Cache** cho dữ liệu nóng: đọc theo khóa, đặt thời gian sống (TTL) để tự hết hạn.
+      - **Phiên đăng nhập (session)**: kho dùng chung để service **stateless** đẩy state ra ngoài.
+      - **Bộ đếm / giới hạn tần suất (rate limit)**: tăng bộ đếm nguyên tử (atomic increment) theo
+        từng người dùng trong một cửa sổ thời gian — nhanh và chính xác.
+      - **Bảng xếp hạng (leaderboard)**: sorted set cho phép xếp hạng theo điểm trong thời gian thực.
+      - **Dữ liệu tạm (ephemeral)**: khóa phân tán (distributed lock), hàng chờ việc ngắn hạn.
+      Điểm chung: truy cập theo **khóa đã biết**, cần **nhanh**, và thường **không sống lâu**.
+  - id: b03
+    type: text
+    md: |
+      Giới hạn của Redis phải nhớ (để nói được trong phỏng vấn):
+      - **Giới hạn bởi bộ nhớ (memory-bound):** toàn bộ dữ liệu phải vừa trong RAM. RAM đắt và hữu
+        hạn, nên Redis **không hợp dữ liệu lớn, nguội** (cold data) — những thứ đó để ở DB/đĩa.
+      - **Dữ liệu dễ mất (volatile):** Redis chủ yếu là bộ nhớ. Dù có cơ chế ghi xuống đĩa (snapshot
+        RDB, nhật ký AOF), khi sập vẫn **có thể mất vài giây dữ liệu gần nhất**. Vì vậy Redis
+        **không phải nguồn dữ liệu gốc (system of record)** cho dữ liệu quan trọng — hãy xem dữ liệu
+        trong Redis là **dựng lại được** từ DB gốc.
+      Một câu tư duy đúng: "Mất sạch Redis thì hệ có *chậm đi hoặc mất phiên*, nhưng **không mất sự
+      thật**; sự thật nằm ở DB gốc."
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Cần một **rate limiter** đếm số yêu cầu mỗi người dùng trong mỗi phút, với độ trễ rất thấp và dữ liệu đếm chỉ cần sống trong một phút. Kho nào hợp nhất và vì sao?"
+    options:
+      - {id: a, text_md: "**Redis**, vì nó đọc/ghi theo khóa trong RAM rất nhanh, có atomic increment và TTL; dữ liệu đếm là tạm thời nên không cần độ bền cao."}
+      - {id: b, text_md: "**Elasticsearch**, vì nó xử lý được truy vấn tổng hợp (aggregation) phức tạp trên số đếm."}
+      - {id: c, text_md: "DB quan hệ gốc, vì mọi phép đếm đều phải nằm trong giao dịch (transaction) bền vững."}
+    answer: [a]
+    explain_md: "Rate limit cần truy cập theo khóa (người dùng), rất nhanh, atomic và tự hết hạn — đúng sở trường của Redis; mất số đếm không nghiêm trọng vì nó chỉ sống một phút. (b) Elasticsearch là near-real-time và nặng, không hợp bộ đếm độ trễ thấp. (c) DB gốc chịu tải ghi cao kém và chậm hơn cho việc đếm nóng như vậy."
+  - id: b05
+    type: text
+    md: |
+      **Elasticsearch/OpenSearch** (OpenSearch là bản tách ra từ Elasticsearch, cách dùng gần giống)
+      là cỗ máy **tìm kiếm và phân tích**. Trái tim của nó là **inverted index** (mục lục ngược):
+      thay vì lưu "tài liệu nào chứa từ gì", nó lưu "từ nào xuất hiện ở tài liệu nào", nên tìm theo
+      **từ khóa trong văn bản** cực nhanh. Nó hợp khi ta **chưa biết trước khóa chính xác**:
+      - **Tìm văn bản (full-text search):** gõ vài từ, sửa lỗi chính tả (fuzzy), tìm gần đúng.
+      - **Lọc nhiều điều kiện (filtering):** lọc sản phẩm theo hãng, giá, màu... cùng lúc.
+      - **Tổng hợp/thống kê (aggregation):** đếm, nhóm, vẽ biểu đồ phân tích (analytics) trên log.
+      - **Xếp hạng theo độ liên quan (relevance ranking):** trả kết quả hợp nhất lên đầu.
+      Ví dụ kinh điển: ô tìm kiếm sản phẩm với gợi ý (autocomplete) trên hàng chục triệu mặt hàng,
+      hay bảng phân tích log. Những việc này Redis làm rất vất vả vì Redis tra theo khóa, không có
+      inverted index sẵn cho văn bản.
+  - id: b06
+    type: text
+    md: |
+      Giới hạn của Elasticsearch phải nhớ:
+      - **Gần-thời-gian-thực (near-real-time):** dữ liệu mới ghi vào **chưa tìm thấy ngay**. Index
+        chỉ "làm tươi" (refresh) theo chu kỳ (mặc định khoảng **1 giây**), nên luôn có **độ trễ
+        tươi của index (index freshness lag)**. Với tìm kiếm thì chấp nhận được, nhưng đừng kỳ vọng
+        ghi xong đọc thấy tức thì như một giao dịch DB.
+      - **Không phải nguồn dữ liệu gốc (not a system of record):** như đã học ở search_indexing,
+        index tìm kiếm chỉ là **bản phụ (secondary index)** chép từ **DB gốc**, thường qua **CDC
+        (change data capture)**. Không dùng Elasticsearch làm kho chính và **không để nó giữ giao
+        dịch** — vì mất index vẫn **dựng lại được** từ DB gốc (reindex), tuy tốn thời gian.
+      - **Nặng và tốn khi reindex:** đổi cách tách từ (analyzer) hay cấu trúc index thường buộc
+        **dựng lại index** cho toàn bộ dữ liệu — một thao tác tốn tài nguyên, cần lên kế hoạch.
+  - id: b07
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một trang thương mại điện tử cần **gợi ý khi gõ ô tìm sản phẩm (autocomplete)** trên ~50 triệu mặt hàng, chịu được gõ sai chính tả và lọc theo hãng/giá. Chọn công nghệ và lý do nào đúng nhất?"
+    options:
+      - {id: a, text_md: "**Redis**, vì mọi thứ trong RAM sẽ nhanh nhất, và ta chỉ cần tra theo khóa tên sản phẩm."}
+      - {id: b, text_md: "**Elasticsearch**, vì cần tìm văn bản gần đúng (fuzzy), lọc nhiều điều kiện và xếp hạng theo độ liên quan trên lượng dữ liệu lớn — đúng sở trường inverted index."}
+      - {id: c, text_md: "DB quan hệ gốc với `LIKE '%...%'`, vì dữ liệu đã nằm sẵn ở đó nên không cần thêm hệ thống."}
+    answer: [b]
+    explain_md: "Đây là tìm kiếm văn bản gần đúng + lọc + xếp hạng trên dữ liệu lớn — chính là việc của Elasticsearch (inverted index). (a) Redis tra theo khóa đã biết, không có full-text/fuzzy sẵn, và nhét 50 triệu mặt hàng vào RAM là tốn kém. (c) `LIKE '%...%'` không dùng được index, quét toàn bảng, rất chậm ở quy mô này."
+  - id: b08
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền thuật ngữ đúng:
+      "Không nên dùng Elasticsearch làm kho chính vì nó chỉ là bản phụ chép từ DB gốc; nói cách khác
+      nó không phải nguồn dữ liệu gốc, tức là không phải ______ (viết bằng cụm tiếng Anh thường gặp
+      trong phỏng vấn)."
+    blanks:
+      - accept:
+          - "system of record"
+          - "source of truth"
+          - "the system of record"
+          - "the source of truth"
+    explain_md: "Elasticsearch là index phụ, dựng lại được từ DB gốc, nên nó không phải **system of record** (cũng gọi là **source of truth**). Mất index thì reindex từ DB gốc; vì vậy đừng để nó giữ dữ liệu không thể tái tạo."
+  - id: b09
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn (chạm đúng mức 3).** Khi được hỏi "cache/search nên dùng gì", đừng gọi tên
+      công nghệ theo thói quen. Hãy nói theo khuôn: *"Yêu cầu là X, truy cập theo kiểu Y, nên tôi
+      chọn Z vì... — và một giới hạn cần lưu ý là W."* Cụ thể:
+      - Truy cập **theo khóa đã biết, cần nhanh, dữ liệu tạm** → **Redis**; giới hạn: **bộ nhớ (chỉ
+        vừa RAM)** và **dễ mất dữ liệu (không phải kho gốc)**.
+      - **Tìm văn bản / lọc / tổng hợp, chưa biết khóa chính xác** → **Elasticsearch**; giới hạn:
+        **gần-thời-gian-thực (trễ tươi ~1s)** và **không phải nguồn gốc (sync từ DB qua CDC)**.
+      Nêu được **1-2 lý do theo yêu cầu + 1 giới hạn** là đủ qua mức 3. Thường chốt: "Redis để
+      *tăng tốc*, Elasticsearch để *tìm kiếm*, còn DB gốc vẫn là *sự thật*."
+  - id: b10
+    type: summary
+    bullets_vi:
+      - "**Redis** = kho dữ liệu trong RAM (in-memory), truy cập theo khóa cực nhanh; hợp cache, phiên (session), bộ đếm/rate limit, bảng xếp hạng (leaderboard), dữ liệu tạm."
+      - "Giới hạn Redis: **bị chặn bởi bộ nhớ** (chỉ vừa RAM, không hợp dữ liệu lớn/nguội) và **dễ mất dữ liệu** — không phải nguồn dữ liệu gốc (system of record)."
+      - "**Elasticsearch/OpenSearch** = search engine dựa trên inverted index; hợp tìm văn bản (full-text, fuzzy), lọc nhiều điều kiện và tổng hợp (aggregation) khi chưa biết trước khóa."
+      - "Giới hạn Elasticsearch: **gần-thời-gian-thực** (độ trễ tươi của index ~1s) và **không phải nguồn gốc** — là bản phụ chép từ DB gốc qua CDC, mất thì reindex lại được."
+      - "Chọn theo **yêu cầu và kiểu truy cập**, không theo thương hiệu: Redis để tăng tốc, Elasticsearch để tìm kiếm, DB gốc vẫn giữ sự thật — và luôn nêu kèm một giới hạn."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S154], l2: [S155], l3: [S156]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"
