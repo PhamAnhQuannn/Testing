@@ -1,0 +1,167 @@
+id: ml.llm.adaptation_decision
+version: 1
+status: published
+title_vi: "Chọn hướng cho LLM: prompt, RAG, fine-tune, API hay self-host"
+est_minutes: 14
+objectives_vi:
+  - "Chẩn đoán lỗi của LLM trước khi chọn giải pháp: thiếu kiến thức (missing knowledge), sai hành vi/giọng/định dạng (behavior) hay chỉ sai format."
+  - "Áp dụng thang bậc tăng dần chi phí: thử prompt trước, rồi RAG khi thiếu kiến thức, rồi fine-tune khi sai hành vi; kết hợp khi cần."
+  - "Phân biệt trục triển khai: API có sẵn (hosted API) so với tự chạy model mở (self-host), và các trade-off chi phí, độ trễ, quyền riêng tư."
+  - "Với một tình huống sản phẩm, chọn có căn cứ giữa prompt/RAG/fine-tune và API/self-host, nêu rõ lý do theo ràng buộc."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Bài này nối ba bài trước — **prompt engineering**, **RAG** (context/retrieval) và
+      **fine-tuning (PEFT)** — thành một **khung quyết định (decision framework)**: khi LLM trả lời
+      chưa tốt, chọn hướng nào để chữa?
+
+      Câu hỏi **đầu tiên** không phải "dùng kỹ thuật gì" mà là **"nó đang sai kiểu gì?"**. Có ba
+      loại lỗi, mỗi loại có cách chữa khác nhau:
+      - **Thiếu kiến thức (missing knowledge):** model không biết sự thật, tài liệu nội bộ, hay tin
+        mới (ví dụ chính sách công ty vừa đổi, số liệu quý này). Đây là lỗi *không biết*.
+      - **Sai hành vi (behavior):** model *biết* nhưng trả lời sai **giọng điệu, phong cách, độ dài,
+        hay quy trình** mong muốn — ví dụ dài dòng, không đúng giọng thương hiệu, không theo đúng
+        các bước nghiệp vụ. Đây là lỗi *cách làm*, không phải *kiến thức*.
+      - **Sai định dạng (format):** đầu ra khó parse, lúc JSON lúc văn xuôi. Thường chữa được ngay
+        bằng prompt rõ hơn hoặc structured output (ép đầu ra theo khuôn).
+  - id: b02
+    type: text
+    md: |
+      Chữa theo một **thang bậc chi phí tăng dần (decision ladder)** — luôn thử bậc rẻ, nhanh đảo
+      ngược trước, chỉ leo lên khi cần:
+
+      1. **Prompt engineering** — rẻ nhất, lặp lại (iterate) trong vài phút: sửa system prompt, thêm
+         few-shot, ép định dạng. Luôn **thử trước tiên**.
+      2. **RAG (retrieval-augmented generation)** — khi vấn đề là **thiếu / hay thay đổi kiến thức**:
+         tìm tài liệu liên quan rồi nhét vào ngữ cảnh để model bám vào đó.
+      3. **Fine-tuning** — khi vấn đề là **hành vi / định dạng / giọng / tính nhất quán** chứ không
+         phải kiến thức, **và** bạn có **dữ liệu gán nhãn tốt (labeled data)**.
+      4. **Kết hợp** — thực tế thường là **RAG + một model đã fine-tune**: model tuned lo *cách trả
+        lời*, RAG lo *dữ kiện tươi*.
+
+      Mỗi bậc đều phải **đo bằng eval set** (bộ câu hỏi thử có đáp án chuẩn) trước khi kết luận là
+      tốt hơn — y như cách cải thiện prompt có hệ thống ở bài prompt engineering.
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Chatbot hỗ trợ khách trả lời **sai chính sách đổi trả mới** mà công ty vừa cập nhật tuần trước (thông tin này không có lúc model được huấn luyện). Theo thang bậc, hướng chữa **đúng trọng tâm** nhất là gì?"
+    options:
+      - {id: a, text_md: "RAG: nạp tài liệu chính sách mới vào ngữ cảnh để model trả lời bám theo — vì đây là lỗi **thiếu/đổi kiến thức**, không phải sai hành vi."}
+      - {id: b, text_md: "Fine-tune ngay trên vài câu hỏi chính sách, vì fine-tune là cách mạnh nhất nên luôn ưu tiên."}
+      - {id: c, text_md: "Không làm gì được: kiến thức sau ngày huấn luyện chỉ có thể sửa bằng cách huấn luyện lại model từ đầu."}
+    answer: [a]
+    explain_md: "Chính sách mới = kiến thức bị thiếu và hay đổi → RAG là đúng trọng tâm (rẻ, cập nhật tức thì, đổi tài liệu là xong). (b) sai: fine-tune hợp với *hành vi* chứ không bơm được kiến thức tươi, lại đắt và phải tune lại mỗi lần chính sách đổi. (c) sai: RAG chính là cách đưa kiến thức mới vào mà không cần huấn luyện lại."
+  - id: b04
+    type: text
+    md: |
+      **Khi nào RAG?** Khi gốc rễ là **kiến thức**: sự thật cụ thể, tài liệu riêng tư, dữ liệu hay
+      thay đổi, cần **độ tươi (freshness)**. Dấu hiệu: model trả lời trôi chảy nhưng **sai dữ kiện**
+      hoặc **bịa** vì đơn giản là nó *không có* thông tin đó.
+
+      Vì sao không fine-tune để "dạy" kiến thức? Vì fine-tune nhồi kiến thức vào trọng số vừa **đắt**
+      vừa **dễ lỗi thời** (kiến thức đổi là phải tune lại), và model vẫn có thể bịa. RAG ngược lại:
+      đổi tài liệu là cập nhật xong ngay, lại **truy nguồn (citation)** được. Đây là lý do
+      *"kiến thức mới thì RAG"*.
+  - id: b05
+    type: text
+    md: |
+      **Khi nào fine-tune?** Khi gốc rễ là **hành vi / phong cách / định dạng / tính nhất quán** —
+      model *đã có* kiến thức nhưng trả lời sai *kiểu*: sai giọng thương hiệu, quá dài, không theo
+      đúng cấu trúc, hoặc bạn cần nó làm **ổn định một tác vụ hẹp** mà prompt dài vẫn không ép nổi.
+
+      Hai điều kiện để fine-tune đáng làm:
+      - **Có dữ liệu gán nhãn tốt** (hàng trăm đến hàng nghìn ví dụ đầu vào → đầu ra mẫu đúng kiểu
+        bạn muốn). Không có data tốt thì fine-tune vô nghĩa.
+      - Đã **thử prompt (kể cả few-shot) mà chưa đạt**, hoặc prompt đạt nhưng quá dài / quá đắt mỗi
+        lần gọi — fine-tune có thể cho **prompt ngắn hơn, rẻ và nhanh hơn lúc chạy**.
+
+      Thực tế hay **kết hợp**: RAG cấp dữ kiện tươi, model đã fine-tune lo đúng giọng và định dạng.
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một trợ lý viết email chăm sóc khách **biết đủ thông tin** nhưng luôn trả lời **quá trang trọng, dài dòng, không đúng giọng thân thiện của thương hiệu**; bạn đã có **~800 cặp email mẫu đúng giọng**. Prompt chỉnh giọng nhiều lần vẫn chưa ổn định. Hướng hợp lý nhất?"
+    options:
+      - {id: a, text_md: "Fine-tune trên 800 cặp mẫu để model học **giọng và phong cách** nhất quán — vì đây là lỗi **hành vi**, không phải thiếu kiến thức, và đã có dữ liệu gán nhãn tốt."}
+      - {id: b, text_md: "Dựng RAG nạp các email cũ vào ngữ cảnh, vì RAG luôn là bước bắt buộc trước fine-tune."}
+      - {id: c, text_md: "Bỏ qua, vì giọng điệu là thứ LLM không thể điều chỉnh được."}
+    answer: [a]
+    explain_md: "Sai *giọng/phong cách* dù biết đủ thông tin = lỗi **hành vi**; đã thử prompt chưa ổn và có ~800 ví dụ gán nhãn → fine-tune là đúng trọng tâm. (b) sai: RAG chữa thiếu *kiến thức*, không nắn được giọng, và không bắt buộc trước fine-tune. (c) sai: giọng/phong cách chính là thứ fine-tune làm tốt."
+  - id: b07
+    type: text
+    md: |
+      Song song với "prompt/RAG/fine-tune" là một **trục vuông góc (orthogonal axis)**: chạy model
+      **ở đâu**?
+      - **API có sẵn (hosted API)** — gọi model của nhà cung cấp qua mạng. **Nhanh để bắt đầu,
+        không phải lo vận hành (ops)**, trả **theo token**. Đổi lại: **dữ liệu rời khỏi ranh giới
+        của bạn** (gửi ra ngoài), phụ thuộc giới hạn và **khoá nhà cung cấp (vendor lock-in)**.
+      - **Tự chạy model mở (self-host open model)** — bạn chạy phần phục vụ (serving) trên GPU của
+        mình. **Kiểm soát và giữ dữ liệu trong nhà (privacy)**, **chi phí GPU cố định** (dùng nhiều
+        thì rẻ hơn theo token), nhưng **bạn gánh toàn bộ vận hành**: triển khai, scale, cập nhật,
+        theo dõi.
+
+      Hai trục này **độc lập**: bạn có thể làm RAG trên API, hoặc fine-tune một model mở rồi
+      self-host — tổ hợp nào cũng được, chọn theo ràng buộc.
+  - id: b08
+    type: callout
+    kind: interview
+    md: |
+      **Câu thần chú để trả lời phỏng vấn:** *"kiến thức mới → RAG; hành vi mới → fine-tune; luôn
+      thử prompt trước."* (new knowledge → RAG; new behavior → fine-tune; try prompt first.)
+
+      Người phỏng vấn muốn thấy bạn **chẩn đoán lỗi trước, chọn kỹ thuật sau**, biết **leo thang từ
+      rẻ tới đắt**, và nhớ tới **trục API vs self-host** cùng các trade-off **chi phí, độ trễ,
+      quyền riêng tư**. Tránh phản xạ "cứ fine-tune cho mạnh" — đó là bẫy tốn kém kinh điển.
+  - id: b09
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền cụm còn thiếu vào câu heuristic quyết định: khi vấn đề là **thiếu hoặc hay thay đổi kiến
+      thức** (tài liệu riêng, tin mới), hướng nên chọn là ______ ; còn khi vấn đề là **sai hành vi,
+      giọng hay định dạng** và đã có dữ liệu gán nhãn tốt, hướng nên chọn là fine-tune. Và dù sao
+      cũng nên thử ______ trước tiên.
+    blanks:
+      - accept: ["RAG", "rag", "retrieval-augmented generation", "retrieval augmented generation"]
+      - accept: ["prompt", "prompt engineering", "prompting"]
+    explain_md: "Heuristic lõi: thiếu/đổi kiến thức → **RAG** (nạp tài liệu vào ngữ cảnh); sai hành vi/giọng/định dạng (có data) → fine-tune; và luôn **thử prompt trước** vì nó rẻ và nhanh đảo ngược nhất."
+  - id: b10
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một bệnh viện muốn bot đọc **hồ sơ bệnh án** để tóm tắt cho bác sĩ. Dữ liệu là thông tin y tế nhạy cảm, **không được rời hệ thống nội bộ** theo quy định tuân thủ (compliance), và lượng truy vấn lớn, ổn định. Về **trục triển khai**, lựa chọn hợp lý nhất?"
+    options:
+      - {id: a, text_md: "Self-host một model mở trong hạ tầng bệnh viện — giữ dữ liệu trong ranh giới (privacy/compliance), kiểm soát được, và chi phí GPU cố định có thể rẻ hơn khi tải lớn ổn định."}
+      - {id: b, text_md: "Dùng API có sẵn của nhà cung cấp lớn vì nó luôn rẻ và an toàn hơn trong mọi trường hợp."}
+      - {id: c, text_md: "Không dùng LLM nào cả, vì mọi LLM đều bắt buộc phải gửi dữ liệu ra ngoài."}
+    answer: [a]
+    explain_md: "Ràng buộc **quyền riêng tư / tuân thủ** (dữ liệu không được rời hệ thống) cộng tải lớn ổn định đẩy cân về **self-host model mở**: dữ liệu ở trong nhà, chi phí GPU cố định phân bổ tốt. (b) sai: API gửi dữ liệu ra ngoài — vi phạm ràng buộc; 'luôn rẻ/an toàn hơn' là sai. (c) sai: self-host chính là cách dùng LLM mà không gửi dữ liệu ra ngoài."
+  - id: b11
+    type: text
+    md: |
+      **Quyết định theo ràng buộc (per constraints).** Không có đáp án "đúng mọi lúc"; cân theo:
+      **độ trễ (latency)**, **chi phí (cost)**, **quyền riêng tư / tuân thủ**, **có sẵn dữ liệu gán
+      nhãn không**, và **năng lực vận hành (ops) của đội**. Đội nhỏ, cần ra nhanh, dữ liệu không
+      nhạy cảm → API + prompt/RAG. Dữ liệu nhạy cảm, tải lớn, có đội ops → nghiêng self-host.
+
+      Vài ý **nâng cao** hay được hỏi thêm:
+      - **Routing / cascade:** cho model **rẻ** xử lý trước, chỉ ca khó mới chuyển model mạnh — tiết
+        kiệm chi phí và độ trễ.
+      - **Distillation (chưng cất):** dùng model lớn dạy một **model nhỏ** làm giỏi đúng một việc,
+        để chạy rẻ và nhanh.
+      - **Vendor lock-in:** giảm phụ thuộc một nhà cung cấp bằng **lớp trừu tượng** và **eval chạy
+        được trên nhiều model**, để đổi model mà không viết lại hệ thống.
+  - id: b12
+    type: summary
+    bullets_vi:
+      - "Hỏi **lỗi kiểu gì** trước: thiếu **kiến thức** / sai **hành vi** (giọng, phong cách, định dạng) / sai **format** — mỗi loại chữa khác nhau."
+      - "**Thang bậc chi phí:** thử **prompt** trước → **RAG** khi thiếu/đổi kiến thức → **fine-tune** khi sai hành vi và có dữ liệu gán nhãn tốt → **kết hợp** (RAG + model đã tuned); mỗi bậc đo bằng **eval set**."
+      - "**Câu thần chú:** *kiến thức mới → RAG; hành vi mới → fine-tune; thử prompt trước.*"
+      - "**Trục vuông góc** API vs self-host: **API** nhanh, không lo ops, trả theo token, dữ liệu ra ngoài, dễ lock-in; **self-host** kiểm soát, giữ dữ liệu trong nhà, GPU cố định, nhưng phải tự vận hành."
+      - "**Chọn theo ràng buộc:** độ trễ, chi phí, quyền riêng tư/tuân thủ, dữ liệu có sẵn, năng lực ops; nâng cao: **routing/cascade, distillation, giảm vendor lock-in**."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S286], l2: [S287], l3: [S288]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

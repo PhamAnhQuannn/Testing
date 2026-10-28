@@ -1,0 +1,190 @@
+id: ml.llm.llm_app_engineering
+version: 1
+status: published
+title_vi: "Xây ứng dụng LLM: gọi API, streaming, chi phí theo token và độ tin cậy"
+est_minutes: 14
+objectives_vi:
+  - "Gọi LLM như một API web: gửi danh sách messages + tham số (model, temperature, max_tokens), nhận chữ về kèm usage (số token vào/ra); phân biệt gọi đồng bộ (sync) và streaming (SSE)."
+  - "Tính và kiểm soát chi phí theo token (tiền = token vào x giá vào + token ra x giá ra) và đọc được độ trễ qua TTFT (time-to-first-token) so với tổng thời gian."
+  - "Làm cho service LLM đáng tin: timeout, retry với exponential backoff + jitter khi gặp 429/5xx, fallback model/nhà cung cấp, và graceful degradation."
+  - "Mức 3: thiết kế phần 'đường ống' API/streaming/chi phí/độ trễ/độ tin cậy cho một ứng dụng LLM."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Ở bài trước bạn đã lo phần **nội dung** gửi cho model (prompt, ngữ cảnh, định dạng đầu ra).
+      Bài này lo phần **đường ống (plumbing)**: làm sao gọi model từ code của một ứng dụng thật,
+      hiện chữ ra cho người dùng, trả tiền hợp lý và không sập khi nhà cung cấp trục trặc.
+
+      Gọi một LLM về bản chất giống **gọi một API web**: bạn gửi một request chứa
+      - **messages**: danh sách lượt hội thoại theo vai trò **system / user / assistant** (đúng ba
+        vai trò đã học ở prompt engineering);
+      - **tham số (parameters)**: `model` (chọn model nào), `temperature` (độ ngẫu nhiên),
+        `max_tokens` (trần số token model được phép **sinh ra**), và tuỳ chọn `tools` nếu cho model
+        gọi công cụ;
+
+      rồi nhận về câu trả lời **kèm `usage`** — số **token vào (input/prompt tokens)** và **token ra
+      (output/completion tokens)**. Hai con số `usage` này chính là thứ bạn bị tính tiền và là dữ
+      liệu để ước lượng chi phí ở phần sau.
+  - id: b02
+    type: text
+    md: |
+      Có hai kiểu nhận kết quả:
+
+      - **Đồng bộ (sync / non-streaming):** gửi request, **chờ model sinh xong toàn bộ** rồi mới nhận
+        một cục chữ. Đơn giản, nhưng người dùng nhìn màn hình trống cho tới khi xong — với câu trả
+        lời dài, cảm giác chờ rất lâu.
+      - **Streaming qua SSE (Server-Sent Events):** server **giữ một kết nối mở** và đẩy chữ về
+        **từng mảnh (token/chunk)** ngay khi model sinh ra. Giao diện in chữ chạy dần như kiểu máy
+        đánh chữ.
+
+      Để nói về độ trễ (latency) cho đúng, tách làm hai con số:
+      - **TTFT (time-to-first-token)** — thời gian từ lúc gửi request tới lúc nhận **token đầu tiên**.
+      - **Tổng thời gian (total / end-to-end latency)** — tới lúc model sinh **xong**; con số này
+        tăng gần tuyến tính theo **số token ra** (ra càng dài, chờ càng lâu).
+
+      Điểm mấu chốt: **streaming không làm model nhanh hơn và không giảm tổng thời gian** — nó chỉ
+      **giấu** độ trễ bằng cách cho người dùng thấy **TTFT thấp** (chữ đầu hiện sớm), nên **độ trễ
+      cảm nhận (perceived latency)** tốt hơn hẳn: app 'sống' ngay và người dùng đọc được liền. Vì
+      vậy muốn mượt thì vừa **bật streaming** vừa **cắt độ dài đầu ra** (ví dụ `max_tokens` hợp lý)
+      để tổng thời gian không phình. Đây là mặc định cho chatbot và mọi giao diện có người ngồi chờ.
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một chatbot trả lời đúng nhưng người dùng than 'phải chờ mãi mới thấy gì'. Chuyển từ gọi đồng bộ sang **streaming (SSE)** giúp gì, và **không** giúp gì?"
+    options:
+      - {id: a, text_md: "Giúp chữ đầu tiên hiện sớm hơn nhiều (TTFT thấp) nên độ trễ cảm nhận tốt hơn; nhưng KHÔNG làm model sinh xong nhanh hơn — tổng thời gian về cơ bản vẫn vậy."}
+      - {id: b, text_md: "Giúp giảm cả tổng thời gian lẫn chi phí token vì server chỉ cần sinh một phần câu trả lời."}
+      - {id: c, text_md: "Không giúp gì cho trải nghiệm; streaming chỉ là cách trả dữ liệu khác, người dùng vẫn phải chờ y như cũ."}
+    answer: [a]
+    explain_md: "Streaming đẩy token về ngay khi sinh ra nên TTFT thấp và app 'sống' sớm — cải thiện độ trễ *cảm nhận*. Nhưng model vẫn sinh đủ bằng ấy token, nên tổng thời gian và chi phí không đổi. (b) sai vì vẫn sinh đủ câu trả lời; (c) sai vì TTFT thấp là cải thiện trải nghiệm thật."
+  - id: b05
+    type: text
+    md: |
+      **Chi phí (cost)** của LLM tính **theo token**, và gần như luôn tách hai giá:
+
+          tiền 1 request = (token vào x giá vào) + (token ra x giá ra)
+
+      Năm 2026, **giá token ra thường đắt hơn giá token vào vài lần**, nên đầu ra dài là thứ tốn tiền
+      nhất. Giá thường niêm yết theo *mỗi 1 triệu token*. Ví dụ ước lượng: app có **1000 request mỗi
+      ngày**, mỗi request **500 token vào + 300 token ra**; giả sử giá **1 USD / 1 triệu token vào**
+      và **5 USD / 1 triệu token ra**:
+      - token vào/ngày = 1000 x 500 = 500.000 → 0,5 USD;
+      - token ra/ngày = 1000 x 300 = 300.000 → 1,5 USD;
+      - ≈ **2 USD/ngày ≈ 60 USD/tháng**.
+
+      Biết công thức này, bạn **ước lượng được hoá đơn trước khi lên production** và biết nên siết chỗ
+      nào. Lưu ý: với **reasoning model**, phần model 'suy nghĩ' cũng là **token ra (reasoning
+      tokens)** và bị tính tiền dù người dùng không thấy — dễ làm chi phí vọt lên.
+  - id: b06
+    type: text
+    md: |
+      **Kiểm soát chi phí** — vài đòn bẩy thực dụng, ưu tiên theo hiệu quả:
+
+      - **Prompt caching (cache phần prompt lặp lại):** phần đầu vào cố định (system prompt dài, tài
+        liệu dùng chung) được nhà cung cấp cache lại, lần sau tính giá rẻ hơn nhiều — rất hợp khi mọi
+        request đều kèm cùng một khối hướng dẫn/ngữ cảnh.
+      - **Cắt bớt ngữ cảnh (trim context):** chỉ nhét vào những gì cần (tóm tắt lịch sử cũ, chọn lọc
+        tài liệu) thay vì dồn tất cả — ít token vào, rẻ hơn và cũng nhanh hơn.
+      - **Giới hạn đầu ra bằng `max_tokens`:** chặn trần để một câu trả lời lỡ dài bất thường không
+        'đốt' tiền; token ra là phần đắt nhất.
+      - **Chọn model theo độ khó (model selection / routing):** dùng **model nhỏ, rẻ** cho việc dễ
+        (phân loại, trích xuất ngắn), chỉ gọi **model mạnh** khi thật cần.
+      - **Cache phản hồi (response cache):** cùng một câu hỏi thì trả thẳng kết quả đã lưu, khỏi gọi
+        lại model. *Semantic cache* (khớp câu gần nghĩa) tiết kiệm hơn nhưng có rủi ro trả nhầm câu
+        ý khác — cần ngưỡng tương đồng chặt.
+  - id: b07
+    type: quiz_mcq
+    graded: true
+    prompt_md: "App của bạn mỗi ngày phân loại 2000 email thành 'quan trọng' / 'bỏ qua'. Hoá đơn LLM đang cao hơn dự kiến. Cách **giảm chi phí hợp lý nhất** mà ít rủi ro chất lượng là gì?"
+    options:
+      - {id: a, text_md: "Dùng một model nhỏ/rẻ cho tác vụ phân loại dễ này và đặt `max_tokens` thấp (chỉ cần một nhãn + lý do ngắn); bật prompt caching cho phần hướng dẫn chung lặp lại mỗi request."}
+      - {id: b, text_md: "Tăng `temperature` lên thật cao để model trả lời ngắn hơn và tốn ít token hơn."}
+      - {id: c, text_md: "Chuyển mọi lời gọi sang model mạnh nhất, đắt nhất để khỏi phải tối ưu prompt."}
+    answer: [a]
+    explain_md: "Phân loại là việc dễ: model nhỏ thường thừa sức, rẻ hơn nhiều; `max_tokens` thấp chặn đầu ra (phần đắt nhất); prompt caching cắt tiền cho phần hướng dẫn cố định lặp lại. (b) sai — `temperature` chỉnh độ ngẫu nhiên, không quyết định độ dài; (c) làm chi phí tăng chứ không giảm."
+  - id: b08
+    type: text
+    md: |
+      Một service LLM thật phải **sống được khi nhà cung cấp trục trặc**. Các lỗi hay gặp: **429**
+      (Too Many Requests — vượt **rate limit / quota**) và **5xx** (lỗi phía server, quá tải tạm
+      thời). Bộ công cụ độ tin cậy (reliability):
+
+      - **Timeout:** luôn đặt hạn chờ; không để một request treo giữ tài nguyên vô hạn (nhớ rằng câu
+        trả lời dài vốn đã lâu — đặt timeout đủ rộng cho streaming).
+      - **Retry với exponential backoff + jitter:** khi gặp **429 hoặc 5xx** (lỗi *tạm thời*), thử
+        lại sau khoảng chờ **tăng gấp đôi dần** — 1s, 2s, 4s... — **cộng một chút ngẫu nhiên (jitter)**
+        để nhiều client không cùng dồn lại đúng một thời điểm (thundering herd). Giới hạn số lần
+        (ví dụ tối đa 5) rồi mới chịu thua. **Không** retry các lỗi *vĩnh viễn* như 400/401 (sai
+        request/khoá) — thử lại chỉ vô ích.
+      - **Fallback:** hết lượt thử ở model/nhà cung cấp chính thì **chuyển sang model hoặc nhà cung
+        cấp dự phòng**.
+      - **Graceful degradation (xuống cấp êm):** nếu vẫn hỏng, trả một thứ dùng tạm được — kết quả
+        từ cache, một thông báo lịch sự 'đang bận, thử lại sau', hoặc đường đi không-AI — thay vì
+        ném lỗi vào mặt người dùng.
+  - id: b09
+    type: callout
+    kind: interview
+    md: |
+      **Rate limit, quota và việc chạy số lượng lớn.** Nhà cung cấp giới hạn **số request/token mỗi
+      phút (RPM/TPM)** và **quota** tổng — thiết kế phải *tôn trọng* trần đó, không chỉ retry khi
+      đụng. Cho các **job hàng loạt (bulk/offline)** như gán nhãn 100.000 bản ghi:
+      - gọi **song song có kiểm soát** (ví dụ asyncio + semaphore giới hạn số lời gọi đồng thời) để
+        bám sát rate limit mà không vượt;
+      - hoặc dùng **Batch API** — nộp cả lô, nhận kết quả sau nhiều giờ, **rẻ hơn đáng kể**, hợp việc
+        **không gấp**. Việc cần ngay (có người chờ) thì gọi trực tiếp + streaming; việc offline thì
+        ưu tiên batch để tiết kiệm.
+
+      Câu phỏng vấn kinh điển: *"429 thì làm gì?"* → trả lời gọn: tôn trọng `Retry-After` nếu có,
+      **retry với exponential backoff + jitter**, giới hạn số lần, rồi **fallback**; về lâu dài thì
+      giảm tải bằng caching, chọn model nhỏ hơn và nâng quota.
+  - id: b10
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Service của bạn thỉnh thoảng nhận **429** và **500** từ API khi tải tăng. Chiến lược xử lý lỗi nào **đúng chuẩn** nhất?"
+    options:
+      - {id: a, text_md: "Retry các lỗi tạm thời (429/5xx) với exponential backoff + jitter, giới hạn số lần; có timeout; hết lượt thì fallback sang model/nhà cung cấp dự phòng hoặc degrade êm. KHÔNG retry lỗi vĩnh viễn như 400/401."}
+      - {id: b, text_md: "Thử lại ngay lập tức và liên tục không giới hạn cho tới khi thành công, không cần chờ giữa các lần."}
+      - {id: c, text_md: "Coi mọi lỗi (kể cả 400 sai request và 401 sai khoá) là tạm thời và retry hết như nhau để đơn giản code."}
+    answer: [a]
+    explain_md: "429/5xx là lỗi tạm thời → backoff tăng dần + jitter (tránh thundering herd) + giới hạn lần + timeout, rồi fallback/degrade. (b) retry dồn dập không chờ chỉ làm nhà cung cấp quá tải thêm và dễ bị chặn; (c) 400/401 là lỗi vĩnh viễn, retry vô ích — phải sửa request/khoá."
+  - id: b11
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền thuật ngữ còn thiếu: Trong gọi LLM streaming, khoảng thời gian từ lúc gửi request tới lúc
+      nhận **token đầu tiên** gọi là ______ ; chính nhờ con số này thấp mà streaming cải thiện độ trễ
+      *cảm nhận* dù không làm tổng thời gian ngắn lại.
+    blanks:
+      - accept: ["TTFT", "time to first token", "time-to-first-token", "thời gian tới token đầu", "thời gian tới token đầu tiên"]
+    explain_md: "TTFT (time-to-first-token) là thời gian tới token đầu tiên. Streaming hạ TTFT (chữ hiện sớm) nên người dùng thấy app phản hồi ngay, dù model vẫn mất đủ thời gian để sinh xong (tổng thời gian không đổi)."
+  - id: b12
+    type: text
+    md: |
+      Cuối cùng là **observability (quan sát được)** — không đo thì không vận hành nổi. Với mỗi lời
+      gọi, hãy **log lại: prompt/model dùng, số token vào-ra (từ `usage`), chi phí ước tính, độ trễ
+      (TTFT và tổng), mã lỗi và số lần retry**; và **trace** một request đi qua các bước (truy xuất
+      ngữ cảnh → gọi model → hậu xử lý) để biết chỗ nào chậm hay tốn. Nhờ đó bạn phát hiện request
+      đắt bất thường, theo dõi hoá đơn theo thời gian, và gắn cảnh báo khi tỉ lệ lỗi/chi phí vọt lên.
+
+      Gộp lại, **thiết kế đường ống một ứng dụng LLM (mức 3)** là trả lời mạch lạc cho năm câu:
+      *API* gọi thế nào (messages + params + usage), *streaming* ra sao (SSE, hạ TTFT), *chi phí*
+      bao nhiêu và siết ở đâu (token vào/ra, caching, model nhỏ, `max_tokens`), *độ trễ* đo bằng gì
+      (TTFT vs tổng), và *độ tin cậy* nhờ đâu (timeout, retry backoff trên 429/5xx, fallback,
+      degrade) — tất cả đều **quan sát được** qua log và trace.
+  - id: b13
+    type: summary
+    bullets_vi:
+      - "Gọi LLM = gọi API web: gửi **messages** (system/user/assistant) + **params** (model, temperature, `max_tokens`), nhận chữ kèm **usage** (token vào/ra); **sync** chờ xong cả cục, **streaming (SSE)** đẩy từng mảnh."
+      - "**Streaming** hạ **TTFT** (chữ đầu hiện sớm) nên cải thiện độ trễ *cảm nhận*, nhưng **không** rút ngắn tổng thời gian — tổng thời gian tăng theo số **token ra**."
+      - "**Chi phí = token vào x giá vào + token ra x giá ra**; token ra (gồm reasoning token) đắt hơn. Siết bằng **prompt caching**, cắt ngữ cảnh, `max_tokens`, **model nhỏ cho việc dễ**, cache phản hồi."
+      - "**Độ tin cậy**: timeout + **retry exponential backoff + jitter** cho **429/5xx** (không retry 400/401) + giới hạn số lần + **fallback** model/nhà cung cấp + **graceful degradation**; tôn trọng **rate limit/quota**, dùng **batch/song song có kiểm soát** cho job hàng loạt."
+      - "**Observability**: log prompt/token/chi phí/độ trễ/lỗi và **trace** từng request — nền để vận hành và tối ưu một service LLM."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S277], l2: [S278], l3: [S279]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

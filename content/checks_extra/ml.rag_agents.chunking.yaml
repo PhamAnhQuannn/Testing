@@ -1,0 +1,76 @@
+subtopic_id: ml.rag_agents.chunking
+items:
+  - id: S292
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Nói ngắn gọn: vì sao **cỡ chunk (chunk size)** lại quan trọng trong RAG? Nêu một vấn đề khi
+      chunk **quá to** và một vấn đề khi chunk **quá nhỏ**.
+    answer_md: |
+      Vì ta embedding và tìm kiếm theo **từng chunk**, không phải cả tài liệu — mỗi chunk bị nén
+      thành một vector, nên cách cắt quyết định tìm có trúng và có đủ ngữ cảnh không.
+
+      - **Quá to:** embedding bị **loãng (diluted)** vì một vector phải đại diện nhiều chủ đề → khớp
+        kém chính xác (giảm precision); dán vào prompt lại **tốn ngữ cảnh (context window)** và thêm
+        chữ thừa gây nhiễu.
+      - **Quá nhỏ:** từng đoạn **mất ngữ cảnh** xung quanh, và dễ khiến một **sự thật (fact) bị cắt
+        đôi** giữa hai chunk, không chunk nào đủ để trả lời.
+    rubric_md: "Đúng khi nêu được: ta tìm theo chunk nên cỡ chunk ảnh hưởng tìm kiếm; một lỗi của chunk quá to (embedding loãng / tốn ngữ cảnh / giảm precision) VÀ một lỗi của chunk quá nhỏ (mất ngữ cảnh / sự thật bị cắt đôi). Đủ cả hai chiều: bằng chứng điểm 1. Chỉ nêu một chiều hoặc nói chung chung 'to/nhỏ đều được': tối đa điểm 0."
+  - id: S293
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Bạn xây RAG trên một tập **PDF sổ tay sản phẩm** (có tiêu đề mục rõ ràng và vài **bảng thông
+      số**). Hai vấn đề đang gặp: (a) nhiều câu trả lời bị **thiếu** vì một sự thật nằm vắt qua hai
+      chunk; (b) câu hỏi về **một dòng trong bảng** thường tìm sai. Hãy đề xuất cách xử lý **cụ thể**:
+      (1) chọn chiến lược cắt phù hợp cho sổ tay có cấu trúc; (2) xử lý vấn đề sự thật bị cắt đôi;
+      (3) xử lý bảng khi parsing. Giải thích mỗi lựa chọn giúp ở đâu.
+    answer_md: |
+      (1) **Cắt theo cấu trúc / đệ quy (recursive/structural)** theo tiêu đề mục rồi đoạn văn, để mỗi
+      chunk là một mục trọn nghĩa thay vì cắt cố định giữa câu; thêm chút **overlap** ở biên. Hợp với
+      sổ tay vì nó vốn có heading rõ.
+      (2) **Sự thật bị cắt đôi:** dùng **overlap** 10-20% giữa các chunk liền kề để phần biên còn
+      nguyên trong ít nhất một chunk; hoặc mạnh hơn là **parent-document / small-to-big** — embedding
+      bằng đoạn nhỏ cho tìm chính xác, nhưng trả về đoạn cha to hơn để LLM đủ ngữ cảnh.
+      (3) **Bảng:** đừng dàn phẳng bảng thành một dòng chữ vô nghĩa; giữ cấu trúc (vd Markdown/HTML
+      table) hoặc tách **mỗi dòng thành một đơn vị kèm tên cột** để câu hỏi về một dòng khớp đúng; kèm
+      **metadata** (tên bảng, mục, trang) để lọc và trích dẫn.
+    rubric_md: "Đạt khi nêu đúng cả 3: (1) cắt theo cấu trúc/đệ quy theo heading cho tài liệu có cấu trúc; (2) overlap HOẶC parent-document/small-to-big cho sự thật bị cắt đôi, giải thích đúng; (3) giữ cấu trúc bảng / tách dòng kèm tên cột (và/hoặc metadata). Đúng, trong time-box, tự giải thích được: bằng chứng điểm 2. Thiếu phần xử lý sự thật bị cắt đôi, hoặc chỉ nói 'cắt nhỏ hơn' mà không nêu overlap/parent-document: tối đa điểm 1."
+  - id: S294
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      **(Phỏng vấn AI engineer)** Bạn phụ trách một RAG trên tập tài liệu hỗn hợp (bài blog văn xuôi
+      dài + tài liệu kỹ thuật có nhiều tiêu đề). Hãy trình bày:
+      (1) bạn **chọn chiến lược chunking theo loại tài liệu** như thế nào, và **giải thích vai trò của
+      overlap**;
+      (2) một câu hỏi mà câu trả lời đúng bị **cắt đôi giữa hai chunk** — bạn xử lý ra sao;
+      (3) bạn **chứng minh bằng recall@k hoặc MRR** rằng chiến lược mới tốt hơn cách cắt cố định như
+      thế nào (nêu rõ vì sao không chốt bằng cảm tính).
+    answer_md: |
+      **(1) Chọn theo loại tài liệu + vai trò overlap:**
+      - Blog văn xuôi dài, ít tiêu đề: **fixed-size theo token kèm overlap** (vd 400 token, chờm ~15%),
+        hoặc **semantic chunking** khi muốn ranh giới bám theo chỗ đổi chủ đề.
+      - Tài liệu kỹ thuật nhiều heading: **recursive/structural** theo tiêu đề → đoạn → câu, để mỗi
+        chunk là một đơn vị trọn nghĩa.
+      - **Overlap (chờm nhau):** cho các chunk liền kề chung 10-20% nội dung ở biên, để một câu/sự
+        thật nằm ở ranh giới không bị cắt cụt — ngữ cảnh được "nối" qua biên giữa hai chunk.
+      - Luôn tôn trọng **token limit của embedding model** để chunk không bị cắt cụt âm thầm.
+
+      **(2) Sự thật bị cắt đôi:** dùng **overlap** để phần biên còn nguyên trong ít nhất một chunk;
+      hoặc mạnh hơn là **parent-document / small-to-big retrieval** — embedding đoạn nhỏ để tìm chính
+      xác, nhưng trả về **đoạn cha to hơn** chứa trọn câu trả lời cho LLM. Nhờ vậy tìm thì sắc mà ngữ
+      cảnh đưa cho model lại đầy đủ.
+
+      **(3) Chứng minh bằng recall@k / MRR (không cảm tính):**
+      - Dựng một **eval set**: một tập câu hỏi thật kèm **chunk/đáp án đúng** đã gán nhãn (gold).
+      - Chọn thước đo: **recall@k** = tỉ lệ câu hỏi mà chunk đúng có mặt trong top-k; **MRR** = trung
+        bình 1/hạng của chunk đúng (chunk đúng đứng càng cao điểm càng tốt).
+      - Đo **baseline** bằng cách cắt cố định, rồi đo chiến lược mới **trên cùng eval set**, so bằng
+        con số; chỉ giữ thay đổi nào làm recall@k / MRR tăng.
+      - Vì vài câu thử may rủi không nói lên gì và một thay đổi có thể sửa ca này nhưng làm hỏng ca
+        khác — nên "tốt hơn" phải là **một con số chứng minh được** trên cùng bộ đo, không phải cảm giác.
+    rubric_md: "Đạt (mức phỏng vấn, điểm 3) khi: (1) chọn chiến lược theo loại tài liệu hợp lý (fixed+overlap/semantic cho văn xuôi; recursive/structural cho tài liệu có heading) VÀ giải thích đúng overlap (nối ngữ cảnh qua biên để không cắt cụt); (2) xử lý sự thật bị cắt đôi bằng overlap hoặc parent-document/small-to-big; (3) mô tả đo recall@k và/hoặc MRR trên eval set có gold, so baseline (cắt cố định) với chiến lược mới bằng con số, và nêu vì sao cảm tính không đủ. Đúng, trong time-box, tự giải thích rõ: bằng chứng điểm 3. Thiếu phần chứng minh bằng recall@k/MRR (đúng theo mastery bar), hoặc không giải thích được overlap: chưa đạt mức 3."

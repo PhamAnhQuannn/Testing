@@ -1,0 +1,70 @@
+subtopic_id: ml.llm.hallucination_reasoning
+items:
+  - id: S274
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Nói ngắn gọn: **hallucination** (bịa) ở LLM là gì, và nêu **một** lý do vì sao nó xảy ra?
+    answer_md: |
+      **Hallucination** là khi LLM đưa ra câu trả lời **nghe trôi chảy, tự tin nhưng sai sự thật
+      hoặc không có căn cứ** (ví dụ bịa một bài báo, con số, hay API không tồn tại). Lý do gốc: model
+      được huấn luyện để **đoán token (từ) nghe hợp lý tiếp theo** chứ **không có bước tra sự thật**
+      gắn sẵn; cộng thêm kiến thức có thể thiếu/cũ (knowledge cutoff) và áp lực phải trả lời khiến nó
+      lấp chỗ trống bằng phỏng đoán.
+    rubric_md: "Đúng khi nêu được: (1) bịa = câu nghe hợp lý nhưng sai/không căn cứ; VÀ (2) một lý do hợp lệ (đoán token hợp lý/không tra sự thật, kiến thức thiếu/cũ, hoặc áp lực phải trả lời). Đủ hai ý: bằng chứng điểm 1. Chỉ mô tả 'model trả lời sai' mà không chạm nguyên nhân, hoặc nhầm là 'model cố ý nói dối': tối đa điểm 0."
+  - id: S275
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Một tính năng hỏi-đáp trên tài liệu nội bộ **thỉnh thoảng bịa** thông tin không có trong tài
+      liệu, và trả lời **thiếu ổn định** (lúc đúng lúc sai). Hãy đề xuất cách khắc phục: (1) làm gì để
+      model bám tài liệu và bớt bịa; (2) làm gì để câu trả lời ổn định hơn cho việc dữ kiện; (3) bạn
+      sẽ **đo** mức cải thiện như thế nào để biết nó thật sự tốt hơn chứ không phải cảm tính?
+    answer_md: |
+      (1) **Grounding**: nhét tài liệu liên quan vào ngữ cảnh (RAG) và đặt luật ở system rằng model
+      **chỉ trả lời dựa trên tài liệu cho sẵn**, phải trả "Không đủ thông tin" khi tài liệu không có
+      câu trả lời (**abstention**), và **trích dẫn** đoạn nguồn.
+      (2) **Hạ temperature** về gần 0 cho tác vụ dữ kiện (bớt bốc phương án ít khả năng) và **giới
+      hạn đầu ra** về một cấu trúc cố định (JSON/một nhãn) rồi validate; có thể thêm **kiểm chứng**
+      (sinh nhiều lần xem có nhất quán — self-consistency).
+      (3) **Đo trên một eval set** có đáp án chuẩn (gồm cả câu mà tài liệu KHÔNG chứa đáp án): đo
+      **tỉ lệ bám nguồn (groundedness)**, **tỉ lệ abstention đúng lúc**, và tỉ lệ đúng định dạng;
+      chạy baseline rồi so sau mỗi thay đổi thay vì "cảm thấy đỡ bịa".
+    rubric_md: "Đạt khi nêu đúng cả 3: (1) grounding — bám tài liệu + cho phép 'không biết' (abstention), nên có trích dẫn; (2) một cách làm ổn định hợp lệ (hạ temperature, giới hạn/validate đầu ra, hoặc kiểm chứng); (3) đo bằng eval set có đáp án chuẩn (groundedness / abstention đúng lúc), so baseline — không cảm tính. Đúng, trong time-box, tự giải thích được: bằng chứng điểm 2. Thiếu grounding (cốt lõi giảm bịa) HOẶC thiếu cách đo: tối đa điểm 1."
+  - id: S276
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      **(Phỏng vấn AI engineer)** Bạn thiết kế một trợ lý nội bộ. Hãy trình bày:
+      (1) **liệt kê nguyên nhân** gây hallucination và các **biện pháp giảm có đo lường** (grounding,
+      abstention, kiểm chứng) — nêu rõ bạn đo bằng gì;
+      (2) khi nào bạn chọn một **reasoning model** thay vì model thường, và **tradeoff** của lựa chọn
+      đó;
+      (3) cho một ví dụ **khi nào nên dùng code/tool thay vì LLM**, và vì sao.
+    answer_md: |
+      **(1) Nguyên nhân + biện pháp giảm có đo lường:**
+      - Nguyên nhân: mục tiêu huấn luyện là **đoán token hợp lý, không tra sự thật**; **kiến thức
+        thiếu/cũ** (knowledge cutoff); **áp lực phải trả lời** + sampling (temperature cao).
+      - Biện pháp: **grounding/RAG** (chỉ trả lời từ tài liệu cho sẵn) + **trích dẫn**; **abstention**
+        (cho phép trả "Không đủ thông tin"); **hạ temperature** cho việc dữ kiện; **kiểm chứng**
+        (self-consistency hoặc một bước kiểm riêng / NLI xem có suy ra được từ tài liệu không);
+        **giới hạn & validate đầu ra**.
+      - Đo: dựng **eval set** có đáp án chuẩn (kèm câu không có đáp án trong tài liệu); đo **tỉ lệ bám
+        nguồn (groundedness)**, **tỉ lệ abstention đúng lúc**, tỉ lệ đúng định dạng; chạy baseline rồi
+        so sau mỗi thay đổi (regression).
+
+      **(2) Khi nào reasoning model + tradeoff:**
+      - Dùng khi bài **nhiều bước** (toán, logic, lập trình, kế hoạch nhiều ràng buộc) và **đúng-sai
+        quan trọng hơn tốc độ/chi phí**.
+      - Tradeoff: **chậm hơn** (độ trễ) và **tốn tiền hơn** (token "nghĩ" tính như token output); và
+        nó **không chữa được bịa** — vẫn có thể sai một cách tự tin, lời giải thích từng bước chưa
+        chắc phản ánh đúng cách ra đáp án (faithfulness). Với việc đơn giản, model thường là đủ.
+
+      **(3) Khi nào dùng code/tool thay LLM:**
+      - Việc cần **chính xác tất định**: số học (23 x 47), áp một luật cố định, tra một bảng dữ liệu,
+        sắp xếp/lọc chính xác. Dùng code/tool cho phần đó vì nó **đúng 100% và lặp lại được**, tránh
+        rủi ro LLM bịa số; để LLM lo phần ngôn ngữ/diễn giải.
+    rubric_md: "Đạt (mức phỏng vấn, điểm 3) khi: (1) liệt kê được nguyên nhân (ít nhất 2 trong: đoán token/không tra sự thật, kiến thức thiếu-cũ, áp lực phải trả lời/sampling) VÀ các biện pháp giảm gồm grounding + abstention + kiểm chứng, kèm cách ĐO (groundedness / abstention đúng lúc trên eval set); (2) nêu đúng khi nào dùng reasoning model (bài nhiều bước, đúng-sai > tốc độ) kèm tradeoff (chậm, tốn tiền vì token nghĩ tính như output, không chữa bịa); (3) một ví dụ hợp lệ dùng code/tool thay LLM cho việc cần chính xác tất định. Đúng, trong time-box, tự giải thích rõ: bằng chứng điểm 3. Thiếu phần đo lường, hoặc thiếu tradeoff của reasoning model, hoặc không nêu được khi nào dùng code thay LLM: chưa đạt mức 3."

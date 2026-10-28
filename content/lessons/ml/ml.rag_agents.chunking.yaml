@@ -1,0 +1,166 @@
+id: ml.rag_agents.chunking
+version: 1
+status: published
+title_vi: "Chunking và xử lý tài liệu: cắt tài liệu thành đoạn cho RAG"
+est_minutes: 13
+objectives_vi:
+  - "Giải thích vì sao **cỡ chunk (chunk size)** quan trọng: đoạn quá to làm embedding bị loãng, tốn ngữ cảnh, giảm độ chính xác; đoạn quá nhỏ thì mất ngữ cảnh và dễ cắt đôi một sự thật."
+  - "Phân biệt ba chiến lược cắt: **cố định theo token kèm chờm (fixed-size with overlap)**, **đệ quy/theo cấu trúc (recursive/structural)**, và **theo ngữ nghĩa (semantic)**; biết chọn theo loại tài liệu và token limit của embedding model."
+  - "Giữ **metadata** (nguồn, tiêu đề, mục, trang) cho mỗi chunk để lọc và trích dẫn; nêu các bước **xử lý/tiền xử lý tài liệu** (PDF/HTML → text sạch, bảng, OCR)."
+  - "Xử lý vấn đề **một sự thật nằm vắt qua hai chunk**: dùng chờm (overlap) hoặc **parent-document / small-to-big retrieval** (embedding đoạn nhỏ, trả về đoạn cha to hơn)."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Ở bài trước (rag_pipeline) bạn đã thấy luồng RAG: cắt tài liệu thành **chunk** → tạo
+      **embedding** cho từng chunk → lưu vào **vector store** → khi có câu hỏi thì tìm các chunk
+      gần nhất và dán vào ngữ cảnh cho LLM. Bài này đi sâu vào bước **đầu tiên và dễ bị xem nhẹ
+      nhất**: cắt tài liệu như thế nào.
+
+      Lý do bước này quan trọng: ta **không tìm cả tài liệu**, ta tìm từng **chunk**. Một chunk là
+      đơn vị được embedding, được so khớp, và được dán vào prompt. Nếu chunk bị cắt hỏng — mất ngữ
+      cảnh hay trộn lẫn nhiều chủ đề — thì dù retriever và LLM có tốt đến đâu, câu trả lời vẫn sai
+      hoặc thiếu. Với AI engineer, "chunking tốt" thường nâng chất lượng RAG nhiều hơn là đổi sang
+      một embedding model đắt tiền hơn.
+  - id: b02
+    type: text
+    md: |
+      **Vì sao cỡ chunk (chunk size) lại quan trọng?** Mỗi chunk bị nén thành **một** vector
+      embedding — một "điểm trung bình" về nghĩa của cả đoạn. Cỡ chunk kéo theo hai lỗi ngược nhau:
+
+      - **Chunk quá to** (vd cả một trang trộn nhiều ý): embedding bị **loãng (diluted)** vì một
+        vector phải đại diện cho nhiều chủ đề, nên khớp kém chính xác (giảm precision); khi dán vào
+        prompt lại **tốn ngữ cảnh (context window)** và nhét thêm chữ thừa làm nhiễu câu trả lời.
+      - **Chunk quá nhỏ** (vd một câu): từng đoạn **mất ngữ cảnh** xung quanh, và nguy hiểm nhất là
+        một **sự thật (fact) bị cắt đôi** — ví dụ "Phí trả lại là 30 ngày" nằm ở chunk này còn "cho
+        đơn trên 2 triệu" nằm ở chunk kế, khiến không chunk nào đủ để trả lời đúng.
+
+      Vậy chọn cỡ chunk là một **đánh đổi (trade-off)** giữa độ trúng của tìm kiếm và độ đầy đủ của
+      ngữ cảnh — không có con số "đúng tuyệt đối", phải chọn theo loại tài liệu.
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một hệ RAG cắt mỗi chunk bằng nguyên một trang dài (khoảng 1500 token) trộn nhiều chủ đề. Triệu chứng dễ gặp nhất là gì?"
+    options:
+      - {id: a, text_md: "Embedding bị loãng (một vector gánh nhiều chủ đề) nên tìm kém chính xác, lại tốn ngữ cảnh và thêm chữ thừa gây nhiễu câu trả lời."}
+      - {id: b, text_md: "Luôn tốt hơn chunk nhỏ, vì chunk càng to thì embedding càng chính xác."}
+      - {id: c, text_md: "Một sự thật bị cắt đôi giữa hai chunk — đây là lỗi điển hình của chunk quá TO."}
+    answer: [a]
+    explain_md: "Chunk quá to làm embedding 'loãng' (một vector đại diện nhiều ý) nên precision giảm, đồng thời tốn context và thêm nhiễu. (b) sai: to hơn không chính xác hơn, ngược lại còn loãng. (c) sai: 'sự thật bị cắt đôi' là lỗi của chunk quá NHỎ, không phải quá to."
+  - id: b04
+    type: text
+    md: |
+      **Ba chiến lược cắt (chunking strategy) thường dùng:**
+
+      - **Cố định theo token kèm chờm (fixed-size with overlap):** cắt mỗi N token (vd 300-500), và
+        cho các đoạn liền kề **chờm nhau (overlap)** 10-20% token. Phần chờm giúp một câu nằm ở ranh
+        giới không bị cắt cụt — ngữ cảnh được "nối" qua biên. Đơn giản, nhanh, là lựa chọn mặc định tốt.
+      - **Đệ quy / theo cấu trúc (recursive / structural splitting):** tách theo cấu trúc tài liệu —
+        trước hết theo tiêu đề (heading), rồi đoạn văn (paragraph), rồi câu — để mỗi chunk là một
+        **đơn vị trọn nghĩa**, không cắt giữa một mục hay một bảng. Hợp với tài liệu có cấu trúc rõ
+        (Markdown, HTML, hợp đồng nhiều điều khoản).
+      - **Theo ngữ nghĩa (semantic chunking):** đặt ranh giới ở chỗ **chủ đề thay đổi** (đo bằng độ
+        lệch embedding giữa các câu liền nhau). Chunk "sạch" nhất về nghĩa nhưng tốn tính toán hơn;
+        dùng khi văn bản trôi chảy, ít tiêu đề để dựa vào.
+  - id: b05
+    type: callout
+    kind: tip
+    md: |
+      **Chọn cỡ chunk và overlap theo loại nội dung + giới hạn token của embedding model.** Vài mẹo
+      thực dụng (2026):
+
+      - Văn xuôi, FAQ: 300-500 token/chunk, chờm ~15% là điểm khởi đầu hợp lý.
+      - Tài liệu kỹ thuật/hợp đồng có mục rõ: ưu tiên cắt **theo cấu trúc** để không vỡ điều khoản.
+      - Luôn kiểm tra **token limit của embedding model**: chunk dài hơn giới hạn sẽ bị cắt cụt âm
+        thầm (silent truncation) → mất phần đuôi mà bạn không hề hay.
+      - Đừng tin cảm tính: đổi cỡ chunk rồi **đo lại bằng recall@k / MRR** trên một bộ câu hỏi thử
+        (eval set) để biết thật sự tốt lên hay không.
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Bạn index một tập **hợp đồng** dài, mỗi hợp đồng gồm nhiều **điều khoản có tiêu đề rõ ràng**. Người dùng hỏi về nội dung của một điều khoản cụ thể. Chiến lược cắt nào hợp lý nhất?"
+    options:
+      - {id: a, text_md: "Cắt **theo cấu trúc / đệ quy** theo tiêu đề điều khoản, để mỗi chunk là một điều khoản trọn vẹn; thêm chút overlap ở biên."}
+      - {id: b, text_md: "Cắt cố định đúng 100 ký tự một đoạn, không quan tâm tiêu đề, cho thật nhiều chunk nhỏ."}
+      - {id: c, text_md: "Gộp cả hợp đồng thành một chunk khổng lồ để chắc chắn không mất gì."}
+    answer: [a]
+    explain_md: "Hợp đồng có tiêu đề/điều khoản rõ → cắt theo cấu trúc giữ mỗi điều khoản trọn nghĩa, khớp đúng câu hỏi về một điều khoản. (b) 100 ký tự cắt đôi câu/điều khoản, mất ngữ cảnh. (c) một chunk khổng lồ làm embedding loãng và tốn context — giảm độ chính xác."
+  - id: b07
+    type: text
+    md: |
+      **Metadata cho mỗi chunk.** Ngoài phần chữ, hãy lưu kèm mỗi chunk vài trường **metadata**:
+      nguồn (source/file), tiêu đề tài liệu (title), mục/chương (section), số trang (page), ngày.
+      Metadata phục vụ hai việc rất quan trọng với sản phẩm thật:
+
+      - **Lọc trước khi tìm (metadata filtering):** ví dụ chỉ tìm trong tài liệu `đang hiệu lực`,
+        thuộc `sản phẩm A`, năm `2026` — giảm nhiễu và tăng độ chính xác.
+      - **Trích dẫn (citation):** khi trả lời, app chỉ ra "theo *Sổ tay v3, mục 4.2, trang 12*" để
+        người dùng kiểm chứng. Không có metadata thì không thể trích dẫn, và RAG mất đi điểm mạnh
+        lớn nhất so với một LLM trả lời chay.
+
+      Một mẹo hay: nhét **tiêu đề ngữ cảnh (contextual header)** — tên tài liệu + đường dẫn mục — vào
+      đầu phần chữ của chunk, để chính embedding cũng "biết" đoạn này thuộc về đâu.
+  - id: b08
+    type: text
+    md: |
+      **Xử lý / tiền xử lý tài liệu (parsing / preprocessing)** là bước biến tài liệu thô thành text
+      sạch *trước khi* cắt — và thường là nơi ẩn nhiều lỗi nhất:
+
+      - **PDF / HTML → text sạch:** gỡ header/footer lặp lại, số trang, menu điều hướng, quảng cáo…
+        những thứ này nếu lọt vào chunk sẽ làm nhiễu embedding.
+      - **Bảng (table):** đừng để một bảng bị "dàn phẳng" thành một dòng chữ vô nghĩa. Giữ cấu trúc
+        bảng (vd chuyển sang Markdown/HTML table) hoặc tách mỗi dòng thành một đơn vị kèm tên cột, để
+        câu hỏi về một dòng vẫn tìm đúng.
+      - **Ảnh / tài liệu scan:** cần **OCR** (nhận dạng ký tự) để lấy chữ; tài liệu đa phương thức
+        (multimodal) có thể cần mô tả ảnh/biểu đồ bằng chữ để embedding được.
+
+      Nguyên tắc: "rác vào thì rác ra" — parsing ẩu thì mọi bước RAG phía sau đều gánh hậu quả.
+  - id: b09
+    type: text
+    md: |
+      **Vấn đề kinh điển: một sự thật nằm vắt qua hai chunk (fact spanning two chunks).** Khi cắt,
+      một câu trả lời có thể bị xé: nửa đầu ở cuối chunk A, nửa sau ở đầu chunk B. Retriever lấy về
+      chunk A hoặc B, nhưng **không chunk nào đủ** để trả lời. Hai cách xử lý phổ biến:
+
+      - **Overlap (chờm nhau):** cho các chunk liền kề chung 10-20% nội dung ở biên, nhờ đó phần bị
+        xé thường còn nguyên trong ít nhất một chunk. Rẻ và hiệu quả cho phần lớn trường hợp.
+      - **Parent-document / small-to-big retrieval:** **embedding bằng đoạn nhỏ** (để tìm chính xác)
+        nhưng khi khớp thì **trả về đoạn cha to hơn** (cả mục/đoạn văn chứa nó) cho LLM. Nhờ vậy tìm
+        thì sắc, mà ngữ cảnh đưa cho model lại đầy đủ — được cả hai. Đây là lựa chọn mạnh khi câu trả
+        lời cần nhiều ngữ cảnh xung quanh.
+  - id: b10
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền thuật ngữ còn thiếu: Kỹ thuật **embedding bằng đoạn nhỏ để tìm cho chính xác, nhưng trả
+      về đoạn cha to hơn cho LLM** nhằm vừa tìm sắc vừa đủ ngữ cảnh, được gọi là ______ (còn gọi là
+      small-to-big).
+    blanks:
+      - accept: ["parent-document", "parent document", "parent-document retrieval", "parent document retrieval", "small-to-big", "small to big"]
+    explain_md: "Parent-document (small-to-big) retrieval: index và so khớp bằng chunk nhỏ cho chính xác, nhưng trả về đoạn cha lớn hơn để LLM có đủ ngữ cảnh — một cách xử lý 'sự thật bị cắt đôi' tốt hơn overlap khi câu trả lời cần nhiều ngữ cảnh."
+  - id: b11
+    type: quiz_mcq
+    graded: true
+    prompt_md: "RAG của bạn hay trả lời thiếu vì câu trả lời đúng bị cắt đôi: một nửa ở cuối chunk này, nửa kia ở đầu chunk sau. Cách xử lý nào **đúng hướng**?"
+    options:
+      - {id: a, text_md: "Thêm **overlap** giữa các chunk liền kề, hoặc dùng **parent-document / small-to-big** (tìm bằng đoạn nhỏ, trả về đoạn cha to hơn) để ngữ cảnh không bị xé."}
+      - {id: b, text_md: "Giảm cỡ chunk xuống thật nhỏ (một câu) để có nhiều chunk hơn — chắc chắn hết bị cắt đôi."}
+      - {id: c, text_md: "Bỏ bước chunking, embedding nguyên cả tài liệu thành một vector duy nhất."}
+    answer: [a]
+    explain_md: "Overlap giữ phần biên còn nguyên trong ít nhất một chunk; parent-document trả về đoạn cha đủ ngữ cảnh. (b) càng nhỏ càng DỄ cắt đôi và mất ngữ cảnh hơn. (c) một vector cho cả tài liệu thì loãng nặng, không tìm được chi tiết."
+  - id: b12
+    type: summary
+    bullets_vi:
+      - "Ta tìm theo **chunk**, không theo cả tài liệu — chunking tốt thường nâng chất lượng RAG nhiều hơn đổi embedding model."
+      - "**Cỡ chunk là đánh đổi:** quá to → embedding loãng, tốn ngữ cảnh, giảm precision; quá nhỏ → mất ngữ cảnh và cắt đôi một sự thật."
+      - "Ba chiến lược: **fixed-size + overlap** (mặc định tốt), **recursive/structural** (theo tiêu đề/đoạn — hợp tài liệu có cấu trúc), **semantic** (cắt khi chủ đề đổi); chọn theo loại nội dung và **token limit** của embedding model."
+      - "Giữ **metadata** (nguồn, tiêu đề, mục, trang) cho mỗi chunk để **lọc** và **trích dẫn**; **parsing** cẩn thận (PDF/HTML → text sạch, giữ bảng, OCR) vì 'rác vào rác ra'."
+      - "**Sự thật bị cắt đôi** → xử lý bằng **overlap** hoặc **parent-document / small-to-big** (embedding đoạn nhỏ, trả về đoạn cha); kiểm chứng mọi thay đổi bằng **recall@k / MRR** trên eval set."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S292], l2: [S293], l3: [S294]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

@@ -1,0 +1,161 @@
+id: ml.rag_agents.rag_pipeline
+version: 1
+status: published
+title_vi: "Kiến trúc RAG và debug RAG: dựng pipeline đầu-cuối và cô lập lỗi tìm kiếm với lỗi sinh"
+est_minutes: 13
+objectives_vi:
+  - "Giải thích RAG (retrieval-augmented generation) là gì và vì sao nó giảm bịa (hallucination) và thêm kiến thức mới/riêng mà KHÔNG cần huấn luyện lại (retrain)."
+  - "Vẽ được kiến trúc RAG hai pha: nạp tài liệu offline (chunk → embed → kho vector) và trả lời online (embed câu hỏi → tìm top-k → dán vào prompt → LLM trả lời có trích dẫn)."
+  - "Phân biệt hai nhóm lỗi khi debug: lỗi tìm kiếm (retrieval failure) và lỗi sinh (generation failure), và biết cách soi đoạn đã lấy để xác định lỗi nằm ở tầng nào."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      **RAG (retrieval-augmented generation — sinh có bổ trợ truy xuất)** là cách **gắn LLM vào dữ
+      liệu của bạn**: trước khi trả lời, hệ thống đi *tra* vài đoạn tài liệu liên quan rồi đưa chúng
+      cho model làm ngữ cảnh. Nói gọn: "tra sách rồi mới trả lời".
+
+      Vì sao AI engineer cần RAG? Một LLM thuần có ba điểm yếu: nó **bịa (hallucinate)** ra thông tin
+      nghe xuôi tai nhưng sai; nó **không biết** kiến thức riêng của công ty bạn hay tin tức mới sau
+      ngày cắt dữ liệu huấn luyện (training cutoff); và nó **không nêu được nguồn**. RAG chữa cả ba:
+      bắt model bám vào tài liệu thật, nạp được kiến thức mới/riêng, và cho phép **trích dẫn
+      (citation)**.
+
+      Điểm mấu chốt: RAG làm việc này **mà không cần huấn luyện lại (retrain / fine-tune)** model.
+      Bạn chỉ thay đổi *những gì đưa vào prompt* lúc chạy, nên cập nhật kiến thức rẻ và nhanh — thêm
+      một tài liệu mới chỉ là nạp thêm vào kho, không phải train lại cả model.
+  - id: b02
+    type: callout
+    kind: beginner
+    md: |
+      Bài này nối tiếp hai bài trước. **Embeddings** cho ta cách biến văn bản thành vector để đo "gần
+      nghĩa" — đó là bộ máy tìm kiếm của RAG. **Prompt engineering** cho ta kỹ thuật **grounding**
+      ("chỉ trả lời dựa trên ngữ cảnh cho sẵn, không có thì nói không biết") — đó chính là cách RAG
+      bắt model bám vào tài liệu đã tra được. RAG = ghép hai mảnh đó thành một hệ thống.
+  - id: b03
+    type: text
+    md: |
+      **Kiến trúc RAG có hai pha.** Hãy hình dung như sơ đồ để vẽ lại được:
+
+      **Pha 1 — Nạp tài liệu (indexing, chạy offline, làm trước):**
+      1. **Tài liệu (documents)** thô: PDF, trang web, wiki nội bộ...
+      2. **Cắt đoạn (chunk)**: xé mỗi tài liệu dài thành nhiều đoạn nhỏ (vài trăm từ) vì không thể
+         embed cả cuốn sách thành một vector, và vì ta muốn lấy *đúng đoạn* liên quan chứ không phải
+         cả tài liệu.
+      3. **Embed từng đoạn**: dùng embedding model biến mỗi đoạn thành một vector.
+      4. **Lưu vào kho vector (vector DB / vector store)**: cất các vector đó để tra nhanh sau này.
+
+      Pha này làm một lần (và làm lại khi tài liệu đổi), không dính tới câu hỏi của người dùng.
+  - id: b04
+    type: text
+    md: |
+      **Pha 2 — Trả lời (query, chạy online, mỗi lần người dùng hỏi):**
+      1. **Embed câu hỏi** bằng *cùng* embedding model đã dùng ở pha nạp.
+      2. **Truy xuất top-k (retrieve)**: tìm trong kho vector `k` đoạn có vector gần câu hỏi nhất (ví
+         dụ k = 3-8 đoạn giống nghĩa nhất).
+      3. **Bổ trợ / dựng prompt (augment)**: dán các đoạn đó vào prompt làm **ngữ cảnh (context)**,
+         kèm luật grounding và yêu cầu trích dẫn.
+      4. **Sinh (generate)**: LLM đọc câu hỏi + các đoạn và trả lời, **ghi rõ đoạn nào là nguồn**.
+
+      Tóm tắt ba động từ của pha online: **retrieve → augment → generate**. Đây là bộ khung bạn nên
+      vẽ được khi phỏng vấn.
+  - id: b05
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Sếp muốn chatbot trả lời dựa trên 50.000 trang tài liệu nội bộ, cập nhật hằng tuần, và phải **trích nguồn**. Vì sao RAG hợp lý hơn là **fine-tune** model trên đống tài liệu đó?"
+    options:
+      - {id: a, text_md: "RAG nạp kiến thức ngay lúc chạy qua ngữ cảnh (context) nên cập nhật hằng tuần chỉ là nạp lại kho, không phải train lại model; lại dễ trích nguồn vì biết đoạn nào đã đưa vào. Fine-tune phải train lại mỗi lần đổi tài liệu và vẫn khó nêu nguồn."}
+      - {id: b, text_md: "RAG luôn chính xác tuyệt đối và loại bỏ hoàn toàn hallucination, còn fine-tune thì không."}
+      - {id: c, text_md: "RAG không cần embedding model nên rẻ hơn, còn fine-tune bắt buộc phải có kho vector."}
+    answer: [a]
+    explain_md: "RAG đổi *những gì đưa vào prompt* lúc chạy, nên kiến thức mới/riêng cập nhật rẻ và dễ trích nguồn — đúng nhu cầu 'đổi hằng tuần + trích nguồn'. (b) sai: RAG *giảm* chứ không *xoá* hallucination (model vẫn có thể bỏ qua ngữ cảnh). (c) sai ngược: chính RAG mới cần embedding model và kho vector."
+  - id: b06
+    type: text
+    md: |
+      **Dựng prompt và trích dẫn (phần 'augment').** Không phải cứ nhét đoạn vào là xong — bạn phải
+      ra luật cho model, kế thừa thẳng từ grounding:
+
+      - "Chỉ trả lời dựa trên các đoạn dưới đây. Nếu các đoạn không chứa câu trả lời, hãy nói 'Không
+        đủ thông tin'. Không được suy đoán."
+      - "Ghi rõ nguồn cho mỗi ý bằng số đoạn, ví dụ [1], [2]."
+      - Bọc các đoạn trong **delimiter** (ví dụ thẻ đoạn có đánh số) để model phân biệt *dữ liệu tra
+        được* với *câu hỏi* của người dùng.
+
+      Nhờ luật này, khi tài liệu không có câu trả lời model sẽ nói "không biết" thay vì bịa — và người
+      dùng kiểm chứng được câu trả lời nhờ trích dẫn.
+  - id: b07
+    type: text
+    md: |
+      **Debug RAG: hai nhóm lỗi tách bạch.** Khi câu trả lời sai, đừng sửa mò. Mọi lỗi RAG rơi vào
+      một trong hai tầng:
+
+      - **Lỗi tìm kiếm (retrieval failure):** bước truy xuất lấy **sai/thiếu đoạn** — đoạn chứa câu
+        trả lời *không* nằm trong top-k. Model có muốn đúng cũng chịu vì nó không hề thấy thông tin.
+        Sửa ở *tầng tìm*: chỉnh cách **chunk** (đoạn quá to/quá nhỏ), đổi **embedding model**, tăng
+        **k**, thêm **hybrid search** (kết hợp tìm theo từ khoá), thêm **rerank** (xếp lại top-k cho
+        đúng hơn).
+      - **Lỗi sinh (generation failure):** đoạn đúng *đã* nằm trong ngữ cảnh nhưng model vẫn **phớt
+        lờ nó, hiểu sai, hoặc bịa**. Sửa ở *tầng sinh*: siết **prompt** ("chỉ trả lời từ ngữ cảnh"),
+        bắt **trích dẫn**, giảm nhiễu (bớt đoạn thừa), hoặc đổi model.
+  - id: b08
+    type: callout
+    kind: tip
+    md: |
+      **Cách phân biệt hai lỗi — mẹo số một:** hãy **soi (inspect / log) chính xác những đoạn mà bước
+      truy xuất đã lấy** cho câu hỏi đó, rồi tự đọc.
+
+      - Đoạn chứa câu trả lời **không** có trong danh sách lấy được → **lỗi tìm kiếm**.
+      - Đoạn đúng **có** trong danh sách mà model vẫn trả lời sai → **lỗi sinh**.
+
+      Một câu "model trả lời sai" là vô dụng để sửa; "đoạn đúng không lọt top-k" hay "đoạn đúng có mà
+      model lờ đi" mới chỉ thẳng tầng cần động vào.
+  - id: b09
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Người dùng hỏi 'Chính sách nghỉ phép năm 2026 là bao nhiêu ngày?'. Bạn **soi các đoạn đã truy xuất** và thấy top-5 đoạn đều nói về *bảo hiểm y tế*, không đoạn nào nhắc tới nghỉ phép — dù tài liệu nghỉ phép có tồn tại trong kho. Lỗi nằm ở tầng nào và sửa hướng nào?"
+    options:
+      - {id: a, text_md: "Lỗi **tìm kiếm (retrieval)**: đoạn đúng không lọt top-k. Sửa ở tầng tìm — xem lại chunking, đổi/ kiểm tra embedding model, tăng k, thêm hybrid search hoặc rerank."}
+      - {id: b, text_md: "Lỗi **sinh (generation)**: model đã có đoạn đúng nhưng bịa. Sửa bằng cách siết prompt và bắt trích dẫn."}
+      - {id: c, text_md: "Không phải lỗi RAG; chỉ cần tăng nhiệt độ (temperature) để câu trả lời sáng tạo hơn."}
+    answer: [a]
+    explain_md: "Đoạn chứa câu trả lời (nghỉ phép) KHÔNG nằm trong các đoạn lấy được → bước truy xuất hỏng, model không hề thấy thông tin. Đó là lỗi tìm kiếm, phải sửa ở tầng tìm (chunk/embed/k/hybrid/rerank). (b) sai vì model chưa từng nhận được đoạn đúng. (c) sai và còn làm dễ bịa hơn."
+  - id: b10
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền thuật ngữ còn thiếu: Khi debug RAG, nếu bạn soi và thấy **đoạn đúng ĐÃ nằm** trong ngữ
+      cảnh đưa cho model nhưng model vẫn trả lời sai hoặc bịa, thì đó là lỗi ở tầng ______ (chữ tiếng
+      Anh), và nên sửa bằng cách siết prompt và bắt trích dẫn.
+    blanks:
+      - accept: ["generation", "sinh", "lỗi sinh", "generation failure", "generate"]
+    explain_md: "Đoạn đúng đã có trong ngữ cảnh mà model vẫn sai → lỗi sinh (generation failure): vấn đề ở bước LLM đọc ngữ cảnh và trả lời, không phải ở bước tìm. Sửa ở tầng sinh: grounding chặt hơn, bắt trích dẫn, giảm nhiễu, hoặc đổi model."
+  - id: b11
+    type: callout
+    kind: interview
+    md: |
+      **Chuẩn Mức 3 (mastery bar).** Người phỏng vấn thường yêu cầu hai việc:
+
+      1. **Vẽ kiến trúc RAG đầu-cuối** và giải thích *vì sao* mỗi bước có mặt: hai pha (nạp offline:
+         chunk → embed → kho vector; trả lời online: embed câu hỏi → top-k → augment → generate),
+         vai trò của grounding và trích dẫn, và vì sao chọn RAG thay vì fine-tune / nhồi cả tài liệu
+         vào context.
+      2. **Chẩn đoán một câu trả lời sai**: nói rõ bạn sẽ **soi các đoạn đã truy xuất** trước, rồi
+         phân nhánh — đoạn đúng không lọt top-k là **lỗi tìm kiếm** (sửa chunk/embed/k/hybrid/
+         rerank); đoạn đúng có mà model lờ đi là **lỗi sinh** (sửa prompt/trích dẫn/nhiễu/model). Chốt
+         bằng đúng *một tầng* cần sửa, không sửa mò cả hai cùng lúc.
+  - id: b12
+    type: summary
+    bullets_vi:
+      - "**RAG = retrieval-augmented generation**: tra vài đoạn tài liệu liên quan rồi dán vào prompt để LLM trả lời dựa trên đó — giảm bịa (hallucination), thêm kiến thức mới/riêng và trích nguồn, mà KHÔNG cần huấn luyện lại model."
+      - "**Hai pha.** Nạp (offline): tài liệu → **chunk** → **embed** → kho **vector**. Trả lời (online): embed câu hỏi → **retrieve** top-k → **augment** (dựng prompt + grounding + trích dẫn) → **generate**."
+      - "**Dựng prompt**: 'chỉ trả lời từ các đoạn cho sẵn, không có thì nói không biết, ghi [số đoạn]' — kế thừa trực tiếp từ grounding của prompt engineering."
+      - "**Hai nhóm lỗi.** **Lỗi tìm kiếm (retrieval)**: đoạn đúng không lọt top-k → sửa chunk/embedding/k/hybrid/rerank. **Lỗi sinh (generation)**: đoạn đúng có mà model lờ đi/bịa → sửa prompt/trích dẫn/nhiễu/model."
+      - "**Cách phân biệt**: luôn **soi các đoạn đã truy xuất** trước. Đoạn đúng thiếu trong top-k = lỗi tìm; đoạn đúng có mà trả lời sai = lỗi sinh. Chốt đúng một tầng cần sửa."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S289], l2: [S290], l3: [S291]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

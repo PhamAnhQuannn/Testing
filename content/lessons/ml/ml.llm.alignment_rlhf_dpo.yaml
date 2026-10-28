@@ -1,0 +1,151 @@
+id: ml.llm.alignment_rlhf_dpo
+version: 1
+status: published
+title_vi: "Alignment: RLHF, DPO và GRPO — chỉnh model theo ý người bằng dữ liệu ưu tiên"
+est_minutes: 13
+objectives_vi:
+  - "Hiểu alignment là gì và vì sao cần sau pretraining + SFT: làm đầu ra khớp **sở thích người dùng (human preferences)** — hữu ích, an toàn, trung thực, đúng phong cách."
+  - "Nêu được pipeline **RLHF** ở mức ý tưởng: thu **cặp ưu tiên (preference pairs)** → huấn luyện **reward model** → tối ưu bằng RL (**PPO**) kèm **phạt KL (KL penalty)**; và hiểu **reward hacking**."
+  - "So sánh **RLHF** với **DPO (direct preference optimization)**: DPO bỏ hẳn reward model riêng và vòng RL, học thẳng trên cặp ưu tiên — đơn giản, rẻ, ổn định hơn."
+  - "Biết **GRPO** là biến thể RL mới (group-relative, không cần value model) cho reasoning model, và nắm góc nhìn của AI engineer: thường **dùng lại** model đã align hoặc làm DPO nhẹ."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Sau khi một LLM đã **pretraining** (học dự đoán từ tiếp theo trên núi văn bản) và **SFT
+      (supervised fine-tuning / instruction tuning)** (học bắt chước các câu trả lời mẫu tốt), nó
+      biết làm theo yêu cầu — nhưng chưa chắc trả lời **theo ý người thật sự muốn**: có ích
+      (helpful), an toàn (harmless), trung thực (honest) và đúng phong cách. Ba chữ H này thường
+      gọi là **HHH**.
+
+      **Alignment (căn chỉnh)** là bước làm đầu ra của model **khớp với sở thích của con người
+      (human preferences)**. Ý tưởng cốt lõi rất đơn giản: thay vì viết sẵn câu trả lời "đúng" (khó
+      và tốn công), ta cho người **chọn câu nào tốt hơn** trong hai câu model sinh ra, rồi dạy model
+      nghiêng về loại câu được chọn. Đây là bước đứng *sau* SFT trong vòng đời một chat model.
+  - id: b02
+    type: text
+    md: |
+      **Dữ liệu ưu tiên (preference data)** là nhiên liệu của alignment. Mỗi mẫu gồm: một **prompt**,
+      một câu trả lời **được chọn (chosen)** và một câu **bị loại (rejected)** — nghĩa là "với
+      prompt này, người đánh giá thấy câu A tốt hơn câu B". Thu kiểu so-sánh-cặp này **dễ và đáng
+      tin hơn** việc bắt người chấm điểm tuyệt đối từng câu, vì con người so sánh hai thứ chuẩn hơn
+      là cho điểm lẻ.
+
+      Người gán nhãn có thể là người thật (**RLHF** — reinforcement learning from human feedback)
+      hoặc chính một model mạnh đóng vai giám khảo (**RLAIF** — AI feedback; **constitutional AI**
+      dùng một bộ "hiến pháp" nguyên tắc để AI tự phê và chọn). Dù ai chấm, đầu ra vẫn là các cặp
+      chosen/rejected để huấn luyện.
+  - id: b03
+    type: text
+    md: |
+      **Pipeline RLHF cổ điển** (mức ý tưởng, 3 bước):
+      1. **Thu cặp ưu tiên**: với nhiều prompt, sinh vài câu trả lời rồi cho người chọn câu tốt hơn.
+      2. **Huấn luyện reward model (RM)**: một model học **dự đoán điểm "người thích câu này bao
+         nhiêu"** từ các cặp chosen/rejected (nền toán là Bradley-Terry — không cần nhớ chi tiết).
+         RM biến "sở thích" thành một **con số** để tối ưu.
+      3. **Tối ưu LLM bằng RL**: dùng thuật toán **PPO (proximal policy optimization)** để chỉnh
+         model (gọi là **policy**) sao cho câu nó sinh ra **được RM chấm điểm cao**, đi từng bước nhỏ
+         để khỏi đổi quá nhanh.
+
+      Điểm mấu chốt: trong lúc tối ưu, ta thêm **phạt KL (KL penalty)** buộc policy **không lệch quá
+      xa model gốc** (bản SFT bị đóng băng, gọi là **reference model**). KL đo hai phân phối khác
+      nhau bao nhiêu; phạt KL giữ model "gần nhà" để nó không quên tiếng nói tự nhiên và không
+      **lách luật để ăn điểm**.
+  - id: b04
+    type: callout
+    kind: warning
+    md: |
+      **Reward hacking (over-optimization):** reward model chỉ là một thước đo *gần đúng* cho sở
+      thích người. Nếu ép model tối đa hoá điểm RM quá đà, nó học **"nịnh" giám khảo** thay vì giỏi
+      thật — ví dụ RM lỡ thích câu dài, model sẽ viết dài dòng vô ích; hoặc model tỏ ra quá đồng ý
+      (sycophancy). Hai cách ghìm chính: **phạt KL** (giữ gần reference, không trôi xa) và **không
+      optimize quá lâu / dùng nhiều tín hiệu reward + kiểm tra tay**. Đây gần như luôn là một câu
+      hỏi phỏng vấn.
+  - id: b05
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Trong RLHF-PPO, vì sao người ta thêm **phạt KL (KL penalty)** so với **reference model** (bản SFT đóng băng)?"
+    options:
+      - {id: a, text_md: "Để giữ policy không lệch quá xa model gốc, tránh nó trôi đi và **lách luật ăn điểm reward (reward hacking)** rồi quên tiếng nói tự nhiên."}
+      - {id: b, text_md: "Để thay thế hoàn toàn reward model: KL tự nó đo được sở thích của con người nên không cần chấm cặp chosen/rejected nữa."}
+      - {id: c, text_md: "Để model học nhanh hơn bằng cách cho phép mỗi bước cập nhật đổi policy càng nhiều càng tốt."}
+    answer: [a]
+    explain_md: "Phạt KL buộc policy bám gần reference (bản SFT), nên model không trôi xa để tối đa hoá điểm RM một cách méo mó (reward hacking) và vẫn giữ ngôn ngữ tự nhiên. (b) sai: KL không đo sở thích người, reward model mới làm việc đó. (c) ngược hẳn — mục tiêu là đi từng bước NHỎ, không đổi càng nhiều càng tốt."
+  - id: b06
+    type: text
+    md: |
+      RLHF-PPO **tốn kém và khó chỉnh**: lúc chạy phải giữ cùng lúc tới bốn model trong bộ nhớ —
+      policy, reference, reward model, và **critic/value model** (model phụ ước lượng "tình huống
+      này đáng bao nhiêu điểm"); vòng RL lại dễ bất ổn.
+
+      **DPO (direct preference optimization)** là bước đột phá làm mọi thứ đơn giản hơn nhiều:
+      **bỏ hẳn reward model riêng và bỏ luôn vòng RL (PPO)**. Thay vào đó, DPO biến chính bài toán
+      ưu tiên thành **một hàm mất mát (loss) đơn giản huấn luyện thẳng trên các cặp chosen/rejected**
+      — loss đó chỉ việc **tăng xác suất câu được chọn và giảm xác suất câu bị loại**, có so với
+      reference model và một hệ số **beta** điều tiết mức bám reference. Kết quả: huấn luyện giống
+      như fine-tuning thường, **đơn giản hơn, rẻ hơn, ổn định hơn** — nên DPO rất phổ biến từ 2024
+      đến nay (2026).
+
+      Lưu ý chính xác: DPO **không** có một reward model tách rời được huấn luyện trước; "reward"
+      nằm **ẩn (implicit)** trong chính công thức loss. Đó là khác biệt lớn nhất so với RLHF.
+  - id: b07
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Phát biểu nào mô tả **đúng** điểm khác nhau cốt lõi giữa RLHF (kiểu PPO) và DPO?"
+    options:
+      - {id: a, text_md: "DPO **bỏ reward model riêng và vòng RL (PPO)**, học thẳng trên cặp chosen/rejected bằng một loss đơn giản (reward nằm ẩn trong loss); RLHF thì huấn luyện reward model rồi mới tối ưu bằng RL."}
+      - {id: b, text_md: "DPO và RLHF giống hệt nhau, chỉ khác tên gọi; cả hai đều huấn luyện một reward model tách rời rồi chạy PPO."}
+      - {id: c, text_md: "RLHF không cần dữ liệu ưu tiên, còn DPO thì cần; đó là khác biệt duy nhất."}
+    answer: [a]
+    explain_md: "Đúng: DPO bỏ bước reward model tách rời VÀ bỏ vòng RL, tối ưu trực tiếp trên cặp ưu tiên bằng một loss đơn giản (reward ẩn). (b) sai — DPO cố ý KHÔNG dùng reward model/PPO. (c) sai — cả hai đều cần dữ liệu ưu tiên (chosen/rejected); đó không phải điểm phân biệt."
+  - id: b08
+    type: text
+    md: |
+      **GRPO (group-relative policy optimization)** là một biến thể RL mới, nổi lên 2024-2025 cho
+      các **reasoning model** (model suy luận, như dòng DeepSeek-R1). Ý chính: với mỗi prompt, sinh
+      **một nhóm (group)** nhiều câu trả lời, chấm điểm cả nhóm, rồi dùng **điểm tương đối trong
+      nhóm** (câu nào hơn/kém trung bình của nhóm) làm tín hiệu học — nhờ vậy **không cần critic /
+      value model**, nhẹ hơn PPO.
+
+      GRPO hay đi cùng **RLVR (RL from verifiable rewards)**: với toán và code, "thưởng" có thể
+      **tự kiểm chứng** (đáp án đúng chưa, code qua test chưa), không cần người chấm từng câu —
+      rất hợp để luyện khả năng suy luận. So gọn: **PPO** cần critic + reward model; **DPO** không
+      có RL, không reward model riêng; **GRPO** có RL nhưng bỏ critic và dùng thưởng theo nhóm,
+      thường là thưởng kiểm chứng được.
+  - id: b09
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền thuật ngữ còn thiếu: Biến thể RL dùng cho reasoning model, sinh **một nhóm** câu trả lời
+      cho mỗi prompt rồi so điểm tương đối trong nhóm nên **không cần critic (value model)**, được
+      gọi là ______.
+    blanks:
+      - accept: ["GRPO", "group-relative policy optimization", "group relative policy optimization"]
+    explain_md: "GRPO (group-relative policy optimization) chấm cả một nhóm câu trả lời và dùng lợi thế tương đối trong nhóm, nên bỏ được critic/value model mà PPO cần; thường kết hợp RLVR (thưởng tự kiểm chứng) để luyện suy luận."
+  - id: b10
+    type: callout
+    kind: interview
+    md: |
+      **Góc nhìn AI engineer (2026):** đa số thời gian bạn **dùng lại model đã được align sẵn**
+      (các chat model trên API) chứ không tự chạy RLHF — việc đó cần hạ tầng và dữ liệu lớn. Khi cần
+      chỉnh theo sở thích miền của mình, lựa chọn thực tế thường là **DPO nhẹ trên một ít cặp ưu
+      tiên** vì nó đơn giản và ổn định. Điều bắt buộc phải nắm để phỏng vấn và ra quyết định:
+      **từ vựng** (preference pairs, reward model, PPO, KL, DPO, GRPO) và **ý niệm reward hacking /
+      phạt KL** — hiểu *tại sao* tối ưu quá đà lại hỏng, quan trọng hơn là nhớ công thức.
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "**Alignment** đứng sau pretraining + SFT: làm đầu ra khớp **sở thích người (HHH: helpful, harmless, honest)** bằng cách cho người **chọn câu tốt hơn** rồi dạy model nghiêng theo."
+      - "**Dữ liệu ưu tiên (preference data)** = prompt + câu **chosen** + câu **rejected**; người chấm (RLHF) hoặc AI chấm (RLAIF / constitutional AI)."
+      - "**RLHF** (3 bước): thu cặp ưu tiên → huấn luyện **reward model** → tối ưu bằng **PPO** kèm **phạt KL** so với **reference** để tránh **reward hacking** và trôi xa; tốn kém (policy + reference + RM + critic)."
+      - "**DPO** bỏ hẳn reward model riêng và vòng RL, học **thẳng trên cặp chosen/rejected** bằng một loss đơn giản (reward ẩn, có beta + reference) — **đơn giản, rẻ, ổn định hơn**, rất phổ biến."
+      - "**GRPO** = RL group-relative, **không cần critic**, dùng cho **reasoning model**, hay đi với **RLVR** (thưởng tự kiểm chứng cho toán/code)."
+      - "AI engineer thường **dùng model đã align** hoặc làm **DPO nhẹ**; nắm **từ vựng** và ý niệm **reward hacking / KL** là đủ cho phỏng vấn."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S283], l2: [S284], l3: [S285]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

@@ -1,0 +1,155 @@
+id: ml.llm.hallucination_reasoning
+version: 1
+status: published
+title_vi: "Hallucination và mô hình reasoning: vì sao LLM bịa, cách giảm có đo lường, và khi nào nên dùng reasoning model"
+est_minutes: 13
+objectives_vi:
+  - "Giải thích hallucination (bịa) là gì và vì sao xảy ra: model đoán token hợp lý, không có bước tra sự thật; kiến thức thiếu/cũ; áp lực phải trả lời."
+  - "Nêu các cách giảm bịa có đo lường: grounding/RAG, trích dẫn, cho phép nói 'không biết' (abstention), hạ temperature cho việc dữ kiện, kiểm chứng, giới hạn đầu ra."
+  - "Giải thích reasoning model (chain-of-thought, test-time compute) và tradeoff của nó (độ trễ, chi phí; không chữa được bịa)."
+  - "Quyết định khi nào một reasoning model đáng dùng so với model thường, và khi nào nên dùng code/tool thay LLM."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      **Hallucination (bịa)** là khi LLM đưa ra một câu trả lời **nghe trôi chảy, tự tin, đúng ngữ
+      pháp nhưng sai sự thật hoặc không có căn cứ** — ví dụ bịa tên một bài báo, một API không tồn
+      tại, một con số, hay một trích dẫn luật. Điều nguy hiểm cho AI engineer là nó **không trông
+      giống lỗi**: câu bịa và câu đúng được viết ra y hệt nhau về giọng điệu.
+
+      Gốc rễ: một LLM được huấn luyện để **đoán token (từ) có khả năng xuất hiện tiếp theo**, dựa
+      trên các mẫu nó đã thấy. Nó **không có bước tra cứu sự thật (truth check)** gắn sẵn. Khi mẫu
+      ngôn ngữ "nghe hợp lý" trùng với sự thật thì ta được câu đúng; khi không, ta vẫn được một câu
+      nghe hợp lý — tức là bịa.
+  - id: b02
+    type: text
+    md: |
+      **Vì sao LLM bịa — ba nguyên nhân chính:**
+      - **Mục tiêu huấn luyện (training objective):** model tối ưu cho "token nghe hợp lý", không
+        phải cho "đúng sự thật". Một câu bịa mượt mà vẫn được mục tiêu này cho điểm cao.
+      - **Kiến thức thiếu hoặc cũ:** model chỉ biết tới thời điểm cắt dữ liệu (knowledge cutoff);
+        thông tin mới, nội bộ, hoặc quá hiếm thì nó không có — nhưng vẫn cố ghép ra một câu trả lời.
+      - **Áp lực phải trả lời:** theo mặc định model được "mong đợi" đưa ra câu trả lời. Nếu không
+        được phép nói "không biết", nó sẽ **lấp chỗ trống bằng phỏng đoán**. Việc lấy mẫu ngẫu nhiên
+        (sampling, nhất là khi temperature cao) càng làm nó dễ đi chệch khỏi dữ kiện.
+  - id: b03
+    type: callout
+    kind: interview
+    md: |
+      Câu phỏng vấn kinh điển: *"Reasoning model nghĩ kỹ hơn thì có hết bịa không?"* Trả lời:
+      **Không.** Hallucination là tính chất của việc model đoán token mà không tra sự thật; nghĩ lâu
+      hơn giúp ở bài **suy luận nhiều bước** nhưng model vẫn có thể **sai một cách rất tự tin** nếu
+      dữ kiện gốc nó dùng là bịa. Cách chữa thật sự là **đưa nguồn vào (grounding)** và **kiểm
+      chứng**, không phải "bảo nó cố gắng hơn".
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao một LLM thường có thể **bịa** thông tin mà vẫn nghe rất thuyết phục?"
+    options:
+      - {id: a, text_md: "Vì model được huấn luyện để đoán token nghe hợp lý tiếp theo và không có bước tra sự thật gắn sẵn; khi thiếu kiến thức nó vẫn lấp chỗ trống bằng câu mượt mà."}
+      - {id: b, text_md: "Vì model cố tình nói dối để tiết kiệm token đầu ra."}
+      - {id: c, text_md: "Vì model luôn tra Internet theo thời gian thực nên đôi khi lấy nhầm nguồn."}
+    answer: [a]
+    explain_md: "Bịa đến từ bản chất đoán token hợp lý + không có truth check, cộng với kiến thức thiếu/cũ và áp lực phải trả lời. (b) sai: không có 'cố ý nói dối'. (c) sai: một LLM thuần không tự tra Internet; nếu không được nối nguồn, nó chỉ dựa vào tham số đã học."
+  - id: b05
+    type: text
+    md: |
+      **Giảm bịa — nhóm 1: cho model căn cứ và đường thoát.**
+      - **Grounding / RAG (retrieval-augmented generation):** tìm tài liệu thật liên quan rồi **nhét
+        vào ngữ cảnh**, và bắt model **chỉ trả lời dựa trên tài liệu đó**. Có nguồn thì câu trả lời
+        **kiểm tra được** — đây là biện pháp mạnh nhất cho hỏi-đáp dữ kiện.
+      - **Yêu cầu trích dẫn (citations):** bắt model chỉ ra câu/đoạn nguồn cho mỗi khẳng định. Vừa
+        giúp người dùng kiểm, vừa ép model bám tài liệu.
+      - **Cho phép nói "không biết" (abstention):** dặn rõ trong system prompt rằng khi tài liệu
+        không chứa câu trả lời thì trả lời "Không đủ thông tin", **cấm suy đoán**. Đây là cách gỡ
+        "áp lực phải trả lời".
+  - id: b06
+    type: text
+    md: |
+      **Giảm bịa — nhóm 2: siết sinh và kiểm lại.**
+      - **Hạ temperature cho việc dữ kiện:** với tác vụ cần đúng/ổn định (trích xuất, phân loại,
+        hỏi-đáp), đặt temperature thấp (gần 0) để model bớt "bốc" phương án ít khả năng. Temperature
+        cao hợp với việc sáng tạo, không hợp với dữ kiện.
+      - **Kiểm chứng (verification):** sinh nhiều lần xem có **nhất quán** không (self-consistency);
+        hoặc thêm một **bước kiểm tra riêng** ("câu trả lời này có được suy ra từ tài liệu không?").
+      - **Giới hạn đầu ra (constrained output):** bắt trả về đúng một cấu trúc (JSON, đúng một nhãn
+        trong tập cho phép) rồi **validate**; thứ gì ngoài khuôn thì loại. Thu hẹp không gian đầu ra
+        thì ít chỗ để bịa.
+
+      Quan trọng cho AI engineer: mọi biện pháp trên chỉ đáng tin khi **đo được** — dựng một eval
+      set có đáp án chuẩn, đo **tỉ lệ bám nguồn (groundedness)** và **tỉ lệ abstention đúng lúc**
+      trước/sau khi đổi, thay vì "cảm thấy đỡ bịa hơn".
+  - id: b07
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Tính năng hỏi-đáp của bạn **thỉnh thoảng bịa** thông tin không có trong tài liệu. Cách nào **giảm bịa thực sự và đo được**?"
+    options:
+      - {id: a, text_md: "Grounding: bắt model chỉ trả lời từ tài liệu cho sẵn, cho phép trả 'Không đủ thông tin', yêu cầu trích dẫn; rồi đo tỉ lệ bám nguồn trên một eval set."}
+      - {id: b, text_md: "Thêm câu 'tuyệt đối đừng bịa, hãy luôn đúng' vào prompt và tăng temperature cho câu trả lời phong phú hơn."}
+      - {id: c, text_md: "Đổi sang một reasoning model lớn hơn để nó nghĩ kỹ, vì nghĩ kỹ thì không còn bịa."}
+    answer: [a]
+    explain_md: "Grounding + abstention + trích dẫn, kèm đo groundedness trên eval set, là cách giảm bịa thật và chứng minh được. (b) lời dặn suông không ràng buộc gì, còn tăng temperature làm dễ bịa hơn. (c) reasoning model KHÔNG chữa bịa — nếu dữ kiện gốc sai nó vẫn sai một cách tự tin."
+  - id: b08
+    type: text
+    md: |
+      **Reasoning model (mô hình suy luận)** là lớp model được huấn luyện để **"nghĩ" trước khi trả
+      lời**: nó sinh ra một chuỗi suy luận dài bên trong (chain-of-thought) và dùng **thêm token ở
+      lúc chạy để lập luận** — gọi là **test-time compute** (tính toán lúc suy luận). Nói nôm na: cho
+      model một "nháp" dài để thử từng bước, kiểm tra, rồi mới chốt.
+
+      Nhờ vậy chúng **đúng hơn rõ rệt ở các bài nhiều bước**: toán, logic, lập trình, suy luận ràng
+      buộc. Với các model phổ thông (không-reasoning), ta phải tự ép chain-of-thought bằng prompt;
+      reasoning model đã **tự làm việc đó bên trong**, nên thường không cần ép thêm.
+  - id: b09
+    type: text
+    md: |
+      **Tradeoff — và khi nào đáng dùng.** Chuỗi suy luận dài phải trả giá:
+      - **Chi phí:** các token "nghĩ" thường **tính tiền như token đầu ra** (output), nên một câu
+        hỏi có thể tốn gấp nhiều lần model thường.
+      - **Độ trễ (latency):** nghĩ lâu hơn nghĩa là **trả lời chậm hơn** — hại cho giao diện cần phản
+        hồi tức thì.
+      - **Không phải thuốc chữa bịa:** reasoning model **vẫn bịa** và vẫn có thể **sai một cách tự
+        tin**; thậm chí lời giải thích từng bước **chưa chắc phản ánh đúng** cách nó thật sự ra đáp
+        án (vấn đề faithfulness của CoT).
+
+      **Đáng dùng** khi bài khó, nhiều bước, và **đúng-sai quan trọng hơn tốc độ/chi phí** (giải
+      toán, gỡ lỗi logic, lập kế hoạch nhiều ràng buộc). **Phí tiền** khi việc đơn giản (viết lời
+      chào, phân loại ngắn, định dạng lại văn bản) — model thường vừa rẻ vừa nhanh là đủ. Và khi việc
+      cần **chính xác tuyệt đối và tất định** (tính 23 x 47, áp một luật cố định, tra một bảng dữ
+      liệu), câu trả lời đúng không phải "đổi model" mà là **dùng code/tool** cho phần đó rồi để LLM
+      lo phần ngôn ngữ.
+  - id: b10
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Trong ba việc sau, việc nào **đáng** dùng reasoning model nhất (cân nhắc chi phí + độ trễ)?"
+    options:
+      - {id: a, text_md: "Giải một bài đố logic nhiều bước, nơi đáp án đúng quan trọng hơn tốc độ."}
+      - {id: b, text_md: "Sinh một lời chào ngắn cho email marketing."}
+      - {id: c, text_md: "Tính chính xác tích 23 x 47 để hiển thị cho người dùng."}
+    answer: [a]
+    explain_md: "(a) đúng: bài nhiều bước, đúng-sai quan trọng hơn tốc độ — đúng chỗ reasoning model toả sáng. (b) phí tiền và chậm vô ích cho việc đơn giản. (c) không nên dùng LLM chút nào cho số học chính xác — dùng code/tool để tính cho tất định, tránh cả rủi ro bịa số."
+  - id: b11
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền thuật ngữ còn thiếu: Để giảm bịa khi tài liệu không chứa câu trả lời, ta dặn model trả lời
+      "Không đủ thông tin" thay vì phỏng đoán. Cho model đường thoát này gọi là ______.
+    blanks:
+      - accept: ["abstention", "từ chối trả lời", "nói không biết", "nói 'không biết'", "abstain"]
+    explain_md: "Abstention (cho phép nói 'không biết' / từ chối trả lời) gỡ bỏ 'áp lực phải trả lời' — một trong các nguyên nhân khiến model lấp chỗ trống bằng phỏng đoán. Kết hợp với grounding thì giảm bịa rõ rệt."
+  - id: b12
+    type: summary
+    bullets_vi:
+      - "**Hallucination** = câu trả lời trôi chảy nhưng sai/không căn cứ; gốc là model **đoán token hợp lý, không có bước tra sự thật**."
+      - "Nguyên nhân: **mục tiêu huấn luyện** (token hợp lý, không phải sự thật), **kiến thức thiếu/cũ** (knowledge cutoff), **áp lực phải trả lời** + sampling."
+      - "Giảm bịa **có đo lường**: **grounding/RAG** + **trích dẫn**, **abstention** ('không biết'), **hạ temperature** cho việc dữ kiện, **kiểm chứng** (self-consistency), **giới hạn đầu ra** — và đo groundedness trên eval set."
+      - "**Reasoning model** (chain-of-thought / test-time compute): nghĩ nhiều token hơn trước khi trả lời, **đúng hơn ở bài nhiều bước**; đổi lại **chậm + tốn tiền** (token nghĩ tính như output) và **không chữa được bịa**."
+      - "**Đáng dùng** reasoning model khi bài khó, nhiều bước, đúng-sai > tốc độ; **phí** cho việc đơn giản; còn việc cần **chính xác tất định** (số học, luật cố định, tra bảng) thì dùng **code/tool** thay LLM."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S274], l2: [S275], l3: [S276]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"
