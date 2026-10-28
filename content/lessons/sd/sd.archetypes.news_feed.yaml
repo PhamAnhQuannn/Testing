@@ -1,0 +1,173 @@
+id: sd.archetypes.news_feed
+version: 1
+status: published
+title_vi: "Thiết kế news feed và timeline: fan-out khi ghi, khi đọc, và cách lai"
+est_minutes: 14
+objectives_vi:
+  - "Vẽ được kiến trúc một news feed và kể đường đi của một bài đăng từ lúc tạo đến lúc hiện trong feed của follower."
+  - "So sánh fan-out khi ghi (push) và fan-out khi đọc (pull) bằng con số, và nói rõ mỗi bên trả giá ở đâu."
+  - "Giải thích bài toán người nổi tiếng (celebrity problem) và vì sao cách lai (hybrid) gỡ được nó."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      **News feed** (hay **timeline**) là trang hiện bài mới nhất từ những người bạn **theo dõi**
+      (follow) — dòng tin của Facebook, X, Instagram. Hai yêu cầu đặc trưng: **đọc rất nhiều hơn
+      ghi** (một bài đăng được hàng trăm người đọc), và **mở app phải thấy feed gần như tức thì**
+      (dưới ~500 ms cho 20 bài đầu).
+
+      Thành phần nền ta đã học ở các bài trước, giờ chỉ ghép lại:
+      - **Đồ thị theo dõi (social graph):** bảng "ai theo dõi ai", cho biết một bài đăng phải tới ai.
+      - **Kho bài đăng (post store):** một database chia mảnh theo khóa (sharding) lưu nội dung bài,
+        tra theo post id.
+      - **Hộp tin dạng cache (feed cache):** mỗi người giữ sẵn khoảng 200 post id mới nhất trong một
+        distributed cache (ví dụ Redis list) — chỉ lưu **id**, nội dung tra sau.
+      - **Hàng đợi + worker (task workers):** việc nặng lúc đăng bài được đẩy ra nền, không bắt người
+        đăng chờ.
+
+      Câu hỏi thiết kế cốt lõi: **khi nào thì làm công việc ghép feed — lúc ghi (đăng bài) hay lúc
+      đọc (mở app)?** Đó chính là hai mô hình fan-out dưới đây.
+  - id: b02
+    type: text
+    md: |
+      **Mô hình 1 — fan-out khi ghi (fan-out on write / push).** Ngay lúc một người đăng bài, hệ
+      **đẩy post id vào hộp tin của từng follower** (ghi vào feed cache của mỗi người). Khi follower
+      mở app, họ chỉ cần **đọc hộp tin của chính mình** — đã dựng sẵn, không phải tính gì.
+
+      - **Đọc cực nhanh:** một lần đọc cache theo khóa là xong, độ trễ thấp và ổn định.
+      - **Ghi đắt:** một bài đăng biến thành **N lượt ghi** (N = số follower). Việc này nên đẩy ra
+        **worker nền** qua hàng đợi, vì nó chậm và không nên chặn người đăng.
+      - **Phí cho người không hoạt động:** vẫn phải chép bài vào hộp tin của follower cả tháng không
+        mở app — ghi phí công.
+
+      Push hợp khi số follower **vừa phải** và việc đọc cần nhanh tuyệt đối (đa số người dùng thường).
+  - id: b03
+    type: text
+    md: |
+      **Mô hình 2 — fan-out khi đọc (fan-out on read / pull).** Lúc đăng bài **không đẩy đi đâu cả**,
+      chỉ lưu bài vào kho. Khi follower mở app, hệ **mới đi gom**: lấy danh sách người họ theo dõi,
+      truy vấn bài mới nhất của từng người, **trộn (merge)** lại theo thời gian rồi trả về.
+
+      - **Ghi rẻ:** đăng bài chỉ là một lần ghi vào kho, bất kể có bao nhiêu follower.
+      - **Đọc đắt:** mỗi lần mở app phải truy vấn và trộn bài của hàng trăm người — tốn CPU và nhiều
+        lượt đọc, khó giữ dưới 500 ms khi người ta theo dõi nhiều.
+      - **Không phí cho người không hoạt động:** ai không mở app thì không tốn gì.
+
+      Pull hợp khi **ghi phải rẻ** hoặc người được theo dõi có **quá nhiều** follower (xem phần sau).
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một hệ feed đổi từ **fan-out khi đọc (pull)** sang **fan-out khi ghi (push)**. Điều gì thay đổi?"
+    options:
+      - {id: a, text_md: "Việc đọc feed rẻ hơn (chỉ đọc hộp tin dựng sẵn), đổi lại mỗi bài đăng tốn nhiều lượt ghi hơn."}
+      - {id: b, text_md: "Cả đọc và ghi đều rẻ hơn, vì push bỏ hẳn được feed cache."}
+      - {id: c, text_md: "Việc ghi rẻ hơn vì không phải chép bài cho follower nữa."}
+    answer: [a]
+    explain_md: |
+      Push dời công việc ghép feed sang **lúc ghi**: đăng bài biến thành N lượt ghi vào hộp tin của N
+      follower, nên ghi đắt hơn; bù lại đọc chỉ là một lần đọc cache dựng sẵn nên rẻ và nhanh. (c) mô
+      tả đúng pull chứ không phải push. (b) sai — push *dùng* feed cache và làm ghi đắt hơn, không có
+      bữa trưa miễn phí.
+  - id: b05
+    type: text
+    md: |
+      **So sánh bằng con số** — đây là chỗ người phỏng vấn muốn nghe, đừng chỉ nói "đắt/rẻ".
+
+      Giả sử 1 người đăng 1 bài. Gọi F là số follower.
+      - **Push:** 1 bài đăng tạo **F lượt ghi** vào feed cache. Đọc feed = **1** lượt đọc.
+      - **Pull:** 1 bài đăng tạo **1 lượt ghi**. Nhưng nếu người này theo dõi K người, mỗi lần mở app
+        tốn khoảng **K lượt đọc + 1 lần trộn**.
+
+      Với **người dùng thường**, F và K đều nhỏ (vài trăm) → push thắng rõ vì đọc nhiều hơn ghi rất
+      nhiều, ta muốn đọc rẻ. Nhưng xét **người nổi tiếng (celebrity problem)**: một tài khoản có
+      **10 triệu follower** đăng **1** bài. Với push, đó là **10 triệu lượt ghi** cho **một** thao
+      tác đăng — và nếu họ đăng 5 bài/ngày thì là 50 triệu lượt ghi/ngày cho riêng một người. Push
+      kiểu này **không khả thi**: dồn ứ hàng đợi, trễ hàng phút, tốn khủng khiếp. Pull cũng không
+      cứu toàn cục vì người thường thì đọc lại thành đắt.
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một ngôi sao có **10 triệu** follower đăng **1** bài. Theo mô hình **push thuần (fan-out khi ghi)**, một thao tác đăng này sinh ra bao nhiêu lượt ghi vào feed cache, và vì sao đó là vấn đề?"
+    options:
+      - {id: a, text_md: "1 lượt ghi — push chỉ lưu bài một lần rồi follower tự đến đọc."}
+      - {id: b, text_md: "10 triệu lượt ghi — mỗi follower một lượt chép vào hộp tin; một bài hóa thành khối lượng ghi khổng lồ làm nghẽn hàng đợi và trễ cập nhật."}
+      - {id: c, text_md: "Khoảng vài trăm lượt ghi — bằng số người đang mở app lúc đó."}
+    answer: [b]
+    explain_md: |
+      Push chép post id vào hộp tin của **từng** follower, nên 10 triệu follower = **10 triệu lượt
+      ghi** cho một lần đăng. Đây đúng là celebrity problem: khối lượng ghi bùng nổ, worker và hàng
+      đợi quá tải, bài tới người xem trễ. (a) mô tả pull. (c) sai — push ghi cho **mọi** follower,
+      không phụ thuộc ai đang online.
+  - id: b07
+    type: text
+    md: |
+      **Lời giải: cách lai (hybrid fan-out).** Chia người được theo dõi làm hai nhóm theo một
+      **ngưỡng follower**:
+
+      - **Người thường** (follower dưới ngưỡng, ví dụ < 100 nghìn): dùng **push** — chép sẵn vào hộp
+        tin của follower, để đọc nhanh.
+      - **Người nổi tiếng** (trên ngưỡng): **không push**. Bài của họ **gom lúc đọc (pull)**.
+
+      Lúc một follower mở app, hệ làm **feed lai**: lấy hộp tin đã dựng sẵn (phần push từ bạn bè
+      thường) **trộn thêm** bài mới của số ít người nổi tiếng mà họ theo dõi (phần pull). Vì mỗi
+      người chỉ theo dõi một **nhúm nhỏ** ngôi sao, phần pull này chỉ vài lượt đọc — rẻ. Kết quả:
+      tránh được 10 triệu lượt ghi cho mỗi bài của ngôi sao, mà đọc vẫn nhanh. Đây là câu trả lời
+      mức 3 cho bài toán này.
+  - id: b08
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền thuật ngữ. Trong cách lai (hybrid), bài của **người thường** được xử lý bằng fan-out khi
+      _____ (1) (chép sẵn vào hộp tin follower), còn bài của **người nổi tiếng** được xử lý bằng
+      fan-out khi _____ (2) (gom lúc follower mở app). Tiêu chí quyết định một tài khoản thuộc nhóm
+      nào là số lượng _____ (3) của họ so với một ngưỡng.
+    blanks:
+      - {accept: ["ghi", "write", "push", "khi ghi", "on write"]}
+      - {accept: ["đọc", "read", "pull", "khi đọc", "on read"]}
+      - {accept: ["follower", "người theo dõi", "followers", "nguoi theo doi"]}
+    explain_md: |
+      Người thường dùng **push (fan-out khi ghi)** để đọc nhanh; người nổi tiếng dùng **pull (fan-out
+      khi đọc)** để khỏi bùng nổ lượt ghi. Ranh giới giữa hai nhóm là **số follower** so với một
+      ngưỡng — đây chính là bản chất của cách lai.
+  - id: b09
+    type: text
+    md: |
+      Vài chi tiết đủ để trả lời đầy đủ ở phỏng vấn:
+
+      - **Lưu trữ & cache:** feed cache chỉ giữ **post id** (khoảng 200 id mới nhất mỗi người), nội
+        dung bài tra riêng từ post store; ảnh/video để ở **CDN**, không nhét vào feed.
+      - **Phân trang bằng con trỏ (cursor pagination):** trả "20 bài sau id X" thay vì "trang số 5",
+        vì bài mới liên tục chen vào đầu feed làm lối phân trang theo số trang bị lệch/trùng.
+      - **Xếp hạng (ranking):** đơn giản nhất là **theo thời gian (chronological)**; nâng cao là
+        **theo độ hợp (ranked)** bằng mô hình chấm điểm — phần mô hình thuộc mảng ML, ở đây chỉ cần
+        biết feed không bắt buộc đúng thứ tự thời gian.
+      - **Nhất quán cuối cùng (eventual consistency):** feed chấp nhận trễ vài giây — thấy bài bạn vừa
+        đăng chậm một nhịp là chấp nhận được, đổi lại hệ chịu tải tốt hơn.
+  - id: b10
+    type: callout
+    kind: interview
+    md: |
+      **Khung trả lời ở phỏng vấn.** (1) Làm rõ yêu cầu và **ước lượng**: bao nhiêu người dùng, trung
+      bình bao nhiêu follower, tỉ lệ đọc/ghi. (2) Nêu **hai mô hình** push vs pull và **trả giá** của
+      mỗi bên — luôn kèm **con số** (một bài của người có F follower = F lượt ghi nếu push). (3) Chỉ
+      ra **celebrity problem** làm push thuần sập, rồi đề xuất **hybrid** theo ngưỡng follower. (4)
+      Nói thêm feed cache (chỉ lưu id), cursor pagination, CDN cho media, và eventual consistency.
+      Người phỏng vấn chấm việc bạn **định lượng được trade-off** và **tự phát hiện** nút thắt người
+      nổi tiếng, không chấm việc kể tên công nghệ.
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "News feed đọc nhiều hơn ghi và cần hiện nhanh; câu hỏi lõi là ghép feed lúc **ghi** (push) hay lúc **đọc** (pull)."
+      - "**Push (fan-out khi ghi):** chép post id vào hộp tin từng follower → đọc cực nhanh, nhưng 1 bài = N lượt ghi (đẩy ra worker nền), phí cho người không hoạt động."
+      - "**Pull (fan-out khi đọc):** đăng bài chỉ 1 lượt ghi, nhưng mỗi lần mở app phải gom và trộn bài của K người mình theo dõi → đọc đắt."
+      - "**Celebrity problem (bằng số):** 1 bài của người 10 triệu follower = 10 triệu lượt ghi nếu push → push thuần không khả thi."
+      - "**Hybrid:** người thường dùng push (đọc nhanh), người nổi tiếng dùng pull (gom lúc đọc); lúc đọc trộn hộp tin dựng sẵn với vài bài của số ít ngôi sao — chia theo ngưỡng follower."
+      - "Chi tiết kèm theo: feed cache chỉ lưu id + CDN cho media, cursor pagination, ranking theo thời gian hoặc độ hợp, nhất quán cuối cùng."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S214], l2: [S215], l3: [S216]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

@@ -1,0 +1,71 @@
+subtopic_id: sd.archetypes.video_streaming
+items:
+  - id: S223
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Nói ngắn gọn: trong hệ streaming, một video **không** được phát nguyên khối mà được cắt thành
+      ___ và kèm một ___ để player biết tải gì. Hai thứ đó là gì, và **rendition** nghĩa là gì?
+    answer_md: |
+      Video được cắt thành nhiều **đoạn ngắn (segments)**, mỗi đoạn vài giây (thường 2–10 giây), và
+      kèm một **manifest (playlist)** — file liệt kê các đoạn và các chất lượng có sẵn. Player đọc
+      manifest rồi tải từng đoạn theo thứ tự. **Rendition** là một **phiên bản chất lượng** của cùng
+      video (ví dụ 360p, 720p, 1080p), sinh ra ở bước chuyển mã (transcoding).
+    rubric_md: "Nêu đúng: đoạn (segment) + manifest/playlist, và rendition = một phiên bản chất lượng. Đúng cả ba ý: bằng chứng điểm 1; thiếu manifest hoặc nhầm rendition: tối đa điểm 0."
+  - id: S224
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Người dùng xem video trên điện thoại, mạng lúc khỏe lúc yếu: video bị **đứng hình
+      (rebuffering)** mỗi khi mạng tụt. Hãy giải thích hệ thống xử lý tình huống này thế nào: (1) nhờ
+      đâu player có thể đổi chất lượng giữa chừng; (2) **adaptive bitrate (ABR)** quyết định ở đâu và
+      theo cái gì; (3) vì sao phát qua **CDN** vẫn có lợi ở đây.
+    answer_md: |
+      (1) Vì video đã được chuyển mã sẵn thành **nhiều rendition** (360p–1080p) và mỗi rendition
+      được **cắt thành đoạn ngắn**; manifest liệt kê đủ các lựa chọn, nên player có thể đổi chất
+      lượng **ở ranh giới mỗi đoạn**.
+      (2) **ABR quyết định ở phía player**, dựa trên **băng thông đo được và mức buffer**: với mỗi
+      đoạn kế tiếp, player chọn rendition phù hợp — mạng tụt thì **hạ xuống 360p để tiếp tục phát**
+      thay vì đứng hình, mạng khỏe lại thì nâng lên.
+      (3) **CDN** phục vụ các đoạn (file tĩnh cache được) từ **biên gần người xem**, nên độ trễ tải
+      mỗi đoạn thấp và ổn định hơn, giúp player kịp lấy đoạn trước khi buffer cạn; đồng thời giảm tải
+      cho hệ thống gốc.
+    rubric_md: "Đạt khi nêu đúng cả 3 ý: có sẵn nhiều rendition + cắt đoạn nên đổi được giữa chừng; ABR quyết định ở client theo băng thông/buffer theo từng đoạn (hạ chất lượng thay vì đứng hình); CDN phục vụ đoạn từ biên gần người xem giảm độ trễ. Đúng, trong time-box, tự giải thích được: bằng chứng điểm 2. Thiếu ý ABR-ở-client-theo-đoạn hoặc không nói được vai trò CDN: tối đa điểm 1."
+  - id: S225
+    difficulty: 3
+    type: concept
+    minutes: 12
+    prompt_md: |
+      Phỏng vấn "Design YouTube". Hãy trình bày **đường từ upload đến phát (playback)** và giải thích
+      các mảnh ghép chính: (1) pipeline 4 bước **upload → transcode → segment → deliver**, mỗi bước
+      làm gì và vì sao; (2) **đoạn (segment)** và **manifest** phục vụ việc phát qua HTTP thế nào;
+      (3) **adaptive bitrate (ABR)** hoạt động ra sao; (4) **vai trò của CDN**. Nêu thêm một điểm khác
+      biệt giữa **VOD** và **live**.
+    answer_md: |
+      **Pipeline 4 bước:**
+      1. **Upload:** client tải file gốc **theo mảnh (chunked)** bằng **presigned URL** vào **kho đối
+         tượng (object storage)** — bền, rẻ, chịu được file lớn và cho tiếp tục khi đứt mạng.
+      2. **Transcode:** một **job bất đồng bộ** đẩy vào queue, **worker pool** sinh ra **nhiều
+         rendition** (360p–1080p) vì chuyển mã nặng/chậm, không nên bắt người upload chờ, và scale
+         bằng thêm worker.
+      3. **Segment:** mỗi rendition được **cắt thành đoạn ngắn** (2–10 giây) kèm **manifest/playlist**
+         liệt kê các đoạn và rendition, theo chuẩn **HLS/DASH**.
+      4. **Deliver:** các đoạn + manifest phát **qua CDN**.
+
+      **Đoạn và manifest:** player **đọc manifest → tải từng đoạn qua HTTP → ghép phát**. Vì mỗi đoạn
+      là **file tĩnh cache được**, nó hợp với CDN.
+
+      **ABR (adaptive bitrate):** player đo **băng thông và buffer**, và với **mỗi đoạn kế tiếp** chọn
+      rendition phù hợp — mạng yếu thì hạ chất lượng để **tránh đứng hình (rebuffering)**, mạng khỏe
+      thì nâng lại. Chính nhờ có sẵn nhiều rendition đã cắt đoạn mà player đổi giữa chừng được.
+
+      **Vai trò CDN:** cache các đoạn ở **biên gần người xem**; đoạn của video hot lấy từ gốc một lần
+      rồi phục vụ hàng triệu lượt (pull cho long-tail, push cho video hot) — giảm độ trễ và giảm tải
+      cho hệ thống gốc.
+
+      **VOD so với live:** VOD transcode/cắt đoạn **trước** khi phát (manifest tĩnh); **live** phải
+      ingest → transcode → cắt đoạn **gần như tức thì** với manifest cập nhật liên tục, và ưu tiên
+      **độ trễ thấp (low latency)**.
+    rubric_md: "Đạt (mức phỏng vấn, theo mastery_bar Mức 3) khi: mô tả đúng pipeline 4 bước upload→transcode→segment→deliver với lý do mỗi bước; giải thích đúng đoạn + manifest phục vụ phát qua HTTP (file tĩnh cache được); giải thích ABR ở client theo từng đoạn (hạ chất lượng thay vì rebuffer); nêu đúng vai trò CDN (đoạn ở biên gần người xem, giảm độ trễ/tải gốc); và một điểm khác biệt VOD/live (live ưu tiên độ trễ thấp, xử lý gần tức thì). Đúng, trong time-box, tự giải thích mạch lạc: bằng chứng điểm 3. Thiếu một trong các trụ (segment/manifest, ABR, CDN) hoặc không phân biệt được VOD/live: chưa đạt mức 3."

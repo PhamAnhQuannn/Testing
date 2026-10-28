@@ -1,0 +1,166 @@
+id: sd.archetypes.message_queue
+version: 1
+status: published
+title_vi: "Thiết kế hàng đợi message phân tán (distributed message queue): dựng broker từ một file log"
+est_minutes: 14
+objectives_vi:
+  - "Dựng phía broker (máy giữ tin) từ một **file log chỉ ghi nối đuôi (append-only log)** rồi chia thành **partition** để chạy song song."
+  - "Giải thích **sao chép (replication)** leader + follower, các mức **acks** và **ISR (in-sync replicas)**, và vì sao một bản ghi chỉ được coi là 'đã chốt (committed)' khi đã chép tới ISR."
+  - "So sánh hai kiểu broker: **queue xoá tin sau khi xác nhận** (SQS/RabbitMQ) với **log giữ tin** theo cửa sổ lưu (Kafka), và biết khi nào chọn kiểu nào."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Ở **sd.async.kafka_log** ta đã dùng một message queue từ phía người dùng: khái niệm **log**,
+      **partition**, **offset**, **consumer group**, **retention** và **lag**. Mục này lật sang
+      **phía broker** — tức là *tự tay thiết kế* cái máy chủ giữ tin — và đi sâu hơn: lưu tin thế nào
+      trên đĩa, chép sang máy khác ra sao, ai làm leader, khi nào coi là an toàn.
+
+      Ta sẽ dựng dần từ nhỏ đến lớn: (1) một **file log chỉ ghi nối đuôi (append-only log)** trên một
+      máy; (2) chia thành nhiều **partition** để chạy song song; (3) **sao chép (replication)** mỗi
+      partition để không mất tin khi một máy chết; (4) dùng **acks + ISR** để định nghĩa "an toàn".
+      Cuối cùng phân biệt hai *kiểu* broker: queue xoá sau xác nhận và log giữ tin.
+  - id: b02
+    type: text
+    md: |
+      **Bước 1 — một file log chỉ ghi nối đuôi.** Lõi của broker là chỗ cất tin bền trên đĩa. Chọn
+      cấu trúc đơn giản nhất mà vẫn nhanh: một **file log** mà producer chỉ **ghi nối vào đuôi
+      (append-only)**, không bao giờ sửa hay chèn giữa. Mỗi tin được gán một **offset** tăng dần
+      (vị trí thứ mấy trong log).
+
+      Vì sao chọn append-only? Vì **ghi tuần tự (sequential write)** xuống đĩa nhanh hơn nhiều so với
+      **ghi ngẫu nhiên (random write)** — đầu đọc/ghi không phải nhảy lung tung, nên một đĩa thường
+      đạt hàng trăm MB mỗi giây. Thực tế log không phải một file khổng lồ mà là một chuỗi **đoạn
+      (segment)**, ví dụ mỗi đoạn 1 GB, chỉ ghi vào đoạn cuối. Kèm theo một **chỉ mục thưa (sparse
+      index)** ánh xạ "offset → vị trí byte trong file" để đọc nhảy thẳng tới đúng chỗ. Muốn xoá tin
+      cũ thì **bỏ nguyên cả file đoạn** đã quá hạn — rẻ, không phải dọn từng tin.
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao broker cất tin vào một **file log chỉ ghi nối đuôi (append-only)** chia theo **đoạn (segment)**, thay vì cho sửa/xoá tin tại chỗ trong một file lớn?"
+    options:
+      - {id: a, text_md: "Vì ghi nối đuôi là **ghi tuần tự** nên nhanh hơn ghi ngẫu nhiên nhiều, và xoá tin cũ chỉ cần **bỏ nguyên một file đoạn** đã quá hạn."}
+      - {id: b, text_md: "Vì file append-only không bao giờ hỏng và không cần sao lưu."}
+      - {id: c, text_md: "Vì ghi nối đuôi cho phép sửa một tin bất kỳ ở giữa log mà không cần đọc lại."}
+    answer: [a]
+    explain_md: "Ghi tuần tự (sequential write) tránh cho đầu đĩa nhảy lung tung nên đạt hàng trăm MB/giây; cắt theo đoạn giúp xoá tin quá hạn bằng cách bỏ cả file, không phải dọn từng tin. (b) sai — bền là nhờ sao chép (replication), không phải nhờ append-only; (c) ngược hẳn — append-only *không* sửa tin ở giữa, đó chính là điều làm nó nhanh và đơn giản."
+  - id: b04
+    type: text
+    md: |
+      **Bước 2 — chia thành partition để chạy song song.** Một file log trên một máy bị chặn bởi
+      đĩa và CPU của đúng máy đó. Giải pháp: chia một **topic** (luồng tin) thành nhiều **partition**,
+      mỗi partition là **một log riêng**, đặt trên các máy khác nhau. Giờ ghi và đọc trải ra nhiều
+      máy — thông lượng cộng dồn lại, giống **mở rộng ngang (horizontal scaling)**.
+
+      Cái giá phải trả về **thứ tự (ordering)**: broker chỉ bảo đảm thứ tự **trong từng partition**,
+      *không* bảo đảm thứ tự giữa các partition. Nên producer chọn partition theo một **khoá (key)**
+      (ví dụ băm `user_id`): mọi tin cùng khoá về cùng một partition và giữ đúng thứ tự với nhau. Số
+      partition cũng là trần song song của một **consumer group**: tối đa mỗi partition cho một
+      consumer đọc, thừa consumer sẽ ngồi không.
+  - id: b05
+    type: text
+    md: |
+      **Bước 3 — sao chép (replication) để không mất tin.** Một partition nằm trên một máy; máy đó
+      chết là mất tin. Nên mỗi partition được giữ thành **nhiều bản sao (replica)**, thường là 3, đặt
+      trên các máy khác nhau. Trong đó **một bản là leader**, các bản còn lại là **follower**.
+
+      Mọi lệnh **ghi và đọc đều đi qua leader**; follower chỉ việc **sao lại (copy)** log của leader
+      theo đúng thứ tự để bắt kịp. Khi **leader chết**, hệ chọn **một follower đủ mới làm leader mới**,
+      nên partition vẫn phục vụ được và không mất tin đã an toàn. Câu hỏi then chốt còn lại: *thế nào
+      là "an toàn", lúc nào coi một tin đã ghi chắc chắn?* — đó là việc của **acks** và **ISR** ở bước
+      sau.
+  - id: b06
+    type: text
+    md: |
+      **Bước 4 — acks và ISR: định nghĩa "đã chốt".** **ISR (in-sync replicas — tập bản sao đang
+      theo kịp)** là những replica đang chép log của leader đủ sát (không tụt lại quá xa). Một tin chỉ
+      được coi là **đã chốt (committed)** khi đã được **ghi vào mọi bản trong ISR** — vì nếu leader
+      chết, một bản trong ISR lên thay vẫn có tin đó. Đây là mấu chốt của độ bền.
+
+      Producer chọn **mức xác nhận (acks)** tức là chờ đến đâu mới coi là ghi xong:
+      - **acks = 0** (bắn rồi quên): không chờ gì, nhanh nhất nhưng mất tin nếu leader rớt ngay.
+      - **acks = 1**: chờ **leader** ghi xong. Mất tin nếu leader chết *trước khi* follower kịp chép.
+      - **acks = all**: chờ **mọi bản trong ISR** ghi xong — tức chờ tin **đã chốt**. Bền nhất nhưng
+        chậm hơn vì phải đợi sao chép.
+
+      Quy tắc: tin quan trọng (đơn hàng, thanh toán) dùng **acks = all**; đổi lấy độ trễ cao hơn để
+      không mất tin.
+  - id: b07
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Với **acks = all**, vì sao một tin **đã chốt (committed)** không bị mất ngay cả khi **leader của partition chết**?"
+    options:
+      - {id: a, text_md: "Vì acks = all ghi tin thẳng vào đĩa của producer nên broker có chết cũng còn bản ở client."}
+      - {id: b, text_md: "Vì 'đã chốt' nghĩa là tin đã được ghi vào **mọi bản trong ISR**, nên khi leader chết, một bản ISR khác lên làm leader vẫn còn tin đó."}
+      - {id: c, text_md: "Vì acks = all tắt sao chép đi để leader không phải chờ follower, nhờ vậy ghi không bao giờ hỏng."}
+    answer: [b]
+    explain_md: "acks = all buộc chờ tin được ghi vào toàn bộ ISR (in-sync replicas) trước khi báo thành công; vì mọi bản ISR đều có tin, chọn bất kỳ bản ISR nào làm leader mới cũng không mất tin đã chốt. (a) sai — độ bền nằm ở phía broker qua replication, không phải ở client; (c) ngược hẳn — acks = all *dựa vào* sao chép, nó chờ ISR chứ không tắt sao chép."
+  - id: b08
+    type: text
+    md: |
+      **Phía consumer — offset, retention và đọc lại.** Khác với kiểu "giao xong là mất", trong một
+      broker kiểu log thì **đọc không xoá tin**. Mỗi consumer tự nhớ mình đọc tới đâu bằng một
+      **offset**, và định kỳ **lưu lại (commit) offset** đó. Nhờ vậy: nếu consumer chết rồi bật lại,
+      nó đọc tiếp từ offset đã lưu; nếu muốn, nó **tua lại (rewind)** offset về quá khứ để **đọc lại
+      (replay)** toàn bộ tin — ví dụ khi sửa bug xử lý hay nạp lại một kho dữ liệu.
+
+      Log không giữ tin mãi: broker cấu hình một **cửa sổ lưu (retention)**, ví dụ 7 ngày hoặc tới
+      một dung lượng trần, rồi bỏ các **đoạn (segment)** quá hạn. Nhiều **consumer group** khác nhau
+      đọc **cùng một log một cách độc lập**, mỗi group có offset riêng — một group phân tích, một group
+      gửi thông báo, không ai giẫm chân ai.
+  - id: b09
+    type: text
+    md: |
+      **Hai kiểu broker — phải phân biệt rõ.** Cùng gọi là "message queue" nhưng có hai triết lý:
+
+      - **Queue xoá tin sau khi xác nhận (SQS, RabbitMQ):** broker **giao một tin cho một worker** và
+        **ẩn nó** khỏi người khác trong một **visibility timeout** (ví dụ 30 giây). Worker xử lý xong
+        thì **xác nhận (ack)** và tin **bị xoá**. Nếu hết thời gian mà chưa ack, tin **hiện lại** để
+        giao cho worker khác; quá N lần thì đẩy sang **DLQ (dead-letter queue — hàng đợi tin lỗi)**.
+        Hợp với **chia việc (work distribution)**: mỗi tin làm đúng một lần bởi một worker. Không có
+        offset, **không đọc lại được**.
+      - **Log giữ tin (Kafka):** tin **được giữ lại** suốt cửa sổ retention; đọc **không** xoá. Nhiều
+        consumer group đọc độc lập và **tua lại được**. Hợp với **nhiều bên tiêu thụ cùng một dòng sự
+        kiện** và cần replay.
+
+      Nói gọn: cần *chia việc cho worker, mỗi tin một lần* thì chọn **queue xoá sau ack**; cần *một
+      dòng sự kiện cho nhiều bên đọc lại* thì chọn **log giữ tin**.
+  - id: b10
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một hệ cần: (1) đẩy một dòng sự kiện 'click' cho **ba** đội dùng độc lập (phân tích, gợi ý, chống gian lận), và (2) đội phân tích thỉnh thoảng phải **đọc lại 3 ngày** dữ liệu cũ sau khi sửa bug. Nên chọn kiểu broker nào?"
+    options:
+      - {id: a, text_md: "**Log giữ tin** (kiểu Kafka): giữ tin theo retention, mỗi consumer group có offset riêng nên ba đội đọc độc lập, và tua offset về quá khứ để đọc lại 3 ngày."}
+      - {id: b, text_md: "**Queue xoá sau ack** (kiểu SQS): giao một tin cho một worker rồi xoá, vì như vậy mỗi sự kiện chỉ được xử lý đúng một lần cho cả ba đội."}
+      - {id: c, text_md: "Kiểu nào cũng được, vì cả hai đều cho nhiều bên đọc độc lập và đều tua lại được tin đã giao."}
+    answer: [a]
+    explain_md: "Yêu cầu là nhiều bên đọc **cùng một dòng** độc lập và **đọc lại** quá khứ — đúng thế mạnh của log giữ tin: tin được giữ theo retention, mỗi consumer group có offset riêng, tua được. (b) sai vì queue xoá sau ack giao một tin cho *một* worker rồi xoá, không phục vụ ba đội độc lập và không đọc lại được; (c) sai vì queue xoá sau ack *không* giữ tin để đọc lại."
+  - id: b11
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn ("Design a distributed message queue / Design Kafka").** Dựng câu trả lời theo
+      đúng lộ trình tăng dần, mỗi bước nói rõ *giải quyết vấn đề gì*: **một file log append-only**
+      (ghi tuần tự nhanh, xoá theo đoạn) → **partition** (song song + thứ tự trong partition) →
+      **replication leader/follower** (chịu lỗi) → **acks + ISR** (định nghĩa "đã chốt", đánh đổi độ
+      bền với độ trễ) → **consumer offset + retention** (đọc lại, nhiều group). Luôn hỏi lại yêu cầu
+      để chọn *kiểu*: **xoá sau ack** (chia việc) hay **log giữ tin** (nhiều bên + replay). Người
+      phỏng vấn chấm việc bạn nêu được **đánh đổi** (acks, số bản sao, retention), không chấm việc đọc
+      thuộc tên sản phẩm.
+  - id: b12
+    type: summary
+    bullets_vi:
+      - "Lõi broker là **file log chỉ ghi nối đuôi (append-only)** cắt theo **đoạn (segment)**: ghi tuần tự nên nhanh, xoá tin quá hạn bằng cách bỏ cả file đoạn; mỗi tin có một **offset**."
+      - "Chia topic thành nhiều **partition** (mỗi partition một log, trên nhiều máy) để chạy song song; chỉ bảo đảm **thứ tự trong từng partition**, nên gom tin cùng **khoá** về một partition."
+      - "Mỗi partition có **nhiều bản sao**: **leader** nhận đọc/ghi, **follower** chép theo; leader chết thì một follower trong ISR lên thay nên không mất tin đã an toàn."
+      - "**acks** = chờ đến đâu: 0 (bắn rồi quên) / 1 (leader) / all (mọi bản **ISR** — tức tin **đã chốt (committed)**); all bền nhất nhưng chậm hơn. Tin quan trọng dùng acks = all."
+      - "**Queue xoá sau ack** (SQS/RabbitMQ): giao một tin cho một worker, ack thì xoá, hết hạn thì hiện lại, quá N lần vào **DLQ** — hợp **chia việc**, không đọc lại được."
+      - "**Log giữ tin** (Kafka): giữ tin theo **retention**, đọc không xoá, nhiều **consumer group** đọc độc lập và **tua lại (replay)** được — hợp nhiều bên tiêu thụ cùng một dòng sự kiện."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S235], l2: [S236], l3: [S237]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

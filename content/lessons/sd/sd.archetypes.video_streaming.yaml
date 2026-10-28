@@ -1,0 +1,140 @@
+id: sd.archetypes.video_streaming
+version: 1
+status: published
+title_vi: "Streaming video và media: từ upload đến phát mượt cho hàng triệu người"
+est_minutes: 14
+objectives_vi:
+  - "Vẽ được pipeline 4 bước **upload → chuyển mã → cắt đoạn → phát (deliver)** và nói rõ mỗi bước làm gì."
+  - "Giải thích **đoạn (segment)**, **manifest (playlist)** và **nhiều chất lượng (renditions)** phục vụ việc phát qua HTTP thế nào."
+  - "Giải thích **tự đổi chất lượng (adaptive bitrate, ABR)** ở phía player và **vai trò của CDN** trong việc phát gần người xem."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Bài toán "thiết kế YouTube/Netflix": một người **tải video lên (upload)**, hàng triệu người
+      khác **xem (playback)** ở nhiều chất lượng khác nhau, trên mạng mạnh yếu khác nhau, mà vẫn
+      mượt. Đây là một **archetype** quen thuộc, và cách giải chuẩn là một **pipeline (đường ống)**
+      bốn bước:
+
+      **upload → chuyển mã (transcode) → cắt đoạn (segment) → phát (deliver)**.
+
+      Điểm cốt lõi để nhớ: ta **không** phát thẳng file video gốc cho người xem. Thay vào đó, video
+      được xử lý sẵn thành nhiều phiên bản và nhiều mẩu nhỏ, rồi phát qua HTTP từ chỗ gần người xem.
+      Bài này tái sử dụng ba thứ bạn đã học: **kho đối tượng (object/blob storage)**, **đội worker
+      lấy việc từ queue (task workers)**, và **CDN**.
+  - id: b02
+    type: text
+    md: |
+      **Bước 1 — Upload vào kho đối tượng.** Video gốc thường rất lớn (một video 10 phút có thể vài
+      GB). Client không gửi một cục khổng lồ trong một request, mà **tải lên theo mảnh (chunked
+      upload)** bằng **URL có chữ ký (presigned URL)**: đứt mạng thì tiếp tục từ mảnh dở, không phải
+      làm lại từ đầu. File gốc đáp xuống **kho đối tượng (object storage)** — rẻ, bền, dung lượng gần
+      như vô hạn, hợp để giữ file nhị phân lớn. Lúc này chưa ai xem được; ta mới chỉ **cất** file thô.
+  - id: b03
+    type: text
+    md: |
+      **Bước 2 — Chuyển mã (transcoding) thành nhiều chất lượng.** Từ một file gốc, ta sinh ra nhiều
+      bản ở các độ phân giải / **bitrate (tốc độ bit)** khác nhau: ví dụ 360p, 480p, 720p, 1080p. Mỗi
+      bản gọi là một **rendition (phiên bản chất lượng)**. Vì sao cần nhiều bản? Để người mạng yếu xem
+      được bản nhẹ (360p) mà không đứng hình, còn người mạng khỏe xem bản nét (1080p).
+
+      Chuyển mã là việc **nặng và chậm** (tốn nhiều CPU/GPU), và không cần làm ngay trong lúc người
+      dùng chờ. Nên nó được đẩy thành **job bất đồng bộ**: một message vào **queue**, một **đội worker
+      (worker pool)** lấy việc ra chạy, xong thì ghi các rendition trở lại kho đối tượng. Thêm người
+      upload thì chỉ cần thêm worker — đúng mô hình task workers bạn đã học.
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao bước **chuyển mã (transcoding)** thường chạy bằng một **đội worker lấy việc từ queue** thay vì làm ngay trong request upload?"
+    options:
+      - {id: a, text_md: "Vì queue làm cho video nét hơn so với chạy trực tiếp."}
+      - {id: b, text_md: "Vì chuyển mã rất nặng và chậm; đẩy thành job bất đồng bộ cho worker pool giúp không bắt người upload chờ, và thêm tải thì chỉ cần thêm worker."}
+      - {id: c, text_md: "Vì chỉ worker mới đọc được file từ kho đối tượng, còn request thì không."}
+    answer: [b]
+    explain_md: "Chuyển mã tốn nhiều CPU/GPU và chậm; không nên khoá request upload chờ nó. Đẩy vào queue cho worker pool xử lý nền, và scale bằng cách thêm worker. (a) sai — queue không liên quan chất lượng hình; (c) sai — cả request lẫn worker đều có thể đọc kho đối tượng, đó không phải lý do."
+  - id: b05
+    type: text
+    md: |
+      **Bước 3 — Cắt đoạn (segmenting) và tạo manifest.** Mỗi rendition không được phát nguyên khối,
+      mà **cắt thành nhiều đoạn ngắn (segments)**, mỗi đoạn vài giây (thường **2–10 giây**). Ví dụ
+      video 10 phút ở 720p được cắt thành khoảng 150 đoạn 4 giây.
+
+      Kèm theo là một **manifest (còn gọi là playlist)** — một file văn bản nhỏ **liệt kê các đoạn**
+      và có những rendition nào. **HLS** (của Apple) và **DASH** (chuẩn mở) là hai chuẩn phổ biến để
+      phát video **qua HTTP** theo cách này. Player hoạt động đơn giản: **đọc manifest → tải từng đoạn
+      theo thứ tự → ghép lại phát**. Nhờ cắt nhỏ và chạy trên HTTP thường, mỗi đoạn trở thành một file
+      tĩnh bình thường — và file tĩnh thì **cache được** và phát qua CDN rất dễ.
+  - id: b06
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền thuật ngữ (tiếng Anh) cho đúng:
+
+      1. File văn bản nhỏ liệt kê các đoạn và các chất lượng, để player đọc trước khi tải, gọi là ___ (hay playlist).
+      2. Mỗi phiên bản chất lượng (ví dụ 360p, 720p) của cùng một video gọi là một ___.
+    blanks:
+      - {accept: ["manifest", "Manifest"]}
+      - {accept: ["rendition", "Rendition", "rendition (chất lượng)"]}
+    explain_md: "Player đọc **manifest/playlist** để biết có những **rendition** nào và mỗi rendition gồm những **đoạn (segment)** nào, rồi mới tải từng đoạn. Đây là bộ ba khái niệm trụ cột của HLS/DASH."
+  - id: b07
+    type: text
+    md: |
+      **Bước 4 — Phát (deliver) qua CDN, và tự đổi chất lượng.** Các đoạn và manifest được phát từ
+      **CDN** — mạng máy chủ đặt gần người xem khắp nơi. Vì mỗi đoạn là file tĩnh cache được, CDN
+      giữ bản sao ở **biên (edge)** gần người dùng: đoạn của một video **hot** được xem nhiều chỉ cần
+      lấy từ gốc một lần rồi phục vụ cả triệu lượt từ cache, giảm tải cho hệ thống gốc và giảm độ trễ.
+      Video ít người xem (long-tail) thì để CDN **kéo (pull)** khi có người hỏi; video dự đoán hot có
+      thể **đẩy (push)** sẵn ra biên.
+
+      Phần thông minh nằm ở player: **tự đổi chất lượng (adaptive bitrate, ABR)**. Player liên tục **đo
+      băng thông và mức buffer (bộ đệm)**, rồi **chọn rendition cho từng đoạn kế tiếp**: mạng đang khỏe
+      thì lấy đoạn 1080p, mạng tụt thì đoạn sau xuống 720p hay 360p — **giảm chất lượng còn hơn đứng
+      hình (rebuffering)**. Chính vì video đã được cắt đoạn và có nhiều rendition trong manifest nên
+      player mới **đổi giữa chừng** mượt mà được.
+  - id: b08
+    type: quiz_mcq
+    graded: true
+    prompt_md: "**Tự đổi chất lượng (adaptive bitrate, ABR)** hoạt động thế nào ở phía player?"
+    options:
+      - {id: a, text_md: "Server quyết định một chất lượng cố định cho cả video dựa trên tài khoản người xem, player không đổi được."}
+      - {id: b, text_md: "Player đo băng thông/buffer và với **mỗi đoạn kế tiếp** chọn rendition phù hợp; mạng yếu thì hạ chất lượng để tránh đứng hình."}
+      - {id: c, text_md: "Player tải sẵn toàn bộ video ở mọi chất lượng rồi mới bắt đầu phát."}
+    answer: [b]
+    explain_md: "ABR là quyết định **ở client, theo từng đoạn**: đo điều kiện mạng rồi chọn rendition cho đoạn tiếp theo, ưu tiên không rebuffering. (a) sai — chất lượng không cố định theo tài khoản; (c) sai — tải hết mọi chất lượng là lãng phí và chậm, trái hẳn ý tưởng phát theo đoạn."
+  - id: b09
+    type: callout
+    kind: interview
+    md: |
+      **VOD so với live (livestream).** Video có sẵn (VOD, như YouTube/Netflix) xử lý pipeline **trước
+      khi** ai xem, nên có thể transcode kỹ, nhiều rendition, manifest tĩnh. **Livestream** (Twitch)
+      thì khác: video **đang** được tạo, nên phải **ingest (thu) → transcode → cắt đoạn gần như tức
+      thì**, và manifest cập nhật liên tục. Thách thức chính của live là **độ trễ thấp (low latency)**:
+      đoạn càng ngắn thì độ trễ càng thấp nhưng tải lên CDN càng dày; có low-latency HLS/DASH, và với
+      yêu cầu cực thấp (gọi video, đấu giá) người ta dùng WebRTC thay vì HLS.
+  - id: b10
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Trong kiến trúc streaming, **vai trò chính của CDN** là gì?"
+    options:
+      - {id: a, text_md: "Chuyển mã video gốc thành nhiều rendition thay cho worker pool."}
+      - {id: b, text_md: "Phục vụ các **đoạn (segment)** và manifest (file tĩnh cache được) từ **biên gần người xem**, giảm độ trễ và giảm tải cho hệ thống gốc."}
+      - {id: c, text_md: "Lưu bản gốc duy nhất của video để tiết kiệm chi phí kho đối tượng."}
+    answer: [b]
+    explain_md: "CDN cache các đoạn tĩnh ở biên gần người dùng: một đoạn hot lấy từ gốc một lần rồi phục vụ hàng triệu lượt, vừa nhanh vừa đỡ tải gốc. (a) là việc của transcoding worker; (c) bản gốc và các rendition nằm ở kho đối tượng, không phải CDN."
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "Pipeline 4 bước: **upload** (chunked + presigned vào kho đối tượng) → **transcode** (worker pool sinh nhiều **rendition** 360p–1080p) → **segment** (cắt thành đoạn 2–10 s + **manifest/playlist**, chuẩn HLS/DASH) → **deliver** (qua CDN)."
+      - "Không phát file gốc; phát **đoạn tĩnh qua HTTP**, nên **cache được** và hợp với CDN."
+      - "**Manifest** liệt kê các đoạn và rendition; player đọc manifest rồi tải từng đoạn theo thứ tự."
+      - "**Adaptive bitrate (ABR)**: player đo băng thông/buffer và chọn rendition cho **từng đoạn** — mạng yếu thì hạ chất lượng thay vì đứng hình."
+      - "**CDN** phục vụ đoạn + manifest từ biên gần người xem (pull cho long-tail, push cho video hot), giảm độ trễ và tải gốc."
+      - "**Live** khác VOD ở yêu cầu **độ trễ thấp**: transcode/cắt đoạn gần tức thì, manifest cập nhật liên tục."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S223], l2: [S224], l3: [S225]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

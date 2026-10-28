@@ -1,0 +1,64 @@
+subtopic_id: sd.archetypes.news_feed
+items:
+  - id: S214
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Nói ngắn gọn: **fan-out khi ghi (push)** và **fan-out khi đọc (pull)** của một news feed khác
+      nhau ở chỗ nào, và mỗi cách đọc/ghi bên nào đắt?
+    answer_md: |
+      **Push (fan-out khi ghi):** ngay lúc đăng bài, chép post id vào **hộp tin của từng follower**;
+      follower chỉ đọc hộp tin dựng sẵn của mình. → **đọc rẻ/nhanh, ghi đắt** (1 bài = N lượt ghi với
+      N follower).
+      **Pull (fan-out khi đọc):** đăng bài chỉ lưu một lần, **đến lúc mở app mới đi gom** bài của
+      những người mình theo dõi rồi trộn lại. → **ghi rẻ, đọc đắt**.
+    rubric_md: "Đạt khi nêu đúng cả hai: push = chép sẵn vào hộp tin follower lúc ghi (đọc rẻ, ghi đắt); pull = gom lúc đọc (ghi rẻ, đọc đắt). Đúng ý: bằng chứng điểm 1; đảo nghĩa hai mô hình hoặc chỉ nói được một bên: tối đa điểm 0."
+  - id: S215
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Một mạng xã hội mới chọn **push thuần (fan-out khi ghi)** cho mọi tài khoản. Người dùng thường
+      (vài trăm follower) chạy rất mượt, nhưng khi vài tài khoản chạm mốc hàng triệu follower thì hệ
+      bắt đầu trễ nặng mỗi khi họ đăng bài. (1) Giải thích **bằng con số** vì sao chính push gây ra
+      sự cố này; (2) đề xuất cách sửa và nói rõ nó gỡ nút thắt thế nào.
+    answer_md: |
+      (1) Với push, một bài đăng của người có F follower sinh ra **F lượt ghi** vào feed cache. Người
+      thường F nhỏ (vài trăm) nên rẻ; nhưng tài khoản **1 triệu+** follower đăng 1 bài là **1 triệu+
+      lượt ghi** cho một thao tác — hàng đợi và worker quá tải, bài tới người xem trễ hàng phút. Đây
+      là **celebrity problem**.
+      (2) Chuyển sang **hybrid (cách lai)**: giữ **push cho người thường** (để đọc vẫn nhanh), còn
+      **người nổi tiếng thì pull** — không chép đi đâu, mà **gom lúc follower mở app**. Vì mỗi người
+      chỉ theo dõi một **nhúm nhỏ** ngôi sao, phần pull lúc đọc chỉ vài lượt đọc; nhờ vậy tránh được
+      triệu lượt ghi cho mỗi bài của ngôi sao mà đọc vẫn nhanh.
+    rubric_md: "Đạt khi: (1) định lượng được push = F lượt ghi/bài và chỉ ra triệu follower → triệu lượt ghi làm nghẽn (gọi đúng celebrity problem là điểm cộng); (2) đề xuất hybrid = push cho người thường + pull cho người nổi tiếng và giải thích phần pull rẻ vì mỗi người theo dõi ít ngôi sao. Đúng, trong time-box, tự giải thích được: bằng chứng điểm 2. Thiếu con số hoặc chỉ nói chung chung 'push đắt' mà không ra hybrid: tối đa điểm 1."
+  - id: S216
+    difficulty: 3
+    type: concept
+    minutes: 12
+    prompt_md: |
+      Thiết kế **home timeline** cho một mạng kiểu Twitter/X (phỏng vấn). Hãy trình bày: (1) kiến
+      trúc cơ bản và đường đi của một bài đăng tới feed của follower; (2) **so sánh fan-out khi ghi
+      và khi đọc bằng con số**, nói rõ mỗi bên trả giá ở đâu; (3) **xử lý người nổi tiếng bằng cách
+      lai (hybrid)** — chia nhóm theo tiêu chí gì và lúc đọc ghép feed ra sao. Nêu thêm vài chi tiết
+      thực tế (feed cache, phân trang, media, nhất quán).
+    answer_md: |
+      (1) **Kiến trúc:** social graph (ai theo dõi ai) + post store (chia mảnh theo khóa) + feed cache
+      (hộp tin mỗi người giữ ~200 post id) + hàng đợi & worker cho việc nặng. Đường đi khi push: người
+      đăng → ghi bài vào post store → worker đọc danh sách follower từ social graph → chép post id vào
+      feed cache của từng follower → follower mở app đọc hộp tin dựng sẵn, tra nội dung theo id.
+      (2) **So sánh bằng số:** gọi F = số follower, K = số người mình theo dõi.
+      - Push: 1 bài = **F lượt ghi**; đọc feed = **1** lượt đọc → đọc nhanh/ổn định, ghi đắt, còn phí
+        cho follower không hoạt động.
+      - Pull: 1 bài = **1 lượt ghi**; mỗi lần mở app ≈ **K lượt đọc + 1 lần trộn** → ghi rẻ, đọc đắt.
+      Vì feed **đọc nhiều hơn ghi rất nhiều**, với người thường (F, K nhỏ) ta ưu tiên push cho đọc rẻ.
+      (3) **Celebrity problem + hybrid:** một tài khoản **10 triệu** follower đăng 1 bài = **10 triệu
+      lượt ghi** nếu push → không khả thi. Cách lai: chia theo **ngưỡng số follower** — người thường
+      (dưới ngưỡng) **push**, người nổi tiếng (trên ngưỡng) **pull**. Lúc follower mở app, hệ **trộn**
+      hộp tin dựng sẵn (phần push từ bạn bè thường) với bài mới của số ít ngôi sao họ theo dõi (phần
+      pull, chỉ vài lượt đọc). Nhờ đó tránh triệu lượt ghi mỗi bài của ngôi sao mà đọc vẫn nhanh.
+      **Chi tiết:** feed cache chỉ lưu post id (nội dung tra riêng), media để ở **CDN**; **cursor
+      pagination** ("20 bài sau id X") vì bài mới chen vào làm phân trang theo số trang bị lệch;
+      ranking theo thời gian hoặc theo độ hợp; feed **nhất quán cuối cùng** (trễ vài giây là chấp nhận).
+    rubric_md: "Đạt mức 3 (phỏng vấn, theo mastery_bar) khi làm đủ cả ba: (1) vẽ được kiến trúc + đường đi một bài đăng; (2) so sánh push vs pull **có con số** (F lượt ghi/1 lượt đọc so với 1 lượt ghi/K lượt đọc) và nêu đúng cái giá mỗi bên; (3) phát hiện celebrity problem (triệu follower → triệu lượt ghi) và gỡ bằng **hybrid** chia theo ngưỡng follower + trộn push với pull lúc đọc. Đúng, trong time-box, tự giải thích rành mạch: bằng chứng điểm 3. Thiếu con số, hoặc không ra được hybrid, hoặc không chỉ ra nút thắt người nổi tiếng: chưa đạt mức 3."

@@ -1,0 +1,69 @@
+subtopic_id: sd.archetypes.file_sync
+items:
+  - id: S217
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Trong dịch vụ đồng bộ file (file sync), **mã băm nội dung (content hash)** của một mảnh
+      (chunk) dùng để làm gì? Nêu ngắn gọn ý nghĩa và một lợi ích nó mang lại.
+    answer_md: |
+      Mã băm nội dung là **dấu vân tay** của mảnh: hai mảnh có cùng nội dung cho **cùng một mã băm**.
+      Nhờ đó kho chỉ cần lưu **mỗi mảnh duy nhất một lần** (lấy mã băm làm khoá) — tức **khử trùng
+      (dedup)**: nếu kho đã có mã băm đó thì không cần tải lại. Nó cũng cho phép client biết **mảnh
+      nào mới** (mã băm chưa có) để chỉ tải phần thay đổi (delta sync).
+    rubric_md: "Đúng khi nêu được: mã băm là dấu vân tay nội dung (cùng nội dung → cùng mã) VÀ ít nhất một lợi ích (dedup/lưu một lần, hoặc phát hiện mảnh mới để delta sync). Đủ ý: điểm 1; chỉ nói chung chung 'để nhận diện' mà không nêu dedup/lưu-một-lần: tối đa điểm 0."
+  - id: S218
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Một người dùng sửa **một dòng** trong file văn bản **100 MB** rồi lưu. Hãy giải thích client
+      sẽ đồng bộ phần thay đổi thế nào để **không** phải tải lại 100 MB: (1) file được chia nhỏ ra
+      sao, và vì sao nên **cắt theo nội dung (content-defined chunking)** chứ không cắt theo kích
+      thước cố định; (2) client dựa vào đâu để biết **mảnh nào** cần tải lên; (3) thực tế lần lưu này
+      tải lên khoảng bao nhiêu dữ liệu?
+    answer_md: |
+      (1) File được cắt thành **các mảnh (chunk)** vài MB. Nên **cắt theo nội dung**: đặt ranh giới
+      mảnh dựa trên chính nội dung (ví dụ qua hàm băm trượt — rolling hash), để khi chèn/xoá vài byte
+      thì chỉ các mảnh **quanh chỗ sửa** đổi ranh giới. Cắt theo kích thước cố định sẽ đẩy toàn bộ
+      ranh giới dịch đi khi chèn byte, khiến hầu hết mảnh thành "mới" và phải tải lại.
+      (2) Client **tính mã băm nội dung (content hash)** cho từng mảnh và **so với danh sách mã băm
+      của phiên bản cũ** (hoặc hỏi kho đã có mã băm nào); mảnh nào có mã băm mới/kho chưa có thì mới
+      cần tải lên. Sau đó gửi server danh sách mã băm theo đúng thứ tự mô tả phiên bản mới.
+      (3) Chỉ sửa một dòng nên hầu như chỉ **một mảnh** đổi — tải lên cỡ một mảnh (vài MB), không
+      phải 100 MB. Đây là **đồng bộ phần thay đổi (delta sync)**.
+    rubric_md: "Đạt (điểm 2) khi nêu đúng cả 3 ý: cắt thành mảnh + lý do cắt theo nội dung (ranh giới ổn định khi chèn/xoá), dùng mã băm so với phiên bản cũ để tìm mảnh mới, và kết luận chỉ tải ~một mảnh/vài MB (delta sync). Thiếu lý do content-defined chunking HOẶC không chỉ ra dùng mã băm để tìm mảnh mới: tối đa điểm 1."
+  - id: S219
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      Phác thảo thiết kế một dịch vụ **đồng bộ file kiểu Dropbox** ở mức phỏng vấn. Trình bày đúng
+      mạch và giải thích: (1) **cắt mảnh (chunking)** — cắt thế nào và vì sao theo nội dung; (2)
+      **khử trùng theo mã băm (content-hash dedup)**; (3) **tải phần thay đổi (delta sync)**; (4)
+      kiến trúc tách **metadata service** khỏi **kho đối tượng (object storage)** và vai trò kênh
+      **báo thay đổi**; (5) khi hai thiết bị sửa cùng lúc thì **giữ bản xung đột (conflicted copy)**
+      ra sao và vì sao không ghi đè.
+    answer_md: |
+      1. **Cắt mảnh:** client cắt file thành mảnh vài MB và tải theo mảnh (đứt mạng chỉ gửi lại mảnh
+         dở — resumable). Dùng **cắt theo nội dung (content-defined chunking)**, ranh giới neo vào
+         nội dung (rolling hash), để chèn/xoá chỉ ảnh hưởng vài mảnh quanh chỗ sửa thay vì lệch toàn bộ.
+      2. **Dedup theo mã băm:** tính **mã băm nội dung (content hash, ví dụ SHA-256)** cho mỗi mảnh;
+         cùng nội dung → cùng mã. Kho lưu **mỗi mã băm một lần** (content-addressed), nên file trùng
+         giữa nhiều người hay khối lặp trong một file chỉ tốn một bản.
+      3. **Delta sync:** khi file đổi, client băm lại các mảnh, so với phiên bản cũ, **chỉ tải những
+         mã băm kho chưa có**, rồi gửi **danh sách mã băm theo thứ tự** của phiên bản mới. Thiết bị
+         khác cũng chỉ kéo các mảnh còn thiếu rồi ráp lại.
+      4. **Kiến trúc:** **object storage** giữ các mảnh (bất biến, địa chỉ bằng mã băm, rẻ, co giãn);
+         **metadata service** trên database giữ ánh xạ *file/phiên bản → danh sách mã băm*, chủ sở
+         hữu, quyền chia sẻ. Đọc file = đọc metadata ra danh sách mã băm rồi kéo mảnh về ráp. Thêm
+         **kênh báo thay đổi** (WebSocket/long-poll, hoặc polling dự phòng): khi A ghi phiên bản mới,
+         server báo cho thiết bị khác để chúng gọi lấy metadata mới và kéo mảnh thiếu. Versioning chỉ
+         thêm vài dòng metadata, không chép lại cả file.
+      5. **Xung đột:** hai thiết bị offline cùng sửa từ **một phiên bản gốc** — không bản nào nối
+         tiếp bản kia. Nếu ghi đè sẽ **mất âm thầm** phần sửa của người kia, nên server **giữ cả
+         hai**: một bản chính và một **bản xung đột (conflicted copy)** đặt tên riêng (ví dụ "... (bản
+         xung đột của An)"), để người dùng tự xem và gộp. Đánh đổi có chủ đích: thà phiền còn hơn mất
+         dữ liệu.
+    rubric_md: "Đạt mức 3 (mastery_bar) khi trình bày được cả 5 phần đúng mạch và tự giải thích: cắt mảnh + lý do content-defined chunking, dedup theo mã băm nội dung (lưu một lần), delta sync (chỉ tải mảnh mới + gửi danh sách mã băm), tách metadata service khỏi object storage cộng kênh báo thay đổi, và giữ conflicted copy thay vì ghi đè (nêu được lý do tránh mất dữ liệu âm thầm). Sót một trong năm phần, hoặc không giải thích được vì sao không ghi đè khi xung đột: chưa đạt mức 3."

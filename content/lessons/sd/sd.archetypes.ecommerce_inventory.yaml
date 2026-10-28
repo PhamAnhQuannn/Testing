@@ -1,0 +1,157 @@
+id: sd.archetypes.ecommerce_inventory
+version: 1
+status: published
+title_vi: "Thiết kế thương mại điện tử: giỏ hàng, tồn kho và đơn hàng không bán quá"
+est_minutes: 14
+objectives_vi:
+  - "Phân biệt dữ liệu nỗ-lực-tối-đa (best-effort: catalog, giỏ hàng) với nguồn sự thật (source of truth: tồn kho), và vì sao không được bán quá (oversell)."
+  - "Viết được câu lệnh trừ kho có điều kiện (conditional/atomic decrement) và giải thích vì sao nó chặn oversell còn read-then-write thì không."
+  - "Vẽ luồng đặt hàng dạng saga với trạng thái giữ hàng (reserve) → xác nhận (confirm) và bước hoàn lại (compensation) khi thanh toán hỏng; đặt hàng idempotent để chống bấm hai lần."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Một hệ thương mại điện tử (e-commerce) gồm vài khối quen thuộc: **danh mục** (catalog) để duyệt và
+      tìm sản phẩm, **giỏ hàng** (cart) giữ thứ khách định mua, **tồn kho** (inventory) đếm còn bao nhiêu
+      hàng, và **đơn hàng** (order) ghi lại giao dịch. Mỗi khối có yêu cầu nhất quán khác nhau:
+      - **Catalog**: đọc rất nhiều, ghi ít. Giá hay mô tả cũ vài giây không chết ai, nên đặt **cache** và
+        **chỉ mục tìm kiếm** (search index) phía trước là chuẩn.
+      - **Cart**: dữ liệu tạm của từng người, lưu nhanh trong **Redis hoặc một kho khóa-giá trị** (key-value),
+        xem là **nỗ lực tối đa** (best-effort) — mất giỏ hàng khó chịu nhưng không sai tiền.
+      - **Inventory + order**: đây là **nguồn sự thật** (source of truth). Sai ở đây nghĩa là **bán quá**
+        (oversell): kho còn 1 cái mà hai người cùng mua thành công. Phần còn lại của bài tập trung vào chỗ
+        khó này.
+  - id: b02
+    type: text
+    md: |
+      **SKU** (stock-keeping unit) là mã của một mặt hàng cụ thể, ví dụ "áo đen size M"; tồn kho đếm theo
+      SKU. Vấn đề oversell sinh ra từ một **race condition** kinh điển — mẫu **đọc-rồi-ghi** (read-then-write):
+
+      ```text
+      A đọc stock = 1   |   B đọc stock = 1
+      A thấy 1 >= 1 → ok |   B thấy 1 >= 1 → ok
+      A ghi stock = 0    |   B ghi stock = 0
+      ```
+
+      Cả hai cùng đọc thấy còn 1, cả hai cùng kết luận "mua được", rồi cùng ghi 0 — bán ra **2** cái trong khi
+      chỉ có **1**. Khoảng trống giữa lúc đọc và lúc ghi (check-then-act) là chỗ hai luồng chen vào nhau. Đây
+      chính là lý do cần mức cô lập (isolation) đủ mạnh hoặc một phép ghi **nguyên tử** (atomic).
+  - id: b03
+    type: text
+    md: |
+      Cách gọn và đúng nhất: **trừ kho có điều kiện** (conditional / atomic decrement). Thay vì đọc rồi mới
+      quyết định, ta gộp điều kiện vào trong chính lệnh ghi và để cơ sở dữ liệu khóa hàng đó khi cập nhật:
+
+      ```sql
+      UPDATE items SET stock = stock - :q
+      WHERE id = :id AND stock >= :q;
+      ```
+
+      Rồi **kiểm tra số dòng bị ảnh hưởng** (rows-affected): bằng **1** nghĩa là trừ thành công; bằng **0**
+      nghĩa là không đủ hàng và lệnh **không đổi gì cả** — thất bại sạch sẽ, ta báo "hết hàng". Vì mệnh đề
+      `AND stock >= :q` được kiểm tra **ngay trong lúc ghi** dưới khóa dòng, không còn khoảng trống cho luồng
+      khác chen vào: hai người không thể cùng thắng. Đây là một câu lệnh, một giao dịch, không cần đọc trước.
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao câu lệnh `UPDATE items SET stock = stock - :q WHERE id = :id AND stock >= :q` (rồi kiểm tra rows-affected) chặn được oversell, còn kiểu đọc-rồi-ghi thì không?"
+    options:
+      - {id: a, text_md: "Vì câu lệnh này chạy nhanh hơn nên hai người khó trúng cùng lúc."}
+      - {id: b, text_md: "Vì điều kiện `stock >= :q` được kiểm tra ngay trong lúc ghi dưới khóa dòng, nên không có khoảng trống giữa đọc và ghi để luồng khác chen vào; rows-affected = 0 báo hết hàng, thất bại sạch."}
+      - {id: c, text_md: "Vì sau khi UPDATE, cache sẽ tự đồng bộ lại số tồn kho cho mọi người dùng."}
+    answer: [b]
+    explain_md: "Oversell sinh ra từ khoảng trống check-then-act của đọc-rồi-ghi. Gộp điều kiện vào trong lệnh ghi (atomic) dưới khóa dòng xóa khoảng trống đó; rows-affected = 1 là thành công, = 0 là không đủ hàng và không đổi gì. (a) sai — nhanh hơn chỉ làm race hiếm hơn chứ không hết; (c) cache không liên quan đến tính đúng của việc trừ kho."
+  - id: b05
+    type: text
+    md: |
+      Nhưng mua hàng không chỉ là trừ một dòng: còn phải thanh toán, mà thanh toán có thể **lâu** hoặc **hỏng**.
+      Có hai lối:
+      - **Trừ ngay (decrement on order):** đặt hàng là trừ kho luôn. Đơn giản, nhưng nếu khách bỏ dở thanh toán,
+        hàng đã bị trừ "treo" ở đó cho tới khi có ai dọn.
+      - **Giữ hàng rồi xác nhận (reserve → confirm):** khi khách bấm đặt / vào trang thanh toán, ta **giữ** (reserve)
+        số hàng đó — vẫn là một lệnh có điều kiện, nhưng ghi vào cột "đang giữ" kèm **hạn giữ** (reservation TTL,
+        ví dụ 10 phút). Thanh toán **thành công** thì **xác nhận** (confirm): chuyển phần giữ thành đã bán. Thanh
+        toán **hỏng hoặc hết hạn** thì **trả hàng về kho** (release). Cách này tránh treo hàng lâu và phản ánh đúng
+        "đang có người định mua".
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao luồng **giữ hàng rồi xác nhận** (reserve → confirm) thường tốt hơn **trừ ngay** khi thanh toán có thể chậm hoặc hỏng?"
+    options:
+      - {id: a, text_md: "Vì reserve không cần dùng câu lệnh có điều kiện nên nhanh hơn."}
+      - {id: b, text_md: "Vì giữ hàng có hạn (TTL): nếu khách bỏ dở hoặc thanh toán hỏng, hàng tự được trả về kho, nên không bị treo và vẫn không bán quá."}
+      - {id: c, text_md: "Vì reserve cho phép bán nhiều hơn tồn kho thật khi cao điểm để không bỏ lỡ khách."}
+    answer: [b]
+    explain_md: "Reserve vẫn là một phép giữ có điều kiện (không bán quá), nhưng kèm hạn giữ để hàng không bị khóa chết khi khách bỏ dở; hết hạn thì release trả về kho. (a) sai — reserve vẫn cần điều kiện `>=`; (c) sai và nguy hiểm — reserve không bao giờ được vượt tồn kho thật."
+  - id: b07
+    type: text
+    md: |
+      Một đơn hàng đi qua nhiều service (kho, thanh toán, giao hàng) nên nó là một **saga**: chuỗi bước cục bộ,
+      mỗi bước có **bước hoàn lại** (compensating action) nếu bước sau hỏng. Đơn cũng là một **state machine**:
+      `đã đặt (placed) → đã thanh toán (paid) → đang giao (shipping) → đã giao (delivered)`.
+
+      Luồng điển hình và bước hoàn lại khi thanh toán hỏng:
+      1. Tạo đơn + **giữ hàng** (reserve) — có điều kiện, không bán quá.
+      2. Gọi **thanh toán** (payment).
+      3a. Thanh toán OK → **confirm**: chuyển phần giữ thành đã bán, đơn sang `paid`, phát sự kiện `order.paid`.
+      3b. Thanh toán **hỏng** → chạy **compensation**: **trả hàng về kho** (restock phần đã reserve) và **hoàn tiền**
+      (refund) nếu đã trừ, đơn sang `payment_failed`/`cancelled`.
+
+      Ý quan trọng khi phỏng vấn: saga **không rollback xuyên service** như một giao dịch ACID đơn khối; nó **đi
+      tới bằng cách bù trừ** — mỗi hành động có một hành động nghịch để đưa hệ về trạng thái nhất quán.
+  - id: b08
+    type: callout
+    kind: interview
+    md: |
+      **Idempotency chống bấm hai lần.** Khách hay bấm "Đặt hàng" hai lần, hoặc mạng timeout làm client gửi lại.
+      Nếu mỗi lần gửi tạo một đơn mới, ta vừa tạo đơn trùng vừa trừ kho hai lần. Cách chuẩn: client gắn một
+      **Idempotency-Key** (uuid) cho mỗi lần đặt; server lưu khóa đó cùng kết quả đơn đầu tiên, và mọi lần gửi
+      lại cùng khóa **trả về đúng đơn cũ, không ghi gì thêm**. Trong phỏng vấn, nhắc "tạo đơn phải idempotent"
+      là một điểm cộng rõ — nó ghép thẳng với ý trừ kho nguyên tử để toàn luồng an toàn khi gửi lại.
+  - id: b09
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền mệnh đề còn thiếu để câu lệnh trừ kho **không bao giờ bán quá**, và nêu con số của **rows-affected**
+      báo "trừ thành công":
+
+      `UPDATE items SET stock = stock - :q WHERE id = :id AND __(1)__` — sau đó kiểm tra rows-affected == __(2)__.
+    blanks:
+      - {accept: ["stock >= :q", "stock>=:q", "stock >= :q;", "stock>= :q", "stock >=:q", "stock >= q"]}
+      - {accept: ["1", "một", "= 1", "==1"]}
+    explain_md: "Mệnh đề `stock >= :q` khiến lệnh chỉ trừ khi còn đủ hàng; vì nó nằm trong chính lệnh ghi (atomic) nên không có khoảng trống cho race. rows-affected = 1 nghĩa là đã trừ thành công; = 0 nghĩa là không đủ hàng, lệnh không đổi gì — báo hết hàng."
+  - id: b10
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Trong luồng đặt hàng dạng saga (reserve → payment → confirm), thanh toán **hỏng** ở bước giữa. Bước **compensation** đúng là gì?"
+    options:
+      - {id: a, text_md: "Giữ nguyên phần hàng đã reserve và chờ khách thử thanh toán lại vô thời hạn."}
+      - {id: b, text_md: "Trả phần hàng đã reserve về kho (restock) và hoàn tiền (refund) nếu đã trừ, rồi đưa đơn sang trạng thái huỷ/thất bại."}
+      - {id: c, text_md: "Xoá hẳn SKU khỏi catalog để không ai mua được nữa."}
+    answer: [b]
+    explain_md: "Saga đi tới bằng bù trừ: mỗi bước có hành động nghịch. Thanh toán hỏng ⇒ nghịch của reserve là restock (trả hàng về kho) và nghịch của trừ tiền là refund, rồi đơn chuyển sang cancelled/payment_failed. (a) treo hàng vô hạn gây khóa tồn kho; (c) phá catalog, không liên quan."
+  - id: b11
+    type: callout
+    kind: interview
+    md: |
+      **Hàng bán chạy (hot SKU).** Nếu hàng nghìn người cùng giành một SKU (flash sale), một dòng tồn kho duy
+      nhất thành điểm nghẽn vì mọi lệnh đua khóa cùng một dòng. Hướng trả lời ở mức cao: **chia bộ đếm** tồn kho
+      thành nhiều phần (sharded counter) để giảm tranh chấp, hoặc **xếp hàng** (queue / phòng chờ ảo) để tuần tự
+      hoá yêu cầu. Nhưng nhớ nói rõ: dù tối ưu kiểu gì, **điều kiện không-bán-quá vẫn phải giữ** — nguồn sự thật
+      là tồn kho, không phải giỏ hàng hay cache.
+  - id: b12
+    type: summary
+    bullets_vi:
+      - "Catalog đọc nhiều (cache + search index), giỏ hàng là best-effort (Redis/KV); tồn kho và đơn hàng là nguồn sự thật — sai ở đây là bán quá (oversell)."
+      - "Oversell đến từ race đọc-rồi-ghi; chặn bằng trừ kho có điều kiện `UPDATE ... SET stock = stock - :q WHERE id = :id AND stock >= :q` rồi kiểm tra rows-affected (1 = ok, 0 = hết hàng, thất bại sạch)."
+      - "Giữ hàng rồi xác nhận (reserve → confirm) kèm hạn giữ (TTL) tốt hơn trừ ngay khi thanh toán có thể chậm/hỏng: hết hạn thì trả hàng về kho."
+      - "Đơn hàng là saga + state machine; thanh toán hỏng ⇒ chạy compensation (restock + refund) thay cho rollback xuyên service."
+      - "Tạo đơn phải idempotent (Idempotency-Key) để bấm hai lần / gửi lại không tạo đơn trùng và không trừ kho hai lần."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S232], l2: [S233], l3: [S234]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

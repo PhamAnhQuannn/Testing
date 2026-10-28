@@ -1,0 +1,73 @@
+subtopic_id: sd.archetypes.booking_ticketing
+items:
+  - id: S229
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Trong hệ đặt chỗ (booking and ticketing), **yêu cầu lõi** cần bảo vệ là gì, và nêu ngắn gọn
+      vòng đời ba trạng thái của một ghế cùng vai trò của **giữ chỗ tạm có hạn (hold with TTL)**.
+    answer_md: |
+      Yêu cầu lõi là **không bán trùng (no double-booking)**: một ghế (hay phòng-theo-ngày) chỉ được
+      bán cho **đúng một người**, kể cả khi nhiều người cùng bấm.
+      Vòng đời: `trống (free) -> giữ (held) -> đã bán (sold)`. Khi chọn ghế, hệ **giữ tạm kèm hạn (TTL)**,
+      ví dụ 10 phút, để người dùng kịp trả tiền; **hết hạn mà chưa trả tiền thì ghế tự nhả về trống**
+      (tránh ghế bị kẹt vì người bỏ ngang); trả tiền xong mới chuyển "đã bán".
+    rubric_md: "Đúng khi nêu được: (1) yêu cầu lõi = không bán trùng, một ghế một chủ; (2) ba trạng thái trống -> giữ -> bán; (3) hold có TTL để kịp trả tiền và tự nhả khi hết hạn. Nêu đủ cả ba ý: điểm 1. Thiếu ý không-bán-trùng hoặc không nói tới TTL/tự nhả: tối đa điểm 0."
+  - id: S230
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      An và Bình cùng chọn ghế A1 trong cùng một giây. Mô tả **hai** cách khác nhau để đảm bảo đúng một
+      người giữ được A1: (1) **khoá lạc quan / compare-and-set** và (2) **ràng buộc duy nhất (unique
+      constraint) của DB**. Với mỗi cách, nói rõ lệnh nào thắng và người thua nhận kết quả gì; rồi cho
+      biết vì sao trong thực tế người ta hay **kết hợp** hai cách này.
+    answer_md: |
+      (1) **Compare-and-set (khoá lạc quan):** không khoá trước, ghi có điều kiện trên trạng thái hiện tại,
+      ví dụ `UPDATE ghe SET trang_thai='giu', giu_boi=? WHERE ghe='A1' AND trang_thai='trong'`. Mỗi UPDATE
+      là nguyên tử, nên **chỉ một** lệnh khớp `trang_thai='trong'` và sửa 1 dòng (người thắng); lệnh kia sửa
+      **0 dòng** -> biết mình thua -> báo "ghế đã có người giữ" hoặc thử ghế khác. (Biến thể: `WHERE version=?`
+      rồi retry nếu version đổi.)
+      (2) **Unique constraint:** mô hình "ai giữ A1" thành một dòng được `INSERT`, với ràng buộc duy nhất trên
+      `(su_kien, ghe)`. Cả hai cùng INSERT; DB nhận **dòng đầu**, **dòng thứ hai vi phạm ràng buộc và bị từ chối**
+      (duplicate key).
+      **Kết hợp:** dùng compare-and-set (hoặc Redis hold có TTL) để **nhanh, thân thiện người dùng**, còn unique
+      constraint làm **lưới an toàn / trọng tài cuối cùng** trong DB — đảm bảo không bao giờ bán trùng kể cả khi
+      logic ứng dụng có lỗi hoặc chạy song song trên nhiều máy.
+    rubric_md: "Đạt (điểm 2) khi mô tả đúng cả hai cách — compare-and-set (ghi có điều kiện nguyên tử, một lệnh sửa 1 dòng, người thua sửa 0 dòng/retry) và unique constraint (INSERT thứ hai bị từ chối) — và giải thích đúng lý do kết hợp (cách nhanh + DB làm trọng tài/lưới an toàn cuối cùng). Đúng, trong time-box, tự giải thích được: bằng chứng điểm 2. Chỉ nêu đúng một cách, hoặc không giải thích được vì sao kết hợp: tối đa điểm 1."
+  - id: S231
+    difficulty: 3
+    type: concept
+    minutes: 12
+    prompt_md: |
+      Phỏng vấn: "Thiết kế hệ bán vé **không bán trùng**." Trình bày một thiết kế hoàn chỉnh: (1) mô hình
+      trạng thái ghế và **giữ chỗ tạm có TTL** + **xác nhận idempotent (idempotent confirm)**; (2) **so sánh
+      ba cách khoá** — bi quan (pessimistic), lạc quan/compare-and-set, unique constraint — bằng chính ví dụ
+      **An và Bình cùng chọn A1**, nêu rõ trade-off và nên phối hợp thế nào; (3) khi mở bán concert ~1 triệu
+      người cùng vào, dùng **phòng chờ ảo (virtual waiting room)** và **tách đường tìm/đặt** ra sao.
+    answer_md: |
+      **(1) Mô hình + hold + idempotent.** Ghế có vòng đời `trống -> giữ -> bán`. Chọn ghế = **giữ tạm kèm TTL**
+      (vd 10 phút) để kịp thanh toán; hết hạn chưa trả tiền thì ghế **tự nhả về trống**. Trả tiền xong mới "đã bán".
+      Bước xác nhận phải **idempotent** (một idempotency key mỗi lần xác nhận / webhook thanh toán) để bấm hai lần
+      hay webhook gửi lại cũng chỉ sinh **một** vé; cần xử lý ca biên "thanh toán xong đúng lúc hold vừa hết hạn"
+      (nhả ghế rồi thì hoàn tiền hoặc cấp lại nếu còn trống, qua webhook idempotent).
+
+      **(2) Ba cách, qua ví dụ An/Bình cùng chọn A1.**
+      - **Bi quan (pessimistic, `SELECT ... FOR UPDATE`):** An khoá dòng A1 trong giao dịch, kiểm tra "trống",
+        đổi "giữ", commit; Bình **phải chờ** rồi đọc thấy "giữ" và bị từ chối. Chắc chắn, dễ suy luận, nhưng
+        **chặn/chờ** làm giảm thông lượng khi đông và dễ deadlock nếu giữ khoá lâu.
+      - **Lạc quan / compare-and-set (`UPDATE ... WHERE trang_thai='trong'` hoặc theo `version`):** không khoá;
+        chỉ **một** lệnh sửa được 1 dòng (thắng), lệnh kia sửa 0 dòng -> thua -> **retry**/ghế khác. Nhanh khi ít
+        đụng, nhưng khi đụng nhiều thì tốn retry.
+      - **Unique constraint trên `(su_kien, ghe)`:** cả hai `INSERT`, DB nhận dòng đầu, **dòng thứ hai bị từ chối**
+        (duplicate key) — **DB là trọng tài cuối cùng**.
+      Phối hợp thực tế: compare-and-set (hoặc Redis hold có TTL) cho **nhanh**, cộng **unique constraint làm lưới
+      an toàn** để tuyệt đối không bán trùng; nếu dùng Redis cho hold thì vẫn coi **DB là nguồn sự thật** để Redis
+      mất khoá cũng không bán trùng.
+
+      **(3) Tải đột biến.** Đặt **phòng chờ ảo (virtual waiting room)** ở cổng: người dùng vào hàng đợi nhận vị trí,
+      hệ **thả từng nhóm nhỏ** vào luồng đặt thật nên luồng đặt chỉ nhận lượng tải gánh nổi (giữ hệ sống + công bằng
+      theo thứ tự vào hàng). **Tách đường tìm và đường đặt (search vs booking):** trang "còn chỗ không" đọc từ
+      cache/chỉ mục, chấp nhận trễ vài giây; bước đặt chỗ đọc **DB gốc** để chốt sự thật.
+    rubric_md: "Đạt mức 3 (đúng mastery_bar) khi: (1) nêu mô hình trạng thái + hold có TTL/tự nhả + xác nhận idempotent; (2) so sánh được cả BA cách khoá bằng ví dụ An/Bình với trade-off đúng (bi quan chặn/chờ; lạc quan nhanh nhưng retry; unique constraint là trọng tài cuối) và chỉ ra cách phối hợp (nhanh + lưới an toàn, DB là nguồn sự thật); (3) dùng phòng chờ ảo để chắn tải và tách đường tìm/đặt. Đủ cả ba phần, đúng, tự giải thích rõ trong time-box: bằng chứng điểm 3. Sót một cách khoá, hoặc thiếu phòng chờ ảo, hoặc không nêu được trade-off: chưa đạt mức 3."
