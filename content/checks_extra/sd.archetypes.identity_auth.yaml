@@ -1,0 +1,65 @@
+subtopic_id: sd.archetypes.identity_auth
+items:
+  - id: S226
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Nói ngắn gọn: **xác thực (authentication)** và **phân quyền (authorization)** khác nhau thế
+      nào, và cái nào chạy thường xuyên hơn trong một hệ?
+    answer_md: |
+      Xác thực (authentication) trả lời **"bạn là ai"** - xác minh danh tính khi đăng nhập rồi cấp
+      một tấm vé (token/phiên), thường **một lần mỗi phiên**. Phân quyền (authorization) trả lời
+      **"bạn được làm gì"** - với danh tính đã biết, quyết định người đó có được thực hiện một hành
+      động trên một tài nguyên hay không, và chạy ở **gần như mọi yêu cầu**, nên thường xuyên hơn
+      xác thực rất nhiều.
+    rubric_md: "Đạt khi nêu đúng cả hai: xác thực = bạn là ai (đăng nhập, một lần); phân quyền = bạn được làm gì (mỗi yêu cầu, thường xuyên hơn). Đúng ý: bằng chứng điểm 1. Lẫn lộn hai khái niệm hoặc thiếu ý tần suất: tối đa điểm 0."
+  - id: S227
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Một API nội bộ dùng **JWT (stateless)** để các service tự kiểm tra chữ ký mà không hỏi kho
+      nào. Một nhân viên vừa nghỉ việc và cần bị **chặn truy cập ngay lập tức**. (1) Vì sao JWT khó
+      làm được điều này? (2) Nếu đổi sang **phiên phía server (server-side session)** thì khác gì?
+      (3) Nếu vẫn giữ JWT, nêu cách dung hoà để thu hồi kịp thời.
+    answer_md: |
+      (1) JWT **stateless**: service chỉ kiểm tra chữ ký, không tra kho trạng thái nào, nên token
+      đã ký **còn hạn thì vẫn hợp lệ** - không có chỗ để "xoá" cho nó chết trước hạn.
+      (2) Với **phiên phía server**, trạng thái nằm ở kho dùng chung (ví dụ Redis); chỉ cần **xoá
+      bản ghi phiên** là lần tra cứu kế tiếp thất bại ngay - thu hồi tức thì, nhưng đổi lại mỗi yêu
+      cầu tốn một lần tra cứu.
+      (3) Giữ JWT nhưng: đặt **access token sống ngắn** (vài phút) để thiệt hại tự tắt nhanh, dùng
+      **refresh token** mà ta **thu hồi ở IdP** để họ không xin được vé mới, và cho trường hợp khẩn
+      thì thêm **denylist / danh sách thu hồi** để gateway chặn token đó ngay.
+    rubric_md: "Đạt khi nêu đúng cả 3 ý: (1) JWT stateless không tra trạng thái nên token còn hạn vẫn hợp lệ; (2) phiên phía server thu hồi tức thì bằng cách xoá bản ghi, bù lại tra cứu mỗi yêu cầu; (3) dung hoà = access token sống ngắn + refresh token thu hồi được + denylist. Đúng, trong time-box, tự giải thích được: bằng chứng điểm 2. Thiếu lý do 'không tra trạng thái' hoặc không nêu được cách thu hồi JWT: tối đa điểm 1."
+  - id: S228
+    difficulty: 3
+    type: concept
+    minutes: 12
+    prompt_md: |
+      Hãy **thiết kế đăng nhập và phân quyền** cho một hệ nhiều service (mức phỏng vấn). Trình bày
+      mạch lạc: (1) luồng đăng nhập + **SSO qua OAuth2/OIDC** với một IdP trung tâm, và service kiểm
+      token thế nào; (2) **chọn JWT hay phiên** và giải thích đánh đổi stateless-vs-stateful; (3)
+      cách **thu hồi quyền kịp thời**; (4) mô hình phân quyền **RBAC vs ABAC** và cách **cache kiểm
+      tra quyền** để không tra database mỗi yêu cầu, kèm xử lý khi **đổi vai trò**.
+    answer_md: |
+      (1) **Đăng nhập + SSO:** dựng một **IdP trung tâm**; người dùng đăng nhập ở IdP (có thể kèm
+      MFA), IdP phát **token đã ký** (OIDC: ID token "ai đang đăng nhập"; OAuth2: access token "được
+      làm gì"). Các service **không bao giờ thấy mật khẩu**, chỉ **kiểm tra chữ ký** token (và hạn
+      dùng) ở gateway/mỗi service. Một lần đăng nhập dùng cho nhiều app/tên miền.
+      (2) **Chọn vé:** dùng **JWT (stateless)** để mở rộng - mỗi service tự kiểm chữ ký, không có
+      điểm nghẽn tra cứu dùng chung. Đánh đổi: JWT **khó thu hồi** trước hạn (ngược với phiên phía
+      server thu hồi tức thì nhưng tốn một lần tra kho mỗi yêu cầu). Nêu rõ mình chấp nhận đánh đổi
+      này vì tải cao.
+      (3) **Thu hồi:** **access token sống ngắn** (vài phút) để giới hạn thiệt hại; **refresh token**
+      sống lâu nhưng **thu hồi được ở IdP** (đá người dùng ra sau vài phút); **denylist / danh sách
+      thu hồi** nhỏ, cache được, cho các ca khẩn (lộ token, nghỉ việc) để chặn tức thì.
+      (4) **Phân quyền:** mặc định **RBAC** (gán vai trò admin/editor/viewer, dễ audit); thêm
+      **ABAC** chỉ cho quy tắc cần ngữ cảnh (cùng phòng ban, chủ sở hữu, trong giờ làm). Vì kiểm tra
+      quyền chạy **mọi yêu cầu**, **cache kết quả** (user U trên tài nguyên R) với **TTL ngắn** tại
+      gateway/bộ nhớ service để tránh tra database mỗi lần. Khi **đổi vai trò/thu quyền**, thay đổi
+      có độ trễ bằng TTL; muốn tức thì thì **chủ động vô hiệu (invalidate)** mục của người đó. Điểm
+      nối mạch: quyền đã cache - như vé đã ký - không tự biết mình lỗi thời, nên phải quản lý vô hiệu
+      hoá.
+    rubric_md: "Đạt (mức phỏng vấn, L3) khi trình bày đủ 4 phần: (1) SSO qua IdP trung tâm OAuth2/OIDC, service kiểm chữ ký, không thấy mật khẩu; (2) chọn JWT và giải thích đúng đánh đổi stateless (mở rộng) vs stateful (thu hồi tức thì, tra cứu mỗi yêu cầu); (3) thu hồi = access token sống ngắn + refresh token + denylist; (4) RBAC mặc định vs ABAC theo ngữ cảnh, cache kiểm tra quyền với TTL/invalidate khi đổi vai trò. Đúng, mạch lạc, tự giải thích được đánh đổi và cách gỡ: bằng chứng điểm 3. Sót phần thu hồi hoặc phần cache/invalidate, hoặc chỉ liệt kê công nghệ mà không nêu đánh đổi: chưa đạt mức 3."

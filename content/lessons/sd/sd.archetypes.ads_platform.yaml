@@ -1,0 +1,166 @@
+id: sd.archetypes.ads_platform
+version: 1
+status: published
+title_vi: "Thiết kế ads platform: chọn quảng cáo (auction), chia nhịp ngân sách (budget pacing) và giới hạn lần xem (frequency cap)"
+est_minutes: 14
+objectives_vi:
+  - "Vẽ được luồng chọn quảng cáo: lọc ứng viên (candidate retrieval) theo targeting, xếp hạng theo **eCPM = bid × pCTR**, và quảng cáo eCPM cao nhất thắng (ý tưởng second-price auction)."
+  - "Giải thích **budget pacing** (chia đều ngân sách ngày thay vì đốt hết trong một giờ) và **frequency cap** (chặn hiển thị lặp quá N lần cho một người, như một bộ đếm per-user kiểu rate limiter)."
+  - "Chỉ ra vì sao pipeline đếm impression/click (stream processing) có độ trễ khiến ngân sách bị **vượt nhẹ (overspend)**, và vì sao chấp nhận vượt nhẹ thay vì ép hard cap."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Một **ads platform** (nền tảng quảng cáo) đứng giữa **nhà quảng cáo** (advertiser, trả tiền)
+      và **publisher** (trang/app có chỗ trống hiện quảng cáo — gọi là **ad slot**). Mỗi khi một ad
+      slot cần lấp, ad server có một **ngân sách độ trễ (latency budget)** rất chặt, khoảng 100 ms,
+      để chọn quảng cáo rồi trả về; chậm hơn thì bỏ slot, mất tiền. Trong bài này ta ráp ba khối đã
+      học ở các bài trước: **stream processing** (đếm sự kiện), **rate limiter** (đếm per-user có cửa
+      sổ thời gian) và **distributed cache** (tra dữ liệu nóng trong vài mili-giây). Ad platform có ba
+      việc phải làm cùng lúc: (1) **chọn** quảng cáo hợp nhất (auction), (2) **giữ ngân sách** của
+      advertiser (budget pacing), (3) **đếm lượt hiển thị/bấm** để tính tiền (tracking).
+  - id: b02
+    type: text
+    md: |
+      **Luồng chọn quảng cáo (selection / auction flow)** cho một ad slot gồm ba chặng, chạy gọn
+      trong latency budget:
+      - **Lọc ứng viên (candidate retrieval / targeting):** từ hàng triệu quảng cáo, nhanh chóng lấy
+        ra vài trăm cái hợp người xem (nước, tuổi, sở thích). Dùng **chỉ mục dựng sẵn** tra trong
+        **cache** (ví dụ khóa `nước = VN` trỏ tới danh sách quảng cáo nhắm VN), nên chỉ tra bảng chứ
+        không quét toàn bộ — giống cách distributed_cache phục vụ dữ liệu nóng.
+      - **Xếp hạng (ranking):** chấm điểm từng ứng viên theo **eCPM**.
+      - **Chọn người thắng (winner):** quảng cáo eCPM cao nhất thắng slot này.
+  - id: b03
+    type: text
+    md: |
+      **eCPM** (effective cost per mille — doanh thu kỳ vọng) là thước đo xếp hạng:
+
+      > **eCPM = bid × pCTR**
+
+      trong đó **bid** là giá advertiser trả cho một lượt bấm (click), **pCTR** (predicted
+      click-through rate) là xác suất người này sẽ bấm, do một **mô hình ML** dự đoán (phần mô hình
+      nằm ở section ML, bài này coi pCTR là đầu vào có sẵn). eCPM chính là **giá trị kỳ vọng mỗi lượt
+      hiển thị**; nhân thêm 1.000 thì ra doanh thu kỳ vọng mỗi 1.000 lượt (nguồn gốc chữ *per mille*).
+      Ví dụ: quảng cáo X có bid 2.0 và pCTR 0.05 → eCPM = 2.0 × 0.05 = **0.1**; quảng cáo Y có bid 5.0
+      nhưng pCTR 0.015 → eCPM = 5.0 × 0.015 = **0.075**. X thắng (0.1 > 0.075) **dù** bid của Y cao
+      hơn — vì nền tảng tối đa hóa doanh thu kỳ vọng, không chỉ nhìn giá chào. Thực tế dùng ý tưởng
+      **second-price auction**: người thắng trả mức **vừa đủ hơn người đứng nhì**, chứ không trả đúng
+      bid của mình — nhờ vậy advertiser không cần đoán già đoán non khi đặt giá.
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: |
+      Ba quảng cáo cùng tranh một ad slot: A có bid 3.0 và pCTR 0.03; B có bid 1.0 và pCTR 0.08;
+      C có bid 6.0 và pCTR 0.01. Quảng cáo nào **thắng** đấu giá theo eCPM = bid × pCTR?
+    options:
+      - {id: a, text_md: "A, vì eCPM(A) = 3.0 × 0.03 = 0.09 là cao nhất."}
+      - {id: b, text_md: "B, vì eCPM(B) = 1.0 × 0.08 = 0.08 là cao nhất."}
+      - {id: c, text_md: "C, vì bid 6.0 của C là cao nhất nên C luôn thắng."}
+    answer: [a]
+    explain_md: |
+      eCPM(A) = 0.09, eCPM(B) = 0.08, eCPM(C) = 6.0 × 0.01 = 0.06. A cao nhất nên A thắng. (c) sai vì
+      đấu giá xếp theo **bid × pCTR**, không theo bid trần: C chào giá cao nhất nhưng khả năng bấm quá
+      thấp nên doanh thu kỳ vọng của nó thấp nhất.
+  - id: b05
+    type: text
+    md: |
+      **Budget pacing (chia nhịp ngân sách):** advertiser nạp một ngân sách ngày, ví dụ 240 $/ngày.
+      Nếu cứ ai eCPM cao thì cho thắng vô tội vạ, ngân sách có thể cháy hết trong một giờ cao điểm
+      buổi sáng, rồi cả phần còn lại của ngày quảng cáo biến mất. Một **pacing controller** chia đều:
+      240 $/ngày ≈ 10 $/giờ; nếu 3 giờ đầu đã tiêu 100 $ (hơn 33 $/giờ, quá nhanh) thì bộ điều khiển
+      **giảm tỉ lệ tham gia đấu giá** (bỏ bớt slot) để kéo nhịp chi về đúng đường. Với **nhiều ad
+      server**, thay vì mọi server cùng hỏi một bộ đếm trung tâm (nghẽn + chậm), ta **chia hạn mức
+      (sliced quota)**: mỗi server xin một lô nhỏ (ví dụ 10 $), tiêu hết thì xin lô tiếp — một ý giống
+      token bucket phân tán của rate_limiter.
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: |
+      Vì sao cần **budget pacing** thay vì cứ cho quảng cáo eCPM cao nhất thắng mọi slot cho tới khi
+      hết tiền?
+    options:
+      - {id: a, text_md: "Để quảng cáo không cháy hết ngân sách trong vài giờ đầu rồi biến mất phần còn lại của ngày; pacing rải chi tiêu đều theo thời gian."}
+      - {id: b, text_md: "Để tăng pCTR của mô hình ML, vì pacing huấn luyện lại mô hình sau mỗi lượt bấm."}
+      - {id: c, text_md: "Để bỏ hẳn bước đấu giá, vì khi có pacing thì không cần so eCPM nữa."}
+    answer: [a]
+    explain_md: |
+      Pacing giữ ngân sách trải đều cả ngày (đến đúng đối tượng ở nhiều khung giờ, không đốt sạch lúc
+      cao điểm). (b) sai — pacing không liên quan huấn luyện mô hình; (c) sai — vẫn phải đấu giá theo
+      eCPM, pacing chỉ điều chỉnh **tỉ lệ tham gia** của mỗi quảng cáo.
+  - id: b07
+    type: text
+    md: |
+      **Frequency cap (giới hạn lần xem):** không hiện cùng một quảng cáo cho một người quá N lần
+      trong một cửa sổ thời gian — ví dụ **tối đa 3 lần/24 giờ**. Đây đúng là một **bộ đếm per-user
+      có cửa sổ trượt (sliding window)**, hệt bài rate_limiter, chỉ khác đơn vị đếm là "lượt xem
+      quảng cáo" thay vì "request". Một cách làm là Redis **sorted set** với khóa như `fc:user7:ad3`:
+      mỗi lần hiện thì `ZADD` (điểm = thời điểm xem); trước khi hiện thì `ZREMRANGEBYSCORE` xóa các
+      mục cũ hơn 24 giờ rồi `ZCARD` đếm — nếu đã ≥ 3 thì loại quảng cáo đó khỏi đấu giá. Việc này chạy
+      ngay trong luồng chọn (nằm trong latency budget) nên phải là tra/đếm trong bộ nhớ, cực nhanh.
+  - id: b08
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Cơ chế chặn hiển thị cùng một quảng cáo cho một người quá N lần trong 24 giờ — về bản chất là
+      một bộ đếm per-user có cửa sổ trượt giống bài rate limiter — được gọi là gì (thuật ngữ tiếng Anh)?
+    blanks:
+      - accept: ["frequency cap", "frequency capping", "freq cap"]
+    explain_md: |
+      **Frequency cap** (frequency capping): đếm số lần một người đã xem một quảng cáo trong cửa sổ
+      thời gian; chạm trần thì không hiện nữa. Cài đặt điển hình là một bộ đếm per-user trong Redis,
+      cùng tư tưởng sliding window của rate limiter.
+  - id: b09
+    type: text
+    md: |
+      **Đếm impression/click để tính tiền (tracking):** khi quảng cáo được hiện/bấm, client bắn một
+      sự kiện về một **pipeline stream processing**. Pipeline này tổng hợp chi tiêu rồi báo lại cho
+      budget pacing — nhưng có **độ trễ** (gom theo lô, trùng lặp cần dedup, đường mạng). Nghĩa là khi
+      ad server quyết định ở thời điểm T, nó đang nhìn con số chi tiêu **hơi cũ**. Hệ quả: ngân sách
+      được kiểm trên **bộ đếm nhất quán cuối cùng (eventually-consistent counter)**, nên có thể **vượt
+      nhẹ (slight overspend)** — vài phần trăm. Ta **chấp nhận** điều này: nếu ép **hard cap** tuyệt
+      đối (mỗi lượt phải đọc-ghi đồng bộ một bộ đếm trung tâm trước khi hiện), độ trễ sẽ phá vỡ ngân
+      sách 100 ms và giết luôn thông lượng. Đổi lại một khoản overshoot nhỏ (và đối soát/ghi bù sau
+      bằng reconciliation), hệ giữ được tốc độ. Đây là một đánh đổi **nhất quán ↔ độ trễ** kinh điển.
+  - id: b10
+    type: quiz_mcq
+    graded: true
+    prompt_md: |
+      Vì sao ads platform thường **chấp nhận vượt ngân sách một chút** thay vì ép hard cap tuyệt đối
+      cho mỗi lượt hiển thị?
+    options:
+      - {id: a, text_md: "Vì bộ đếm chi tiêu được cập nhật qua pipeline có độ trễ (eventually consistent); ép hard cap đồng bộ mỗi lượt sẽ phá vỡ latency budget và bóp nghẹt thông lượng, nên đổi lấy overshoot nhỏ để giữ tốc độ."}
+      - {id: b, text_md: "Vì vượt ngân sách giúp advertiser trả nhiều tiền hơn nên nền tảng cố ý làm vậy."}
+      - {id: c, text_md: "Vì frequency cap đã bảo đảm không bao giờ vượt ngân sách, nên overspend là không thể xảy ra."}
+    answer: [a]
+    explain_md: |
+      Chi tiêu đến từ pipeline đếm có độ trễ, nên quyết định dựa trên số hơi cũ → vượt nhẹ là tất yếu;
+      ép đồng bộ tuyệt đối sẽ làm hỏng mốc ~100 ms và giảm throughput. (b) sai — overspend là tác dụng
+      phụ được kiểm soát, không phải mục tiêu moi tiền; (c) sai — frequency cap giới hạn **số lần xem
+      của một người**, không liên quan tới trần ngân sách.
+  - id: b11
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn.** Khi được hỏi "thiết kế hệ quảng cáo", hãy vẽ luồng theo thứ tự: *ad slot →
+      lọc ứng viên theo targeting (tra cache) → xếp hạng theo eCPM = bid × pCTR → chọn người thắng
+      (second-price) → ghi nhận impression/click qua stream*. Rồi gắn thêm hai ràng buộc chạy **ngay
+      trong luồng**: **budget pacing** (rải chi tiêu, sliced quota giữa các server) và **frequency
+      cap** (bộ đếm per-user kiểu rate limiter). Điểm cộng lớn là chủ động nói ra đánh đổi **nhất quán
+      ↔ độ trễ**: ngân sách kiểm trên bộ đếm trễ nên **chấp nhận vượt nhẹ**, có reconciliation bù sau.
+      Người phỏng vấn chấm tư duy đánh đổi, không chấm việc kể tên công nghệ.
+  - id: b12
+    type: summary
+    bullets_vi:
+      - "Luồng chọn quảng cáo: lọc ứng viên theo targeting (tra chỉ mục trong cache) → xếp hạng theo **eCPM = bid × pCTR** → eCPM cao nhất thắng; giá trả theo ý tưởng second-price (vừa đủ hơn người nhì)."
+      - "Tính eCPM so sánh doanh thu kỳ vọng, không chỉ bid: bid 2.0 × pCTR 0.05 = 0.1 thắng bid 5.0 × 0.015 = 0.075."
+      - "**Budget pacing**: rải ngân sách ngày đều theo thời gian (giảm tỉ lệ tham gia khi tiêu quá nhanh); nhiều server dùng **sliced quota** thay vì cùng hỏi một bộ đếm."
+      - "**Frequency cap**: chặn một người xem một quảng cáo quá N lần trong cửa sổ thời gian — một bộ đếm per-user sliding window, đúng tư tưởng rate limiter."
+      - "Đếm impression/click qua **stream processing** có độ trễ → ngân sách kiểm trên bộ đếm nhất quán cuối cùng → **chấp nhận vượt nhẹ** thay vì hard cap (ép đồng bộ sẽ phá latency budget); reconciliation bù sau."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S211], l2: [S212], l3: [S213]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

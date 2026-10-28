@@ -1,0 +1,168 @@
+id: sd.archetypes.booking_ticketing
+version: 1
+status: published
+title_vi: "Đặt chỗ: vé, khách sạn (booking and ticketing) — không bán trùng"
+est_minutes: 14
+objectives_vi:
+  - "Phát biểu đúng yêu cầu lõi của hệ đặt chỗ: **không bán trùng (no double-booking)** một ghế/phòng khi nhiều người cùng bấm."
+  - "So sánh ba cách chống bán trùng — khoá bi quan (pessimistic lock), khoá lạc quan (optimistic / compare-and-set), ràng buộc duy nhất của DB (unique constraint) — bằng ví dụ hai người cùng chọn một ghế."
+  - "Giải thích giữ chỗ tạm có hạn (hold with TTL), xác nhận idempotent (idempotent confirm), và phòng chờ ảo (virtual waiting room) khi tải tăng đột biến."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Hệ **đặt chỗ (booking and ticketing)** — bán vé xem phim, vé concert, phòng khách sạn — có một
+      yêu cầu lõi đơn giản mà khó: **không bán trùng (no double-booking)**. Một ghế, một phòng-theo-ngày
+      chỉ được bán cho **đúng một người**, kể cả khi hàng nghìn người cùng bấm trong một giây.
+
+      Khó là vì **tranh chấp tồn kho (inventory contention)**: tồn kho là những đơn vị *rời và đếm được*
+      (ghế A1, phòng 101 đêm 20/12), và nhiều request cùng nhắm vào **một** đơn vị cùng lúc. Ta sẽ bám
+      một ví dụ xuyên suốt: **An và Bình cùng chọn ghế A1 trong cùng một giây**. Mục tiêu: đúng một người
+      thắng, người kia nhận "ghế đã có người giữ", và tuyệt đối không có chuyện cả hai cùng cầm vé A1.
+  - id: b02
+    type: text
+    md: |
+      Trước khi chọn cách khoá, hãy định hình **vòng đời của một ghế**: `trống (free) -> giữ (held) -> đã bán (sold)`.
+
+      - Khi người dùng chọn ghế, ta **giữ chỗ tạm (temporary hold)** kèm **hạn (TTL)**, ví dụ 10 phút,
+        để họ kịp thanh toán. Hết hạn mà chưa trả tiền thì ghế **tự nhả về trống**, tránh ghế bị "kẹt"
+        mãi vì một người bỏ ngang.
+      - Trả tiền xong, ghế chuyển sang **đã bán**. Bước xác nhận này phải **idempotent (idempotent confirm)**:
+        người dùng bấm hai lần, hoặc webhook thanh toán gửi lại, cũng chỉ sinh **một** vé — thường bằng
+        một khoá idempotency (idempotency key) cho mỗi lần xác nhận.
+
+      Chính bước `trống -> giữ` là nơi An và Bình tranh nhau; ba cách dưới đây đều là cách thắng cuộc
+      tranh ở đúng bước đó.
+  - id: b03
+    type: text
+    md: |
+      **Cách 1 — Khoá bi quan (pessimistic lock) bằng khoá dòng của DB.** Ý tưởng: "cứ cho là sẽ đụng,
+      nên khoá trước đã". Trong một giao dịch (transaction), ta đọc dòng ghế A1 bằng câu lệnh khoá dòng
+      (ví dụ `SELECT ... FOR UPDATE`): dòng A1 bị **khoá** đến khi giao dịch kết thúc.
+
+      - An vào trước, khoá A1, kiểm tra "trống", đổi sang "giữ", commit.
+      - Bình chạy cùng câu lệnh nhưng **phải chờ** tới khi An xong; lúc đó Bình đọc thấy A1 đã "giữ" và bị từ chối.
+
+      Ưu: rất chắc chắn, dễ suy luận. Nhược: trong lúc khoá, người khác bị **chặn và chờ**; khi đông,
+      các giao dịch xếp hàng làm giảm thông lượng (throughput), và giữ khoá lâu dễ gây deadlock. Hợp khi
+      tranh chấp vừa phải và ta cần sự chắc chắn tuyệt đối.
+  - id: b04
+    type: text
+    md: |
+      **Cách 2 — Khoá lạc quan / so-sánh-rồi-đặt (optimistic concurrency / compare-and-set).** Ý tưởng
+      ngược lại: "cứ cho là hiếm khi đụng, không khoá trước; ghi có điều kiện, ai thua thì thử lại".
+
+      Ta không khoá; ta ghi **có điều kiện trên trạng thái hiện tại**, ví dụ `UPDATE ghe SET trang_thai='giu',
+      giu_boi='An' WHERE ghe='A1' AND trang_thai='trong'`. DB đảm bảo mỗi lệnh UPDATE là nguyên tử (atomic):
+
+      - An và Bình cùng gửi lệnh này. **Chỉ một** lệnh khớp điều kiện `trang_thai='trong'` và sửa được 1 dòng;
+        người kia sửa **0 dòng** -> biết mình thua -> báo "ghế đã có người giữ" (hoặc thử lại ghế khác).
+
+      Biến thể phổ biến là dùng cột **phiên bản (version)**: đọc version, rồi `UPDATE ... WHERE version=?`;
+      nếu version đã đổi thì ghi hỏng và **thử lại (retry)**. Ưu: không giữ khoá, thông lượng cao khi ít đụng.
+      Nhược: khi đụng nhiều, tỉ lệ thất bại-và-thử-lại tăng, lãng phí công.
+  - id: b05
+    type: text
+    md: |
+      **Cách 3 — Ràng buộc duy nhất của DB (unique constraint) làm trọng tài cuối.** Thay vì sửa trạng thái
+      một dòng ghế có sẵn, ta mô hình hoá "ai giữ ghế A1" thành một **dòng đặt chỗ mới được chèn vào**, với
+      một **ràng buộc duy nhất** trên khoá `(su_kien, ghe)` (hoặc `(phong, dem)` cho khách sạn).
+
+      - An và Bình cùng `INSERT` một dòng cho `(buoi_chieu_7h, A1)`. DB cho **dòng đầu** vào; **dòng thứ hai
+        vi phạm ràng buộc duy nhất và bị từ chối** (lỗi duplicate key).
+
+      Điểm hay: **chính DB là trọng tài cuối cùng (final arbiter)** cho bất biến "mỗi ghế tối đa một chủ" —
+      đúng kể cả khi logic ứng dụng có lỗi hay chạy song song trên nhiều máy. Thực tế thường **kết hợp**:
+      compare-and-set (hoặc Redis hold có TTL) để nhanh và thân thiện với người dùng, cộng **unique constraint
+      trong DB làm lưới an toàn** để chắc chắn không bao giờ bán trùng. Nếu dùng khoá Redis cho hold, vẫn phải
+      coi **DB là nguồn sự thật (source of truth)** để Redis mất khoá cũng không gây bán trùng.
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: |
+      An và Bình cùng gửi `UPDATE ghe SET trang_thai='giu', giu_boi=? WHERE ghe='A1' AND trang_thai='trong'`
+      gần như đồng thời. Vì sao cách này **không** bán trùng ghế A1?
+    options:
+      - {id: a, text_md: "Vì DB khoá dòng A1 lại nên Bình phải chờ An xong rồi mới chạy được lệnh của mình."}
+      - {id: b, text_md: "Vì mỗi UPDATE là nguyên tử: chỉ một lệnh khớp điều kiện `trang_thai='trong'` và sửa 1 dòng, lệnh còn lại sửa 0 dòng nên biết mình thua."}
+      - {id: c, text_md: "Vì ai gửi request tới server trước thì chắc chắn được ghi trước, request sau luôn bị mạng loại bỏ."}
+    answer: [b]
+    explain_md: |
+      Đây là khoá **lạc quan / compare-and-set**: không khoá trước, mà ghi có điều kiện. DB đảm bảo mỗi UPDATE
+      nguyên tử, nên chỉ một lệnh thấy `trang_thai='trong'` và sửa được 1 dòng; người kia sửa 0 dòng -> thua ->
+      thử lại/ghế khác. (a) mô tả khoá **bi quan** (`SELECT ... FOR UPDATE`), là cách khác. (c) sai: thứ tự gói tin
+      mạng không quyết định tính đúng đắn; chính điều kiện trong lệnh ghi mới chống bán trùng.
+  - id: b07
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền thuật ngữ. Khi muốn **chính DB là trọng tài cuối cùng** cho bất biến "mỗi ghế tối đa một chủ", ta đặt
+      một ___ trên khoá `(su_kien, ghe)`; khi đó `INSERT` thứ hai cho cùng ghế sẽ bị DB từ chối. (Trả lời bằng
+      cụm tiếng Anh thường dùng.)
+    blanks:
+      - accept:
+          - "unique constraint"
+          - "unique index"
+          - "unique key"
+          - "ràng buộc duy nhất"
+          - "ràng buộc unique"
+    explain_md: |
+      **Unique constraint (ràng buộc duy nhất)** trên `(su_kien, ghe)` khiến dòng đặt chỗ thứ hai cho cùng một ghế
+      vi phạm ràng buộc và bị từ chối (duplicate key). Đây là lưới an toàn cuối cùng, đúng kể cả khi ứng dụng chạy
+      song song trên nhiều máy hay logic có lỗi.
+  - id: b08
+    type: text
+    md: |
+      **Tải đột biến: phòng chờ ảo (virtual waiting room).** Với sự kiện cầu quá cao — concert mở bán (onsale),
+      cả triệu người vào trong một phút — thì dù ba cách trên đều "đúng", hệ vẫn có thể **sập vì quá tải**: hàng
+      triệu lượt tranh nhau cùng vài nghìn ghế tạo ra bão tranh chấp và quá tải DB.
+
+      Giải pháp là **chắn tải ở cổng bằng một hàng đợi (queue) / phòng chờ ảo**: người dùng vào phòng chờ trước,
+      nhận một vị trí; hệ thống **thả từng nhóm nhỏ** (ví dụ vài nghìn người mỗi lúc) vào luồng đặt chỗ thật, phần
+      còn lại chờ. Nhờ đó luồng đặt chỗ chỉ nhận lượng tải nó **gánh nổi**, vừa giữ hệ sống vừa công bằng (ai vào
+      hàng trước được phục vụ trước). Cũng nên **tách đường tìm và đường đặt (search vs booking path)**: trang tìm
+      "còn chỗ không" có thể đọc từ cache/chỉ mục và chấp nhận trễ vài giây; còn bước đặt chỗ phải đọc **DB gốc**
+      để chốt sự thật.
+  - id: b09
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn.** Khi đề là "thiết kế đặt vé/đặt phòng", hãy nêu ngay yêu cầu lõi **không bán trùng** rồi
+      đi theo mạch: (1) mô hình `trống -> giữ (hold có TTL) -> bán` với xác nhận **idempotent**; (2) chọn cách chống
+      bán trùng và **nói trade-off**: khoá bi quan (chắc, nhưng chặn/chờ, giảm thông lượng) vs khoá lạc quan/compare-and-set
+      (nhanh khi ít đụng, nhưng phải retry khi đông) vs unique constraint (trọng tài cuối, nên dùng làm lưới an toàn);
+      (3) khi hỏi "1 triệu người cùng vào" thì thêm **phòng chờ ảo** để chắn tải và tách đường tìm/đặt. Người phỏng vấn
+      chấm việc bạn bảo vệ được bất biến "một ghế một chủ" và cân nhắc đánh đổi, không chấm việc kể tên công nghệ.
+  - id: b10
+    type: quiz_mcq
+    graded: true
+    prompt_md: |
+      Một concert mở bán, dự kiến ~1 triệu người cùng vào trong 1 phút để tranh vài nghìn ghế. Chỉ dựa vào compare-and-set
+      ở tầng DB thì vẫn đúng về tính "không bán trùng", nhưng rủi ro lớn nhất là gì, và cách xử phù hợp?
+    options:
+      - {id: a, text_md: "Rủi ro là DB bị quá tải vì bão tranh chấp; thêm **phòng chờ ảo (virtual waiting room)** thả từng nhóm nhỏ vào luồng đặt để chắn tải."}
+      - {id: b, text_md: "Rủi ro là ghế sẽ bị bán trùng; phải bỏ compare-and-set và chuyển hẳn sang sticky session ở load balancer."}
+      - {id: c, text_md: "Không có rủi ro gì đáng kể; cứ tăng TTL của hold lên vài giờ là hệ tự ổn."}
+    answer: [a]
+    explain_md: |
+      Compare-and-set vẫn đảm bảo không bán trùng, nhưng **không** bảo vệ hệ khỏi **quá tải**: triệu lượt tranh vài nghìn ghế
+      làm bùng tranh chấp và sập DB. Phòng chờ ảo **chắn tải ở cổng**, chỉ thả lượng mà luồng đặt gánh nổi. (b) sai: compare-and-set
+      vốn đã chống bán trùng, và sticky session không liên quan tới tranh chấp tồn kho. (c) sai: tăng TTL còn làm ghế bị giữ-kẹt lâu hơn,
+      không giải quyết quá tải.
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "Yêu cầu lõi của hệ đặt chỗ là **không bán trùng (no double-booking)**: một ghế/phòng-theo-ngày chỉ bán cho đúng một người dù nhiều người cùng bấm (tranh chấp tồn kho - inventory contention)."
+      - "Vòng đời ghế `trống -> giữ -> bán`: giữ chỗ tạm có **hạn (TTL)** để kịp trả tiền, hết hạn tự nhả; bước xác nhận phải **idempotent** để bấm lại/gửi lại không tạo hai vé."
+      - "Khoá bi quan (pessimistic, `SELECT ... FOR UPDATE`): khoá dòng, người sau chờ — chắc chắn nhưng chặn/chờ, giảm thông lượng khi đông."
+      - "Khoá lạc quan / compare-and-set (`UPDATE ... WHERE trang_thai='trong'` hoặc theo version): chỉ một lệnh sửa được 1 dòng, người thua retry — nhanh khi ít đụng, tốn retry khi đông."
+      - "Unique constraint trên `(su_kien, ghe)`: `INSERT` thứ hai bị từ chối — **DB là trọng tài cuối cùng**, nên dùng làm lưới an toàn kết hợp với cách nhanh ở trên; DB là nguồn sự thật nếu dùng khoá Redis."
+      - "Cầu quá cao (concert onsale): thêm **phòng chờ ảo (virtual waiting room)** thả từng nhóm nhỏ để chắn tải, và tách **đường tìm (cache, trễ được)** khỏi **đường đặt (đọc DB gốc)**."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S229], l2: [S230], l3: [S231]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

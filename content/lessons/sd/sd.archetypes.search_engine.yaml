@@ -1,0 +1,212 @@
+id: sd.archetypes.search_engine
+version: 1
+status: published
+title_vi: "Thiết kế công cụ tìm kiếm (search engine): mục lục ngược chia phần và scatter-gather"
+est_minutes: 14
+objectives_vi:
+  - "Thiết kế đường đi từ DB gốc qua pipeline lập chỉ mục (indexing pipeline) đến một mục lục ngược (inverted index) chia phần (sharded), và giải thích vì sao mục lục chỉ tươi gần tức thời (near-real-time)."
+  - "Giải thích đường truy vấn scatter-gather: phát câu hỏi tới mọi shard, mỗi shard trả top-k, rồi một coordinator gộp và xếp hạng lại."
+  - "So sánh hai cách chia mục lục: chia theo tài liệu (document-partitioning) với chia theo từ (term-partitioning), và nói được khi nào chọn cái nào."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      **Công cụ tìm kiếm (search engine)** nhận một câu hỏi bằng từ khoá và trả về các tài liệu
+      (document) chứa những từ đó, trong hàng tỷ tài liệu, dưới chưa đến một giây. Ví dụ điển hình trong
+      phỏng vấn: tìm sản phẩm trong một sàn thương mại điện tử, tìm bài đăng theo từ khoá, hay "Design
+      Google Search". Ba ràng buộc định hình cả thiết kế:
+      - **Đọc nhiều hơn ghi rất nhiều (read-heavy):** rất nhiều truy vấn mỗi giây, nhưng kho tài liệu
+        đổi chậm hơn nhiều.
+      - **Độ trễ thấp trên tập cực lớn:** không thể quét từng tài liệu lúc nhận câu hỏi; phải có một cấu
+        trúc tra cứu dựng sẵn.
+      - **Chấp nhận trễ tươi (freshness lag):** tài liệu mới xuất hiện trong kết quả sau vài giây là ổn
+        cho hầu hết bài; tìm kiếm **không** cần đọc-sau-ghi tức thời như một giao dịch ngân hàng.
+  - id: b02
+    type: text
+    md: |
+      Cấu trúc tra cứu đó là **mục lục ngược (inverted index)** đã học ở `sd.data.search_indexing`: một
+      bảng "từ (term) -> danh sách tài liệu chứa từ đó" (gọi là posting list), giống mục lục cuối sách.
+      Tìm "mèo" là mở thẳng danh sách của "mèo", không phải đọc hết mọi tài liệu.
+
+      Điểm mấu chốt kiến trúc: **mục lục ngược là một hệ riêng, không phải DB gốc.** DB gốc (nơi lưu
+      sản phẩm, bài đăng) tối ưu cho ghi và truy vấn theo khoá chính; nó không tìm toàn văn (full-text)
+      nhanh được. Nên ta dựng một **pipeline lập chỉ mục (indexing pipeline)** chạy song song: lắng nghe
+      thay đổi của DB gốc qua **CDC (Change Data Capture — đọc nhật ký thay đổi)**, tách tài liệu thành
+      từ, chuẩn hoá (chữ thường, bỏ dấu), rồi cập nhật mục lục. Vì pipeline chạy không đồng bộ (async),
+      mục lục chỉ **tươi gần tức thời (near-real-time)** — có độ trễ **nhất quán cuối (eventual)** vài
+      giây so với DB gốc. Đó là cái giá đã được chấp nhận ở ràng buộc freshness lag.
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: |
+      Vì sao ta dựng một **mục lục ngược riêng** qua pipeline lập chỉ mục thay vì tìm toàn văn thẳng
+      trên DB gốc?
+    options:
+      - id: a
+        text_md: |
+          Vì DB gốc tối ưu cho ghi và truy vấn theo khoá chính, không tìm toàn văn nhanh trên tập lớn
+          được; mục lục ngược dựng sẵn cho tra cứu "từ -> tài liệu" nhanh, đổi lại độ trễ tươi vài giây
+          do pipeline chạy không đồng bộ.
+      - id: b
+        text_md: |
+          Vì mục lục ngược luôn nhất quán mạnh (strong consistency) hơn DB gốc, nên kết quả tìm kiếm
+          chính xác tới từng mili-giây.
+      - id: c
+        text_md: |
+          Vì để tiết kiệm bộ nhớ: mục lục ngược nhỏ hơn DB gốc nên rẻ hơn khi lưu toàn bộ dữ liệu.
+    answer: [a]
+    explain_md: |
+      DB gốc không tìm toàn văn nhanh trên tập cực lớn; mục lục ngược dựng sẵn bảng "từ -> tài liệu" cho
+      tra cứu nhanh, nhưng vì cập nhật qua CDC không đồng bộ nên tươi gần tức thời (near-real-time), trễ
+      nhất quán cuối vài giây. (b) sai — ngược lại, mục lục trễ hơn DB gốc, không mạnh hơn; (c) sai —
+      mục lục còn thường tốn thêm chỗ, đó không phải lý do dựng nó.
+  - id: b04
+    type: text
+    md: |
+      Một máy không chứa nổi mục lục của hàng tỷ tài liệu, nên ta **chia mục lục thành nhiều phần
+      (sharding)** — kiến thức từ `sd.data.sharding`. Khi đã chia, đường truy vấn trở thành
+      **scatter-gather (phát rồi gộp)**:
+      1. **Scatter (phát):** một node điều phối (coordinator / aggregator) nhận câu hỏi và **phát nó tới
+         mọi shard của mục lục**.
+      2. Mỗi shard tra mục lục cục bộ, xếp hạng các tài liệu của riêng nó, và trả về **top-k** (ví dụ 10)
+         kết quả tốt nhất của shard đó — chứ không trả toàn bộ.
+      3. **Gather (gộp):** coordinator **gộp (merge) và xếp hạng lại (re-rank)** các danh sách top-k từ
+         mọi shard thành kết quả cuối cùng cho người dùng.
+
+      Một hệ quả quan trọng về độ trễ: coordinator phải đợi shard **chậm nhất** trả lời rồi mới gộp được.
+      Đây là bài toán **tail latency (độ trễ đuôi)**: một shard lề mề kéo chậm cả câu truy vấn, nên thực
+      tế người ta đặt hạn chót (timeout) và có thể trả kết quả thiếu một shard thay vì đợi mãi.
+  - id: b05
+    type: quiz_mcq
+    graded: true
+    prompt_md: |
+      Trong đường truy vấn **scatter-gather**, vì sao mỗi shard chỉ trả **top-k** của nó mà vẫn cần một
+      coordinator **gộp và xếp hạng lại**?
+    options:
+      - id: a
+        text_md: |
+          Vì kết quả toàn cục nằm rải ở mọi shard: mỗi shard chỉ biết tài liệu của mình nên gửi top-k
+          cục bộ cho rẻ, còn coordinator phải trộn các top-k đó lại rồi xếp hạng chung mới ra thứ tự
+          đúng toàn cục.
+      - id: b
+        text_md: |
+          Vì mỗi shard giữ một bản sao đầy đủ của toàn bộ mục lục, nên shard đầu tiên trả lời đã đủ, các
+          shard khác chỉ để dự phòng.
+      - id: c
+        text_md: |
+          Vì coordinator không được phép đọc mục lục, nó chỉ chuyển tiếp nguyên danh sách của một shard
+          bất kỳ cho người dùng.
+    answer: [a]
+    explain_md: |
+      Mỗi shard chỉ nắm một phần tài liệu nên chỉ biết thứ hạng cục bộ; gửi top-k cục bộ là đủ và tiết
+      kiệm băng thông, rồi coordinator trộn các top-k và xếp hạng lại để có thứ tự đúng trên toàn tập.
+      (b) sai — các shard chia nhau dữ liệu, không ai giữ bản đầy đủ; (c) sai — coordinator chính là nơi
+      gộp và re-rank, không phải chỉ chuyển tiếp.
+  - id: b06
+    type: text
+    md: |
+      Câu hỏi thiết kế cốt lõi khi chia mục lục: **chia theo tài liệu hay chia theo từ?**
+
+      - **Chia theo tài liệu (document-partitioning):** mỗi shard giữ **toàn bộ các từ** cho một **nhóm
+        tài liệu** (ví dụ shard 1 lo tài liệu 1..1 triệu, mỗi shard là một mục lục ngược thu nhỏ hoàn
+        chỉnh cho nhóm đó). Mỗi câu truy vấn **phải hỏi mọi shard** (vì tài liệu khớp có thể nằm ở bất kỳ
+        shard nào) — đúng kiểu scatter-gather. Bù lại: lập chỉ mục đơn giản (thêm một tài liệu chỉ đụng
+        **một** shard), tải trải đều, xếp hạng cục bộ dễ. Đây là **lựa chọn phổ biến** trong thực tế.
+
+      - **Chia theo từ (term-partitioning):** mỗi shard giữ **posting list của một nhóm từ** cho **mọi
+        tài liệu** (ví dụ các từ a..m ở shard 1). Một câu truy vấn chỉ cần hỏi các shard **giữ những từ
+        trong câu** — ít shard hơn mỗi truy vấn. Nhưng đổi lại hai cái đau: **từ nóng (hot term)** —
+        một từ phổ biến dồn tải lệch về một shard; và **lập chỉ mục khó** — thêm một tài liệu có nhiều từ
+        phải ghi vào nhiều shard, nên khi dựng lại (rebuild) rất tốn.
+  - id: b07
+    type: callout
+    kind: tip
+    md: |
+      **Mặc định chọn gì?** Trong phỏng vấn, hãy mặc định **chia theo tài liệu (document-partitioning)**
+      và nêu lý do: lập chỉ mục đơn giản, tải đều, hợp với scatter-gather. Chỉ nhắc **chia theo từ** như
+      một phương án đánh đổi: nó giảm số shard mỗi truy vấn, nhưng gánh **từ nóng** và **khó rebuild** —
+      nên hiếm dùng làm mặc định. Nói được cả hai và vì sao mặc định là doc-partitioning là điểm cộng.
+  - id: b08
+    type: quiz_mcq
+    graded: true
+    prompt_md: |
+      Vì sao **chia theo tài liệu (document-partitioning)** thường là mặc định, dù mỗi truy vấn phải
+      hỏi **mọi** shard?
+    options:
+      - id: a
+        text_md: |
+          Vì lập chỉ mục đơn giản (thêm một tài liệu chỉ đụng một shard), tải trải đều, và không bị
+          vấn đề "từ nóng"; cái giá là mỗi truy vấn quét mọi shard thì đã hợp sẵn với scatter-gather.
+      - id: b
+        text_md: |
+          Vì chia theo tài liệu khiến mỗi truy vấn chỉ phải hỏi đúng một shard, nên nhanh hơn hẳn chia
+          theo từ.
+      - id: c
+        text_md: |
+          Vì chia theo từ không thể xếp hạng được, còn chia theo tài liệu thì xếp hạng toàn cục ngay tại
+          một shard duy nhất.
+    answer: [a]
+    explain_md: |
+      Doc-partitioning đơn giản khi ghi (một tài liệu vào một shard), tải đều, tránh hot term; đổi lại
+      mỗi truy vấn hỏi mọi shard — vốn đã là scatter-gather nên chấp nhận được. (b) sai — chính
+      doc-partitioning mới phải hỏi mọi shard; term-partitioning mới hỏi ít shard hơn; (c) sai — cả hai
+      đều xếp hạng được, và doc-partitioning xếp hạng cục bộ ở từng shard rồi mới gộp.
+  - id: b09
+    type: text
+    md: |
+      Còn hai mảnh để hoàn chỉnh thiết kế:
+
+      - **Bản sao (replica) để tăng thông lượng.** Sharding chia **dữ liệu** nhưng chưa tăng số truy vấn
+        phục vụ được. Vì read-heavy, ta đặt **nhiều bản sao cho mỗi shard** sau load balancer: các bản
+        sao cùng giữ một phần mục lục và chia nhau lượng đọc. Sharding lo "chứa hết dữ liệu"; replica lo
+        "chịu được nhiều truy vấn" và còn giúp chịu lỗi khi một bản sao chết.
+      - **Xếp hạng (ranking).** Thứ tự kết quả thường dựa trên **BM25** — điểm tính từ tần suất từ trong
+        tài liệu và độ hiếm của từ trên toàn tập (từ hiếm thì khớp đáng giá hơn) — cộng thêm **tín hiệu
+        (signals)** như độ mới, độ phổ biến, lượt click. Mỗi shard xếp hạng cục bộ bằng cùng công thức
+        để top-k nó gửi lên là so sánh được khi coordinator gộp.
+  - id: b10
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền thuật ngữ (tiếng Anh) cho đúng:
+
+      (1) Cách đọc nhật ký thay đổi của DB gốc để pipeline cập nhật mục lục gọi là ____.
+
+      (2) Công thức xếp hạng mặc định dựa trên tần suất từ trong tài liệu và độ hiếm của từ trên toàn
+      tập gọi là ____.
+    blanks:
+      - accept: ["CDC", "change data capture", "Change Data Capture"]
+      - accept: ["BM25", "bm25"]
+    explain_md: |
+      (1) **CDC (Change Data Capture)**: pipeline lập chỉ mục nghe nhật ký thay đổi của DB gốc rồi cập
+      nhật mục lục không đồng bộ, nên mục lục tươi gần tức thời. (2) **BM25**: điểm từ tần suất từ trong
+      tài liệu và độ hiếm của từ trên toàn tập, là cơ sở xếp hạng trước khi cộng thêm tín hiệu khác.
+  - id: b11
+    type: callout
+    kind: interview
+    md: |
+      **Khung trả lời khi phỏng vấn "thiết kế tìm kiếm".** (1) Chốt ràng buộc: read-heavy, độ trễ thấp
+      trên tập cực lớn, chấp nhận trễ tươi vài giây. (2) **DB gốc -> pipeline lập chỉ mục**: nghe thay
+      đổi qua **CDC**, tách từ và chuẩn hoá, dựng **mục lục ngược**; nêu rõ mục lục tươi gần tức thời
+      (eventual lag). (3) **Chia phần + truy vấn scatter-gather**: coordinator phát câu hỏi tới mọi shard,
+      mỗi shard trả **top-k**, coordinator **gộp và xếp hạng lại**; nhắc **tail latency** (đợi shard chậm
+      nhất, có timeout). (4) **Chọn cách chia**: mặc định **document-partitioning** (đơn giản, tải đều,
+      mỗi truy vấn hỏi mọi shard), so sánh với **term-partitioning** (ít shard mỗi truy vấn nhưng hot
+      term + khó rebuild). (5) **Scale và ranking**: **replica cho mỗi shard** để tăng thông lượng,
+      **BM25 + tín hiệu** để xếp hạng. Mỗi bước nói rõ nó gỡ nghẽn gì.
+  - id: b12
+    type: summary
+    bullets_vi:
+      - "Tìm kiếm là bài read-heavy, độ trễ thấp trên tập cực lớn, chấp nhận trễ tươi vài giây — nên dựng một **mục lục ngược (inverted index)** riêng thay vì tìm toàn văn trên DB gốc."
+      - "**DB gốc -> pipeline lập chỉ mục**: nghe thay đổi qua **CDC**, tách/chuẩn hoá từ, cập nhật mục lục không đồng bộ, nên mục lục chỉ tươi gần tức thời (near-real-time, eventual lag)."
+      - "Mục lục quá lớn nên **chia phần (sharding)**; truy vấn dùng **scatter-gather**: coordinator phát tới mọi shard, mỗi shard trả **top-k**, coordinator **gộp và xếp hạng lại**; độ trễ bị shard chậm nhất chi phối (tail latency)."
+      - "**Document-partitioning** (mỗi shard: mọi từ cho một nhóm tài liệu) là mặc định — đơn giản, tải đều, mỗi truy vấn hỏi mọi shard; **term-partitioning** (mỗi shard: một nhóm từ cho mọi tài liệu) hỏi ít shard hơn nhưng gánh **từ nóng** và **khó rebuild**."
+      - "**Replica cho mỗi shard** để tăng thông lượng đọc và chịu lỗi; xếp hạng bằng **BM25 + tín hiệu** (độ mới, lượt click)."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S220], l2: [S221], l3: [S222]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

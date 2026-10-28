@@ -1,0 +1,59 @@
+subtopic_id: sd.archetypes.ads_platform
+items:
+  - id: S211
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Trong đấu giá quảng cáo (ad auction), ad server xếp hạng các ứng viên theo đại lượng nào, và
+      công thức tính nó là gì? Quảng cáo như thế nào thì thắng một ad slot?
+    answer_md: |
+      Xếp hạng theo **eCPM** (effective cost per mille — doanh thu kỳ vọng mỗi lượt hiển thị), tính
+      bằng **eCPM = bid × pCTR**: **bid** là giá advertiser trả cho một click, **pCTR** là xác suất
+      người xem bấm (do mô hình ML dự đoán). Quảng cáo có **eCPM cao nhất** thắng slot — tức tối đa
+      hóa doanh thu kỳ vọng, không chỉ nhìn bid cao nhất.
+    rubric_md: "Đúng khi nêu được eCPM = bid × pCTR và eCPM cao nhất thắng. Nói đúng cả hai ý (công thức + người thắng): bằng chứng điểm 1; chỉ nói mơ hồ 'giá cao nhất thắng' mà thiếu pCTR: tối đa điểm 0."
+  - id: S212
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Một ad slot có hai ứng viên: quảng cáo P có bid 2.0 và pCTR 0.05; quảng cáo Q có bid 5.0 và
+      pCTR 0.015. (1) Tính eCPM của mỗi quảng cáo và cho biết cái nào thắng, giải thích vì sao quảng
+      cáo bid thấp hơn vẫn có thể thắng. (2) Advertiser thắng có ngân sách 240 $/ngày; nêu một lý do
+      vì sao hệ vẫn cần **budget pacing** dù P đang có eCPM cao nhất.
+    answer_md: |
+      (1) eCPM(P) = 2.0 × 0.05 = **0.1**; eCPM(Q) = 5.0 × 0.015 = **0.075**. **P thắng** vì eCPM cao
+      hơn, dù bid của P (2.0) thấp hơn bid của Q (5.0): đấu giá tối đa hóa **doanh thu kỳ vọng** = giá
+      × khả năng bấm, nên khả năng bấm cao của P bù lại bid thấp.
+      (2) Dù P có eCPM cao nhất, nếu cho P thắng mọi slot thì 240 $ có thể cháy hết trong vài giờ cao
+      điểm buổi sáng rồi cả phần còn lại của ngày quảng cáo biến mất. **Budget pacing** rải chi tiêu
+      đều theo thời gian (giảm tỉ lệ tham gia đấu giá khi tiêu quá nhanh) để ngân sách còn đến được
+      người xem ở các khung giờ khác.
+    rubric_md: "Đạt (score 2) khi: tính đúng eCPM(P)=0.1, eCPM(Q)=0.075, kết luận P thắng, giải thích theo doanh thu kỳ vọng (bid × pCTR); và nêu đúng một lý do cần pacing (tránh đốt hết ngân sách sớm, rải đều theo thời gian). Đúng, trong time-box, tự giải thích được: bằng chứng điểm 2. Sai số học hoặc thiếu hẳn phần pacing: tối đa điểm 1."
+  - id: S213
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      Phác thảo (mức phỏng vấn) một ad serving system: (1) **vẽ luồng chọn quảng cáo** cho một ad
+      slot, kèm chỗ đặt **budget pacing** và **frequency cap**; (2) cho A (bid 4.0, pCTR 0.02), B
+      (bid 1.0, pCTR 0.1), C (bid 6.0, pCTR 0.015), **tính eCPM và chọn người thắng**; (3) nói rõ
+      **chỗ nào chấp nhận vượt nhẹ (overspend)** và vì sao không ép hard cap tuyệt đối.
+    answer_md: |
+      (1) **Luồng:** ad slot → **lọc ứng viên (candidate retrieval / targeting)** bằng chỉ mục dựng
+      sẵn tra trong cache → **frequency cap**: loại các quảng cáo người này đã xem đủ N lần trong cửa
+      sổ (bộ đếm per-user kiểu rate limiter, ví dụ Redis sorted set) → **budget pacing**: với mỗi ứng
+      viên còn lại, điều chỉnh tỉ lệ tham gia theo nhịp chi tiêu còn lại của advertiser (sliced quota
+      giữa các server) → **xếp hạng theo eCPM = bid × pCTR** → **chọn người thắng** (giá trả theo ý
+      second-price) → trả quảng cáo về, rồi **đếm impression/click qua stream processing** để cập
+      nhật chi tiêu.
+      (2) eCPM(A) = 4.0 × 0.02 = **0.08**; eCPM(B) = 1.0 × 0.1 = **0.10**; eCPM(C) = 6.0 × 0.015 =
+      **0.09**. **B thắng** (0.10 cao nhất) dù bid của B thấp nhất, vì pCTR cao bù lại.
+      (3) **Chấp nhận vượt nhẹ ở khâu kiểm ngân sách:** chi tiêu được pipeline đếm (stream) cập nhật
+      có **độ trễ**, nên ad server quyết định trên con số hơi cũ → ngân sách là **bộ đếm nhất quán
+      cuối cùng**, có thể overshoot vài phần trăm. Không ép **hard cap** tuyệt đối vì đọc-ghi đồng bộ
+      một bộ đếm trung tâm cho mỗi lượt sẽ phá vỡ latency budget (~100 ms) và bóp nghẹt thông lượng;
+      ta đổi một khoản vượt nhỏ lấy tốc độ, và dùng **reconciliation** để đối soát/bù sau. Đây là đánh
+      đổi nhất quán ↔ độ trễ.
+    rubric_md: "Đạt mức 3 (phỏng vấn) khi làm đủ cả ba: (1) vẽ đúng luồng candidate retrieval → ranking theo eCPM → winner, có đặt frequency cap và budget pacing đúng chỗ (trong luồng chọn); (2) tính đúng eCPM A=0.08, B=0.10, C=0.09 và kết luận B thắng; (3) chỉ đúng overspend nằm ở kiểm ngân sách trên bộ đếm trễ và giải thích vì sao tránh hard cap (latency/throughput), có nhắc reconciliation. Đúng, trong time-box, tự giải thích rõ ràng: bằng chứng điểm 3. Thiếu một trong ba trụ (luồng / tính winner / chỗ overspend): chưa đạt mức 3."

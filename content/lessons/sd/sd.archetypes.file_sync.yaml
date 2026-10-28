@@ -1,0 +1,145 @@
+id: sd.archetypes.file_sync
+version: 1
+status: published
+title_vi: "Lưu trữ và đồng bộ file (file storage and sync): chunk, dedup, delta sync và xung đột"
+est_minutes: 13
+objectives_vi:
+  - "Giải thích vì sao đồng bộ file (file sync) cắt file thành **mảnh (chunk)** và dùng **cắt theo nội dung (content-defined chunking)** thay vì tải lại cả file."
+  - "Mô tả **khử trùng theo mã băm nội dung (content-hash dedup)** và **đồng bộ phần thay đổi (delta sync)**: chỉ tải mảnh đã đổi."
+  - "Vẽ kiến trúc tách **metadata service** khỏi **kho đối tượng (object storage)**, kênh báo thay đổi, và cách giữ **bản xung đột (conflicted copy)** thay vì ghi đè mất dữ liệu."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Bài toán của một dịch vụ kiểu **Dropbox / Google Drive**: giữ *cùng một thư mục* giống nhau
+      trên nhiều thiết bị của người dùng, và khi một file đổi thì các thiết bị khác tự cập nhật.
+      Cách ngây thơ là mỗi lần lưu thì **tải lên cả file**. Sửa một dòng trong file 100 MB mà phải
+      đẩy lại 100 MB là quá phí băng thông, chậm, và đứt mạng giữa chừng phải làm lại từ đầu. Mọi
+      thiết kế ở đây đều nhắm một mục tiêu: **chỉ truyền đúng phần đã thay đổi**.
+
+      Bài này xây dựng trên hai thứ bạn đã học: **kho đối tượng (object storage)** để chứa dữ liệu
+      lớn, bất biến, và **giao thức thời gian thực (realtime protocols)** để báo thay đổi cho thiết bị.
+  - id: b02
+    type: text
+    md: |
+      Bước đầu tiên: client **cắt file thành mảnh (chunk)**, mỗi mảnh cỡ vài MB. Tải lên theo từng
+      mảnh, nên đứt mạng chỉ phải gửi lại mảnh dở dang, không phải cả file (upload tiếp tục được —
+      resumable upload).
+
+      Câu hỏi khó là *cắt ở đâu*. Nếu cắt theo **kích thước cố định (fixed-size chunking)** — cứ đủ
+      4 MB thì cắt — thì **chèn một byte ở đầu file sẽ đẩy toàn bộ ranh giới dịch đi**, khiến gần như
+      mọi mảnh về sau đều "mới" và phải tải lại. Giải pháp là **cắt theo nội dung (content-defined
+      chunking)**: đặt ranh giới mảnh dựa trên chính nội dung (ví dụ tại chỗ hàm băm trượt —
+      rolling hash — đạt một giá trị mốc). Nhờ vậy khi chèn/xoá ở giữa, chỉ các mảnh quanh chỗ sửa
+      đổi ranh giới, phần còn lại giữ nguyên.
+  - id: b03
+    type: text
+    md: |
+      Mỗi mảnh được tính một **mã băm nội dung (content hash)**, ví dụ SHA-256 — xem như *dấu vân tay*
+      của mảnh. Hai mảnh có cùng nội dung sẽ cho **cùng một mã băm**. Điều này cho ta **khử trùng
+      (dedup)**: kho chỉ lưu **mỗi mảnh duy nhất một lần**, lấy mã băm làm khoá (key).
+
+      Trước khi tải một mảnh lên, client (hoặc server) hỏi: "đã có mã băm này chưa?". Nếu có rồi thì
+      **bỏ qua việc tải** — chỉ cần ghi tham chiếu. Nhờ vậy, 100 người cùng tải một file giống nhau,
+      kho vẫn chỉ giữ một bản; và trong một file, các khối lặp lại cũng chỉ lưu một lần.
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao đồng bộ file dùng **cắt theo nội dung (content-defined chunking)** thay vì cắt theo kích thước cố định?"
+    options:
+      - {id: a, text_md: "Vì cắt theo nội dung tạo ra các mảnh nhỏ hơn nên tải nhanh hơn."}
+      - {id: b, text_md: "Vì với cắt cố định, chèn/xoá vài byte ở đầu file đẩy mọi ranh giới mảnh dịch đi, khiến hầu hết mảnh trở thành mới; cắt theo nội dung giữ ranh giới ổn định nên chỉ vùng quanh chỗ sửa đổi."}
+      - {id: c, text_md: "Vì cắt theo nội dung không cần tính mã băm cho từng mảnh nên rẻ hơn."}
+    answer: [b]
+    explain_md: "Mục tiêu là tối đa hoá số mảnh *không đổi* sau một lần sửa. Cắt cố định làm lệch toàn bộ ranh giới khi chèn byte; cắt theo nội dung neo ranh giới vào nội dung nên chỉ vài mảnh quanh chỗ sửa thay đổi. (a) không phải mục đích; (c) sai — vẫn phải băm từng mảnh để dedup và delta sync."
+  - id: b05
+    type: text
+    md: |
+      Giờ ghép chunk + hash lại thành **đồng bộ phần thay đổi (delta sync)**. Khi một file đổi, client:
+      1. cắt lại file thành các mảnh và tính mã băm từng mảnh;
+      2. so với danh sách mã băm của phiên bản cũ để biết **mảnh nào mới**;
+      3. **chỉ tải lên các mảnh mới** (những mã băm kho chưa có);
+      4. gửi cho server **danh sách mã băm theo đúng thứ tự** mô tả phiên bản mới của file.
+
+      Sửa một dòng trong file 100 MB giờ chỉ tải lên **một mảnh** chứa dòng đó. Thiết bị khác, khi
+      đồng bộ về, cũng chỉ tải những mảnh nó *chưa* có rồi ráp lại theo danh sách mã băm.
+  - id: b06
+    type: text
+    md: |
+      Kiến trúc tách làm hai phần, vì dữ liệu mảnh và thông tin mô tả có tính chất rất khác nhau:
+      - **Kho đối tượng (object storage)** chứa **các mảnh** — dữ liệu lớn, bất biến, đánh địa chỉ
+        bằng mã băm nội dung (content-addressed). Rẻ, mở rộng gần như vô hạn, nhưng chỉ là kho khối.
+      - **Dịch vụ metadata (metadata service)** đặt trên một **cơ sở dữ liệu (database)**, lưu bản
+        đồ: *mỗi file (và phiên bản) gồm danh sách có thứ tự những mã băm mảnh nào*, ai sở hữu,
+        quyền chia sẻ, phiên bản mấy. Dữ liệu nhỏ nhưng cần truy vấn nhanh và nhất quán.
+
+      Ghép lại: để lấy một file, đọc metadata ra **danh sách mã băm**, rồi kéo từng mảnh tương ứng
+      từ kho đối tượng và ráp lại. Giữ **lịch sử phiên bản (versioning)** chỉ tốn thêm vài dòng
+      metadata trỏ tới các mảnh — không chép lại cả file.
+  - id: b07
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Trong thiết kế đồng bộ file, vì sao tách **metadata service** (trên database) khỏi **kho đối tượng (object storage)** chứa mảnh?"
+    options:
+      - {id: a, text_md: "Vì database không thể lưu file nhị phân, còn object storage thì không lưu được gì khác."}
+      - {id: b, text_md: "Vì hai loại dữ liệu khác tính chất: mảnh là khối lớn bất biến hợp với object storage rẻ và co giãn; còn ánh xạ file → danh sách mã băm, phiên bản, quyền là dữ liệu nhỏ cần truy vấn nhanh và nhất quán, hợp với database."}
+      - {id: c, text_md: "Vì tách ra giúp mỗi mảnh được lưu nhiều bản trùng nhau để an toàn hơn."}
+    answer: [b]
+    explain_md: "Đây là mẫu metadata-trỏ-tới-blob: database giữ phần nhỏ, có cấu trúc, cần nhất quán; object storage giữ khối lớn bất biến. (a) nói quá — database *có thể* lưu blob nhưng kém hiệu quả; (c) ngược với mục tiêu dedup (chỉ giữ một bản mỗi mã băm)."
+  - id: b08
+    type: text
+    md: |
+      Còn thiếu một mảnh: thiết bị B làm sao biết thiết bị A vừa sửa file? Ta cần một **kênh báo
+      thay đổi (notification / sync channel)**. Khi A ghi xong metadata phiên bản mới, server **đẩy
+      tín hiệu** cho các thiết bị khác đang online — thường qua **WebSocket** hoặc **long-poll** (giữ
+      một kết nối chờ sẵn); nếu không được thì thiết bị **hỏi định kỳ (polling)**. Tín hiệu chỉ cần
+      nói "thư mục này có thay đổi", B sẽ gọi về lấy metadata mới, so mã băm và kéo các mảnh nó còn
+      thiếu. Tách báo-hiệu khỏi truyền-dữ-liệu giữ cho kênh thông báo nhẹ.
+  - id: b09
+    type: text
+    md: |
+      **Xung đột (conflict):** hai thiết bị cùng sửa một file khi đang offline, rồi cùng lên mạng.
+      Cả hai đều xuất phát từ phiên bản cũ, nên không bản nào là "tiếp nối" của bản kia. Nếu máy lên
+      sau cứ **ghi đè**, ta **lặng lẽ mất** phần sửa của người kia — điều tệ nhất với một dịch vụ lưu
+      trữ.
+
+      Cách xử lý an toàn và phổ biến: **giữ cả hai bản**. Server phát hiện cả hai cùng dựa trên một
+      phiên bản gốc, giữ một bản làm chính và lưu bản kia thành **bản xung đột (conflicted copy)**,
+      đặt tên kiểu *"báo cáo (bản xung đột của An)"*. Không ai mất dữ liệu; người dùng tự xem và gộp.
+      Đây là đánh đổi có chủ đích: **thà phiền một chút còn hơn mất dữ liệu âm thầm**.
+  - id: b10
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Hai thiết bị offline cùng sửa một file từ cùng một phiên bản gốc, rồi cùng đồng bộ lên. Cách xử lý xung đột nào là an toàn và thường dùng?"
+    options:
+      - {id: a, text_md: "Lấy bản của thiết bị đồng bộ **sau cùng** và ghi đè bản kia, vì nó mới hơn."}
+      - {id: b, text_md: "Giữ cả hai: một bản làm chính, bản còn lại thành **bản xung đột (conflicted copy)** đặt tên riêng, để không mất dữ liệu của ai."}
+      - {id: c, text_md: "Khoá file lại để chỉ một thiết bị được sửa tại một thời điểm, tránh mọi xung đột."}
+    answer: [b]
+    explain_md: "Cả hai sửa song song từ cùng gốc nên không bản nào bao hàm bản kia; ghi đè (a) làm mất âm thầm phần sửa của người kia. (c) khoá toàn cục phá trải nghiệm offline/đa thiết bị. Giữ bản xung đột đảm bảo không mất dữ liệu — người dùng quyết định gộp."
+  - id: b11
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn.** Với câu "Design Dropbox", hãy kể câu chuyện theo đúng mạch: *cắt file thành
+      mảnh → băm nội dung từng mảnh → dedup (kho giữ mỗi mã băm một lần) → delta sync (chỉ tải mảnh
+      mới) → metadata service ánh xạ file sang danh sách mã băm, tách khỏi object storage → kênh báo
+      thay đổi cho thiết bị khác kéo về → xung đột thì giữ bản conflicted copy*. Nói rõ **từng bước
+      tiết kiệm cái gì** (băng thông, dung lượng) và **đánh đổi gì** (độ phức tạp, giữ cả hai bản khi
+      xung đột). Người phỏng vấn chấm mạch lập luận, không chấm việc kể tên công nghệ.
+  - id: b12
+    type: summary
+    bullets_vi:
+      - "Mục tiêu đồng bộ file: chỉ truyền phần đã đổi — cắt file thành **mảnh (chunk)** và tải theo mảnh (đứt mạng chỉ gửi lại mảnh dở)."
+      - "**Cắt theo nội dung (content-defined chunking)** giữ ranh giới mảnh ổn định khi chèn/xoá, nên chỉ vài mảnh quanh chỗ sửa trở thành mới (cắt cố định làm lệch mọi ranh giới)."
+      - "**Mã băm nội dung (content hash)** là dấu vân tay của mảnh: kho lưu mỗi mã băm một lần (**dedup**), và client chỉ tải các mã băm kho chưa có (**delta sync**)."
+      - "Kiến trúc tách **metadata service** (DB: file → danh sách mã băm, phiên bản, quyền) khỏi **kho đối tượng (object storage)** chứa các mảnh bất biến; cộng một **kênh báo thay đổi** (WebSocket/long-poll) để thiết bị khác kéo về."
+      - "**Xung đột (conflict)** khi hai máy sửa song song từ cùng gốc: giữ **cả hai bản** (bản chính + conflicted copy) thay vì ghi đè làm mất dữ liệu âm thầm."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S217], l2: [S218], l3: [S219]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

@@ -1,0 +1,156 @@
+id: sd.archetypes.config_experiment
+version: 1
+status: published
+title_vi: "Feature flag, cấu hình và A/B testing: thiết kế nền tảng flag và thử nghiệm"
+est_minutes: 14
+objectives_vi:
+  - "Giải thích feature flag, remote config và kill switch là gì, và vì sao chúng là một nền tảng chung với A/B testing (experiments)."
+  - "Biện minh vì sao SDK đánh giá flag **cục bộ** (local evaluation) thay vì gọi mạng mỗi lần kiểm tra flag."
+  - "Mô tả cách gán nhóm **ổn định** bằng hash(user_id + experiment_id) mod 100 và vai trò của chỉ số bảo vệ (guardrail metrics)."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      **Feature flag** là một công tắc bật/tắt (on/off) hoặc một giá trị cấu hình (remote config) đặt
+      tập trung, cho phép đổi hành vi của app **mà không phải phát hành lại (redeploy)**. Thay vì chôn
+      `if enable_new_checkout:` với giá trị cứng trong code, ta đọc giá trị đó từ một nền tảng flag ở
+      runtime. Hệ quả quan trọng nhất: khi một tính năng mới gây lỗi, ta có **kill switch** — tắt ngay
+      bằng cách đổi một giá trị, tính bằng giây, không cần build lại và rải code mới ra toàn hệ.
+  - id: b02
+    type: text
+    md: |
+      **A/B testing (experiment)** dùng chính cơ chế flag đó, nhưng thay vì bật/tắt cho tất cả, nó
+      **chia người dùng thành các nhóm (variant)** — ví dụ nhóm A thấy nút cũ, nhóm B thấy nút mới —
+      rồi đo nhóm nào cho chỉ số tốt hơn (tỷ lệ mua hàng, giữ chân...). Vì feature flag và experiment
+      chỉ khác nhau ở chỗ "trả một giá trị cho người dùng theo luật", người ta gom chúng vào **một nền
+      tảng duy nhất**: cùng kho luật, cùng cách phân phối, cùng SDK đánh giá. Phỏng vấn thường hỏi
+      "thiết kế feature flag service" hoặc "thiết kế A/B testing platform" — hãy coi chúng là một.
+  - id: b03
+    type: text
+    md: |
+      Kiến trúc tổng thể gồm bốn phần:
+      - **Kho định nghĩa (flag/experiment store):** nơi lưu các luật — mỗi flag có tên, giá trị mặc
+        định, luật nhắm đối tượng (targeting: nước, phiên bản app, nhóm người dùng) và tỷ lệ phát hành.
+      - **Phân phối (distribution):** đẩy các luật này xuống hàng nghìn service/thiết bị. Vì số lượng
+        đọc rất lớn và luật đổi hiếm, ta thường phát qua **CDN** (tận dụng bài CDN đã học) để client
+        kéo (pull) định kỳ hoặc nhận đẩy (push/stream) khi có thay đổi.
+      - **SDK trong app:** thư viện nhúng, nhận gói luật và **tự quyết** giá trị cho mỗi người dùng.
+      - **Đường phân tích (analytics):** ghi lại ai thật sự thấy variant nào (exposure log) để tính kết
+        quả thử nghiệm.
+  - id: b04
+    type: text
+    md: |
+      Điểm thiết kế cốt lõi: **SDK đánh giá cục bộ (local evaluation)**. SDK tải **toàn bộ** định nghĩa
+      flag về bộ nhớ trong tiến trình (in-process), được cập nhật bằng stream/poll nền. Khi code gọi
+      `is_enabled("new_checkout", user)`, SDK **giải luật ngay trong máy** — ráp luật targeting với các
+      thuộc tính của user (country, app version...) đang có sẵn — chứ **không gọi mạng cho mỗi lần kiểm
+      tra flag**. Lợi ích:
+      - **Độ trễ gần như bằng 0:** một lệnh kiểm tra flag là một phép tính trong RAM, không phải một
+        vòng mạng (network round-trip) cộng vào mọi request.
+      - **Chịu lỗi tốt (fail-open):** nếu dịch vụ cấu hình chết, app vẫn chạy bằng gói luật đã nạp gần
+        nhất; nó không trở thành một điểm chết chặn mọi request của bạn.
+      - **Quy mô:** đọc flag là cục bộ nên số lần kiểm tra flag gần như vô hạn mà không tạo tải cho
+        server; server chỉ chịu tải phân phối gói luật (hiếm và cache được qua CDN).
+  - id: b05
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao nền tảng flag cho SDK **đánh giá cục bộ** (tải toàn bộ luật về rồi tự quyết trong máy) thay vì gọi server cho mỗi lần kiểm tra flag?"
+    options:
+      - {id: a, text_md: "Vì gọi server mỗi lần kiểm tra flag sẽ thêm một vòng mạng vào mọi request (độ trễ) và biến dịch vụ cấu hình thành một điểm chết; đánh giá cục bộ cho độ trễ ~0 và vẫn chạy khi dịch vụ đó chết."}
+      - {id: b, text_md: "Vì đánh giá cục bộ cho phép mỗi máy giữ một bản sao đầy đủ của database người dùng."}
+      - {id: c, text_md: "Vì đánh giá cục bộ giúp các variant luôn được gán ngẫu nhiên lại sau mỗi lần mở app."}
+    answer: [a]
+    explain_md: "Local evaluation biến mỗi lần kiểm tra flag thành một phép tính trong RAM: không thêm round-trip vào request, và nếu dịch vụ cấu hình chết thì app dùng gói luật đã nạp (fail-open). (b) sai — SDK chỉ tải luật flag, không tải database người dùng; (c) sai — mục tiêu của gán nhóm là **ổn định**, không phải ngẫu nhiên lại."
+  - id: b06
+    type: text
+    md: |
+      Làm sao chia người dùng vào variant? Không dùng số ngẫu nhiên (random) mỗi lần gọi — như vậy một
+      người lúc thấy A, lúc thấy B, trải nghiệm hỏng và số liệu vô nghĩa. Ta cần **gán nhóm ổn định
+      (stable / sticky bucketing)**: băm một chuỗi định danh rồi chia dư:
+
+      *bucket = hash(user_id + experiment_id) mod 100* → nếu bucket < 10 thì vào nhóm thử nghiệm 10%.
+
+      Ba tính chất quan trọng:
+      - **Deterministic (tất định):** cùng một user_id luôn ra cùng bucket, nên cùng một user **luôn
+        thấy cùng variant** qua nhiều lần mở app và nhiều máy — không cần lưu "ai thuộc nhóm nào", chỉ
+        cần tính lại là ra.
+      - **Even split (chia đều):** hàm hash tốt rải các user đều khắp 0–99, nên cắt theo ngưỡng phần
+        trăm cho ra đúng tỷ lệ mong muốn.
+      - **Độc lập giữa các thử nghiệm:** thêm `experiment_id` vào chuỗi băm khiến bucket của mỗi thử
+        nghiệm khác nhau, nên một user ở nhóm B của thử nghiệm X không bị dồn vào một nhóm cố định của
+        thử nghiệm Y.
+  - id: b07
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền vào công thức gán nhóm ổn định và lý do:
+
+      Để một user luôn vào cùng variant, ta tính bucket = __(1)__(user_id + experiment_id) mod __(2)__,
+      rồi so bucket với ngưỡng phần trăm. Cách này được gọi là gán nhóm __(3)__ (tiếng Anh) vì cùng một
+      user luôn cho cùng kết quả.
+    blanks:
+      - {accept: ["hash", "băm", "hàm hash", "hash function"]}
+      - {accept: ["100", "một trăm"]}
+      - {accept: ["stable", "sticky", "deterministic", "stable bucketing", "sticky bucketing", "ổn định"]}
+    explain_md: "bucket = hash(user_id + experiment_id) mod 100 cho một số 0–99 tất định cho mỗi user; so với ngưỡng (ví dụ < 10 là 10%) để gán variant. Vì hash là tất định, cùng user luôn cùng bucket — đó là stable / sticky bucketing, không phải random mỗi lần."
+  - id: b08
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao gán variant bằng **hash(user_id + experiment_id) mod 100** tốt hơn bốc một số **ngẫu nhiên (random) mỗi lần** kiểm tra flag?"
+    options:
+      - {id: a, text_md: "Vì random chạy chậm hơn hash rất nhiều trên CPU hiện đại."}
+      - {id: b, text_md: "Vì hash cho kết quả **tất định và ổn định**: cùng một user luôn vào cùng variant qua nhiều lần/nhiều máy, nên trải nghiệm nhất quán và số liệu thử nghiệm mới hợp lệ; random mỗi lần khiến một user nhảy giữa các variant."}
+      - {id: c, text_md: "Vì random không thể chia người dùng theo tỷ lệ phần trăm, còn hash thì có thể."}
+    answer: [b]
+    explain_md: "Mấu chốt là tính ổn định (sticky): một user phải luôn thấy cùng variant để trải nghiệm không nhảy và để quy kết số liệu đúng; thêm experiment_id giữ các thử nghiệm độc lập. (a) sai — tốc độ không phải lý do; (c) sai — random cũng chia tỷ lệ được, vấn đề là nó **không ổn định**."
+  - id: b09
+    type: text
+    md: |
+      Vận hành an toàn cần thêm ba thứ:
+      - **Phát hành tăng dần (gradual rollout):** bật cho 1% → 5% → 25% → 100% bằng cách nâng ngưỡng
+        phần trăm, để lỡ có lỗi thì chỉ ảnh hưởng số ít; kết hợp **kill switch** để tắt tức thì.
+      - **Ghi nhận phơi bày (exposure logging):** ghi lại "user nào đã **thật sự** thấy variant nào, lúc
+        nào". Phân tích A/B phải dựa trên người đã bị phơi bày thật, không phải trên luật, nếu không kết
+        quả sẽ lệch.
+      - **Chỉ số bảo vệ (guardrail metrics):** ngoài chỉ số ta muốn cải thiện (ví dụ tỷ lệ mua hàng),
+        theo dõi các chỉ số **không được phép xấu đi** — tỷ lệ lỗi (error rate), độ trễ (latency),
+        crash. Nếu một variant làm guardrail xấu đi, hệ cảnh báo và ta dừng/tắt thử nghiệm sớm, kể cả
+        khi chỉ số mục tiêu đang đẹp.
+  - id: b10
+    type: callout
+    kind: interview
+    md: |
+      **Khung trả lời mức 3 (theo mastery bar).** Khi được hỏi "thiết kế feature flag / A/B testing
+      platform", đi theo mạch: (1) **kho luật** giữ định nghĩa flag + targeting + % rollout; (2) **phân
+      phối** qua CDN cho hàng nghìn client, pull/stream; (3) **SDK đánh giá cục bộ** — và **biện minh**:
+      không round-trip mỗi lần check (độ trễ), fail-open khi dịch vụ cấu hình chết, quy mô gần như vô
+      hạn; (4) **gán nhóm ổn định** bằng hash(user_id + experiment_id) mod 100 — tất định, sticky, chia
+      đều, không cần lưu bảng gán; (5) **exposure log + guardrail metrics** để phân tích đúng và dừng
+      sớm khi một chỉ số bảo vệ xấu đi; kèm **kill switch** và rollout tăng dần. Người phỏng vấn chấm
+      việc bạn *giải thích vì sao local evaluation và vì sao hash ổn định*, không chấm tên sản phẩm.
+  - id: b11
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một experiment đang cho chỉ số mục tiêu (tỷ lệ mua hàng) tăng, nhưng **tỷ lệ lỗi và độ trễ** của nhóm thử nghiệm cũng tăng rõ. **Chỉ số bảo vệ (guardrail metric)** giúp ta làm gì trong tình huống này?"
+    options:
+      - {id: a, text_md: "Phát hiện rằng variant mới đang làm xấu một chỉ số không được phép xấu đi (lỗi/độ trễ) và cảnh báo để dừng/tắt thử nghiệm sớm, dù chỉ số mục tiêu đang đẹp."}
+      - {id: b, text_md: "Tự động nâng tỷ lệ rollout lên 100% vì chỉ số mục tiêu đang tốt."}
+      - {id: c, text_md: "Gán lại toàn bộ người dùng sang nhóm mới một cách ngẫu nhiên để cân bằng số liệu."}
+    answer: [a]
+    explain_md: "Guardrail metrics là các chỉ số 'không được xấu đi' (error rate, latency, crash). Chúng tồn tại đúng để bắt trường hợp này: một variant 'thắng' chỉ số mục tiêu nhưng lại gây hại — hệ cảnh báo để ta kill switch hoặc dừng thử nghiệm. (b) và (c) đi ngược mục đích bảo vệ."
+  - id: b12
+    type: summary
+    bullets_vi:
+      - "Feature flag/remote config và A/B testing là **một nền tảng chung**: kho luật tập trung + phân phối (thường qua CDN) + SDK + đường phân tích; kill switch cho phép tắt một tính năng trong vài giây mà không redeploy."
+      - "**SDK đánh giá cục bộ (local evaluation):** tải toàn bộ luật về, tự quyết trong tiến trình — không round-trip mỗi lần check (độ trễ ~0), fail-open khi dịch vụ cấu hình chết, và chịu được số lần check gần như vô hạn."
+      - "**Gán nhóm ổn định:** bucket = hash(user_id + experiment_id) mod 100 rồi so ngưỡng %. Tất định + sticky (cùng user luôn cùng variant), chia đều, độc lập giữa các thử nghiệm, không cần lưu bảng gán."
+      - "Vận hành an toàn: **rollout tăng dần** 1%→100%, **exposure logging** (ai thật sự thấy variant nào) để phân tích đúng, và **guardrail metrics** để dừng sớm khi một chỉ số bảo vệ (lỗi/độ trễ) xấu đi."
+      - "Mức 3: thiết kế được nền tảng flag/experiment và **biện minh** local SDK evaluation, stable hash bucketing và guardrail metrics."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S208], l2: [S209], l3: [S210]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

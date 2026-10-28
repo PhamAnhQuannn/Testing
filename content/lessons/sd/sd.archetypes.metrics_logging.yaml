@@ -1,0 +1,143 @@
+id: sd.archetypes.metrics_logging
+version: 1
+status: published
+title_vi: "Thiết kế hệ metrics, logging và monitoring"
+est_minutes: 14
+objectives_vi:
+  - "Phân biệt ba trụ cột quan sát (observability): metrics, logs và traces — mỗi loại là gì, rẻ hay đắt, dùng để làm gì."
+  - "Vẽ được đường thu thập: agent trên mỗi server → đường ống đệm (Kafka) → kho chuỗi thời gian (time-series DB) cho metrics và kho log/tìm kiếm cho logs."
+  - "Giải thích vấn đề nổ số chuỗi (cardinality), và vì sao gộp dữ liệu cũ (rollup/downsampling) kèm lưu theo tầng (tiered retention) là cần thiết."
+  - "Đánh giá một cảnh báo (alert) tốt: báo theo triệu chứng và mức tiêu hao SLO (SLO burn), tránh mệt mỏi vì cảnh báo (alert fatigue)."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Giám sát (monitoring) đứng trên **ba trụ cột quan sát (observability)**, mỗi cái trả lời một
+      câu hỏi khác nhau:
+      - **Metrics**: số đo dạng **chuỗi thời gian (time-series)** — ví dụ CPU 80%, số request mỗi
+        giây, tỉ lệ lỗi. Chỉ là **số** nên rất **rẻ**, lưu gọn; hợp để vẽ dashboard và chạy cảnh báo
+        liên tục. Trả lời "có gì đó đang sai không?".
+      - **Logs**: **dòng chữ** ghi một sự việc (text event) — ví dụ một dòng lỗi kèm stack trace.
+        **Tìm kiếm được** theo từ khoá nhưng **đắt** (nhiều dữ liệu, phải đánh chỉ mục/index). Trả
+        lời "chuyện gì đã xảy ra?".
+      - **Traces**: **vết đi của một request** qua nhiều service (distributed trace), cho biết nó
+        dừng bao lâu ở mỗi chặng. Trả lời "chậm/lỗi ở service nào?".
+  - id: b02
+    type: text
+    md: |
+      **Đường thu thập** dùng lại đúng các mảnh đã học ở data_pipeline và kafka_log — không cần dựng
+      lại từ đầu:
+      - Mỗi server chạy một **agent** nhỏ thu số đo và log. Hai kiểu gửi: **đẩy (push)** — agent tự
+        gửi đi; **kéo (pull)** — hệ trung tâm đến quét agent theo chu kỳ.
+      - Dữ liệu **không đổ thẳng vào kho** mà đi qua một **đường ống đệm (Kafka)** để chịu được đỉnh
+        tải và **tách người gửi khỏi người lưu** (producer ngã/kho bận không làm mất dữ liệu).
+      - Sau đường ống, **tách hai nhánh**: metrics vào **kho chuỗi thời gian (time-series DB)** tối
+        ưu cho cặp (thời điểm, giá trị) và truy vấn theo khoảng thời gian; logs vào **kho log/tìm
+        kiếm** có đánh chỉ mục (index) để tra theo từ khoá.
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Cần một dashboard vẽ tỉ lệ lỗi (error rate) theo từng phút cho 5.000 server và cảnh báo khi vượt ngưỡng. Nên lấy trụ cột nào làm nguồn chính, và vì sao?"
+    options:
+      - {id: a, text_md: "Logs, vì log chứa chi tiết đầy đủ nhất nên luôn là nguồn chính xác nhất."}
+      - {id: b, text_md: "Metrics, vì là số đo chuỗi thời gian rẻ và gọn, hợp cho dashboard và cảnh báo chạy liên tục."}
+      - {id: c, text_md: "Traces, vì trace theo được từng request nên hợp để vẽ biểu đồ tổng hợp."}
+    answer: [b]
+    explain_md: "Dashboard và cảnh báo chạy liên tục cần số đo tổng hợp rẻ và nhanh — đúng việc của metrics. Log đắt, để điều tra chi tiết *sau khi* metric đã báo; trace để tìm chặng chậm trong một request, không để vẽ biểu đồ tổng hợp số lượng lớn."
+  - id: b04
+    type: text
+    md: |
+      **Số chuỗi (cardinality) — cái bẫy lớn nhất của metrics.** Mỗi metric được gắn **nhãn (label)**
+      như host, region, endpoint. Mỗi **tổ hợp nhãn khác nhau là một chuỗi (series) riêng** mà
+      time-series DB phải giữ chỉ mục trong bộ nhớ. Cardinality = tích số giá trị của các nhãn.
+      Nếu gắn một nhãn có **nhiều giá trị** như user_id hay request_id, cardinality nổ lên hàng triệu
+      chuỗi, TSDB **cạn RAM và chậm hẳn**. Đây đúng là bài toán "khoá có lực phân biệt quá cao" đã gặp
+      ở analytics_storage. Quy tắc: **chỉ gắn nhãn có tập giá trị nhỏ, hữu hạn** (region, status...);
+      những thứ nhiều giá trị (user_id) để trong **log** hoặc kho phân tích, **không** làm nhãn metric.
+  - id: b05
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một kỹ sư thêm nhãn user_id vào metric đếm số request để 'xem được từng người dùng'. Vì sao đây là ý tồi với time-series DB?"
+    options:
+      - {id: a, text_md: "Vì user_id là chữ nên TSDB không lưu được kiểu chuỗi ký tự."}
+      - {id: b, text_md: "Vì mỗi giá trị user_id tạo một chuỗi (series) riêng; hàng triệu người dùng thành hàng triệu chuỗi, nổ cardinality và cạn RAM/chỉ mục."}
+      - {id: c, text_md: "Vì metric không được phép có quá hai nhãn theo chuẩn."}
+    answer: [b]
+    explain_md: "Cardinality = số tổ hợp nhãn; một nhãn giá trị cao như user_id nhân số chuỗi lên khổng lồ, làm TSDB hết bộ nhớ và chậm. Thông tin theo từng người nên để trong log hoặc kho phân tích. (a) sai — nhãn vốn là chuỗi ký tự; (c) sai — không có luật cứng về số nhãn, vấn đề là lực phân biệt của nhãn."
+  - id: b06
+    type: text
+    md: |
+      **Gộp dữ liệu cũ + lưu theo tầng.** Dữ liệu mịn (từng giây) rất nhiều nhưng chỉ quan trọng trong
+      thời gian ngắn. Hai kỹ thuật đi cùng nhau:
+      - **Gộp/hạ mẫu (rollup / downsampling)**: giữ từng giây trong một ngày, rồi gộp thành
+        trung bình/min/max **từng phút**, rồi **từng giờ** cho dữ liệu càng cũ.
+      - **Lưu theo tầng (tiered retention)**: dữ liệu **nóng** (gần đây, mịn) ở ổ nhanh/đắt; **ấm** ở
+        ổ rẻ hơn; **lạnh** (cũ, đã gộp) ở kho file rẻ; **hết hạn thì xoá**.
+
+      Nhờ vậy vẫn xem được xu hướng dài hạn mà **không** phải trả tiền lưu từng giây cho cả năm.
+  - id: b07
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền thuật ngữ còn thiếu:
+      - Kỹ thuật gộp các điểm mịn (từng giây) thành điểm thô hơn (trung bình từng giờ) cho dữ liệu cũ
+        gọi là ______ (một từ tiếng Anh).
+      - Việc giữ dữ liệu nóng ở ổ nhanh, dữ liệu cũ ở ổ rẻ rồi xoá khi hết hạn gọi là lưu theo ______
+        (một từ tiếng Việt).
+    blanks:
+      - accept: ["downsampling", "rollup", "hạ mẫu"]
+      - accept: ["tầng", "tiered", "tiered retention"]
+    explain_md: "Gộp điểm mịn thành điểm thô cho dữ liệu cũ là **downsampling** (hay rollup); giữ dữ liệu theo nhiều mức ổ cứng và xoá khi hết hạn là lưu theo **tầng** (tiered retention) — xem được xu hướng dài hạn mà không tốn tiền lưu từng giây cho cả năm."
+  - id: b08
+    type: text
+    md: |
+      **Cảnh báo (alert).** Hệ quét các luật trên metric: theo **ngưỡng** (CPU > 90% trong 5 phút)
+      hoặc theo **tỉ lệ** (error rate > 5%). Hai cái bẫy thường gặp:
+      - **Mệt mỏi vì cảnh báo (alert fatigue):** báo theo từng dao động nội bộ nhỏ nhặt (mỗi lần CPU
+        nhảy một nhịp) tạo ra quá nhiều tin; kỹ sư quen dần rồi bỏ qua cả tin thật.
+      - **Tin trùng:** 100 máy cùng lỗi gửi 100 tin — cần **gộp trùng (dedup)**.
+
+      Nguyên tắc cho cảnh báo tốt: **báo theo triệu chứng người dùng thấy (symptom)**, không theo mọi
+      dao động nội bộ; ưu tiên cảnh báo theo **mức tiêu hao ngân sách lỗi / SLO (SLO burn rate)** —
+      chỉ **gọi người dậy (page)** khi dịch vụ đang thực sự hỏng đủ nhanh; và cho **mỗi cảnh báo một
+      hành động rõ ràng**.
+  - id: b09
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Đâu là cảnh báo đáng để gọi người dậy lúc 3 giờ sáng (page)?"
+    options:
+      - {id: a, text_md: "CPU của một máy chạm 91% trong 30 giây rồi tự về mức bình thường."}
+      - {id: b, text_md: "Tỉ lệ lỗi 5xx mà người dùng gặp vượt 5% liên tục 5 phút và đang tiêu ngân sách lỗi (SLO) rất nhanh."}
+      - {id: c, text_md: "Một tiến trình nền ghi một dòng log cảnh báo (warning) lẻ."}
+    answer: [b]
+    explain_md: "Cảnh báo gọi người nên báo theo triệu chứng người dùng thấy và mức tiêu hao SLO, không theo mọi dao động nội bộ. (a) là một nhịp thoáng qua, tự hồi phục — báo sẽ gây alert fatigue; (c) một dòng warning lẻ không phải sự cố. (b) là lỗi người dùng thật, kéo dài, tiêu ngân sách lỗi nhanh — đáng page."
+  - id: b10
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn.** Với đề "thiết kế hệ metrics/logging", đi theo khung:
+      1. **Hỏi quy mô** — bao nhiêu server, bao nhiêu số đo mỗi giây, lưu bao lâu.
+      2. **Vẽ đường thu thập**: agent → đường ống (Kafka) → tách metrics vào time-series DB, logs vào
+         kho tìm kiếm.
+      3. **Chủ động nêu cardinality** và cách khống chế nhãn (cấm nhãn giá trị cao).
+      4. Nói về **rollup + lưu theo tầng** để cân chi phí lưu trữ.
+      5. Kết bằng **chiến lược cảnh báo** theo triệu chứng/SLO, có dedup, tránh alert fatigue.
+
+      Người phỏng vấn chấm việc bạn biết **cái gì sẽ nổ** (cardinality, chi phí lưu, nhiễu cảnh báo),
+      không chấm việc kể tên sản phẩm (Prometheus, Grafana, ELK).
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "Ba trụ cột quan sát: metrics (số đo chuỗi thời gian, rẻ, cho dashboard/cảnh báo), logs (dòng sự việc, tìm được nhưng đắt), traces (vết một request qua nhiều service)."
+      - "Đường thu thập: agent trên mỗi server (đẩy/kéo) → đường ống đệm Kafka → metrics vào time-series DB, logs vào kho index/tìm kiếm."
+      - "Cardinality = số tổ hợp nhãn; nhãn giá trị cao như user_id làm nổ số chuỗi và cạn RAM của TSDB — thứ nhiều giá trị để trong log, không làm nhãn metric."
+      - "Rollup/downsampling gộp dữ liệu cũ thành điểm thô; lưu theo tầng (nóng/ấm/lạnh rồi xoá) để xem xu hướng dài hạn mà không tốn tiền lưu từng giây cả năm."
+      - "Cảnh báo tốt báo theo triệu chứng người dùng và mức tiêu hao SLO (page khi thật sự hỏng), gộp tin trùng (dedup), tránh mệt mỏi vì cảnh báo (alert fatigue)."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S205], l2: [S206], l3: [S207]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

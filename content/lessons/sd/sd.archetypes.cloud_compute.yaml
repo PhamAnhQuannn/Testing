@@ -1,0 +1,157 @@
+id: sd.archetypes.cloud_compute
+version: 1
+status: published
+title_vi: "Nền tảng chạy code lạ: online IDE, code judge, serverless (cloud compute)"
+est_minutes: 14
+objectives_vi:
+  - "Thiết kế được nền tảng nhận và chạy **code không đáng tin (untrusted code)** của người lạ một cách an toàn và nhanh."
+  - "Giải thích vì sao **một container trần không phải là ranh giới bảo mật đủ mạnh** cho code thù địch, và kể các mức cách ly mạnh hơn (gVisor, microVM/Firecracker)."
+  - "Giải thích vì sao **hồ chứa hộp sẵn (warm pool)** cùng giới hạn tài nguyên giúp chạy nhanh mà không bị vét sạch máy."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Nhóm bài toán này là **nền tảng chạy code (cloud compute)**: trang chấm bài kiểu LeetCode (code
+      judge), IDE online (chạy code ngay trên trình duyệt), CI/CD như GitHub Actions, hay serverless
+      (chạy một hàm người dùng gửi lên). Điểm chung: hệ **nhận code của người lạ** rồi chạy nó trên
+      máy của mình. Đây là mảnh ghép tiếp nối **job scheduler** (bộ điều phối việc): một API nhận yêu
+      cầu chạy, đẩy vào **hàng đợi (queue)**, rồi scheduler giao cho máy còn chỗ. Cái *mới* và khó ở
+      archetype này là: việc được giao là **code thù địch (hostile / untrusted code)**, nên trọng tâm
+      chuyển sang **cách ly an toàn (isolation)** và **giới hạn tài nguyên (resource limits)**.
+  - id: b02
+    type: text
+    md: |
+      Giả định cốt lõi: **code người dùng gửi lên có thể làm bất cứ điều gì** — xoá file của máy chủ,
+      đọc trộm dữ liệu người khác, mở kết nối mạng ra ngoài để tấn công, chạy vòng lặp vô tận hay
+      **fork bomb** (đẻ tiến trình không ngừng) để làm sập máy, hoặc đào tiền ảo bằng CPU của bạn. Vì
+      vậy mọi lần chạy phải nằm trong một **hộp cách ly (sandbox)** với **quyền tối thiểu (least
+      privilege)**: không có mạng, hệ thống tệp chỉ đọc (read-only filesystem), và chỉ thấy đúng phần
+      tài nguyên được cấp.
+  - id: b03
+    type: text
+    md: |
+      **Hiểu nhầm phổ biến (và là bẫy phỏng vấn): "cứ cho vào Docker container là an toàn".** Sai.
+      Một container **không phải là ranh giới bảo mật mạnh (strong security boundary)** cho code thù
+      địch. Lý do: các container trên cùng một máy **dùng chung nhân hệ điều hành (shared host
+      kernel)**. Cách ly chỉ là vài tính năng của nhân (namespaces, cgroups). Nếu code lạ khai thác
+      một lỗ hổng của nhân (**kernel exploit**), nó có thể **thoát khỏi container (container escape)**
+      và chiếm cả máy chủ — nuốt luôn mọi container khác đang chạy trên đó. Container còn dễ bị tấn
+      công **kênh phụ (side channel)** để dò dữ liệu của tiến trình bên cạnh. Container tốt cho việc
+      *đóng gói và cách ly code của chính mình*, nhưng chưa đủ khi "kẻ tấn công" chính là người gửi
+      code.
+  - id: b04
+    type: callout
+    kind: warning
+    md: |
+      **Cách ly mạnh hơn container (nhớ cho L3).** Để chặn chính kịch bản thoát nhân ở trên, dùng một
+      lớp cách ly có **nhân riêng**:
+      - **gVisor**: một **nhân chạy trong không gian người dùng (user-space kernel)** của Google. Nó
+        chặn giữa code lạ và nhân thật, tự xử lý phần lớn system call, nên code không gọi thẳng vào
+        nhân host — bề mặt tấn công nhỏ hơn hẳn.
+      - **Firecracker / microVM (máy ảo siêu nhẹ)**: dùng **ảo hoá phần cứng (hardware
+        virtualization)** nhẹ để mỗi lần chạy có **nhân riêng**, cách ly ở mức máy ảo nhưng khởi động
+        chỉ trong mili-giây. Đây là cách các nền tảng **serverless** (ví dụ AWS Lambda) chạy code của
+        hàng triệu người lạ cạnh nhau. An toàn hơn container, mà vẫn đủ nhanh.
+  - id: b05
+    type: text
+    md: |
+      Các lớp trên kết hợp theo kiểu **phòng thủ nhiều tầng (defense-in-depth)** — không dựa vào một
+      hàng rào duy nhất: **seccomp** (lọc, chặn bớt system call nguy hiểm), **AppArmor/SELinux** (giới
+      hạn hành vi), **bỏ bớt quyền (dropped capabilities)**, **hệ thống tệp chỉ đọc**, và **tắt mạng
+      (no network)** trừ khi thật cần. Kể cả một tầng bị thủng, các tầng còn lại vẫn cầm chân kẻ tấn
+      công.
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao chạy code lạ trong một Docker **container trần** chưa đủ an toàn, so với dùng microVM (Firecracker) hay gVisor?"
+    options:
+      - {id: a, text_md: "Vì container chạy chậm hơn máy ảo nên không kịp giới hạn thời gian."}
+      - {id: b, text_md: "Vì các container dùng chung **nhân (kernel)** với máy chủ, nên một lỗ hổng nhân có thể bị khai thác để **thoát container** và chiếm cả host; microVM/gVisor cho nhân riêng (hoặc nhân user-space) nên bề mặt tấn công nhỏ hơn."}
+      - {id: c, text_md: "Vì container không giới hạn được RAM và CPU, còn máy ảo thì giới hạn được."}
+    answer: [b]
+    explain_md: "Vấn đề là ranh giới bảo mật: container chia sẻ nhân host nên một kernel exploit dẫn tới container escape; microVM có nhân riêng (ảo hoá phần cứng nhẹ), gVisor chèn một nhân user-space, đều thu nhỏ bề mặt tấn công. (a) sai — container thường khởi động *nhanh* hơn; (c) sai — cgroups vẫn giới hạn được CPU/RAM cho container, đó không phải điểm yếu bảo mật chính."
+  - id: b07
+    type: text
+    md: |
+      Cách ly thôi chưa đủ: code lạ còn có thể **ngốn hết tài nguyên** để làm hỏng dịch vụ cho người
+      khác (một dạng tấn công từ chối dịch vụ, DoS). Nên mỗi lần chạy phải có **giới hạn tài nguyên và
+      thời gian chặt chẽ (resource limits + timeouts)**, thường cưỡng chế bằng **cgroups** của nhân:
+      - **CPU**: giới hạn số nhân / thời lượng CPU, để một người không chiếm hết sức tính toán.
+      - **Bộ nhớ (memory)**: trần RAM; vượt là bị nhân giết (OOM kill), tránh làm sập cả máy.
+      - **Số tiến trình (pids)**: chặn **fork bomb** — giới hạn số tiến trình được đẻ ra.
+      - **Thời gian tường (wall-clock timeout)**: ví dụ 2 giây; quá hạn là cắt, để chặn **vòng lặp vô
+        tận**. Đây chính là luật "chạy trong 2 giây, 256 MB" của một code judge.
+  - id: b08
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Người dùng nộp một hàm có **vòng lặp vô tận** và liên tục **đẻ tiến trình con (fork bomb)**. Tầng thiết kế nào trực tiếp ngăn nó phá nền tảng?"
+    options:
+      - {id: a, text_md: "Hồ chứa hộp sẵn (warm pool), vì hộp đã bật sẵn thì chạy nhanh hơn."}
+      - {id: b, text_md: "**Timeout thời gian tường** cắt vòng lặp vô tận, và **giới hạn số tiến trình (pids limit)** qua cgroups chặn fork bomb; kèm trần CPU/RAM."}
+      - {id: c, text_md: "Dùng microVM thay cho container, vì nhân riêng khiến vòng lặp tự dừng."}
+    answer: [b]
+    explain_md: "Vòng lặp vô tận bị chặn bởi **timeout (wall-clock)**; fork bomb bị chặn bởi **giới hạn pids** (và RAM/CPU) trong cgroups. (a) warm pool chỉ lo tốc độ khởi động, không phải an toàn tài nguyên; (c) microVM lo *cách ly*, nhưng nhân riêng không tự làm vòng lặp dừng — vẫn cần timeout và resource limits."
+  - id: b09
+    type: text
+    md: |
+      Giờ tới **tốc độ**. Tạo một sandbox mới (bật container/microVM, nạp môi trường) tốn vài trăm
+      mili-giây đến vài giây — gọi là **khởi động nguội (cold start)**. Người dùng bấm "Run" trên code
+      judge hay IDE online không chịu chờ lâu. Giải pháp: **hồ chứa hộp sẵn (warm pool)** — giữ sẵn
+      một số sandbox **đã bật trước (pre-booted)**, rảnh rỗi chờ việc. Khi có yêu cầu, lấy ngay một hộp
+      ấm ra chạy (gần như không có độ trễ khởi động), chạy xong thì **dọn và tái dùng (reset / recycle)**
+      hộp đó cho lần sau — hoặc **vứt đi và bật hộp mới** để đảm bảo không còn dấu vết của người trước.
+      Một tiến trình nền luôn bổ sung hộp để hồ không cạn khi tải tăng (giống autoscaling pool).
+  - id: b10
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền thuật ngữ: Giữ sẵn các sandbox đã bật trước để tránh độ trễ ______ (tên hiện tượng tạo
+      hộp mới tốn thời gian) được gọi là ______ pool.
+    blanks:
+      - {accept: ["cold start", "cold-start", "khởi động nguội", "coldstart"]}
+      - {accept: ["warm", "hồ chứa hộp sẵn", "warm pool", "ấm"]}
+    explain_md: "Tạo hộp mới tốn thời gian là **cold start (khởi động nguội)**; giữ sẵn hộp đã bật trước là **warm pool (hồ chứa hộp sẵn)**, giúp mỗi lần chạy bắt đầu gần như tức thì."
+  - id: b11
+    type: text
+    md: |
+      Ghép lại thành kiến trúc, tái dùng đúng những gì đã học ở **job scheduler**:
+      - **API/cổng nhận việc**: nhận code + bộ test (hoặc phiên IDE), xác thực, đẩy một **run request**
+        vào **hàng đợi**.
+      - **Control plane = scheduler (bộ điều phối)**: lấy việc từ queue, giao cho một **sandbox worker**
+        còn rảnh trong warm pool; lo **công bằng (fairness)** để một người gửi 1.000 job không vét hết
+        máy của người khác (hàng đợi theo người dùng, quota), và **tự co giãn (autoscale)** số worker
+        theo tải.
+      - **Sandbox worker**: máy chạy thật, mỗi lần chạy nằm trong một sandbox cách ly mạnh (gVisor /
+        microVM) + resource limits.
+      - **Kết quả và log**: lưu kết quả (đúng/sai, thời gian) và **truyền log từng dòng (streaming
+        logs)** về trình duyệt khi đang chạy; IDE thì còn **giữ phiên/không gian làm việc (session /
+        workspace persistence)** để quay lại dùng tiếp.
+  - id: b12
+    type: callout
+    kind: interview
+    md: |
+      **Khung trả lời phỏng vấn (đúng thanh L3).** Khi được hỏi "thiết kế code judge / IDE online /
+      serverless", đi theo 3 nhịp: (1) **Vẽ luồng** API → queue → scheduler → sandbox worker → kết quả
+      (nói rõ đây là một job scheduler có việc đặc biệt là *code lạ*). (2) **Bảo mật là trọng tâm**:
+      nói thẳng "container trần không phải ranh giới đủ mạnh vì dùng chung nhân → nguy cơ container
+      escape", rồi đề xuất **gVisor / microVM (Firecracker)** + phòng thủ nhiều tầng (seccomp, bỏ
+      quyền, FS chỉ đọc, tắt mạng) + **resource limits/timeouts** (CPU, RAM, pids, wall-clock) chống
+      forkbomb/vòng lặp vô tận. (3) **Tốc độ & công bằng**: **warm pool** để giết cold start, dọn/tái
+      dùng hộp giữa các lần chạy, quota theo người dùng để đảm bảo công bằng. Nêu được cả 3 nhịp là đạt
+      mức thiết kế được cả nền tảng.
+  - id: b13
+    type: summary
+    bullets_vi:
+      - "Cloud compute = chạy **code lạ (untrusted code)** của người dùng (code judge, IDE online, serverless); nó là một **job scheduler** mà việc được giao lại là code thù địch, nên trọng tâm là **cách ly** và **giới hạn tài nguyên**."
+      - "**Container trần không phải ranh giới bảo mật đủ mạnh**: dùng chung **nhân (kernel)** với host nên có nguy cơ **container escape** qua kernel exploit và side channel."
+      - "Cách ly mạnh hơn: **gVisor** (nhân user-space) và **microVM/Firecracker** (nhân riêng, ảo hoá phần cứng nhẹ — cách serverless chạy); cộng **defense-in-depth**: seccomp, bỏ quyền, FS chỉ đọc, tắt mạng."
+      - "**Resource limits + timeouts** (CPU, RAM, **pids** chống fork bomb, **wall-clock** chống vòng lặp vô tận) cưỡng chế qua cgroups, giữ cho một người không làm sập dịch vụ của người khác."
+      - "**Warm pool** (hộp đã bật sẵn) xoá **cold start** để chạy gần như tức thì; dọn/tái dùng (reset) hộp giữa các lần chạy; scheduler lo **công bằng** và **autoscale**."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S238], l2: [S239], l3: [S240]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"
