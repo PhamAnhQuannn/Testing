@@ -1,0 +1,167 @@
+id: sd.data.replication
+version: 1
+status: published
+title_vi: "Sao chép dữ liệu (replication): leader-follower, sync vs async, lag và failover"
+est_minutes: 14
+objectives_vi:
+  - "Giải thích vì sao phải sao chép (replication): chịu lỗi (availability), bền dữ liệu (durability) và chia tải đọc (read scaling)."
+  - "So sánh sao chép đồng bộ (synchronous) và bất đồng bộ (asynchronous) qua đánh đổi độ bền - độ trễ (durability vs latency)."
+  - "Giải thích độ trễ chép (replication lag) gây đọc cũ, và cách chữa read-after-write; mô tả failover và split-brain, và vì sao quorum/fencing ngăn được split-brain."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      **Sao chép (replication)** là giữ **cùng một dữ liệu trên nhiều máy**, như photo một tài liệu
+      quan trọng ra nhiều bản. Có ba lý do chính:
+      - **Chịu lỗi / luôn sống (availability):** một máy chết thì máy khác vẫn còn dữ liệu để phục vụ.
+      - **Bền dữ liệu (durability):** dữ liệu nằm ở nhiều nơi nên một ổ đĩa hỏng không làm mất nó.
+      - **Chia tải đọc (read scaling):** nhiều bản sao cùng phục vụ đọc, nên đọc được nhân lên.
+      Bài này nối tiếp **sd.fundamentals.cap_consistency**: ở đó ta đã thấy *khi dữ liệu được chép ra
+      nhiều máy thì các bản có thể lệch nhau*. Bài này trả lời câu *làm sao chép, và cái giá phải trả
+      là gì*. Lưu ý: sao chép **không thay cho sao lưu (backup)** — nếu bạn xóa nhầm một bản ghi,
+      lệnh xóa đó cũng được chép sang mọi bản sao, nên tất cả cùng mất.
+  - id: b02
+    type: text
+    md: |
+      Mô hình phổ biến nhất là **leader-follower** (còn gọi primary-replica, hay master-slave):
+      - Một máy làm **leader (primary)**: nhận **mọi lệnh ghi (write)**.
+      - Các máy còn lại là **follower (replica)**: nhận bản sao các thay đổi từ leader qua một dòng
+        nhật ký thay đổi (replication log), áp lại cho giống leader, và **phục vụ đọc (read)**.
+
+      Sơ đồ ý: *Ghi → Leader → chép xuống → Follower 1, Follower 2 ← Đọc*. Vì chỉ một leader nhận ghi
+      nên **tải ghi không được chia** bằng leader-follower — thêm follower chỉ giúp **đọc** (read
+      replica), muốn chia cả tải ghi cần sharding (xem sd.data.sharding). Cũng có mô hình nhiều nơi
+      nhận ghi: **multi-leader** và **leaderless** (kiểu Dynamo); chúng mạnh hơn nhưng phải xử lý
+      **xung đột ghi (write conflict)**, nên ở đây ta tập trung vào leader-follower trước.
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Trong mô hình **leader-follower**, thêm nhiều follower (read replica) giúp được gì?"
+    options:
+      - {id: a, text_md: "Chia được cả tải **đọc và ghi**, vì follower cũng nhận ghi trực tiếp."}
+      - {id: b, text_md: "Chỉ chia được tải **đọc**; mọi lệnh **ghi** vẫn phải qua một leader duy nhất."}
+      - {id: c, text_md: "Không giúp gì cho hiệu năng, chỉ để sao lưu."}
+    answer: [b]
+    explain_md: "Chỉ leader nhận ghi, follower chép lại và phục vụ đọc — nên read replica nhân được tải đọc nhưng **không** chia tải ghi (muốn chia ghi phải sharding). (a) sai vì follower không nhận ghi trực tiếp; (c) sai vì replica thực sự phục vụ đọc, ngoài ra còn tăng độ bền và khả năng chịu lỗi."
+  - id: b04
+    type: text
+    md: |
+      Khi leader áp một lệnh ghi, nó phải chờ follower **đến mức nào** rồi mới báo client "xong"? Đây
+      là đánh đổi cốt lõi **độ bền - độ trễ (durability vs latency)**:
+      - **Đồng bộ (synchronous):** leader **chờ follower xác nhận đã nhận/ghi** rồi mới báo client
+        thành công. An toàn — leader chết ngay sau đó, follower kia vẫn có bản mới nhất (không mất
+        ghi). Nhưng **chậm hơn** (phải chờ qua mạng) và nếu follower đồng bộ đó treo thì ghi bị kẹt.
+      - **Bất đồng bộ (asynchronous):** leader **báo xong ngay** sau khi tự ghi, rồi mới chép cho
+        follower sau. **Nhanh**, nhưng nếu leader chết trước khi kịp chép, **những ghi mới nhất bị
+        mất** (độ bền yếu hơn).
+      - **Bán đồng bộ (semi-synchronous):** chờ **một** follower xác nhận (đủ để không mất khi mất một
+        máy), các follower còn lại chép async — một điểm cân bằng thường gặp trong thực tế.
+
+      Quy tắc ghi nhớ: *sync = đúng/bền hơn nhưng chậm; async = nhanh nhưng có thể mất ghi khi
+      leader chết*. Đây chính là **PACELC** ở mức cụ thể: ngay cả khi mạng không đứt, bạn vẫn đổi giữa
+      độ trễ (Latency) và độ nhất quán/bền (Consistency).
+  - id: b05
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một hệ dùng sao chép **bất đồng bộ (async)**. Leader nhận một lệnh ghi, báo client *thành công*, rồi **chết ngay** trước khi chép kịp cho follower. Hậu quả?"
+    options:
+      - {id: a, text_md: "Không sao: client đã nhận 'thành công' nên dữ liệu chắc chắn an toàn trên follower."}
+      - {id: b, text_md: "Ghi mới nhất đó có thể **mất** khi một follower được bầu lên làm leader, dù client đã thấy 'thành công'."}
+      - {id: c, text_md: "Lệnh ghi tự động quay về và chạy lại trên leader mới mà không mất gì."}
+    answer: [b]
+    explain_md: "Với async, leader báo xong **trước** khi follower có bản sao, nên nếu leader chết và một follower lên thay, ghi chưa kịp chép sẽ biến mất — client tưởng đã lưu mà thực ra mất (đây đúng là cái giá độ bền của async). Sao chép **đồng bộ** mới tránh được điều này. (a)/(c) hiểu sai bản chất async."
+  - id: b06
+    type: text
+    md: |
+      Vì follower chép lại **sau** leader (nhất là khi async), follower thường **chậm hơn leader vài
+      mili-giây đến vài giây** — gọi là **độ trễ chép (replication lag)**. Nếu bạn ghi vào leader rồi
+      lập tức đọc từ một follower chưa kịp cập nhật, bạn sẽ **đọc thấy dữ liệu cũ**. Ví dụ kinh điển:
+      đổi ảnh đại diện (avatar), bấm F5, vẫn thấy ảnh cũ — vì trang đọc từ replica đang lag.
+
+      Đây là vấn đề **đọc-sau-khi-ghi (read-after-write / read-your-writes consistency)**: *chính người
+      vừa ghi phải đọc thấy thay đổi của mình*. Các cách chữa thường dùng:
+      - **Đọc từ leader cho dữ liệu của chính mình** trong một khoảng ngắn sau khi ghi (ví dụ đọc hồ sơ
+        của tôi từ leader trong vài giây đầu).
+      - **Theo dõi mốc thời gian/vị trí ghi** của người dùng và chỉ đọc từ follower đã chép tới mốc đó.
+      - Liên quan: **monotonic reads** — đừng để người dùng đọc bản mới rồi lần sau lại ra bản cũ
+        (thường bằng cách ghim một người vào cùng một replica).
+
+      Lưu ý phân biệt: lag gây **đọc cũ** là chuyện *nhất quán (consistency)*; nó khác với mất ghi của
+      async là chuyện *độ bền (durability)*.
+  - id: b07
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Người dùng đổi tên hiển thị, lưu thành công, nhưng khi tải lại trang hồ sơ vẫn thấy **tên cũ**. Nguyên nhân và cách chữa hợp lý nhất?"
+    options:
+      - {id: a, text_md: "Do **replication lag**: trang đọc từ một follower chưa chép kịp. Chữa bằng read-after-write — đọc dữ liệu của chính người đó từ leader trong một lúc ngắn sau khi ghi."}
+      - {id: b, text_md: "Do leader đã chết; phải chạy failover ngay thì tên mới mới hiện ra."}
+      - {id: c, text_md: "Do thiếu sao lưu (backup); chữa bằng cách bật point-in-time recovery."}
+    answer: [a]
+    explain_md: "Ghi đi vào leader, đọc lại từ một follower đang lag nên ra bản cũ — đúng kịch bản read-your-writes. Chữa bằng cách đọc dữ liệu của chính người vừa ghi từ leader (hoặc từ replica đã chép tới mốc ghi). (b) không liên quan — hệ vẫn chạy; (c) backup là để khôi phục khi mất/hỏng dữ liệu, không giải quyết đọc cũ."
+  - id: b08
+    type: text
+    md: |
+      **Failover** là quy trình khi **leader chết**: hệ phát hiện leader không phản hồi, **bầu một
+      follower lên làm leader mới**, và chuyển hướng ghi sang nó. Rủi ro lớn nhất của failover là
+      **split-brain (não phân đôi)**: do mạng đứt hoặc phát hiện lỗi sai, **hai máy cùng tưởng mình là
+      leader** và cùng nhận ghi → dữ liệu ở hai bên **phân kỳ, xung đột**, rất khó hợp nhất lại.
+
+      Cách ngăn split-brain:
+      - **Bỏ phiếu quá nửa (quorum / majority):** một máy chỉ được làm leader khi được **hơn một nửa**
+        số node đồng ý. Vì chỉ có thể có **một** nhóm quá nửa tại một thời điểm, không thể có hai leader
+        cùng lúc (nền tảng của các hệ đồng thuận — consensus — như Raft/Paxos; xem
+        sd.distributed.gossip_quorum).
+      - **Fencing (rào / STONITH):** cấp cho leader mới một **token tăng dần (fencing token)**, và kho
+        lưu trữ **từ chối** ghi mang token cũ — nên leader cũ "sống lại" cũng không ghi được nữa.
+
+      Ngoài ra còn các đánh đổi khi cấu hình failover: async thì failover nhanh nhưng **có thể mất ghi**
+      (như b05); timeout phát hiện lỗi đặt quá ngắn dễ gây failover thừa, quá dài thì ngừng phục vụ lâu.
+  - id: b09
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao **bỏ phiếu quá nửa (quorum/majority)** ngăn được **split-brain** khi bầu leader?"
+    options:
+      - {id: a, text_md: "Vì tại một thời điểm chỉ tồn tại được **một** nhóm chiếm hơn nửa số node, nên không thể có hai leader hợp lệ cùng lúc."}
+      - {id: b, text_md: "Vì quorum làm cho sao chép trở thành đồng bộ nên không bao giờ mất ghi."}
+      - {id: c, text_md: "Vì quorum khiến các follower không bao giờ bị lag nữa."}
+    answer: [a]
+    explain_md: "Hai nhóm rời nhau không thể cùng chiếm hơn một nửa, nên chỉ một bên bầu được leader — phía thiểu số (ví dụ leader cũ bị cô lập) không đạt quorum và phải ngừng nhận ghi. (b)/(c) nhầm: quorum là về chọn leader an toàn, không tự biến replication thành sync và không xóa được lag."
+  - id: b10
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn.** Với câu hỏi sao chép, hãy trả lời theo trục: *mục tiêu (bền? sống? đọc
+      nhanh?) → chọn sync hay async theo đánh đổi durability/latency → nêu rủi ro lag và cách chữa
+      read-your-writes → nói về failover và cách tránh split-brain (quorum/fencing)*. Rồi **chốt một
+      cấu hình cho yêu cầu cụ thể**: ví dụ *chuyển khoản ngân hàng* → đồng bộ (không được mất ghi,
+      chấp nhận chậm hơn); *bình luận / like* → bất đồng bộ (nhanh, lag vài giây không sao). Người
+      phỏng vấn chấm việc bạn **gắn lựa chọn với yêu cầu**, không chấm việc kể tên công cụ.
+  - id: b11
+    type: text
+    md: |
+      **Chọn cấu hình theo yêu cầu** — vài mẫu hay gặp:
+      - **Dữ liệu tiền bạc / đặt chỗ / tồn kho:** ưu tiên **sync (hoặc semi-sync)** để không mất ghi;
+        đọc dữ liệu nhạy cảm từ leader để đúng. Chấp nhận độ trễ cao hơn.
+      - **Feed, bình luận, lượt xem, like:** **async** cho nhanh; lag vài giây chấp nhận được; dùng
+        read-your-writes chỉ cho phần người dùng vừa thao tác.
+      - **Tải đọc rất lớn:** thêm **read replica** để chia tải đọc, nhưng nhớ chúng có lag — định tuyến
+        đọc cần-mới-nhất về leader.
+      - **Chịu được mất cả một vùng (geo):** **geo-replication** sang vùng khác; thường async giữa các
+        vùng (độ trễ mạng xa lớn), và phải chấp nhận cửa sổ mất dữ liệu khi mất nguyên vùng.
+  - id: b12
+    type: summary
+    bullets_vi:
+      - "Sao chép (replication) = cùng dữ liệu trên nhiều máy, để **chịu lỗi (availability)**, **bền dữ liệu (durability)** và **chia tải đọc (read scaling)**; nó không thay cho **backup**."
+      - "**Leader-follower**: chỉ leader nhận ghi, follower chép lại và phục vụ đọc — read replica chia được tải **đọc** chứ không chia tải **ghi**."
+      - "**Sync** = chờ follower xác nhận: bền hơn nhưng chậm; **async** = báo xong ngay: nhanh nhưng leader chết có thể **mất ghi mới nhất** (đánh đổi durability vs latency; semi-sync là điểm giữa)."
+      - "**Replication lag** làm đọc từ follower thấy dữ liệu cũ; chữa vấn đề **read-after-write** bằng cách đọc dữ liệu của chính người vừa ghi từ leader (hoặc từ replica đã chép tới mốc ghi)."
+      - "**Failover** bầu follower lên thay leader chết; **split-brain** (hai leader cùng lúc) được ngăn bằng **quorum (quá nửa)** và **fencing token**."
+      - "Mức 3: so sánh sync vs async, giải thích lag + failover + split-brain, rồi **chọn cấu hình cho một yêu cầu cụ thể** (ví dụ ngân hàng → sync; like → async)."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S049], l2: [S050], l3: [S051]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

@@ -1,0 +1,175 @@
+id: sd.data.probabilistic_structures
+version: 1
+status: published
+title_vi: "Cấu trúc dữ liệu xác suất (probabilistic data structures): nhớ gần đúng để tiết kiệm bộ nhớ"
+est_minutes: 14
+objectives_vi:
+  - "Giải thích ý tưởng chung của cấu trúc xác suất (probabilistic data structure): đổi một chút sai số lấy bộ nhớ rất nhỏ, và bộ nhớ gần như không phụ thuộc số phần tử."
+  - "Mô tả **Bloom filter** (không bỏ sót, chỉ báo nhầm — false positive) và **tính được cỡ**: ~9.6 bit/phần tử cho sai số 1%, ~14.4 bit cho 0.1%, cùng số hàm băm tối ưu."
+  - "Chọn đúng cấu trúc cho ba câu hỏi — 'đã thấy chưa?' (Bloom), 'bao nhiêu cái khác nhau?' (HyperLogLog), 'cái nào xuất hiện nhiều nhất?' (Count-Min Sketch + heap) — và nêu mức sai số chấp nhận."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Khi dữ liệu quá lớn để nhớ **chính xác** (hàng tỉ URL, trăm triệu người xem), ta chấp nhận một
+      ý tưởng lạ: **nhớ gần đúng**. Cấu trúc dữ liệu xác suất (**probabilistic data structure**) trả
+      lời câu hỏi với một **sai số nhỏ đã biết trước**, đổi lại dùng bộ nhớ **nhỏ hơn hàng nghìn lần**
+      so với lưu đầy đủ. Điểm mấu chốt cho phỏng vấn: bộ nhớ của chúng **gần như không phụ thuộc số
+      phần tử** — thêm dữ liệu vào gần như không làm chúng to lên, chỉ làm sai số nhích lên.
+
+      Bài này học ba cấu trúc hay gặp nhất và **khi nào dùng cái nào**:
+      - **Bloom filter** — "đã thấy phần tử này chưa?" (kiểm tra thành viên — set membership).
+      - **HyperLogLog** — "có bao nhiêu phần tử **khác nhau**?" (đếm lực lượng — cardinality).
+      - **Count-Min Sketch** — "mỗi phần tử xuất hiện mấy lần, cái nào nhiều nhất?" (tần suất / top-K).
+  - id: b02
+    type: text
+    md: |
+      **Bloom filter** là một **mảng bit** (ban đầu toàn 0) cùng **k hàm băm** (hash function: cùng
+      đầu vào luôn ra cùng vị trí). Cách dùng:
+      - **Thêm** phần tử: băm nó bằng cả k hàm ra k vị trí, **bật** (set = 1) k ô đó.
+      - **Hỏi** "đã thấy chưa?": băm lại ra k vị trí. Nếu **có ít nhất một ô = 0** → **chắc chắn chưa
+        thấy**. Nếu **cả k ô đều = 1** → **"có thể đã thấy"**.
+
+      Tính chất quan trọng và là bẫy phỏng vấn:
+      - **Không bao giờ bỏ sót (no false negative):** đã thêm thì sau này luôn trả lời "có thể đã
+        thấy" — vì các ô của nó đã bị bật và bit chỉ bật, không tắt.
+      - **Có thể báo nhầm (false positive):** k ô của một phần tử *chưa từng thêm* vô tình đều bị các
+        phần tử khác bật, nên nó bị báo "có thể đã thấy". Tỉ lệ báo nhầm là **p**, ta chỉnh được.
+      - **Không xóa được:** một bit dùng chung cho nhiều phần tử, tắt đi sẽ làm sai các phần tử khác.
+        (Muốn xóa thì dùng **Counting Bloom filter** — thay mỗi bit bằng một bộ đếm nhỏ, đổi lại tốn
+        gấp vài lần bộ nhớ. Biết qua là đủ.)
+  - id: b03
+    type: text
+    md: |
+      **Tính cỡ Bloom filter** (phần hay bị hỏi — nhớ vài con số chốt). Gọi **n** = số phần tử sẽ
+      thêm, **m** = số bit, **k** = số hàm băm, **p** = tỉ lệ báo nhầm mong muốn.
+
+      - Tỉ lệ báo nhầm: **p ≈ (1 − e^(−k·n/m))^k**.
+      - Số bit cần: **m ≈ −n·ln(p) / (ln2)²**. Vì **(ln2)² ≈ 0.48**, ta rút ra **số bit mỗi phần tử**:
+        - p = **1%**: −ln(0.01) ≈ 4.6, nên 4.6 / 0.48 ≈ **9.6 bit/phần tử**.
+        - p = **0.1%**: −ln(0.001) ≈ 6.9, nên 6.9 / 0.48 ≈ **14.4 bit/phần tử**.
+        - Mỗi lần giảm p đi 10 lần chỉ tốn thêm khoảng **4.8 bit/phần tử** — rất rẻ.
+      - Số hàm băm tối ưu: **k = (m/n)·ln2**. Với 9.6 bit/phần tử → k ≈ 9.6 × 0.69 ≈ **7**; với 14.4
+        bit → k ≈ **10**.
+
+      **Ví dụ (crawler tránh tải lại URL):** 10 tỉ URL, muốn p = 1%. Cần 10¹⁰ × 9.6 bit ≈ 9.6×10¹⁰
+      bit, chia 8 ≈ **12 GB** — vừa một máy. Lưu đủ 10 tỉ URL dạng chuỗi sẽ tốn hàng trăm GB đến TB.
+      Khi báo nhầm, crawler tưởng một URL mới là "đã thấy" và **bỏ qua** nó — mất một ít trang nhưng
+      không bao giờ tải lại trang cũ; với crawler, 1% bỏ sót là **chấp nhận được**.
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Bloom filter trả lời **'có thể đã thấy'** cho một URL mà bạn **chưa hề thêm**. Kết luận đúng là gì?"
+    options:
+      - {id: a, text_md: "Đây là **false positive**: Bloom có thể báo nhầm, nhưng **không bao giờ bỏ sót** — nên một URL đã thêm thật thì sẽ không bị trả lời 'chưa thấy'."}
+      - {id: b, text_md: "Bloom filter đã hỏng; cần dựng lại vì nó vừa báo sai."}
+      - {id: c, text_md: "Đây là **false negative**: Bloom đôi khi quên mất phần tử đã thêm."}
+    answer: [a]
+    explain_md: "Cả k ô của URL đó vô tình bị các phần tử khác bật nên nó bị báo 'có thể đã thấy' — đó là false positive, đúng theo thiết kế và tỉ lệ p. Bloom **không có false negative** (bit chỉ bật không tắt), nên (c) sai; (b) sai vì báo nhầm là hành vi bình thường, không phải hỏng."
+  - id: b05
+    type: text
+    md: |
+      **HyperLogLog (HLL) — đếm số phần tử khác nhau (cardinality).** Trực giác giống tung đồng xu:
+      ai tung ra 20 mặt ngửa liên tiếp (xác suất ~1 trên triệu) thì chắc đã tung cỡ **2²⁰ ≈ 1 triệu**
+      lần. HLL băm mỗi phần tử ra một dãy bit và chỉ **nhớ dãy số 0 đứng đầu dài nhất** từng thấy: dài
+      r thì ước lượng đã gặp cỡ **2^r** giá trị khác nhau. Một dãy dài có thể do may rủi, nên HLL chia
+      thành **nhiều ô (register)**, mỗi ô ước lượng riêng rồi **lấy trung bình** để giảm nhiễu.
+
+      Con số chốt: HLL đếm được **số phần tử khác nhau** với **sai số ~2%** mà chỉ tốn khoảng
+      **1.5 KB** — và **không đổi** dù đếm một nghìn hay một tỉ phần tử (chỉ số ô quyết định bộ nhớ và
+      sai số, không phải số phần tử). Thêm được, gộp được hai HLL lại với nhau; **không liệt kê** lại
+      được các phần tử, chỉ cho ra **con số đếm**.
+
+      **Ví dụ (người xem duy nhất của video):** video có 100 triệu lượt xem. Lưu đủ ID (8 byte/ID,
+      chưa kể phụ phí của tập hợp) tốn ~**800 MB**; HLL chỉ ~**1.5 KB** cho cùng câu trả lời với sai
+      số ~2% — tiết kiệm **hàng trăm nghìn lần**. "Số người xem duy nhất lệch 2%" là **chấp nhận được**.
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Bạn cần đếm **số người xem duy nhất** của một video có 100 triệu lượt xem, chịu được sai số ~2%, và muốn tốn bộ nhớ tối thiểu. Chọn cấu trúc nào?"
+    options:
+      - {id: a, text_md: "Một **tập hợp (hash set)** chứa mọi ID người xem để đếm chính xác tuyệt đối."}
+      - {id: b, text_md: "**HyperLogLog**: đếm số phần tử khác nhau với sai số ~2% chỉ trong ~1.5 KB, không phụ thuộc số lượt xem."}
+      - {id: c, text_md: "**Bloom filter**: hỏi từng ID 'đã thấy chưa?' rồi tự cộng dồn số ID mới."}
+    answer: [b]
+    explain_md: "Câu hỏi 'bao nhiêu cái khác nhau?' là đúng việc của HyperLogLog: ~2% sai số trong ~1.5 KB. (a) chính xác nhưng tốn ~800 MB — thừa so với yêu cầu. (b) đúng. (c) Bloom trả lời 'đã thấy chưa' chứ không cho ra con số đếm; tự cộng dồn thì mỗi false positive lại làm đếm thiếu, sai mục đích."
+  - id: b07
+    type: text
+    md: |
+      **Count-Min Sketch (CMS) — đếm tần suất gần đúng và tìm top-K.** Là một bảng **d hàng**, mỗi
+      hàng có một hàm băm riêng và một dãy ô đếm.
+      - **Thêm** một lần xuất hiện của "video7": ở **mỗi hàng** băm ra một ô rồi **+1**.
+      - **Hỏi số lần** của "video7": lấy **số nhỏ nhất (min)** trong d ô của nó. Vì va chạm chỉ khiến
+        một ô bị cộng thêm bởi phần tử khác (làm nó **to lên**, không nhỏ đi), nên min là ước lượng
+        sát nhất. Tính chất: CMS **đếm dư, không bao giờ đếm thiếu** (over-count only).
+      - **Top-K** (ví dụ 10 video xem nhiều nhất): mỗi lượt xem → cập nhật CMS, rồi giữ một **heap**
+        (đã học ở DSA) gồm K phần tử có số đếm lớn nhất. CMS lo "đếm bao nhiêu" trong bộ nhớ cố định,
+        heap lo "giữ top-K".
+
+      Giống HLL và Bloom, bộ nhớ của CMS do **kích thước bảng** quyết định, **không phụ thuộc số
+      phần tử** — đổi một chút đếm dư lấy khả năng đếm hàng tỉ sự kiện trong vài KB–MB.
+  - id: b08
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Về **Count-Min Sketch**, phát biểu nào đúng?"
+    options:
+      - {id: a, text_md: "Nó có thể **đếm dư** (do va chạm băm) nhưng **không bao giờ đếm thiếu**; vì vậy khi hỏi ta lấy **min** trên các hàng."}
+      - {id: b, text_md: "Nó có thể đếm thiếu nhưng không đếm dư; vì vậy ta lấy **max** trên các hàng."}
+      - {id: c, text_md: "Nó luôn cho số đếm chính xác tuyệt đối miễn là có đủ hàng."}
+    answer: [a]
+    explain_md: "Va chạm chỉ khiến một ô bị cộng thêm bởi phần tử khác, nên mọi ô đều **≥ số thật** — CMS đếm dư, không đếm thiếu; lấy **min** là ước lượng sát nhất. (b) ngược dấu; (c) sai — đây là cấu trúc xác suất, chỉ chính xác khi không có va chạm."
+  - id: b09
+    type: text
+    md: |
+      **Bảng chọn — câu thần chú cho phỏng vấn:**
+      - "**Đã thấy phần tử này chưa?**" (lọc trùng, chặn tra khóa không tồn tại) → **Bloom filter**.
+      - "**Có bao nhiêu phần tử khác nhau?**" (đếm người/khóa duy nhất) → **HyperLogLog**.
+      - "**Cái nào xuất hiện nhiều nhất / mỗi cái mấy lần?**" (top-K, heavy hitters) →
+        **Count-Min Sketch + heap**.
+
+      Vài ứng dụng kinh điển để kể tên nhanh:
+      - **Crawler dedup:** Bloom filter chặn tải lại URL đã thấy (10 tỉ URL ≈ 12 GB ở p=1%).
+      - **Chặn cache penetration:** Bloom filter đặt trước cache/DB — khóa "chắc chắn chưa thấy" thì
+        khỏi phải đi hỏi DB, chặn được đợt tra các khóa không tồn tại.
+      - **Người xem/khách duy nhất:** HyperLogLog cho mỗi video/trang, gộp lại được theo ngày/tuần.
+      - **Top-K video/URL/truy vấn nóng:** Count-Min Sketch + heap trong luồng sự kiện.
+
+      Luôn kèm **mức sai số chấp nhận**: Bloom ~1% báo nhầm, HLL ~2% lệch, CMS đếm dư nhẹ. Nếu con số
+      phải **chính xác tuyệt đối** (ví dụ **tính tiền**), đừng dùng cấu trúc xác suất làm nguồn sự thật
+      — dùng chúng cho dashboard/ước lượng, còn số tính tiền đối soát lại bằng mẻ (batch) chính xác.
+  - id: b10
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn.** Khi đề nhắc tới "hàng tỉ", "đếm duy nhất", "lọc trùng", hay "top-K real-time",
+      đó là tín hiệu bày cấu trúc xác suất. Trình bày theo 3 nhịp: (1) **nhận dạng câu hỏi** → chọn
+      Bloom / HLL / CMS theo bảng chọn; (2) **nêu sai số chấp nhận** và vì sao nó không sao với bài
+      này; (3) nếu là Bloom, **tính cỡ ngay**: "~9.6 bit/phần tử cho 1%, n phần tử → m ≈ 9.6n bit, chia
+      8 ra byte". Chốt bằng một câu về giới hạn: cấu trúc xác suất **không dùng làm nguồn sự thật cho
+      số cần chính xác tuyệt đối** (ví dụ tính tiền) — khi đó đối soát lại bằng mẻ chính xác.
+  - id: b11
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Bạn cần một Bloom filter cho **n = 1 tỉ (10⁹)** khóa với tỉ lệ báo nhầm **p = 0.1%**. Cỡ bộ nhớ xấp xỉ bao nhiêu?"
+    options:
+      - {id: a, text_md: "~14.4 bit/phần tử × 10⁹ ≈ 1.44×10¹⁰ bit, chia 8 ≈ **~1.8 GB**."}
+      - {id: b, text_md: "~9.6 bit/phần tử × 10⁹ ≈ 9.6×10⁹ bit ≈ **~1.2 GB** (đó là cỡ cho p=1%, không phải 0.1%)."}
+      - {id: c, text_md: "Khoảng **8 GB**, vì mỗi khóa phải lưu nguyên bản 8 byte."}
+    answer: [a]
+    explain_md: "Với p=0.1%: m ≈ −ln(0.001)/(ln2)² ≈ 6.9/0.48 ≈ 14.4 bit/phần tử. 14.4 × 10⁹ ≈ 1.44×10¹⁰ bit ÷ 8 ≈ 1.8 GB. (b) dùng nhầm con số cho p=1%. (c) sai — Bloom không lưu khóa nguyên bản, đó mới là lý do nó tiết kiệm."
+  - id: b12
+    type: summary
+    bullets_vi:
+      - "Cấu trúc xác suất đổi một chút **sai số đã biết trước** lấy bộ nhớ nhỏ hơn hàng nghìn lần; bộ nhớ **gần như không phụ thuộc số phần tử**."
+      - "**Bloom filter** = 'đã thấy chưa?': **không bỏ sót** (no false negative), chỉ **báo nhầm** (false positive) với tỉ lệ p, **không xóa được**."
+      - "**Cỡ Bloom**: m ≈ −n·ln(p)/(ln2)² → **~9.6 bit/phần tử cho p=1%**, **~14.4 bit cho 0.1%**; k tối ưu = (m/n)·ln2 (≈7 cho 1%, ≈10 cho 0.1%). 10 tỉ URL ở 1% ≈ 12 GB."
+      - "**HyperLogLog** = 'bao nhiêu cái khác nhau?': sai số ~2% trong ~1.5 KB, gộp được, chỉ cho con số đếm. **Count-Min Sketch + heap** = tần suất / top-K, **đếm dư không đếm thiếu** (lấy min)."
+      - "Bảng chọn: đã-thấy-chưa → Bloom; đếm-duy-nhất → HLL; top-K/tần suất → CMS+heap. Luôn nêu **sai số chấp nhận**; số cần **chính xác tuyệt đối** (tính tiền) thì đối soát bằng mẻ, không dùng cấu trúc xác suất làm nguồn sự thật."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S070], l2: [S071], l3: [S072]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

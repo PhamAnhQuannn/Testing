@@ -1,0 +1,149 @@
+id: sd.data.consistent_hashing
+version: 1
+status: published
+title_vi: "Băm nhất quán (consistent hashing): vòng băm, dời ~1/N khóa và virtual node"
+est_minutes: 14
+objectives_vi:
+  - "Chỉ ra vì sao `hash(key) % N` xáo trộn gần như **toàn bộ** khóa khi thêm/bớt một máy."
+  - "Giải thích **vòng băm (hash ring)**: đặt máy và khóa lên vòng, khóa thuộc máy đầu tiên theo chiều kim đồng hồ; thêm/bớt một máy chỉ dời ~**K/N** (khoảng 1/N) khóa."
+  - "Nói được **virtual node (vnode)** làm gì và vì sao cần, cùng nơi áp dụng (cache phân tán, kho key-value kiểu Dynamo)."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Giả sử ta có **N** máy (ví dụ N cache server) và muốn chọn máy giữ một khóa `key`. Cách ngây thơ
+      là **băm rồi chia dư (modulo)**: `máy = hash(key) % N`. Khi N cố định thì cách này chia khá đều.
+      Vấn đề nằm ở chữ **N** trong công thức: nó phụ thuộc vào *số máy*.
+
+      Khi thêm một máy (N → N+1) hoặc bớt một máy (N → N-1), mẫu số đổi, nên `hash(key) % N` đổi với
+      **gần như mọi khóa**. Ví dụ từ 4 lên 5 máy, khoảng **80%** khóa được ánh xạ sang máy khác. Với một
+      **cache**, điều đó nghĩa là gần hết dữ liệu nóng bỗng nằm sai chỗ: hàng loạt **cache miss** cùng
+      lúc, mọi request dồn xuống database phía sau — một cú "sấm sét" (thundering herd) có thể sập hệ.
+      Ta cần một cách ánh xạ mà **thêm/bớt một máy chỉ ảnh hưởng một phần nhỏ** khóa.
+  - id: b02
+    type: text
+    md: |
+      **Băm nhất quán (consistent hashing)** giải quyết đúng điều đó bằng một **vòng băm (hash ring)**.
+      Ý tưởng:
+      - Lấy một không gian băm **khép thành vòng tròn**, ví dụ các giá trị `0 .. 2^32 - 1`, trong đó giá
+        trị lớn nhất nối vòng về 0 (ta sẽ dùng vòng 0–360 độ cho dễ hình dung).
+      - Băm **tên máy** (ví dụ `hash("A")`) để đặt mỗi máy vào một điểm trên vòng.
+      - Băm **mỗi khóa** (`hash(key)`) để đặt khóa vào một điểm trên cùng vòng đó.
+      - Một khóa **thuộc về máy đầu tiên gặp khi đi theo chiều kim đồng hồ (clockwise)** từ vị trí khóa.
+        Nếu đi hết vòng mà chưa gặp máy nào thì **vòng về** máy đầu tiên (điểm nhỏ nhất).
+
+      Điểm mấu chốt: vị trí của máy và của khóa **không phụ thuộc vào số máy N**. Thêm hay bớt một máy
+      chỉ làm *một cung* của vòng đổi chủ, chứ không tính lại toàn bộ.
+  - id: b03
+    type: text
+    md: |
+      **Ví dụ (vòng 0–360).** Đặt ba máy: A ở **90**, B ở **200**, C ở **300**. Mỗi khóa đi theo chiều
+      kim đồng hồ tới máy gần nhất phía trước:
+      - Khóa ở **150** → gặp **B (200)** trước → thuộc B.
+      - Khóa ở **250** → gặp **C (300)** → thuộc C.
+      - Khóa ở **350** → đi quá 360, **vòng về** → gặp **A (90)** → thuộc A.
+
+      Mỗi máy "phụ trách" cung ngay **trước** nó (ngược chiều kim đồng hồ đến máy liền trước): A giữ cung
+      `(300, 90]` (gồm cả đoạn vòng qua 360), B giữ `(90, 200]`, C giữ `(200, 300]`. Đây chính là bức
+      tranh bạn nên **vẽ ra** khi phỏng vấn.
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vẫn vòng A=90, B=200, C=300. Một khóa băm ra vị trí **210** thuộc máy nào, và vì sao?"
+    options:
+      - {id: a, text_md: "B, vì 210 gần 200 nhất về khoảng cách."}
+      - {id: b, text_md: "C, vì đi **theo chiều kim đồng hồ** từ 210 thì C (300) là máy đầu tiên gặp."}
+      - {id: c, text_md: "A, vì A là máy có vị trí nhỏ nhất trên vòng."}
+    answer: [b]
+    explain_md: "Khóa thuộc máy **đầu tiên theo chiều kim đồng hồ**, không phải máy *gần nhất*. Từ 210 đi lên: 300 (C) đến trước 90 (A, phải vòng qua 360). Vậy 210 thuộc **C**. (a) nhầm sang 'gần nhất'; (c) chỉ đúng cho khóa nằm trong cung sau C (ví dụ 350)."
+  - id: b05
+    type: text
+    md: |
+      **Thêm/bớt máy chỉ dời một ít khóa.** Thêm máy **D ở 270**: D chen vào giữa B và C, nên D nhận cung
+      `(200, 270]` — phần này trước đây thuộc C. Chỉ những khóa rơi vào `(200, 270]` **chuyển từ C sang
+      D**; A và B **không hề đổi**, và phần `(270, 300]` của C cũng giữ nguyên. Bớt một máy thì đối xứng:
+      khi C rời đi, chỉ các khóa của C dồn sang **máy kế tiếp theo chiều kim đồng hồ** (ở đây là A), các
+      máy khác không đụng tới.
+
+      **Lượng khóa dời đi — toán học cần nhớ.** Nếu các máy rải tương đối đều quanh vòng và có tổng **K**
+      khóa, thì mỗi máy giữ khoảng `K / (số máy)`. Khi đi từ N-1 lên **N** máy (thêm máy thứ N), máy mới
+      chiếm khoảng **1/N** của vòng, nên chỉ khoảng **K/N** khóa (tức ~**1/N** tổng số) phải dời — so với
+      ~**100%** của `hash(key) % N`. Bớt một máy cũng chỉ giải phóng ~1/N khóa của riêng nó. Đó là lý do
+      "nhất quán": số khóa phải dời tỉ lệ nghịch với số máy, không phải toàn bộ.
+  - id: b06
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền phân số. Với một vòng băm cân đối giữ tổng **K** khóa, khi **thêm máy thứ N** (vòng đi từ N-1
+      lên N máy), số khóa trung bình phải **dời** sang máy mới là khoảng **K × ____** tổng số khóa.
+      (Trả lời dạng phân số theo N, ví dụ `1/x`.)
+    blanks:
+      - accept: ["1/N", "1/n", "(1/N)", "1 / N"]
+        regex: "^\\(?\\s*1\\s*/\\s*[nN]\\s*\\)?$"
+    explain_md: "Máy mới là máy thứ N nên chiếm ~**1/N** của vòng, kéo theo ~**K/N** khóa (tức ~1/N tổng số) từ máy kế tiếp sang nó. Trái ngược với `hash(key) % N` làm gần **100%** khóa đổi chỗ. Dời càng ít khi hệ càng nhiều máy."
+  - id: b07
+    type: text
+    md: |
+      **Vấn đề còn lại: chia lệch.** Với ít máy và **mỗi máy chỉ một điểm** trên vòng, các cung dễ dài
+      ngắn rất khác nhau (băm là ngẫu nhiên). Trong ví dụ A=90, B=200, C=300: cung của A là `(300, 90]`
+      dài ~150 độ, còn C chỉ `(200, 300]` ~100 độ — A gánh nhiều khóa hơn hẳn. Khi một máy rời đi, **toàn
+      bộ** tải của nó dồn sang đúng **một** máy kế, gây giật tải.
+
+      **Virtual node (vnode — nút ảo).** Cho **mỗi máy vật lý xuất hiện ở nhiều điểm** trên vòng (thường
+      **100–200** điểm), ví dụ băm `"A#1", "A#2", ... "A#150"`. Khi đó mỗi máy nắm **nhiều cung nhỏ nằm
+      rải rác** quanh vòng. Hai lợi ích:
+      - **Chia đều hơn:** nhiều cung nhỏ trung bình hoá độ dài, tải giữa các máy sát nhau hơn.
+      - **Rebalance mượt:** máy rời đi thì các cung nhỏ của nó chia cho **nhiều** máy khác nhau (không dồn
+        vào một máy); thêm máy thì nó lấy chút ít từ nhiều máy. Ngoài ra, muốn **máy mạnh gánh nhiều hơn**
+        thì chỉ cần cấp **nhiều vnode hơn** cho nó (nút có trọng số — weighted nodes).
+  - id: b08
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao cần **virtual node (vnode)** thay vì mỗi máy chỉ một điểm trên vòng?"
+    options:
+      - {id: a, text_md: "Để giảm số máy vật lý cần mua, vì mỗi vnode thay cho một máy thật."}
+      - {id: b, text_md: "Để chia tải **đều hơn** (nhiều cung nhỏ rải rác) và **rebalance mượt** khi thêm/bớt máy (tải chia cho nhiều máy, không dồn vào một máy); cũng cho phép máy mạnh nhận nhiều vnode hơn."}
+      - {id: c, text_md: "Để khóa có thể thuộc nhiều máy cùng lúc nhằm sao lưu dữ liệu."}
+    answer: [b]
+    explain_md: "Vnode làm mỗi máy nắm nhiều cung nhỏ trải quanh vòng, nên tải cân hơn và khi một máy rời/đến thì phần dời được san cho nhiều máy. (a) sai — vnode không giảm số máy thật, chỉ là điểm ảo của cùng một máy; (c) replication (chép sang N máy kế) là cơ chế khác, không phải mục đích của vnode."
+  - id: b09
+    type: text
+    md: |
+      **Dùng ở đâu, và replication.** Băm nhất quán là nền của nhiều hệ phân tán:
+      - **Cache phân tán** (memcached phía client, nhiều CDN): thêm/bớt cache node mà không thổi bay toàn
+        bộ cache.
+      - **Kho key-value kiểu Dynamo** (Amazon Dynamo, Cassandra, Riak): mỗi khóa định vị trên vòng, và để
+        chịu lỗi, khóa được **chép (replicate) sang N máy kế tiếp theo chiều kim đồng hồ** trên vòng
+        (gọi là preference list / N successors). Mất một máy thì bản sao ở máy kế vẫn phục vụ được.
+      - **Một số load balancer** dùng nó để "dán" một client/khoá về cùng backend một cách ổn định.
+
+      Cần phân biệt với **rendezvous hashing (HRW)** — một cách khác cũng cho tính chất "dời ít khóa":
+      với mỗi khóa, tính `hash(key, máy)` cho **mọi** máy rồi chọn máy có điểm cao nhất. Nó bỏ được bảng
+      vòng nhưng tốn O(số máy) mỗi lần tra; vòng băm + vnode phổ biến hơn ở quy mô lớn.
+  - id: b10
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn.** Khi được hỏi "làm sao phân phối khóa qua nhiều cache/shard mà thêm máy không vỡ
+      hết", hãy trả lời theo đúng trình tự chấm điểm mức 3: (1) **vẽ vòng** và đặt vài máy + vài khóa lên;
+      (2) chỉ cách **tìm máy của một khóa** (đi theo chiều kim đồng hồ, vòng lại nếu cần); (3) nói **thêm
+      hoặc bớt một máy dời ~K/N (≈1/N) khóa** và *vì sao* (chỉ một cung đổi chủ, không phải toàn bộ như
+      `% N`); (4) nêu **vì sao cần virtual node** (chia đều + rebalance mượt + trọng số). Nếu còn thời
+      gian, nhắc **replication N máy kế** và biến thể **bounded-load** (giới hạn tải mỗi máy để tránh
+      hotspot). Đừng sa vào code — người phỏng vấn chấm bức tranh và con số 1/N.
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "`hash(key) % N` chia đều khi N cố định, nhưng thêm/bớt **một** máy đổi mẫu số N nên dời **gần như toàn bộ** khóa (4→5 máy ≈ 80%) — thảm hoạ với cache."
+      - "**Vòng băm (hash ring):** băm cả máy lẫn khóa lên vòng `0..2^32`; khóa thuộc **máy đầu tiên theo chiều kim đồng hồ**, hết vòng thì quay lại đầu."
+      - "Thêm/bớt một máy chỉ làm **một cung** đổi chủ: trung bình dời ~**K/N** khóa (≈ **1/N** tổng số) sang máy mới / sang máy kế, không đụng các máy khác."
+      - "**Virtual node (vnode):** mỗi máy có 100–200 điểm rải quanh vòng → chia tải đều hơn, rebalance san cho nhiều máy, và máy mạnh được cấp nhiều vnode hơn (trọng số)."
+      - "Dùng trong **cache phân tán** và **kho key-value kiểu Dynamo** (replicate sang **N máy kế** để chịu lỗi); rendezvous hashing là lựa chọn thay thế."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S055], l2: [S056], l3: [S057]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

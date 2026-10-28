@@ -1,0 +1,153 @@
+id: sd.data.sharding
+version: 1
+status: published
+title_vi: "Phân vùng dữ liệu (partitioning và sharding): chọn shard key, hot shard và resharding"
+est_minutes: 14
+objectives_vi:
+  - "Phân biệt phân vùng dọc (vertical) và ngang (horizontal / sharding), và ba chiến lược chia: dải (range), băm (hash), bảng tra (directory/lookup)."
+  - "Chọn một **shard key** hợp lý theo ba tiêu chí: chia đều, khớp truy vấn hay gặp, tránh truy vấn xuyên shard."
+  - "Nhận ra và chữa **hot shard**, giải thích nỗi đau **resharding/rebalancing**, và nêu đúng cái giá của truy vấn/join/giao dịch **xuyên shard**."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Khi một bảng (table) quá to cho một máy — quá nhiều dòng để chứa, hoặc quá nhiều lệnh
+      ghi (write) cho một primary gánh — ta **chia dữ liệu** (partitioning) ra nhiều phần. Có hai
+      kiểu cắt:
+      - **Phân vùng dọc (vertical partitioning):** cắt theo **cột**. Tách các cột ít dùng hoặc
+        cột nặng (ảnh, mô tả dài) sang bảng/kho khác để bảng chính gọn và nóng. Giống chuẩn hóa
+        (normalization), nhưng mục tiêu là hiệu năng, không phải khử trùng lặp.
+      - **Phân vùng ngang (horizontal partitioning) = sharding:** cắt theo **dòng**. Mỗi **shard**
+        là một tập con các dòng nằm trên một máy riêng; cùng một cấu trúc bảng, chỉ khác tập dòng.
+        Đây là cách duy nhất chia được **tải ghi** (mỗi shard có primary riêng), nên khi nói
+        "sharding" người ta ngầm hiểu là chia ngang. Phần còn lại của bài tập trung vào nó.
+  - id: b02
+    type: text
+    md: |
+      Dòng này thuộc shard nào? Quyết định bằng **shard key** (hay partition key) — một cột — qua
+      một trong ba chiến lược:
+      - **Chia theo dải (range):** mỗi shard giữ một khoảng giá trị liên tục (user 1–1 triệu ở
+        shard 1, 1–2 triệu ở shard 2...). **Lợi:** truy vấn theo dải (range scan), ví dụ "đơn hàng
+        tháng 1" chỉ chạm một shard. **Hại:** dễ **lệch** (skew) — khoảng mới nhất thường nóng
+        nhất, dồn tải vào một shard.
+      - **Chia theo băm (hash):** shard = `hash(shard_key) % số_shard` (ví dụ 3 shard, user 7 →
+        7 % 3 = 1 → shard 1). **Lợi:** rải rất đều, ít lệch. **Hại:** mất tính liên tục — truy vấn
+        theo dải phải hỏi **mọi** shard rồi gộp.
+      - **Chia theo bảng tra (directory / lookup):** một bảng ánh xạ "khóa → shard" nằm riêng.
+        **Lợi:** linh hoạt nhất, dời dữ liệu tùy ý mà không đổi công thức. **Hại:** bảng tra thành
+        một tầng phải tra mỗi lần và là **điểm chết / nghẽn** nếu không nhân bản + cache cẩn thận.
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Hệ chủ yếu chạy truy vấn **theo dải thời gian** (\"tất cả sự kiện trong 7 ngày qua\"). Chọn kiểu chia nào và đánh đổi gì lớn nhất?"
+    options:
+      - {id: a, text_md: "Chia theo **băm (hash)** trên timestamp — vì hash luôn nhanh hơn mọi kiểu khác."}
+      - {id: b, text_md: "Chia theo **dải (range)** trên thời gian — range scan gọn trong ít shard, nhưng phải chịu rủi ro shard mới nhất bị nóng (hot) do mọi ghi mới dồn vào đó."}
+      - {id: c, text_md: "Chia theo **bảng tra (directory)** — vì nó không bao giờ có hot shard."}
+    answer: [b]
+    explain_md: "Range khớp truy vấn theo dải nên chỉ chạm ít shard; cái giá là lệch/hot shard ở khoảng mới. (a) sai: hash phá vỡ tính liên tục nên truy vấn dải phải hỏi mọi shard. (c) sai: directory linh hoạt về định tuyến nhưng không tự loại bỏ hot shard — khóa nóng vẫn dồn về một máy."
+  - id: b04
+    type: text
+    md: |
+      **Chọn shard key** là quyết định quan trọng nhất — và khó đổi về sau. Một shard key tốt đạt
+      đồng thời ba tiêu chí:
+      1. **Chia đều (even spread):** nhiều giá trị khác nhau (high cardinality) và không dồn cục.
+         Chia theo `country` là xấu: shard "Việt Nam" có thể phình to trong khi shard khác trống —
+         lệch ngay từ thiết kế.
+      2. **Khớp truy vấn hay gặp (access pattern):** phần lớn truy vấn nên lọc đúng theo shard key,
+         để một truy vấn chỉ chạm **một** shard. Chat thì `conversation_id` tốt (đọc tin của một
+         cuộc trò chuyện → một shard); nếu chia chat theo `message_id` thì đọc một cuộc trò chuyện
+         lại rải khắp các shard.
+      3. **Tránh truy vấn xuyên shard (cross-shard):** nếu các truy vấn nóng thường phải gộp dữ
+         liệu nhiều shard, shard key đang chọn sai chiều. Chọn khóa sao cho dữ liệu hay-đọc-cùng-nhau
+         nằm cùng shard (ví dụ gom mọi dữ liệu của một người theo `user_id`).
+      Ba tiêu chí này đôi khi kéo ngược nhau (chia đều vs khớp truy vấn dải) — nêu rõ bạn ưu tiên
+      cái gì và vì sao chính là phần người phỏng vấn chấm.
+  - id: b05
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Bảng `messages` của một app chat, truy vấn nóng nhất là \"lấy các tin gần nhất của một cuộc trò chuyện\". Shard key nào hợp lý nhất?"
+    options:
+      - {id: a, text_md: "`message_id` băm đều — vì rải đều tuyệt đối là mục tiêu số một."}
+      - {id: b, text_md: "`conversation_id` — để mọi tin của một cuộc trò chuyện nằm cùng một shard, nên truy vấn nóng chỉ chạm một shard."}
+      - {id: c, text_md: "`country` của người gửi — để gom theo khu vực địa lý."}
+    answer: [b]
+    explain_md: "`conversation_id` khớp truy vấn hay gặp (đọc một cuộc trò chuyện → một shard) và thường cardinality đủ cao để chia tạm đều. (a) rải đều nhưng đọc một cuộc trò chuyện lại rải khắp shard → xuyên shard. (c) lệch nặng (nước đông dân phình to) và không khớp truy vấn."
+  - id: b06
+    type: text
+    md: |
+      **Hot shard (hotspot).** Chia đều theo *số dòng* vẫn có thể tải lệch, vì **một khóa** quá
+      nóng: một người có 50 triệu follower, một bài viral, một sản phẩm flash-sale — mọi truy cập
+      dồn về đúng shard chứa khóa đó. Số dòng đều nhưng *lưu lượng* không đều. Cách chữa:
+      - **Tách riêng khóa nóng** (dành shard/replica riêng cho nó), hoặc thêm **read replica** cho
+        shard đó để gánh tải đọc.
+      - **Cache** trước shard (ví dụ Redis) cho dữ liệu nóng, giảm hẳn số lần chạm DB.
+      - **Chia nhỏ (split) khóa nóng:** gắn thêm hậu tố vào key (`post123#0..#9`) để một khóa trải
+        trên nhiều shard — đổi lại khi đọc phải gộp lại, tức tự tạo một ít xuyên shard có kiểm soát.
+  - id: b07
+    type: text
+    md: |
+      **Resharding / rebalancing** là khi phải thêm (hoặc bớt) shard và **dời dữ liệu** giữa các
+      máy. Đây là nỗi đau lớn nhất của sharding:
+      - Với công thức `hash(key) % n`, đổi `n` (thêm một shard) làm **gần như mọi khóa** đổi shard
+        → phải chép lại gần hết dữ liệu, tốn băng thông và dễ lỗi.
+      - Trong lúc dời, dữ liệu đồng thời ở "nơi cũ" và "nơi mới" → phải định tuyến kép, tránh đọc
+        trúng bản cũ, và chịu tải nền nặng.
+      Cách giảm đau: **chia dư sẵn** (over-provision, tạo nhiều partition logic hơn số máy rồi gộp
+      nhiều partition vào một máy, khi scale chỉ chuyển cả partition), và dùng **băm nhất quán
+      (consistent hashing)** để thêm/bớt một máy chỉ dời một phần nhỏ khóa thay vì xáo trộn tất cả.
+      Chi tiết consistent hashing là bài **ngay sau**; ở đây chỉ cần biết nó tồn tại để trị đúng
+      vấn đề `% n` này.
+  - id: b08
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao chia bằng `hash(key) % n` lại khiến **resharding** (thêm một shard) đặc biệt đau?"
+    options:
+      - {id: a, text_md: "Vì hàm hash chạy quá chậm nên thêm shard thì toàn hệ chậm theo."}
+      - {id: b, text_md: "Vì đổi `n` làm phép chia dư đổi kết quả cho gần như mọi khóa, nên gần hết dữ liệu phải dời sang shard khác."}
+      - {id: c, text_md: "Vì hash không cho phép truy vấn theo dải, mà resharding cần truy vấn theo dải."}
+    answer: [b]
+    explain_md: "`% n` gắn chặt vị trí khóa vào số shard; đổi `n` thì `hash(key) % n` đổi cho gần như mọi khóa → di chuyển dữ liệu khổng lồ. Đó chính là lý do dùng consistent hashing (chỉ dời một phần nhỏ). (a) tốc độ hash không phải vấn đề; (c) đúng là hash yếu với range nhưng không liên quan đến nỗi đau resharding."
+  - id: b09
+    type: text
+    md: |
+      **Cái giá của xuyên shard (cross-shard).** Khi dữ liệu nằm rải nhiều shard, ba thứ trở nên
+      đắt:
+      - **Truy vấn/aggregate xuyên shard:** đếm tổng, sắp xếp top-N, hay lọc theo cột **không phải**
+        shard key phải **fan-out** tới nhiều shard rồi **gộp** (scatter-gather) — chậm bằng shard
+        chậm nhất và phức tạp hơn nhiều.
+      - **Join xuyên shard:** hai bảng chia theo khóa khác nhau thì không join tại chỗ được; phải
+        kéo dữ liệu về gộp ở tầng ứng dụng, hoặc **denormalize** để tránh join.
+      - **Giao dịch xuyên shard (distributed transaction):** ghi nguyên tử trên nhiều shard cần
+        phối hợp (two-phase commit...) — chậm, dễ kẹt, giảm khả dụng. Thực tế thường **thiết kế để
+        tránh**: chọn shard key sao cho mỗi giao dịch gói gọn trong một shard.
+      Thông điệp cốt lõi: sharding đổi khả năng mở rộng ghi lấy việc **mất đi join/giao dịch/truy
+      vấn tùy ý rẻ** — nên chọn shard key để các thao tác nóng nằm trong một shard.
+  - id: b10
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn.** Với "shard bảng này thế nào", trả lời theo khung: (1) **chọn shard key**
+      và nói rõ *chia đều + khớp truy vấn nóng + tránh xuyên shard*; (2) chọn **chiến lược** (range
+      nếu cần range scan, hash nếu cần rải đều, directory nếu cần linh hoạt); (3) chủ động nêu
+      **hot shard** và cách chữa (tách khóa nóng / cache / split key); (4) nêu **resharding** sẽ
+      đau ra sao và bạn giảm đau bằng over-provision + consistent hashing; (5) thành thật về **hậu
+      quả xuyên shard** (aggregate/join/transaction đắt). Người phỏng vấn chấm việc bạn *thấy trước*
+      hot shard và cái giá xuyên shard, không chấm việc thuộc tên công nghệ.
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "Phân vùng dọc (vertical) cắt theo cột; phân vùng ngang (horizontal) = **sharding** cắt theo dòng và là cách duy nhất chia được tải **ghi**."
+      - "Ba chiến lược: **range** (tốt cho range scan, dễ lệch), **hash** (rải đều, hỏng truy vấn dải), **directory/lookup** (linh hoạt, thêm một tầng tra phải nhân bản)."
+      - "Shard key tốt đạt ba tiêu chí: **chia đều**, **khớp truy vấn hay gặp** (một truy vấn → một shard), **tránh xuyên shard**."
+      - "**Hot shard** là một khóa quá nóng dù số dòng đều; chữa bằng tách khóa nóng, cache, hoặc split key."
+      - "**Resharding** đau vì `hash % n` dời gần hết dữ liệu khi đổi n; giảm đau bằng over-provision và **consistent hashing** (bài sau)."
+      - "Xuyên shard làm **aggregate/join/giao dịch** đắt (scatter-gather, 2PC); chọn shard key để thao tác nóng gói trong một shard."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S052], l2: [S053], l3: [S054]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

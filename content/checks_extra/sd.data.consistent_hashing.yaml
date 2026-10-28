@@ -1,0 +1,60 @@
+subtopic_id: sd.data.consistent_hashing
+items:
+  - id: S055
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Nói ngắn gọn: trong **vòng băm (hash ring)**, một khóa `key` được giao cho máy nào? Và khi **thêm
+      một máy** vào vòng thì trung bình khoảng **bao nhiêu** phần khóa phải dời đi?
+    answer_md: |
+      Băm khóa ra một điểm trên vòng, rồi đi **theo chiều kim đồng hồ (clockwise)** đến **máy đầu tiên**
+      gặp (hết vòng thì quay về máy có vị trí nhỏ nhất) — đó là máy giữ khóa. Khi thêm máy thứ N, chỉ
+      khoảng **K/N** khóa (tức ~**1/N** tổng số) phải dời sang máy mới; các máy khác gần như không đổi.
+    rubric_md: "Đúng khi nêu được cả hai ý: (1) khóa thuộc máy **đầu tiên theo chiều kim đồng hồ** trên vòng (có quay vòng), và (2) thêm một máy chỉ dời ~**1/N** (K/N) tổng khóa. Đủ cả hai ý: bằng chứng điểm 1. Thiếu một vế (ví dụ chỉ nói 'máy gần nhất' hoặc không nêu con số 1/N): tối đa điểm 0."
+  - id: S056
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Một **cache cluster** đang dùng `máy = hash(key) % N` với **N = 4** máy và đang quá tải, nhóm muốn
+      thêm máy thứ 5. Một bạn lo "thêm máy sẽ làm sập database". (1) Giải thích vì sao lo đó **đúng** với
+      cách `% N`: thêm 1 máy ảnh hưởng bao nhiêu khóa và hậu quả lên database? (2) Đề xuất dùng **băm nhất
+      quán**: với cách này thêm máy thứ 5 dời khoảng bao nhiêu khóa, và vì sao? (3) Chỉ một tính chất của
+      vòng mà `% N` **không** có, giúp giải thích khác biệt.
+    answer_md: |
+      (1) Với `% N`, đổi từ N=4 sang N=5 làm **mẫu số đổi**, nên `hash(key) % N` đổi với **gần như mọi
+      khóa** (≈ **80%**). Gần hết cache bị coi là "sai chỗ" → hàng loạt **cache miss** cùng lúc → mọi
+      request dồn xuống **database** (thundering herd), đúng là có thể làm sập DB.
+      (2) Với **băm nhất quán**, thêm máy thứ 5 chỉ dời khoảng **K/5** khóa (~**1/5 ≈ 20%**) sang máy mới;
+      phần còn lại vẫn trúng cache. Vì máy mới chỉ chen vào **một cung** của vòng và lấy khóa của **một**
+      máy kế, các máy khác không đổi.
+      (3) Trên vòng, **vị trí của máy và khóa không phụ thuộc vào số máy N**: thêm/bớt máy chỉ đổi *một*
+      cung, chứ không tính lại ánh xạ của tất cả khóa như `% N`.
+    rubric_md: "Đạt khi nêu đúng cả 3 ý: (1) `% N` dời ~gần toàn bộ khóa (≈80%) → cache miss hàng loạt → dồn tải DB; (2) băm nhất quán chỉ dời ~1/N (≈20% / K/5) và vì sao (chỉ một cung/một máy kế đổi chủ); (3) tính chất 'vị trí không phụ thuộc N' (chỉ một cung đổi). Đúng, trong time-box, tự giải thích được: bằng chứng điểm 2. Không chỉ ra được con số (~80% so với ~1/N) hoặc bỏ lý do cache-miss→DB: tối đa điểm 1."
+  - id: S057
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      Phỏng vấn system design. Cho vòng băm 0–360 với ba máy **A=90, B=200, C=300**. Hãy trình bày đầy
+      đủ ở **mức 3**: (1) **vẽ/mô tả vòng** và nói khóa tại **250** thuộc máy nào, vì sao; (2) **thêm máy
+      D ở 270** — những khóa nào đổi máy, từ máy nào sang D, và các máy còn lại có đổi không; (3) nếu thay
+      vì thêm, ta **bỏ máy C**, khóa của C đi đâu; (4) ước lượng **bao nhiêu** khóa phải dời khi thêm/bớt
+      một máy trên vòng N máy và vì sao; (5) **vì sao cần virtual node (vnode)** trong ví dụ 3 máy này.
+    answer_md: |
+      (1) Vòng theo chiều kim đồng hồ: A(90) → B(200) → C(300) → (quay về) A. Khóa **250** đi theo chiều
+      kim đồng hồ gặp **C (300)** đầu tiên → thuộc **C**.
+      (2) Thêm **D ở 270** chen giữa B và C. D nhận cung `(200, 270]`, vốn là của C. Chỉ các khóa rơi vào
+      `(200, 270]` **chuyển từ C sang D** (khóa 250 nay thuộc D). Phần `(270, 300]` vẫn của C; **A và B
+      không đổi**.
+      (3) **Bỏ C:** mọi khóa của C (cung `(200, 300]`) dồn sang **máy kế tiếp theo chiều kim đồng hồ**,
+      tức **A** (gặp A ở 90 sau khi quay vòng). B và các máy khác không đổi.
+      (4) Nếu máy rải đều và có K khóa, mỗi máy giữ ~K/N. Thêm/bớt một máy chỉ làm **một cung** đổi chủ,
+      nên trung bình dời ~**K/N** (≈ **1/N**) khóa — khác hẳn `hash(key) % N` dời ~toàn bộ. Dời càng ít
+      khi N càng lớn.
+      (5) Với 3 máy **một điểm/máy**, cung dài ngắn lệch nhau (A giữ `(300,90]` ~150°, C chỉ ~100°) nên
+      tải lệch; và bỏ một máy thì **toàn bộ** tải của nó dồn vào **một** máy kế. **Vnode** cho mỗi máy
+      ~100–200 điểm rải quanh vòng → cung trung bình hoá, tải đều hơn, và khi thêm/bớt máy phần dời được
+      **san cho nhiều máy** chứ không dồn một chỗ (máy mạnh còn được cấp nhiều vnode hơn).
+    rubric_md: "Đạt mức phỏng vấn (điểm 3) khi làm đúng cả 5: (1) 250 thuộc C theo chiều kim đồng hồ; (2) thêm D chỉ dời cung (200,270] từ C sang D, A/B không đổi; (3) bỏ C thì khóa của C sang máy kế A; (4) ~K/N (≈1/N) khóa dời và vì sao (một cung đổi chủ, trái với ~toàn bộ của % N); (5) vnode để chia đều + rebalance san nhiều máy (+ trọng số). Đúng, trong time-box, mạch lạc tự giải thích: bằng chứng điểm 3. Sai hướng đi vòng/tìm sai máy, hoặc không giải thích được con số 1/N, hoặc bỏ lý do cần vnode: chưa đạt mức 3."

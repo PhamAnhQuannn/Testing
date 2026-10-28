@@ -1,0 +1,62 @@
+subtopic_id: sd.data.search_indexing
+items:
+  - id: S064
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      **Inverted index** lưu dữ liệu theo dạng nào, và vì sao nó tìm từ trong văn bản nhanh hơn
+      index B-tree thường của DB? Nói ngắn gọn.
+    answer_md: |
+      Inverted index lưu **từ (term) -> danh sách tài liệu chứa từ đó** (posting list, là danh sách
+      doc id) — giống mục lục cuối sách. Nhờ vậy tra một từ là ra ngay các tài liệu, không cần quét
+      bảng. Index B-tree sắp xếp theo thứ tự từ đầu chuỗi nên chỉ nhanh khi tìm **tiền tố**; tìm một
+      từ ở **giữa** câu (`LIKE '%cafe%'`) buộc phải quét toàn bảng. Truy vấn nhiều từ với inverted
+      index = lấy posting list của từng từ rồi **giao nhau**.
+    rubric_md: "Đạt khi nêu đúng: inverted index = term -> danh sách tài liệu (posting list), tra trực tiếp không quét bảng; và B-tree chỉ hợp tiền tố nên tìm từ ở giữa phải quét toàn bảng. Đúng ý: bằng chứng điểm 1; chỉ nói 'nhanh hơn' mà không nêu cấu trúc term -> danh sách: tối đa điểm 0."
+  - id: S065
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Một trang thương mại điện tử dùng Elasticsearch cho ô tìm kiếm sản phẩm, còn dữ liệu sản phẩm
+      nằm ở Postgres. (1) Làm sao giữ index tìm kiếm **đồng bộ** với Postgres? (2) Người dùng phản
+      ánh "vừa tạo sản phẩm xong, tìm không thấy ngay" — giải thích vì sao và đó có phải lỗi không;
+      (3) đề xuất một cách xử lý trải nghiệm cho trường hợp đọc sản phẩm vừa tạo.
+    answer_md: |
+      (1) Dùng **CDC (Change Data Capture)**: một indexing pipeline nghe nhật ký thay đổi của
+      Postgres (WAL) và đẩy mỗi insert/update/delete sang cập nhật index. Cách này tách rời DB gốc
+      khỏi index và chịu được việc index tạm sập (thay đổi vẫn xếp hàng trong log).
+      (2) Không phải lỗi — đó là **nhất quán cuối cùng (eventual consistency)**: CDC cập nhật index
+      **bất đồng bộ** nên index trễ hơn DB gốc một chút (thường vài giây). Index chỉ là **bản phụ**;
+      Postgres mới là nguồn sự thật.
+      (3) Với "đọc ngay sản phẩm vừa tạo", đọc trực tiếp từ **Postgres** (DB gốc) thay vì từ index,
+      hoặc báo cho người dùng rằng kết quả tìm kiếm cập nhật sau vài giây; không nên ép index phải
+      nhất quán tức thì.
+    rubric_md: "Đạt khi nêu đúng cả 3 ý: (1) CDC nghe log thay đổi để cập nhật index; (2) không phải lỗi mà là nhất quán cuối cùng do cập nhật bất đồng bộ, index là bản phụ còn DB gốc là sự thật; (3) một cách xử lý hợp lý (đọc bài vừa tạo từ DB gốc, hoặc chấp nhận/báo độ trễ). Đúng, trong time-box, tự giải thích được: bằng chứng điểm 2. Thiếu ý 'nhất quán cuối cùng / độ trễ' hoặc không nêu được CDC: tối đa điểm 1."
+  - id: S066
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      Phỏng vấn: "Thiết kế tìm kiếm sản phẩm toàn văn cho một cửa hàng lớn." Trình bày ở mức ý tưởng:
+      (1) **inverted index** là gì và vì sao không dùng index B-tree thường; (2) **BM25** xếp hạng
+      liên quan dựa trên các tín hiệu nào (không cần công thức); (3) giữ index **đồng bộ** với DB gốc
+      bằng **CDC** và hệ quả về nhất quán; (4) **scale cụm tìm kiếm** bằng shard và replica.
+    answer_md: |
+      (1) **Inverted index**: lưu **từ -> danh sách tài liệu chứa từ** (posting list). Tra một từ ra
+      ngay các tài liệu; truy vấn nhiều từ = giao các posting list. Không dùng B-tree vì B-tree chỉ
+      nhanh với tìm tiền tố — tìm từ ở giữa câu buộc quét toàn bảng. (Trước khi index, văn bản qua
+      **phân tích**: tách từ, chuẩn hóa, bỏ stop words, stemming — áp cùng bộ cho index và truy vấn.)
+      (2) **BM25** cho điểm cao khi: từ xuất hiện **nhiều lần** trong tài liệu (term frequency, nhưng
+      tăng giảm dần), từ **hiếm** trong cả kho (document frequency thấp -> mang nhiều thông tin hơn),
+      và **chuẩn hóa theo độ dài** để bài dài không thắng chỉ nhờ chứa nhiều từ. Tóm lại: từ hiếm,
+      nhiều lần, bài không quá dài -> hạng cao.
+      (3) Index là **bản phụ** chép từ DB gốc. Dùng **CDC**: pipeline nghe nhật ký thay đổi (WAL/
+      binlog) của DB gốc rồi cập nhật index **bất đồng bộ**. Hệ quả: index trễ hơn DB gốc vài giây
+      (**nhất quán cuối cùng**); DB gốc là sự thật, mất index dựng lại được.
+      (4) **Scale**: **shard** chia tài liệu thành nhiều phần trên các node (chứa nhiều dữ liệu và
+      chạy song song — truy vấn gửi tới mọi shard rồi gộp kết quả, scatter-gather); **replica** là
+      bản sao mỗi shard để gánh thêm truy vấn đọc và chịu lỗi khi node chết. Thêm dữ liệu -> thêm
+      shard; thêm tải đọc -> thêm replica.
+    rubric_md: "Đạt (mức phỏng vấn, đúng mastery bar mức 3) khi trình bày đủ và đúng cả 4 phần: (1) inverted index = term -> posting list và vì sao B-tree không hợp; (2) BM25 ở mức ý tưởng với tối thiểu hai tín hiệu đúng (tần suất từ tăng-giảm-dần + độ hiếm của từ; lý tưởng có cả chuẩn hóa độ dài); (3) CDC đồng bộ index từ DB gốc và hệ quả nhất quán cuối cùng (index là bản phụ, DB gốc là sự thật); (4) shard chia dữ liệu + replica nhân bản, nêu đúng vai trò mỗi loại. Đúng, trong time-box, tự giải thích mạch lạc: bằng chứng điểm 3. Sót một trong bốn phần, hoặc nói sai vai trò shard/replica, hoặc không nêu được nhất quán cuối cùng: chưa đạt mức 3."

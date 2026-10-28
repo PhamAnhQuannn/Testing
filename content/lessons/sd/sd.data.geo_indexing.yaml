@@ -1,0 +1,149 @@
+id: sd.data.geo_indexing
+version: 1
+status: published
+title_vi: "Chỉ mục không gian (geo-indexing): geohash, quadtree, S2"
+est_minutes: 14
+objectives_vi:
+  - "Giải thích vì sao chỉ mục B-tree trên (vĩ độ, kinh độ) không trả lời tốt câu 'có gì gần tôi', và nguyên tắc chung: chia không gian thành ô có tên."
+  - "Phân biệt **geohash**, **quadtree** và **S2** — mỗi loại tốt cho việc gì."
+  - "Xử lý **vấn đề ô biên** (boundary cell) và **tần suất cập nhật vị trí** của vật thể di chuyển (tài xế)."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Bài toán nền là **"tìm gần" (find nearby)**: cho một điểm (vĩ độ, kinh độ) của khách, trả về
+      mọi quán/tài xế trong bán kính 2 km, hoặc 5 tài xế gần nhất. Vì sao không dùng thẳng **chỉ mục
+      B-tree** như với cột số thường? Vì vị trí là **hai chiều** (2D). Một B-tree chỉ sắp xếp theo
+      **một** cột:
+      - Nếu đánh chỉ mục theo **vĩ độ (latitude)**, mọi điểm *cùng vĩ độ* trên khắp thế giới nằm cạnh
+        nhau trong chỉ mục — Hà Nội và một điểm cùng vĩ độ ở Mexico "kề nhau" dù cách nửa vòng Trái Đất.
+      - Lọc được dải vĩ độ gần thì vẫn còn vô số điểm sai kinh độ; lọc tiếp cột kia không tận dụng được
+        chỉ mục. Chỉ mục ghép (lat, lng) cũng không cứu: nó sắp theo lat trước, nên "gần theo cả hai
+        chiều" không thành một khoảng liên tục.
+
+      **Ý tưởng chung** của mọi chỉ mục không gian: **chia mặt phẳng/mặt cầu thành các ô (cell) có tên**,
+      gán mỗi điểm vào ô chứa nó, rồi quy câu "tìm gần" về "lấy các điểm trong ô của tôi và vài ô quanh
+      đó" — một phép tra theo **khóa ô**, thứ mà một chỉ mục một chiều làm rất nhanh.
+  - id: b02
+    type: text
+    md: |
+      **Geohash** biến (lat, lng) thành một **chuỗi ký tự** bằng cách **xen kẽ bit (interleave)** của hai
+      tọa độ rồi mã hóa thành base32. Hai tính chất cốt lõi:
+      - **Tiền tố = ô bao:** chuỗi càng dài, ô càng nhỏ (độ chính xác/precision càng cao). Ô `w3gv` chứa
+        ô `w3gvk` chứa ô `w3gvk7`... Cắt bớt ký tự cuối = phóng to ra ô cha.
+      - **Chung tiền tố ⇒ ở gần nhau:** hai điểm có geohash chung tiền tố dài thì nằm trong cùng một ô nhỏ,
+        nên ở gần nhau trên bản đồ.
+
+      Nhờ đó "tìm gần" thành **tra tiền tố (prefix match)** — rất hợp với kho khóa–giá trị hay B-tree sẵn
+      có (ví dụ Redis GEO dùng geohash bên dưới). **Điểm mạnh:** đơn giản, tên ô là một chuỗi, dễ lưu và
+      dễ đánh chỉ mục bằng hạ tầng thường. **Điểm yếu:** lưới cố định không theo mật độ, và có một cái bẫy
+      quan trọng về **ô biên** (nói ở dưới).
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Trong **geohash**, chuỗi của hai điểm có **chung tiền tố càng dài** thì điều gì đúng?"
+    options:
+      - {id: a, text_md: "Hai điểm càng **gần nhau** vì cùng nằm trong một ô (cell) nhỏ; cắt bớt ký tự cuối sẽ phóng to ra ô cha bao quanh."}
+      - {id: b, text_md: "Hai điểm càng **xa nhau**, vì tiền tố dài nghĩa là tọa độ khác nhau nhiều hơn."}
+      - {id: c, text_md: "Không suy ra được gì về khoảng cách; geohash chỉ là mã băm ngẫu nhiên của tọa độ."}
+    answer: [a]
+    explain_md: "Geohash xen kẽ bit của (lat, lng): tiền tố chung dài ⇒ cùng một ô nhỏ ⇒ ở gần. Cắt ký tự cuối = ô lớn hơn (cha). (b) ngược; (c) sai — geohash không ngẫu nhiên mà giữ được tính lân cận qua tiền tố."
+  - id: b04
+    type: text
+    md: |
+      Hai họ chỉ mục còn lại khắc phục điểm yếu "lưới cố định" của geohash:
+      - **Quadtree:** chia không gian thành **4 ô con**, ô nào **quá đông điểm** thì **chia tiếp** thành 4,
+        đệ quy. Kết quả là lưới **thích nghi theo mật độ (adaptive)**: ô **nhỏ** ở trung tâm thành phố (nhiều
+        điểm), ô **lớn** ở vùng thưa. Tốt khi dữ liệu phân bố **rất lệch** — mỗi ô giữ số điểm vừa phải nên
+        truy vấn không bị một ô "khổng lồ" làm chậm. Đổi lại cấu trúc là **cây động**, phải cập nhật khi
+        điểm thêm/bớt.
+      - **S2 (Google):** phủ **mặt cầu** Trái Đất bằng các ô, dùng **đường cong Hilbert (Hilbert curve)** để
+        đánh **số id** cho ô sao cho các ô gần nhau trong không gian cũng gần nhau theo id (giữ tính lân cận
+        tốt hơn geohash) và **ít méo** khi lên hình cầu. Có **phân cấp (hierarchy)** nhiều mức như geohash,
+        nhưng id là **số nguyên 64-bit** nên so sánh/đánh chỉ mục rẻ. (H3 của Uber cùng tinh thần nhưng ô
+        **lục giác**.)
+
+      Chọn nhanh: **geohash** khi muốn đơn giản, tên-chuỗi, hạ tầng sẵn có; **quadtree** khi mật độ rất lệch
+      cần ô co giãn theo vùng; **S2/H3** khi cần phủ cầu chính xác, id số gọn, tính lân cận tốt ở quy mô toàn
+      cầu.
+  - id: b05
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Điểm khác biệt chính của **quadtree** so với lưới geohash cố định là gì?"
+    options:
+      - {id: a, text_md: "Quadtree **chia nhỏ thích nghi theo mật độ**: ô nào quá đông thì tách tiếp thành 4, nên ô nhỏ ở nơi đông, ô lớn ở nơi thưa."}
+      - {id: b, text_md: "Quadtree luôn cho ô **cùng kích thước** ở mọi nơi, chỉ khác ở chỗ dùng số thay vì chuỗi."}
+      - {id: c, text_md: "Quadtree không cần biết tọa độ điểm, nó băm ID của điểm để chia nhóm."}
+    answer: [a]
+    explain_md: "Quadtree chia một ô thành 4 và chỉ chia tiếp ô nào vượt ngưỡng điểm ⇒ lưới co giãn theo mật độ (adaptive), giữ số điểm mỗi ô vừa phải. (b) là lưới cố định (geohash); (c) sai — chỉ mục không gian phải dựa trên tọa độ."
+  - id: b06
+    type: text
+    md: |
+      **Vấn đề ô biên (boundary cell problem)** — bẫy kinh điển. Hai điểm có thể **sát nhau vài mét** nhưng
+      rơi vào **hai ô khác tên** vì đường biên ô chạy ngay giữa chúng. Nếu chỉ tra **ô của khách**, ta **bỏ
+      sót** láng giềng thật sự chỉ vì nó ở ô kế bên. Hệ quả: tài xế gần nhất bị "biến mất" khỏi kết quả.
+
+      **Cách xử lý:** luôn truy vấn **ô của mình cộng các ô kề**. Với lưới vuông là **8 ô kề** (tổng 3×3 = 9
+      ô) quanh ô trung tâm; rồi mới **lọc lại bằng khoảng cách thực** (ví dụ chỉ giữ điểm ≤ 2 km) và, nếu cần,
+      **sắp xếp lấy k gần nhất**. Vài điểm thực hành:
+      - Chọn **cỡ ô (precision)** sao cho bán kính tìm kiếm **nhỏ hơn hoặc xấp xỉ một ô**, để 3×3 ô chắc chắn
+        phủ hết vòng tròn bán kính — nếu bán kính lớn hơn ô nhiều, phải quét nhiều vòng ô hơn.
+      - Phân biệt hai loại truy vấn: **theo bán kính (radius)** "mọi điểm trong 2 km" và **k gần nhất
+        (k-nearest)** "5 tài xế gần nhất"; cả hai đều bắt đầu từ bước gom ô-và-ô-kề rồi lọc/sắp bằng khoảng
+        cách thật.
+  - id: b07
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao khi tìm gần bằng lưới ô ta phải truy vấn **cả các ô kề**, không chỉ ô chứa khách?"
+    options:
+      - {id: a, text_md: "Vì một láng giềng ở rất gần có thể rơi vào **ô kế bên** do đường biên ô cắt ngang; chỉ xét ô của khách sẽ **bỏ sót** nó (vấn đề ô biên)."}
+      - {id: b, text_md: "Vì ô của khách thường rỗng, nên phải mượn dữ liệu từ ô khác cho đủ số lượng."}
+      - {id: c, text_md: "Vì các ô kề lưu bản sao dự phòng của ô trung tâm để chống mất dữ liệu."}
+    answer: [a]
+    explain_md: "Đây là **boundary cell problem**: điểm sát nhau có thể nằm hai ô khác tên. Tra ô-của-mình + 8 ô kề (3×3) rồi lọc bằng khoảng cách thật mới không sót. (b), (c) không phải lý do — ô kề không phải để bù dữ liệu hay sao lưu."
+  - id: b08
+    type: text
+    md: |
+      **Vật thể di chuyển (moving objects)** — ví dụ tài xế đổi vị trí mỗi vài giây — đặt ra bài toán **tần
+      suất cập nhật (update rate)**, không phải bài toán truy vấn. Làm phép tính: **1 triệu tài xế** báo vị
+      trí mỗi **4 giây** ≈ **250.000 lần ghi/giây**. Nếu ghi mỗi cập nhật thành một dòng vào **DB chính** thì
+      DB sập vì tải ghi, chưa kể lãng phí (vị trí 4 giây trước gần như vô dụng).
+
+      **Nguyên tắc:**
+      - Giữ **vị trí mới nhất trong RAM** (kho không gian trong bộ nhớ như **Redis GEO**, hoặc một dịch vụ
+        chỉ-mục-địa-lý riêng), **ghi đè** chứ không nối thêm; **không** lưu lịch sử từng-cập-nhật vào DB chính.
+      - Chỉ mục phải **rẻ khi cập nhật**: với geohash/S2 là tính lại khóa ô và **đổi khóa** của điểm; với
+        quadtree là **di chuyển điểm giữa các nút**, có thể phải tách/gộp nút — cập nhật đắt hơn, nên lưới
+        cố định (geohash/S2) thường tiện hơn cho vật thể đổi vị trí liên tục.
+      - Nếu **cần** lịch sử (phân tích, đối soát), đẩy ra đường riêng: ghi theo **lô (batch)** vào kho rẻ
+        (log/cột), tách khỏi đường tìm-gần nóng.
+  - id: b09
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn — đạt mức 3.** Khi được hỏi thiết kế "tìm gần", trả lời theo ba nhịp:
+      1. **Chọn cấu trúc theo bài toán:** nêu lý do — **geohash** (đơn giản, tên-chuỗi, dùng Redis GEO sẵn),
+         **quadtree** (mật độ rất lệch, cần ô co giãn), **S2/H3** (phủ cầu, id số gọn, toàn cầu).
+      2. **Xử lý ô biên:** nói rõ "tra ô của khách **cộng 8 ô kề**, rồi lọc lại bằng khoảng cách thật và lấy
+         k gần nhất" — người phỏng vấn **chờ** câu này; quên nó là mất điểm.
+      3. **Xử lý tần suất cập nhật:** ước lượng số ghi/giây, rồi **giữ vị trí mới nhất trong RAM, ghi đè,
+         không ghi lịch sử vào DB chính**; nói chỉ mục nào rẻ khi cập nhật liên tục.
+
+      Người phỏng vấn chấm việc bạn **gắn lựa chọn với ràng buộc** (mật độ, bán kính, tần suất cập nhật), chứ
+      không chấm việc kể tên công nghệ.
+  - id: b10
+    type: summary
+    bullets_vi:
+      - "B-tree trên (lat, lng) hỏng cho 'tìm gần' vì vị trí là 2D còn B-tree sắp theo một chiều; giải pháp chung: **chia không gian thành ô có tên** rồi tra theo khóa ô."
+      - "**Geohash**: xen kẽ bit thành chuỗi; **tiền tố = ô bao**, chung tiền tố ⇒ ở gần; đơn giản, hợp hạ tầng sẵn (Redis GEO) nhưng lưới cố định."
+      - "**Quadtree**: chia 4 và chia tiếp ô đông ⇒ lưới **thích nghi theo mật độ**. **S2/H3**: phủ **mặt cầu** bằng id số (đường cong Hilbert), lân cận tốt, id 64-bit gọn."
+      - "**Ô biên (boundary cell)**: điểm sát nhau có thể ở hai ô khác tên ⇒ phải tra **ô của mình + 8 ô kề (3×3)** rồi lọc bằng khoảng cách thật; chọn cỡ ô ~ bán kính tìm."
+      - "**Vật thể di chuyển**: tần suất cập nhật lớn (1 triệu tài xế / 4 giây ≈ 250k ghi/giây) ⇒ giữ vị trí mới nhất **trong RAM, ghi đè**, không ghi lịch sử vào DB chính; lưới cố định rẻ khi cập nhật hơn quadtree."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S067], l2: [S068], l3: [S069]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"
