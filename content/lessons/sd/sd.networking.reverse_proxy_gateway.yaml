@@ -1,0 +1,141 @@
+id: sd.networking.reverse_proxy_gateway
+version: 1
+status: published
+title_vi: "Reverse proxy và API gateway: đặt auth, rate limit, routing ở đâu"
+est_minutes: 13
+objectives_vi:
+  - "Phân biệt **reverse proxy** (kết thúc kết nối, TLS, cache/tĩnh, giấu backend) với **API gateway** (reverse proxy chuyên cho API: auth, rate limit, routing/aggregation)."
+  - "Giải thích vì sao các mối quan tâm xuyên suốt (**auth, rate limiting, routing**) nên đặt ở rìa (edge) một lần, không lặp trong từng service."
+  - "Nêu rủi ro **fat gateway** (nghẽn / SPOF / nút cổ chai triển khai) và cách scale gateway (stateless + ngang + giữ logic mỏng)."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      **Reverse proxy** là một máy đứng *trước* các server, nhận mọi request của client rồi chuyển
+      tiếp xuống backend phù hợp. Client chỉ thấy reverse proxy, **không biết** phía sau có bao nhiêu
+      máy hay chúng là gì (nó **giấu backend**). Việc điển hình của reverse proxy:
+      - **Kết thúc kết nối client (terminate connections)** và **kết thúc TLS (TLS termination):**
+        giải mã HTTPS tại rìa, backend nội bộ nói HTTP đơn giản hơn.
+      - **Phục vụ cache và nội dung tĩnh (static/cache):** trả ảnh, CSS, trang đã cache ngay tại
+        proxy, không làm phiền backend.
+      - **Giấu và bảo vệ backend:** đổi IP/địa chỉ nội bộ, giữ sẵn kết nối tới backend (connection
+        pooling), nén (compression).
+
+      Ví dụ phổ biến: **nginx**, **Envoy**, HAProxy. (Lưu ý: *forward proxy* thì ngược lại — đứng
+      trước **client** để thay mặt client ra Internet; đây không phải thứ ta bàn ở đây.)
+  - id: b02
+    type: text
+    md: |
+      **API gateway** là một **reverse proxy chuyên dụng cho API**: vẫn làm mọi việc của reverse proxy,
+      nhưng gánh thêm các **việc chung của tầng API**:
+      - **Xác thực/phân quyền (authentication/authorization):** kiểm tra token, danh tính người gọi.
+      - **Giới hạn tần suất (rate limiting):** chặn gọi quá nhiều, chống lạm dụng.
+      - **Định tuyến và gom request (routing/aggregation):** map đường dẫn `/users`, `/orders`... tới
+        đúng service; có thể gom nhiều lời gọi backend thành một phản hồi.
+      - **Versioning** (quản lý `v1`/`v2`) và **observability** (log, metric, trace tập trung).
+
+      Nói ngắn: reverse proxy là "lễ tân" chuyển tiếp; API gateway là lễ tân **cộng thêm chính sách
+      tầng ứng dụng (application-layer policy)** cho API. Một phần mềm như nginx/Envoy có thể đóng cả
+      hai vai, tuỳ ta cấu hình bật tính năng nào.
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Khác biệt **cốt lõi** giữa một reverse proxy thuần và một API gateway là gì?"
+    options:
+      - {id: a, text_md: "API gateway chạy nhanh hơn vì không cần kết thúc TLS."}
+      - {id: b, text_md: "API gateway = reverse proxy **cộng thêm** các chính sách tầng API (auth, rate limiting, routing/aggregation, versioning), còn reverse proxy thuần chủ yếu chuyển tiếp, TLS và cache."}
+      - {id: c, text_md: "Reverse proxy đứng trước client, còn API gateway đứng trước server."}
+    answer: [b]
+    explain_md: "Gateway là reverse proxy chuyên cho API, gánh thêm chính sách tầng ứng dụng. (a) sai — gateway vẫn thường kết thúc TLS; (c) nhầm với forward proxy — cả reverse proxy lẫn gateway đều đứng trước server."
+  - id: b04
+    type: text
+    md: |
+      **Vì sao đặt auth, rate limiting, routing ở gateway (rìa/edge), không lặp trong từng service?**
+      Đây là các **mối quan tâm xuyên suốt (cross-cutting concerns)** — mọi service đều cần như nhau.
+      Đặt chúng **ở rìa, làm một lần** có lợi:
+      - **Nhất quán và không lặp:** một chỗ định nghĩa luật, không phải copy logic auth/rate limit vào
+        20 service rồi mỗi nơi làm một kiểu (dễ lệch, dễ sót lỗ hổng).
+      - **Chặn sớm:** request xấu (chưa đăng nhập, vượt hạn mức) bị loại ngay tại rìa, không tốn tài
+        nguyên của backend.
+      - **Service gọn hơn:** backend chỉ lo **nghiệp vụ (business logic)**, tin rằng request đến tay
+        nó đã được xác thực và đã qua rate limit.
+
+      Nguyên tắc ngược lại cũng quan trọng: **không nhét nghiệp vụ vào gateway.** Gateway lo policy
+      chung; logic đặc thù của từng domain phải nằm trong service tương ứng.
+  - id: b05
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Hệ có 20 microservice. Nên đặt **xác thực (auth)** và **giới hạn tần suất (rate limiting)** ở đâu, và vì sao?"
+    options:
+      - {id: a, text_md: "Lặp lại trong từng service, để mỗi service tự quyết — linh hoạt nhất."}
+      - {id: b, text_md: "Ở **API gateway tại rìa**, làm một lần: nhất quán, không lặp 20 chỗ, và chặn request xấu sớm trước khi tốn tài nguyên backend."}
+      - {id: c, text_md: "Ở tầng database, vì mọi request cuối cùng đều chạm database."}
+    answer: [b]
+    explain_md: "Auth và rate limiting là cross-cutting concern — đặt ở gateway (edge) làm một lần cho nhất quán và chặn sớm. (a) lặp 20 chỗ dễ lệch và sót lỗ hổng; (c) quá muộn và sai tầng — request xấu đã đi hết đường mới bị chặn."
+  - id: b06
+    type: text
+    md: |
+      **Rủi ro "fat gateway" (gateway béo phì):** vì gateway nằm trên **đường đi của mọi request**,
+      nếu ta dồn quá nhiều việc vào nó (nhất là nghiệp vụ), nó trở thành:
+      - **Nghẽn (bottleneck):** mọi request đều qua đây, gateway chậm là cả hệ chậm.
+      - **Điểm chết duy nhất (SPOF — single point of failure):** gateway sập là toàn hệ sập, dù các
+        service phía sau vẫn sống.
+      - **Nút cổ chai triển khai (deployment chokepoint):** mọi đội phải sửa chung một gateway khổng
+        lồ, deploy giẫm chân nhau, thay đổi nhỏ cũng rủi ro lớn.
+
+      **Cách scale gateway** để tránh những rủi ro trên:
+      - **Giữ gateway stateless** (không giữ session cục bộ) để **nhân bản được**.
+      - **Scale ngang (horizontal):** chạy **nhiều bản gateway sau một load balancer**, thêm bản là
+        thêm sức và bớt rủi ro SPOF.
+      - **Giữ logic mỏng (thin):** chỉ để policy chung (auth, rate limit, routing) ở gateway; đẩy
+        nghiệp vụ về service. Gateway càng mỏng càng dễ nhân bản và ít là chokepoint.
+  - id: b07
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao một **fat gateway** (nhồi cả nghiệp vụ vào gateway) nguy hiểm, và cách giảm rủi ro là gì?"
+    options:
+      - {id: a, text_md: "Nguy hiểm vì gateway là nghẽn / SPOF / nút cổ chai triển khai; giảm rủi ro bằng cách giữ gateway **stateless + mỏng** và **chạy nhiều bản sau load balancer**."}
+      - {id: b, text_md: "Nguy hiểm vì gateway dùng quá nhiều RAM; giảm rủi ro bằng cách mua một máy thật mạnh cho gateway."}
+      - {id: c, text_md: "Không nguy hiểm — gateway càng làm nhiều việc thì backend càng nhẹ, nên nên dồn hết vào gateway."}
+    answer: [a]
+    explain_md: "Gateway nằm trên đường đi mọi request nên nhồi nghiệp vụ biến nó thành nghẽn/SPOF/chokepoint. Cách đúng: giữ mỏng + stateless rồi scale ngang sau LB. (b) scale dọc một máy vẫn còn trần cứng và SPOF; (c) sai — dồn hết chính là tạo fat gateway."
+  - id: b08
+    type: text
+    md: |
+      **Quan hệ với load balancer (LB):** đừng lẫn hai thứ.
+      - **Load balancer** làm việc tầng thấp hơn: **chia tải (distribute)** — rải request đều vào
+        nhiều bản của cùng một thứ, lo sức khoẻ (health check) và dự phòng. Nó không hiểu "đây là API
+        gì, người gọi là ai".
+      - **API gateway** thêm **chính sách tầng ứng dụng (application-layer policy):** auth, rate
+        limit, định tuyến theo đường dẫn, gom request — những việc cần *hiểu nội dung* request.
+
+      Thực tế hai thứ xếp chồng: **LB đứng trước, rải request vào nhiều bản gateway (stateless);** mỗi
+      gateway rồi mới áp policy và chuyển tiếp xuống service. Chính nhờ LB ở trước mà gateway mới scale
+      ngang được. (Một phần mềm như nginx/Envoy có thể làm cả vai LB lẫn vai gateway, nhưng về mặt
+      *vai trò* chúng là hai lớp khác nhau.)
+  - id: b09
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn.** Khi được hỏi "đặt auth/rate limit/routing ở đâu", hãy trả lời theo ba nhịp:
+      *(1) đặt ở gateway tại rìa, làm một lần* vì chúng là cross-cutting concern — nhất quán, không
+      lặp, chặn sớm; *(2) nhưng không nhét nghiệp vụ vào gateway*, kẻo thành **fat gateway** — nghẽn,
+      SPOF, chokepoint triển khai; *(3) scale gateway bằng stateless + nhiều bản sau load balancer +
+      giữ logic mỏng.* Nói thêm một câu phân biệt "LB chia tải, gateway thêm policy tầng app" là đủ
+      ghi điểm mức 3.
+  - id: b10
+    type: summary
+    bullets_vi:
+      - "**Reverse proxy** đứng trước server: kết thúc kết nối/TLS, phục vụ cache/tĩnh, giấu và bảo vệ backend (nginx/Envoy)."
+      - "**API gateway** = reverse proxy chuyên cho API, cộng thêm **auth, rate limiting, routing/aggregation, versioning, observability** (chính sách tầng ứng dụng)."
+      - "Đặt auth/rate limiting/routing **ở gateway (rìa), làm một lần** vì chúng là cross-cutting concern: nhất quán, không lặp trong từng service, chặn request xấu sớm. Không nhét nghiệp vụ vào gateway."
+      - "**Fat gateway** là nguy hiểm: nghẽn (bottleneck) / điểm chết (SPOF) / nút cổ chai triển khai. Scale bằng **stateless + nhiều bản sau load balancer + giữ logic mỏng**."
+      - "**Load balancer chia tải; API gateway thêm policy tầng ứng dụng.** Thực tế: LB đứng trước rải request vào nhiều bản gateway stateless."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S091], l2: [S092], l3: [S093]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

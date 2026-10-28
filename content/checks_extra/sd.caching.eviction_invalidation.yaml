@@ -1,0 +1,83 @@
+subtopic_id: sd.caching.eviction_invalidation
+items:
+  - id: S076
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Kể tên các chính sách **eviction** đã học (LRU, LFU, FIFO, random, TTL) và nói một câu mỗi cái
+      về nguyên tắc "bỏ mục nào". Ngoài ra, **eviction** khác **invalidation** ở điểm gì?
+    answer_md: |
+      Các chính sách eviction:
+      - **LRU (Least Recently Used):** bỏ mục **lâu nhất không được dùng**.
+      - **LFU (Least Frequently Used):** bỏ mục **ít được dùng nhất** (theo tần suất).
+      - **FIFO:** bỏ mục **vào sớm nhất**, bất kể có dùng hay không.
+      - **Random:** bỏ một mục **ngẫu nhiên**.
+      - **TTL (Time To Live):** mỗi mục có **hạn sống**, hết hạn thì bị bỏ (giới hạn độ cũ tối đa).
+
+      Khác nhau: **eviction** là bỏ bớt khi cache **đầy** để lấy chỗ (chuyện dung lượng, mục bị bỏ
+      vẫn có thể còn đúng); **invalidation** là bỏ/cập nhật bản **cũ** khi dữ liệu gốc trong DB đã
+      đổi (chuyện tính đúng).
+    rubric_md: "Nêu đúng ≥4/5 chính sách kèm nguyên tắc bỏ mục, và phân biệt được eviction (đầy → bỏ bớt) với invalidation (DB đổi → bỏ bản cũ): bằng chứng điểm 1. Chỉ liệt kê tên mà không phân biệt được eviction/invalidation, hoặc sai nguyên tắc của ≥2 chính sách: tối đa điểm 0."
+  - id: S077
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Một API đọc hồ sơ người dùng đặt trước DB một cache (Redis) và muốn giữ cache **không trả bản
+      cũ** sau khi hồ sơ được cập nhật. Hãy: (1) chọn một chiến lược invalidation hợp lý cho đường
+      ghi và giải thích đổi lại (trade-off) của nó; (2) nói vì sao chỉ dựa vào **TTL** thôi vẫn có
+      thể trả dữ liệu cũ; (3) nêu một chính sách **eviction** phù hợp cho cache đọc này và vì sao.
+    answer_md: |
+      (1) Dùng **xóa/cập nhật tường minh khi ghi (explicit delete on write):** mỗi lần cập nhật hồ sơ
+      trong DB thì **xóa khóa** của người đó trong cache, để lần đọc sau nạp lại bản mới. Đổi lại:
+      tươi gần như tức thời nhưng phức tạp hơn (phải nhớ mọi đường ghi) và có nguy cơ **race** giữa
+      đọc và ghi. (Có thể thay bằng **khóa có phiên bản** như `v2:user:5` để bản cũ tự bị bỏ qua.)
+      (2) Chỉ dùng **TTL** thì giữa lúc DB đổi và lúc khóa hết hạn, cache vẫn trả **bản cũ** — TTL chỉ
+      giới hạn *độ cũ tối đa*, không bỏ bản cũ ngay khi ghi.
+      (3) **LRU** hợp cho cache đọc này vì truy cập hồ sơ thường có **tính cục bộ theo thời gian**
+      (người vừa được xem dễ được xem lại), nên giữ mục mới-dùng cho hit rate cao; thường kèm **TTL
+      ngắn** làm lưới an toàn về độ cũ.
+    rubric_md: "Đạt khi nêu đúng cả 3 ý: một chiến lược invalidation khi-ghi kèm trade-off (xóa-khi-ghi hoặc versioned key), chỉ ra TTL một mình vẫn để lọt bản cũ trong cửa sổ trước khi hết hạn, và chọn LRU (viện dẫn temporal locality) cho cache đọc. Đúng, trong time-box, tự giải thích được: bằng chứng điểm 2. Thiếu phần trade-off, hoặc không giải thích được vì sao TTL vẫn trả bản cũ: tối đa điểm 1."
+  - id: S078
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      Đạt **mức phỏng vấn** cho chủ đề này: (A) mô tả cách cài **LRU** đạt O(1) cho cả `get` và `put`
+      bằng **hash map + danh sách liên kết đôi** — nói rõ mỗi cấu trúc lo việc gì và vì sao thiếu một
+      cái thì mất O(1); (B) vẽ **timeline** của race giữa **ghi DB** và **xóa cache** khiến cache giữ
+      bản cũ, chỉ rõ gốc rễ; (C) nêu ít nhất hai cách **giảm** race đó và đổi lại của chúng. (Mô tả
+      bằng lời, không cần viết code.)
+    answer_md: |
+      **(A) LRU O(1).** Dùng hai cấu trúc phối hợp:
+      - **Hash map** (khóa → nút): tra cứu khóa → nút trong **O(1)**, khỏi quét.
+      - **Danh sách liên kết đôi (doubly linked list)** xếp nút theo thứ tự mới-dùng: một đầu là
+        "mới dùng nhất", đầu kia là "lâu nhất không dùng". Liên kết đôi cho phép **gỡ một nút ở giữa
+        và móc lại vào đầu trong O(1)** (vì mỗi nút biết nút trước và nút sau).
+      - `get`: tra hash map lấy nút → gỡ và móc lên đầu "mới dùng nhất" → trả giá trị.
+      - `put`: có rồi thì cập nhật + đưa lên đầu; mới thì tạo nút, lên đầu, thêm vào hash map; nếu
+        **đầy** thì bỏ nút ở đuôi "lâu nhất không dùng", xóa khỏi **cả** danh sách lẫn hash map.
+      - Thiếu hash map ⇒ phải quét danh sách để tìm khóa (O(n)); thiếu danh sách liên kết đôi ⇒ không
+        gỡ/đổi thứ tự recency trong O(1). Cần **cả hai** mới O(1).
+
+      **(B) Timeline race (A đọc, B ghi; DB ban đầu = V0):**
+      ```
+      T1  A: đọc cache → MISS
+      T2  A: đọc DB → V0 (cũ)      (A khựng/chậm ngay sau đây)
+      T3  B: ghi DB → V1 (mới)
+      T4  B: xóa khóa cache        (khóa đang rỗng → xóa vô dụng)
+      T5  A: ghi V0 vào cache      ← nạp lại BẢN CŨ
+      ```
+      Kết quả: cache giữ V0 trong khi DB là V1, kéo dài tới khi khóa hết TTL. **Gốc rễ:** A đọc V0
+      *trước* khi B ghi, nhưng *ghi cache sau* thao tác xóa của B, nên xóa của B rơi vào khoảng trống.
+
+      **(C) Giảm race (≥2 cách, kèm trade-off):**
+      - **Xóa cache sau khi commit DB (delete-after-commit):** thu hẹp cửa sổ; nếu xóa *trước* khi DB
+        mới thì gần như chắc nạp lại bản cũ.
+      - **Delayed double delete:** xóa ngay, rồi hẹn xóa lần nữa sau vài trăm ms để dọn bản cũ do đọc
+        chậm nạp vào; đổi lại thêm độ phức tạp và một lần xóa trễ.
+      - **TTL ngắn:** không chặn race nhưng giới hạn thời gian sai; rẻ, nên thường đặt kèm.
+      - **Write-through / cập nhật thay vì xóa:** ghi qua cache để cache luôn phản ánh lần ghi mới
+        nhất; đổi lại đường ghi đắt/phức tạp hơn.
+    rubric_md: "Đạt (mức phỏng vấn) khi đủ cả ba: (A) mô tả đúng vai trò hash map (tra cứu O(1)) và danh sách liên kết đôi (đổi thứ tự recency O(1)) và vì sao cần cả hai; (B) timeline đúng thứ tự cho thấy đọc chậm nạp lại bản cũ sau thao tác xóa, chỉ đúng gốc rễ; (C) ≥2 cách giảm hợp lý kèm trade-off (xóa-sau-commit, delayed double delete, TTL ngắn, write-through). Đúng, trong time-box, tự giải thích rõ ràng: bằng chứng điểm 3. Thiếu một trong ba phần, hoặc không giải thích được gốc rễ race: chưa đạt mức 3."

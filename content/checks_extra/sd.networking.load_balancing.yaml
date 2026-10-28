@@ -1,0 +1,63 @@
+subtopic_id: sd.networking.load_balancing
+items:
+  - id: S088
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Nói ngắn gọn: cân bằng tải **L4** (tầng giao vận, transport) và **L7** (tầng ứng dụng,
+      application) khác nhau ở chỗ nào, và vì sao chỉ L7 mới định tuyến theo đường dẫn (path) hay kết
+      thúc TLS được?
+    answer_md: |
+      **L4** chia theo **kết nối mạng** (TCP/UDP) mà **không đọc nội dung** gói tin — chỉ nhìn
+      IP/port — nên rất nhanh nhưng "mù": không biết URL hay header. **L7** **đọc được HTTP** (URL,
+      header, cookie) nên định tuyến theo path (`/api` về nhóm này, `/images` về nhóm kia), chia theo
+      header, và **kết thúc TLS (TLS termination)** tại LB. Chỉ L7 làm được những việc đó vì chúng đòi
+      đọc nội dung tầng ứng dụng; đổi lại L7 phải parse/giải mã nên tốn hơn L4.
+    rubric_md: "Đạt khi nêu đúng: L4 = chia theo kết nối TCP/UDP, không đọc nội dung, nhanh; L7 = đọc HTTP nên routing theo path/header và TLS termination. Đúng ý: bằng chứng điểm 1; thiếu một vế (hoặc không chỉ ra L7 đọc nội dung): tối đa điểm 0."
+  - id: S089
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Một dịch vụ chat giữ **hàng triệu kết nối WebSocket sống lâu** (mỗi kết nối tồn tại hàng giờ),
+      đứng sau một load balancer. Hãy trả lời: (1) nên chọn **thuật toán** chia tải nào và vì sao
+      round robin dễ gây lệch; (2) có nên dùng **sticky session** không, và cách sạch hơn là gì; (3)
+      LB dùng **health check** gì để không gửi kết nối mới vào server đã chết?
+    answer_md: |
+      (1) Nên dùng **least connections** (ít kết nối nhất): với kết nối sống lâu, tải thật là **số kết
+      nối đang mở**, nên gửi tới máy đang giữ ít kết nối nhất mới cân bằng. **Round robin** chỉ đếm
+      "lượt phát" mà không biết các kết nối cũ vẫn còn sống, nên theo thời gian một số máy phình kết
+      nối → lệch tải.
+      (2) **Không nên** phụ thuộc sticky session: nó làm tải lệch và **mất phiên khi máy chết**. Cách
+      sạch hơn là giữ service **stateless** — đẩy trạng thái phiên ra **kho chung** (DB/Redis) — để
+      LB rải tự do.
+      (3) Dùng **health check** (active: LB tự gọi `/health` định kỳ; passive: quan sát lỗi/timeout
+      của traffic thật) để **loại server chết** khỏi danh sách và thêm lại khi nó khỏe.
+    rubric_md: "Đạt khi nêu đúng cả 3 ý: chọn least connections (và lý do round robin lệch với kết nối sống lâu), tránh sticky session + đẩy phiên ra kho chung (stateless), và health check để loại server chết. Đúng, trong time-box, tự giải thích được: bằng chứng điểm 2. Thiếu lý do 'số kết nối đang mở' hoặc không nhắc stateless/kho chung: tối đa điểm 1."
+  - id: S090
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      Bạn thiết kế lớp cân bằng tải cho một web service lớn. Hãy trình bày ở mức phỏng vấn: (1) **so
+      sánh L4 và L7** và nêu khi nào chọn cái nào; (2) **chọn thuật toán** cho hai trường hợp — API
+      HTTP thường (request ngắn) so với kết nối **giữ lâu** (WebSocket) — và giải thích; (3) làm sao để
+      **chính load balancer không trở thành điểm chết duy nhất (SPOF)**.
+    answer_md: |
+      (1) **L4 vs L7:** L4 chia theo kết nối TCP/UDP, không đọc nội dung — nhanh, nhẹ, chịu lượng kết
+      nối lớn, nhưng không định tuyến theo path/header và không kết thúc TLS. L7 đọc HTTP nên định
+      tuyến theo URL/header, chia theo cookie và **kết thúc TLS (TLS termination)**, đổi lại tốn CPU
+      hơn. Cần routing nội dung hay TLS termination → **L7**; chỉ rải TCP/UDP thô thật nhanh → **L4**.
+      (2) **Thuật toán:** API HTTP thường (request ngắn, server đồng đều) dùng **round robin** (hoặc
+      **weighted** nếu phần cứng không đều) — đơn giản, đủ công bằng. Kết nối **giữ lâu** (WebSocket)
+      dùng **least connections**, vì tải thật là số kết nối đang mở; round robin không biết kết nối cũ
+      còn sống nên dồn lệch theo thời gian. (Hash IP/consistent hash chỉ khi cần affinity, và nên tránh
+      sticky session — giữ service stateless, đẩy phiên ra DB/Redis.)
+      (3) **Chống SPOF cho LB:** không để một LB đứng một mình. **Active–passive:** hai LB chia một
+      **IP nổi (floating IP/VIP)** qua **VRRP**, LB chính chết thì LB dự phòng **giành IP (failover)**,
+      client không đổi địa chỉ. **Active–active:** nhiều LB cùng nhận việc qua **anycast/ECMP** hoặc
+      **DNS** (nhiều IP, bỏ IP chết khỏi danh sách) — vừa chịu lỗi vừa tăng thông lượng. Đa vùng thì
+      thêm **GSLB** (DNS/anycast đưa khách tới vùng gần còn khỏe). Kèm **health check** để loại nhanh
+      node chết ở mọi tầng.
+    rubric_md: "Đạt (mức phỏng vấn) khi làm trọn 3 việc của mastery bar: so sánh L4 vs L7 kèm khi dùng cái nào; chọn đúng thuật toán cho API thường (round robin/weighted) vs kết nối giữ lâu (least connections) và giải thích; và nêu cách LB không thành SPOF (ít nhất một cơ chế dự phòng cụ thể — active–passive/floating IP/VRRP hoặc active–active/anycast/DNS). Đúng, trong time-box, tự giải thích rõ: bằng chứng điểm 3. Sót một trong ba việc, hoặc nói 'chạy 2 LB' mà không nêu cơ chế failover/chia tải: chưa đạt mức 3."

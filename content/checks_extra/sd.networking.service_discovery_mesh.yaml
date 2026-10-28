@@ -1,0 +1,63 @@
+subtopic_id: sd.networking.service_discovery_mesh
+items:
+  - id: S094
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Nói ngắn gọn: **service discovery** giải quyết vấn đề gì, và **service registry** đóng vai trò
+      gì trong đó?
+    answer_md: |
+      Trong hạ tầng động (autoscaling, container), địa chỉ (IP:port) của các instance **đổi liên
+      tục** nên không thể ghi cứng địa chỉ service khác vào code. **Service discovery** là cách để
+      một service tìm ra "ngay bây giờ service kia đang ở những địa chỉ nào" một cách tự động — như
+      một **danh bạ (directory) luôn tự cập nhật**. **Service registry** chính là danh bạ đó:
+      instance tự **đăng ký** khi chạy, gửi **heartbeat** để chứng tỏ còn sống, và bị **xóa** khi quá
+      hạn TTL, nên registry luôn chỉ chứa các instance khỏe (ví dụ Consul/etcd, hoặc Kubernetes
+      Service/DNS).
+    rubric_md: "Nêu đúng cả hai: (1) discovery giải vấn đề địa chỉ đổi liên tục trong fleet động nên không hardcode được; (2) registry là danh bạ tự cập nhật qua register + heartbeat/TTL. Đúng ý: bằng chứng điểm 1; thiếu một vế: tối đa điểm 0."
+  - id: S095
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Một đội đang chọn giữa **client-side discovery** và **server-side discovery** cho hệ
+      microservices của họ. Hãy giải thích: (1) mỗi kiểu ai là người chọn instance đích và luồng
+      request khác nhau thế nào; (2) tradeoff chính của mỗi kiểu (độ trễ/số hop và gánh nặng ở
+      client); (3) nếu đội dùng **nhiều ngôn ngữ (polyglot)** thì kiểu nào hợp hơn và vì sao.
+    answer_md: |
+      (1) **Client-side:** client **tự hỏi registry** lấy danh sách instance khỏe rồi **tự
+      load-balance** (tự chọn một địa chỉ để gọi); gọi thẳng tới instance, không qua trung gian.
+      **Server-side:** client chỉ gọi **một địa chỉ cố định** (LB/gateway hoặc tên DNS); thành phần
+      đó tra registry và chuyển request tới instance khỏe (kiểu của Kubernetes Service).
+      (2) Client-side **bớt một hop** (độ trễ thấp hơn) và cho client tự chọn chiến lược, nhưng
+      **logic discovery/LB nằm trong client** (phải có thư viện cho mỗi ngôn ngữ). Server-side giữ
+      **client đơn giản** nhưng **thêm một hop** qua LB, và LB thành thứ phải scale/đảm bảo sẵn sàng.
+      (3) Đội **polyglot** hợp với **server-side** hơn: không phải viết lại thư viện discovery/LB cho
+      từng ngôn ngữ, mọi client chỉ cần gọi một địa chỉ cố định.
+    rubric_md: "Đạt khi nêu đúng cả 3 ý: client tự hỏi+tự LB (bớt hop, logic ở client) vs gọi LB cố định (client gọn, thêm hop); và polyglot hợp server-side vì tránh viết lại thư viện cho mỗi ngôn ngữ. Đúng, trong time-box, tự giải thích được: bằng chứng điểm 2. Thiếu phần tradeoff hop/gánh nặng client, hoặc không gắn được polyglot với server-side: tối đa điểm 1."
+  - id: S096
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      Ở mức phỏng vấn: (1) **so sánh client-side và server-side discovery** (ai chọn instance, số hop,
+      gánh nặng ở client); (2) **vẽ/mô tả sidecar nằm ở đâu** trong một service mesh và một request từ
+      service A tới B đi qua những khối nào; (3) nói rõ **khi nào một service mesh đáng chi phí** và
+      **nó thêm độ trễ ở đâu**.
+    answer_md: |
+      (1) **Client-side:** client tự hỏi registry rồi tự load-balance, gọi thẳng instance — bớt một
+      hop, nhưng logic discovery/LB nằm trong client (khó với đội đa ngôn ngữ). **Server-side:**
+      client gọi một LB/gateway cố định, nó tra registry và chuyển tiếp — client đơn giản (hợp
+      polyglot) nhưng thêm một hop và LB phải tự scale (Kubernetes Service theo kiểu này).
+      (2) Mesh đặt **cạnh mỗi service một sidecar proxy** (ví dụ Envoy). Request đi:
+      `[A] → [sidecar A] ══ mạng ══ [sidecar B] → [B]` — A gọi sidecar của chính mình, sidecar A gửi
+      tới sidecar B (mã hóa mTLS, áp retry/timeout/luật), sidecar B chuyển cho B. Các sidecar là
+      **data plane**; **control plane** đẩy cấu hình xuống chúng. Code của A, B không phải đổi.
+      (3) Mesh **đáng chi phí** khi có **nhiều service + đa ngôn ngữ**: nó chuẩn hóa mTLS, retry,
+      timeout, traffic-splitting, observability cho mọi service và kéo chúng ra khỏi code ứng dụng,
+      đổi luật chỉ cần sửa control plane. Với **ít service, một ngôn ngữ** thì thường **quá mức** —
+      một thư viện chung là đủ. Mesh **thêm độ trễ** vì mỗi lời gọi đi qua **hai chặng proxy** (ra
+      sidecar người gọi, vào sidecar người nhận), cộng dồn trên chuỗi gọi dài, cộng chi phí
+      RAM/CPU một sidecar mỗi instance và vận hành control plane.
+    rubric_md: "Đạt (mức phỏng vấn) khi làm đủ 3 việc theo mastery bar: (1) so sánh client-side vs server-side (ai chọn instance, số hop, gánh nặng client); (2) đặt đúng sidecar cạnh mỗi service và mô tả đường đi A→sidecar A→sidecar B→B; (3) nêu mesh đáng khi nhiều service/polyglot (và overkill khi nhỏ) VÀ chỉ ra độ trễ đến từ hai chặng proxy mỗi lời gọi. Đúng, trong time-box, tự giải thích rõ: bằng chứng điểm 3. Sót việc vẽ sidecar, hoặc không nói được chỗ mesh thêm độ trễ, hoặc không nêu điều kiện mesh đáng giá: chưa đạt mức 3."
