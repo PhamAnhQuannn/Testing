@@ -1,0 +1,59 @@
+subtopic_id: sd.api.api_styles
+items:
+  - id: S100
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Kể **điểm mạnh chính** của mỗi kiểu API: **REST**, **gRPC**, **GraphQL** (mỗi kiểu một ý ngắn).
+    answer_md: |
+      - **REST**: tài nguyên trên HTTP, **cache được** (cacheable) và phổ biến khắp nơi (ubiquitous), dễ debug.
+      - **gRPC**: protobuf nhị phân trên **HTTP/2** — nhanh, gọn, có **streaming** và hợp đồng chặt;
+        hợp service nội bộ.
+      - **GraphQL**: client **tự chọn trường** qua một endpoint, **trị lấy thừa/lấy thiếu**
+        (over/under-fetch).
+    rubric_md: "Đúng khi nêu đúng điểm mạnh đặc trưng của cả ba: REST = cache được/phổ biến, gRPC = nhanh/nhị phân HTTP2/streaming, GraphQL = client chọn trường/trị over-under-fetch. Đủ cả ba: bằng chứng điểm 1; sai hoặc thiếu một kiểu: tối đa điểm 0."
+  - id: S101
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Một app mobile hiển thị màn hình hồ sơ ghép nhiều dữ liệu (user + đơn hàng + địa chỉ). Với API
+      REST hiện tại, client phải gọi 4-5 endpoint và vẫn nhận nhiều trường thừa. (1) Tên vấn đề này
+      là gì? (2) GraphQL giải quyết nó ra sao? (3) Đổi sang GraphQL kéo theo **chi phí** gì — nêu ít
+      nhất hai?
+    answer_md: |
+      (1) Đây là **lấy thừa / lấy thiếu** (over-fetching / under-fetching): endpoint REST trả hình
+      dạng cố định nên hoặc thừa trường, hoặc phải gọi nhiều endpoint để ghép đủ một màn hình.
+      (2) **GraphQL** cho client tự ghi cần trường nào qua **một endpoint**, lấy đúng dữ liệu một màn
+      hình trong một request.
+      (3) Chi phí: **vấn đề N+1** (một truy vấn danh sách kéo N truy vấn con, phải gộp bằng
+      **DataLoader**); **khó cache** (đi qua một endpoint bằng `POST`, mất cache HTTP theo URL mà
+      REST tận dụng); và **độ phức tạp server** (schema + resolvers, phải chặn truy vấn quá nặng).
+    rubric_md: "Đạt khi nêu đúng cả 3 ý: (1) gọi tên over/under-fetching, (2) GraphQL cho client chọn trường qua một endpoint, (3) ít nhất hai chi phí trong {N+1/DataLoader, khó cache, phức tạp server}. Đúng và tự giải thích trong time-box: bằng chứng điểm 2. Thiếu phần chi phí hoặc chỉ nêu được một chi phí: tối đa điểm 1."
+  - id: S102
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      Công ty có một **API công khai** cho đối tác bên thứ ba, và một cụm **service nội bộ** gọi nhau
+      với tải rất cao, độ trễ thấp. Hãy **chọn và bảo vệ** kiểu API cho từng ranh giới, **nêu cái giá**
+      của mỗi lựa chọn, và liệt kê **3 quy tắc tương thích schema** khi về sau phải nâng cấp API.
+    answer_md: |
+      **Public (đối tác bên thứ ba):** chọn **REST** làm mặc định — cache được, phổ biến, ai cũng
+      dùng/debug được; nếu đối tác cần hình dạng dữ liệu linh hoạt (nhiều màn hình, mobile) thì cân
+      nhắc **GraphQL**. *Giá*: REST dính **lấy thừa/lấy thiếu**; GraphQL **khó cache theo URL** + **N+1**
+      (cần DataLoader) + độ phức tạp server. Không chọn gRPC ở đây vì **hỗ trợ trình duyệt kém** và
+      khó cho bên thứ ba dùng.
+
+      **Internal low-latency:** chọn **gRPC** — protobuf nhị phân trên **HTTP/2** cho độ trễ thấp,
+      thông lượng cao, có **streaming** và hợp đồng `.proto` chặt. *Giá*: payload nhị phân **khó debug
+      bằng mắt** và không gọi trực tiếp từ trình duyệt — nhưng giữa hai service nội bộ thì không sao.
+
+      **3 quy tắc tương thích schema (backward compatibility):**
+      1. **Chỉ thêm trường tùy chọn** (add only optional fields) — client cũ bỏ qua an toàn.
+      2. **Không xóa / đổi tên / đổi kiểu trường đang có** (và với protobuf, **không dùng lại số hiệu
+         trường**).
+      3. **Khi buộc phá vỡ (breaking change) thì ra phiên bản mới** (versioning, ví dụ `/v2`), cho
+         hai bản sống song song tới khi client cũ rút hết.
+    rubric_md: "Đạt mức 3 (mức phỏng vấn) khi: (a) chọn đúng public → REST/GraphQL và internal → gRPC kèm lý do; (b) nêu cái giá của từng lựa chọn (REST over/under-fetch; GraphQL khó cache + N+1; gRPC khó debug/trình duyệt kém); (c) liệt kê đủ và đúng 3 quy tắc tương thích: chỉ thêm optional, không xóa/đổi tên/đổi kiểu (không dùng lại số hiệu protobuf), phá vỡ thì ra phiên bản mới. Đúng, trong time-box, bảo vệ được lựa chọn: bằng chứng điểm 3. Thiếu phần cái giá hoặc sót một quy tắc schema: chưa đạt mức 3."

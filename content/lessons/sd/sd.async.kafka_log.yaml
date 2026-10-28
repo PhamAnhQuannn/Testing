@@ -1,0 +1,157 @@
+id: sd.async.kafka_log
+version: 1
+status: published
+title_vi: "Distributed log (Kafka): log chỉ ghi thêm, partition, thứ tự và consumer lag"
+est_minutes: 13
+objectives_vi:
+  - "Giải thích Kafka là một **commit log** phân tán (append-only, partitioned, replicated) và vì sao nó đọc lại được (replayable) khác với queue cổ điển."
+  - "Giải thích Kafka giữ **thứ tự theo partition** và cách dùng **partition key** để các tin liên quan cùng một partition."
+  - "Chọn **số partition** hợp lý và dùng **consumer lag** làm chỉ số sức khỏe để biết khi nào cần thêm consumer."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Bài này nối tiếp hai thứ bạn đã học: **hàng đợi / pub-sub** (queues & pub/sub ở
+      sd.async.queues_pubsub) và **nhân bản dữ liệu** (replication ở sd.data.replication). Kafka ghép
+      cả hai ý đó lại thành một **commit log phân tán** (distributed commit log): một danh sách sự kiện
+      chỉ **ghi thêm vào cuối** (append-only), không sửa, không chen giữa. Mỗi service **ghi** sự kiện
+      vào log gọi là **producer**; mỗi service **đọc** sự kiện ra gọi là **consumer**.
+
+      Hai tính chất khiến nó là một hệ thống hạ tầng chứ không chỉ là một file:
+      - **Partitioned** (chia nhỏ): mỗi log được chẻ thành nhiều **partition** để chạy song song.
+      - **Replicated** (nhân bản): mỗi partition có nhiều bản sao trên các máy khác nhau, nên một máy
+        chết vẫn không mất tin đã ghi.
+  - id: b02
+    type: text
+    md: |
+      Khác biệt lớn nhất so với một **queue cổ điển** (classic queue như SQS/RabbitMQ): queue **xóa**
+      tin sau khi một consumer nhận và xác nhận (ack) xong — đọc là mất. Kafka thì **giữ lại** tin
+      theo một khoảng **retention** (ví dụ 7 ngày), và mỗi consumer tự nhớ mình đã đọc tới đâu bằng một
+      con số gọi là **offset**. Vì tin vẫn nằm đó, nên:
+      - Nhiều nhóm đọc **độc lập** cùng một log (một nhóm cho tính tiền, một nhóm cho phân tích) mà
+        không giành nhau.
+      - Có thể **đọc lại từ đầu** (replay): tua offset về quá khứ để xử lý lại khi sửa lỗi code hoặc
+        thêm một consumer mới.
+
+      Đây là lý do người ta nói Kafka là một **log có thể phát lại** (replayable log), còn queue là
+      "làm xong thì vứt". Quy tắc chọn: cần phát lại / nhiều người đọc / luồng dữ liệu lớn thì dùng
+      log; chỉ cần một hàng việc nền, ack và xóa từng tin thì queue thường đủ và nhẹ hơn.
+  - id: b03
+    type: text
+    md: |
+      **Partition và thứ tự.** Một **topic** (ví dụ "orders") được chia thành nhiều partition, mỗi
+      partition là một log riêng. Thêm partition = thêm chỗ ghi/đọc song song, nên đó là cách Kafka
+      chịu tải lớn. Nhưng có một đánh đổi cốt lõi phải thuộc:
+
+      **Kafka chỉ đảm bảo thứ tự trong phạm vi một partition, không phải trên toàn topic.**
+
+      Nếu bạn rải tin của cùng một thực thể ra nhiều partition thì consumer có thể đọc chúng sai thứ
+      tự. Cách giữ thứ tự cho những tin cần đúng trình tự là **partition key** (khóa partition): Kafka
+      băm khóa để chọn partition (đại ý `hash(key) % số_partition`), nên **mọi tin có cùng key luôn
+      rơi vào cùng một partition** và do đó giữ nguyên thứ tự. Ví dụ dùng `user_id` làm key: mọi sự
+      kiện của một người dùng đi vào cùng một partition và được xử lý đúng trình tự; còn thứ tự **giữa**
+      hai người dùng khác nhau thì không quan trọng nên không cần bảo đảm.
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một topic `payments` có 4 partition. Yêu cầu: mọi sự kiện của cùng một tài khoản phải được xử lý **đúng thứ tự**. Nên làm gì?"
+    options:
+      - {id: a, text_md: "Dùng `account_id` làm **partition key** để mọi sự kiện của một tài khoản vào cùng một partition."}
+      - {id: b, text_md: "Để producer gửi ngẫu nhiên (round-robin) ra cả 4 partition cho tải đều, vì Kafka tự sắp xếp lại thứ tự trên toàn topic."}
+      - {id: c, text_md: "Giảm topic xuống 1 partition là cách **duy nhất** có thể giữ đúng thứ tự cho từng tài khoản."}
+    answer: [a]
+    explain_md: "Thứ tự chỉ được đảm bảo trong một partition, nên muốn đúng trình tự cho từng tài khoản thì cho mọi tin của tài khoản đó vào cùng một partition bằng partition key. (b) sai: Kafka không sắp xếp lại giữa các partition. (c) sai: 1 partition giữ được thứ tự nhưng giết mất song song — không cần, vì partition key đã giữ thứ tự *per-key* mà vẫn dùng được cả 4 partition."
+  - id: b05
+    type: text
+    md: |
+      **Consumer group và giới hạn song song.** Nhiều consumer hợp thành một **consumer group** để
+      chia nhau tải: trong một group, **mỗi partition được gán cho đúng một consumer** (một consumer có
+      thể ôm nhiều partition, nhưng một partition không bị hai consumer trong cùng group đọc một lúc).
+      Quy tắc này dẫn thẳng tới một trần song song:
+
+      **Số consumer làm việc hữu ích tối đa trong một group = số partition.**
+
+      Nếu topic có 4 partition mà bạn bật 6 consumer trong một group, thì 4 consumer mỗi người ôm một
+      partition, **2 consumer còn lại ngồi không** (chỉ dự phòng khi có máy chết và group chia lại —
+      rebalancing). Muốn nhiều consumer chạy hơn nữa thì phải có nhiều partition hơn. Đây chính là mắt
+      xích nối số partition với khả năng mở rộng phía đọc.
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một topic có **3 partition**. Bạn chạy một consumer group với **5 consumer**. Điều gì xảy ra?"
+    options:
+      - {id: a, text_md: "Cả 5 consumer cùng chia đều tải, mỗi người đọc khoảng 3/5 của mỗi partition."}
+      - {id: b, text_md: "3 consumer mỗi người nhận một partition; 2 consumer còn lại không có partition nào nên ngồi không (chỉ làm dự phòng khi rebalancing)."}
+      - {id: c, text_md: "Kafka báo lỗi và từ chối khởi động group vì số consumer nhiều hơn số partition."}
+    answer: [b]
+    explain_md: "Mỗi partition chỉ gán cho một consumer trong group, nên tối đa 3 consumer làm việc; 2 consumer dư chỉ chờ dự phòng. Muốn 5 consumer cùng chạy thì cần ít nhất 5 partition. (a) sai vì một partition không bị chia nhỏ cho nhiều consumer; (c) sai vì có dư consumer là hợp lệ, không phải lỗi."
+  - id: b07
+    type: text
+    md: |
+      **Chọn số partition.** Số partition quyết định cả thông lượng lẫn trần song song, nên chọn thế
+      nào?
+      - **Quá ít** partition: trần song song thấp (ít consumer chạy được), dễ nghẽn khi tải tăng.
+      - **Quá nhiều** partition: mỗi partition tốn tài nguyên (file, bộ nhớ, kết nối, thời gian bầu
+        lại leader khi có sự cố); hàng chục nghìn partition làm cluster chậm và lâu phục hồi.
+
+      Cách ước lượng thực dụng: lấy **thông lượng mục tiêu** chia cho **thông lượng một partition (hoặc
+      một consumer) kham được**, rồi cộng thêm biên cho tăng trưởng. Ví dụ cần 3.000 sự kiện/giây mà
+      mỗi consumer xử lý 500/giây thì cần tối thiểu 6 consumer, tức **tối thiểu 6 partition**. Một điều
+      **rất quan trọng**: **tăng** số partition về sau thì dễ, nhưng **giảm** thì gần như không làm
+      được một cách an toàn (và tăng partition sẽ **đổi kết quả băm key** nên có thể phá thứ tự đang
+      có). Vì vậy hãy chọn dư một chút ngay từ đầu thay vì phải sửa sau.
+  - id: b08
+    type: text
+    md: |
+      **Consumer lag — chỉ số sức khỏe số một.** **Consumer lag** = (offset mới nhất ở cuối log) −
+      (offset mà consumer đã đọc tới). Nói cách khác: consumer đang **tụt lại sau** đuôi log bao nhiêu
+      tin.
+      - Lag **ổn định quanh 0** (hoặc một mức nhỏ cố định): consumer theo kịp tốc độ ghi — khỏe mạnh.
+      - Lag **tăng dần theo thời gian**: consumer đọc chậm hơn producer ghi; dữ liệu ngày càng cũ, và
+        nếu để lâu vượt quá retention thì tin chưa đọc có thể bị xóa — mất dữ liệu.
+
+      Cách **giảm lag**:
+      1. **Thêm consumer** vào group — nhưng chỉ hữu ích **tới bằng số partition** (nhớ trần song song
+         ở trên). Hết trần mà vẫn lag thì phải tăng số partition.
+      2. **Xử lý mỗi tin nhanh hơn**: gom lô (batching), bỏ các lệnh gọi chậm trong vòng xử lý, hoặc
+         đẩy việc nặng sang nơi khác để consumer theo kịp.
+  - id: b09
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Consumer lag của một group **tăng đều** suốt một giờ qua. Group đang có **4 consumer** trên một topic **4 partition**, và mỗi consumer đã chạy gần hết CPU. Bước hợp lý nhất để giảm lag là gì?"
+    options:
+      - {id: a, text_md: "Thêm consumer thứ 5 và thứ 6 vào group; chúng sẽ lập tức chia bớt tải."}
+      - {id: b, text_md: "Tăng số partition (và/hoặc làm cho mỗi tin xử lý nhanh hơn), vì số consumer đã bằng số partition nên thêm consumer nữa sẽ ngồi không."}
+      - {id: c, text_md: "Giảm retention để log ngắn lại; lag sẽ tự về 0."}
+    answer: [b]
+    explain_md: "Đã có 4 consumer trên 4 partition tức chạm trần song song — thêm consumer thứ 5, 6 chỉ ngồi không, không giúp gì. Phải tăng số partition để cho phép nhiều consumer hơn, hoặc tăng tốc xử lý mỗi tin. (a) sai vì vượt trần partition; (c) sai: giảm retention chỉ xóa tin cũ (nguy cơ mất dữ liệu chưa đọc), không làm consumer đọc nhanh hơn nên lag vẫn tăng."
+  - id: b10
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn.** Ba câu hỏi Kafka hay gặp nhất gắn đúng với mức 3 của bài này, trả lời theo
+      khung:
+      - *"Đảm bảo thứ tự thế nào?"* → thứ tự chỉ trong một partition; chọn **partition key** (ví dụ
+        `user_id`) để tin cùng thực thể vào cùng partition; nói rõ thứ tự giữa các key khác nhau không
+        cần đảm bảo.
+      - *"Chọn bao nhiêu partition?"* → ước lượng từ thông lượng mục tiêu chia cho sức một consumer,
+        cộng biên; nhắc rằng **tăng dễ, giảm khó** và tăng partition có thể phá thứ tự theo key.
+      - *"Consumer theo không kịp thì sao?"* → nhìn **consumer lag**; thêm consumer **tới bằng số
+        partition**, rồi mới tăng partition hoặc tăng tốc xử lý. Nêu được trần "consumer ≤ partition"
+        là điểm cộng lớn.
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "Kafka là **commit log phân tán**: append-only, chia **partition** (song song) và **replicated** (chịu lỗi); giữ tin theo **retention** nên **đọc lại được** (replay) — khác queue cổ điển đọc xong là xóa."
+      - "**Thứ tự chỉ trong một partition.** Dùng **partition key** (ví dụ `user_id`) để mọi tin cùng khóa vào cùng partition và giữ đúng trình tự; thứ tự giữa các key khác nhau không đảm bảo."
+      - "Trong một **consumer group**, mỗi partition gán cho đúng một consumer, nên **số consumer hữu ích tối đa = số partition**."
+      - "Chọn **số partition** theo thông lượng mục tiêu / sức một consumer, cộng biên; **tăng dễ, giảm khó**, và tăng partition có thể phá thứ tự theo key — nên chọn dư từ đầu."
+      - "**Consumer lag** = offset cuối log − offset đã đọc; lag tăng = đọc chậm hơn ghi. Giảm bằng cách thêm consumer (tới bằng số partition) rồi tăng partition hoặc xử lý mỗi tin nhanh hơn."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S112], l2: [S113], l3: [S114]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

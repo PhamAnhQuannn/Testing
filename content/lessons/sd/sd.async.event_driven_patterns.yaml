@@ -1,0 +1,137 @@
+id: sd.async.event_driven_patterns
+version: 1
+status: published
+title_vi: "Event sourcing, CQRS, saga, outbox: bốn mẫu hướng sự kiện"
+est_minutes: 14
+objectives_vi:
+  - "Với mỗi mẫu trong bốn mẫu (event sourcing, CQRS, saga, outbox), nêu đúng vấn đề nó giải và cái giá phải trả."
+  - "Vẽ được luồng của saga cho ví dụ đặt hàng (order) đến thanh toán (payment), gồm bước bù (compensating action)."
+  - "Nói được khi nào KHÔNG nên dùng mỗi mẫu: chúng thêm độ phức tạp, một app CRUD đơn giản không cần."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Bài này nối tiếp **sd.async.delivery_guarantees** (bảo đảm giao tin). Khi một hệ lớn chia thành
+      nhiều service phối hợp qua **sự kiện (event)** — một service báo "đơn đã đặt", các service khác
+      tự phản ứng — có bốn mẫu kinh điển hay bị hỏi trong phỏng vấn: **event sourcing**, **CQRS**,
+      **saga**, **outbox**. Mẹo học: mỗi mẫu = **một vấn đề nó giải + một cái giá phải trả**. Ta dùng
+      chung một ví dụ xuyên suốt: **đặt hàng đến thanh toán (order đến payment)** — tạo đơn, giữ hàng
+      (reserve inventory), trừ tiền (charge payment), rồi giao vận (ship).
+  - id: b02
+    type: text
+    md: |
+      **1) Event sourcing (lưu nhật ký sự kiện làm nguồn sự thật).**
+      - *Vấn đề nó giải:* thay vì chỉ lưu **trạng thái hiện tại** (ví dụ số dư = 120), ta lưu **nhật ký
+        các sự kiện** (log of events) đã xảy ra: +100, -30, +50. Nhật ký bất biến (append-only) này là
+        **nguồn sự thật (source of truth)**; trạng thái hiện tại được **dựng lại bằng cách phát lại
+        (replay)** toàn bộ sự kiện. Lợi ích lớn: có **lịch sử kiểm toán (audit)** đầy đủ và **du hành
+        thời gian (time-travel)** — xem trạng thái tại bất kỳ thời điểm nào.
+      - *Cái giá:* đọc trạng thái phải **replay** lại, nên với chuỗi dài phải lưu **ảnh chụp
+        (snapshot)** định kỳ. Và **tiến hóa định dạng sự kiện (schema evolution)** rất khó: sự kiện cũ
+        đã lưu vĩnh viễn nên chỉ được thêm trường tùy chọn, không đổi nghĩa hay xóa trường cũ. Sửa dữ
+        liệu sai cũng khó vì sự kiện không được xóa (phải ghi thêm sự kiện đảo ngược).
+  - id: b03
+    type: text
+    md: |
+      **2) CQRS (tách mô hình ghi khỏi mô hình đọc — Command Query Responsibility Segregation).**
+      - *Vấn đề nó giải:* một bảng vừa phục vụ ghi vừa phục vụ mọi kiểu đọc thường phải thỏa hiệp. CQRS
+        tách **mô hình ghi (write model)** khỏi một hay nhiều **mô hình đọc (read model / projection)**.
+        Luồng: lệnh (command) đến mô hình ghi đến phát sự kiện đến một tiến trình nghe sự kiện và dựng
+        **bảng đọc làm sẵn cho một màn hình** (ví dụ trang sản phẩm có sẵn tên, giá, số đánh giá). Nhờ
+        đó **đọc được scale và tối ưu độc lập** với ghi.
+      - *Cái giá:* mô hình đọc cập nhật sau mô hình ghi vài giây nên chỉ đạt **nhất quán cuối cùng
+        (eventual consistency)** — người dùng có thể thấy dữ liệu hơi cũ. Và có **nhiều bộ phận hơn
+        phải vận hành và đồng bộ** (thêm đường sự kiện, thêm bảng đọc, thêm tiến trình dựng bảng).
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Trong **event sourcing**, cái gì là **nguồn sự thật (source of truth)** và cái giá đi kèm là gì?"
+    options:
+      - {id: a, text_md: "Trạng thái hiện tại được lưu trực tiếp; cái giá là tốn thêm RAM để giữ nó."}
+      - {id: b, text_md: "**Nhật ký các sự kiện (log of events)** là nguồn sự thật, trạng thái dựng lại bằng **replay**; cái giá là chi phí replay (cần snapshot) và khó tiến hóa schema sự kiện."}
+      - {id: c, text_md: "Bảng đọc làm sẵn là nguồn sự thật; cái giá là nhất quán cuối cùng."}
+    answer: [b]
+    explain_md: "Event sourcing lưu nhật ký sự kiện bất biến làm nguồn sự thật và dựng lại trạng thái bằng replay; giá phải trả là chi phí replay (nên cần snapshot) và schema evolution khó vì sự kiện cũ lưu vĩnh viễn. (a) là mô hình lưu trạng thái thông thường; (c) nhầm sang read model của CQRS."
+  - id: b05
+    type: text
+    md: |
+      **3) Saga (giao dịch phân tán dài bằng chuỗi giao dịch cục bộ + bước bù).**
+      - *Vấn đề nó giải:* một thao tác trải qua nhiều service (giữ hàng, trừ tiền, giao vận) không thể
+        khóa cả ba bằng **2PC (two-phase commit)** — khóa lâu, một bên chết là kẹt. Saga biến nó thành
+        **chuỗi giao dịch cục bộ**, mỗi bước commit riêng; nếu một bước hỏng thì chạy **bước bù
+        (compensating action)** để hoàn tác các bước trước, thay cho việc giữ khóa toàn cục.
+      - *Luồng đặt hàng đến thanh toán:* tạo đơn đến **giữ hàng** đến **trừ tiền** đến **giao vận**.
+        Nếu **trừ tiền lỗi**, chạy ngược các bước bù: **nhả hàng đã giữ** rồi **hủy đơn**. Nếu giao vận
+        lỗi, bước bù là **hoàn tiền** rồi **nhả hàng**.
+      - *Hai kiểu điều phối:* **orchestration** (một điều phối viên ra lệnh từng bước — dễ theo dõi,
+        nhưng có một bộ não trung tâm) và **choreography** (các service tự nghe sự kiện của nhau, không
+        có bộ não chung — ít ghép cứng nhưng khó thấy toàn cảnh khi gỡ lỗi).
+      - *Cái giá:* khó suy luận khi hỏng giữa chừng; mọi bước bù phải **idempotent** và phải lo trạng
+        thái "đang dở" mà người khác có thể đọc thấy.
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Saga đặt hàng: **giữ hàng đến trừ tiền đến giao vận**. Nếu bước **giao vận** lỗi, saga xử lý thế nào?"
+    options:
+      - {id: a, text_md: "Dùng 2PC để khóa cả ba bước lại và rollback nguyên tử một lần."}
+      - {id: b, text_md: "Chạy các **bước bù (compensating actions)** ngược lại: **hoàn tiền** rồi **nhả hàng đã giữ**."}
+      - {id: c, text_md: "Thử lại bước giao vận vô hạn cho đến khi thành công, không đụng vào tiền hay hàng."}
+    answer: [b]
+    explain_md: "Saga không giữ khóa toàn cục như 2PC; mỗi bước đã commit cục bộ, nên khi một bước sau hỏng phải chạy bước bù để hoàn tác các bước trước (hoàn tiền, nhả hàng). (a) chính là thứ saga né tránh; (c) thử lại vô hạn bỏ rơi tiền đã trừ và hàng đã giữ."
+  - id: b07
+    type: text
+    md: |
+      **4) Outbox (publish tin cậy — nhắc lại từ delivery_guarantees).**
+      - *Vấn đề nó giải:* khi một service vừa **ghi vào DB** vừa **gửi sự kiện ra queue**, nếu máy chết
+        giữa hai việc thì DB đã đổi nhưng sự kiện mất (hoặc ngược lại) — hai kho lệch nhau. Outbox ghi
+        sự kiện vào một **bảng outbox nằm trong CÙNG giao dịch DB** với dữ liệu nghiệp vụ, nên hai thứ
+        thành công hoặc thất bại cùng nhau. Sau đó một tiến trình riêng (relay), thường qua **CDC
+        (change data capture, ví dụ Debezium)**, đọc bảng outbox và đẩy sự kiện ra queue.
+      - *Cái giá:* thêm một bảng và một tiến trình đẩy; sự kiện ra queue **trễ một chút** và có thể
+        **giao nhiều lần (at-least-once)**, nên bên nhận vẫn phải **idempotent**.
+  - id: b08
+    type: quiz_fill
+    graded: true
+    prompt_md: "Để publish sự kiện một cách tin cậy, ta ghi một dòng vào bảng ______ **trong cùng một giao dịch DB** với dữ liệu nghiệp vụ, rồi một tiến trình riêng đẩy nó ra queue."
+    blanks:
+      - accept: ["outbox", "Outbox", "transactional outbox"]
+    explain_md: "Đó là mẫu outbox: ghi bảng outbox chung một giao dịch với dữ liệu để chúng nguyên tử với nhau, tránh mất tin khi máy chết giữa 'ghi DB' và 'gửi queue'; một relay/CDC đọc bảng và publish sau."
+  - id: b09
+    type: text
+    md: |
+      **Khi nào KHÔNG nên dùng (rất quan trọng khi phỏng vấn).** Bốn mẫu này đều **thêm độ phức tạp**;
+      một app **CRUD đơn giản (một DB, một service)** thường KHÔNG cần mẫu nào cả.
+      - **Event sourcing:** bỏ qua nếu không cần lịch sử/kiểm toán và chỉ muốn đọc trạng thái nhanh —
+        replay và schema evolution là gánh nặng thừa; sửa dữ liệu sai thành khó.
+      - **CQRS:** bỏ qua nếu tải đọc và ghi cân bằng và một bảng là đủ — nhất quán cuối cùng và thêm
+        bộ phận chỉ làm hệ rối ra.
+      - **Saga:** bỏ qua nếu thao tác gọn trong một DB — khi đó dùng **một giao dịch cục bộ** là đủ,
+        không cần nghĩ ra bước bù.
+      - **Outbox:** bỏ qua nếu không thực sự phải phát sự kiện ra ngoài, hoặc đã có cách khác bảo đảm
+        nguyên tử giữa DB và việc gửi tin.
+  - id: b10
+    type: callout
+    kind: interview
+    md: |
+      **Thanh điểm mức 3 (level-3 bar).** Với **mỗi mẫu trong bốn mẫu**, hãy: (1) nêu **vấn đề nó
+      giải**, (2) **vẽ luồng cho ví dụ đặt hàng đến thanh toán (order đến payment)**, và (3) nói **khi
+      nào không nên dùng**. Đừng rải tên công nghệ; người phỏng vấn chấm việc bạn gắn đúng *mẫu* với
+      *vấn đề* và thành thật về *cái giá* của nó. Một câu ăn điểm: "Hệ này chỉ là CRUD một DB nên em
+      KHÔNG dùng mẫu nào — thêm chúng vào chỉ tạo nhất quán cuối cùng và nhiều bộ phận phải đồng bộ."
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "**Event sourcing:** nhật ký sự kiện bất biến là nguồn sự thật, trạng thái dựng bằng replay; lợi là audit/time-travel, giá là chi phí replay (cần snapshot) và schema evolution khó."
+      - "**CQRS:** tách mô hình ghi khỏi (các) mô hình đọc để scale/tối ưu đọc độc lập; giá là nhất quán cuối cùng và nhiều bộ phận phải đồng bộ."
+      - "**Saga:** giao dịch dài = chuỗi giao dịch cục bộ + bước bù (compensating action) thay cho khóa 2PC; chọn orchestration (dễ theo dõi) hay choreography (ít ghép cứng)."
+      - "**Outbox:** ghi bảng outbox trong cùng giao dịch DB rồi relay/CDC đẩy ra queue, để không mất tin giữa 'ghi DB' và 'gửi queue'; bên nhận vẫn phải idempotent."
+      - "Luồng đặt hàng đến thanh toán: tạo đơn đến giữ hàng đến trừ tiền đến giao vận; bước hỏng thì chạy bù ngược (hoàn tiền, nhả hàng)."
+      - "Khi KHÔNG nên dùng: mọi mẫu đều thêm độ phức tạp — app CRUD đơn giản (một DB, một service) thường không cần mẫu nào."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S121], l2: [S122], l3: [S123]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

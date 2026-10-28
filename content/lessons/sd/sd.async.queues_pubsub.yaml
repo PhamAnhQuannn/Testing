@@ -1,0 +1,132 @@
+id: sd.async.queues_pubsub
+version: 1
+status: published
+title_vi: "Message queue và pub/sub: tách rời, chịu đột biến và giao tin tin cậy"
+est_minutes: 13
+objectives_vi:
+  - "Giải thích vì sao dùng nhắn tin bất đồng bộ (async messaging): tách rời (decouple) bên gửi và bên làm, hấp thụ đột biến và làm mượt tải."
+  - "Phân biệt **message queue** (điểm-tới-điểm, một tin cho một consumer) và **pub/sub** (phát tán, một tin cho nhiều subscriber), và chọn đúng cho từng tình huống."
+  - "Mô tả cơ chế lõi: acknowledgement (ack), visibility timeout, retry có backoff và dead-letter queue (DLQ)."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Nhiều việc trong hệ thống **không cần làm ngay** trong lúc người dùng còn chờ: gửi email xác
+      nhận, tạo ảnh thu nhỏ, cập nhật thống kê. Nếu bắt API làm hết rồi mới trả lời, request vừa chậm
+      vừa dễ sập khi một khâu trục trặc. **Nhắn tin bất đồng bộ (async messaging)** tách việc ra: bên
+      gửi (**producer**) bỏ một **message** (tin/việc) vào một kênh trung gian rồi đi tiếp; bên làm
+      (**consumer**) lấy ra xử lý sau. Ba lợi ích cốt lõi:
+      - **Tách rời (decouple):** producer và consumer không cần biết nhau, không cần online cùng lúc,
+        có thể triển khai và scale độc lập. Một bên chậm hay tạm chết không kéo bên kia sập theo.
+      - **Hấp thụ đột biến (absorb spikes / buffering):** lúc cao điểm, tin xếp hàng trong kênh thay
+        vì dội thẳng vào consumer. Kênh đóng vai trò **bộ đệm (buffer)** chịu tải.
+      - **Làm mượt tải (smooth load):** consumer rút tin theo tốc độ nó chịu được, biến một đợt dồn
+        dập thành dòng việc đều đặn — thay vì phải cấp đủ máy cho đỉnh tức thời.
+  - id: b02
+    type: text
+    md: |
+      Có hai kiểu kênh, khác nhau ở chỗ **một tin tới tay bao nhiêu người nhận**:
+      - **Message queue (hàng đợi)** — **điểm-tới-điểm (point-to-point)**: mỗi tin được **đúng một**
+        consumer trong nhóm xử lý. Nhiều worker cùng rút từ một queue (**competing consumers**),
+        nhưng mỗi tin chỉ thuộc về một worker. Hợp cho **chia việc (work / task distribution)**: gửi
+        email, resize ảnh, xử lý đơn — mỗi việc chỉ nên làm một lần, và muốn nhanh hơn thì thêm
+        worker.
+      - **Pub/sub (publish/subscribe)** — **phát tán (fan-out)**: mỗi tin được giao cho **mọi
+        subscriber** đã đăng ký, mỗi bên nhận một bản sao độc lập. Hợp cho **sự kiện (events)** mà
+        nhiều hệ cần biết: một tin "đơn mới" tới cùng lúc kho, kế toán và thống kê — mỗi bên tự xử lý
+        theo cách của mình.
+      Câu hỏi để chọn: *"Việc này chỉ cần một nơi làm, hay là một sự kiện mà nhiều nơi cần biết?"*
+      Một nơi làm → queue. Nhiều nơi cùng phản ứng → pub/sub.
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: |
+      Một đơn hàng mới cần đồng thời: (1) trừ kho, (2) ghi sổ kế toán, (3) cập nhật bảng thống kê —
+      cả ba hệ đều phải nhận được "đơn mới". Nên dùng mô hình nào?
+    options:
+      - {id: a, text_md: "**Message queue** điểm-tới-điểm, để mỗi đơn chỉ một consumer xử lý."}
+      - {id: b, text_md: "**Pub/sub**, để một tin 'đơn mới' được phát (fan-out) cho cả ba hệ, mỗi hệ nhận một bản."}
+      - {id: c, text_md: "Một queue duy nhất và cả ba hệ cùng rút competing-consumers từ đó."}
+    answer: [b]
+    explain_md: "Đây là một **sự kiện** mà nhiều hệ cùng cần biết, nên cần **fan-out** của pub/sub: mỗi subscriber nhận một bản sao. (a) sai vì queue chỉ giao tin cho một consumer. (c) sai vì competing consumers nghĩa là mỗi tin chỉ một worker lấy được, hai hệ kia sẽ không thấy đơn đó."
+  - id: b04
+    type: text
+    md: |
+      Giao tin tin cậy cần cơ chế để **không mất việc khi consumer chết giữa chừng**. Lõi là
+      **acknowledgement (ack)** kết hợp **visibility timeout**:
+      - Khi một consumer rút một tin, broker **không xóa** tin ngay mà **ẩn tạm** nó trong một khoảng
+        gọi là **visibility timeout** — các consumer khác không thấy tin này trong lúc đó.
+      - Làm xong, consumer gửi **ack** ("đã xong"); lúc này broker mới **xóa** tin vĩnh viễn.
+      - Nếu consumer **chết hoặc chậm** quá visibility timeout mà chưa ack, broker coi như xử lý thất
+        bại và **cho tin hiện lại (reappear)** để một consumer khác nhận — nhờ vậy việc không bị mất.
+      Lưu ý đánh đổi: timeout quá **ngắn** so với thời gian xử lý thật → tin hiện lại khi worker cũ vẫn
+      đang làm, gây **làm trùng**; quá **dài** → một worker chết khiến tin bị "treo" lâu mới được giao lại.
+  - id: b05
+    type: text
+    md: |
+      Thất bại là bình thường, nên hệ thường **thử lại (retry)**. Nhưng thử lại dồn dập ngay lập tức
+      sẽ dội vào một hệ đang yếu, nên dùng **backoff**: giãn dần khoảng chờ giữa các lần (ví dụ 1s, rồi
+      2s, rồi 4s...), thường kèm chút ngẫu nhiên (jitter) để tránh nhiều worker thử lại cùng nhịp.
+      Một tin có thể **hỏng vĩnh viễn** — sai định dạng, dữ liệu không hợp lệ — gọi là **poison
+      message**: thử lại bao nhiêu lần cũng thất bại, lại còn chặn hàng và đốt tài nguyên. Giải pháp là
+      **dead-letter queue (DLQ)**: sau khi vượt **số lần thử tối đa (max attempts)**, broker chuyển tin
+      sang một hàng đợi riêng (DLQ) để **xem lại sau**, thay vì thử mãi. Nhờ đó dòng việc chính không
+      bị nghẽn, và kỹ sư có một chỗ gọn để điều tra các tin lỗi.
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một worker rút một tin từ queue rồi **chết** trước khi gửi ack. Điều gì xảy ra với tin đó?"
+    options:
+      - {id: a, text_md: "Tin bị xóa ngay khi được rút, nên nó mất luôn."}
+      - {id: b, text_md: "Tin đang bị ẩn bởi **visibility timeout**; hết timeout mà không có ack, nó **hiện lại** để một worker khác xử lý."}
+      - {id: c, text_md: "Tin tự động vào thẳng DLQ ngay lần thất bại đầu tiên."}
+    answer: [b]
+    explain_md: "Broker chỉ xóa tin khi nhận **ack**. Không ack trong visibility timeout → tin hiện lại và được giao lại, nên việc không mất. (a) sai vì tin không bị xóa lúc rút, chỉ bị ẩn tạm. (c) sai: tin chỉ vào DLQ sau khi vượt **số lần thử tối đa**, không phải ngay lần đầu."
+  - id: b07
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền thuật ngữ (tiếng Anh, viết tắt cũng được): Một tin liên tục xử lý thất bại dù đã thử lại
+      nhiều lần (poison message); sau khi vượt số lần thử tối đa, broker chuyển nó sang một hàng đợi
+      riêng để xem lại sau. Hàng đợi riêng đó gọi là ______.
+    blanks:
+      - accept: ["dead-letter queue", "dead letter queue", "DLQ", "dead-letter queue (DLQ)"]
+        regex: '(?i)^\s*(dead[- ]?letter[- ]?queue|dlq)\s*$'
+    explain_md: "**Dead-letter queue (DLQ)** là nơi chứa các tin không xử lý được sau số lần thử tối đa, tách chúng khỏi dòng việc chính để không gây nghẽn và để điều tra sau."
+  - id: b08
+    type: text
+    md: |
+      Vì tin được giao lại khi thiếu ack hoặc khi retry, mô hình mặc định của hầu hết queue là
+      **giao ít nhất một lần (at-least-once)**: một tin có thể tới consumer **nhiều hơn một lần**.
+      Hệ quả thực tế: **consumer nên là idempotent** — xử lý cùng một tin hai lần cho ra cùng kết quả
+      như xử lý một lần (ví dụ trừ tiền hai lần lẽ ra chỉ được trừ một lần là tai hoạ). Cách thường
+      dùng là gắn mỗi tin một khoá định danh (ID) và bỏ qua tin đã thấy. Chi tiết về idempotency và
+      "exactly-once" sẽ học sâu ở một bài sau; ở đây chỉ cần nhớ: **at-least-once là mặc định, nên hãy
+      thiết kế consumer chịu được tin lặp.**
+  - id: b09
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn.** Khi đề cần một việc nền hoặc nối nhiều hệ, hãy nói rõ **ba điều** theo thứ tự:
+      (1) *chọn queue hay pub/sub* — "một nơi làm" thì queue, "nhiều nơi cùng cần biết" thì pub/sub;
+      (2) *luồng tin tin cậy* — producer bỏ tin, consumer rút, **ack** sau khi xong, không ack trong
+      **visibility timeout** thì tin hiện lại; (3) *xử lý lỗi* — **retry có backoff**, và tin hỏng
+      mãi thì đẩy vào **DLQ** sau số lần thử tối đa. Nói thêm "mặc định at-least-once nên consumer phải
+      idempotent" là ghi điểm. Người phỏng vấn chấm việc bạn gọi tên đúng cơ chế và biết nó cứu lỗi
+      ra sao, không chấm việc kể tên sản phẩm (SQS, RabbitMQ...).
+  - id: b10
+    type: summary
+    bullets_vi:
+      - "Async messaging tách rời (decouple) producer/consumer, hấp thụ đột biến bằng bộ đệm và làm mượt tải — consumer rút theo tốc độ nó chịu được."
+      - "**Queue** = điểm-tới-điểm, một tin cho **một** consumer (chia việc, competing consumers); **pub/sub** = fan-out, một tin cho **mọi** subscriber (sự kiện nhiều nơi cùng cần)."
+      - "**Ack + visibility timeout**: tin bị ẩn khi đang xử lý, chỉ xóa khi có ack; không ack kịp thì tin hiện lại cho worker khác, nhờ đó không mất việc."
+      - "**Retry có backoff** cho lỗi tạm thời; **DLQ** hứng poison message sau số lần thử tối đa để không nghẽn dòng chính."
+      - "Mặc định **at-least-once** (tin có thể tới nhiều lần) ⇒ consumer nên **idempotent** (học sâu ở bài sau)."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S109], l2: [S110], l3: [S111]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

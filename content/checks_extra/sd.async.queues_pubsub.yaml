@@ -1,0 +1,62 @@
+subtopic_id: sd.async.queues_pubsub
+items:
+  - id: S109
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Nói ngắn gọn: **message queue** và **pub/sub** khác nhau ở điểm cốt lõi nào, và nêu một tình
+      huống hợp cho mỗi loại.
+    answer_md: |
+      Khác nhau ở chỗ **một tin tới tay bao nhiêu người nhận**:
+      - **Message queue** (điểm-tới-điểm): mỗi tin được **đúng một** consumer trong nhóm xử lý — hợp
+        cho **chia việc** (gửi email, resize ảnh): mỗi việc chỉ làm một lần, thêm worker để nhanh hơn.
+      - **Pub/sub** (phát tán / fan-out): mỗi tin được giao cho **mọi** subscriber đã đăng ký, mỗi bên
+        nhận một bản sao — hợp cho **sự kiện** mà nhiều hệ cùng cần biết (một "đơn mới" tới kho, kế
+        toán và thống kê).
+    rubric_md: "Đạt khi nêu đúng điểm cốt lõi (queue = một tin cho một consumer; pub/sub = một tin cho mọi subscriber) và một ví dụ hợp lý cho mỗi loại. Đúng ý: bằng chứng điểm 1; thiếu một vế hoặc lẫn hai mô hình: tối đa điểm 0."
+  - id: S110
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Một API nhận đơn hàng rồi phải gửi email xác nhận. Nhóm quyết định đặt một **message queue** giữa
+      API và các **worker** gửi email. Hãy trả lời: (1) hai lợi ích chính của việc chèn queue vào đây
+      là gì; (2) nếu một worker **rút một tin rồi chết trước khi gửi xong email**, cơ chế nào bảo đảm
+      email đó không bị mất, và nó hoạt động ra sao; (3) nếu một tin **gửi mãi vẫn thất bại** (ví dụ địa
+      chỉ email hỏng), nên làm gì để nó không chặn các tin khác?
+    answer_md: |
+      (1) **Tách rời (decouple)** và **chịu đột biến**: API bỏ tin vào queue rồi trả lời khách ngay,
+      không chờ email gửi xong; lúc cao điểm tin **xếp hàng** trong queue (bộ đệm) và worker rút dần
+      theo tốc độ nó chịu được, thay vì dội thẳng làm chậm hoặc sập.
+      (2) **Ack + visibility timeout**: khi worker rút tin, broker không xóa mà **ẩn tạm** tin trong
+      visibility timeout; chỉ khi worker gửi **ack** (xong) broker mới xóa. Worker chết, không ack kịp
+      → hết timeout tin **hiện lại** và một worker khác nhận, nên email không mất.
+      (3) Dùng **retry có backoff** cho lỗi tạm thời; nếu vượt **số lần thử tối đa** mà vẫn hỏng (poison
+      message), chuyển tin sang **dead-letter queue (DLQ)** để xem lại sau — dòng việc chính không bị nghẽn.
+    rubric_md: "Đạt khi nêu đúng cả 3 ý: (1) hai lợi ích decouple + chịu đột biến/buffer; (2) ack + visibility timeout với cơ chế tin hiện lại khi không ack; (3) retry/backoff rồi DLQ sau số lần thử tối đa. Đúng, trong time-box, tự giải thích được: bằng chứng điểm 2. Thiếu cơ chế ack/visibility timeout hoặc không nhắc DLQ: tối đa điểm 1."
+  - id: S111
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      Thiết kế phần nhắn tin bất đồng bộ cho một hệ xử lý đơn hàng. Với **hai nhu cầu** sau, hãy chọn
+      **queue hay pub/sub** cho mỗi nhu cầu và giải thích vì sao: (A) mỗi đơn phải gửi **một** email xác
+      nhận; (B) mỗi "đơn mới" phải được **kho, kế toán và thống kê** cùng biết. Sau đó mô tả luồng giao
+      tin tin cậy cho các worker gửi email: **ack**, **visibility timeout**, **retry (có backoff)** và
+      **DLQ** dùng để làm gì. Cuối cùng, vì sao mặc định **at-least-once** buộc consumer phải **idempotent**?
+    answer_md: |
+      **Chọn mô hình.** (A) Gửi một email mỗi đơn là **chia việc** → dùng **message queue** điểm-tới-điểm:
+      mỗi tin đúng một worker xử lý (competing consumers), mỗi đơn chỉ gửi một email, thêm worker để nhanh
+      hơn. (B) "Đơn mới" là một **sự kiện** nhiều hệ cùng cần → dùng **pub/sub**: một tin được fan-out cho
+      cả kho, kế toán và thống kê, mỗi hệ nhận một bản và xử lý độc lập.
+      **Luồng tin tin cậy (email worker).** Producer bỏ tin vào queue; worker rút tin — broker **ẩn tạm**
+      tin trong **visibility timeout** (các worker khác không thấy). Gửi xong, worker **ack** và broker
+      xóa tin. Nếu worker chết/chậm quá timeout mà chưa ack, tin **hiện lại** cho worker khác (không mất
+      việc). Lỗi tạm thời (nhà cung cấp email nghẽn) thì **retry có backoff** (giãn dần, kèm jitter). Tin
+      hỏng vĩnh viễn (poison message) sau **số lần thử tối đa** được đẩy sang **DLQ** để điều tra sau,
+      không chặn dòng chính.
+      **At-least-once ⇒ idempotent.** Vì tin được giao lại khi thiếu ack hoặc khi retry, một tin có thể
+      tới **nhiều hơn một lần**, nên consumer phải **idempotent** — xử lý lặp cho cùng kết quả như xử lý
+      một lần (ví dụ: gắn ID mỗi tin và bỏ qua tin đã gửi) để không gửi email trùng hay trừ tiền hai lần.
+    rubric_md: "Đạt (mức phỏng vấn, đúng mastery bar level 3) khi: chọn đúng queue cho (A) và pub/sub cho (B) kèm lý do; mô tả đúng ack + visibility timeout (tin hiện lại khi không ack), retry có backoff, và DLQ cho poison message sau số lần thử tối đa; và giải thích đúng vì sao at-least-once buộc consumer idempotent. Đúng, trong time-box, tự giải thích rõ ràng: bằng chứng điểm 3. Chọn sai một mô hình, hoặc sót một trong bốn cơ chế (ack / visibility timeout / retry / DLQ), hoặc không lý giải được idempotent: chưa đạt mức 3."

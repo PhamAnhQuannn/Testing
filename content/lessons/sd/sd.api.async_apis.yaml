@@ -1,0 +1,139 @@
+id: sd.api.async_apis
+version: 1
+status: published
+title_vi: "API bất đồng bộ (async APIs): job dài, webhook và stream token"
+est_minutes: 14
+objectives_vi:
+  - "Thiết kế API cho một việc chạy lâu bằng mẫu async request-reply: trả **202 Accepted** + mã việc/đường dẫn trạng thái, rồi client **poll** hoặc nhận **callback**."
+  - "Nêu đủ các điều kiện để **webhook** đáng tin cậy: retry có backoff, ký payload bằng HMAC, receiver idempotent, dead-letter queue, chống phát lại (replay)."
+  - "Giải thích vì sao API cho ứng dụng LLM nên **stream token** qua SSE, và vẽ được luồng đó."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Một API HTTP bình thường là **đồng bộ (synchronous)**: client gửi request, giữ kết nối, đợi
+      server làm xong rồi trả kết quả. Cách này chỉ ổn khi việc **nhanh** (vài chục đến vài trăm ms).
+      Khi việc **mất lâu** — xuất báo cáo 2 phút, encode video, chạy một job phân tích — mà vẫn bắt
+      client đợi trên một kết nối mở thì hỏng ở nhiều chỗ: kết nối dễ **timeout** (proxy/load balancer
+      thường cắt sau 30–60 giây), client bị **treo** không làm gì khác được, và nếu gửi lại vì tưởng
+      lỗi thì việc nặng **chạy hai lần**. Lời giải là **API bất đồng bộ (asynchronous)**: nhận việc,
+      trả lời ngay "đã nhận", rồi làm ở **nền (background)** và cho client biết kết quả sau.
+  - id: b02
+    type: text
+    md: |
+      Mẫu chuẩn gọi là **async request-reply**:
+      - Client gửi `POST /reports` (yêu cầu việc nặng). Server **không** làm ngay trong request đó;
+        nó đẩy việc vào hàng đợi (queue) cho worker nền, rồi trả **202 Accepted** nghĩa là *"đã nhận,
+        đang xử lý"* — kèm một **mã việc (job id)** và một **đường dẫn trạng thái (status URL)**, ví
+        dụ `GET /jobs/abc123` (thường để trong header `Location` hoặc trong body).
+      - Sau đó client biết kết quả theo một trong hai cách: **(a) Polling** — tự gọi lại
+        `GET /jobs/abc123` mỗi vài giây tới khi trạng thái chuyển `running` sang `done` (hoặc
+        `failed`); khi `done` thì body trả về kết quả hoặc một link tải. **(b) Callback / webhook** —
+        client đăng ký sẵn một URL, server **gọi ngược** sang URL đó khi việc xong, client khỏi hỏi lặp.
+      - Polling **đơn giản** nhất và client luôn chủ động; nhược điểm là tốn request rỗng khi chờ. Để
+        client không "nã" dồn dập, server trả kèm header **`Retry-After`** gợi ý khoảng cách giữa các
+        lần hỏi.
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một `POST /exports` kích hoạt việc xuất dữ liệu mất khoảng 2 phút. Server nên trả gì **ngay lập tức** theo mẫu async request-reply?"
+    options:
+      - {id: a, text_md: "**200 OK** kèm toàn bộ file xuất, sau khi đã giữ kết nối đủ 2 phút để làm xong."}
+      - {id: b, text_md: "**202 Accepted** kèm một job id và một đường dẫn trạng thái (ví dụ `GET /jobs/X`) để client theo dõi; việc chạy ở nền."}
+      - {id: c, text_md: "**204 No Content** và không trả thông tin gì, vì việc sẽ tự xong ở nền."}
+    answer: [b]
+    explain_md: "Việc 2 phút không nên giữ kết nối đồng bộ (dễ timeout, client treo, dễ chạy trùng khi retry). Trả **202 Accepted** + job id + status URL để client poll hoặc nhận callback. (a) giữ kết nối 2 phút là đúng cái ta tránh; (c) không có job id thì client không biết hỏi ở đâu."
+  - id: b04
+    type: text
+    md: |
+      **Webhook** (callback do server chủ động gọi) đỡ cho client phải hỏi lặp, nhưng nó đảo vai: giờ
+      **server của bạn là client** gọi sang một URL do bên kia cung cấp — và URL đó có thể **đang lỗi,
+      đang bảo trì, hay chậm**. Vì mạng không đáng tin, một webhook "làm cho đúng" cần các tính chất sau:
+      - **Retry có backoff:** nếu lần gọi thất bại (timeout, 5xx), gửi lại sau khoảng thời gian **tăng
+        dần** (exponential backoff), ví dụ 1s, 2s, 4s, 8s… trong nhiều giờ, thay vì bỏ cuộc ngay hoặc
+        dội liên tục.
+      - **Ký payload (signing) bằng HMAC:** server tính một chữ ký từ nội dung và một **khóa bí mật
+        dùng chung (shared secret)**, gắn vào header. Bên nhận tính lại chữ ký và so khớp để **xác minh
+        tin thật sự đến từ bạn** và chưa bị sửa — chứ không phải kẻ giả mạo gửi vào endpoint công khai.
+      - **Chống phát lại (replay protection):** kèm **timestamp** (và/hoặc một nonce/id) trong phần
+        được ký, bên nhận **từ chối tin quá cũ**; nhờ đó kẻ bắt được một gói hợp lệ cũng không thể gửi
+        lại nó nhiều lần sau này.
+  - id: b05
+    type: text
+    md: |
+      Hai tính chất còn lại nằm ở **phía bên nhận (receiver)** và ở việc xử lý thất bại dài hạn:
+      - **Receiver idempotent (nhận trùng vẫn an toàn):** vì có retry nên **cùng một sự kiện có thể
+        tới hai lần**. Mỗi sự kiện mang một **event id**; bên nhận lưu lại id đã xử lý và **bỏ qua bản
+        trùng**, để "nhận hai lần" không gây tác dụng kép (ví dụ cộng tiền hai lần). Đây là lý do
+        webhook chỉ hứa giao **ít nhất một lần (at-least-once)**, nên receiver **phải** idempotent.
+      - **Dead-letter queue (DLQ):** nếu sau nhiều lần retry vẫn thất bại, đừng vứt sự kiện đi — đẩy
+        nó sang một **hàng đợi "thư chết"** để điều tra/gửi lại thủ công sau. Nhờ đó một endpoint hỏng
+        kéo dài không làm **mất dữ liệu**.
+      Tóm cơ chế: bên gửi **ký + retry có backoff + DLQ**; bên nhận **xác minh chữ ký + chống replay +
+        idempotent**. Thiếu bất kỳ mảnh nào là webhook sẽ mất tin, nhân đôi tác dụng, hoặc bị giả mạo.
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao một endpoint nhận webhook **bắt buộc** phải idempotent (xử lý sự kiện trùng mà không gây hại)?"
+    options:
+      - {id: a, text_md: "Vì cơ chế retry khiến webhook giao **ít nhất một lần (at-least-once)**, nên cùng một sự kiện có thể tới nhiều lần; receiver phải dựa vào event id để bỏ qua bản trùng."}
+      - {id: b, text_md: "Vì HMAC chỉ hoạt động khi mỗi sự kiện được gửi đúng một lần duy nhất."}
+      - {id: c, text_md: "Vì nếu không idempotent thì server gửi sẽ không thể ký được payload."}
+    answer: [a]
+    explain_md: "Retry + backoff bảo đảm giao được nhưng kéo theo khả năng trùng (at-least-once), nên bên nhận phải khử trùng bằng event id. (b) sai: HMAC chỉ để xác minh nguồn/toàn vẹn, không liên quan số lần gửi; (c) sai: ký payload độc lập với tính idempotent của bên nhận."
+  - id: b07
+    type: text
+    md: |
+      Trường hợp đặc biệt: **API trả lời dạng stream cho ứng dụng LLM (mô hình ngôn ngữ lớn)**. Một
+      câu trả lời dài có thể mất nhiều giây để sinh hết; nếu đợi xong mới trả một cục thì người dùng
+      nhìn màn hình trống rất lâu. Thay vào đó ta **stream từng token** (mẩu chữ nhỏ — một từ hoặc một
+      phần từ — mà mô hình sinh ra lần lượt) để chữ **hiện dần** ngay khi được tạo.
+      - Cơ chế phổ biến là **SSE (Server-Sent Events)**: một kết nối HTTP một chiều server→client giữ
+        mở, server đẩy liên tiếp các mẩu dữ liệu (`Content-Type: text/event-stream`), client đọc tới
+        đâu hiện tới đó; khi xong, server gửi một sự kiện kết thúc rồi đóng. SSE hợp vì luồng ở đây
+        **một chiều** (chỉ server gửi token xuống) nên nhẹ hơn WebSocket (hai chiều).
+      - Lợi ích: **thời gian tới chữ đầu tiên** rất ngắn, trải nghiệm "gõ dần" tự nhiên, và client có
+        thể **hủy giữa chừng** (đóng kết nối) để khỏi tốn tính toán sinh nốt phần không cần.
+  - id: b08
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền thuật ngữ (tiếng Anh) cho đúng:
+      (1) Mã HTTP server trả ngay để nói "đã nhận, đang xử lý" cho một job nền là **___**.
+      (2) Cơ chế HTTP một chiều server→client, giữ kết nối mở để đẩy dần từng token cho ứng dụng LLM là **___**.
+    blanks:
+      - accept: ["202", "202 Accepted", "HTTP 202"]
+      - accept: ["SSE", "Server-Sent Events", "Server Sent Events"]
+    explain_md: "(1) **202 Accepted** = đã nhận, xử lý ở nền, kèm job id + status URL. (2) **SSE (Server-Sent Events)** = luồng một chiều `text/event-stream` để stream token dần; hợp vì chỉ server đẩy xuống, nhẹ hơn WebSocket hai chiều."
+  - id: b09
+    type: callout
+    kind: interview
+    md: |
+      **Mức 3 (bar phỏng vấn).** Bạn cần tự thiết kế được **ba** thứ:
+      1. **API cho job dài:** `POST` trả **202 Accepted** + job id + status URL; client **poll**
+         `GET /jobs/{id}` (có `Retry-After`) hoặc nhận **callback**; trạng thái `queued → running →
+         done/failed`, khi `done` trả kết quả hoặc link tải. Nhắc tới **idempotency key** khi tạo job
+         để retry không đẻ job trùng.
+      2. **Webhook đáng tin cậy:** **ký HMAC** + **retry có backoff** + **DLQ** ở bên gửi; bên nhận
+         **xác minh chữ ký**, **chống replay** (timestamp) và **idempotent** theo event id. Nói rõ
+         webhook là **at-least-once**.
+      3. **API stream token cho LLM:** **SSE** (`text/event-stream`), đẩy token dần để giảm thời gian
+         tới chữ đầu, hỗ trợ **hủy giữa chừng**; nêu vì sao chọn SSE (một chiều) thay vì WebSocket.
+      Người phỏng vấn chấm việc bạn **chọn đúng mẫu theo độ dài việc** và **xử lý thất bại mạng**, chứ
+      không chấm việc kể tên công nghệ.
+  - id: b10
+    type: summary
+    bullets_vi:
+      - "Việc chạy lâu không nên làm đồng bộ (timeout, client treo, dễ chạy trùng); dùng mẫu **async request-reply**: trả **202 Accepted** + job id + status URL, chạy ở nền."
+      - "Client biết kết quả bằng **polling** `GET /jobs/{id}` (kèm `Retry-After` để không hỏi dồn) hoặc bằng **callback/webhook**."
+      - "Webhook đáng tin cậy = bên gửi **ký HMAC + retry có backoff + dead-letter queue**; bên nhận **xác minh chữ ký + chống replay (timestamp) + idempotent theo event id**."
+      - "Webhook giao **ít nhất một lần (at-least-once)**, nên receiver **bắt buộc** idempotent để sự kiện trùng không gây tác dụng kép."
+      - "API cho LLM nên **stream token qua SSE** (`text/event-stream`, một chiều): giảm thời gian tới chữ đầu, hiện chữ dần, cho phép hủy giữa chừng; nhẹ hơn WebSocket."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S106], l2: [S107], l3: [S108]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

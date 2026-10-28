@@ -1,0 +1,142 @@
+id: sd.async.stream_processing
+version: 1
+status: published
+title_vi: "Xử lý luồng và xử lý lô (stream và batch processing): window, watermark, checkpoint"
+est_minutes: 14
+objectives_vi:
+  - "Phân biệt xử lý luồng (stream, liên tục, độ trễ thấp) và xử lý lô (batch, dữ liệu hữu hạn, thông lượng cao), và biết khi nào batch là đủ."
+  - "Tổng hợp theo cửa sổ (windowing: tumbling/sliding/session) tính theo event time, và xử lý sự kiện muộn (late events) bằng watermark."
+  - "Khôi phục bằng checkpoint và ghi idempotent ra sink để chạy lại (replay) không đếm đúp."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      **Xử lý luồng (stream processing)** xử lý từng sự kiện (event) **liên tục** ngay khi nó tới,
+      nhắm **độ trễ thấp (low latency)** — kết quả cập nhật trong vài giây (phát hiện gian lận, đếm
+      click theo thời gian thực). **Xử lý lô (batch processing)** chạy trên một **khối dữ liệu hữu hạn
+      (bounded)** đã gom sẵn, nhắm **thông lượng cao (high throughput)** — thường chạy theo lịch (mỗi
+      đêm) trên toàn bộ dữ liệu, rẻ và dễ tính lại nhưng kết quả trễ. Cùng một phép tính (đếm, tính
+      tổng) có thể làm bằng cả hai; khác nhau cốt lõi ở **độ trễ** và ở chỗ dữ liệu là dòng vô tận hay
+      một khối đã đóng.
+  - id: b02
+    type: text
+    md: |
+      Mỗi sự kiện có hai mốc thời gian. **Event time** là lúc việc thật sự xảy ra (lúc người dùng
+      bấm). **Processing time** là lúc bộ xử lý nhận được sự kiện. Hai mốc lệch nhau vì mạng trễ, hàng
+      đợi, hay thiết bị offline rồi gửi bù. Muốn đếm đúng (ví dụ "click thuộc phút nào") phải tính
+      theo **event time**: một click lúc 10:00:59 nhưng tới server lúc 10:01:03 vẫn thuộc phút 10:00.
+      Sự kiện tới sau khi event time của nó đã "quá hạn" so với tiến độ xử lý gọi là **sự kiện muộn
+      (late event)** — đây là vấn đề trung tâm của xử lý luồng.
+  - id: b03
+    type: text
+    md: |
+      Vì luồng là vô tận, muốn tổng hợp (aggregate) kiểu "đếm mỗi phút" ta phải cắt luồng thành **cửa
+      sổ (window)** theo thời gian:
+      - **Tumbling window** (cửa sổ cố định, không chồng): các khung liền nhau, mỗi phút một khung
+        [phút 1][phút 2][phút 3]. Mỗi sự kiện rơi vào đúng một khung. Hợp với "đếm mỗi phút".
+      - **Sliding window** (cửa sổ trượt): khung dài cố định nhưng trượt theo bước nhỏ, ví dụ "tổng 1
+        giờ qua, cập nhật mỗi phút". Một sự kiện có thể nằm trong nhiều khung.
+      - **Session window** (cửa sổ phiên): gom các sự kiện của một người cho tới khi im lặng quá một
+        khoảng (ví dụ nghỉ 30 phút thì đóng phiên). Độ dài khung không cố định, tùy hành vi.
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: |
+      Cần "10 sản phẩm xem nhiều nhất trong 1 giờ qua, cập nhật mỗi phút". Loại window (cửa sổ) nào
+      hợp nhất?
+    options:
+      - {id: a, text_md: 'Tumbling window dài 1 giờ, vì cứ mỗi giờ gom tròn một lần.'}
+      - {id: b, text_md: 'Sliding window dài 1 giờ, trượt bước 1 phút, vì cần kết quả của 1 giờ gần nhất và cập nhật liên tục mỗi phút.'}
+      - {id: c, text_md: 'Session window, vì gom theo phiên xem của từng người dùng.'}
+    answer: [b]
+    explain_md: |
+      Yêu cầu là "1 giờ gần nhất" và "cập nhật mỗi phút" nên cần khung dài 1 giờ trượt bước 1 phút
+      (sliding). Tumbling 1 giờ chỉ ra kết quả vào mỗi đầu giờ, không cập nhật mỗi phút; session
+      window gom theo khoảng nghỉ của người dùng, không phải một khoảng thời gian cố định.
+  - id: b05
+    type: text
+    md: |
+      Nếu đợi mãi cho chắc chắn mọi sự kiện muộn đã về thì không bao giờ chốt được khung. **Watermark**
+      là tín hiệu "tôi tin mọi sự kiện có event time trước mốc T đều đã tới" — nó quyết định **chờ
+      stragglers (sự kiện tới muộn) bao lâu trước khi đóng cửa sổ**. Thường đặt watermark = event time
+      lớn nhất đã thấy trừ đi một **biên trễ cho phép** (ví dụ 2 phút). Khi watermark vượt qua cuối một
+      cửa sổ, cửa sổ đó được chốt và phát kết quả. Đánh đổi: biên trễ lớn = đợi lâu, chính xác hơn
+      nhưng kết quả trễ hơn; biên nhỏ = nhanh nhưng dễ bỏ sót sự kiện muộn. Sự kiện tới sau watermark
+      bị bỏ, hoặc cho vào một nhánh phụ (side output) để sửa sau.
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: |
+      Trong một pipeline đếm theo event time, watermark dùng để làm gì?
+    options:
+      - {id: a, text_md: 'Sắp xếp lại toàn bộ sự kiện theo processing time trước khi đếm.'}
+      - {id: b, text_md: 'Quyết định chờ sự kiện muộn bao lâu rồi mới chốt (đóng) một cửa sổ và phát kết quả.'}
+      - {id: c, text_md: 'Nén trạng thái của cửa sổ xuống đĩa cho nhẹ bộ nhớ.'}
+    answer: [b]
+    explain_md: |
+      Watermark là mốc "mọi sự kiện có event time trước T coi như đã tới"; khi nó qua cuối một cửa sổ
+      thì cửa sổ được chốt. Biên trễ lớn thì chính xác hơn nhưng trễ hơn. (a) sai vì ta đếm theo event
+      time chứ không sắp theo processing time; (c) là việc của checkpoint, không phải watermark.
+  - id: b07
+    type: text
+    md: |
+      Bộ đếm của từng cửa sổ là **trạng thái (state)** nằm trong bộ nhớ của worker. Máy có thể chết,
+      nên bộ xử lý định kỳ lưu **checkpoint** — một ảnh chụp nhất quán của *trạng thái* cùng với *vị
+      trí đọc (offset) trong Kafka*. Khi khôi phục, nó nạp lại trạng thái từ checkpoint gần nhất và đọc
+      lại Kafka từ offset đã lưu, nên không phải tính lại từ đầu. Nhưng khôi phục đồng nghĩa **phát lại
+      (replay)** các sự kiện sau checkpoint, nên cùng một sự kiện có thể bị xử lý hai lần. Để kết quả
+      không đếm đúp, phần **ghi ra kho đích (sink)** phải **idempotent**: dùng upsert theo khóa [cửa
+      sổ, id] (ghi đè giá trị thay vì cộng thêm), để chạy lại vẫn ra đúng cùng một con số. Checkpoint +
+      ghi idempotent chính là cách đạt hiệu quả **exactly-once** nhìn từ kết quả cuối ở sink.
+  - id: b08
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền thuật ngữ. Để một worker chết có thể khôi phục mà không tính lại từ đầu, bộ xử lý luồng
+      định kỳ lưu một ảnh chụp trạng thái kèm offset, gọi là ___(1)___. Để việc phát lại (replay) sau
+      khôi phục không làm đếm đúp, phần ghi ra sink phải là ___(2)___ (ví dụ upsert theo khóa).
+    blanks:
+      - {accept: ["checkpoint", "checkpointing", "điểm kiểm tra"]}
+      - {accept: ["idempotent", "ghi idempotent", "ghi idempotent (upsert)"]}
+    explain_md: |
+      Checkpoint lưu trạng thái + offset để khôi phục không tính lại từ đầu; ghi idempotent (upsert
+      theo khóa [cửa sổ, id]) khiến replay không đếm đúp. Hai thứ này kết hợp cho kết quả exactly-once
+      ở sink.
+  - id: b09
+    type: text
+    md: |
+      **Khi nào batch là đủ?** Khi **không cần độ trễ thấp** (báo cáo doanh thu ngày chỉ xem sáng hôm
+      sau), hoặc khi cần **tính lại trên dữ liệu lịch sử lớn** (backfill, huấn luyện lại mô hình) — lúc
+      đó batch đơn giản hơn, rẻ hơn và dễ kiểm tra lại hơn. Chỉ dùng stream khi kết quả phải tươi trong
+      vài giây (dashboard thời gian thực, phát hiện gian lận). Ở mức ý tưởng, vài công cụ phổ biến:
+      **Apache Flink** (xử lý luồng theo event time, có watermark và checkpoint sẵn), **Spark
+      Structured Streaming** (mô hình micro-batch, hợp đội đã quen Spark) và **Kafka Streams** (thư
+      viện nhẹ nhúng thẳng vào ứng dụng, đọc/ghi Kafka). Chọn công cụ nào là thứ yếu; người phỏng vấn
+      chấm việc bạn gọi tên đúng các khái niệm window, watermark, checkpoint và idempotent.
+  - id: b10
+    type: callout
+    kind: interview
+    md: |
+      **Chuẩn mức 3 (level-3 bar).** Khi được hỏi "đếm click mỗi phút theo thời gian thực", hãy trình
+      bày trọn một pipeline: (1) nhận sự kiện từ **Kafka**, tính theo **event time**; (2) **đếm theo
+      tumbling window 1 phút**; (3) xử lý **sự kiện muộn bằng watermark** (nêu rõ biên trễ cho phép và
+      đánh đổi chính xác/độ trễ); (4) **khôi phục bằng checkpoint** (trạng thái + offset); (5) **ghi
+      idempotent** ra kho OLAP (upsert theo [phút, id]) để replay không đếm đúp; và (6) nói rõ **khi
+      nào chỉ cần batch** (báo cáo không cần tức thời, hoặc tính lại lịch sử). Trả lời đủ sáu ý này là
+      đạt mức 3.
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "Stream (liên tục, độ trễ thấp) khác batch (dữ liệu hữu hạn, thông lượng cao); batch là đủ khi không cần tức thời hoặc cần tính lại lịch sử."
+      - "Tính theo event time (lúc việc xảy ra), không theo processing time; cắt luồng thành window: tumbling (cố định), sliding (trượt), session (theo khoảng nghỉ)."
+      - "Watermark quyết định chờ sự kiện muộn bao lâu trước khi chốt cửa sổ — biên trễ lớn thì chính xác hơn nhưng trễ hơn."
+      - "Checkpoint (ảnh chụp trạng thái + offset) cho khôi phục không tính lại từ đầu; ghi idempotent (upsert theo khóa) để replay không đếm đúp, đạt exactly-once ở sink."
+      - "Chuẩn mức 3: thiết kế pipeline đếm theo window, xử lý sự kiện muộn bằng watermark, khôi phục bằng checkpoint, ghi idempotent, và biết khi nào batch là đủ."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S118], l2: [S119], l3: [S120]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

@@ -1,0 +1,135 @@
+id: sd.api.api_styles
+version: 1
+status: published
+title_vi: "REST, gRPC, GraphQL và khi nào dùng"
+est_minutes: 12
+objectives_vi:
+  - "Phân biệt **REST**, **gRPC** và **GraphQL** theo đúng điểm mạnh và chi phí của mỗi kiểu."
+  - "Chọn đúng kiểu API theo **ranh giới** (boundary): API công khai (public) so với service nội bộ (internal)."
+  - "Nêu 3 quy tắc **tương thích ngược** (backward compatibility) khi tiến hóa schema (schema evolution)."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Khi một chương trình gọi chương trình khác, ta phải chọn một **kiểu API** (API style): cách
+      đóng gói lời gọi và dữ liệu trả về. Ba kiểu phổ biến nhất năm 2026 là **REST**, **gRPC** và
+      **GraphQL**. Không có kiểu nào "tốt nhất" — mỗi kiểu hợp một **ranh giới** (boundary) khác
+      nhau. Câu hỏi đúng không phải "kiểu nào xịn hơn" mà là "ai gọi ai": một app bên ngoài gọi vào
+      API **công khai** (public), hay hai service **nội bộ** (internal) của bạn gọi nhau trong cùng
+      hệ thống. Chọn theo ranh giới, rồi chấp nhận cái giá đi kèm.
+  - id: b02
+    type: text
+    md: |
+      **REST** coi mọi thứ là **tài nguyên** (resource) có địa chỉ, thao tác bằng động từ HTTP:
+      `GET /users/42`, `POST /orders`, `DELETE /users/42`. Ưu điểm:
+      - **Cache được** (cacheable): `GET` là idempotent và có thể cache ở CDN/trình duyệt, giảm tải rất tốt.
+      - **Phổ biến khắp nơi** (ubiquitous): mọi ngôn ngữ, mọi công cụ (`curl`, trình duyệt, Postman)
+        đều hiểu; dễ debug vì JSON là chữ người đọc được.
+
+      Nhược điểm lớn nhất là **lấy thừa / lấy thiếu** (over-fetching / under-fetching): một endpoint
+      trả cố định một hình dạng dữ liệu, nên client hoặc nhận quá nhiều trường không cần (thừa),
+      hoặc phải gọi nhiều endpoint để ghép đủ dữ liệu một màn hình (thiếu).
+  - id: b03
+    type: text
+    md: |
+      **gRPC** coi lời gọi như **gọi hàm từ xa** (RPC): `GetUser(id=42)`. Dữ liệu được mã hóa bằng
+      **protobuf** (nhị phân, có schema chặt) chạy trên **HTTP/2**. Đặc điểm:
+      - **Nhanh và gọn**: payload nhị phân nhỏ hơn và parse nhanh hơn JSON; HTTP/2 ghép nhiều lời
+        gọi trên một kết nối (multiplexing).
+      - **Streaming**: hỗ trợ luồng hai chiều (server stream, client stream, bidirectional), hợp
+        cho dữ liệu liên tục.
+      - **Hợp đồng chặt**: file `.proto` là hợp đồng sinh code cho cả hai phía.
+
+      Vì vậy gRPC rất hợp **service-to-service nội bộ** cần độ trễ thấp. Nhược điểm: **hỗ trợ trình
+      duyệt kém** (phải qua lớp gRPC-Web + proxy), và payload nhị phân khó đọc/khó debug bằng mắt
+      hơn JSON. Nên gRPC hiếm khi là lựa chọn cho API công khai cho bên thứ ba.
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Hai service nội bộ (internal) của bạn gọi nhau hàng chục nghìn lần mỗi giây, cần độ trễ thấp và hợp đồng chặt. Kiểu API nào hợp nhất?"
+    options:
+      - {id: a, text_md: "**REST + JSON**, vì cache được và dễ debug — phù hợp mọi tình huống."}
+      - {id: b, text_md: "**gRPC**, vì protobuf nhị phân trên HTTP/2 cho độ trễ thấp và hợp đồng `.proto` chặt, và hỗ trợ trình duyệt kém không phải vấn đề giữa hai service nội bộ."}
+      - {id: c, text_md: "**GraphQL**, vì client tự chọn trường nên luôn nhanh nhất ở mọi ranh giới."}
+    answer: [b]
+    explain_md: "Ở ranh giới nội bộ, điểm yếu lớn nhất của gRPC (hỗ trợ trình duyệt kém) không áp dụng, còn điểm mạnh (nhanh, gọn, hợp đồng chặt, streaming) đúng thứ ta cần. (a) REST cache tốt cho public nhưng JSON to và chậm hơn ở tải service-to-service; (c) GraphQL không sinh ra để tối ưu độ trễ service nội bộ và còn kéo theo chi phí N+1/cache."
+  - id: b05
+    type: text
+    md: |
+      **GraphQL** cho **client tự ghi cần trường nào** qua **một endpoint** duy nhất:
+      `{ user(id:42){ name, orders { total } } }`. Nhờ vậy nó **giải quyết trực tiếp lấy thừa/lấy
+      thiếu** của REST — client lấy đúng dữ liệu một màn hình trong một request, rất hợp app mobile
+      nhiều màn hình. Nhưng GraphQL có cái giá riêng:
+      - **Vấn đề N+1**: một truy vấn danh sách dễ kéo theo N truy vấn con (lấy `orders` cho từng
+        user), phải gộp lại bằng **DataLoader** (thư viện gộp N lời gọi con thành một).
+      - **Khó cache**: mọi thứ đi qua một endpoint bằng `POST` với câu truy vấn khác nhau, nên
+        **cache HTTP theo URL** (thế mạnh của REST) gần như mất; phải cache ở tầng khác, phức tạp hơn.
+      - **Phức tạp hơn**: cần lớp server (schema, resolvers) và phải chặn truy vấn quá sâu/quá nặng.
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Phát biểu nào về GraphQL là **đúng**?"
+    options:
+      - {id: a, text_md: "GraphQL giải quyết lấy thừa/lấy thiếu bằng cách cho client chọn trường, nhưng đổi lại khó cache hơn và dễ gặp vấn đề N+1."}
+      - {id: b, text_md: "GraphQL luôn nhanh hơn REST và gRPC vì dùng nhị phân trên HTTP/2."}
+      - {id: c, text_md: "GraphQL cache được theo URL dễ như REST vì mỗi truy vấn là một `GET` riêng."}
+    answer: [a]
+    explain_md: "Đúng là GraphQL trị over/under-fetch nhưng phải trả giá: N+1 (cần DataLoader) và khó cache theo URL. (b) sai — GraphQL dùng JSON qua một endpoint, không phải nhị phân; nhị phân/HTTP/2 là của gRPC. (c) sai — GraphQL thường đi qua một endpoint bằng `POST`, nên không cache theo URL như REST."
+  - id: b07
+    type: text
+    md: |
+      Quy tắc chọn theo ranh giới, kèm **cái giá** của mỗi lựa chọn:
+      - **API công khai (public)** cho bên thứ ba hoặc trình duyệt: chọn **REST** (mặc định, cache
+        tốt, ai cũng dùng được) hoặc **GraphQL** (khi client cần hình dạng dữ liệu linh hoạt, nhiều
+        màn hình). Giá của REST là lấy thừa/thiếu; giá của GraphQL là mất cache theo URL + N+1 +
+        độ phức tạp server.
+      - **Service nội bộ (internal)** cần độ trễ thấp, thông lượng cao: chọn **gRPC**. Giá của gRPC
+        là khó debug bằng mắt và không dùng trực tiếp được từ trình duyệt.
+
+      Nói cách khác: **public → REST/GraphQL; internal low-latency → gRPC**. Luôn nêu cái giá kèm
+      lựa chọn — người phỏng vấn chấm việc bạn thấy được trade-off, không chấm việc bạn kể tên công nghệ.
+  - id: b08
+    type: text
+    md: |
+      Dù chọn kiểu nào, API sẽ phải **tiến hóa** (schema evolution) trong khi bản cũ và bản mới chạy
+      cùng lúc (rolling deploy). Có **3 quy tắc tương thích ngược** (backward compatibility) phải thuộc:
+      1. **Chỉ thêm trường tùy chọn** (add only optional fields): client cũ bỏ qua trường mới mà
+         không vỡ.
+      2. **Không bao giờ xóa, đổi tên, hay đổi kiểu trường đang có** (never remove / rename / retype
+         an existing field): làm vậy là phá hợp đồng với client cũ. Với protobuf, đừng dùng lại
+         **số hiệu trường** (field number) cũ.
+      3. **Khi buộc phải phá vỡ (breaking change), hãy ra phiên bản mới** (version it): ví dụ
+         `/v2/...` hoặc một dịch vụ/message mới, rồi cho hai bản sống song song tới khi client cũ rút hết.
+  - id: b09
+    type: quiz_fill
+    graded: true
+    prompt_md: "Điền một từ tiếng Anh: để giữ tương thích ngược khi nâng cấp schema, trường mới thêm vào phải là trường ______ (client cũ có thể bỏ qua an toàn)."
+    blanks:
+      - accept: ["optional", "tùy chọn", "tuy chon"]
+    explain_md: "Chỉ **thêm trường tùy chọn** (optional) mới an toàn: client cũ không biết trường đó vẫn chạy bình thường. Xóa/đổi tên/đổi kiểu trường cũ, hay dùng lại số hiệu trường protobuf, đều phá client cũ; khi buộc phải phá vỡ thì ra phiên bản mới (versioning)."
+  - id: b10
+    type: callout
+    kind: interview
+    md: |
+      **Thanh điểm mức 3 (level-3 bar).** Khi được hỏi "chọn kiểu API cho hệ này", hãy trả lời theo
+      khung: (1) **public → REST hoặc GraphQL** và vì sao (cache/phổ biến so với linh hoạt hình
+      dạng dữ liệu); (2) **internal low-latency → gRPC** và vì sao (protobuf/HTTP/2, hợp đồng chặt);
+      (3) **nêu cái giá của từng lựa chọn** (REST lấy thừa/thiếu; GraphQL khó cache + N+1; gRPC khó
+      debug, trình duyệt kém); và (4) **3 quy tắc tương thích schema**: chỉ thêm trường optional,
+      không xóa/đổi tên/đổi kiểu trường cũ, phá vỡ thì ra phiên bản mới. Nói được cả bốn ý là đạt mức 3.
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "**REST**: tài nguyên + HTTP, **cache được** và phổ biến khắp nơi, nhưng dính **lấy thừa/lấy thiếu** (over/under-fetch)."
+      - "**gRPC**: protobuf nhị phân trên **HTTP/2**, nhanh/gọn, có **streaming**, hợp đồng chặt — tuyệt cho **service nội bộ**; đổi lại khó debug và **hỗ trợ trình duyệt kém**."
+      - "**GraphQL**: client tự chọn trường qua một endpoint, **trị over/under-fetch**, nhưng trả giá bằng **N+1** (cần DataLoader), **khó cache** và độ phức tạp server."
+      - "Chọn theo ranh giới: **public → REST/GraphQL; internal low-latency → gRPC**, và luôn nêu cái giá đi kèm."
+      - "3 quy tắc tương thích schema: **chỉ thêm trường optional**; **không xóa/đổi tên/đổi kiểu trường cũ** (không dùng lại số hiệu trường protobuf); **phá vỡ thì ra phiên bản mới**."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S100], l2: [S101], l3: [S102]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"
