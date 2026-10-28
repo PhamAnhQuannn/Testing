@@ -1,0 +1,155 @@
+id: sd.reliability_ops.fault_tolerance
+version: 1
+status: published
+title_vi: "Các pattern chịu lỗi (fault tolerance): timeout, retry, circuit breaker và retry storm"
+est_minutes: 14
+objectives_vi:
+  - "Kể đúng và giải thích 6 cơ chế chịu lỗi cốt lõi: timeout, retry (backoff + jitter), circuit breaker, bulkhead, graceful degradation/fallback, load shedding."
+  - "Giải thích retry storm (retry amplification) **bằng con số** và vì sao nó biến một blip thành outage."
+  - "Biết retry budget + backoff + jitter + circuit breaker chặn retry storm thế nào, và thêm đúng cơ chế vào một thiết kế."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      **Chịu lỗi (fault tolerance)** là thiết kế để *một phần hỏng không kéo sập cả hệ*. Trong một hệ
+      phân tán, dịch vụ nào cũng sẽ có lúc chậm hoặc chết — mạng rớt, GC khựng, một máy quá tải. Nguy
+      hiểm nhất là **lỗi lan truyền (cascading failure)**: dịch vụ A gọi B, B chậm, A cạn luồng (thread)
+      vì ngồi chờ B, rồi A cũng chậm, kéo theo dịch vụ gọi A... cứ thế cả hệ đổ domino.
+
+      Mục tiêu không phải là "không bao giờ lỗi" (bất khả thi) mà là **cô lập lỗi** và **suy giảm có
+      kiểm soát (graceful degradation)**: khi một phụ thuộc (dependency) hỏng, phần còn lại vẫn phục vụ
+      được, dù ở mức rút gọn. Bài này gom 6 cơ chế hay được hỏi trong phỏng vấn và một cái bẫy kinh điển
+      là **retry storm**.
+  - id: b02
+    type: text
+    md: |
+      **1) Timeout (hạn chờ) ở mọi lời gọi ra ngoài.** Đây là cơ chế nền. Không đặt timeout thì một
+      dịch vụ chậm sẽ giữ luồng của bạn *vô thời hạn*, và chỉ cần vài yêu cầu treo là cạn pool luồng —
+      đây chính là ngòi nổ của cascading failure. Quy tắc: mọi lời gọi mạng đều có deadline rõ ràng.
+
+      Nâng cao hơn là **truyền hạn chót (deadline propagation)**: nếu cả yêu cầu của người dùng chỉ còn
+      800 ms, mỗi dịch vụ con được báo còn bao nhiêu thời gian và **bỏ việc nếu đã quá hạn**, thay vì làm
+      xong một việc mà kết quả chắc chắn đến muộn — vừa phí tài nguyên vừa kéo dài chuỗi chờ.
+  - id: b03
+    type: text
+    md: |
+      **2) Retry (thử lại) với exponential backoff + jitter.** Nhiều lỗi chỉ là thoáng qua (transient):
+      gói tin rớt, một replica vừa restart. Thử lại giúp che các lỗi đó. Nhưng retry *ngây thơ* lại rất
+      nguy hiểm, nên phải kèm hai thứ:
+      - **Exponential backoff (lùi theo cấp số nhân):** chờ lâu dần giữa các lần thử (ví dụ 100 ms, rồi
+        200 ms, rồi 400 ms) để không đập liên tục vào dịch vụ đang ốm.
+      - **Jitter (ngẫu nhiên hoá):** cộng một lượng ngẫu nhiên vào thời gian chờ, để nhiều client *không*
+        retry cùng một mốc thời gian và dồn thành một spike đồng bộ đúng lúc dịch vụ vừa hồi.
+
+      Lưu ý an toàn: chỉ nên retry khi thao tác **idempotent** (làm lại nhiều lần vẫn cho một kết quả) —
+      ví dụ gắn một khoá idempotency cho lệnh thanh toán — nếu không retry có thể trừ tiền hai lần.
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao cần thêm **jitter** (ngẫu nhiên hoá) vào exponential backoff khi retry?"
+    options:
+      - {id: a, text_md: "Để các client không retry cùng một thời điểm, tránh dồn thành một spike đồng bộ đập vào dịch vụ vừa mới hồi."}
+      - {id: b, text_md: "Để mỗi lần retry nhanh hơn lần trước, rút ngắn tổng thời gian người dùng phải chờ."}
+      - {id: c, text_md: "Để khỏi cần đặt timeout nữa, vì có jitter thì lời gọi không bao giờ bị treo."}
+    answer: [a]
+    explain_md: "Backoff kéo dãn khoảng cách giữa các lần thử; jitter phá sự đồng bộ giữa nhiều client để chúng không ập vào cùng một mốc. (b) sai — backoff làm chậm dần, không nhanh dần; (c) sai — jitter không thay thế timeout, hai thứ độc lập."
+  - id: b05
+    type: text
+    md: |
+      **3) Circuit breaker (cầu dao).** Khi một phụ thuộc hỏng liên tục, việc cứ gọi tiếp (và retry) chỉ
+      đổ thêm dầu vào lửa. Cầu dao theo dõi tỉ lệ lỗi và có 3 trạng thái:
+      - **Closed (đóng, bình thường):** cho mọi yêu cầu đi qua; đếm lỗi.
+      - **Open (ngắt):** khi số lỗi vượt **ngưỡng**, cầu dao mở — *ngừng gọi* dịch vụ đang ốm và trả lỗi
+        hoặc fallback **ngay lập tức**. Điều này cho dịch vụ kia thời gian thở và giải phóng luồng của ta.
+      - **Half-open (hé mở):** sau một lúc, cho *vài* yêu cầu thử đi qua để **dò** xem dịch vụ đã hồi
+        chưa; ổn thì về Closed, còn lỗi thì quay lại Open.
+
+      **4) Bulkhead (vách ngăn).** Lấy ý tưởng từ khoang kín của tàu thuỷ: tách riêng pool tài nguyên
+      (luồng, kết nối) cho từng phụ thuộc. Nhờ vậy một phụ thuộc chậm chỉ ăn hết *khoang của nó*, không
+      nuốt toàn bộ luồng của cả tiến trình và làm chết luôn các chức năng không liên quan.
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một phụ thuộc (dependency) đang hỏng liên tục. **Circuit breaker** giúp gì, và trạng thái **half-open** để làm gì?"
+    options:
+      - {id: a, text_md: "Khi số lỗi vượt ngưỡng, cầu dao chuyển Open và trả lỗi/fallback ngay thay vì tiếp tục gọi dịch vụ đang ốm; half-open thỉnh thoảng cho vài yêu cầu thử để dò xem nó đã hồi chưa."}
+      - {id: b, text_md: "Cầu dao tự động retry vô hạn cho tới khi dịch vụ kia trả lời, nên client không bao giờ nhận lỗi."}
+      - {id: c, text_md: "Cầu dao tự nhân đôi số máy của dịch vụ đang hỏng để bù công suất bị thiếu."}
+    answer: [a]
+    explain_md: "Cầu dao chặn việc hammer một dịch vụ đã ốm (Open = fail fast), và half-open là bước dò an toàn trước khi mở lại hẳn. (b) sai — retry vô hạn chính là thứ cầu dao sinh ra để chặn; (c) sai — cầu dao không cấp phát máy."
+  - id: b07
+    type: text
+    md: |
+      **5) Graceful degradation / fallback (suy giảm có kiểm soát).** Khi một phụ thuộc chết, hãy phục vụ
+      một **phương án dự phòng** thay vì trả lỗi: serve dữ liệu cũ từ cache (stale cache), hoặc tắt tính
+      năng phụ mà giữ phần chính. Ví dụ: trang sản phẩm mất dịch vụ "gợi ý" vẫn hiện được sản phẩm, chỉ
+      là không có khối gợi ý. Người dùng thấy bản rút gọn, không thấy trang trắng.
+
+      **6) Load shedding (bỏ bớt tải).** Khi *chính ta* quá tải, chủ động **từ chối sớm** một phần yêu cầu
+      (ưu tiên bỏ việc ít quan trọng, giữ việc quan trọng) thay vì nhận hết rồi chậm đều và sập. Bỏ 10%
+      để cứu 90% thì tốt hơn là cố ôm 100% rồi mất tất. Họ hàng gần là **san tải bằng queue (queue-based
+      load leveling)**: đặt một hàng đợi trước phần chậm để đột biến tải xếp hàng chờ thay vì đập thẳng.
+  - id: b08
+    type: text
+    md: |
+      **Cái bẫy: retry storm (retry amplification).** Đây là lý do retry "ngây thơ" nguy hiểm, và là câu
+      hỏi phỏng vấn kinh điển — phải nói được **bằng con số**.
+
+      Hình dung chuỗi 3 tầng: client → dịch vụ A → dịch vụ B → dịch vụ C (sâu nhất). Bình thường C nhận
+      **1.000 req/s**. Giờ C chậm đi (chỉ là một blip vài giây). Mỗi tầng được cấu hình thử lại tối đa 3
+      lần — nghĩa là **mỗi yêu cầu vào một tầng đẻ ra tối đa 3 yêu cầu ra (×3)**. Hệ số khuếch đại nhân
+      qua 3 tầng: **3 × 3 × 3 = 27**. Vậy C đột nhiên nhận **27 × 1.000 = 27.000 req/s**, tức **27× bình
+      thường**, đúng lúc nó đang ốm. Kết quả: C sập hẳn, lỗi lan ngược lên — một blip nhỏ **biến thành
+      outage toàn hệ**. Đó là retry amplification: lỗi càng nhiều, retry càng nhiều, tải càng cao, càng
+      nhiều lỗi — vòng xoáy tự nuôi.
+
+      **Cách chặn:**
+      - **Retry budget (hạn mức retry):** giới hạn retry ở mức ~**10%** tổng số yêu cầu mỗi tầng; vượt
+        hạn thì *không* retry nữa. Mỗi tầng chỉ còn khuếch đại ×1,1 thay vì ×3. Qua 3 tầng:
+        **1,1 × 1,1 × 1,1 ≈ 1,33**, nên C nhận khoảng **1.330 req/s** thay vì 27.000 — khác biệt một
+        trời một vực.
+      - **Backoff + jitter:** trải các lần thử ra theo thời gian và phá đồng bộ, nên tải không dồn thành
+        một spike.
+      - **Circuit breaker:** sau ngưỡng lỗi, tầng gọi mở cầu dao và *ngừng hẳn* việc gọi C (×3 thành ×0,
+        trả fallback ngay), cho C thời gian hồi.
+  - id: b09
+    type: quiz_mcq
+    graded: true
+    prompt_md: |
+      Chuỗi 3 tầng, bình thường dịch vụ sâu nhất nhận 1.000 req/s. Trong sự cố, **mỗi tầng** thử lại tối
+      đa 3 lần (mỗi yêu cầu vào đẻ ra tối đa 3 yêu cầu ra). Tải tới dịch vụ sâu nhất bị khuếch đại khoảng
+      bao nhiêu lần, và một **retry budget 10%/tầng** (×1,1 mỗi tầng) kéo nó về đâu?
+    options:
+      - {id: a, text_md: "Khoảng 27× (3×3×3 = 27, tức ~27.000 req/s); retry budget 10% kéo xuống còn khoảng 1,33× (1,1×1,1×1,1 ≈ 1,33, tức ~1.330 req/s)."}
+      - {id: b, text_md: "Khoảng 9× (3×3); còn retry budget biến nó thành đúng 0× vì cấm mọi lần retry."}
+      - {id: c, text_md: "Đúng 3×, vì chỉ tầng sâu nhất mới retry; retry budget không đổi được con số đó."}
+    answer: [a]
+    explain_md: "Mỗi tầng nhân tải ×3, qua 3 tầng là 3×3×3 = 27, nên 1.000 req/s thành ~27.000 req/s. Với hạn mức 10%, mỗi tầng chỉ nhân ×1,1 nên 1,1^3 ≈ 1,33 → ~1.330 req/s. (b) sai cả hệ số (9× là 2 tầng) lẫn con số budget (10% là ×1,1, không phải cấm hết = 0); (c) sai vì mọi tầng đều khuếch đại, không chỉ tầng cuối."
+  - id: b10
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn (đạt mức 3).** Khi được hỏi "làm hệ này chịu lỗi thế nào", đừng kể tên lan man. Hãy
+      (1) **dán đúng cơ chế vào đúng chỗ**: timeout ở mọi lời gọi ra, retry (backoff + jitter, chỉ cho
+      thao tác idempotent) cho lỗi thoáng qua, circuit breaker + bulkhead để cô lập phụ thuộc hỏng,
+      fallback/graceful degradation cho đường đọc, load shedding khi chính ta quá tải; (2) chủ động **nêu
+      retry storm bằng con số** (3 tầng × retry 3 lần = 3×3×3 = 27× tải lên dịch vụ sâu nhất, biến blip
+      thành outage); (3) nói **retry budget 10%** (×1,1/tầng → ~1,33×) cùng backoff + jitter và circuit
+      breaker chặn vòng xoáy đó. Người phỏng vấn chấm việc bạn hiểu *vì sao retry ngây thơ nguy hiểm*,
+      không chấm việc đọc thuộc tên pattern.
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "6 cơ chế chịu lỗi: timeout (mọi lời gọi ra, kèm deadline propagation), retry (exponential backoff + jitter, chỉ cho thao tác idempotent), circuit breaker (Closed→Open→Half-open), bulkhead (tách pool tài nguyên), graceful degradation/fallback (serve cache cũ hoặc bản rút gọn), load shedding (từ chối sớm khi quá tải)."
+      - "Circuit breaker: vượt ngưỡng lỗi thì Open (fail fast, ngừng gọi dịch vụ ốm), Half-open để dò thử rồi về Closed nếu đã hồi — chặn việc hammer một phụ thuộc đang hỏng."
+      - "Retry storm: lỗi → retry → tải tăng → nhiều lỗi hơn (vòng xoáy tự nuôi); 3 tầng mỗi tầng retry 3 lần khuếch đại 3×3×3 = 27× lên dịch vụ sâu nhất (1.000 → 27.000 req/s), biến một blip thành outage."
+      - "Chặn retry storm: retry budget ~10%/tầng (×1,1 → 1,1×1,1×1,1 ≈ 1,33×, tức ~1.330 req/s thay vì 27.000) + backoff + jitter (phá spike đồng bộ) + circuit breaker (ngừng gọi, ×3 thành ×0)."
+      - "Mục tiêu không phải không bao giờ lỗi, mà là cô lập lỗi và suy giảm có kiểm soát để một phần hỏng không kéo sập cả hệ."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S160], l2: [S161], l3: [S162]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

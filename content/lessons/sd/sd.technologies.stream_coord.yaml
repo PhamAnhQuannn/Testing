@@ -1,0 +1,164 @@
+id: sd.technologies.stream_coord
+version: 1
+status: published
+title_vi: "Chọn công nghệ stream và điều phối: Kafka, Flink/Spark, ZooKeeper/etcd"
+est_minutes: 14
+objectives_vi:
+  - "Chọn đúng Kafka hay một hàng đợi việc (SQS/RabbitMQ) cho từng bài, và giải thích vì sao Kafka không phải task queue."
+  - "Phân biệt Flink (xử lý luồng thật, theo giờ sự kiện) với Spark (xử lý lô và vi-lô) để chọn theo yêu cầu độ trễ/thông lượng."
+  - "Nói đúng vai trò của ZooKeeper/etcd (điều phối: config, bầu leader, service discovery, khóa) và vì sao không chứa dữ liệu lớn ở đó."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Bài này nối tiếp phần bất đồng bộ (async: Kafka log, stream/batch processing) và đồng thuận
+      (consensus). Ở phỏng vấn system design, câu hỏi hiếm khi là "công nghệ nào tốt nhất" mà là
+      "**chọn công nghệ nào cho yêu cầu này, vì sao, và nó có giới hạn gì**". Ta có ba nhóm công cụ
+      hay bị nhầm lẫn:
+      - **Kafka** — log sự kiện bền, đọc lại được, chia partition (event streaming).
+      - **Flink / Spark** — hai cách *xử lý* dòng/khối dữ liệu đó.
+      - **ZooKeeper / etcd** — dịch vụ **điều phối** (coordination) dựa trên đồng thuận, giữ *ít*
+        thông tin nhưng phải thật chắc chắn.
+      Nắm đúng mỗi thứ dùng cho việc gì (và *không* dùng cho việc gì) là đủ để ghi điểm.
+  - id: b02
+    type: text
+    md: |
+      **Kafka** là một **log chia partition, bền (durable), đọc lại được (replayable)**. Nhà sản xuất
+      (producer) ghi sự kiện vào cuối log; nhiều nhóm tiêu thụ (consumer group) đọc *độc lập* bằng
+      con trỏ **offset** của riêng mình và có thể tua lại để đọc lại từ đầu. Kafka giữ dữ liệu theo
+      thời gian (retention) chứ không xóa khi một consumer đã đọc. Vì vậy Kafka mạnh ở:
+      - **Luồng sự kiện (event streaming)** và **tách rời (decoupling)** nhiều hệ: một bên ghi, nhiều
+        bên đọc theo nhịp riêng.
+      - **Nạp dữ liệu (ingestion)** cho pipeline phân tích, và **phát lại (replay)** khi cần tính lại.
+      - **Thông lượng rất cao** nhờ chia partition và ghi tuần tự.
+  - id: b03
+    type: callout
+    kind: warning
+    md: |
+      **Kafka KHÔNG phải một hàng đợi việc (task queue).** Kafka không có ngữ nghĩa kiểu hàng đợi
+      việc: không **ack/xóa từng tin** riêng lẻ, không **visibility timeout** (giấu tin đang xử lý),
+      không **hoãn (delay)** hay **thử lại (retry)** từng tin một cách tự nhiên. Tiến độ trong Kafka
+      là một **offset tuyến tính** cho cả partition, không phải trạng thái của từng tin. Khi bài toán
+      là "mỗi đơn hàng = một việc cần làm đúng một lần, làm xong thì xóa, lỗi thì thử lại" thì dùng
+      **hàng đợi việc** như **SQS** hay **RabbitMQ** — đơn giản và đỡ vận hành hơn nhiều so với
+      dựng Kafka.
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: |
+      Một hệ cần **gửi email cho từng đơn hàng**: mỗi đơn là một việc độc lập, làm xong thì bỏ, lỗi
+      thì thử lại từng tin. Nên chọn gì và vì sao?
+    options:
+      - {id: a, text_md: "Kafka, vì nó là hàng đợi việc có ack và visibility timeout cho từng tin."}
+      - {id: b, text_md: "Một hàng đợi việc như SQS/RabbitMQ: có ack, xóa sau khi làm, hoãn và thử lại từng tin — đúng ngữ nghĩa work queue, đỡ vận hành hơn Kafka."}
+      - {id: c, text_md: "Spark, vì mỗi email có thể coi là một job lô nhỏ chạy lại được."}
+    answer: [b]
+    explain_md: |
+      Đây là bài **hàng đợi việc**: cần ack/xóa/hoãn/thử lại *từng tin*. SQS/RabbitMQ cho đúng ngữ
+      nghĩa đó. (a) sai vì Kafka **không** có ack/visibility-timeout/xóa từng tin — tiến độ chỉ là
+      offset tuyến tính; (c) sai vì Spark là công cụ xử lý lô, không phải cơ chế phân phát việc.
+  - id: b05
+    type: text
+    md: |
+      Có dòng sự kiện rồi thì **xử lý** bằng gì? Hai lựa chọn hay gặp:
+      - **Flink** — **xử lý luồng thật (true streaming)**: xử lý từng sự kiện ngay khi đến, **độ trễ
+        thấp** (dưới giây), có **trạng thái (stateful)** và tính đúng theo **giờ sự kiện (event-time)**
+        với **cửa sổ (window)** và **watermark** để xử lý tin đến trễ. Hợp: phát hiện gian lận trong
+        vài giây, đếm/cảnh báo theo cửa sổ thời gian thực.
+      - **Spark** — mạnh ở **xử lý lô (batch)** và **vi-lô (micro-batch, Structured Streaming)**:
+        gom dữ liệu thành khối rồi xử lý, **thông lượng cao**, rất hợp **tính lại khối lớn
+        (reprocessing)**, báo cáo định kỳ, dọn/biến đổi dữ liệu (ETL), huấn luyện mô hình. Vì gom
+        theo lô nên độ trễ cao hơn Flink.
+      Chọn theo yêu cầu: **cần phản ứng trong mili-giây/giây theo từng sự kiện → Flink**; **cần nhai
+      khối lớn, thông lượng cao, chạy lại lịch sử → Spark**.
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: |
+      Cần **phát hiện gian lận thẻ trong vòng vài giây** ngay khi giao dịch xảy ra, dựa trên trạng
+      thái gần đây của từng thẻ. Chọn công cụ xử lý nào?
+    options:
+      - {id: a, text_md: "Spark batch chạy mỗi đêm, vì nó có thông lượng cao nhất."}
+      - {id: b, text_md: "Flink, vì nó xử lý luồng thật độ trễ thấp, có trạng thái và tính theo giờ sự kiện — phù hợp cảnh báo trong vài giây."}
+      - {id: c, text_md: "Kafka một mình, vì bản thân Kafka đã tính được cửa sổ gian lận."}
+    answer: [b]
+    explain_md: |
+      Yêu cầu là **độ trễ vài giây + trạng thái theo từng thẻ + theo giờ sự kiện** → đúng sở trường
+      **Flink**. (a) sai vì batch đêm trễ hàng giờ, bắt gian lận quá muộn; (c) sai vì Kafka chỉ *vận
+      chuyển/lưu* sự kiện, việc tính cửa sổ có trạng thái là của bộ xử lý như Flink.
+  - id: b07
+    type: text
+    md: |
+      Nhóm thứ ba là **dịch vụ điều phối (coordination service)**: **ZooKeeper** và **etcd**. Chúng
+      dựa trên **đồng thuận (consensus)** (ZAB/Raft) nên cho một **nguồn sự thật nhất quán mạnh**
+      (strongly consistent) mà cả cụm cùng thấy. Việc hợp giao cho chúng:
+      - **Cấu hình dùng chung (config)** và cờ bật/tắt mà mọi node cần đọc giống nhau.
+      - **Bầu leader (leader election)** và **khám phá dịch vụ (service discovery)**: ai đang sống,
+        ai là chủ.
+      - **Khóa phân tán (distributed lock)** / hàng rào (fencing) để chỉ một node làm một việc.
+      Điểm cốt lõi: chúng giữ **vài KB metadata quan trọng**, không phải kho dữ liệu. etcd còn là
+      "bộ não" lưu trạng thái của Kubernetes.
+  - id: b08
+    type: callout
+    kind: warning
+    md: |
+      **Đừng nhét dữ liệu lớn vào ZooKeeper/etcd.** Vì mỗi lần ghi phải được đa số node đồng thuận và
+      **nhân bản (replicate) ra toàn cụm**, chúng chỉ chịu được **lượng nhỏ, ghi thưa**. Đổ log,
+      file, blob hay dữ liệu người dùng vào đó sẽ làm chậm đồng thuận, phình bộ nhớ và hạ cả cụm.
+      Dữ liệu lớn thuộc về database/object store/Kafka; coordination service chỉ giữ *con trỏ* và
+      *metadata* tới chúng.
+  - id: b09
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền thuật ngữ (viết thường): Để **bầu leader** và giữ **cấu hình nhất quán** cho một cụm, ta
+      dùng một dịch vụ điều phối như ZooKeeper hoặc ___ ; nhưng không được lưu dữ liệu lớn ở đó vì
+      mọi lần ghi phải được ___ ra toàn cụm qua đồng thuận.
+    blanks:
+      - accept: ["etcd"]
+      - accept: ["nhân bản", "replicate", "nhan ban", "sao chép", "sao chep"]
+    explain_md: |
+      **etcd** (cùng nhóm với ZooKeeper) là dịch vụ điều phối dựa trên đồng thuận, hợp để bầu leader
+      và giữ config nhất quán. Không lưu dữ liệu lớn vì mỗi lần ghi phải được **nhân bản (replicate)**
+      ra đa số node — chỉ chịu được lượng nhỏ, ghi thưa.
+  - id: b10
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Phát biểu nào **đúng** khi so Kafka với một dịch vụ điều phối như etcd/ZooKeeper?"
+    options:
+      - {id: a, text_md: "Kafka hợp luồng sự kiện thông lượng cao đọc lại được; etcd/ZooKeeper hợp giữ ít metadata nhất quán mạnh (config, bầu leader, khóa) — không đổi vai cho nhau."}
+      - {id: b, text_md: "Cả hai đều là kho dữ liệu lớn nên có thể thay thế nhau tùy sở thích."}
+      - {id: c, text_md: "etcd/ZooKeeper nên dùng làm hàng đợi việc chính vì chúng nhất quán mạnh."}
+    answer: [a]
+    explain_md: |
+      Hai thứ khác mục đích: Kafka = **log sự kiện** thông lượng cao, đọc lại được; etcd/ZooKeeper =
+      **điều phối** metadata nhỏ, nhất quán mạnh. (b) sai vì không thứ nào là kho dữ liệu lớn vạn
+      năng; (c) sai vì coordination service không phải (và không nên làm) hàng đợi việc — việc đó
+      dành cho SQS/RabbitMQ.
+  - id: b11
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn.** Với câu "chọn công nghệ stream/điều phối", trả lời theo khuôn: *nêu yêu cầu
+      (độ trễ, thông lượng, có cần đọc lại/trạng thái/nhất quán không) → chọn công cụ → nêu một giới
+      hạn*. Ví dụ nhanh: email mỗi đơn → **SQS** (work queue); đếm click theo phút / gian lận vài giây
+      → **Kafka + Flink**; báo cáo đêm, tính lại lịch sử → **Spark**; bầu leader / config / khóa →
+      **etcd/ZooKeeper**. Và luôn thủ sẵn một câu giới hạn ăn điểm: **"Kafka không phải task queue"**
+      (không ack/visibility-timeout/xóa từng tin) và **"đừng nhét dữ liệu lớn vào etcd/ZooKeeper"**.
+      Người phỏng vấn chấm lý do theo yêu cầu, không chấm lòng trung thành với thương hiệu.
+  - id: b12
+    type: summary
+    bullets_vi:
+      - "Kafka = log chia partition, bền, **đọc lại được** cho event streaming / decoupling / ingestion; **không phải task queue** (không ack/visibility-timeout/xóa-hoãn-retry từng tin) — việc đó dùng SQS/RabbitMQ."
+      - "Flink = xử lý luồng thật, độ trễ thấp, có trạng thái, theo giờ sự kiện (gian lận vài giây, cửa sổ realtime); Spark = lô + vi-lô, thông lượng cao, hợp tính lại khối lớn / báo cáo / ETL."
+      - "ZooKeeper/etcd = dịch vụ điều phối dựa đồng thuận: giữ **ít** metadata nhất quán mạnh (config, bầu leader, service discovery, khóa), **không** chứa dữ liệu lớn."
+      - "Không nhét dữ liệu lớn vào coordination service vì mỗi ghi phải nhân bản qua đồng thuận ra toàn cụm — chỉ chịu lượng nhỏ, ghi thưa."
+      - "Khuôn trả lời: nêu yêu cầu → chọn Kafka/Flink/Spark/etcd đúng chỗ → nêu một giới hạn (ví dụ Kafka không phải task queue)."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S157], l2: [S158], l3: [S159]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

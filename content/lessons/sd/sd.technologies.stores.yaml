@@ -1,0 +1,119 @@
+id: sd.technologies.stores
+version: 1
+status: published
+title_vi: "Chọn kho dữ liệu: PostgreSQL, DynamoDB/Cassandra, S3"
+est_minutes: 13
+objectives_vi:
+  - "Gọi đúng tên ba lựa chọn kho chủ lực (PostgreSQL, DynamoDB/Cassandra, S3) và việc mỗi loại giỏi nhất."
+  - "Nêu đúng điểm mạnh cùng **một giới hạn** của mỗi loại, bám theo yêu cầu (requirement) chứ không theo thương hiệu."
+  - "Với mỗi thực thể (entity) trong một thiết kế, chọn được một kho cụ thể kèm 1-2 lý do theo yêu cầu và 1 giới hạn."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Ở bài **SQL vs NoSQL** bạn đã học *loại* kho; bài này chọn **công nghệ cụ thể** cho từng thực
+      thể (entity) trong một thiết kế. Trong phỏng vấn, người chấm không muốn nghe tên hãng — họ
+      muốn thấy bạn nối **lựa chọn với yêu cầu** (requirement): dữ liệu này cần giao dịch
+      (transaction) và join không? ghi (write) bao nhiêu mỗi giây? truy vấn theo khóa hay tổng hợp?
+      Ba câu hỏi đó dẫn tới ba kho chủ lực dưới đây.
+  - id: b02
+    type: text
+    md: |
+      **PostgreSQL (và các cơ sở dữ liệu quan hệ / relational nói chung)** — kho **mặc định** cho dữ
+      liệu giao dịch, có quan hệ (ví dụ người dùng, đơn hàng, thanh toán).
+      - **Mạnh:** **ACID** (giao dịch an toàn, nhất quán mạnh / strong consistency), **join** nhiều
+        bảng, **secondary index** (đánh chỉ mục trên cột bất kỳ, không chỉ khóa chính) nên truy vấn
+        linh hoạt (ad-hoc query) thoải mái.
+      - **Giới hạn cốt lõi:** mọi lệnh ghi vẫn dồn về **một primary duy nhất**, nên có **trần ghi**
+        (write ceiling) của một máy. Đọc có thể giảm tải bằng read replica, nhưng để chia tải *ghi*
+        thì phải sharding — mà sharding trên Postgres phức tạp và làm mất join/giao dịch xuyên shard
+        dễ dàng.
+  - id: b03
+    type: text
+    md: |
+      **DynamoDB / Cassandra (kho wide-column / key-value)** — chọn khi cần **ghi cực nhiều** và
+      **scale ngang (horizontal scale)** theo tải, ví dụ lịch sử chat, dòng sự kiện (event feed),
+      bảng ghi nhận lượt xem.
+      - **Mạnh:** chia dữ liệu ra nhiều máy theo **khóa phân vùng (partition key)** nên thông lượng
+        ghi (write throughput) rất cao và gần như không có trần; **nhất quán điều chỉnh được**
+        (tunable consistency — chọn giữa nhanh và nhất quán mạnh theo từng truy vấn).
+      - **Giới hạn cốt lõi:** bạn phải **thiết kế quanh partition key và mẫu truy vấn biết trước**;
+        **không join, truy vấn ad-hoc rất hạn chế**. Hỏi một kiểu mà schema không lường trước thì
+        hoặc quét toàn bảng rất đắt, hoặc không làm được.
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một dịch vụ **đơn hàng** cần giao dịch (transaction) và join giữa đơn, khách và sản phẩm, lượng ghi vừa phải. Kho mặc định hợp lý nhất là gì, và **một giới hạn** của nó?"
+    options:
+      - {id: a, text_md: "DynamoDB — vì nó scale ghi vô hạn; giới hạn là tốn tiền hơn Postgres."}
+      - {id: b, text_md: "PostgreSQL — vì có ACID, join, secondary index; giới hạn là ghi dồn về một primary nên có trần ghi của một máy."}
+      - {id: c, text_md: "S3 — vì rẻ và bền; giới hạn là không truy vấn theo khóa được."}
+    answer: [b]
+    explain_md: "Dữ liệu có quan hệ, cần giao dịch và join, tải ghi vừa phải → Postgres là mặc định đúng. Giới hạn thật là trần ghi của một primary (muốn chia tải ghi phải sharding, phức tạp). (a) DynamoDB không join/giao dịch nhiều bảng tiện; (c) S3 không phải DB giao dịch."
+  - id: b05
+    type: text
+    md: |
+      **S3 / object storage (kho đối tượng)** — chỗ để **blob**: file lớn, bất biến như ảnh, video,
+      bản sao lưu (backup), log nén.
+      - **Mạnh:** **rẻ và bền (durable)** ở quy mô rất lớn; phục vụ file tốt (thường qua
+        **presigned URL** để client tải thẳng, và qua CDN).
+      - **Giới hạn cốt lõi:** **không phải cơ sở dữ liệu** — không giao dịch, không truy vấn theo
+        cột, không sửa tại chỗ từng phần (muốn đổi nội dung là ghi đè cả object), và **không hợp cho
+        đọc giao dịch độ trễ thấp (low-latency transactional read)**. Mẫu chuẩn: **metadata nằm ở
+        Postgres, còn byte của file nằm ở S3** — Postgres giữ đường dẫn (key) trỏ tới object.
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao **không** nên dùng DynamoDB/Cassandra làm kho chính cho một báo cáo quản trị cần truy vấn linh hoạt kiểu 'tổng doanh thu theo vùng, theo tháng, lọc theo nhiều điều kiện tùy ý'?"
+    options:
+      - {id: a, text_md: "Vì wide-column tối ưu cho truy vấn theo partition key biết trước, không hỗ trợ join và truy vấn ad-hoc linh hoạt; truy vấn không theo khóa sẽ phải quét rất đắt hoặc không làm được."}
+      - {id: b, text_md: "Vì Cassandra không ghi nhanh bằng Postgres nên không kịp dữ liệu báo cáo."}
+      - {id: c, text_md: "Vì DynamoDB không bền, dễ mất dữ liệu khi truy vấn phức tạp."}
+    answer: [a]
+    explain_md: "Điểm yếu cốt lõi của wide-column là phải thiết kế quanh partition key và mẫu truy vấn biết trước; truy vấn tổng hợp tùy ý không có khóa phù hợp thì rất đắt. (b) sai — chúng ghi rất nhanh; (c) sai — chúng rất bền. Báo cáo tổng hợp hợp hơn với kho OLAP/cột (ví dụ ClickHouse) hoặc replica của Postgres."
+  - id: b07
+    type: quiz_fill
+    graded: true
+    prompt_md: "Điền thuật ngữ: Với DynamoDB/Cassandra, muốn ghi nhanh và scale ngang thì phải thiết kế dữ liệu xoay quanh ______ (khóa dùng để chia dữ liệu ra nhiều máy)."
+    blanks:
+      - accept: ["partition key", "khóa phân vùng", "partition-key", "khoa phan vung"]
+    explain_md: "Partition key (khóa phân vùng) quyết định dữ liệu nằm ở máy nào; chọn sai khóa thì dữ liệu lệch (hot partition) và truy vấn không theo khóa sẽ rất đắt."
+  - id: b08
+    type: callout
+    kind: interview
+    md: |
+      **Khung trả lời khi phỏng vấn.** Đừng nói "em dùng MongoDB cho tất cả". Hãy duyệt **từng thực
+      thể** và nói theo mẫu: *"Thực thể X → em chọn <kho> vì <1-2 yêu cầu: giao dịch/join, tải ghi,
+      mẫu truy vấn>; giới hạn là <điều này>."* Ví dụ một thiết kế mạng xã hội: **tài khoản + quan hệ
+      bạn bè → PostgreSQL** (cần giao dịch, join; giới hạn: trần ghi một primary); **dòng bài/feed
+      ghi rất nhiều → Cassandra/DynamoDB** (ghi cao, tra theo user partition key; giới hạn: không
+      join, truy vấn cố định); **ảnh/video → S3** (rẻ, bền, phục vụ qua CDN; giới hạn: không phải DB,
+      metadata vẫn để ở Postgres). Chọn theo yêu cầu, không theo thương hiệu.
+  - id: b09
+    type: text
+    md: |
+      Vài điều cần nhớ cho sạch:
+      - **Mặc định bắt đầu bằng PostgreSQL.** Nó đi rất xa (một máy mạnh gánh được nhiều); chỉ đổi
+        khi có **lý do theo yêu cầu** (tải ghi vượt một máy, hoặc mẫu truy vấn khóa đơn giản mà cần
+        scale ngang rẻ).
+      - **"Scale vô hạn" của NoSQL có giá:** bạn đánh đổi join và truy vấn linh hoạt để lấy thông
+        lượng ghi và scale ngang. Nếu dữ liệu có quan hệ và truy vấn đa dạng, cái giá đó thường
+        không đáng.
+      - **Một hệ thực tế dùng nhiều kho cùng lúc (polyglot persistence):** Postgres cho dữ liệu lõi,
+        wide-column cho luồng ghi lớn, S3 cho file. Mỗi thực thể chọn kho hợp nhất với nó.
+  - id: b10
+    type: summary
+    bullets_vi:
+      - "PostgreSQL/relational = mặc định cho dữ liệu giao dịch có quan hệ: ACID, join, secondary index; giới hạn là ghi dồn về một primary nên có trần ghi (sharding mới chia được tải ghi, kèm giá đắt)."
+      - "DynamoDB/Cassandra (wide-column/KV) = ghi cực nhiều và scale ngang theo partition key, nhất quán điều chỉnh được; giới hạn là phải thiết kế quanh khóa biết trước, không join, truy vấn ad-hoc rất hạn chế."
+      - "S3/object storage = blob rẻ và bền (file, backup); giới hạn là không phải DB, không đọc giao dịch độ trễ thấp — mẫu chuẩn: metadata ở Postgres, byte file ở S3."
+      - "Ba câu hỏi chọn kho: cần giao dịch/join không? ghi bao nhiêu mỗi giây? truy vấn theo khóa hay tổng hợp?"
+      - "Mức 3: với mỗi thực thể trong thiết kế, chọn một kho cụ thể kèm 1-2 lý do theo yêu cầu và 1 giới hạn; thực tế thường dùng nhiều kho cùng lúc (polyglot persistence)."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S151], l2: [S152], l3: [S153]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

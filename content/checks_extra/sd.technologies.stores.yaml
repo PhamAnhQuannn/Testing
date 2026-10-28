@@ -1,0 +1,59 @@
+subtopic_id: sd.technologies.stores
+items:
+  - id: S151
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Kể tên **ba kho dữ liệu chủ lực** đã học và một câu cho mỗi kho: nó giỏi nhất việc gì?
+    answer_md: |
+      - **PostgreSQL / relational:** kho mặc định cho dữ liệu giao dịch, có quan hệ — mạnh ở ACID,
+        join và secondary index (truy vấn linh hoạt).
+      - **DynamoDB / Cassandra (wide-column/KV):** giỏi ghi cực nhiều và scale ngang theo
+        **partition key** với nhất quán điều chỉnh được.
+      - **S3 / object storage:** lưu blob (file lớn, bất biến, backup) rẻ và bền.
+    rubric_md: "Đạt khi nêu đúng cả ba kho và việc mỗi loại giỏi nhất (Postgres = giao dịch/quan hệ/join; DynamoDB/Cassandra = ghi nhiều, scale ngang theo khóa; S3 = file/blob rẻ bền). Đúng cả ba: bằng chứng điểm 1; thiếu một kho hoặc gán sai việc: tối đa điểm 0."
+  - id: S152
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Một ứng dụng chat cần lưu **lịch sử tin nhắn**: mỗi phòng/người dùng ghi rất nhiều tin, đọc
+      chủ yếu là "lấy các tin gần nhất của phòng này", gần như không cần join. (1) Chọn một kho cụ
+      thể và nêu 1-2 lý do **theo yêu cầu**. (2) Nêu **một giới hạn** của kho đó. (3) Nếu sau này
+      sếp muốn báo cáo kiểu "đếm tin theo từ khóa, lọc tùy ý nhiều điều kiện", vì sao kho vừa chọn
+      **không** hợp, và nên đưa dữ liệu đi đâu?
+    answer_md: |
+      (1) Chọn **Cassandra/DynamoDB (wide-column)**: tải ghi rất cao và mẫu đọc là "theo khóa phòng,
+      lấy gần nhất" — hợp đúng với **partition key = phòng** và scale ngang khi tin nhắn tăng.
+      (2) Giới hạn: phải thiết kế quanh partition key biết trước; **không join, truy vấn ad-hoc rất
+      hạn chế** — hỏi kiểu không theo khóa sẽ rất đắt.
+      (3) Báo cáo tổng hợp/lọc tùy ý không có khóa phù hợp nên với wide-column sẽ phải quét rất đắt
+      hoặc không làm được; nên **đẩy dữ liệu sang kho phân tích/cột (OLAP) như ClickHouse** (hoặc một
+      replica/kho riêng cho truy vấn tổng hợp), tách khỏi đường ghi nóng.
+    rubric_md: "Đạt (điểm 2) khi nêu đúng cả 3 ý: chọn wide-column với lý do theo yêu cầu (ghi nhiều + đọc theo khóa phòng), nêu đúng giới hạn (không join/ad-hoc, phải theo partition key), và nhận ra báo cáo tổng hợp cần kho OLAP/cột riêng. Thiếu ý giới hạn hoặc không chỉ ra được vì sao wide-column không hợp cho truy vấn tổng hợp: tối đa điểm 1."
+  - id: S153
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      Thiết kế kho cho một dịch vụ **thương mại điện tử** với các thực thể: (a) **người dùng + đơn
+      hàng + thanh toán**, (b) **nhật ký lượt xem sản phẩm (clickstream)** ghi rất nhiều, (c) **ảnh
+      sản phẩm người bán tải lên**. Với **mỗi thực thể**, chọn một kho cụ thể, nêu **1-2 lý do theo
+      yêu cầu** và **một giới hạn** của kho đó. Nói rõ nguyên tắc chung dẫn dắt các lựa chọn.
+    answer_md: |
+      (a) **Người dùng + đơn hàng + thanh toán → PostgreSQL/relational.** Lý do: cần **giao dịch
+      (ACID)** để tiền và trạng thái đơn luôn nhất quán, và cần **join** giữa người dùng/đơn/sản
+      phẩm; tải ghi vừa phải. Giới hạn: ghi dồn về **một primary** → có trần ghi của một máy (muốn
+      chia tải ghi phải sharding, phức tạp).
+      (b) **Clickstream → Cassandra/DynamoDB (wide-column).** Lý do: **ghi cực nhiều** và chỉ đọc
+      theo khóa (ví dụ theo user/sản phẩm/thời gian), **scale ngang theo partition key**. Giới hạn:
+      không join, **truy vấn ad-hoc rất hạn chế** — phải biết trước mẫu truy vấn (báo cáo tổng hợp
+      để riêng cho kho OLAP).
+      (c) **Ảnh sản phẩm → S3/object storage.** Lý do: blob lớn, **rẻ và bền**, phục vụ qua presigned
+      URL/CDN. Giới hạn: **không phải DB** (không giao dịch, không sửa tại chỗ, không đọc giao dịch
+      độ trễ thấp) → **metadata (đường dẫn, kích thước) vẫn để ở Postgres**, byte file ở S3.
+      **Nguyên tắc chung:** chọn kho **theo yêu cầu của từng thực thể** (giao dịch/join? tải ghi? mẫu
+      truy vấn?), không theo thương hiệu; một hệ thực tế dùng nhiều kho cùng lúc (polyglot
+      persistence), mặc định bắt đầu từ Postgres và chỉ đổi khi có lý do rõ ràng.
+    rubric_md: "Đạt mức 3 (mức phỏng vấn theo mastery bar) khi: với CẢ BA thực thể chọn đúng kho cụ thể, mỗi kho kèm 1-2 lý do bám yêu cầu VÀ 1 giới hạn đúng (Postgres: giao dịch/join + trần ghi một primary; wide-column: ghi nhiều/theo partition key + không join/ad-hoc; S3: rẻ bền + không phải DB, metadata ở Postgres), và nêu được nguyên tắc 'chọn theo yêu cầu, polyglot'. Sót một thực thể, hoặc một kho thiếu lý do hoặc thiếu giới hạn: chưa đạt mức 3."

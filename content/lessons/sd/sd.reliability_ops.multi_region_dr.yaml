@@ -1,0 +1,151 @@
+id: sd.reliability_ops.multi_region_dr
+version: 1
+status: published
+title_vi: "Đa vùng và disaster recovery: RPO, RTO và đánh đổi nhất quán"
+est_minutes: 13
+objectives_vi:
+  - "Giải thích vì sao một vùng (single-region) là rủi ro, và phân biệt kiểu triển khai active-passive với active-active."
+  - "Định nghĩa đúng **RPO** (mất dữ liệu) và **RTO** (thời gian ngừng), và chỉ ra lựa chọn thiết kế nào kéo hai con số này lên hay xuống."
+  - "Chọn được chiến lược disaster recovery (DR) theo chi phí/tốc độ và nói rõ đánh đổi nhất quán (consistency) với độ trễ/sẵn sàng khi chép dữ liệu giữa vùng."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Bài trước (**sd.data.replication**) cho ta bản sao dữ liệu *trong một vùng* để chịu lỗi một
+      máy. Nhưng cả một **vùng (region)** vẫn có thể sập cùng lúc: mất điện diện rộng, đứt cáp, lỗi
+      cấu hình lan ra toàn vùng. Cần phân biệt **miền lỗi (failure domain)**:
+      - **AZ (availability zone):** một hoặc vài trung tâm dữ liệu tách riêng điện, làm mát, mạng.
+        Nhiều máy/replica ở các AZ khác nhau chịu được lỗi *một AZ* — đây là mức tối thiểu.
+      - **Region (vùng):** một vùng địa lý gồm nhiều AZ (thường cách nhau vài chục km). Nếu *cả
+        region* sập, mọi AZ trong đó mất theo. Muốn sống qua lỗi này phải có bản sao ở **vùng khác**.
+
+      Vì vậy **đa vùng (multi-region)** không phải để chạy nhanh hơn, mà để **sống sót** khi mất cả
+      một vùng. Đó là nền của **disaster recovery (DR)**: chuẩn bị sẵn để phục hồi sau thảm hoạ vùng.
+  - id: b02
+    type: text
+    md: |
+      Có hai kiểu triển khai đa vùng cơ bản:
+      - **Active-passive (chủ động - chờ):** một vùng **chính (primary)** nhận toàn bộ lưu lượng;
+        vùng kia là **dự phòng (standby)** chỉ nhận bản sao dữ liệu. Khi primary sập, ta **chuyển vùng
+        (failover)**: hướng khách sang standby và nâng nó lên làm chính. Standby có thể là **warm**
+        (đã chạy sẵn, chờ nhận tải) hay **cold** (phải khởi động/khôi phục trước) — warm chuyển nhanh
+        hơn nhưng tốn tiền hơn. Rẻ và đơn giản hơn, nhưng chuyển vùng chậm hơn và vùng dự phòng gần
+        như "ngồi không".
+      - **Active-active (cả hai cùng chạy):** mọi vùng **cùng nhận lưu lượng** và cùng ghi dữ liệu.
+        Mất một vùng thì vùng còn lại đã chạy sẵn nên gần như không gián đoạn, và tài nguyên không bị
+        lãng phí. Nhưng đây là kiểu **khó nhất về nhất quán (consistency):** hai vùng có thể ghi cùng
+        một bản ghi gần như đồng thời, sinh **xung đột (conflict)** phải giải quyết.
+  - id: b03
+    type: text
+    md: |
+      Hai con số định lượng mục tiêu DR — **phải nhớ đúng, đừng lẫn:**
+      - **RPO (recovery point objective):** **mất tối đa bao nhiêu *dữ liệu*** (tính theo thời gian) là
+        chấp nhận được. RPO = 5 phút nghĩa là sau thảm hoạ, chấp nhận mất tối đa 5 phút dữ liệu cuối.
+        RPO bị quyết bởi **độ trễ sao chép (replication lag)** hoặc **tần suất sao lưu (backup
+        frequency):** chép dữ liệu càng thường xuyên thì cửa sổ mất dữ liệu càng nhỏ, RPO càng tốt.
+      - **RTO (recovery time objective):** **mất tối đa bao lâu *thời gian ngừng* (downtime)** là chấp
+        nhận được, tức bao lâu thì hệ chạy lại. RTO = 30 phút nghĩa là phải phục hồi trong 30 phút.
+        RTO bị quyết bởi **tốc độ chuyển vùng (failover speed):** standby warm sẵn sàng thì RTO nhỏ;
+        phải khôi phục từ backup nguội thì RTO lớn.
+
+      Cách nhớ gọn: **RPO = mất *dữ liệu*** (nhìn về quá khứ), **RTO = mất *thời gian* ngừng** (nhìn
+      về phía trước). Hạ RPO bằng chép dữ liệu dày hơn; hạ RTO bằng chuyển vùng nhanh hơn. Cả hai
+      càng nhỏ thì càng đắt.
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một hệ đặt **RPO = 1 phút** và **RTO = 15 phút**. Hai con số này nói lên điều gì?"
+    options:
+      - {id: a, text_md: "Chấp nhận mất tối đa 1 phút **dữ liệu** cuối, và phải **chạy lại** trong vòng 15 phút."}
+      - {id: b, text_md: "Chấp nhận **ngừng** tối đa 1 phút, và chấp nhận mất tối đa 15 phút **dữ liệu**."}
+      - {id: c, text_md: "Hệ sẽ sập đúng 1 phút mỗi 15 phút để diễn tập chuyển vùng."}
+    answer: [a]
+    explain_md: "**RPO = mất dữ liệu** (ở đây tối đa 1 phút dữ liệu); **RTO = thời gian ngừng** (ở đây tối đa 15 phút downtime). (b) đảo ngược hai định nghĩa — lỗi thường gặp nhất. (c) không liên quan: RPO/RTO là *mục tiêu* phục hồi sau thảm hoạ, không phải lịch sập."
+  - id: b05
+    type: text
+    md: |
+      Các chiến lược DR xếp theo **chi phí tăng dần và RPO/RTO giảm dần** (nhanh hơn, mất ít hơn,
+      nhưng tốn hơn):
+      - **Backup & restore (sao lưu rồi khôi phục):** chỉ giữ backup định kỳ ở vùng khác; khi thảm
+        hoạ thì dựng hạ tầng và khôi phục. **Rẻ nhất**, nhưng RPO/RTO lớn (hàng giờ) vì phải khôi phục
+        từ đầu và mất phần dữ liệu từ backup gần nhất.
+      - **Pilot light (đèn mồi):** giữ phần lõi (database đã chép dữ liệu liên tục) chạy nhỏ ở vùng
+        kia, phần còn lại tắt. Khi cần thì "bật to" lên. RPO nhỏ hơn, RTO vẫn trung bình.
+      - **Warm standby (dự phòng ấm):** một bản thu nhỏ của **toàn hệ** chạy sẵn ở vùng kia, sẵn sàng
+        nhận tải và phóng to. RTO nhỏ (chỉ cần chuyển lưu lượng + scale).
+      - **Active-active:** mọi vùng cùng phục vụ; RPO/RTO **gần như bằng 0** nhưng **đắt nhất** và khó
+        nhất về nhất quán.
+
+      Nguyên tắc chọn: **RPO/RTO càng khắt khe thì leo càng cao trên thang này — và trả giá bằng tiền
+      cùng độ phức tạp.** Và: *backup chưa từng khôi phục thử, failover chưa từng diễn tập thì coi như
+      chưa có* — phải diễn tập định kỳ.
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Yêu cầu: **RTO khoảng vài phút** nhưng ngân sách **không cho chạy đủ hai bản hệ đầy đủ**. Chiến lược nào hợp lý nhất?"
+    options:
+      - {id: a, text_md: "**Backup & restore**: chỉ giữ backup ở vùng khác, khi sập mới dựng lại hạ tầng."}
+      - {id: b, text_md: "**Warm standby**: chạy sẵn một bản thu nhỏ của toàn hệ ở vùng kia, khi failover thì chuyển lưu lượng và phóng to."}
+      - {id: c, text_md: "**Active-active** đầy đủ hai vùng để RTO bằng 0, dù tốn gấp đôi."}
+    answer: [b]
+    explain_md: "Warm standby cho RTO nhỏ (chỉ chuyển lưu lượng + scale) mà không phải trả tiền cho hai hệ đầy đủ như active-active. (a) backup & restore rẻ nhưng RTO hàng giờ, không đạt 'vài phút'. (c) đạt RTO nhưng vi phạm ràng buộc ngân sách — đắt nhất."
+  - id: b07
+    type: text
+    md: |
+      Vì sao RPO khó về 0 nếu không chịu trả giá? Vì giữa hai vùng là **khoảng cách vật lý**, và chép
+      dữ liệu xuyên vùng buộc ta chọn:
+      - **Chép đồng bộ (synchronous):** mỗi lệnh ghi chỉ báo thành công **sau khi** vùng kia đã nhận.
+        **RPO = 0** (không mất dữ liệu), nhưng mỗi lần ghi phải chờ một vòng mạng xuyên vùng nên **độ
+        trễ (latency) cao**, và nếu vùng kia chậm/mất liên lạc thì ghi bị treo — **giảm tính sẵn sàng
+        (availability)**.
+      - **Chép bất đồng bộ (asynchronous):** ghi xong ở vùng chính là báo thành công ngay, rồi mới
+        đẩy sang vùng kia. **Độ trễ thấp**, nhưng luôn có một **cửa sổ trễ (lag)**; nếu vùng chính sập
+        trong cửa sổ đó, phần dữ liệu chưa kịp đẩy **bị mất — chính là RPO > 0 của bạn**.
+
+      Đây là một mặt của **CAP/PACELC**: xuyên vùng, bạn không thể vừa **nhất quán mạnh**, vừa **độ
+      trễ thấp**, vừa **luôn sẵn sàng**. Chọn đồng bộ là mua RPO = 0 bằng độ trễ và availability; chọn
+      bất đồng bộ là mua tốc độ/sẵn sàng bằng một cửa sổ mất dữ liệu. **Active-active** còn thêm việc
+      phải giải quyết **xung đột ghi** giữa các vùng (ví dụ last-write-wins hay CRDT).
+  - id: b08
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền vào chỗ trống. Chép dữ liệu xuyên vùng **đồng bộ** cho RPO bằng ______ nhưng làm tăng
+      ______ của mỗi lệnh ghi; chép **bất đồng bộ** thì nhanh hơn nhưng cửa sổ trễ chính là ______
+      của hệ (viết tắt 3 chữ cái).
+    blanks:
+      - {accept: ["0", "không", "khong", "zero", "0 (không)"]}
+      - {accept: ["độ trễ", "do tre", "latency", "độ trễ (latency)"]}
+      - {accept: ["RPO", "rpo"]}
+    explain_md: "Đồng bộ: ghi chờ vùng kia xác nhận nên **RPO = 0** nhưng **độ trễ (latency)** tăng. Bất đồng bộ: ghi báo thành công trước khi đẩy sang vùng kia, nên lượng dữ liệu trong cửa sổ trễ có thể mất khi vùng chính sập — đó đúng là **RPO** của hệ."
+  - id: b09
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn (đây là mức 3 của chủ đề).** Khi được yêu cầu "thiết kế đa vùng cho hệ này",
+      đừng chỉ kể active-active. Hãy làm đủ ba bước:
+      1. **Hỏi/đặt RPO và RTO cụ thể** ("mất tối đa bao nhiêu dữ liệu? ngừng tối đa bao lâu?"). Đây là
+         thứ chốt mọi lựa chọn.
+      2. **Chọn topology + chiến lược khớp hai con số:** RTO vài phút → warm standby hoặc active-active;
+         RPO = 0 → chép đồng bộ; RPO vài giây/phút → chép bất đồng bộ là đủ và rẻ hơn.
+      3. **Nói thẳng đánh đổi nhất quán:** "để RPO = 0 tôi chép đồng bộ, chấp nhận độ trễ ghi cao hơn
+         và rủi ro treo ghi khi vùng kia mất liên lạc; nếu RPO vài giây chấp nhận được thì tôi chép
+         bất đồng bộ để ghi nhanh, đổi lại có cửa sổ mất dữ liệu." Và nhắc **diễn tập failover** định
+         kỳ. Người phỏng vấn chấm việc bạn gắn thiết kế vào RPO/RTO và *gọi tên* đánh đổi, không chấm
+         việc kể tên công nghệ.
+  - id: b10
+    type: summary
+    bullets_vi:
+      - "Một vùng (single-region) có thể sập cả cụm; đa vùng (multi-region) là để **sống sót** lỗi vùng, không phải để chạy nhanh. AZ chịu lỗi một trung tâm; region chịu lỗi cả vùng."
+      - "**Active-passive**: một vùng chính + một vùng chờ (warm/cold), chuyển vùng (failover) khi sập — rẻ, chuyển chậm hơn. **Active-active**: mọi vùng cùng phục vụ — nhanh, nhưng khó nhất về nhất quán (xung đột ghi)."
+      - "**RPO = mất tối đa bao nhiêu *dữ liệu*** (hạ bằng chép/backup dày hơn); **RTO = mất tối đa bao lâu *thời gian ngừng*** (hạ bằng failover nhanh hơn). Đừng lẫn hai con số."
+      - "Thang DR theo chi phí/tốc độ: backup-restore → pilot light → warm standby → active-active; RPO/RTO càng khắt khe thì leo càng cao và càng đắt. Backup/failover chưa diễn tập = chưa có."
+      - "Xuyên vùng: chép **đồng bộ** = RPO 0 nhưng độ trễ cao và giảm sẵn sàng; chép **bất đồng bộ** = nhanh nhưng cửa sổ trễ chính là RPO. Đây là đánh đổi nhất quán vs độ trễ/sẵn sàng (CAP/PACELC)."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S163], l2: [S164], l3: [S165]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

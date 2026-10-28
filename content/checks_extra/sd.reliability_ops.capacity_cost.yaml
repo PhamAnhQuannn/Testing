@@ -1,0 +1,59 @@
+subtopic_id: sd.reliability_ops.capacity_cost
+items:
+  - id: S166
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Nói ngắn gọn: khi lập kế hoạch công suất (capacity planning), nên size theo **giờ cao điểm
+      (peak)** hay theo **trung bình (average)**? **Dư địa (headroom)** là gì và vì sao thường cho mỗi
+      máy chỉ chạy khoảng **60-70%** ở lúc cao điểm?
+    answer_md: |
+      Size theo **peak**, không theo average — vì đúng lúc đông nhất mà thiếu máy thì hệ sập. **Headroom
+      (dư địa)** là khoảng trống công suất chừa lại: cho mỗi máy chỉ gánh ~60-70% ở peak để (1) khi một
+      máy chết, tải dồn sang máy còn lại mà chúng không sập dây chuyền; (2) hấp thụ đột biến (spike)
+      ngoài dự báo trong lúc chờ autoscaling; (3) giữ p99 latency ổn định (chạy sát trần thì độ trễ phình
+      to).
+    rubric_md: "Đạt khi nêu đúng: size theo peak (không average) và headroom = chừa dư địa, chạy ~60-70% để chịu mất máy/đột biến/giữ latency. Đúng ý: bằng chứng điểm 1; thiếu ý headroom hoặc trả lời 'theo average': tối đa điểm 0."
+  - id: S167
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Một dịch vụ có đỉnh **20.000 QPS**, mỗi máy chịu tối đa **500 QPS**, chính sách chạy tối đa **60%**
+      ở peak và dự phòng **N+1**. (1) Tính số máy cần — chỉ rõ từng bước số học. (2) Tải trong ngày lên
+      xuống nhiều, hãy chọn **một tín hiệu autoscaling** phù hợp và giải thích vì sao **không nên đợi đến
+      lúc sập mới thêm máy**.
+    answer_md: |
+      (1) Công suất hữu dụng mỗi máy = 500 × 0,60 = **300 QPS**. Số máy đỡ đỉnh = 20.000 ÷ 300 = 66,67 →
+      **làm tròn lên 67 máy**. Cộng dự phòng N+1 = 67 + 1 = **68 máy**.
+      (2) Với web/API nên dùng **QPS/RPS** hoặc **CPU %** (bám sát tải request); nếu là hệ xử lý nền thì
+      dùng **queue depth / consumer lag**. Không đợi đến lúc sập mới thêm vì máy mới có **cold-start /
+      warm-up** (vài giây đến vài phút để khởi động, nạp container, làm nóng cache); trong khoảng chờ đó
+      hệ đã quá tải và latency đã hỏng. Headroom ~60% chính là để mua thời gian cho máy mới kịp vào phục
+      vụ.
+    rubric_md: "Đạt khi: (1) tính đúng ra 68 máy với các bước 500×0,60=300, 20.000÷300=66,67 làm tròn LÊN 67, +N+1=68 (sai vì không làm tròn lên hoặc quên +1 là trừ điểm); (2) chọn một tín hiệu hợp lý (QPS/CPU cho web, queue depth cho worker) và giải thích cold-start → phải đi trước. Đúng, trong time-box, tự giải thích được: bằng chứng điểm 2. Tính sai số máy hoặc không nói được vì sao cần đi trước (cold-start): tối đa điểm 1."
+  - id: S168
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      Bạn thiết kế một dịch vụ phục vụ ảnh/video kèm API, đỉnh **50.000 QPS**, mỗi máy chịu **1.000
+      QPS**, chính sách chạy tối đa **70%** ở peak, dự phòng **N+2**. Trả lời đủ theo vạch mức 3:
+      (1) tính số máy cần cho peak có dư địa và dự phòng (chỉ rõ số học);
+      (2) chọn một **tín hiệu autoscaling** hợp với nút thắt và nói vì sao cold-start khiến ta phải đi
+      trước tải;
+      (3) nêu **3 cách cụ thể** để giảm chi phí lưu trữ (storage) hoặc băng thông (bandwidth).
+    answer_md: |
+      (1) Công suất hữu dụng mỗi máy = 1.000 × 0,70 = **700 QPS**. Số máy đỡ đỉnh = 50.000 ÷ 700 = 71,43
+      → **làm tròn lên 72 máy**. Cộng dự phòng N+2 = 72 + 2 = **74 máy**.
+      (2) Tín hiệu: phần API/web theo **QPS/RPS hoặc CPU %** (bám tải request); nếu có hàng xử lý nền thì
+      theo **queue depth / consumer lag**; p99 latency là tín hiệu hướng người dùng. Phải đi trước đường
+      cong tải (scheduled/predictive + pre-warm) vì máy mới có **cold-start / warm-up** vài giây-phút;
+      đợi đến lúc sập mới thêm thì trong lúc khởi động hệ đã quá tải — headroom ~70% mua thời gian chờ.
+      (3) Ba cách cụ thể (nêu 3 trong số): **phân tầng + lifecycle** (nóng ở kho nhanh, cũ tự chuyển
+      sang object storage lạnh-rẻ); **nén (compression)** log/dữ liệu/response để giảm cả lưu lẫn
+      truyền; **CDN/cache** phục vụ ảnh/video tĩnh gần người dùng để cắt **egress** từ origin; ngoài ra
+      **reserved/spot instances** cho compute và **retention/TTL** (đặt hạn lưu, sample/xoá log) cũng
+      cắt chi phí.
+    rubric_md: "Đạt (mức phỏng vấn) khi làm đủ cả 3: (1) tính đúng 74 máy với 1.000×0,70=700, 50.000÷700=71,43 làm tròn LÊN 72, +N+2=74; (2) chọn tín hiệu hợp nút thắt VÀ giải thích cold-start → đi trước tải; (3) nêu đúng 3 cách cắt chi phí storage/bandwidth cụ thể (phân tầng/lifecycle, nén, CDN/egress, reserved/spot, retention/TTL). Đúng, trong time-box, tự giải thích rõ ràng: bằng chứng điểm 3. Tính sai số máy, hoặc thiếu phần autoscaling, hoặc nêu chưa đủ 3 cách giảm chi phí: chưa đạt mức 3."

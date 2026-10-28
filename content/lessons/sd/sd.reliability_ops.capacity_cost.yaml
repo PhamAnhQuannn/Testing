@@ -1,0 +1,171 @@
+id: sd.reliability_ops.capacity_cost
+version: 1
+status: published
+title_vi: "Dự phòng công suất và chi phí (capacity và cost)"
+est_minutes: 13
+objectives_vi:
+  - "Tính số máy cần cho **giờ cao điểm (peak)** có **dư địa (headroom)** và **dự phòng (N+1/N+2)** — và giải thích vì sao size theo peak chứ không theo trung bình."
+  - "Chọn đúng **tín hiệu autoscaling** (CPU, QPS/RPS, độ dài hàng đợi, p99 latency) và phân biệt scale phản ứng (reactive) với scale theo lịch/dự báo (scheduled/predictive), kèm vì sao cold-start quan trọng."
+  - "Nêu được **3 cách cụ thể** để giảm chi phí lưu trữ (storage) hoặc băng thông (bandwidth)."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Bài này nối tiếp **ước lượng (estimation)** và **chịu lỗi (fault tolerance)**. Sau khi đã ước
+      lượng được tải và biết hệ phải sống sót khi một máy chết, câu hỏi tiếp theo là: **cần bao nhiêu
+      máy, và tốn bao nhiêu tiền?**
+
+      Nguyên tắc số một của **lập kế hoạch công suất (capacity planning)**: **size theo giờ cao điểm
+      (peak), không theo trung bình (average)**. Nếu trung bình là 10.000 QPS nhưng cao điểm buổi tối
+      chạm 30.000 QPS, mà bạn chỉ dựng đủ cho 10.000, thì đúng lúc đông người nhất hệ sẽ sập. Tải thực
+      tế luôn gồ ghề (bursty): tin nóng, flash sale, giờ vàng. Công suất phải đỡ được **đỉnh**, cộng
+      thêm một khoảng trống để hấp thụ bất ngờ.
+  - id: b02
+    type: text
+    md: |
+      Khoảng trống đó là **dư địa (headroom)**. Đừng cho máy chạy tới 100% ngay ở peak — hãy đặt mục
+      tiêu mỗi máy chỉ gánh khoảng **60-70%** công suất ở lúc cao điểm. Lý do:
+
+      - Khi **một máy chết**, tải của nó dồn sang các máy còn lại; nếu chúng đã chạy 95% thì sẽ sập dây
+        chuyền (cascading failure). Chạy 70% thì còn chỗ để gánh.
+      - Khi tải **đột biến (spike)** vượt dự báo, headroom cho ta vài phút cầm cự trong lúc autoscaling
+        kịp thêm máy.
+      - p99 latency tăng vọt khi hệ chạy sát trần (hàng đợi dài ra); giữ dưới ~70% để độ trễ ổn định.
+
+      Ngoài headroom, thêm **dự phòng (redundancy)** kiểu **N+1 / N+2**: nếu cần N máy để chịu peak thì
+      dựng N+1 (chịu được mất 1 máy) hoặc N+2 (chịu mất 2 máy, hoặc 1 máy chết *trong khi* 1 máy khác
+      đang bảo trì). Headroom lo phần tải; N+1/N+2 lo phần **số lượng máy dự trữ**.
+  - id: b03
+    type: text
+    md: |
+      **Ví dụ tính số máy (giữ số học cho đúng).** Giả sử: đỉnh **30.000 QPS**, mỗi máy chịu tối đa
+      **1.000 QPS**, chính sách chạy tối đa **70%** ở peak, và muốn dự phòng **N+1**.
+
+      1. Công suất hữu dụng mỗi máy = 1.000 × 0,70 = **700 QPS** (phần ta thực sự cho phép dùng).
+      2. Số máy để đỡ đỉnh = 30.000 ÷ 700 = 42,86 → **làm tròn LÊN 43 máy** (luôn làm tròn lên: 42 máy
+         là thiếu).
+      3. Cộng dự phòng N+1 = 43 + 1 = **44 máy**.
+
+      Cách tính tương đương, dễ đọc hơn khi phỏng vấn: 30.000 ÷ 1.000 = 30 máy nếu chạy hết 100%; chia
+      cho mức sử dụng mục tiêu 0,70 → 30 ÷ 0,70 = 42,86 → 43; cộng N+1 → **44 máy**. Hai cách ra cùng
+      kết quả. Điểm mấu chốt để nói ra miệng: **chia cho per-node capacity, rồi chia cho mức sử dụng
+      mục tiêu, rồi làm tròn lên, rồi cộng dự phòng.**
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: |
+      Một API có đỉnh **20.000 QPS**, mỗi máy chịu **500 QPS**, chính sách chạy tối đa **80%** ở peak,
+      dự phòng **N+1**. Cần bao nhiêu máy?
+    options:
+      - {id: a, text_md: "40 máy (20.000 ÷ 500, không tính headroom hay dự phòng)."}
+      - {id: b, text_md: "51 máy: mỗi máy hữu dụng 500 × 0,80 = 400 QPS; 20.000 ÷ 400 = 50; cộng N+1 = 51."}
+      - {id: c, text_md: "50 máy: chia cho headroom nhưng quên cộng dự phòng."}
+    answer: [b]
+    explain_md: |
+      Công suất hữu dụng = 500 × 0,80 = 400 QPS/máy. Số máy đỡ đỉnh = 20.000 ÷ 400 = 50 (chia hết, không
+      cần làm tròn). Cộng N+1 → 51 máy. (a) bỏ cả headroom lẫn dự phòng nên thiếu; (c) đúng tới bước
+      headroom nhưng quên 1 máy dự phòng.
+  - id: b05
+    type: text
+    md: |
+      Thay vì dựng cứng 44 máy chạy 24/7, ta dùng **tự co giãn (autoscaling)**: thêm/bớt máy theo tải
+      thật. Vấn đề là **dựa vào tín hiệu (signal) nào** để quyết định co giãn:
+
+      - **CPU %** — tín hiệu mặc định, hợp với service tính toán nhiều; dễ đo nhưng trễ với tải I/O.
+      - **QPS / RPS** (số request mỗi giây) — hợp web/API, bám sát tải vào.
+      - **Độ dài hàng đợi / consumer lag (queue depth)** — tín hiệu **tốt nhất cho hệ xử lý nền
+        (worker, job)**: queue dài nghĩa là đang không theo kịp, cần thêm worker.
+      - **p99 latency** — tín hiệu hướng trải nghiệm người dùng; độ trễ đuôi phình to là dấu hiệu sắp
+        nghẽn.
+
+      Chọn tín hiệu **gần với nút thắt (bottleneck) thật** của hệ: web nghẽn vì request thì theo
+      QPS/CPU; worker nghẽn vì việc tồn đọng thì theo queue depth.
+  - id: b06
+    type: text
+    md: |
+      Có hai kiểu kích hoạt co giãn:
+
+      - **Phản ứng (reactive):** thấy tín hiệu vượt ngưỡng (CPU > 70%) thì mới thêm máy. Đơn giản nhưng
+        luôn **chạy sau tải một nhịp**.
+      - **Theo lịch / dự báo (scheduled / predictive):** biết trước 8h sáng tải tăng thì **dựng máy
+        trước**; hoặc dùng mô hình dự báo để đi trước đường cong tải.
+
+      Vì sao phải đi trước? Vì máy mới **không sẵn sàng tức thì**: nó cần vài giây đến vài phút để khởi
+      động, nạp container, làm nóng cache và JIT (**cold-start / warm-up**). Nếu đợi đến lúc sập mới
+      thêm máy, trong khoảng chờ khởi động đó hệ đã quá tải và latency đã hỏng. Đây chính là lý do phải
+      có **headroom**: nó mua thời gian cho autoscaling kịp đưa máy mới vào phục vụ. Với tải tăng đột
+      ngột và biết trước (flash sale), scheduled/predictive + **pre-warm** (làm nóng sẵn) an toàn hơn
+      reactive.
+  - id: b07
+    type: quiz_mcq
+    graded: true
+    prompt_md: |
+      Một đội worker đọc việc từ hàng đợi (queue) và xử lý nền. Tín hiệu autoscaling **phù hợp nhất** và
+      lý do cần headroom/pre-warm là gì?
+    options:
+      - {id: a, text_md: "Theo **độ dài hàng đợi (queue depth) / consumer lag**: queue phình ra nghĩa là không theo kịp; và vì máy mới có cold-start nên cần dư địa để không bị dồn việc trong lúc chờ worker khởi động."}
+      - {id: b, text_md: "Theo p99 latency của trang web, vì đó là thứ người dùng thấy."}
+      - {id: c, text_md: "Không cần tín hiệu: cứ đợi queue đầy rồi thêm thật nhiều worker một lúc."}
+    answer: [a]
+    explain_md: |
+      Worker nền nghẽn ở **việc tồn đọng**, nên queue depth / consumer lag là tín hiệu bám sát nút thắt
+      nhất. (b) p99 web không phản ánh tải của worker nền. (c) đợi đến lúc đầy mới phản ứng là reactive
+      cực đoan: cold-start khiến worker mới chưa kịp phục vụ thì việc đã dồn ứ — cần headroom và đôi khi
+      pre-warm.
+  - id: b08
+    type: text
+    md: |
+      **Chi phí (cost) là một ràng buộc thiết kế**, không phải nghĩ sau. Chi phí lớn thường nằm ở
+      **tính toán (compute)**, **lưu trữ (storage)** và **băng thông đi ra (egress/bandwidth)**. Vài
+      cách **cụ thể** để cắt chi phí storage/bandwidth:
+
+      - **Phân tầng lưu trữ + vòng đời (tiered / cold storage + lifecycle):** dữ liệu nóng để ở kho
+        nhanh-đắt, dữ liệu cũ tự động chuyển sang kho lạnh-rẻ (object storage) theo chính sách lifecycle.
+      - **Nén (compression):** nén log, dữ liệu và response (gzip/zstd) — giảm cả dung lượng lưu lẫn số
+        byte truyền.
+      - **CDN / cache để cắt egress:** phục vụ ảnh, video, tài nguyên tĩnh từ **CDN** gần người dùng,
+        giảm lượng dữ liệu đi ra từ gốc (origin egress) — thường là khoản băng thông đắt nhất.
+      - **Giữ chỗ / spot (reserved / spot instances):** cam kết dài hạn (reserved) rẻ hơn on-demand cho
+        tải ổn định; **spot** rất rẻ nhưng có thể bị thu hồi bất cứ lúc nào nên chỉ hợp việc nền chịu
+        gián đoạn.
+      - **Thời hạn lưu / TTL (data retention / TTL):** đừng giữ mọi thứ mãi mãi — đặt TTL, xoá hoặc lấy
+        mẫu (sample) log debug; dữ liệu không giữ là dữ liệu không tốn tiền.
+  - id: b09
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền thuật ngữ (tiếng Anh) còn thiếu: Để cắt chi phí băng thông khi phục vụ ảnh/video tĩnh, ta đặt
+      một mạng phân phối nội dung gần người dùng, gọi là ______ , nhằm giảm lượng dữ liệu đi ra từ gốc
+      (origin ______ ).
+    blanks:
+      - {accept: ["CDN", "cdn", "content delivery network", "Content Delivery Network"]}
+      - {accept: ["egress", "Egress"]}
+    explain_md: |
+      **CDN (content delivery network)** cache nội dung tĩnh ở biên gần người dùng, nên phần lớn request
+      không phải chạm origin — cắt được **egress** (dữ liệu đi ra), thường là khoản băng thông đắt nhất.
+  - id: b10
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn (đúng vạch mức 3).** Khi được hỏi về công suất và chi phí, trả lời theo 3 nhịp
+      gọn: (1) **tính số máy cho peak có dư địa** — "chia tải đỉnh cho công suất mỗi máy, rồi cho mức
+      sử dụng mục tiêu ~70%, làm tròn lên, cộng N+1"; nói ra con số. (2) **chọn tín hiệu autoscaling**
+      hợp với nút thắt — web → QPS/CPU, worker → queue depth — và nhắc cold-start nên đừng đợi sập mới
+      thêm. (3) **nêu 3 cách giảm chi phí** storage/bandwidth cụ thể: ví dụ phân tầng + lifecycle, nén,
+      và CDN/cache để cắt egress. Nói số và đánh đổi thì ăn điểm; kể tên công nghệ suông thì không.
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "Size theo **peak** không theo average; chừa **headroom** (mỗi máy chỉ ~60-70% ở peak) để hấp thụ đột biến và khi một máy chết, cộng **dự phòng N+1/N+2**."
+      - "Công thức số máy: tải đỉnh ÷ công suất mỗi máy ÷ mức sử dụng mục tiêu → **làm tròn LÊN** → cộng dự phòng. Ví dụ 30.000 ÷ 1.000 ÷ 0,70 = 42,86 → 43, + N+1 = **44 máy**."
+      - "**Autoscaling** dựa trên tín hiệu gần nút thắt: CPU/QPS cho web, **queue depth / consumer lag** cho worker, p99 latency cho trải nghiệm."
+      - "**Reactive** chạy sau tải một nhịp; **scheduled/predictive + pre-warm** đi trước. Phải đi trước vì **cold-start / warm-up** tốn vài giây-phút; headroom mua thời gian chờ máy mới."
+      - "Giảm chi phí storage/bandwidth: **phân tầng + lifecycle**, **nén**, **CDN/cache cắt egress**, **reserved/spot**, và **retention/TTL** — dữ liệu không giữ là tiền không tốn."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S166], l2: [S167], l3: [S168]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"
