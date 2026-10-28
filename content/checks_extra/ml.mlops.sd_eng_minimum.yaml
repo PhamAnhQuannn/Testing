@@ -1,0 +1,70 @@
+subtopic_id: ml.mlops.sd_eng_minimum
+items:
+  - id: S373
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Nói ngắn gọn bằng lời thường: **QPS** là gì, và **p95** (một phân vị độ trễ, latency
+      percentile) nghĩa là gì?
+    answer_md: |
+      **QPS (queries per second):** số request (lượt gọi) mà hệ thống nhận **mỗi giây** — thước đo
+      tải (load).
+
+      **p95:** sắp xếp thời gian phản hồi (độ trễ) của các request từ nhanh đến chậm; p95 là mức mà
+      **95% request nhanh hơn**, chỉ 5% chậm hơn. Nó mô tả phần **đuôi chậm (tail)**, nên phản ánh
+      trải nghiệm xấu mà số đông còn gặp — khác với trung bình (average) vốn dễ bị vài request chậm
+      kéo lệch.
+    rubric_md: "Đúng khi nêu được: QPS = số request mỗi giây (thước đo tải); p95 = mức mà 95% request nhanh hơn (5% chậm hơn / phần đuôi). Đủ hai ý: bằng chứng điểm 1. Nhầm QPS với 'request mỗi ngày' hoặc nói p95 là trung bình: tối đa điểm 0."
+  - id: S374
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Một API dự kiến nhận **2 triệu request mỗi ngày**, tải cao điểm **gấp 4 lần** trung bình.
+      (1) Ước lượng **QPS trung bình** và **QPS đỉnh (peak)**, nêu rõ phép tính.
+      (2) Viết một **SLO** hợp lý cho API này (gồm cả độ trễ và độ khả dụng), và nói SLO khác **SLA**
+      ở điểm nào.
+    answer_md: |
+      **(1) Ước lượng QPS:**
+      - Một ngày có 86.400 giây (24 × 3600, ≈ 10^5).
+      - QPS trung bình = 2.000.000 ÷ 86.400 ≈ **23 request/giây** (nhẩm nhanh: 2.000.000 ÷ 10^5 = 20, cùng cỡ).
+      - QPS đỉnh = 4 × 23 ≈ **92 request/giây** → nên thiết kế để chịu được khoảng ~90–100 request/giây.
+
+      **(2) SLO ví dụ:** "**p95 độ trễ dưới 200 ms** và **99,9% khả dụng (availability)** trong một
+      tháng." SLO là **mục tiêu nội bộ** đo được mà đội kỹ thuật theo dõi và đặt báo động.
+      **SLA** là **cam kết ràng buộc với khách hàng** (trong hợp đồng, thường kèm đền bù khi vi
+      phạm), và thường đặt lỏng hơn SLO để có biên an toàn.
+    rubric_md: "Đạt khi: (1) tính QPS trung bình = 2.000.000 ÷ 86.400 ≈ 23/giây VÀ QPS đỉnh ≈ 4 × trung bình ≈ 92/giây (chia cho 86.400, không nhầm giây/phút); (2) nêu một SLO có cả độ trễ (vd p95) và độ khả dụng, và phân biệt SLO = mục tiêu nội bộ còn SLA = cam kết với khách hàng. Đúng, trong time-box, tự giải thích được: bằng chứng điểm 2. Sai phép chia QPS (quên 86.400 / không nhân hệ số đỉnh) hoặc không phân biệt được SLO với SLA: tối đa điểm 1."
+  - id: S375
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      **(Phỏng vấn AI engineer)** Người phỏng vấn muốn kiểm tra vốn thuật ngữ tối thiểu của bạn
+      trước khi vào bài thiết kế serving. Hãy:
+      (1) Giải thích **bằng lời thường** từng khái niệm: **QPS**, **p95**, **SLO** (và khác **SLA**
+      ở đâu), **queue (hàng đợi)**, **Docker/container**, **CI/CD** — mỗi cái một–hai câu, kèm vì sao
+      nó quan trọng khi vận hành ML.
+      (2) Làm một phép **ước lượng QPS**: dịch vụ có **8,64 triệu lượt dùng mỗi ngày**, mỗi lượt 1
+      request, đỉnh gấp 3 lần trung bình — tính QPS trung bình và QPS đỉnh.
+    answer_md: |
+      **(1) Thuật ngữ:**
+      - **QPS (queries/giây):** số request mỗi giây — thước đo tải; cần để biết hệ thống phải chịu
+        bao nhiêu và cần bao nhiêu máy.
+      - **p95:** 95% request nhanh hơn mức này; nhìn **đuôi chậm** quan trọng hơn trung bình vì
+        người dùng cảm nhận request của chính họ, không phải average.
+      - **SLO:** mục tiêu nội bộ đo được, ví dụ "p95 < 200 ms và 99,9% khả dụng"; đội kỹ thuật theo
+        dõi và báo động theo nó. **SLA** là cam kết ràng buộc với khách hàng (hợp đồng, có đền bù),
+        thường đặt lỏng hơn SLO.
+      - **Queue (hàng đợi):** vùng đệm giữa bên tạo việc (producer) và bên xử lý (worker); làm phẳng
+        đỉnh tải và đẩy việc nặng (chạy model) sang xử lý nền — khách nhận job id rồi polling/webhook.
+      - **Docker/container:** đóng gói app + thư viện + cấu hình để chạy **giống hệt, tái lập được**
+        ở mọi máy; hợp để triển khai model nhất quán giữa dev và production.
+      - **CI/CD:** CI tự chạy test mỗi lần đẩy code; CD tự đóng gói và triển khai khi test qua — ra
+        bản mới nhanh, đều, ít lỗi thủ công (vd chạy lại eval set trước khi deploy).
+
+      **(2) Ước lượng QPS:**
+      - QPS trung bình = 8.640.000 ÷ 86.400 = **100 request/giây**.
+      - QPS đỉnh = 3 × 100 = **300 request/giây**.
+    rubric_md: "Đạt (mức phỏng vấn, điểm 3) khi: (1) giải thích đúng, bằng lời thường cả sáu khái niệm — QPS, p95, SLO (và phân biệt SLA), queue, Docker/container, CI/CD — kèm lý do quan trọng; VÀ (2) tính đúng QPS trung bình = 8.640.000 ÷ 86.400 = 100/giây và QPS đỉnh = 3 × 100 = 300/giây. Đúng, trong time-box, tự giải thích rõ ràng: bằng chứng điểm 3. Thiếu/giải thích sai một trong các khái niệm cốt lõi, hoặc sai phép ước lượng QPS (không chia 86.400, quên hệ số đỉnh): chưa đạt mức 3."

@@ -1,0 +1,89 @@
+subtopic_id: ml.system_design.prediction_forecasting
+items:
+  - id: S343
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Nói ngắn gọn: **rò rỉ nhãn (label leakage)** trong một bài dự đoán là gì, và nguyên tắc
+      **point-in-time correctness** giúp tránh nó như thế nào? Cho một ví dụ feature bị rò rỉ.
+    answer_md: |
+      **Rò rỉ nhãn (label leakage)** là khi một feature chứa thông tin chỉ biết được **SAU thời
+      điểm dự đoán t** — tức thông tin tương lai mà lúc chạy thật ta chưa có. Nó làm metric offline
+      đẹp giả tạo rồi sập khi lên production.
+
+      **Point-in-time correctness (đúng tại thời điểm)**: mỗi feature phải được tính **đúng như nó
+      trông tại thời điểm t**, chỉ từ dữ liệu có trước t. Cách thử: "tại đúng t, mình đã tính được
+      con số này từ quá khứ chưa?" — nếu phải đợi dữ liệu sau t thì là rò rỉ.
+
+      Ví dụ rò rỉ (bài churn 30 ngày): dùng cờ "tài khoản đã bị đóng/huỷ" lấy ở hiện tại — cờ này
+      thường chỉ bật sau khi khách đã churn, nên nó chính là nhãn tương lai lọt vào feature. (Hoặc:
+      dùng tổng chi tiêu cả vòng đời gồm cả chi tiêu sau t.)
+    rubric_md: "Đúng khi nêu được: (1) leakage = feature mang thông tin chỉ có SAU t / từ tương lai; (2) point-in-time = feature chỉ tính từ dữ liệu trước t; (3) một ví dụ hợp lý (cột cập-nhật-về-sau như cờ đóng tài khoản, tổng chi tiêu cả đời...). Đủ ba ý: bằng chứng điểm 1. Thiếu ý tương lai-lọt-vào hoặc không cho được ví dụ: tối đa điểm 0."
+  - id: S344
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Một đồng nghiệp xây model dự báo **nhu cầu bán hàng ngày** cho một cửa hàng. Họ **xáo trộn
+      ngẫu nhiên** toàn bộ dữ liệu rồi chia 80/20 train/test, chuẩn hoá feature bằng trung bình/độ
+      lệch tính trên **cả tập**, và báo **RMSE** rất thấp — nhưng lên production thì sai bét. Hãy
+      chỉ ra **hai lỗi về phương pháp đánh giá** khiến con số offline không đáng tin, cách sửa từng
+      lỗi, và gợi ý một điều chỉnh **metric** nếu hết hàng (đoán thiếu) tốn kém hơn ôm kho (đoán thừa).
+    answer_md: |
+      **Lỗi 1 — chia ngẫu nhiên trên dữ liệu thời gian:** shuffle đưa mẫu **tương lai vào train**
+      nên model học lỏm tương lai, RMSE phồng ảo. **Sửa:** backtest **theo thứ tự thời gian** —
+      train trên đoạn trước mốc, test trên đoạn sau; tốt nhất **rolling-origin** (lặp nhiều mốc, lấy
+      trung bình) và chừa **gap** bằng đúng horizon giữa train và test.
+
+      **Lỗi 2 — chuẩn hoá (và mọi thống kê) tính trên cả tập:** trung bình/độ lệch tính gồm cả phần
+      test (tương lai) là một dạng rò rỉ. **Sửa:** chỉ fit bộ chuẩn hoá trên **phần train của mỗi
+      vòng**, rồi áp cho test; mọi phép tổng hợp phải point-in-time.
+
+      **Điều chỉnh metric:** chi phí đoán thiếu (hết hàng, mất doanh thu) khác đoán thừa (tốn kho),
+      nên thay sai số đối xứng bằng **loss bất đối xứng** hoặc **quantile loss** (vd đoán phân vị cao
+      p90 để giảm rủi ro hết hàng) và trả **khoảng dự đoán** thay vì một con số. RMSE/MAE một mình
+      không phản ánh được cái giá lệch hai chiều khác nhau.
+    rubric_md: "Đạt (điểm 2) khi nêu đúng cả: (1) lỗi shuffle thời gian + sửa bằng backtest theo thời gian (expanding/rolling-origin); (2) lỗi chuẩn hoá/thống kê trên cả tập là rò rỉ + sửa bằng fit chỉ trên train; (3) đề xuất metric bất đối xứng/quantile (và/hoặc prediction interval) vì chi phí hai chiều khác nhau. Đúng, trong time-box, tự giải thích được: bằng chứng điểm 2. Chỉ bắt được một lỗi, hoặc không nối metric với chi phí: tối đa điểm 1."
+  - id: S345
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      **(Phỏng vấn AI engineer)** Thiết kế hệ thống **dự đoán churn khách hàng trong 30 ngày tới**
+      để đội chăm sóc chủ động giữ chân. Hãy trình bày một pipeline đầy đủ, nêu rõ:
+      (1) định nghĩa **nhãn** + cửa sổ quan sát + horizon, và cách đảm bảo feature **không rò rỉ**
+      (point-in-time);
+      (2) cách **đánh giá đúng thứ tự thời gian** (backtest), nói rõ vì sao không dùng chia ngẫu nhiên;
+      (3) **metric gắn với chi phí kinh doanh** (gồm việc đoán thừa/thiếu lệch giá), và vì sao chỉ
+      dùng accuracy là không ổn;
+      (4) lựa chọn model, cách **phục vụ** (batch/real-time) + **retrain/giám sát drift**, và lưu ý
+      rằng **can thiệp giữ chân làm lệch nhãn**.
+    answer_md: |
+      **(1) Nhãn + leak-free:** nhãn churn = "khách **không có hoạt động tạo giá trị trong 30 ngày
+      tới (horizon)** kể từ thời điểm dự đoán t"; cửa sổ quan sát = hành vi 90 ngày trước t. Với mỗi
+      khách tạo nhiều mẫu tại các mốc t khác nhau. **Point-in-time correctness:** mọi feature (số lần
+      đăng nhập, tần suất, chi tiêu, số vé hỗ trợ...) chỉ tính từ dữ liệu **trước t**; dùng **ảnh
+      chụp đúng-thời-điểm (point-in-time snapshot)** hoặc feature store có point-in-time join; tránh
+      cột cập-nhật-về-sau (cờ đóng tài khoản, tổng chi tiêu cả đời) và không tính thống kê/chuẩn hoá
+      trên cả tương lai.
+
+      **(2) Backtest theo thời gian:** train trên đoạn trước một mốc, test đoạn sau; dùng
+      **rolling-origin** (nhiều mốc, lấy trung bình) và chừa **gap 30 ngày** bằng horizon giữa
+      train/test. **Không chia ngẫu nhiên** vì shuffle nhét tương lai vào train → model học lỏm → metric
+      phồng ảo, không phản ánh việc đứng ở hiện tại đoán tương lai.
+
+      **(3) Metric gắn chi phí:** đây là bài mất cân bằng lớp nặng và chi phí lệch, nên **accuracy vô
+      nghĩa** (đoán "không ai churn" vẫn cao chót vót). Dùng **precision@top-k / lift** cho danh sách
+      k khách rủi ro nhất mà đội CSKH xử lý được, PR-AUC; cân nhắc **loss/ngưỡng bất đối xứng** vì bỏ
+      sót một khách sắp churn (mất khách) thường tốn hơn báo nhầm một khách (tốn một ưu đãi); nếu xuất
+      ra con số kỳ vọng thì kèm **khoảng/độ không chắc**.
+
+      **(4) Model + vận hành:** baseline đơn giản rồi **GBDT trên feature trễ + lịch + biến ngoại
+      sinh** (deep để sau, khi dữ liệu lớn); một model chung xuyên khách, cold start mượn nhóm tương
+      tự. **Phục vụ batch mỗi đêm** (churn 30 ngày không cần real-time) rồi đẩy danh sách rủi ro cho
+      đội CSKH. **Giám sát drift** (sai số, phân phối feature) và **retrain định kỳ**. Quan trọng:
+      khi ta **can thiệp giữ chân** người bị đoán churn, hành động đó **đổi chính nhãn** ta đo
+      (closing the loop) — cần log can thiệp, giữ nhóm đối chứng, và cân nhắc **uplift modeling** để
+      đo *mức thay đổi* do can thiệp thay vì chỉ xác suất churn thô.
+    rubric_md: "Đạt mức phỏng vấn (điểm 3) khi bao đủ bốn trụ: (1) nhãn/cửa sổ/horizon rõ + feature point-in-time không rò rỉ; (2) backtest theo thời gian (rolling-origin, gap) + lý do bác chia ngẫu nhiên; (3) metric gắn chi phí (lift/precision@top-k hoặc loss bất đối xứng) + vì sao accuracy không ổn với lớp mất cân bằng/chi phí lệch; (4) model hợp lý (baseline→GBDT), batch/real-time có lý do, drift+retrain, và nhận ra can thiệp làm lệch nhãn (uplift). Đúng, trong time-box, tự giải thích rõ: bằng chứng điểm 3. Thiếu một trong ba trụ cốt lõi (leak-free, backtest thời gian, metric gắn chi phí): chưa đạt mức 3."

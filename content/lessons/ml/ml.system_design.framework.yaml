@@ -1,0 +1,204 @@
+id: ml.system_design.framework
+version: 1
+status: published
+title_vi: "Khung thiết kế hệ thống ML (ML system design framework): dẫn dắt 45 phút từ yêu cầu đến giám sát"
+est_minutes: 14
+objectives_vi:
+  - "Dẫn dắt một buổi thiết kế hệ thống ML (ML system design) 45 phút theo cùng một khung 6 bước: làm rõ, dữ liệu và feature, model, đánh giá, serving, giám sát."
+  - "Biến mục tiêu kinh doanh thành một bài toán ML rõ ràng: định nghĩa metric (cả offline lẫn online/business) và nhãn (label) một cách chặt chẽ."
+  - "Nêu được các trade-off chính (độ trễ vs độ chính xác, dữ liệu tươi vs ổn định) kèm vài con số ước lượng (QPS, dung lượng dữ liệu)."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Câu hỏi thiết kế hệ thống ML trong phỏng vấn (ví dụ "thiết kế hệ thống dự đoán khách rời bỏ
+      (churn)" hay "thiết kế gợi ý sản phẩm") nghe rất rộng, nhưng bí quyết là: **mọi bài đều trả
+      lời theo cùng một dàn**. Bạn không cần nhớ từng hệ thống, chỉ cần một **khung (framework)** và
+      đi qua nó một cách có kỷ luật. Người phỏng vấn chấm **cách bạn dẫn dắt**, không phải việc bạn
+      có đáp án "đúng duy nhất".
+
+      Khung gồm 6 bước theo thứ tự:
+      1. **Làm rõ (clarify)**: biến mục tiêu kinh doanh thành một bài toán ML cụ thể, chốt **metric**
+         và **nhãn (label)**.
+      2. **Dữ liệu và feature (data & features)**: nguồn dữ liệu, rò rỉ (leakage), độ tươi (freshness).
+      3. **Model**: làm **baseline** đơn giản trước, rồi mới lặp lên model phức tạp.
+      4. **Đánh giá (evaluation)**: offline (tập giữ lại, không rò rỉ) + online **A/B test**.
+      5. **Serving**: online (độ trễ thấp) hay batch; lấy feature lúc suy luận (inference) ở đâu.
+      6. **Giám sát và train lại (monitoring & retraining)**: drift, vòng phản hồi.
+
+      Xuyên suốt, bạn chèn một **ước lượng nhanh (estimation)** về quy mô (QPS, dung lượng dữ liệu) và
+      gọi tên các **trade-off** chính. Mẹo quản lý thời gian trong 45 phút: đừng sa đà vào model; dành
+      nhiều phút nhất cho bước 1 (metric + nhãn) vì đó là bước đòn bẩy cao nhất.
+  - id: b02
+    type: text
+    md: |
+      **Bước 1a - Làm rõ và biến thành bài toán ML.** Trước hết hỏi lại để chốt **mục tiêu kinh doanh**
+      (vì sao làm, ai dùng, quy mô, ràng buộc độ trễ), rồi dịch nó thành một bài toán ML: **ta dự đoán
+      cái gì, cho đối tượng nào, vào lúc nào?** Ví dụ "giảm khách rời bỏ" dịch thành "dự đoán xác suất
+      một khách sẽ không dùng app trong 30 ngày tới". Cũng nên hỏi **có thực sự cần ML không** - đôi khi
+      một vài **luật đơn giản (rules)** đã đủ làm baseline và nhanh hơn nhiều.
+
+      **Bước 1b - Metric.** Phân biệt hai tầng:
+      - **Metric mô hình (offline metric)**: đo trên dữ liệu test, ví dụ precision/recall, AUC, NDCG,
+        MAE. Dùng để chọn và so model.
+      - **Metric kinh doanh (online metric)**: đo khi thả ra thật, ví dụ doanh thu, tỉ lệ giữ chân,
+        CTR. Đây mới là thứ công ty quan tâm.
+
+      Thêm **metric chặn (guardrail metric)**: thứ không được phép tụt dù metric chính tăng (ví dụ
+      độ trễ, tỉ lệ khiếu nại, doanh thu). Nêu rõ mối liên hệ: ta **tối ưu offline để kỳ vọng online
+      tốt lên**, và chỉ A/B test mới xác nhận được điều đó.
+  - id: b03
+    type: text
+    md: |
+      **Bước 1c - Nhãn (label).** Đây là phần hay bị bỏ qua nhưng cực quan trọng: **một nhãn được tạo
+      ra như thế nào và khi nào?** Hãy chốt rõ:
+      - **Nguồn nhãn**: tự nhiên (click, mua hàng), do người gán (annotator), hay nhãn yếu (weak label,
+        suy ra từ tín hiệu gián tiếp).
+      - **Nhãn đến trễ (delayed label)**: nhiều nhãn chỉ biết sau một thời gian. "Churn trong 30 ngày"
+        phải chờ 30 ngày mới có nhãn thật; một giao dịch gian lận có thể vài tuần sau mới bị khiếu nại.
+        Nhãn trễ ảnh hưởng tới việc train lại và đánh giá.
+      - **Nhãn nhiễu/lệch (noisy/biased label)**: người gán có thể sai; click chưa chắc là "thích";
+        hệ thống cũ tạo ra dữ liệu khiến nhãn bị lệch (feedback loop).
+
+      Chốt nhãn rõ còn giúp bạn thấy trước **cửa sổ quan sát (observation window)** và **chân trời dự
+      đoán (prediction horizon)**: nhìn lại bao lâu để làm feature, và dự đoán bao xa về tương lai.
+  - id: b04
+    type: callout
+    kind: interview
+    md: |
+      **Bước đòn bẩy cao nhất là định nghĩa rõ metric + nhãn - hãy dành thời gian ở đây.** Nhiều ứng
+      viên lao ngay vào kiến trúc model, nhưng người phỏng vấn senior thường "ghim điểm" ở chỗ: *Bạn
+      đang dự đoán chính xác cái gì? Nhãn lấy từ đâu và đến khi nào? Bạn đo thành công bằng metric nào,
+      offline và online?* Nếu metric hoặc nhãn sai, mọi thứ phía sau (model xịn, serving nhanh) đều vô
+      nghĩa. Một câu nên nói ra: "Tôi sẽ chốt nhãn và metric trước, vì đó là thứ ràng buộc toàn bộ phần
+      còn lại."
+  - id: b05
+    type: quiz_mcq
+    graded: true
+    prompt_md: |
+      Người phỏng vấn đưa bài "thiết kế hệ thống phát hiện giao dịch gian lận (fraud)". Trong bước làm
+      rõ, việc nào **đòn bẩy cao nhất** nên làm kỹ trước khi bàn tới model?
+    options:
+      - id: a
+        text_md: "Chốt rõ **nhãn** (một giao dịch bị coi là gian lận khi nào, nhãn đến trễ ra sao qua khiếu nại) và **metric** (precision/recall offline + metric kinh doanh như tiền thất thoát, kèm guardrail về tỉ lệ chặn nhầm)."
+      - id: b
+        text_md: "Chọn ngay kiến trúc model mạnh nhất (ví dụ mạng nơ-ron sâu) để chắc chắn độ chính xác cao, rồi mới tính các thứ khác sau."
+      - id: c
+        text_md: "Quyết định dùng bao nhiêu GPU và framework serving nào, vì hạ tầng là yếu tố quyết định thành bại."
+    answer: [a]
+    explain_md: |
+      Metric + nhãn là bước đòn bẩy cao nhất: nó định nghĩa "đúng" nghĩa là gì và ràng buộc mọi bước
+      sau. Với fraud còn phải nêu nhãn đến trễ (khiếu nại) và guardrail chặn nhầm. (b) chọn model khi
+      chưa rõ dự đoán cái gì là đặt cày trước trâu; (c) hạ tầng quan trọng nhưng không thay được một
+      định nghĩa bài toán sai.
+  - id: b06
+    type: text
+    md: |
+      **Bước 2 - Dữ liệu và feature (data & features).** Trả lời ba câu:
+      - **Nguồn (sources)**: dữ liệu lấy từ đâu (log sự kiện, bảng giao dịch, hồ sơ người dùng), đủ
+        lượng và đủ lịch sử không.
+      - **Rò rỉ (leakage)**: feature **không được** chứa thông tin chỉ có sau thời điểm dự đoán. Kinh
+        điển: dùng một trường chỉ được điền *sau khi* kết quả xảy ra. Rò rỉ làm offline metric đẹp giả
+        tạo rồi sập khi lên thật. Cách phòng: chỉ dùng dữ liệu "tính đến thời điểm dự đoán"
+        (point-in-time), tách dữ liệu theo thời gian.
+      - **Độ tươi (freshness) và lệch train-serving (training-serving skew)**: feature lúc train phải
+        tính **giống hệt** lúc serving; nếu lúc train dùng số liệu cập nhật còn lúc serving dùng số cũ
+        thì model lệch. Một **feature store** giúp giữ hai bên nhất quán.
+  - id: b07
+    type: text
+    md: |
+      **Bước 3 - Model: baseline trước, rồi lặp.** Luôn bắt đầu bằng một **baseline đơn giản** (luật
+      tay, hồi quy logistic, cây tăng cường GBDT) để có mốc so sánh rẻ và nhanh. Chỉ leo lên model
+      phức tạp hơn khi baseline cho thấy còn dư địa và dữ liệu đủ. Nêu lý do chọn, đừng chọn model phức
+      tạp chỉ vì nghe "xịn".
+
+      **Bước 4 - Đánh giá (evaluation).** Hai tầng, khớp với metric ở bước 1:
+      - **Offline**: đo trên **tập giữ lại (held-out)**, **tách theo thời gian** nếu dữ liệu có mốc
+        ngày (train quá khứ, test tương lai) để **không rò rỉ**. Dùng đúng metric đã chốt.
+      - **Online (A/B test)**: chia người dùng thành nhóm đối chứng và nhóm thử, so metric kinh doanh
+        trên traffic thật. Trước A/B có thể chạy **shadow** (model chạy song song, không ảnh hưởng người
+        dùng) và **canary** (thả cho một phần nhỏ). Offline tốt chỉ là điều kiện cần; online mới là
+        bằng chứng.
+  - id: b08
+    type: quiz_mcq
+    graded: true
+    prompt_md: |
+      Một model dự đoán churn đạt AUC rất cao trên tập test offline, nhưng khi thả ra thật thì gần như
+      vô dụng. Nguyên nhân có khả năng cao nhất và cách phòng là gì?
+    options:
+      - id: a
+        text_md: "Có thể bị **rò rỉ dữ liệu (leakage)**: feature chứa thông tin chỉ biết sau thời điểm dự đoán. Phòng bằng cách chỉ dùng dữ liệu tính đến thời điểm dự đoán (point-in-time) và tách train/test theo thời gian."
+      - id: b
+        text_md: "Model quá đơn giản; chỉ cần đổi sang mạng nơ-ron sâu hơn là offline và online sẽ khớp nhau."
+      - id: c
+        text_md: "AUC là metric sai; cứ đổi sang accuracy thì khoảng cách offline-online sẽ biến mất."
+    answer: [a]
+    explain_md: |
+      Offline rất đẹp mà online sập là dấu hiệu kinh điển của rò rỉ (hoặc lệch train-serving): feature
+      vô tình mang thông tin tương lai nên không có thật lúc serving. Phòng bằng point-in-time và tách
+      theo thời gian. (b) đổi model không chữa rò rỉ; (c) đổi metric không chữa nguyên nhân gốc là dữ
+      liệu.
+  - id: b09
+    type: text
+    md: |
+      **Bước 5 - Serving và ước lượng (estimation).** Chọn kiểu phục vụ theo yêu cầu độ trễ:
+      - **Batch**: tính trước định kỳ (ví dụ mỗi đêm) và lưu kết quả; hợp khi không cần tức thời (điểm
+        churn hằng ngày).
+      - **Online**: tính ngay khi có yêu cầu, cần **độ trễ thấp** (gợi ý, chặn gian lận lúc thanh toán);
+        nêu **ngân sách độ trễ** p95/p99.
+      - Câu then chốt: **lấy feature ở đâu lúc inference?** Feature phải sẵn và tính đúng cách tại thời
+        điểm phục vụ (feature store, cache).
+
+      Chèn một **ước lượng nhanh** để thể hiện tư duy quy mô: ví dụ "1 triệu người dùng hoạt động, mỗi
+      người ~10 yêu cầu/ngày thì ~10 triệu lượt/ngày, chia cho ~86.400 giây ra khoảng **~115 QPS trung
+      bình**, đỉnh gấp vài lần nên tính cho ~500 QPS". Tương tự ước lượng **dung lượng dữ liệu** (số
+      bản ghi x kích thước) để biết lưu ở đâu. Con số không cần chính xác tuyệt đối, cần đúng bậc độ lớn.
+  - id: b10
+    type: text
+    md: |
+      **Bước 6 - Giám sát và train lại (monitoring & retraining).** Sau khi lên thật, theo dõi:
+      - **Drift**: phân phối dữ liệu đầu vào hoặc quan hệ dữ liệu-nhãn đổi theo thời gian, làm model cũ
+        kém dần.
+      - **Metric online** và guardrail: cảnh báo khi tụt.
+      - **Vòng phản hồi (feedback loop)**: dự đoán của model ảnh hưởng ngược lại dữ liệu thu được (ví
+        dụ chỉ hiện món model chọn nên chỉ có nhãn cho món đó).
+
+      Từ đó quyết **nhịp train lại**: định kỳ hay kích theo drift.
+
+      **Trade-off cần gọi tên** (người phỏng vấn rất thích nghe):
+      - **Độ trễ vs độ chính xác (latency vs accuracy)**: model lớn chính xác hơn nhưng chậm và tốn hơn;
+        có khi cần phễu nhiều tầng (model rẻ lọc trước, model nặng chấm sau).
+      - **Dữ liệu tươi vs ổn định (fresh vs stable)**: train lại thường xuyên bắt kịp drift nhưng dễ dao
+        động và khó gỡ lỗi; train lại thưa thì ổn định nhưng chậm thích nghi.
+      - **Batch vs online**: đơn giản, rẻ vs tức thời, phức tạp hơn.
+  - id: b11
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền thuật ngữ còn thiếu: Model đạt metric cao lúc mới thả, nhưng vài tháng sau kém dần vì phân
+      phối dữ liệu thực tế đã thay đổi so với lúc train. Hiện tượng này gọi là ______, và nó là lý do
+      chính để ta giám sát và ______ (huấn luyện lại) model định kỳ hoặc theo cảnh báo.
+    blanks:
+      - accept: ["drift", "data drift", "concept drift", "trôi dạt", "trôi"]
+      - accept: ["train lại", "retrain", "retraining", "huấn luyện lại", "train lại model"]
+    explain_md: |
+      Drift (trôi dạt) là khi phân phối đầu vào hoặc quan hệ dữ liệu-nhãn đổi theo thời gian, làm model
+      cũ kém dần. Đó là lý do cốt lõi để giám sát và train lại (retrain) - định kỳ hoặc kích theo cảnh
+      báo drift. Đây chính là bước 6 trong khung.
+  - id: b12
+    type: summary
+    bullets_vi:
+      - "Mọi bài thiết kế hệ thống ML trả lời theo cùng một khung 6 bước: **làm rõ** → **dữ liệu & feature** → **model (baseline trước)** → **đánh giá (offline + A/B)** → **serving** → **giám sát & train lại**, kèm **ước lượng** quy mô và gọi tên **trade-off**."
+      - "Bước đòn bẩy cao nhất là **làm rõ**: biến mục tiêu kinh doanh thành bài toán ML cụ thể (dự đoán gì, cho ai, khi nào), rồi chốt **metric** và **nhãn** trước mọi thứ khác."
+      - "**Metric** hai tầng: offline (precision/recall, AUC, NDCG...) để chọn model, online/business (doanh thu, giữ chân, CTR) để đo thành công thật, cộng **guardrail**. **Nhãn**: rõ nguồn, **đến trễ** và **nhiễu/lệch**."
+      - "**Dữ liệu**: tránh **rò rỉ (leakage)** bằng point-in-time và tách theo thời gian; giữ **độ tươi** và tránh **lệch train-serving**. Đánh giá offline chỉ là điều kiện cần, **A/B test** mới xác nhận."
+      - "**Serving** chọn batch hay online theo ngân sách **độ trễ p95/p99**; nêu feature lấy ở đâu lúc inference và một **ước lượng QPS/dung lượng**. **Giám sát** drift và **train lại**."
+      - "Trade-off hay nêu: **độ trễ vs độ chính xác**, **dữ liệu tươi vs ổn định**, **batch vs online** - luôn kèm vài con số ước lượng."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S337], l2: [S338], l3: [S339]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

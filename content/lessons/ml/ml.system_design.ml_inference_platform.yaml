@@ -1,0 +1,175 @@
+id: ml.system_design.ml_inference_platform
+version: 1
+status: published
+title_vi: "Thiết kế nền tảng inference GPU đa model (multi-model GPU inference platform): registry, hàng đợi, batching, autoscaling, SLO và ước lượng capacity/chi phí"
+est_minutes: 15
+objectives_vi:
+  - "Ghép các mảnh của một nền tảng inference GPU dùng chung cho nhiều đội: API sync/async + hàng đợi job (queue), model registry + versioning (promote/rollback, canary, A/B, shadow), scheduler gom batch (continuous batching cho LLM) — áp dụng chứ không dạy lại."
+  - "Thiết kế autoscaling theo tín hiệu đúng (độ sâu hàng đợi / GPU utilization, không theo CPU), và xử lý bài toán cold start (thời gian nạp trọng số) bằng warm pool / model caching, cân nhắc scale-to-zero cho model ít dùng."
+  - "Đảm bảo multi-tenancy: cô lập (isolation), công bằng (fairness) + quota, SLO theo tier (p99 latency, availability), backpressure và routing theo tier; observability (latency/throughput/GPU-util/chi phí theo từng model) và reliability (health check, retry, fallback, fleet-wide backoff)."
+  - "Ước lượng capacity và chi phí **theo số liệu**: từ QPS × token suy ra token/s → số GPU (kèm dự phòng), quy ra chi phí mỗi request, và nêu các đòn giảm chi phí."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Đây là bài **capstone** của nhánh serving: ta ghép mọi thứ đã học thành một **nền tảng inference
+      GPU dùng chung** (multi-model GPU inference platform) phục vụ **nhiều đội** — mỗi đội đẩy lên
+      model/LLM riêng và gọi qua một API chung. Mục tiêu không phải học lại batching hay chi phí (đã có
+      ở các bài trước) mà là **lắp chúng lại** cho đúng.
+
+      Trước hết, chốt kiểu API theo độ dài việc:
+      - **Sync (đồng bộ):** việc nhanh (phân loại ảnh, một câu trả lời ngắn) — khách gọi và chờ vài
+        giây lấy kết quả ngay.
+      - **Async (bất đồng bộ):** việc lâu (sinh video 2 phút) — API trả ngay một **job_id**, đẩy việc
+        vào **hàng đợi (queue)**; khách **hỏi lại trạng thái (polling)** hoặc được **gọi lại (webhook)**
+        khi xong. Một **metadata DB** lưu trạng thái job (đang chờ / đang chạy / xong / đường dẫn kết quả).
+
+      Phần còn lại của nền tảng xoay quanh: ai giữ **version** của model, ai **xếp lịch** request vào
+      GPU, khi nào **thêm/bớt GPU**, làm sao **chia công bằng** giữa các đội, và chứng minh hệ thống đạt
+      **SLO** với **chi phí** biết trước.
+  - id: b02
+    type: text
+    md: |
+      **Model registry + versioning.** Nền tảng cần một nơi đăng ký model: mỗi model có nhiều
+      **version** (v1, v2...) kèm metadata (khung, kích thước, phần cứng cần, checksum). Trọng số
+      (weights) là **artifact lớn** nên nằm trong một **artifact store** (object storage) + **CDN/cache
+      gần GPU**, không nhét trong image.
+
+      Việc tung version mới phải **an toàn và rút lại được**:
+      - **Promote / rollback:** gắn một con trỏ 'production' tới một version; đổi con trỏ để tung, đổi
+        lại để **rollback** tức thì khi hỏng.
+      - **Canary:** route **một phần nhỏ** traffic thật (vd 5%) sang version mới, theo dõi
+        lỗi/latency/chất lượng rồi mới tăng dần.
+      - **A/B:** chia traffic giữa hai version để **so chất lượng** bằng metric online.
+      - **Shadow traffic (traffic bóng):** gửi một **bản sao** request thật sang version mới nhưng
+        **không trả** kết quả của nó cho khách — chỉ ghi lại để so **offline**. An toàn nhất để thử vì
+        không chạm người dùng, đổi lại tốn thêm GPU.
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Đội muốn thử một version model mới trên **traffic thật** nhưng **tuyệt đối không để nó ảnh hưởng câu trả lời người dùng** cho tới khi tin tưởng. Cách tung nào đúng nhất?"
+    options:
+      - {id: a, text_md: "Shadow traffic: gửi bản sao request thật sang version mới, không trả kết quả của nó cho khách, chỉ ghi lại để so offline."}
+      - {id: b, text_md: "Canary: route ngay 10% người dùng thật sang version mới — đằng nào cũng chỉ ít người."}
+      - {id: c, text_md: "Promote thẳng version mới làm production, nếu tệ thì rollback sau."}
+    answer: [a]
+    explain_md: "Shadow traffic = bản sao request, kết quả bị bỏ, nên **không chạm** người dùng; đúng với yêu cầu 'traffic thật nhưng không ảnh hưởng ai'. (b) canary vẫn trả kết quả thật cho 10% người → có ảnh hưởng; (c) promote thẳng ảnh hưởng tất cả. Canary/A-B dùng khi đã chấp nhận ảnh hưởng một phần nhỏ."
+  - id: b04
+    type: text
+    md: |
+      **Hàng đợi + scheduler + GPU worker gom batch.** Trước dàn GPU đặt một **hàng đợi request** và
+      một **scheduler** đẩy việc vào các worker. Mỗi worker giữ sẵn một (hoặc vài) model đã nạp trên GPU
+      và chạy **batch**:
+      - Với model thường (ảnh): **dynamic batching có trần độ trễ** — gom request tối đa X ms rồi chạy,
+        để không ai chờ quá lâu (đã học ở batching_scheduling).
+      - Với **LLM**: **continuous / in-flight batching** (vLLM, TGI) lấp slot ở mỗi bước decode; kèm
+        **KV cache**, **streaming** token, và cho phép **huỷ (cancel)** request khách đã bỏ.
+
+      Khi tải vượt sức, **không** để hàng đợi phình vô hạn: dùng **backpressure** — làm chậm hoặc
+      **từ chối (429)** đầu vào, ưu tiên theo tier — để p99 của phần còn lại không sụp. Hàng đợi vô hạn
+      chỉ biến quá tải thành độ trễ khổng lồ.
+  - id: b05
+    type: text
+    md: |
+      **Autoscaling và bài toán cold start.** Thêm/bớt GPU **theo đúng tín hiệu**: **độ sâu hàng đợi
+      (queue depth)** hoặc **GPU utilization / pending token**, **không** theo CPU (GPU cháy 100% mà CPU
+      vẫn nhàn). Hàng đợi dài quá ngưỡng → thêm worker; rảnh lâu → bớt.
+
+      **Scale-to-zero** cho model **ít dùng** tiết kiệm lớn (không trả tiền GPU khi không ai gọi), nhưng
+      sinh **cold start**: request đầu tiên sau khi 'ngủ' phải **nạp trọng số vào GPU** (có thể hàng
+      chục giây tới cả phút với LLM lớn) → rất chậm. Cách xử lý:
+      - **Warm pool / giữ nóng:** luôn giữ sẵn vài worker đã nạp model cho các model nhạy latency,
+        không scale về 0.
+      - **Model caching:** giữ trọng số ở cache gần GPU (local NVMe / host memory) để nạp nhanh hơn kéo
+        từ object store.
+      - Chỉ **scale-to-zero** cho model chịu được độ trễ lần đầu (vd batch offline), và **ghi độ trễ
+        cold start vào SLO** để không ai bất ngờ.
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một model hiếm dùng được để **scale-to-zero**. Request đầu tiên sau nhiều giờ nhàn mất **40 giây** mới có kết quả, dù GPU đang rảnh. Nguyên nhân và cách xử lý đúng?"
+    options:
+      - {id: a, text_md: "Cold start: phải nạp trọng số model vào GPU trước khi chạy; nếu model này nhạy latency thì giữ một warm pool (không scale về 0) hoặc cache trọng số gần GPU."}
+      - {id: b, text_md: "GPU quá yếu; chỉ cần mua GPU mạnh hơn là hết chậm lần đầu."}
+      - {id: c, text_md: "Do batching chờ quá lâu; tắt batching đi là hết chậm."}
+    answer: [a]
+    explain_md: "40 giây lần đầu dù GPU rảnh là dấu hiệu kinh điển của **cold start = thời gian nạp trọng số**. GPU mạnh hơn (b) hay tắt batching (c) không chạm vào nguyên nhân. Fix: **warm pool / model caching** cho model nhạy latency; chỉ chấp nhận scale-to-zero cho model chịu được độ trễ lần đầu."
+  - id: b07
+    type: text
+    md: |
+      **Multi-tenancy, công bằng và SLO.** Nhiều đội dùng chung GPU nên cần:
+      - **Cô lập (isolation) + quota:** mỗi tenant có hạn mức (rate limit, số GPU tối đa) để một đội
+        không 'ăn' hết tài nguyên; **fairness** trong scheduler (vd round-robin / weighted) để request
+        của đội nhỏ không chết đói sau một đội đổ tải lớn.
+      - **SLO theo tier:** định nghĩa mục tiêu rõ — **p99 latency** và **availability** (vd 99,9%) cho
+        mỗi tier. Tier 'interactive' (chat) ưu tiên cao, trần latency chặt; tier 'batch' trả chậm cũng
+        được, giá rẻ hơn.
+      - **Routing theo SLO tier:** scheduler ưu tiên tier cao khi đua tài nguyên, và áp
+        **backpressure / hạ cấp (degrade)** tier thấp **trước** khi tier cao vỡ SLO.
+  - id: b08
+    type: text
+    md: |
+      **Ước lượng capacity và chi phí — bằng số, đây là phần cốt lõi mức 3.** Đếm theo **token/s**,
+      không phải QPS.
+
+      *Capacity:* giả sử một LLM có **đỉnh 20 request/s**, mỗi request sinh ~**500 token đầu ra** →
+      cần **20 × 500 = 10.000 token/s**. Đo **throughput mỗi GPU tại ngưỡng p99 còn chịu được**, vd
+      **200 token/s/GPU** (con số này phụ thuộc model lớn/nhỏ và mục tiêu latency — xem
+      cost_latency_design). → cần **10.000 ÷ 200 = 50 GPU** chỉ để chạm đỉnh ở 100% bận. Không ai chạy
+      100%: nhắm **~70% bận** → **50 ÷ 0,7 ≈ 72 GPU**, làm tròn lên và cộng dự phòng cho hỏng hóc.
+
+      *Chi phí:* GPU ~**2 USD/giờ** → 72 GPU ≈ **144 USD/giờ**. Ở đỉnh có 20 × 3600 = 72.000 request/giờ
+      → ~**0,002 USD/request**. Nhưng đỉnh không kéo dài 24/7: nếu tải trung bình chỉ ~30% đỉnh mà vẫn
+      giữ GPU, **chi phí mỗi request thực tế tăng ~3 lần** vì GPU rảnh vẫn tính tiền. Vì vậy
+      **autoscale** để bám tải là đòn tiết kiệm lớn.
+
+      *Giảm chi phí (đã học):* model nhỏ/quantize, prompt cache, cap token đầu ra, routing/cascade,
+      batch offline, cache câu trả lời, autoscale (kể cả về 0 cho model ít dùng) — **cắt token đầu ra
+      mạnh nhất**.
+  - id: b09
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Một LLM cần phục vụ **đỉnh 10.000 token/s**; đo được **mỗi GPU chạy 200 token/s** tại ngưỡng
+      latency chấp nhận được. Chưa cộng dự phòng, số GPU tối thiểu để chạm đỉnh là ______ GPU.
+    blanks:
+      - accept: ["50", "50 GPU", "= 50"]
+    explain_md: "10.000 ÷ 200 = **50**. Đó là mức sàn ở 100% bận; thực tế phải chia thêm cho hệ số bận (~70%) → ~72 GPU và cộng dự phòng hỏng hóc. Luôn đếm theo token/s chứ không phải QPS."
+  - id: b10
+    type: text
+    md: |
+      **Quan sát (observability) và độ tin cậy.** Không đo thì không vận hành được nền tảng dùng chung:
+      - **Metric theo từng model/tenant:** latency (p50/p95/**p99**, tách TTFT và thời gian mỗi token),
+        throughput (token/s, request/s), **GPU utilization**, độ sâu hàng đợi, tỉ lệ lỗi, và **chi phí
+        mỗi request / cost attribution** (đội nào tốn bao nhiêu) để tính tiền và tìm model ngốn GPU.
+      - **Độ tin cậy:** **health check** để scheduler bỏ worker hỏng; **retry có giới hạn** cho lỗi
+        tạm thời; **fallback** (vd hạ về model nhỏ hơn hoặc trả lời xin lỗi) khi một model chết; và
+        **fleet-wide backoff** — khi gọi một dependency (vd API ngoài) bị **429**, mỗi worker chờ **lâu
+        dần + thời gian ngẫu nhiên (jitter)** để 100 worker không cùng thử lại một lúc gây 'bão' đồng loạt.
+  - id: b11
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Nền tảng dùng chung đang quá tải: hàng đợi phình, p99 của **tier interactive (chat)** bắt đầu vỡ SLO, trong khi một đội đổ một mẻ **tier batch** khổng lồ. Phản ứng hợp lý nhất?"
+    options:
+      - {id: a, text_md: "Áp backpressure / hạ cấp tier batch trước (làm chậm hoặc 429 theo quota), ưu tiên tier interactive, đồng thời autoscale thêm GPU theo độ sâu hàng đợi."}
+      - {id: b, text_md: "Để hàng đợi phình tự nhiên cho công bằng; ai gửi trước phục vụ trước (FIFO), kể cả mẻ batch."}
+      - {id: c, text_md: "Tắt SLO tier và chia đều GPU tuyệt đối cho mọi request để không ai phàn nàn."}
+    answer: [a]
+    explain_md: "Dưới quá tải, công bằng **không** phải FIFO mù: ưu tiên theo **SLO tier**, dùng **quota + backpressure** chặn mẻ batch nuốt tài nguyên, đồng thời **autoscale theo queue depth**. (b) biến quá tải thành độ trễ khổng lồ cho cả tier chat; (c) bỏ tier khiến việc nhạy latency chết chung với việc chịu được chậm."
+  - id: b12
+    type: summary
+    bullets_vi:
+      - "Nền tảng inference đa model = **lắp** các mảnh đã học: API **sync** cho việc nhanh, **async + hàng đợi + job_id** cho việc lâu; metadata DB giữ trạng thái job."
+      - "**Registry + versioning:** trọng số ở artifact store + cache gần GPU; tung an toàn bằng **canary / A-B / shadow traffic** và **rollback** tức thì bằng con trỏ production."
+      - "**Scheduler** gom batch (dynamic batching có trần ms; **continuous batching + KV cache + streaming** cho LLM); quá tải thì **backpressure (429) + ưu tiên tier**, không để hàng đợi phình vô hạn."
+      - "**Autoscale theo queue depth / GPU utilization (không theo CPU)**; **cold start = nạp trọng số** → **warm pool / model caching**; **scale-to-zero** chỉ cho model ít dùng / chịu được độ trễ lần đầu."
+      - "**Multi-tenancy:** cô lập + quota + fairness; **SLO theo tier** (p99, availability) và routing ưu tiên; **observability** latency/throughput/GPU-util/**chi phí theo model**; reliability bằng health check, retry, fallback, **fleet-wide backoff + jitter**."
+      - "**Capacity & cost theo số:** token/s = QPS × token/req; **số GPU = token/s ÷ token/s mỗi GPU ÷ hệ số bận + dự phòng** (vd 10.000/200 = 50 → ~72 ở 70%); quy ra **USD/request**, GPU rảnh làm đội giá → autoscale + cắt token là đòn tiết kiệm mạnh."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S367], l2: [S368], l3: [S369]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

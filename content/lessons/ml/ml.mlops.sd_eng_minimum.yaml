@@ -1,0 +1,159 @@
+id: ml.mlops.sd_eng_minimum
+version: 1
+status: published
+title_vi: "Kiến thức kỹ thuật tối thiểu cho ML: QPS, p95, SLO, queue, Docker, CI/CD"
+est_minutes: 12
+objectives_vi:
+  - "Giải thích bằng lời thường sáu khái niệm kỹ nghệ phần mềm hay gặp khi serving ML: QPS, phân vị độ trễ (latency percentile) p50/p95/p99, SLO/SLA, queue (hàng đợi), Docker/container, CI/CD."
+  - "Ước lượng QPS từ số lượt dùng mỗi ngày (chia 86.400 giây) và tính QPS đỉnh (peak) khi đỉnh gấp vài lần trung bình."
+  - "Đọc được các khái niệm này ở những mục MLOps và thiết kế hệ thống ML phía sau mà không bị khựng."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Các mục MLOps và thiết kế hệ thống ML (ML system design) phía sau dùng vài từ của **kỹ nghệ
+      phần mềm (software engineering)** mà bạn có thể chưa học. Mục này là một **bảng chú giải
+      (glossary)** ngắn: mỗi khái niệm vài dòng kèm một ví dụ nhỏ, đủ để đọc tiếp. Không cần code,
+      chỉ cần hiểu từ và làm được một phép ước lượng.
+
+      Bắt đầu với **QPS (queries per second)**: số request (lượt gọi) mà hệ thống nhận **mỗi giây**.
+      Đây là thước đo **tải (load)**. Một con số QPS trung bình (average) chưa đủ, vì tải không
+      trải đều: lúc đông người dùng (giờ cao điểm) có **QPS đỉnh (peak QPS)** cao hơn hẳn, thường
+      gấp **vài lần** trung bình. Khi thiết kế, ta phải chịu được đỉnh chứ không phải trung bình.
+  - id: b02
+    type: text
+    md: |
+      **Ước lượng QPS từ số lượt dùng mỗi ngày (back-of-envelope, tính nhẩm trên phong bì).** Một
+      ngày có 86.400 giây (24 × 3600), xấp xỉ 10^5. Nên:
+
+      QPS trung bình ≈ (số request mỗi ngày) ÷ 86.400 ≈ (số request mỗi ngày) ÷ 10^5.
+
+      Ví dụ: app có **1 triệu lượt dùng mỗi ngày**, mỗi lượt 1 request.
+      - QPS trung bình = 1.000.000 ÷ 86.400 ≈ **11,6 request/giây** (nhẩm nhanh: 1.000.000 ÷ 10^5 = 10, cùng cỡ).
+      - Nếu đỉnh gấp 5 lần trung bình thì **QPS đỉnh ≈ 5 × 11,6 ≈ 58 request/giây**.
+
+      Con số này giúp trả lời ngay những câu kiểu "cần bao nhiêu máy?" — đó là lý do câu hỏi phỏng
+      vấn hay bắt đầu bằng "ước lượng tải".
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một dịch vụ nhận **4,32 triệu request mỗi ngày**, trải tương đối đều. QPS **trung bình** xấp xỉ bao nhiêu?"
+    options:
+      - {id: a, text_md: "Khoảng 50 request/giây (= 4.320.000 ÷ 86.400)."}
+      - {id: b, text_md: "Khoảng 4,32 triệu request/giây (vì mỗi giây nhận hết số request trong ngày)."}
+      - {id: c, text_md: "Khoảng 3.000 request/giây (= 4.320.000 ÷ 1.440 phút)."}
+    answer: [a]
+    explain_md: "QPS trung bình = số request mỗi ngày ÷ số giây trong ngày = 4.320.000 ÷ 86.400 = 50 request/giây. (b) nhầm 'mỗi ngày' thành 'mỗi giây'. (c) chia cho số phút (1.440) nên ra request mỗi phút, không phải mỗi giây."
+  - id: b04
+    type: text
+    md: |
+      **Phân vị độ trễ (latency percentiles) p50 / p95 / p99.** Độ trễ (latency) là thời gian trả
+      lời một request. Trung bình (average) dễ bị vài request chậm kéo lệch, nên ta sắp xếp các thời
+      gian từ nhanh đến chậm rồi đọc theo **phân vị**:
+      - **p50 (trung vị, median):** 50% request nhanh hơn mức này — một request "điển hình".
+      - **p95:** 95% request nhanh hơn mức này; chỉ 5% chậm hơn.
+      - **p99:** 99% request nhanh hơn mức này; đây là phần **đuôi chậm (tail)**.
+
+      Ví dụ: 20 thời gian phản hồi (ms), đã xếp tăng dần, hầu hết quanh 110–150 ms nhưng hai giá trị
+      cuối là 800 và 900 ms. Trung bình bị hai giá trị đó kéo lên ~203 ms, còn **p95 = giá trị thứ
+      19 = 800 ms**. Vì sao quan tâm đuôi? Vì mỗi người dùng cảm nhận **request của họ**, không phải
+      trung bình: nếu 5% request mất 800 ms thì cứ 20 lần dùng là có 1 lần thấy chậm. Đuôi
+      (p95/p99) mới phản ánh trải nghiệm xấu nhất mà số đông còn gặp.
+  - id: b05
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Đội của bạn báo **p95 = 300 ms** cho một API. Câu nào mô tả **đúng** ý nghĩa?"
+    options:
+      - {id: a, text_md: "95% số request trả lời trong vòng 300 ms; chỉ 5% chậm hơn 300 ms (phần đuôi)."}
+      - {id: b, text_md: "Mọi request đều mất đúng 300 ms."}
+      - {id: c, text_md: "Trung bình (average) của mọi request là 300 ms, kể cả các request chậm nhất."}
+    answer: [a]
+    explain_md: "p95 là mức mà 95% request nhanh hơn, 5% còn lại chậm hơn — nó mô tả phần đuôi chậm, không phải mọi request và cũng không phải trung bình. (b) sai vì độ trễ khác nhau theo từng request; (c) nhầm percentile với average, mà average thường bị đuôi kéo lệch."
+  - id: b06
+    type: text
+    md: |
+      **SLO và SLA.** Khi đã đo được độ trễ và tỉ lệ lỗi, ta đặt **mục tiêu** cho chúng:
+      - **SLO (Service Level Objective):** mục tiêu nội bộ, viết bằng số đo được. Ví dụ:
+        "**p95 dưới 200 ms** và **99,9% khả dụng (availability)**" (99,9% một tháng ≈ dưới ~43 phút
+        hỏng). SLO là thứ đội kỹ thuật theo dõi hằng ngày và đặt báo động (alert) khi sắp vi phạm.
+      - **SLA (Service Level Agreement):** **cam kết với khách hàng** trong hợp đồng, thường kèm
+        đền bù nếu vi phạm. SLA thường đặt lỏng hơn SLO để có khoảng an toàn.
+
+      Nói gọn: **SLO là mục tiêu ta tự đặt, SLA là lời hứa ràng buộc với bên ngoài.** Trong phỏng
+      vấn thiết kế hệ thống, nêu được một SLO cụ thể (p95 + availability) cho thấy bạn nghĩ tới chất
+      lượng dịch vụ, không chỉ "cho nó chạy".
+  - id: b07
+    type: text
+    md: |
+      **Queue (hàng đợi) và worker.** Queue là một **vùng đệm (buffer)** đặt giữa bên tạo việc
+      (**producer**) và bên xử lý việc (**consumer / worker**): producer bỏ việc vào đuôi hàng đợi,
+      worker lấy ra xử lý dần. Hai lợi ích chính:
+      - **Làm phẳng đỉnh tải (smooth spikes):** khi request dồn tới nhiều hơn khả năng xử lý, việc
+        xếp hàng chờ thay vì làm sập hệ thống; worker xử lý với tốc độ ổn định.
+      - **Tách việc nặng/chậm ra khỏi request:** việc lâu (chạy model nặng, gửi hàng loạt) bỏ vào
+        queue xử lý **nền (background)**; khách nhận ngay một **mã job (job id)** rồi hỏi lại
+        (**polling**) hoặc được báo (**webhook**) khi xong, không phải ngồi chờ.
+
+      Ví dụ: một endpoint "tạo ảnh bằng AI" đẩy yêu cầu vào queue; 4 worker lần lượt rút ra chạy.
+      Lúc 1.000 người bấm cùng lúc, hàng đợi dài ra nhưng dịch vụ vẫn sống.
+  - id: b08
+    type: text
+    md: |
+      **Docker và container.** Một ứng dụng cần đúng phiên bản ngôn ngữ, thư viện và cấu hình mới
+      chạy được; "máy tôi chạy được mà máy anh thì không" là vì môi trường khác nhau.
+      **Container** giải quyết điều đó bằng cách **đóng gói app cùng toàn bộ thứ nó cần** vào một
+      "hộp" chạy **giống hệt nhau trên mọi máy** (máy bạn, server, cloud) — tức là **tái lập được
+      (reproducible)**. **Docker** là công cụ phổ biến nhất để tạo và chạy container. Ba từ hay lẫn:
+      - **Dockerfile:** công thức (các bước) để dựng hộp.
+      - **image:** bản mẫu đã dựng xong, bất biến — giống "ảnh chụp" của hộp.
+      - **container:** một image **đang chạy** — hộp thực tế đang hoạt động.
+
+      Với ML, container rất hợp để đóng gói model + thư viện suy luận và chạy bản y hệt ở mọi nơi.
+  - id: b09
+    type: callout
+    kind: tip
+    md: |
+      **CI/CD** là tự động hoá hai việc lặp đi lặp lại:
+      - **CI (Continuous Integration — tích hợp liên tục):** mỗi lần đẩy (push) code, hệ thống **tự
+        chạy test và kiểm tra** để bắt lỗi sớm, trước khi gộp vào nhánh chính.
+      - **CD (Continuous Delivery/Deployment — chuyển giao/triển khai liên tục):** khi test qua, tự
+        **đóng gói và triển khai (deploy)** bản mới (thường thành một container) ra môi trường chạy.
+
+      Ví dụ: bạn sửa prompt và mở pull request → CI chạy eval set và test → qua hết thì CD build
+      image Docker rồi tung ra. Nhờ vậy việc ra bản mới trở nên nhanh, đều và ít sai sót thủ công.
+  - id: b10
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền số còn thiếu: để ước lượng QPS trung bình từ số lượt dùng mỗi ngày, ta lấy số request
+      mỗi ngày chia cho số giây trong một ngày, tức chia cho ______ (24 × 3600).
+    blanks:
+      - accept: ["86400", "86.400", "86,400", "86 400"]
+    explain_md: "Một ngày có 24 × 3600 = 86.400 giây (xấp xỉ 10^5). QPS trung bình = số request mỗi ngày ÷ 86.400; muốn QPS đỉnh thì nhân thêm hệ số đỉnh (vài lần trung bình)."
+  - id: b11
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Phân biệt **SLO** và **SLA** — câu nào đúng?"
+    options:
+      - {id: a, text_md: "SLO là mục tiêu nội bộ đo được (vd p95 dưới 200 ms, 99,9% khả dụng); SLA là cam kết ràng buộc với khách hàng, thường kèm đền bù."}
+      - {id: b, text_md: "SLO và SLA là hai tên gọi của cùng một thứ, dùng thay nhau được."}
+      - {id: c, text_md: "SLA là mục tiêu nội bộ của đội kỹ thuật, còn SLO là tên của công cụ giám sát."}
+    answer: [a]
+    explain_md: "SLO = mục tiêu nội bộ ta tự đặt và theo dõi; SLA = lời hứa trong hợp đồng với bên ngoài (thường đặt lỏng hơn SLO để có biên an toàn). (b) sai vì chúng khác nhau về tính ràng buộc; (c) đảo ngược và bịa định nghĩa."
+  - id: b12
+    type: summary
+    bullets_vi:
+      - "**QPS (queries/giây)** = tải; ước lượng nhanh: QPS trung bình ≈ số request mỗi ngày ÷ **86.400** (≈ ÷10^5), **QPS đỉnh** ≈ vài lần trung bình (vd 1 triệu/ngày ⇒ ~11,6/giây, đỉnh ×5 ⇒ ~58/giây)."
+      - "**p50/p95/p99** = phân vị độ trễ; **p95 = 95% request nhanh hơn mức đó**; nhìn **đuôi (tail)** quan trọng hơn trung bình vì người dùng cảm nhận request của chính họ."
+      - "**SLO** = mục tiêu nội bộ đo được (vd p95 < 200 ms, 99,9% khả dụng); **SLA** = cam kết ràng buộc với khách hàng."
+      - "**Queue (hàng đợi) + worker** = vùng đệm giữa producer và consumer: làm phẳng đỉnh tải và đẩy việc nặng sang xử lý nền (job id + polling/webhook)."
+      - "**Docker/container** = đóng gói app + phụ thuộc để chạy giống hệt, tái lập được ở mọi máy (Dockerfile = công thức, image = bản mẫu, container = image đang chạy)."
+      - "**CI/CD** = tự chạy test khi đẩy code (CI) rồi tự đóng gói và triển khai khi test qua (CD)."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S373], l2: [S374], l3: [S375]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

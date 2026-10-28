@@ -1,0 +1,164 @@
+id: ml.system_design.ranking_funnel
+version: 1
+status: published
+title_vi: "Phễu retrieval-ranking: các tầng, ngân sách độ trễ và ba cái bẫy (position bias, cold start, vòng phản hồi)"
+est_minutes: 14
+objectives_vi:
+  - "Thiết kế phễu xếp hạng nhiều tầng (multi-stage ranking funnel): retrieval/candidate generation → pre-ranking → heavy ranking → re-ranking, và vì sao mỗi tầng cần ngân sách độ trễ (latency budget)."
+  - "Giải thích vai trò trái ngược của hai đầu phễu: tầng lấy ứng viên cần recall cao và rẻ, tầng chấm nặng cần precision cao và đắt."
+  - "Nhận ra và giải thích ba cái bẫy kinh điển: position bias, cold start, vòng phản hồi (feedback loop / exposure bias)."
+  - "Nêu được cách chữa từng bẫy: IPS/feature vị trí, exploration (bandit/ε-greedy), randomization, content feature cho món mới."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Giả sử bạn làm feed video có **100 triệu** món. Với mỗi lần mở app, bạn muốn chọn ra ~10 món hay
+      nhất để hiển thị. Ý tưởng ngây thơ là cho **một model nặng** chấm điểm cả 100 triệu món rồi lấy
+      top 10. Không được: nếu mỗi món tốn dù chỉ 0,1 mili-giây thì 100 triệu món đã là ~3 giờ — trong
+      khi người dùng chỉ chờ được vài trăm mili-giây.
+
+      Lời giải là **phễu xếp hạng nhiều tầng (multi-stage ranking funnel)**: đi qua nhiều tầng, mỗi
+      tầng **rẻ dần tính trên một món nhưng tinh dần**, thu hẹp từ hàng triệu xuống còn vài món. Mỗi
+      tầng có **ngân sách độ trễ (latency budget)** riêng — tổng thời gian cho phép bị chia nhỏ cho
+      từng tầng, và chính ràng buộc đó quyết định tầng nào được dùng model phức tạp đến đâu.
+  - id: b02
+    type: text
+    md: |
+      **Tầng 1 — Retrieval / candidate generation (tìm ứng viên):** từ hàng triệu món, lấy nhanh ra
+      vài nghìn **ứng viên (candidate)** có khả năng liên quan. Tầng này phải **rẻ** (chạy trên cả kho
+      món) nên dùng kỹ thuật nhẹ:
+      - **ANN (approximate nearest neighbour):** tìm xấp xỉ các vector gần nhất với vector người dùng,
+        thường từ **two-tower** (hai mạng tạo embedding cho người và cho món, so bằng dot product).
+      - **Co-occurrence / heuristic:** "người xem X cũng xem Y", món đang hot, món cùng tác giả đã theo dõi.
+
+      Thước đo của tầng này là **recall cao**: đừng bỏ sót món hay. Nó **không cần chính xác thứ hạng**
+      — chỉ cần gom đủ ứng viên tốt vào rổ để tầng sau lọc. Bỏ sót ở đây thì mọi tầng sau cũng chịu,
+      vì chúng chỉ thấy được những gì tầng 1 đưa lên.
+  - id: b03
+    type: text
+    md: |
+      **Tầng 2 — (tuỳ chọn) pre-ranking và heavy ranking (chấm nặng):**
+      - **Pre-ranking** là tầng đệm nhẹ: một model nhỏ cắt vài nghìn ứng viên xuống còn vài trăm, để
+        model nặng khỏi phải chấm quá nhiều.
+      - **Heavy ranking** là model **đắt, nhiều feature** (hành vi người dùng, đặc trưng món, ngữ
+        cảnh), thường **multi-task** (dự đoán nhiều hành động: P(click), P(xem hết), P(like) cùng lúc).
+        Nó chấm kỹ vài trăm → vài chục. Thước đo ở đây là **precision cao** / thứ hạng đúng ở đỉnh.
+
+      **Tầng 3 — Re-ranking (sắp lại):** điểm thô của ranker chưa phải thứ tự cuối. Tầng này áp
+      **luật kinh doanh và trải nghiệm**: **đa dạng (diversity)** để không 5 video liên tiếp cùng kênh,
+      **dedup** bỏ món trùng/gần trùng, chèn luật (nội dung mới, công bằng người sáng tạo). Kết quả
+      cuối ~10 món hiển thị.
+  - id: b04
+    type: callout
+    kind: interview
+    md: |
+      **Khung trả lời phỏng vấn (nhớ cặp recall–precision theo tầng).** Khi được hỏi "thiết kế hệ xếp
+      hạng cho N triệu món", hãy vẽ phễu và gắn con số: **~1e8 → (retrieval) → ~1e3 → (ranking) →
+      ~1e1**, kèm **ngân sách độ trễ** mỗi tầng (ví dụ retrieval ~10ms trên cả kho, ranking ~50ms trên
+      vài nghìn món). Câu chốt mà người phỏng vấn muốn nghe: *"Không thể chạy model nặng trên hàng
+      triệu món vì latency, nên tầng đầu tối ưu **recall** với kỹ thuật rẻ (ANN), tầng sau tối ưu
+      **precision** với model đắt trên tập nhỏ."*
+  - id: b05
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao không thể bỏ tầng retrieval mà cho thẳng heavy ranker chấm toàn bộ 100 triệu món, và tầng retrieval nên tối ưu theo thước đo nào?"
+    options:
+      - {id: a, text_md: "Vì chấm model nặng trên 100 triệu món vượt xa ngân sách độ trễ; tầng retrieval dùng kỹ thuật rẻ (ANN, heuristic) và tối ưu recall để không bỏ sót món hay, nhường việc chấm chính xác cho tầng sau."}
+      - {id: b, text_md: "Vì heavy ranker không đủ chính xác; tầng retrieval tồn tại để tăng precision bằng cách chấm lại thật kỹ từng món trong 100 triệu món."}
+      - {id: c, text_md: "Vì retrieval làm model nặng chạy nhanh hơn trên mỗi món; cả hai tầng đều tối ưu cùng một thước đo là độ chính xác thứ hạng cuối."}
+    answer: [a]
+    explain_md: "Nút thắt là latency: không thể chạy model đắt trên hàng triệu món. Tầng retrieval rẻ, tối ưu RECALL (gom đủ ứng viên tốt); tầng ranking đắt, tối ưu PRECISION trên tập nhỏ. (b) đảo vai trò; (c) sai vì hai tầng có thước đo khác nhau và retrieval không làm ranker nhanh hơn trên mỗi món."
+  - id: b06
+    type: text
+    md: |
+      Phễu chạy được rồi, nhưng **dữ liệu huấn luyện** lại đầy bẫy. Bẫy đầu tiên:
+
+      **Position bias (thiên lệch vị trí):** người dùng click vào món **đứng cao** nhiều hơn chỉ vì nó
+      ở trên cùng, **bất kể** nó có liên quan hơn hay không. Nếu bạn lấy thẳng click làm nhãn "liên
+      quan" để huấn luyện ranker, model sẽ học rằng "món vốn được xếp cao = tốt" — nó **bắt chước vị
+      trí cũ** thay vì học độ liên quan thật. Nhãn click là **nhãn thiên lệch**.
+
+      Cách chữa:
+      - **Ghi vị trí làm feature (position feature):** đưa vị trí hiển thị vào model lúc train, rồi lúc
+        chạy thật đặt vị trí về một hằng số — model tách phần "được click vì vị trí" khỏi "được click
+        vì hay".
+      - **IPS (inverse propensity scoring / trọng số nghịch xác suất):** nhân mỗi mẫu với **1 / P(được
+        xem ở vị trí đó)**, để món ở vị trí thấp (ít được nhìn) được đánh trọng số lớn hơn, bù lại
+        phần bị vị trí che.
+  - id: b07
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Bạn huấn luyện ranker bằng cách coi mọi lượt click là nhãn 'liên quan'. Vì sao đây là vấn đề (position bias) và cách chữa nào đúng hướng?"
+    options:
+      - {id: a, text_md: "Click ở vị trí cao một phần do vị trí chứ không hẳn do liên quan; model sẽ bắt chước thứ hạng cũ. Chữa bằng cách đưa vị trí vào làm feature hoặc dùng IPS (trọng số 1/P(được xem))."}
+      - {id: b, text_md: "Vấn đề là click quá ít dữ liệu; chữa bằng cách thu thập thêm click ở đúng vị trí cũ và giữ nguyên cách gán nhãn."}
+      - {id: c, text_md: "Không có vấn đề gì: click là tín hiệu trực tiếp của người dùng nên luôn là nhãn liên quan không thiên lệch."}
+    answer: [a]
+    explain_md: "Position bias: vị trí cao hút click bất kể liên quan, nên click là nhãn thiên lệch và model sẽ tái lập thứ hạng cũ. Chữa: position feature (đặt về hằng số khi serving) hoặc IPS. (b) thêm dữ liệu cùng kiểu thiên lệch không sửa gốc; (c) sai vì click không phải nhãn không thiên lệch."
+  - id: b08
+    type: text
+    md: |
+      **Bẫy 2 — Cold start (khởi động lạnh):** người dùng mới hoặc món mới **chưa có lịch sử** nên
+      model ít tín hiệu để chấm; món mới dễ bị dìm, không bao giờ được hiển thị đủ để biết nó hay hay dở.
+
+      **Bẫy 3 — Vòng phản hồi / exposure bias (feedback loop):** bạn huấn luyện trên click **do chính
+      ranker hiện tại ghi lại**. Người dùng chỉ click được món mà ranker đã **chịu hiển thị**. Thế là
+      model tự củng cố: **món hot càng hot**, món không được hiển thị thì mãi không có dữ liệu để
+      chứng minh mình tốt — hệ thống "ăn chính đuôi của nó".
+
+      Cách chữa (chung cho cả hai, vì gốc đều là **thiếu dữ liệu quan sát**):
+      - **Exploration (khám phá):** chủ động dành một phần lượt hiển thị để thử món/người mới. Thuật
+        toán cân bằng *khai thác cái đã biết là tốt* với *khám phá cái chưa chắc* là **bandit**
+        (ví dụ **ε-greedy**: ε phần trăm lượt hiển thị món ngẫu nhiên/chưa đủ dữ liệu).
+      - **Randomization:** trộn ngẫu nhiên một chút vị trí/ứng viên để thu được dữ liệu ít thiên lệch,
+        dùng lại cho IPS và cho đánh giá.
+      - **Content feature cho cold start:** với món mới chưa có lịch sử tương tác, dựa vào **đặc trưng
+        nội dung** (chủ đề, văn bản, embedding của chính nội dung, thông tin tác giả) để chấm tạm cho
+        tới khi có tương tác thật.
+  - id: b09
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một feed huấn luyện ranker chỉ từ click do chính nó ghi lại. Theo thời gian, món phổ biến càng được đẩy mạnh còn món mới gần như không bao giờ xuất hiện. Đây là bẫy gì và cách chữa gốc rễ là gì?"
+    options:
+      - {id: a, text_md: "Vòng phản hồi / exposure bias: model chỉ học từ món nó đã hiển thị nên tự củng cố. Chữa bằng exploration (bandit/ε-greedy) và randomization để thu dữ liệu cho món chưa được thấy."}
+      - {id: b, text_md: "Chỉ là overfitting thuần tuý; chữa bằng cách thêm regularization và giảm số epoch huấn luyện."}
+      - {id: c, text_md: "Đây là position bias; chữa bằng cách luôn hiển thị món phổ biến ở vị trí cao nhất để tối đa hoá click."}
+    answer: [a]
+    explain_md: "Model train trên log do chính nó sinh ra → chỉ thấy món từng hiển thị → tự khuếch đại (feedback loop / exposure bias). Gốc là thiếu quan sát cho món chưa hiển thị, nên chữa bằng exploration + randomization. (b) không chạm gốc dữ liệu thiên lệch; (c) nhầm khái niệm và làm vòng lặp tệ hơn."
+  - id: b10
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền thuật ngữ còn thiếu. Để một video mới đăng (chưa có lịch sử tương tác) được hiển thị đủ
+      nhằm biết nó hay hay dở, hệ thống chủ động dành một phần lượt hiển thị để thử nó — chiến lược cân
+      bằng khai thác và khám phá này thường được hiện thực bằng thuật toán ______ (ví dụ ε-greedy).
+    blanks:
+      - accept: ["bandit", "multi-armed bandit", "bandit (ε-greedy)", "multi-armed bandit (MAB)", "MAB"]
+    explain_md: "Đây là exploration cho cold start: bandit (ví dụ ε-greedy) cân bằng khai thác cái đã biết tốt với khám phá món mới chưa đủ dữ liệu, đảm bảo món mới có cơ hội được thấy để thu tín hiệu."
+  - id: b11
+    type: callout
+    kind: interview
+    md: |
+      **Chuẩn mức 3 (mastery bar) cho AI engineer.** Để đạt mức thiết kế được (senior), một câu trả
+      lời tốt phải làm **hai việc cùng lúc**: (1) **vẽ phễu nhiều tầng với ngân sách độ trễ** — nói rõ
+      số lượng món và latency ở mỗi tầng, và vì sao chia tầng (recall rẻ trước, precision đắt sau);
+      (2) **chủ động nêu ba cái bẫy** — position bias, cold start, feedback loop — **kèm cách chữa**
+      (IPS/position feature; content feature; exploration/bandit + randomization). Nhiều ứng viên chỉ
+      vẽ phễu mà quên các bẫy; chính phần bẫy + cách chữa mới cho thấy bạn đã vận hành hệ thật.
+  - id: b12
+    type: summary
+    bullets_vi:
+      - "**Phễu nhiều tầng**: retrieval/candidate generation (hàng triệu→nghìn, rẻ, **recall** cao) → (tuỳ chọn) pre-ranking → heavy ranking (nghìn→chục, đắt, **precision** cao) → re-ranking (đa dạng, dedup, luật kinh doanh)."
+      - "**Ngân sách độ trễ (latency budget)** là lý do tồn tại của phễu: không thể chạy model nặng trên hàng triệu món, nên tầng đầu phải rẻ."
+      - "**Position bias**: click ở vị trí cao thiên lệch → nhãn click lệch → chữa bằng **position feature** hoặc **IPS** (trọng số 1/P(được xem))."
+      - "**Cold start**: người/món mới chưa có lịch sử → dùng **content feature** và **exploration** để cho món mới cơ hội được thấy."
+      - "**Feedback loop / exposure bias**: train trên log do chính ranker ghi → tự củng cố (hot càng hot) → chữa bằng **exploration (bandit/ε-greedy)** và **randomization**."
+      - "Mức 3 (phỏng vấn): vẽ phễu + ngân sách độ trễ **và** giải thích đủ ba bẫy kèm cách chữa."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S346], l2: [S347], l3: [S348]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

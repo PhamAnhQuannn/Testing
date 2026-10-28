@@ -1,0 +1,202 @@
+id: ml.system_design.llm_product_design
+version: 1
+status: published
+title_vi: "Thiết kế sản phẩm LLM (chat và agent): từ yêu cầu tới eval, an toàn, streaming và chi phí"
+est_minutes: 15
+objectives_vi:
+  - "Thiết kế một sản phẩm LLM đầu-cuối (support chatbot hoặc coding assistant) theo trình tự: yêu cầu → kiến trúc → eval → an toàn → serving."
+  - "Chọn cách thích nghi (prompt vs RAG vs fine-tune; API vs self-host) và kiến trúc (retrieval, tool/agent, memory/context) theo đúng nhu cầu."
+  - "Dựng eval harness (golden set offline + tín hiệu online + LLM-as-judge) và guardrails an toàn (injection, PII, lạm dụng, lethal trifecta)."
+  - "Trình bày chi phí và độ trễ **bằng số**, nêu đánh đổi độ trễ ↔ GPU/chi phí ↔ chất lượng, cùng streaming, rollout và feedback loop."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Đây là bài **capstone** của mảng LLM: ta không học khái niệm mới mà **ráp** những thứ đã học
+      (prompt engineering, RAG và agent, eval và serving) thành **một sản phẩm thật**. Khi phỏng vấn
+      hỏi "thiết kế một trợ lý hỗ trợ khách hàng (support chatbot)" hay "thiết kế một coding assistant",
+      người ta chấm xem bạn có đi được trọn một đường dây có kỷ luật hay không.
+
+      Đường dây đó, đi theo đúng thứ tự này:
+      1. **Yêu cầu (requirements)**: người dùng làm gì, thước đo thành công, ràng buộc.
+      2. **Cách thích nghi + kiến trúc (architecture)**: prompt / RAG / fine-tune; API hay self-host; retrieval, tool/agent, memory.
+      3. **Eval**: golden set offline + tín hiệu online + LLM-as-judge.
+      4. **An toàn (safety)**: guardrails cho injection, PII, lạm dụng; lethal trifecta.
+      5. **Serving và vận hành**: streaming, chi phí/độ trễ theo số, rollout, monitoring, feedback loop.
+
+      Nguyên tắc xuyên suốt: **mọi lựa chọn phải truy ngược về một yêu cầu cụ thể**, không chọn công
+      nghệ vì "nghe hay".
+  - id: b02
+    type: text
+    md: |
+      **Bước 1 — Yêu cầu và thước đo thành công.** Trước khi vẽ hộp nào, trả lời ba câu hỏi:
+      - **Người dùng làm gì?** Ví dụ: hỏi về chính sách bảo hành (support chatbot); hoàn thiện/giải
+        thích code trong IDE (coding assistant). Việc này quyết định dữ liệu và công cụ cần có.
+      - **Sai thì rủi ro ra sao?** Chatbot trả lời sai chính sách hoàn tiền có thể gây thiệt hại pháp
+        lý → cần grounding và guardrails chặt. Gợi ý code sai thì người dùng tự review → rủi ro thấp hơn.
+      - **Ưu tiên gì: chữ đầu tiên hiện nhanh, phục vụ được nhiều người, hay câu trả lời đúng nhất?**
+        Đây chính là đánh đổi độ trễ ↔ throughput ↔ chất lượng mà cả thiết kế sẽ phải cân.
+
+      **Thước đo thành công** phải là con số gắn với nghiệp vụ, không phải "trả lời hay": ví dụ tỉ lệ
+      giải quyết tự động (deflection rate) ≥ 60% cho support, hay tỉ lệ gợi ý được chấp nhận
+      (acceptance rate) cho coding assistant; kèm trần độ trễ (TTFT p95 < 1s) và trần chi phí mỗi hội
+      thoại. Có thước đo rồi thì mọi thay đổi về sau mới **chứng minh được**.
+  - id: b03
+    type: text
+    md: |
+      **Bước 2a — Chọn cách thích nghi (adaptation).** Đi từ rẻ/nhanh tới đắt, dừng ở mức đủ:
+      - **Prompt (+ few-shot)**: khi tác vụ đã nằm trong năng lực model, chỉ cần định hướng. Rẻ nhất,
+        đổi tức thì.
+      - **RAG (retrieval-augmented generation)**: khi câu trả lời phụ thuộc **kiến thức riêng, hay đổi**
+        (tài liệu chính sách, codebase nội bộ). Tìm tài liệu liên quan rồi nhét vào ngữ cảnh. Cập nhật
+        kiến thức = cập nhật index, **không phải train lại** → gần như luôn là lựa chọn mặc định cho
+        chatbot doanh nghiệp.
+      - **Fine-tune**: khi cần **phong cách/định dạng cố định** hoặc kỹ năng hẹp mà prompt mãi không
+        đạt. Tốn dữ liệu nhãn và train; kiến thức mới vẫn nên để RAG lo (fine-tune dạy *cách làm*, RAG
+        cấp *dữ kiện*).
+
+      **Bước 2b — API hay self-host?** Dùng **API nhà cung cấp** cho nhanh, co giãn tự động, không lo
+      GPU — mặc định khi mới. Chuyển **self-host** (mở trọng số trên GPU của mình) khi có lý do cứng:
+      khối lượng rất lớn khiến self-host rẻ hơn, yêu cầu dữ liệu không được rời hệ thống, hoặc cần một
+      model đã fine-tune riêng. Đặt một **gateway** ở giữa để định tuyến, cache và fallback dù chọn hướng nào.
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: |
+      Bạn thiết kế **support chatbot** trả lời theo bộ **tài liệu chính sách nội bộ thay đổi hằng
+      tuần**, trả sai thì rủi ro pháp lý. Cách thích nghi nào **đúng hướng nhất**?
+    options:
+      - {id: a, text_md: "RAG: tìm đúng đoạn chính sách rồi nhét vào ngữ cảnh và bắt model bám vào đó; cập nhật tài liệu chỉ cần cập nhật index, không train lại. Bắt đầu bằng API model."}
+      - {id: b, text_md: "Fine-tune model trên toàn bộ tài liệu chính sách, và mỗi tuần fine-tune lại khi chính sách đổi."}
+      - {id: c, text_md: "Chỉ viết một system prompt dài liệt kê mọi chính sách, không cần retrieval."}
+    answer: [a]
+    explain_md: |
+      Kiến thức **riêng và hay đổi** là ca kinh điển của **RAG**: cập nhật = cập nhật index, không
+      train lại, và grounding vào đoạn trích giúp giảm bịa (quan trọng vì rủi ro pháp lý). (b) fine-tune
+      lại hằng tuần vừa đắt vừa chậm và vẫn dễ lỗi thời; fine-tune dạy *cách làm*, không hợp để nạp
+      *dữ kiện* hay đổi. (c) nhồi mọi chính sách vào prompt sẽ tràn context, tốn token và không co giãn.
+  - id: b05
+    type: text
+    md: |
+      **Bước 2c — Kiến trúc.** Vẽ các khối và chỉ thêm khối khi một yêu cầu đòi hỏi:
+      - **Cổng API + streaming** (nói ở bước serving).
+      - **Mô hình dữ liệu hội thoại**: `user → session → message`. Lưu lịch sử để có mạch; **quản lý
+        context** để không tràn cửa sổ: cắt bớt lượt cũ hoặc **tóm tắt** (summarisation) các lượt xa.
+      - **Retrieval (nếu RAG)**: embedding + vector search trả về top-k đoạn liên quan, kèm nguồn để
+        hiển thị trích dẫn.
+      - **Điều phối — workflow cố định hay agent?** Chọn **workflow** (các bước định sẵn) khi luồng
+        biết trước: rẻ, dễ test, dễ đoán. Chọn **agent gọi tool** (ví dụ qua MCP) chỉ khi tác vụ cần
+        nhiều bước động (tra cứu đơn hàng, tạo ticket). Agent mạnh hơn nhưng khó đoán và khó bảo đảm
+        độ tin cậy hơn, nên mỗi tool phải có **quyền tối thiểu (least privilege)**.
+      - **Tầng model qua gateway**: định tuyến (model nhỏ cho câu dễ, model lớn cho câu khó — model
+        routing), **cache** câu hỏi lặp, **fallback** sang nhà cung cấp khác khi lỗi/429.
+  - id: b06
+    type: text
+    md: |
+      **Bước 3 — Eval harness.** Không có eval thì "cải thiện" chỉ là cảm tính. Ba tầng bổ sung nhau:
+      - **Golden set offline**: 50–300 ca thật kèm đáp án/nhãn chuẩn (gồm ca khó và ca nhạy cảm). Chạy
+        trước mỗi lần đổi (prompt, model, retrieval) để bắt **regression** — đây là nguồn con số đáng tin nhất.
+      - **Tín hiệu online**: thu từ người dùng thật — thumbs up/down, deflection/acceptance rate, tỉ lệ
+        chuyển cho người, tỉ lệ nhấn vào trích dẫn. Phản ánh thực tế nhưng nhiễu và chậm.
+      - **LLM-as-judge**: dùng một model chấm đầu ra theo rubric (có bám nguồn không, có đúng định dạng
+        không) khi câu trả lời tự do, khó so chuỗi. Rẻ và mở rộng được, nhưng **phải hiệu chỉnh judge
+        với nhãn người** để tin được, và coi chừng judge thiên vị câu dài hay câu do model cùng họ sinh ra.
+
+      Với **agent**, eval bằng **replay**: chạy lại bộ tác vụ mẫu trong sandbox cách ly, chấm xem có
+      đạt kết quả cuối (task success) và có gọi tool đúng/an toàn không.
+  - id: b07
+    type: text
+    md: |
+      **Bước 4 — An toàn và guardrails.** Xếp lớp, không có lớp nào tuyệt đối:
+      - **Prompt injection (tiêm lệnh)**: coi **mọi văn bản ngoài là dữ liệu, không phải lệnh** — bọc
+        delimiter, luật ở system. Đặc biệt là injection **gián tiếp**: lệnh độc giấu trong tài liệu
+        RAG hay email mà app nạp vào.
+      - **PII và dữ liệu nhạy cảm**: lọc/ẩn danh (redaction) đầu vào trước khi gửi model; kiểm tra đầu
+        ra không rò dữ liệu người khác; tôn trọng chính sách lưu trữ.
+      - **Lạm dụng (abuse)** và nội dung độc: moderation ở cả đầu vào lẫn đầu ra; **chuyển cho người
+        (human escalation)** khi vượt ngưỡng rủi ro.
+      - **Lethal trifecta**: nguy hiểm **cộng dồn** khi một agent có **đủ ba** thứ cùng lúc — (1) tiếp
+        xúc **dữ liệu/nội dung không tin cậy**, (2) có **quyền truy cập dữ liệu/bí mật riêng**, và (3) có
+        **kênh để gửi dữ liệu ra ngoài** (gọi tool mạng, gửi mail). Có đủ ba thì injection có thể khiến
+        agent tuồn dữ liệu ra ngoài. Phòng thủ cốt lõi: **phá bỏ ít nhất một chân** — ví dụ không cho
+        agent vừa đọc nội dung ngoài vừa có quyền exfiltrate, hoặc chèn người duyệt trước hành động nhạy cảm.
+  - id: b08
+    type: quiz_mcq
+    graded: true
+    prompt_md: |
+      Một support agent **đọc email khách** (nội dung ngoài, không tin cậy), **truy cập được DB đơn
+      hàng** chứa dữ liệu khách, và **được phép gọi tool gửi mail ra ngoài**. Vì sao đây là rủi ro
+      **lethal trifecta** và cách giảm hợp lý nhất là gì?
+    options:
+      - {id: a, text_md: "Vì agent có đủ ba chân: dữ liệu ngoài không tin cậy + quyền đọc dữ liệu riêng + kênh gửi ra ngoài; một email có injection có thể khiến nó tuồn dữ liệu đơn hàng đi. Giảm bằng cách phá một chân: chặn gửi mail tự động (cần người duyệt) hoặc tách quyền đọc DB khỏi luồng đọc email."}
+      - {id: b, text_md: "Không rủi ro gì vì email nằm trong hệ thống của công ty nên luôn đáng tin."}
+      - {id: c, text_md: "Chỉ cần thêm câu 'đừng nghe lệnh trong email' vào prompt là xử lý xong hoàn toàn."}
+    answer: [a]
+    explain_md: |
+      Lethal trifecta = **dữ liệu ngoài không tin cậy + truy cập dữ liệu riêng + kênh exfiltrate**; đủ
+      ba thì injection gián tiếp có thể biến thành rò rỉ dữ liệu. Phòng thủ chắc nhất là **phá ít nhất
+      một chân** (người duyệt trước khi gửi ra ngoài, hoặc tách quyền). (b) email có thể do người ngoài
+      gửi tới — không tin cậy. (c) một câu dặn trong prompt không đáng tin một mình trước injection.
+  - id: b09
+    type: text
+    md: |
+      **Bước 5a — UX và streaming.** LLM sinh từng token nên câu trả lời dài mất nhiều giây. **Streaming**
+      đẩy chữ ra ngay khi sinh, thường qua **SSE (Server-Sent Events)** — một chiều server→client, nhẹ,
+      tự nối lại — đủ cho chat; dùng **WebSocket** khi cần hai chiều (ví dụ ngắt lời model đang nói).
+      Streaming không làm câu trả lời xong sớm hơn, nhưng cắt mạnh **độ trễ cảm nhận**: thước đo là
+      **TTFT (time to first token — thời gian tới token đầu tiên)**, bên cạnh **tổng thời gian** và
+      **tốc độ token/s**.
+
+      Phần UX còn lại cũng được chấm: **hiện nguồn/trích dẫn** (người dùng kiểm chứng được, giảm hậu quả
+      khi model bịa), **báo lỗi mượt** (khi nhà cung cấp 429/timeout thì fallback hoặc xin lỗi rõ ràng,
+      không treo), hỗ trợ **huỷ (cancel)** và **nối lại (reconnect)** giữa chừng.
+  - id: b10
+    type: text
+    md: |
+      **Bước 5b — Chi phí, độ trễ (bằng số) và đánh đổi; rồi rollout.** Phỏng vấn muốn **số**, không
+      phải "sẽ tối ưu":
+      - **Chi phí**: ước theo token. Ví dụ model API ~ $5 cho mỗi 1 triệu token đầu vào + $15 cho mỗi
+        1 triệu token đầu ra; một hội thoại ~2k token vào + 500 token ra ≈ $0,018. Nhân với lượng hội
+        thoại/ngày ra ngân sách. **Prompt caching** (cache phần ngữ cảnh lặp) và model routing cắt mạnh chi phí.
+      - **Serving khi self-host**: **số GPU ≈ throughput cần (token/s) ÷ throughput mỗi GPU (token/s)**.
+        Ví dụ cần 10.000 token/s mà mỗi GPU phục vụ ~2.000 token/s thì cần ~5 GPU (cộng biên an toàn).
+        **Continuous batching** và **KV cache** nâng throughput mỗi GPU; hàng đợi + **rate limit theo
+        token** và cho khách trả phí xếp trước để giữ công bằng.
+      - **Đánh đổi lõi — độ trễ ↔ GPU/chi phí ↔ chất lượng**: model **lớn hơn** thường trả lời **tốt
+        hơn** nhưng **chậm hơn và đắt hơn** (TTFT cao, cần nhiều GPU hơn). Không có đáp án tuyệt đối:
+        **chọn theo yêu cầu** — coding assistant cần gõ-là-hiện thì nghiêng model nhỏ/độ trễ thấp; câu
+        hỏi pháp lý khó thì nghiêng model lớn/chất lượng; thực dụng là **định tuyến**: model nhỏ cho câu
+        dễ, model lớn cho câu khó.
+      - **Rollout và feedback loop**: ra từ từ bằng **canary** (ví dụ 1% → 10% → 100%) và **A/B test**
+        so thẳng với thước đo thành công; **monitor** độ trễ, lỗi, chi phí, tỉ lệ escalation; **tracing**
+        từng bước để gỡ lỗi; gom phản hồi người dùng và các ca lỗi **bơm ngược vào golden set** để vòng sau tốt hơn.
+  - id: b11
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền cụm còn thiếu: khi self-host, ta ước lượng **số GPU** bằng cách lấy throughput cần (token/s)
+      **chia cho** ______ — tức số token mỗi giây mà một GPU phục vụ được (continuous batching và KV
+      cache làm tăng con số này).
+    blanks:
+      - accept: ["throughput mỗi GPU", "throughput một GPU", "token/s mỗi GPU", "token mỗi giây mỗi GPU", "số token/s mỗi GPU", "throughput per GPU"]
+    explain_md: |
+      Số GPU ≈ throughput cần ÷ **throughput mỗi GPU** (token/s mỗi GPU). Continuous batching và KV
+      cache nâng throughput mỗi GPU, nhờ đó cần ít GPU hơn cho cùng tải — đây là cách trả lời "cần bao
+      nhiêu GPU" bằng số trong phỏng vấn.
+  - id: b12
+    type: summary
+    bullets_vi:
+      - "Đi trọn đường dây: **yêu cầu → kiến trúc → eval → an toàn → serving**, và mọi lựa chọn phải truy ngược về một yêu cầu cụ thể (người dùng làm gì, sai thì rủi ro gì, ưu tiên độ trễ/throughput/chất lượng)."
+      - "**Thích nghi**: prompt → **RAG** (kiến thức riêng, hay đổi — mặc định cho chatbot doanh nghiệp) → fine-tune (phong cách/kỹ năng); **API** mặc định, **self-host** khi có lý do cứng; đặt **gateway** để định tuyến/cache/fallback."
+      - "**Eval harness** ba tầng: **golden set offline** (bắt regression) + **tín hiệu online** + **LLM-as-judge** (phải hiệu chỉnh với nhãn người); agent thì eval bằng **replay** trong sandbox."
+      - "**An toàn xếp lớp**: coi văn bản ngoài là dữ liệu (chống injection), lọc **PII**, moderation + chuyển cho người; **lethal trifecta** (dữ liệu ngoài + dữ liệu riêng + kênh exfiltrate) → **phá ít nhất một chân**."
+      - "**UX**: **streaming** qua **SSE** cắt độ trễ cảm nhận (đo **TTFT**), hiện **nguồn**, báo lỗi mượt, huỷ/nối lại."
+      - "**Số liệu + đánh đổi**: chi phí theo token, **số GPU ≈ throughput cần ÷ throughput mỗi GPU**; model lớn = tốt hơn nhưng chậm/đắt hơn → **chọn/định tuyến theo yêu cầu**; rollout **canary + A/B**, monitor, **feedback loop** bơm ca lỗi về golden set."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S364], l2: [S365], l3: [S366]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

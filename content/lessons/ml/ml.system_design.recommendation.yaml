@@ -1,0 +1,167 @@
+id: ml.system_design.recommendation
+version: 1
+status: published
+title_vi: "Thiết kế hệ gợi ý và xếp hạng feed: hai tầng, đa mục tiêu, cold start và A/B có holdout dài hạn"
+est_minutes: 14
+objectives_vi:
+  - "Thiết kế một hệ gợi ý / xếp hạng feed (recommendation / feed ranking) theo scale cho trước bằng kiến trúc hai tầng: lấy ứng viên (candidate generation) rồi xếp hạng (ranking)."
+  - "Gộp nhiều mục tiêu bằng value model có trọng số (multi-objective), và giải thích vì sao tối ưu click ngắn hạn (clickbait) có thể hại retention dài hạn."
+  - "Xử lý cold start cho người và món mới; nêu vai trò của exploration, diversity và creator fairness."
+  - "Đánh giá đúng cách: hiểu offline (recall@k, NDCG) chỉ là proxy yếu, còn phép thử thật là A/B online có holdout dài hạn."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      **Bài toán:** sắp một **feed** (ví dụ feed video trang chủ) cho mỗi người dùng — chọn và xếp
+      thứ tự vài chục món từ một kho có thể tới hàng triệu, hàng chục triệu món. Khi phỏng vấn,
+      **hỏi scale trước**: bao nhiêu người dùng, bao nhiêu món trong kho, bao nhiêu yêu cầu mỗi giây
+      (QPS), ngân sách độ trễ (latency) bao nhiêu mili-giây. Scale quyết định kiến trúc.
+
+      **Nhãn đến từ hành vi ngầm (implicit feedback):** người dùng hiếm khi chấm sao. Ta học từ tín
+      hiệu ngầm — xem hết (completion), thời gian xem (watch time / dwell time), bỏ qua (skip), like,
+      chia sẻ, báo cáo (report). Đây là dữ liệu dồi dào nhưng nhiễu và **thiên lệch** (biased): ta
+      chỉ thấy phản hồi cho những món hệ thống đã từng hiển thị.
+  - id: b02
+    type: text
+    md: |
+      **Kiến trúc hai tầng (two-stage funnel)** — mô-típ chuẩn, cũng là của bài học trước
+      (ranking_funnel):
+
+      1. **Lấy ứng viên (candidate generation / retrieval):** từ hàng triệu món, nhanh chóng rút về
+         vài trăm đến vài nghìn ứng viên *có thể* liên quan. Phải **rất nhanh và rẻ**, dùng mô hình
+         nhẹ hoặc tra cứu gần đúng.
+      2. **Xếp hạng (ranking):** chấm kỹ vài trăm ứng viên bằng một model nặng, nhiều đặc trưng
+         (feature), rồi lấy top-k để hiển thị.
+
+      Vì sao hai tầng? Không thể chạy model nặng cho hàng triệu món mỗi yêu cầu trong vài chục
+      mili-giây. Tầng đầu **thu hẹp** để tầng sau được phép tốn kém mà vẫn kịp. Đây chính là cách
+      scale chi phối thiết kế.
+  - id: b03
+    type: text
+    md: |
+      **Các cách lấy ứng viên (candidate sources)** — thường chạy **nhiều nguồn song song rồi gộp**:
+
+      - **Lọc cộng tác (collaborative filtering):** "người giống bạn đã thích món này" — dựa trên ma
+        trận tương tác người-món, không cần hiểu nội dung.
+      - **Two-tower (truy hồi bằng embedding / embedding retrieval):** hai mạng tạo vector cho người
+        và cho món; ứng viên là các món có vector **gần** vector người, tìm bằng **ANN** (approximate
+        nearest neighbor) trên một index — rất nhanh ở quy mô lớn. Huấn luyện cần **lấy mẫu âm**
+        (negative sampling): lấy món người dùng không tương tác làm mẫu âm (ngẫu nhiên, hoặc "hard
+        negative" là món giống thứ họ thích nhưng bị bỏ qua).
+      - **Đồng tương tác (co-engagement):** "những ai xem X cũng hay xem Y".
+      - **Nguồn độ mới / phổ biến (fresh / popular):** để món mới và xu hướng có cơ hội lọt vào.
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Kho có 20 triệu video, mỗi yêu cầu phải trả feed trong khoảng 100 mili-giây. Vì sao thiết kế dùng **hai tầng** (candidate generation rồi ranking) thay vì chấm thẳng model nặng cho cả 20 triệu món?"
+    options:
+      - {id: a, text_md: "Vì không thể chạy ranker nặng cho 20 triệu món trong ngân sách độ trễ; tầng lấy ứng viên rẻ thu hẹp còn vài trăm-vài nghìn món để ranker nặng chấm kỹ mà vẫn kịp."}
+      - {id: b, text_md: "Vì một tầng duy nhất không bao giờ cho kết quả đúng; hai model luôn chính xác hơn một model dù chi phí thế nào."}
+      - {id: c, text_md: "Vì tầng ranking không cần đặc trưng gì, nên phải có tầng đầu tạo ra mọi đặc trưng cho nó."}
+    answer: [a]
+    explain_md: "Lý do cốt lõi là **scale + ngân sách độ trễ**: retrieval rẻ thu hẹp không gian, ranking nặng chỉ chấm vài trăm ứng viên. (b) sai: hai tầng không phải vì 'luôn chính xác hơn' mà vì chi phí; (c) sai: ranker tự dùng nhiều đặc trưng, tầng đầu chỉ để thu hẹp."
+  - id: b05
+    type: text
+    md: |
+      **Tầng xếp hạng (ranking):** với mỗi ứng viên, dự đoán **xác suất các hành động** rồi gộp thành
+      một điểm. Model thường có **nhiều đầu ra (multi-task / multi-head)**: cùng lúc dự đoán
+      P(xem hết), P(like), P(chia sẻ), P(báo cáo)... Chia sẻ phần thân mạng (shared backbone) giúp
+      các tác vụ "học ké" lẫn nhau và tiết kiệm tính toán.
+
+      Đặc trưng (feature) cho ranker: lịch sử người dùng, đặc trưng món (chủ đề, độ dài, người tạo),
+      đặc trưng ngữ cảnh (giờ, thiết bị), và tín hiệu real-time (vừa xem gì) trộn với tín hiệu batch
+      (tính sẵn theo giờ/ngày). Dự đoán từ nhiều đầu ra này là nguyên liệu cho bước gộp điểm tiếp theo.
+  - id: b06
+    type: text
+    md: |
+      **Đa mục tiêu bằng value model (multi-objective):** feed tốt không chỉ là nhiều click. Ta gộp
+      nhiều dự đoán thành **một điểm xếp hạng** bằng trọng số — ví dụ:
+
+      điểm = 0,5 × P(xem hết) + 0,3 × P(like) − 1,0 × P(báo cáo)
+
+      **Trọng số là quyết định sản phẩm**, không phải thứ model tự học. Ngoài tương tác (CTR, watch
+      time / dwell time) còn phải cân thêm: **đa dạng (diversity)** để feed không bị trùng một chủ đề,
+      **độ mới (freshness)**, và **công bằng với người tạo (creator fairness)** để không chỉ dồn hiển
+      thị cho vài ngôi sao.
+
+      **Cạm bẫy ngắn hạn vs dài hạn:** tối ưu thẳng click/CTR dễ đẩy lên **clickbait** (giật tít) —
+      tăng click hôm nay nhưng làm người dùng thất vọng và **giảm retention** (tỉ lệ quay lại) về sau.
+      Cách chữa: đưa tín hiệu **giá trị lâu dài** vào value model (vd ưu tiên xem-hết/thời gian xem
+      thật thay vì chỉ click, trừ điểm nội dung bị báo cáo), tức một **weighted objective** hướng tới
+      giá trị dài hạn chứ không chỉ phản ứng tức thời.
+  - id: b07
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Nhóm bạn đổi ranker để tối ưu thẳng tỉ lệ click (CTR). Click tăng ngay, nhưng vài tuần sau **retention** (tỉ lệ người quay lại) lại giảm. Chẩn đoán và cách sửa hợp lý nhất theo bài học?"
+    options:
+      - {id: a, text_md: "Tối ưu click ngắn hạn đẩy lên clickbait, hại trải nghiệm và retention dài hạn; sửa bằng cách đưa tín hiệu giá trị lâu dài (vd xem-hết/thời gian xem thật, trừ điểm nội dung bị báo cáo) vào value model đa mục tiêu."}
+      - {id: b, text_md: "Click và retention không liên quan gì nhau; cứ giữ tối ưu click và bỏ qua retention vì click mới là mục tiêu thật."}
+      - {id: c, text_md: "Thêm thật nhiều ứng viên ở tầng retrieval sẽ tự khắc làm retention tăng, không cần đụng tới hàm mục tiêu."}
+    answer: [a]
+    explain_md: "Đây đúng là cạm bẫy ngắn hạn-dài hạn: CTR là proxy dễ bị clickbait khai thác. Chữa bằng multi-objective hướng giá trị lâu dài. (b) sai: retention mới là mục tiêu kinh doanh dài hạn; (c) sai: thêm ứng viên không đổi việc *điểm* đang thưởng cho clickbait."
+  - id: b08
+    type: callout
+    kind: interview
+    md: |
+      **Cold start (người/món mới chưa có dữ liệu)** — câu hỏi gần như chắc chắn bị hỏi:
+
+      - **Người dùng mới:** chưa có lịch sử nên collaborative filtering/two-tower "mù". Dựa vào
+        **phổ biến (popularity)**, **onboarding** (hỏi vài sở thích lúc đăng ký), và gợi ý theo
+        **nội dung (content-based)** từ hồ sơ tối thiểu; học nhanh từ vài tương tác đầu.
+      - **Món mới:** chưa có tín hiệu tương tác nên two-tower khó truy hồi. Dựa vào **đặc trưng nội
+        dung (content features)** của món, và **thăm dò (exploration)** — cố ý dành một phần hiển thị
+        để thử món mới nhằm *thu thập dữ liệu*, chấp nhận hy sinh một chút tương tác tức thời.
+
+      Cold start chính là lý do ta không thể chỉ dựa vào lịch sử tương tác: phải có nguồn nội dung và
+      cơ chế exploration.
+  - id: b09
+    type: text
+    md: |
+      **Đánh giá (evaluation) — phần quan trọng nhất và hay bị làm sai:**
+
+      - **Offline** (trên log đã có): **recall@k** (trong top-k có bao nhiêu món người dùng thật sự
+        thích), **NDCG** (xếp đúng thứ tự tốt được thưởng cao). Offline **rẻ, nhanh**, dùng để sàng
+        ý tưởng — nhưng chỉ là **proxy yếu**: log mang thiên lệch của hệ thống cũ, và không đo được
+        hành vi dài hạn.
+      - **Online A/B test:** chia người dùng thành nhóm đối chứng và nhóm thử, so các chỉ số thật
+        (watch time, retention). **Đây mới là phép thử thật.**
+      - **Holdout dài hạn (long-term holdout):** giữ lại một nhóm người dùng **cố ý không áp dụng**
+        thay đổi, theo dõi **nhiều tuần**, để bắt những tác hại dài hạn (vd clickbait làm tụt
+        retention) mà A/B ngắn ngày không thấy. Nguyên tắc vàng: **offline tốt không bảo đảm online
+        tốt** — luôn chốt bằng A/B, và dùng holdout dài hạn khi nghi có hại về sau.
+  - id: b10
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền thuật ngữ còn thiếu: Một thay đổi có thể làm recall@k offline đẹp hơn nhưng vẫn hại người
+      dùng về lâu dài. Để bắt tác hại dài hạn, ta giữ lại một nhóm người dùng cố ý không áp dụng thay
+      đổi và theo dõi họ nhiều tuần — nhóm đó gọi là ______.
+    blanks:
+      - accept: ["long-term holdout", "holdout dài hạn", "long term holdout", "holdout", "nhóm holdout dài hạn"]
+    explain_md: "Long-term holdout (holdout dài hạn) là nhóm cố ý không nhận thay đổi, theo dõi nhiều tuần để phát hiện tác hại dài hạn (vd clickbait hại retention) mà offline và A/B ngắn ngày không lộ ra."
+  - id: b11
+    type: callout
+    kind: warning
+    md: |
+      **Vòng phản hồi & bong bóng lọc (feedback loop & filter bubble):** hệ chỉ học từ những món nó
+      *đã hiển thị*, nên dễ **tự củng cố** — càng đẩy một loại nội dung thì càng thu được tương tác
+      cho loại đó, rồi lại đẩy nữa, khiến feed hẹp dần (**filter bubble**) và món mới/nhóm nhỏ bị
+      bỏ rơi. Đây là lý do cần **exploration**, **diversity** và **creator fairness** như những ràng
+      buộc chủ động, cùng theo dõi **độ mới (freshness)** để feed không bị cũ. Đừng chỉ tối ưu một
+      con số tương tác và tin rằng log sẽ tự công bằng.
+  - id: b12
+    type: summary
+    bullets_vi:
+      - "Hỏi **scale** trước (số người/món, QPS, độ trễ); nhãn là **tín hiệu ngầm** (xem hết, watch time, skip, report) — dồi dào nhưng nhiễu và thiên lệch."
+      - "Kiến trúc **hai tầng**: **lấy ứng viên** (collaborative filtering / two-tower + ANN / co-engagement) rẻ và nhanh, rồi **ranking** nặng nhiều đặc trưng, multi-task, chấm top-k."
+      - "**Đa mục tiêu bằng value model** có trọng số (quyết định sản phẩm): gộp CTR/watch time + diversity + freshness + creator fairness + **giá trị dài hạn**; tối ưu click ngắn hạn sinh **clickbait** hại **retention**."
+      - "**Cold start**: người mới → popularity/onboarding/content-based; món mới → content features + **exploration**; chú ý **feedback loop / filter bubble**."
+      - "**Đánh giá**: offline (**recall@k, NDCG**) chỉ là proxy yếu; phép thử thật là **A/B online**, và dùng **holdout dài hạn** để bắt tác hại nhiều tuần — offline tốt không bảo đảm online tốt."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S352], l2: [S353], l3: [S354]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

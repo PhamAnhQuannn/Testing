@@ -1,0 +1,168 @@
+id: ml.system_design.multimodal_retrieval
+version: 1
+status: published
+title_vi: "Thiết kế tìm kiếm đa phương thức (ảnh, video) bằng chữ và phát hiện trùng lặp ở quy mô lớn"
+est_minutes: 14
+objectives_vi:
+  - "Giải thích không gian embedding chung (joint/shared embedding space) của dual encoder kiểu CLIP, và vì sao nó biến tìm ảnh/video bằng chữ thành bài tìm gần nhất (ANN) trong một không gian vector."
+  - "Thiết kế đường ống (pipeline) hai pha: tạo embedding media offline theo lô (batch) và embed truy vấn online; xử lý video bằng lấy mẫu khung hình rồi gộp (temporal pooling)."
+  - "Chọn index ANN ở quy mô tỉ vector (HNSW, IVF-PQ, sharding) và thiết kế phát hiện trùng lặp gần (near-duplicate) bằng perceptual hash và/hoặc ngưỡng tương đồng embedding."
+  - "Đánh giá hệ thống bằng recall@k / precision@k trên tập có nhãn, người chấm (human eval), và lưu ý khoảng cách phương thức (modality gap) cùng nội dung an toàn."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Bài phỏng vấn thường gặp cho AI engineer: **"Thiết kế tìm kiếm ảnh/video bằng chữ (text-to-image/
+      video search) ở quy mô lớn, và phát hiện nội dung trùng lặp (near-duplicate detection)."** Đây là
+      họ bài **thiết kế hệ thống (system design)** giống tìm kiếm & xếp hạng (search_ranking) và chỉ mục
+      vector (vector_indexes), nhưng truy vấn là **chữ** còn kho dữ liệu là **ảnh/video** — hai phương
+      thức (modality) khác nhau.
+
+      Có hai yêu cầu cốt lõi:
+      - **Tìm bằng chữ**: người dùng gõ "chú mèo cam ngủ trên bàn phím", hệ thống trả về ảnh/video khớp.
+      - **Phát hiện trùng lặp**: khi tải lên hàng tỉ ảnh/video, phát hiện bản sao (re-upload), bản cắt
+        (crop), hay bản nén lại (re-encode) để chống lạm dụng (abuse) và vi phạm bản quyền (copyright).
+
+      Chìa khoá cho cả hai là đưa dữ liệu về **vector embedding** rồi làm việc trên khoảng cách vector.
+  - id: b02
+    type: text
+    md: |
+      **Không gian embedding chung (joint / shared embedding space).** Mấu chốt để tìm ảnh bằng chữ là
+      huấn luyện một **dual encoder kiểu CLIP**: một encoder cho ảnh, một encoder cho chữ, cùng ánh xạ
+      đầu vào về **chung một không gian vector**. Model được dạy bằng **contrastive loss** (học tương
+      phản): kéo cặp (ảnh, chú thích) đúng lại **gần** nhau và đẩy các cặp sai ra **xa** nhau.
+
+      Hệ quả quan trọng: sau khi huấn luyện, một **câu chữ** và một **bức ảnh** nói về cùng một thứ sẽ
+      nằm **gần nhau** trong không gian đó. Nhờ vậy, tìm ảnh bằng chữ trở thành: embed câu truy vấn,
+      rồi tìm **các vector ảnh gần nhất** (nearest neighbor) với vector truy vấn. Không cần ảnh phải có
+      chú thích (caption) sẵn — so khớp diễn ra trực tiếp trong không gian chung. (Chi tiết kiến trúc ở
+      ml.cv.vit_multimodal.)
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao một **dual encoder kiểu CLIP** cho phép tìm ảnh bằng câu chữ, dù ảnh không hề có chú thích (caption) kèm theo?"
+    options:
+      - {id: a, text_md: "Vì encoder ảnh và encoder chữ được huấn luyện (contrastive loss) để đưa về CÙNG một không gian vector, nên câu truy vấn và ảnh cùng nội dung nằm gần nhau; tìm ảnh = tìm vector ảnh gần vector truy vấn nhất."}
+      - {id: b, text_md: "Vì model tự động sinh chú thích cho từng ảnh rồi so khớp chú thích đó với câu truy vấn bằng khớp từ khoá (keyword match)."}
+      - {id: c, text_md: "Vì mọi ảnh và câu chữ đều được băm (hash) ra cùng một mã, nên chỉ cần so hai mã có bằng nhau không."}
+    answer: [a]
+    explain_md: "Dual encoder kiểu CLIP đưa ảnh và chữ về chung một không gian embedding (contrastive loss kéo cặp đúng lại gần), nên so khớp là tìm gần nhất trong không gian đó. (b) sai: không cần sinh caption rồi khớp từ khoá — đó là cách cũ, yếu. (c) sai: embedding là vector liên tục đo bằng khoảng cách/cosine, không phải mã băm bằng-nhau."
+  - id: b04
+    type: text
+    md: |
+      **Đường ống hai pha: offline (lập chỉ mục) và online (truy vấn).** Giống search_ranking, ta tách
+      việc nặng ra khỏi đường truy vấn.
+
+      - **Offline (batch)**: với mỗi ảnh/video trong kho, chạy encoder media để **tạo embedding trước**,
+        rồi nạp vào **index ANN**. Đây là một pipeline xử lý theo lô, chạy cho hàng tỉ mục và cập nhật
+        khi có nội dung mới (ingest).
+      - **Online**: khi người dùng gõ truy vấn, chỉ **embed câu truy vấn** (một lần chạy encoder chữ, rất
+        nhẹ) rồi **tìm k vector gần nhất (ANN)** trong index và trả về.
+
+      Tách như vậy giúp truy vấn nhanh (chỉ embed 1 câu + 1 lần tra ANN), còn chi phí encode cả kho đã
+      trả trước ở offline. Có thể thêm bước **xếp hạng lại (re-ranking)** trên top-k bằng model nặng hơn,
+      đúng tinh thần retrieve-rồi-rank của search_ranking.
+  - id: b05
+    type: text
+    md: |
+      **Index ANN ở quy mô tỉ vector.** Quét tuyến tính (so với từng vector) là bất khả thi ở tỉ mục, nên
+      ta dùng **ANN (approximate nearest neighbor — tìm gần nhất gần đúng)**, đánh đổi một chút độ chính
+      xác (recall) lấy tốc độ. Hai lựa chọn hay gặp (xem vector_indexes):
+
+      - **HNSW** (đồ thị phân tầng): truy vấn rất nhanh, recall cao, nhưng **tốn RAM** vì lưu đồ thị.
+      - **IVF-PQ**: chia vector thành cụm (IVF) và **nén** bằng product quantization (PQ), tiết kiệm bộ
+        nhớ mạnh — hợp khi kho quá lớn không thể giữ vector gốc trong RAM.
+
+      Ở tỉ vector, một máy không chứa nổi, nên **chia nhỏ index ra nhiều máy (sharding)**: mỗi shard giữ
+      một phần, truy vấn fan-out tới các shard rồi gộp (merge) top-k. Chọn index là bài đánh đổi
+      **recall ↔ độ trễ (latency) ↔ bộ nhớ/chi phí**, tuỳ ràng buộc hệ thống.
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Kho có khoảng **1 tỉ** embedding ảnh, không thể giữ toàn bộ vector gốc trong RAM, và cần độ trễ thấp. Lựa chọn index nào **hợp lý nhất**, và vì sao?"
+    options:
+      - {id: a, text_md: "Dùng ANN có nén như IVF-PQ (và sharding ra nhiều máy): chia cụm + lượng tử hoá (PQ) giảm mạnh bộ nhớ, đổi một chút recall lấy khả năng chứa cả tỉ vector với độ trễ thấp."}
+      - {id: b, text_md: "Quét tuyến tính (brute-force) toàn bộ 1 tỉ vector mỗi truy vấn để luôn đúng tuyệt đối; độ trễ không quan trọng."}
+      - {id: c, text_md: "Giữ nguyên toàn bộ vector gốc và đồ thị HNSW đầy đủ trong RAM trên một máy duy nhất, vì HNSW luôn là lựa chọn tốt nhất bất kể bộ nhớ."}
+    answer: [a]
+    explain_md: "Ràng buộc là tỉ vector + không đủ RAM + cần nhanh, nên ANN có nén (IVF-PQ) cộng sharding là phù hợp: PQ nén vector nên chứa được nhiều, đánh đổi chút recall. (b) sai: brute-force ở tỉ vector không đạt độ trễ thấp. (c) sai: HNSW tốn RAM, một máy không chứa nổi tỉ vector — và không có index nào 'luôn tốt nhất', đây là bài đánh đổi."
+  - id: b07
+    type: text
+    md: |
+      **Video: lấy mẫu khung hình rồi gộp (temporal pooling).** Ảnh là một vector; video là chuỗi hình
+      theo thời gian nên cần thêm một bước.
+
+      - **Lấy mẫu (sampling)**: không encode mọi khung hình (quá tốn). Lấy vài khung hình đại diện —
+        theo nhịp cố định (vd mỗi 1 giây) hoặc theo **cảnh/đoạn (shot/segment)** sau khi phát hiện
+        chuyển cảnh.
+      - **Gộp (aggregate / temporal pooling)**: với tìm kiếm thô ở cấp video, có thể **lấy trung bình
+        (mean pooling)** các vector khung hình thành **một vector cho cả video** để lập chỉ mục gọn.
+        Khi cần định vị đúng đoạn trong video, hãy **lập chỉ mục từng đoạn** (mỗi segment một vector) rồi
+        gộp điểm ở bước truy vấn — đánh đổi độ mịn lấy chi phí index lớn hơn.
+
+      Cũng có thể dùng thêm tín hiệu âm thanh/phụ đề, nhưng khung-hình + pooling là xương sống.
+  - id: b08
+    type: text
+    md: |
+      **Phát hiện trùng lặp và sao chép (near-duplicate / copy detection).** Mục tiêu khác tìm kiếm: ta
+      hỏi "nội dung này có **trùng hoặc gần trùng** với thứ đã có không?". Hai công cụ bổ sung nhau:
+
+      - **Perceptual hash (pHash — mã tri giác)**: sinh một mã ngắn sao cho hai ảnh **nhìn giống nhau**
+        cho mã **gần nhau** (đo bằng khoảng cách Hamming). Rất rẻ và nhanh, bắt tốt các bản **gần y hệt**:
+        đổi kích thước, nén lại, chỉnh sáng nhẹ. Nhưng yếu với crop mạnh hay biến đổi lớn.
+      - **Ngưỡng tương đồng embedding**: so **embedding** (cùng loại dùng cho tìm kiếm) và coi là trùng
+        nếu độ tương đồng vượt một **ngưỡng (threshold)**. Bắt được **near-dupe khó hơn** (cắt, lật, chèn
+        logo, re-encode mạnh) vì embedding nắm ngữ nghĩa, không chỉ điểm ảnh.
+
+      Thực tế thường **xếp lớp**: pHash lọc nhanh bản gần y hệt ở lúc **ingest**, embedding + ngưỡng (có
+      thể gom cụm — clustering) bắt bản gần trùng còn lại. Dùng cho **chống trùng khi nạp, bản quyền và
+      lạm dụng**. Với video, áp cùng ý trên các khung hình/đoạn đã lấy mẫu.
+  - id: b09
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Hệ thống cần chặn **re-upload gần trùng** gồm cả bản **đổi kích thước/nén lại** lẫn bản **bị cắt (crop) và chèn logo**. Cách thiết kế phát hiện trùng nào **hợp lý nhất**?"
+    options:
+      - {id: a, text_md: "Xếp lớp: perceptual hash (pHash) lọc nhanh các bản gần y hệt (resize, re-encode) lúc ingest, rồi dùng ngưỡng tương đồng embedding để bắt các bản khó hơn (crop, chèn logo) mà pHash dễ bỏ sót."}
+      - {id: b, text_md: "Chỉ dùng hash mã hoá (cryptographic hash như SHA-256) trên byte file; nếu hai mã khác nhau thì chắc chắn là nội dung khác nhau."}
+      - {id: c, text_md: "Chỉ so khớp tên file và kích thước (bytes) của ảnh để quyết định trùng hay không."}
+    answer: [a]
+    explain_md: "pHash rẻ và bắt tốt bản gần y hệt nhưng yếu với crop/biến đổi mạnh; embedding + ngưỡng bắt near-dupe khó hơn vì nắm ngữ nghĩa — xếp lớp hai cách là hợp lý. (b) sai: cryptographic hash chỉ cần đổi 1 byte (nén lại) là ra mã hoàn toàn khác, vô dụng cho near-dupe. (c) sai: tên/kích thước file không phản ánh nội dung."
+  - id: b10
+    type: text
+    md: |
+      **Đánh giá (evaluation).** Phải chứng minh hệ thống tốt bằng **con số**, không chỉ cảm tính:
+
+      - **Offline trên tập có nhãn**: với một bộ cặp (truy vấn, đáp án đúng), đo **recall@k** (trong k
+        kết quả đầu có bao nhiêu phần đáp án đúng được tìm thấy) và **precision@k** (trong k kết quả đầu
+        bao nhiêu phần là đúng). Mẹo khi chưa có nhãn người dùng: lấy **chú thích sẵn có của ảnh làm truy
+        vấn** và **chính ảnh đó làm đáp án đúng** để ước lượng recall@k.
+      - **Người chấm (human eval)**: người thật đánh giá mức liên quan của top kết quả cho các truy vấn
+        thật — bắt được cái nhãn tự động bỏ sót.
+      - **Online**: sau khi lên production, theo dõi tỉ lệ nhấp (click-through), v.v. Lưu ý **khoảng cách
+        phương thức (modality gap)**: chữ và ảnh có thể lệch phân bố trong không gian chung, cần hiệu
+        chỉnh. Và phải lọc **nội dung an toàn (safe content)** — không trả về nội dung độc hại/cấm.
+  - id: b11
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền thuật ngữ còn thiếu: Để đo chất lượng tìm kiếm offline khi có tập cặp (truy vấn, đáp án đúng),
+      ta dùng ______@k — tỉ lệ các đáp án đúng được tìm thấy trong k kết quả đầu tiên.
+    blanks:
+      - accept: ["recall", "Recall", "recall@k", "độ bao phủ"]
+    explain_md: "Recall@k đo trong k kết quả đầu có bao nhiêu phần đáp án đúng được tìm thấy — thước đo chuẩn cho retrieval. (Cặp đôi của nó là precision@k: bao nhiêu phần trong k kết quả là đúng.) Với ANN, recall còn giảm do tìm gần đúng, nên đo trên tập có nhãn giúp thấy đánh đổi recall ↔ tốc độ."
+  - id: b12
+    type: summary
+    bullets_vi:
+      - "Lõi của tìm ảnh/video bằng chữ là **không gian embedding chung** từ **dual encoder kiểu CLIP** (contrastive loss); tìm kiếm = embed truy vấn rồi **ANN** tìm vector media gần nhất."
+      - "Đường ống **hai pha**: tạo embedding media **offline theo lô** và nạp index; online chỉ **embed truy vấn + tra ANN** (có thể re-rank top-k). Video: **lấy mẫu khung hình/đoạn rồi gộp (temporal pooling)**."
+      - "Ở **tỉ vector** dùng ANN (HNSW tốn RAM nhưng nhanh; **IVF-PQ** nén để tiết kiệm bộ nhớ) và **sharding**; chọn index là đánh đổi **recall ↔ độ trễ ↔ bộ nhớ/chi phí**."
+      - "**Phát hiện trùng lặp**: xếp lớp **perceptual hash (pHash)** cho bản gần y hệt + **ngưỡng tương đồng embedding** cho near-dupe khó (crop, chèn logo, re-encode); dùng cho ingest, bản quyền, chống lạm dụng."
+      - "**Đánh giá** bằng **recall@k / precision@k** trên tập có nhãn (mẹo: chú thích làm truy vấn, ảnh làm đáp án), **human eval** và metric online; lưu ý **modality gap** và lọc **nội dung an toàn**."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S358], l2: [S359], l3: [S360]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"
