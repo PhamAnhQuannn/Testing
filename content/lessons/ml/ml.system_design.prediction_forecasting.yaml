@@ -1,0 +1,179 @@
+id: ml.system_design.prediction_forecasting
+version: 1
+status: published
+title_vi: "Thiết kế hệ thống dự đoán và dự báo: nhãn không rò rỉ, backtest đúng thời gian, metric gắn chi phí"
+est_minutes: 14
+objectives_vi:
+  - "Định nghĩa bài toán dự đoán/dự báo: nhãn (label), cửa sổ quan sát (observation window), tầm dự báo (horizon)."
+  - "Tránh rò rỉ nhãn (label leakage): feature chỉ dùng thông tin có TRƯỚC thời điểm dự đoán (point-in-time correctness)."
+  - "Đánh giá bằng backtest theo thứ tự thời gian (rolling/expanding split), KHÔNG xáo trộn ngẫu nhiên (random shuffle)."
+  - "Chọn metric gắn với chi phí kinh doanh (MAE/MAPE/RMSE, loss bất đối xứng hoặc quantile loss, khoảng dự đoán)."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Bài toán dạng này luôn là "**dự đoán X trong Y ngày tới**": khách có **rời bỏ (churn)** không,
+      mai bán bao nhiêu đơn, đơn hàng này mất bao lâu để giao (ETA). Trước khi nói đến model, phải
+      chốt **ba thứ** định hình toàn bộ pipeline:
+      - **Nhãn (label)**: ta dự đoán đúng cái gì, đo thế nào? Ví dụ "churn = khách không dùng app
+        trong **30 ngày tới**". Định nghĩa phải có mốc thời gian rõ ràng, nếu không sẽ không tính
+        được nhãn một cách nhất quán.
+      - **Cửa sổ quan sát (observation window)**: để dự đoán, ta được nhìn lại bao lâu (vd hành vi
+        90 ngày gần nhất).
+      - **Tầm dự báo (horizon)**: dự đoán xa bao nhiêu (1 ngày tới, 30 ngày tới). Horizon dài thì
+        khó hơn và feature "mới nhất" càng kém giá trị.
+
+      Một mẹo hình dung: với mỗi mẫu, có một **thời điểm dự đoán (prediction time) t**. Mọi feature
+      lấy từ **trước t**, còn nhãn tính từ **khoảng sau t** (vd t+1 đến t+30). Ranh giới t này là
+      trục xương sống của cả hệ thống.
+  - id: b02
+    type: text
+    md: |
+      **Rò rỉ nhãn (label leakage) là lỗi chết người số một** của hệ thống dự đoán. Rò rỉ xảy ra khi
+      một **feature vô tình chứa thông tin chỉ biết được SAU thời điểm dự đoán t** — tức thông tin
+      từ tương lai mà lúc chạy thật ta chưa thể có.
+
+      Nguyên tắc vàng là **point-in-time correctness (đúng tại thời điểm)**: mỗi feature phải được
+      tính **đúng như nó trông tại thời điểm t**, chỉ từ dữ liệu có trước t. Vài cái bẫy hay gặp:
+      - Dùng cột được **cập nhật về sau** (vd `tong_chi_tieu` là tổng cả vòng đời khách, gồm cả chi
+        tiêu sau t) thay vì chốt giá trị tại t.
+      - Feature tính từ **bảng đã bị can thiệp** sau t (vd trạng thái tài khoản đã bị khoá *vì* đã
+        churn).
+      - Tính thống kê (trung bình, chuẩn hoá) trên **toàn bộ** dữ liệu gồm cả phần tương lai rồi mới
+        chia train/test.
+
+      Hậu quả: offline nhìn "đẹp không tưởng" nhưng **sập khi lên production**, vì thứ giúp nó đúng
+      lại là thứ nó không có khi dự đoán thật.
+  - id: b03
+    type: callout
+    kind: warning
+    md: |
+      Cách thử nhanh một feature có rò rỉ không: tự hỏi **"Tại đúng thời điểm t, mình đã có thể tính
+      ra con số này chỉ từ dữ liệu quá khứ chưa?"** Nếu câu trả lời là "phải đợi thêm dữ liệu sau t"
+      thì đó là rò rỉ. Trong thực tế, cách chắc nhất là xây feature từ **ảnh chụp đúng-thời-điểm
+      (point-in-time snapshot)**: lưu lại trạng thái dữ liệu *như nó có tại t*, hoặc dùng feature
+      store có hỗ trợ **point-in-time join**.
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Bạn dự đoán khách có **churn trong 30 ngày tới** không. Feature nào dưới đây là **rò rỉ nhãn (label leakage)** và vì sao?"
+    options:
+      - {id: a, text_md: "\"Số lần đăng nhập trong 90 ngày TRƯỚC thời điểm dự đoán t\" — tính hoàn toàn từ quá khứ nên không rò rỉ."}
+      - {id: b, text_md: "\"Tài khoản đã bị đánh dấu đóng/huỷ hay chưa\", lấy ở thời điểm hiện tại — cờ này thường chỉ bật SAU khi khách đã churn, nên nó chính là thông tin tương lai lọt vào feature."}
+      - {id: c, text_md: "\"Gói dịch vụ khách đang dùng tại thời điểm t\" — là trạng thái biết được ngay tại t nên hợp lệ."}
+    answer: [b]
+    explain_md: "(b) rò rỉ: cờ đóng tài khoản chỉ bật sau khi churn xảy ra, nên tại thời điểm dự đoán thật ta chưa có nó; dùng nó là mượn thông tin tương lai, offline đẹp giả tạo. (a) và (c) chỉ dùng thông tin có trước hoặc tại t (point-in-time correct), nên hợp lệ."
+  - id: b05
+    type: text
+    md: |
+      Có nhãn sạch rồi, câu hỏi tiếp theo là **đánh giá thế nào cho trung thực**. Với dữ liệu có
+      trục thời gian, **tuyệt đối không xáo trộn ngẫu nhiên rồi chia train/test (random shuffle
+      split)**. Vì sao? Shuffle ngẫu nhiên sẽ nhét các mẫu **tương lai vào tập train** và mẫu quá
+      khứ vào test — model được "học lỏm" tương lai, nên metric offline **phồng lên ảo** và không
+      còn phản ánh việc đứng ở hiện tại đoán tương lai.
+
+      Cách đúng là **backtest theo thứ tự thời gian (time-ordered backtest)**: luôn train trên đoạn
+      **trước** một mốc thời gian và test trên đoạn **sau** mốc đó.
+      - **Expanding (mở rộng)**: train từ đầu đến mốc, test đoạn kế; mỗi vòng kéo dài phần train.
+      - **Rolling-origin (trượt gốc)**: lặp qua nhiều mốc, mỗi mốc train tới đó rồi test đoạn ngay
+        sau. Lấy trung bình nhiều mốc cho ước lượng ổn định hơn một lần chia duy nhất.
+
+      Nhớ chừa **khoảng đệm (gap)** bằng đúng horizon giữa train và test: nếu dự đoán 30 ngày, điểm
+      cuối của train phải cách điểm test ít nhất 30 ngày, nếu không nhãn của train lại "đụng" vào
+      vùng test.
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một bạn chia dữ liệu dự báo nhu cầu bằng `train_test_split` **ngẫu nhiên** (xáo trộn) và báo RMSE rất thấp. Vì sao con số này **không đáng tin**, và nên làm gì?"
+    options:
+      - {id: a, text_md: "Shuffle ngẫu nhiên đưa mẫu tương lai vào train nên model học lỏm tương lai, metric phồng ảo; phải dùng backtest theo thời gian (train trước mốc, test sau mốc), tốt nhất là rolling-origin."}
+      - {id: b, text_md: "Không sao cả — miễn tập test đủ lớn thì chia ngẫu nhiên vẫn phản ánh đúng hiệu năng trên tương lai."}
+      - {id: c, text_md: "Vấn đề chỉ là chọn sai metric; đổi RMSE sang MAE là con số sẽ đáng tin, không cần đổi cách chia."}
+    answer: [a]
+    explain_md: "(a) đúng: với dữ liệu thời gian, chia ngẫu nhiên làm rò rỉ tương lai vào train nên metric đẹp giả; phải chia theo thời gian (expanding/rolling-origin). (b) sai vì kích thước test không sửa được việc trộn thời gian. (c) sai: đổi metric không cứu được cách chia sai."
+  - id: b07
+    type: text
+    md: |
+      **Metric phải gắn với chi phí kinh doanh (business cost), không chọn theo thói quen.** Với bài
+      hồi quy/dự báo số lượng, ba lựa chọn nền:
+      - **MAE** (sai số tuyệt đối trung bình): dễ hiểu, ít bị ngoại lệ (outlier) kéo.
+      - **RMSE**: phạt nặng sai số lớn — hợp khi một cú lệch to gây hại nhiều.
+      - **MAPE** (sai số % trung bình): tiện so sánh giữa các mặt hàng khác cỡ, nhưng **nổ/vô nghĩa
+        khi giá trị thật gần 0** và phạt lệch-lên khác lệch-xuống, nên phải cẩn thận.
+
+      Điều cốt lõi: **chi phí của đoán thừa và đoán thiếu thường KHÁC nhau**. Dự báo tồn kho mà đoán
+      thiếu thì **hết hàng (mất doanh thu)**, đoán thừa thì **ôm hàng (tốn kho)** — hai cái giá đó
+      không bằng nhau. Khi đó dùng **loss bất đối xứng (asymmetric loss)** hoặc **quantile loss (hồi
+      quy phân vị)** để model nghiêng về phía ít tốn kém hơn, thay vì chỉ tối ưu sai số đối xứng.
+
+      Và thường nên trả về **khoảng dự đoán (prediction interval)** chứ không chỉ một con số: "80%
+      khả năng nhu cầu từ 80 đến 130" hữu ích cho quyết định hơn là "100". Quantile loss (đoán p10,
+      p50, p90) chính là cách tạo các khoảng đó.
+  - id: b08
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền thuật ngữ còn thiếu: Khi **đoán thiếu** (hết hàng) tốn kém hơn hẳn **đoán thừa** (ôm
+      kho), thay vì tối ưu một sai số đối xứng, ta nên dùng một hàm mất mát ______ (phạt hai chiều
+      lệch khác nhau), ví dụ quantile loss, để model nghiêng về phía ít tốn kém hơn.
+    blanks:
+      - accept: ["bất đối xứng", "asymmetric", "asymmetric loss", "loss bất đối xứng", "bất đối xứng (asymmetric)"]
+    explain_md: "Khi chi phí đoán-thừa khác đoán-thiếu, hàm mất mát bất đối xứng (asymmetric loss) — mà quantile loss là một dạng — cho phép phạt hai chiều lệch khác nhau, kéo dự báo về phía ít tốn kém; metric/loss phải khớp với chi phí kinh doanh thật."
+  - id: b09
+    type: text
+    md: |
+      **Model: luôn bắt đầu bằng baseline rồi mới leo thang.**
+      - **Baseline**: "bằng hôm qua", "bằng cùng kỳ tuần trước (seasonal naive)". Rẻ, và là thước
+        để biết model phức tạp có thật sự hơn không.
+      - **Mạnh và thực dụng nhất cho dữ liệu dạng bảng: GBDT** (gradient boosting trên cây, như
+        XGBoost/LightGBM) **trên feature trễ (lag features)**: giá trị t-1, t-7; trung bình trượt
+        (rolling mean); cộng feature **lịch** (thứ trong tuần, ngày lễ) để bắt **mùa vụ
+        (seasonality)** và **xu hướng (trend)**; cùng **biến ngoại sinh (external regressors)** như
+        giá, khuyến mãi, thời tiết.
+      - **Model sâu (deep: DeepAR, TFT...)**: để dành khi có **rất nhiều chuỗi** và quan hệ phức tạp;
+        hiếm khi là lựa chọn đầu tiên vì tốn và khó vận hành.
+
+      **Nhiều thực thể (many entities)** — 100 cửa hàng, hàng nghìn SKU: huấn luyện **một model dùng
+      chung** học xuyên các thực thể (global model) thường tốt hơn mỗi thực thể một model. Thực thể
+      **mới (cold start)** chưa có lịch sử thì mượn đặc trưng của **nhóm tương tự** (cùng vùng, cùng
+      loại) cho tới khi tích đủ dữ liệu.
+  - id: b10
+    type: text
+    md: |
+      **Phục vụ (serving) và vòng đời:**
+      - **Batch hay real-time**: churn/nhu cầu ngày mai có thể chấm **theo mẻ mỗi đêm (batch)** rồi
+        lưu sẵn; ETA giao hàng cần **real-time** vì phụ thuộc trạng thái ngay lúc đó. Chọn theo yêu
+        cầu độ trễ, đừng mặc định real-time.
+      - **Trôi dạt (drift) và lịch retrain**: thế giới đổi (mùa, giá, hành vi) nên độ chính xác tụt
+        dần — phải **giám sát** sai số theo thời gian và **retrain định kỳ** (hoặc khi phát hiện
+        drift). Đừng để model "đóng băng" ở phân phối cũ.
+      - **Can thiệp làm lệch nhãn (closing the loop)**: khi ta **hành động dựa trên dự đoán** (gửi
+        mã giảm giá cho người bị đoán churn), hành động đó **thay đổi chính kết cục** ta đang đo —
+        người được giữ lại không còn churn, nhãn tương lai bị lệch. Đây là lúc cần **uplift modeling**
+        (đo *mức thay đổi* do can thiệp) chứ không chỉ xác suất thô.
+  - id: b11
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Phỏng vấn: tóm tắt **ba trụ cột bắt-buộc-đúng** của một pipeline dự đoán/dự báo tin cậy là gì?"
+    options:
+      - {id: a, text_md: "Nhãn/feature point-in-time (không rò rỉ tương lai); backtest theo thứ tự thời gian (không shuffle ngẫu nhiên); metric/loss gắn với chi phí kinh doanh (kể cả bất đối xứng + khoảng dự đoán)."}
+      - {id: b, text_md: "Dùng model càng sâu càng tốt; chia train/test ngẫu nhiên cho đều; và luôn tối ưu RMSE vì nó phổ biến nhất."}
+      - {id: c, text_md: "Gom càng nhiều feature càng tốt kể cả cột cập nhật về sau; đo accuracy; và chấm real-time cho mọi bài."}
+    answer: [a]
+    explain_md: "(a) gói đúng ba trụ cột: leak-free (point-in-time), backtest đúng thời gian, metric gắn chi phí. (b) sai ở shuffle ngẫu nhiên và chọn metric theo thói quen. (c) sai: cột cập nhật-về-sau gây rò rỉ, accuracy không hợp cho dự báo số, và real-time khắp nơi là lãng phí."
+  - id: b12
+    type: summary
+    bullets_vi:
+      - "Chốt trước **nhãn (label)**, **cửa sổ quan sát** và **horizon**; mọi thứ xoay quanh **thời điểm dự đoán t** (feature từ trước t, nhãn từ sau t)."
+      - "**Không rò rỉ nhãn (label leakage)**: feature phải **point-in-time** — chỉ dùng dữ liệu có trước t; cảnh giác cột cập-nhật-về-sau và thống kê tính trên cả tương lai."
+      - "**Backtest theo thứ tự thời gian** (expanding/rolling-origin, có gap bằng horizon); **không bao giờ** xáo trộn ngẫu nhiên vì nó rò rỉ tương lai và phồng metric ảo."
+      - "**Metric gắn chi phí kinh doanh**: MAE/RMSE/MAPE (MAPE nổ khi gần 0); dùng **loss bất đối xứng / quantile loss** khi đoán thừa ≠ đoán thiếu; trả **khoảng dự đoán**."
+      - "Baseline → **GBDT trên lag + feature lịch + biến ngoại sinh** (deep để sau); model chung cho nhiều thực thể, cold start mượn nhóm tương tự; chọn **batch vs real-time**, **giám sát drift + retrain**, và nhớ **can thiệp làm lệch nhãn** (uplift)."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S343], l2: [S344], l3: [S345]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

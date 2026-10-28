@@ -1,0 +1,80 @@
+subtopic_id: ml.system_design.ranking_funnel
+items:
+  - id: S346
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Kể tên các tầng của một **phễu xếp hạng nhiều tầng (multi-stage ranking funnel)** theo đúng thứ
+      tự, và nói ngắn gọn vì sao phải chia tầng thay vì cho một model nặng chấm toàn bộ kho món.
+    answer_md: |
+      Thứ tự các tầng: **retrieval / candidate generation** (tìm ứng viên, hàng triệu → vài nghìn) →
+      (tuỳ chọn) **pre-ranking** → **heavy ranking** (chấm nặng, vài nghìn → vài chục) → **re-ranking**
+      (sắp lại: đa dạng, dedup, luật kinh doanh) → ~10 món hiển thị.
+
+      Phải chia tầng vì **ngân sách độ trễ (latency budget)**: chạy một model nặng trên hàng triệu món
+      vượt xa thời gian cho phép (người dùng chỉ chờ vài trăm mili-giây). Nên tầng đầu rẻ và gom nhanh
+      ứng viên (tối ưu recall), tầng sau đắt nhưng chỉ chấm trên tập nhỏ (tối ưu precision).
+    rubric_md: "Đúng khi nêu được: (a) thứ tự retrieval/candidate generation → (heavy) ranking → re-ranking (pre-ranking tuỳ chọn, không bắt buộc); và (b) lý do chia tầng là latency budget — không chạy nổi model nặng trên hàng triệu món. Đủ cả hai ý: bằng chứng điểm 1. Thiếu thứ tự các tầng hoặc không nêu được lý do latency: tối đa điểm 0."
+  - id: S347
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Đội bạn huấn luyện heavy ranker cho feed bằng cách **coi mọi lượt click là nhãn 'liên quan'**.
+      Sau vài tuần, model có xu hướng xếp cao đúng những món vốn đã được xếp cao, và các video mới
+      đăng gần như không bao giờ xuất hiện. Hãy: (1) chỉ ra **hai cái bẫy** đang xảy ra và giải thích
+      cơ chế từng cái; (2) với mỗi bẫy nêu **một cách chữa** cụ thể.
+    answer_md: |
+      **(1) Hai bẫy:**
+      - **Position bias:** món ở vị trí cao được click nhiều hơn chỉ vì vị trí, bất kể liên quan. Lấy
+        thẳng click làm nhãn khiến model học "món từng xếp cao = tốt", tức **bắt chước thứ hạng cũ**
+        thay vì học độ liên quan thật.
+      - **Vòng phản hồi / exposure bias (feedback loop):** model chỉ học từ click của những món **nó
+        đã chịu hiển thị**; video mới không được hiển thị thì không có click để chứng minh mình tốt,
+        nên **món hot càng hot**, món mới bị dìm mãi.
+
+      **(2) Cách chữa:**
+      - Cho position bias: đưa **vị trí làm feature** lúc train (đặt về hằng số khi serving), hoặc
+        dùng **IPS** (nhân trọng số 1 / P(được xem ở vị trí đó)).
+      - Cho feedback loop / cold start món mới: **exploration** bằng **bandit / ε-greedy** (dành một
+        phần lượt hiển thị để thử món mới) kèm **randomization**; với món mới chưa có lịch sử thì dựa
+        vào **content feature** để chấm tạm.
+    rubric_md: "Đạt khi: (1) gọi tên và giải thích đúng cơ chế của CẢ HAI bẫy — position bias (vị trí hút click → nhãn lệch → bắt chước thứ hạng cũ) VÀ feedback loop/exposure bias (train trên log của chính mình → hot càng hot, món mới bị dìm); (2) mỗi bẫy kèm một cách chữa hợp lý (position: IPS hoặc position feature; feedback/cold start: exploration/bandit, randomization, content feature). Đúng, trong time-box, tự giải thích được: bằng chứng điểm 2. Chỉ nêu một bẫy, hoặc nêu bẫy mà không có cách chữa đúng: tối đa điểm 1."
+  - id: S348
+    difficulty: 3
+    type: concept
+    minutes: 12
+    prompt_md: |
+      **(Phỏng vấn AI engineer)** Hãy thiết kế hệ xếp hạng cho feed video có **100 triệu** món, mục
+      tiêu chọn ~10 món cho mỗi lần mở app. Trình bày:
+      (1) **phễu nhiều tầng** — nêu các tầng, số lượng món và **ngân sách độ trễ** mỗi tầng, kỹ thuật
+      dùng ở tầng tìm ứng viên, và vai trò recall/precision ở hai đầu phễu;
+      (2) **ba cái bẫy** position bias, cold start, và vòng phản hồi (feedback loop) — cơ chế và
+      **cách chữa** từng cái.
+    answer_md: |
+      **(1) Phễu nhiều tầng + ngân sách độ trễ:**
+      - **Retrieval / candidate generation:** từ ~1e8 món lấy ~1e3 ứng viên trong ~10ms, bằng kỹ thuật
+        rẻ: **ANN** trên embedding **two-tower** (vector người × vector món), cộng heuristic
+        (co-occurrence "ai xem X cũng xem Y", đang hot, kênh đã theo dõi). Tối ưu **recall** — không
+        bỏ sót món hay; chưa cần thứ hạng chính xác.
+      - **(tuỳ chọn) Pre-ranking:** model nhẹ cắt ~1e3 → ~vài trăm để giảm tải cho ranker.
+      - **Heavy ranking:** model đắt, nhiều feature, thường **multi-task** (P(click), P(xem hết),
+        P(like)...), chấm ~vài trăm → ~vài chục trong ~50ms. Tối ưu **precision** / thứ hạng đúng ở đỉnh.
+      - **Re-ranking:** áp **đa dạng (diversity)**, **dedup**, luật kinh doanh (không nhiều video liên
+        tiếp cùng kênh, công bằng người sáng tạo) → ~10 món hiển thị.
+      - Lý do chia tầng: **không thể chạy model nặng trên 100 triệu món** trong ngân sách vài trăm ms,
+        nên rẻ-và-recall trước, đắt-và-precision sau trên tập nhỏ.
+
+      **(2) Ba bẫy và cách chữa:**
+      - **Position bias:** vị trí cao hút click bất kể liên quan → nhãn click thiên lệch → ranker bắt
+        chước thứ hạng cũ. Chữa: **position feature** (đặt về hằng số khi serving) hoặc **IPS** (trọng
+        số 1 / P(được xem)).
+      - **Cold start:** người/món mới chưa có lịch sử. Chữa: dùng **content feature** (chủ đề, văn bản,
+        embedding nội dung, thông tin tác giả) để chấm tạm, cộng **exploration** để cho món mới cơ hội
+        hiển thị.
+      - **Feedback loop / exposure bias:** train trên log do chính ranker sinh ra → chỉ thấy món đã
+        hiển thị → hot càng hot, món mới bị dìm. Chữa: **exploration (bandit / ε-greedy)** dành một
+        phần lượt để thử món chưa đủ dữ liệu, và **randomization** để thu dữ liệu ít thiên lệch (dùng
+        lại cho IPS và cho đánh giá offline/online).
+    rubric_md: "Đạt (mức phỏng vấn, điểm 3) khi làm ĐỦ HAI phần: (1) vẽ phễu nhiều tầng đúng thứ tự (retrieval → [pre-ranking] → heavy ranking → re-ranking) VỚI con số lượng món và ngân sách độ trễ, nêu kỹ thuật retrieval (ANN/two-tower/heuristic) và đối lập recall (tầng đầu, rẻ) vs precision (tầng sau, đắt) cùng lý do latency; VÀ (2) giải thích đủ CẢ BA bẫy — position bias, cold start, feedback loop — mỗi cái kèm cách chữa đúng (IPS/position feature; content feature + exploration; exploration/bandit + randomization). Đúng, trong time-box, tự giải thích rõ: bằng chứng điểm 3. Thiếu ngân sách độ trễ/đối lập recall-precision, hoặc thiếu một trong ba bẫy hay cách chữa của nó: chưa đạt mức 3 (tối đa điểm 2)."

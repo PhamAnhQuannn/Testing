@@ -1,0 +1,163 @@
+id: ml.system_design.ads_ctr_auction
+version: 1
+status: published
+title_vi: "Thiết kế pipeline dự đoán CTR quảng cáo và nối vào đấu giá: vì sao calibration là trung tâm"
+est_minutes: 14
+objectives_vi:
+  - "Thiết kế pipeline dự đoán CTR (pCTR) cho quảng cáo: lấy ứng viên, feature thưa (sparse) + embedding, model, phục vụ ở quy mô lớn và học online để giữ độ tươi."
+  - "Giải thích vì sao đấu giá xếp theo eCPM = bid × pCTR, nên pCTR phải **calibrated** (hiệu chỉnh) — chỉ AUC/thứ hạng tốt là **chưa đủ** vì xác suất tuyệt đối nhân ra tiền."
+  - "Đo và sửa calibration: biểu đồ reliability + ECE; Platt scaling / isotonic regression; sửa thiên lệch do negative downsampling."
+  - "Xử lý chuyển đổi đến trễ (delayed conversions / delayed feedback): cửa sổ quy kết (attribution window) và mô hình hoá độ trễ."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Bài này thiết kế phần **ML** của hệ quảng cáo: mô hình **dự đoán CTR (click-through rate)** —
+      xác suất một người bấm vào quảng cáo khi thấy nó, gọi là **pCTR** (predicted CTR). Bài
+      ads_platform ở section SD lo phần hạ tầng (ad server, ngân sách, đếm hiển thị); ở đây ta lo
+      cái máy dự đoán và cách nó nối vào **đấu giá (auction)**.
+
+      Mấu chốt cả bài gói trong một công thức. Với đấu giá trả theo click (CPC), nền tảng xếp các
+      quảng cáo ứng viên theo **giá trị kỳ vọng mỗi lần hiển thị**:
+
+      - điểm xếp = **bid × pCTR** (bid là giá nhà quảng cáo trả cho một click),
+      - **eCPM** (effective cost per mille) = bid × pCTR × 1000, tức doanh thu kỳ vọng mỗi 1.000 lượt hiển thị.
+
+      Vì pCTR được **nhân thẳng với tiền**, một con số pCTR lệch sẽ làm lệch cả thứ hạng, giá tính
+      cho nhà quảng cáo và nhịp tiêu ngân sách. Đó là lý do bài này xoay quanh **calibration**.
+  - id: b02
+    type: text
+    md: |
+      **Pipeline CTR** nhìn như một funnel quen thuộc (xem lại ranking_funnel):
+
+      1. **Lấy ứng viên (candidate retrieval)**: từ hàng triệu quảng cáo, lọc nhanh vài trăm cái hợp
+         người xem bằng targeting + chỉ mục dựng sẵn (không chấm CTR cho tất cả).
+      2. **Chấm CTR (scoring)**: model cho mỗi ứng viên một pCTR dựa trên đặc trưng của (người xem ×
+         quảng cáo × ngữ cảnh).
+      3. **Đấu giá**: xếp theo bid × pCTR, chọn quảng cáo thắng, rồi ad server trả về.
+
+      **Feature phần lớn là thưa (sparse) và dạng phân loại (categorical)**: user_id, ad_id,
+      campaign_id, từ khoá, thiết bị... mỗi trường có hàng triệu giá trị rời rạc. Hai cách quen
+      thuộc: **hashing** (băm ID vào một số cố định ô nhớ để không nổ bộ nhớ) và **embedding** (mỗi
+      ID học một vector dày đặc) rồi cho qua logistic regression hay mạng nơ-ron. Quy mô cực lớn
+      (hàng tỉ lượt/ngày) và phân phối trôi nhanh (quảng cáo mới, xu hướng mới), nên thường **học
+      online / cập nhật liên tục (online learning)** để giữ pCTR tươi thay vì train lại hằng tuần.
+  - id: b03
+    type: text
+    md: |
+      **Calibration (hiệu chỉnh xác suất)** nghĩa là: khi model nói pCTR = 2% thì trong thực tế
+      nhóm những lần nó nói "2%" phải click **xấp xỉ 2%**. Nói cách khác, con số là một **xác suất
+      thật**, không chỉ là một điểm để so cao–thấp.
+
+      Vì sao đấu giá đòi hỏi điều này? Vì nó dùng **giá trị tuyệt đối** của pCTR: điểm xếp = bid ×
+      pCTR và giá tính cho nhà quảng cáo đều phụ thuộc trực tiếp vào con số đó. Nếu model thổi pCTR
+      lên gấp đôi một cách đồng đều, **thứ hạng không đổi** nhưng doanh thu kỳ vọng ước tính sai gấp
+      đôi → ngân sách tiêu sai nhịp (pacing hỏng), nhà quảng cáo bị tính giá sai, và khi so hai
+      chiến dịch có bid khác nhau thì cả **thứ hạng cũng lệch**.
+
+      Ví dụ: A (bid 3 USD, pCTR 0,02) cho eCPM-score 0,06; B (bid 1 USD, pCTR 0,07) cho 0,07 → B
+      thắng. Nếu pCTR của A bị thổi lên 0,04 thì A thành 0,12 và thắng oan.
+  - id: b04
+    type: callout
+    kind: interview
+    md: |
+      **Câu bẫy kinh điển:** "Model CTR của tôi có **AUC rất cao**, vậy đã tốt cho quảng cáo chưa?"
+      Chưa chắc. **AUC / chất lượng xếp hạng chỉ đo thứ tự** (ai click nhiều hơn ai), **bất biến với
+      mọi phép bóp đơn điệu** lên xác suất. Hai model cùng AUC nhưng một cái output gấp đôi xác suất
+      sẽ **xếp hạng y hệt** mà vẫn phá giá/ngân sách. Trong đấu giá, **calibration quan trọng ngang
+      hoặc hơn AUC**, vì xác suất tuyệt đối mới là thứ nhân ra tiền.
+  - id: b05
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Hai model CTR có **AUC bằng nhau**, nhưng model X luôn trả xác suất gấp đôi sự thật, model Y thì calibrated. Vì sao dùng X trong đấu giá lại nguy hiểm dù AUC ngang Y?"
+    options:
+      - {id: a, text_md: "Vì đấu giá dùng **giá trị tuyệt đối** bid × pCTR để tính tiền và nhịp ngân sách; pCTR gấp đôi làm doanh thu kỳ vọng và pacing sai, và làm lệch thứ hạng khi so các bid khác nhau — dù AUC chỉ đo thứ tự nên không thấy lỗi này."}
+      - {id: b, text_md: "Vì AUC cao luôn có nghĩa là model overfit, nên X chắc chắn kém hơn Y trên dữ liệu mới."}
+      - {id: c, text_md: "Vì model X chạy chậm hơn nên không kịp ngân sách 100 ms của ad server."}
+    answer: [a]
+    explain_md: "AUC bất biến với phép bóp đơn điệu lên xác suất, nên không 'nhìn thấy' việc X thổi gấp đôi. Nhưng đấu giá nhân pCTR với bid để ra tiền và điều tiết ngân sách, nên xác suất lệch gây tính giá sai, pacing sai và lệch thứ hạng giữa các bid khác nhau. (b) AUC cao không đồng nghĩa overfit; (c) tốc độ không liên quan tới chuyện calibration."
+  - id: b06
+    type: text
+    md: |
+      **Đo calibration:** vẽ **biểu đồ reliability (reliability / calibration curve)** — chia các dự
+      đoán thành nhóm theo pCTR (ví dụ mọi lần model nói 1–2%), rồi so pCTR trung bình của nhóm với
+      **tỉ lệ click thực tế** của nhóm; model calibrated tốt nằm sát đường chéo y = x. Gộp sai lệch
+      các nhóm lại thành một con số là **ECE (Expected Calibration Error)** — trung bình có trọng số
+      của |pCTR dự đoán − tỉ lệ thật| trên các nhóm.
+
+      **Sửa calibration (hậu xử lý sau khi train):**
+      - **Platt scaling**: học một logistic 1 chiều ánh xạ điểm thô → xác suất đã hiệu chỉnh (giả
+        định dạng cong kiểu sigmoid, ít tham số, hợp khi dữ liệu hiệu chỉnh ít).
+      - **Isotonic regression**: học một hàm bậc thang **không giảm** khớp tỉ lệ thật; linh hoạt hơn
+        nhưng cần nhiều dữ liệu hơn để khỏi overfit.
+
+      Luôn đo và fit calibration trên tập **giữ riêng (held-out)**, không phải tập train.
+  - id: b07
+    type: text
+    md: |
+      **Một nguồn lệch calibration rất hay gặp: negative downsampling.** Click là sự kiện hiếm (CTR
+      thường vài %), nên dữ liệu đầy mẫu "không click". Để train nhanh, ta thường **chỉ giữ lại tỉ
+      lệ w** các mẫu âm (ví dụ w = 0,1 → giữ 10%). Hệ quả: model học trên dữ liệu có nhiều click
+      hơn thực tế nên **pCTR bị thổi phồng** — một dạng mất calibration có hệ thống.
+
+      Sửa bằng công thức chỉnh lại về tỉ lệ gốc (vì odds thật = odds của model × w):
+
+      p = p'·w / (p'·w + 1 − p')
+
+      với p' là pCTR model trả ra. Ví dụ w = 0,1 và p' = 0,2 → p = 0,02 / (0,02 + 0,8) =
+      0,02/0,82 ≈ 0,024. Đây là lý do thực tế để **luôn kiểm tra calibration**: kể cả model "đúng
+      về thứ hạng", một bước lấy mẫu vẫn có thể làm hỏng con số tuyệt đối.
+  - id: b08
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền thuật ngữ còn thiếu: Để tóm tắt mức lệch calibration thành **một con số** cho dễ theo
+      dõi, ta vẽ biểu đồ reliability rồi tính trung bình có trọng số của chênh lệch giữa pCTR dự
+      đoán và tỉ lệ click thật trên các nhóm — con số đó gọi tắt là ______.
+    blanks:
+      - accept: ["ECE", "expected calibration error", "Expected Calibration Error"]
+    explain_md: "ECE (Expected Calibration Error) gộp sai lệch của các nhóm trên biểu đồ reliability thành một con số; ECE càng gần 0 thì xác suất càng 'thật'. Nó bổ sung cho AUC: AUC đo thứ hạng, ECE đo độ đúng của xác suất tuyệt đối — thứ mà đấu giá cần."
+  - id: b09
+    type: text
+    md: |
+      **Chuyển đổi đến trễ (delayed conversions / delayed feedback).** CTR có nhãn gần như tức thì
+      (click hay không thấy ngay sau khi hiển thị), nhưng với **CVR (conversion rate)** — xác suất
+      *mua* sau khi click — thì "mua" có thể xảy ra nhiều **giờ đến ngày** sau click. Nếu chốt nhãn
+      quá sớm, nhiều lượt thật ra **sẽ** chuyển đổi lại bị gắn nhãn "không chuyển đổi" → model học
+      lệch, CVR bị dìm xuống.
+
+      Cách xử lý:
+      - **Cửa sổ quy kết (attribution window)**: quy ước chỉ tính chuyển đổi trong N ngày sau click
+        (ví dụ 7 ngày); cân bằng giữa độ tươi của dữ liệu và độ đầy đủ của nhãn.
+      - **Mô hình hoá độ trễ (delayed-feedback modeling)**: học thêm phân phối "thời gian đến
+        chuyển đổi", để một mẫu chưa chuyển đổi **chưa bị coi chắc chắn là âm** mà được hiệu chỉnh
+        theo xác suất nó vẫn còn chuyển đổi về sau; kết hợp với online learning để cập nhật khi nhãn
+        muộn về.
+
+      Vì CVR cũng đi vào định giá/tối ưu theo chuyển đổi, nó **cũng cần calibrated** như CTR.
+  - id: b10
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Hệ dự đoán **chuyển đổi (CVR)** cho quảng cáo: khoảng 30% lượt mua xảy ra 1–3 ngày sau click. Nếu bạn gắn nhãn ngay cuối ngày click rồi train, điều gì xảy ra và cách xử lý đúng hướng là gì?"
+    options:
+      - {id: a, text_md: "Nhiều lượt rồi-sẽ-mua bị gắn nhãn 'không mua' → CVR bị dìm, lệch calibration. Xử lý: dùng **cửa sổ quy kết** (đợi N ngày) và/hoặc **mô hình hoá độ trễ** để mẫu chưa mua không bị coi chắc là âm, cập nhật khi nhãn muộn về."}
+      - {id: b, text_md: "Không sao cả, vì chuyển đổi đến trễ chỉ làm chậm chứ không đổi nhãn; cứ train như thường."}
+      - {id: c, text_md: "Chỉ cần tăng learning rate để model học nhanh hơn là bù được phần nhãn đến trễ."}
+    answer: [a]
+    explain_md: "Chốt nhãn quá sớm biến nhiều mẫu dương (sẽ mua) thành âm giả → CVR bị dìm và mất calibration. Hướng đúng là cửa sổ quy kết đủ dài và/hoặc delayed-feedback modeling (hiệu chỉnh theo xác suất còn chuyển đổi), rồi cập nhật khi nhãn muộn về. (b) sai vì nhãn bị đổi, không chỉ chậm; (c) learning rate không tạo ra nhãn đúng."
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "Đấu giá xếp theo **eCPM = bid × pCTR** nên pCTR phải là **xác suất thật (calibrated)**: nó nhân thẳng ra tiền, nhịp ngân sách và thứ hạng giữa các bid khác nhau."
+      - "**AUC / thứ hạng là chưa đủ**: AUC bất biến với phép bóp đơn điệu lên xác suất, nên hai model cùng AUC vẫn có thể lệch giá nghiêm trọng; **calibration** mới bảo đảm con số tuyệt đối đúng."
+      - "Đo calibration bằng **biểu đồ reliability + ECE**; sửa bằng **Platt scaling** (ít tham số) hoặc **isotonic regression** (linh hoạt, cần nhiều dữ liệu), fit trên tập giữ riêng."
+      - "**Negative downsampling** làm pCTR bị thổi phồng; chỉnh lại bằng p = p'·w / (p'·w + 1 − p') — một lý do cụ thể để luôn kiểm tra calibration."
+      - "Pipeline: lấy ứng viên → chấm pCTR (feature thưa, **hashing/embedding**, scale lớn, **online learning**) → đấu giá; xử lý **chuyển đổi đến trễ** bằng **cửa sổ quy kết** và/hoặc **mô hình hoá độ trễ**."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S349], l2: [S350], l3: [S351]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

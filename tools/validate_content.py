@@ -211,7 +211,11 @@ class Validator:
             return
         section = lesson["id"].split(".")[0]
         module = ".".join(lesson["id"].split(".")[:2])
-        concept_track = section in EXTRA_SECTIONS or module in EXTRA_MODULES
+        # Concept tracks = System Design (sd) + the whole AI-engineer ml selection. Use the SECTION
+        # for ml, because a few ml subtopics sit under a module whose name differs from their id
+        # prefix (e.g. ml.fundamentals.reinforcement_learning_basics lives in module ml.llm); every
+        # shipped ml subtopic is part of a concept track by the sync_tree selection.
+        concept_track = section in EXTRA_SECTIONS or section == "ml" or module in EXTRA_MODULES
         has_wc2 = any(i["difficulty"] == 2 and i["type"] == "write_code" for i in items.values())
         if concept_track and not has_wc2:
             # A concept subtopic (System Design + the AI-engineer LLM track, no code) is gated by a

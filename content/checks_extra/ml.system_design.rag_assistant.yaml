@@ -1,0 +1,80 @@
+subtopic_id: ml.system_design.rag_assistant
+items:
+  - id: S361
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Một trợ lý RAG doanh nghiệp được tách thành **hai luồng**. Kể tên hai luồng đó và nói ngắn gọn
+      mỗi luồng làm gì, luồng nào chạy nền và luồng nào chạy online.
+    answer_md: |
+      - **Luồng ingest (nạp tài liệu)** — chạy **nền, bất đồng bộ (async)**: kéo tài liệu từ nguồn
+        (connector), đọc (parse) → chia đoạn (chunk) → tạo vector (embed) → ghi vào index. Không nằm
+        trong đường đi của câu hỏi nên có thể chậm.
+      - **Luồng query (hỏi-đáp)** — chạy **online**, phải xong trong **vài giây**: nhận câu hỏi →
+        tìm (hybrid + rerank) → sinh câu trả lời **có trích dẫn**.
+
+      Tách hai luồng để độ trễ nạp tài liệu không ảnh hưởng độ trễ trả lời, và để mỗi luồng co giãn
+      độc lập.
+    rubric_md: "Đúng khi nêu được: (1) luồng ingest = nạp tài liệu (parse/chunk/embed/index), chạy nền/async; (2) luồng query = hỏi-đáp (tìm → sinh có trích dẫn), chạy online/vài giây. Đủ hai luồng + phân biệt nền vs online: bằng chứng điểm 1. Chỉ nêu một luồng, hoặc không phân biệt được nền vs online: tối đa điểm 0."
+  - id: S362
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Bạn dựng một trợ lý RAG **nhiều công ty (multi-tenant)** trên một kho vector dùng chung. Yêu cầu:
+      (1) công ty A **không bao giờ** thấy dữ liệu công ty B; (2) trong một công ty, mỗi nhân viên chỉ
+      thấy tài liệu **mình được phép**; (3) khi một tài liệu bị xoá ở nguồn, trợ lý **không được** trả
+      lời dựa trên nó nữa. Hãy nêu cách thiết kế cho cả ba, và nói rõ **tại sao lọc lúc tìm** tốt hơn
+      là để LLM tự giấu.
+    answer_md: |
+      (1) **Cô lập tenant**: gắn `tenant_id` vào metadata mỗi chunk và **bắt buộc filter theo
+      `tenant_id`** ở mọi truy vấn (hoặc dùng index/namespace riêng cho mỗi tenant — cô lập mạnh hơn
+      nhưng tốn hạ tầng hơn).
+      (2) **ACL (phân quyền)**: lưu nhóm/vai trò/người được phép xem trong metadata của chunk lúc
+      ingest, rồi **lọc theo danh tính + nhóm của người hỏi ngay lúc tìm** — chunk bị cấm không bao giờ
+      được trả về. Khi quyền thay đổi thì phải cập nhật metadata ACL kịp thời.
+      (3) **Xoá vector khi nguồn xoá**: luồng ingest theo dõi thay đổi, khi tài liệu bị xoá/hết hạn thì
+      **xoá các vector của nó theo `doc_id`** lưu trong metadata (kho vector không tự biết nguồn đã xoá).
+      - **Vì sao lọc lúc tìm tốt hơn để LLM tự giấu**: nếu tìm hết rồi nhờ LLM "đừng tiết lộ", tài liệu
+        cấm vẫn lọt vào ngữ cảnh → rủi ro **rò rỉ** (LLM có thể vẫn dùng/nhắc tới) và **tốn token** cho
+        ngữ cảnh không được phép. Lọc lúc tìm chặn ngay từ gốc.
+    rubric_md: "Đạt khi nêu đúng cả: (1) cô lập tenant bằng filter bắt buộc theo tenant_id hoặc index riêng; (2) ACL trong metadata + lọc lúc tìm theo quyền người hỏi; (3) xoá vector theo doc_id khi nguồn xoá; VÀ giải thích lọc lúc tìm chặn rò rỉ + đỡ tốn token so với phó mặc LLM. Đúng, trong time-box, tự giải thích được: bằng chứng điểm 2. Thiếu ý 'lọc lúc tìm' (phần cốt lõi chống rò rỉ), hoặc bỏ phần xoá vector, hoặc chỉ nói 'thêm câu dặn trong prompt': tối đa điểm 1."
+  - id: S363
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      **(Phỏng vấn AI engineer)** Thiết kế một **trợ lý RAG doanh nghiệp cho production** hỏi-đáp trên
+      kho tài liệu công ty. Hãy trình bày thành một thiết kế mạch lạc, bao phủ: **hạ tầng ingest chạy
+      nền**, **phân quyền (ACL)**, **trích dẫn (citation)**, **đánh giá (evaluation)** và **chi phí**;
+      với **mỗi lựa chọn hãy nêu rõ đánh đổi**.
+    answer_md: |
+      **Hai luồng.** Ingest chạy nền/async; query chạy online vài giây.
+
+      **(1) Hạ tầng ingest (nền):** connector tới từng nguồn (Drive/Confluence...); **đồng bộ tăng dần**
+      (chỉ xử lý tài liệu đã đổi) → parse → chunk → embed → upsert vào kho vector + index từ khoá (cho
+      hybrid). **Cập nhật** → embed lại và thay vector; **xoá/hết hạn** → xoá vector theo `doc_id` trong
+      metadata; **dedup** bằng hash nội dung. Chạy qua queue + worker.
+      *Đánh đổi:* đồng bộ thường xuyên = tươi nhưng tốn token embedding + gọi API; theo lô = rẻ nhưng cũ.
+
+      **(2) ACL + cô lập tenant:** lưu quyền (và `tenant_id`) trong metadata lúc ingest; **lọc ngay lúc
+      tìm** theo danh tính/nhóm người hỏi, không phó mặc LLM.
+      *Đánh đổi:* index riêng mỗi tenant = cô lập mạnh nhất nhưng tốn hạ tầng; index chung + filter bắt
+      buộc = rẻ nhưng một lỗi filter là rò rỉ chéo.
+
+      **(3) Query + trích dẫn:** hybrid retrieve + rerank để ngữ cảnh gọn mà trúng → sinh câu trả lời
+      **dẫn nguồn** (link về chunk) + **grounding** (chỉ trả lời từ ngữ cảnh, cho phép nói "không đủ
+      thông tin") + guardrail (kiểm trích dẫn thật, ghi log kiểm toán).
+      *Đánh đổi:* grounding chặt giảm trả lời sai nhưng tăng số lần "không biết" (độ phủ giảm).
+
+      **(4) Đánh giá:** đo **tách** chất lượng tìm (recall@k/hit rate trên golden (câu hỏi→chunk đúng))
+      và chất lượng sinh (groundedness + đúng-sai so golden Q&A set, có ca "nên nói không biết"); thêm
+      phản hồi online (👍/👎). Tách để biết sửa ingest/rerank hay prompt/model.
+      *Đánh đổi:* golden set tốn công dựng/bảo trì nhưng là tín hiệu khách quan duy nhất.
+
+      **(5) Chi phí + SLA độ mới:** token embedding (ingest + embed lại), token LLM mỗi câu (rerank để
+      giảm), cỡ kho vector (số chunk × chiều × byte); SLA độ mới chọn theo loại tài liệu; cache (kèm
+      phạm vi ACL trong khoá, tránh rò rỉ qua cache).
+      *Đánh đổi:* độ mới ↔ chi phí; ngữ cảnh lớn ↔ chất lượng ↔ số token.
+    rubric_md: "Đạt mức phỏng vấn (điểm 3) khi bao phủ đủ 5 trụ VÀ nêu đánh đổi cho từng lựa chọn: (1) ingest nền có đồng bộ tăng dần + xử lý cập nhật/xoá; (2) ACL lọc lúc tìm + cô lập tenant; (3) trích dẫn + grounding + 'không biết'; (4) đánh giá tách tìm vs sinh trên golden set + phản hồi online; (5) chi phí (embedding/LLM/kho vector) + SLA độ mới. Đúng, trong time-box, trình bày mạch lạc và tự gọi tên đánh đổi: bằng chứng điểm 3. Thiếu một trụ lớn (thường là đánh giá hoặc chi phí), hoặc liệt kê mảnh ghép mà không nêu được đánh đổi nào: chưa đạt mức 3."

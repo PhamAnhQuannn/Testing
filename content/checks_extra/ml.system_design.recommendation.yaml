@@ -1,0 +1,75 @@
+subtopic_id: ml.system_design.recommendation
+items:
+  - id: S352
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Nói ngắn gọn: hệ gợi ý / xếp hạng feed thường dùng kiến trúc **hai tầng** nào, và vì sao lại
+      tách làm hai tầng thay vì chấm thẳng một model nặng cho toàn bộ kho món?
+    answer_md: |
+      Hai tầng: **(1) lấy ứng viên (candidate generation / retrieval)** — từ hàng triệu món rút
+      nhanh về vài trăm-vài nghìn ứng viên có thể liên quan, bằng mô hình nhẹ / tra cứu gần đúng
+      (vd two-tower + ANN, collaborative filtering, co-engagement); **(2) xếp hạng (ranking)** — chấm
+      kỹ các ứng viên đó bằng model nặng, nhiều đặc trưng, rồi lấy top-k để hiển thị.
+
+      Tách hai tầng vì **scale và ngân sách độ trễ (latency)**: không thể chạy ranker nặng cho hàng
+      triệu món trong vài chục mili-giây. Tầng đầu rẻ thu hẹp không gian để tầng sau được phép tốn
+      kém mà vẫn kịp trả feed.
+    rubric_md: "Đúng khi nêu được: (1) hai tầng là lấy ứng viên (retrieval) rồi xếp hạng (ranking); (2) lý do tách là scale + ngân sách độ trễ — retrieval rẻ thu hẹp, ranking nặng chấm ít món. Đủ hai ý: bằng chứng điểm 1. Chỉ kể tên tầng mà không nêu được lý do scale/độ trễ, hoặc nhầm thứ tự: tối đa điểm 0."
+  - id: S353
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Nhóm bạn đổi ranker của feed để **tối ưu thẳng tỉ lệ click (CTR)**. Offline recall@k đẹp hơn
+      và click online tăng ngay, nhưng vài tuần sau **retention** (tỉ lệ người quay lại) lại giảm.
+      Hãy giải thích: (1) vì sao có thể xảy ra chuyện này; (2) sửa **hàm mục tiêu** thế nào cho hợp
+      lý; (3) nêu một cách **đánh giá** đủ tin cậy để xác nhận thay đổi mới thực sự tốt hơn.
+    answer_md: |
+      (1) **Ngắn hạn vs dài hạn:** CTR là proxy dễ bị khai thác — tối ưu thẳng click đẩy lên
+      **clickbait (giật tít)**: tăng click tức thời nhưng làm người dùng thất vọng, lâu dần giảm
+      retention. Recall@k offline đẹp cũng không bảo đảm gì vì log mang thiên lệch của hệ cũ và không
+      đo được hành vi dài hạn.
+      (2) **Đa mục tiêu bằng value model (multi-objective):** gộp nhiều dự đoán bằng trọng số, đưa
+      tín hiệu **giá trị lâu dài** vào thay vì chỉ click — ví dụ thưởng xem-hết / thời gian xem
+      (watch time) thật, trừ điểm nội dung bị báo cáo, thêm ràng buộc diversity / creator fairness.
+      Trọng số là quyết định sản phẩm.
+      (3) **A/B test online** so nhóm đối chứng với nhóm thử trên chỉ số thật (watch time, retention);
+      và dùng **holdout dài hạn (long-term holdout)** — một nhóm cố ý không áp dụng thay đổi, theo dõi
+      nhiều tuần — để bắt tác hại dài hạn mà offline và A/B ngắn ngày không thấy.
+    rubric_md: "Đạt khi nêu đủ 3 ý: (1) tối ưu click ngắn hạn → clickbait → hại retention (và/hoặc offline chỉ là proxy yếu); (2) sửa bằng value model đa mục tiêu đưa tín hiệu giá trị dài hạn vào, trọng số là quyết định sản phẩm; (3) đánh giá bằng A/B online và holdout dài hạn. Đúng, trong time-box, tự giải thích được: bằng chứng điểm 2. Thiếu phần sửa hàm mục tiêu đa mục tiêu, hoặc chỉ nói 'đừng tối ưu click' mà không nêu cách đo tin cậy (A/B + holdout): tối đa điểm 1."
+  - id: S354
+    difficulty: 3
+    type: concept
+    minutes: 12
+    prompt_md: |
+      **(Phỏng vấn AI engineer)** Thiết kế đầy đủ một hệ **gợi ý / xếp hạng feed** cho một app video
+      có khoảng 50 triệu người dùng và kho 20 triệu video, feed phải trả trong khoảng 100 mili-giây.
+      Trình bày: (1) kiến trúc **hai tầng** và các nguồn lấy ứng viên; (2) tầng ranking và cách gộp
+      **đa mục tiêu** (gồm cân nhắc ngắn hạn vs dài hạn); (3) xử lý **cold start** cho người và món
+      mới; (4) cách **đánh giá** bằng A/B có **holdout dài hạn**, và vì sao offline chưa đủ.
+    answer_md: |
+      **(1) Kiến trúc hai tầng (vì scale + độ trễ 100 ms):**
+      - **Lấy ứng viên (candidate generation):** chạy nhiều nguồn song song rồi gộp — **two-tower**
+        (embedding retrieval + **ANN** index) tìm món gần sở thích, **collaborative filtering**,
+        **co-engagement** ("ai xem X cũng xem Y"), và nguồn **phổ biến / độ mới** để món mới có cơ
+        hội. Rút 20 triệu → vài trăm-vài nghìn ứng viên. Nhãn học từ **tín hiệu ngầm** (xem hết,
+        watch time, skip, report). Two-tower cần **lấy mẫu âm** (negative sampling), gồm hard negative.
+      - **Xếp hạng (ranking):** model nặng, **multi-task** dự đoán P(xem hết), P(like), P(chia sẻ),
+        P(báo cáo) với nhiều đặc trưng (lịch sử người, đặc trưng món/ngữ cảnh, tín hiệu real-time +
+        batch); chấm vài trăm ứng viên, lấy top-k.
+      **(2) Đa mục tiêu (value model):** điểm = tổ hợp có trọng số của các dự đoán, vd
+      0,5 × P(xem hết) + 0,3 × P(like) − 1,0 × P(báo cáo), cộng ràng buộc **diversity**, **freshness**,
+      **creator fairness**. Trọng số là **quyết định sản phẩm**. **Ngắn hạn vs dài hạn:** tránh tối ưu
+      thẳng CTR vì sinh clickbait hại **retention**; đưa tín hiệu giá trị lâu dài (watch time thật,
+      trừ điểm bị báo cáo) vào objective.
+      **(3) Cold start:** người mới → **popularity**, **onboarding** hỏi sở thích, gợi ý
+      **content-based**, học nhanh từ vài tương tác đầu. Món mới → **content features** + **exploration**
+      (dành một phần hiển thị để thử, thu dữ liệu, chịu hy sinh tương tác tức thời). Exploration cũng
+      giảm **feedback loop / filter bubble**.
+      **(4) Đánh giá:** offline **recall@k / NDCG** để sàng ý tưởng nhưng chỉ là **proxy yếu** (log
+      thiên lệch, không đo dài hạn) — **offline tốt không bảo đảm online tốt**. Chốt bằng **A/B online**
+      trên watch time / retention; và giữ **holdout dài hạn (long-term holdout)** — nhóm cố ý không
+      áp dụng thay đổi, theo dõi **nhiều tuần** — để bắt tác hại dài hạn (vd clickbait tụt retention).
+    rubric_md: "Đạt (mức phỏng vấn, điểm 3) khi trình bày được cả 4 trụ cột: (1) hai tầng candidate generation (nêu được two-tower/ANN, collaborative filtering, co-engagement, phổ biến/độ mới) + ranking multi-task nhiều đặc trưng, gắn với lý do scale/độ trễ; (2) value model đa mục tiêu có trọng số + cân nhắc ngắn hạn vs dài hạn (clickbait hại retention); (3) cold start cho CẢ người mới (popularity/onboarding/content-based) và món mới (content features + exploration); (4) đánh giá bằng A/B online + holdout dài hạn, và nói rõ offline chỉ là proxy yếu. Đúng, mạch lạc, trong time-box, tự bảo vệ được: bằng chứng điểm 3. Thiếu bất kỳ trụ cột nào (đặc biệt đa mục tiêu dài hạn, cold start hai phía, hoặc holdout dài hạn): chưa đạt mức 3."

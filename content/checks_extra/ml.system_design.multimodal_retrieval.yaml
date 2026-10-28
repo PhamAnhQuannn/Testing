@@ -1,0 +1,71 @@
+subtopic_id: ml.system_design.multimodal_retrieval
+items:
+  - id: S358
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Nói ngắn gọn: trong tìm kiếm ảnh bằng chữ kiểu CLIP, **không gian embedding chung (joint/shared
+      embedding space)** là gì, và nhờ nó mà việc **tìm ảnh bằng câu truy vấn** trở thành phép toán nào?
+    answer_md: |
+      **Không gian embedding chung** là một không gian vector mà **cả ảnh lẫn chữ** đều được ánh xạ vào,
+      nhờ một **dual encoder kiểu CLIP** huấn luyện bằng **contrastive loss** (kéo cặp ảnh-chú thích đúng
+      lại gần, đẩy cặp sai ra xa). Hệ quả: một câu chữ và một bức ảnh nói về cùng một thứ sẽ **nằm gần
+      nhau** trong không gian đó. Vì vậy tìm ảnh bằng chữ trở thành: **embed câu truy vấn** rồi **tìm các
+      vector ảnh gần nhất (nearest neighbor / ANN)** với vector truy vấn — không cần ảnh có chú thích sẵn.
+    rubric_md: "Đúng khi nêu được: (1) một không gian vector chung cho cả ảnh và chữ (dual encoder kiểu CLIP, contrastive loss) khiến ảnh và chữ cùng nội dung nằm gần nhau; và (2) tìm ảnh bằng chữ = embed truy vấn rồi tìm vector gần nhất (nearest neighbor / ANN). Đủ cả hai ý: bằng chứng điểm 1. Thiếu ý không gian chung, hoặc không nói được tìm kiếm = tìm gần nhất: tối đa điểm 0."
+  - id: S359
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Bạn xây tìm kiếm **video bằng chữ** cho một kho đang lớn dần. Hãy phác thiết kế, nêu rõ **ba** điểm:
+      (1) đường ống **offline vs online** — việc gì làm trước (batch) và việc gì làm lúc truy vấn;
+      (2) xử lý **video** khác xử lý ảnh ra sao (lấy mẫu + gộp);
+      (3) khi kho lên cỡ **hàng trăm triệu đến tỉ** vector thì dùng loại **index** nào và vì sao.
+    answer_md: |
+      (1) **Offline (batch)**: encode trước mọi video thành embedding và nạp vào **index ANN**; chạy
+      lại khi có nội dung mới (ingest). **Online**: chỉ **embed câu truy vấn** (encoder chữ, rất nhẹ) rồi
+      **tra ANN** lấy top-k, có thể **re-rank** top-k bằng model nặng hơn. Tách vậy để truy vấn nhanh.
+      (2) **Video**: không encode mọi khung hình. **Lấy mẫu (sampling)** vài khung hình/đoạn đại diện
+      (theo nhịp cố định hoặc theo cảnh), rồi **gộp (temporal pooling)** — ví dụ **lấy trung bình (mean
+      pooling)** các vector khung hình thành một vector cho cả video để index gọn; nếu cần định vị đúng
+      đoạn thì **index theo từng đoạn** rồi gộp điểm lúc truy vấn (đánh đổi độ mịn lấy index lớn hơn).
+      (3) Ở trăm triệu–tỉ vector phải dùng **ANN** (không quét tuyến tính): **HNSW** nếu đủ RAM và cần
+      rất nhanh, hoặc **IVF-PQ** để **nén** khi không giữ nổi vector gốc trong RAM; ở tỉ vector thêm
+      **sharding** ra nhiều máy. Chọn index là đánh đổi **recall ↔ độ trễ ↔ bộ nhớ/chi phí**.
+    rubric_md: "Đạt khi nêu đúng cả 3: (1) offline tạo embedding + nạp index, online embed truy vấn + tra ANN (re-rank là điểm cộng); (2) video = lấy mẫu khung hình/đoạn rồi gộp/temporal pooling (mean pooling hoặc index theo đoạn); (3) dùng ANN (HNSW hoặc IVF-PQ) + sharding ở quy mô lớn, kèm lý do/đánh đổi. Đúng, trong time-box, tự giải thích được: bằng chứng điểm 2. Thiếu phần tách offline/online, hoặc không nói được xử lý video (pooling), hoặc không nêu được index ANN phù hợp: tối đa điểm 1."
+  - id: S360
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      **(Phỏng vấn AI engineer)** Thiết kế một hệ thống **tìm kiếm ảnh/video bằng chữ ở quy mô lớn**
+      kèm **phát hiện trùng lặp (near-duplicate detection)** cho kho cỡ **1 tỉ** mục. Hãy trình bày:
+      (1) kiến trúc tìm kiếm — không gian embedding chung, đường ống offline/online, và **chọn index**
+      (nêu đánh đổi);
+      (2) thiết kế **phát hiện trùng lặp** — dùng công cụ gì cho bản gần y hệt và cho near-dupe khó;
+      (3) **cách đánh giá** hệ thống (offline và/hoặc human), gồm cả khi chưa có nhãn người dùng.
+    answer_md: |
+      **(1) Kiến trúc tìm kiếm:**
+      - **Không gian embedding chung**: dual encoder kiểu CLIP (contrastive loss) đưa ảnh/video và chữ
+        về cùng không gian; tìm kiếm = embed truy vấn rồi tìm vector media gần nhất.
+      - **Offline**: encode trước toàn kho thành embedding, nạp **index ANN**, cập nhật khi ingest.
+        Video thì **lấy mẫu khung hình/đoạn rồi gộp (temporal pooling)**. **Online**: embed truy vấn +
+        tra ANN lấy top-k, có thể **re-rank**.
+      - **Chọn index** ở 1 tỉ vector: dùng ANN có **nén IVF-PQ** (chia cụm + product quantization) để
+        chứa nổi trong bộ nhớ, cộng **sharding** ra nhiều máy (fan-out rồi merge top-k); HNSW nhanh/recall
+        cao nhưng tốn RAM. Đây là đánh đổi **recall ↔ độ trễ ↔ bộ nhớ/chi phí**.
+      **(2) Phát hiện trùng lặp (xếp lớp):**
+      - **Perceptual hash (pHash)** lúc ingest: rẻ, bắt tốt bản **gần y hệt** (resize, nén lại, chỉnh
+        sáng) qua khoảng cách Hamming.
+      - **Ngưỡng tương đồng embedding** (có thể gom cụm): bắt **near-dupe khó** hơn (crop, lật, chèn logo,
+        re-encode mạnh) vì embedding nắm ngữ nghĩa. Với video áp lên các khung hình/đoạn đã lấy mẫu. Dùng
+        cho chống trùng khi nạp, bản quyền và lạm dụng.
+      **(3) Đánh giá:**
+      - **Offline**: trên tập cặp (truy vấn, đáp án đúng) đo **recall@k** và **precision@k**. Khi **chưa
+        có nhãn người dùng**: lấy **chú thích sẵn của ảnh làm truy vấn** và **chính ảnh đó làm đáp án
+        đúng** để ước lượng recall@k.
+      - **Human eval**: người chấm mức liên quan của top kết quả cho truy vấn thật; online theo dõi
+        click-through. Lưu ý **modality gap** (chữ vs ảnh lệch phân bố) và lọc **nội dung an toàn**.
+    rubric_md: "Đạt (mức phỏng vấn, điểm 3) khi trình bày đủ 3 trụ: (1) kiến trúc tìm kiếm — không gian embedding chung kiểu CLIP, offline/online (video: pooling), VÀ chọn index ở tỉ vector với đánh đổi (IVF-PQ nén + sharding; HNSW tốn RAM); (2) phát hiện trùng xếp lớp — pHash cho bản gần y hệt + ngưỡng embedding cho near-dupe khó; (3) đánh giá — recall@k/precision@k trên tập có nhãn (gồm mẹo dùng chú thích làm truy vấn khi chưa có nhãn) và/hoặc human eval. Đúng, trong time-box, tự giải thích rõ: bằng chứng điểm 3. Thiếu bất kỳ trụ nào trong ba (nhất là chọn index có đánh đổi, hoặc thiết kế dedup, hoặc cách đánh giá): chưa đạt mức 3."

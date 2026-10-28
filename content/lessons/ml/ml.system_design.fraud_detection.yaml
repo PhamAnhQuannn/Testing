@@ -1,0 +1,174 @@
+id: ml.system_design.fraud_detection
+version: 1
+status: published
+title_vi: "Thiết kế hệ thống phát hiện gian lận, lạm dụng và nội dung độc hại"
+est_minutes: 14
+objectives_vi:
+  - "Hiểu vì sao lớp bài fraud/abuse/moderation khác bài phân loại thường: ca xấu cực hiếm nên accuracy vô dụng; phải đo bằng metric theo chi phí (cost-sensitive) và theo từng loại vi phạm (per-category precision/recall, PR-AUC, precision@k theo sức duyệt)."
+  - "Chọn ngưỡng theo chi phí kinh doanh (cost-based threshold) và xử lý nhãn đến trễ, nhiễu (label lag do chargeback/khiếu nại) bằng cửa sổ nhãn chín (label-maturity window)."
+  - "Đối phó concept drift và kẻ gian thích nghi (adversarial adaptation): retrain thường xuyên, feature online/velocity, giám sát trôi."
+  - "Thiết kế pipeline nhiều tầng (rules/allowlist → model nhẹ → model nặng → người duyệt) chấm thời gian thực, có vòng lặp người duyệt (human-review loop) và giải thích được (explainability) cho kháng cáo."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Ở mục **khung thiết kế hệ thống ML (ML system design framework)** bạn đã học quy trình chung:
+      làm rõ yêu cầu, chọn metric, dữ liệu/feature, chọn model, đánh giá, phục vụ (serving) và giám
+      sát. Bài này **không lặp lại khung đó** — ta chỉ *áp dụng* nó cho một lớp bài phỏng vấn hay gặp:
+      **phát hiện gian lận (fraud), lạm dụng (abuse) và nội dung độc hại (content moderation)**.
+
+      Lõi của cả ba vẫn là một **bộ phân loại (classifier)**: "giao dịch này có gian lận không?",
+      "bài đăng này có vi phạm không?". Nhưng ba đặc thù khiến chúng khác hẳn bài phân loại thường, và
+      phỏng vấn chấm bạn chính ở ba điểm này:
+      - **ca xấu cực hiếm** (mất cân bằng cực đoan, extreme class imbalance);
+      - **nhãn thật đến muộn và nhiễu** (delayed, noisy labels);
+      - **kẻ xấu liên tục đổi chiêu** (adversarial adaptation) → model **xuống cấp nhanh** (drift).
+  - id: b02
+    type: text
+    md: |
+      **Đặc thù 1 — mất cân bằng cực đoan, vì sao accuracy vô dụng.** Gian lận thường chỉ chiếm khoảng
+      **0,1%** số giao dịch. Một model "ngu" luôn trả lời "không gian lận" đạt ngay **99,9% accuracy**
+      mà bắt được **0 ca** — nên **accuracy (tỉ lệ đúng) là thước đo vô nghĩa** ở đây.
+
+      Thay vào đó đo trên lớp hiếm:
+      - **precision** (trong số ca bị gắn cờ, bao nhiêu phần đúng là xấu) và **recall** (trong số ca
+        xấu thật, bắt được bao nhiêu phần) **tại một ngưỡng (threshold) cụ thể**;
+      - **PR-AUC** (diện tích dưới đường precision–recall) để so các model độc lập với ngưỡng — nó
+        nhạy với lớp hiếm hơn hẳn ROC-AUC;
+      - **precision@k theo sức duyệt (review-capacity-aware)**: nếu đội người duyệt chỉ xử được
+        k=1.000 ca/ngày, hãy đo precision trong **top-k ca điểm cao nhất** — đúng với việc thật là
+        "mỗi ngày chỉ soi được k ca".
+  - id: b03
+    type: text
+    md: |
+      **Ngưỡng theo chi phí (cost-based / cost-sensitive threshold).** Hai loại lỗi tốn tiền khác
+      nhau, nên không chọn ngưỡng ở 0,5 cho tiện mà **chọn ngưỡng tối thiểu hoá tổng chi phí**:
+
+      tổng chi phí = (số **bỏ sót**, false negative) × (chi phí một ca bỏ sót) + (số **chặn nhầm**,
+      false positive) × (chi phí một ca chặn nhầm).
+
+      Ví dụ bỏ sót một giao dịch gian lận tốn 100 USD còn chặn nhầm một khách thật tốn 5 USD → chi phí
+      lệch 20 lần, nên nên hạ ngưỡng để **ưu tiên recall** (bắt nhiều hơn), chấp nhận thêm chặn nhầm.
+
+      **Đo theo từng loại vi phạm (per-category).** Với moderation, "độc hại" không phải một nhãn: có
+      **bảng phân loại vi phạm (policy taxonomy)** — spam, bạo lực, lừa đảo, vũ khí... Một bài có thể
+      dính **nhiều nhãn (multi-label)** và cả **nhiều phương thức (multimodal:** chữ + ảnh). Phải báo
+      cáo **precision/recall riêng cho từng loại**, vì một con số gộp che mất việc model mù hẳn một
+      loại nguy hiểm. Khi đánh giá, lấy mẫu **giữ đúng tỉ lệ thật (prevalence-based sampling,** ca xấu
+      đúng ~0,1% như ngoài đời) để precision không bị thổi phồng.
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Model phát hiện gian lận của bạn đạt **99,9% accuracy**. Sếp khen 'gần như hoàn hảo'. Vì sao con số này **không** chứng minh được điều gì, và nên báo cáo bằng gì?"
+    options:
+      - {id: a, text_md: "Vì ca gian lận chỉ ~0,1% nên model chỉ cần luôn đoán 'không gian lận' là đã 99,9% accuracy mà bắt 0 ca; nên đo precision/recall tại ngưỡng, PR-AUC và precision@k theo sức duyệt."}
+      - {id: b, text_md: "Vì accuracy luôn bị tính sai trên GPU; nên đo lại bằng loss trên tập train."}
+      - {id: c, text_md: "99,9% đã là bằng chứng tốt; chỉ cần thêm thời gian suy luận (latency) là đủ để báo cáo."}
+    answer: [a]
+    explain_md: "Mất cân bằng cực đoan làm accuracy vô nghĩa: baseline 'luôn đoán âm' đã 99,9%. Phải đo trên lớp hiếm — precision/recall tại ngưỡng, PR-AUC, precision@k. (b) sai hoàn toàn về nguyên nhân; (c) latency quan trọng nhưng không cứu được một metric vô nghĩa."
+  - id: b05
+    type: text
+    md: |
+      **Đặc thù 2 — nhãn đến muộn và nhiễu (delayed & noisy labels).** Với fraud thẻ, nhãn "xấu" thật
+      thường là **chargeback** (khách khiếu nại để ngân hàng hoàn tiền), về sau **30–60 ngày**. Nhãn
+      từ **người duyệt** đến sớm hơn nhưng ít và cũng có sai sót. Hệ quả: dữ liệu **gần đây chưa có
+      nhãn chín** — nếu hôm nay bạn tính recall trên giao dịch tuần này, nó **ảo** vì các chargeback
+      chưa kịp về, làm model trông tốt hơn thực tế.
+
+      Cách xử lý:
+      - **Cửa sổ nhãn chín (label-maturity window):** chỉ coi một mẫu là "đã có nhãn đáng tin" sau khi
+        đủ thời gian cho chargeback/khiếu nại về (vd sau 60 ngày). Đánh giá *chính thức* chỉ chạy trên
+        dữ liệu đã chín; dữ liệu mới dùng để theo dõi sơ bộ thôi.
+      - **Nhãn người duyệt** lấp khoảng trống sớm (bắt ca mờ sớm), nhưng nhớ nó **thiên lệch**: chỉ
+        những ca model gắn cờ mới được duyệt, nên ca model bỏ sót hoàn toàn thì không ai dán nhãn.
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Nhãn chargeback về sau 60 ngày. Một bạn đề xuất: 'Mỗi sáng tính recall trên toàn bộ giao dịch của **ngày hôm qua** để biết model tốt không.' Vấn đề là gì, sửa thế nào?"
+    options:
+      - {id: a, text_md: "Giao dịch hôm qua **chưa chín nhãn** (chargeback chưa về) nên recall bị thổi phồng; đánh giá chính thức phải chạy trên dữ liệu đã qua **cửa sổ nhãn chín** (vd ≥60 ngày), còn ngày mới chỉ theo dõi sơ bộ."}
+      - {id: b, text_md: "Không có vấn đề gì; nhãn luôn có sẵn ngay khi giao dịch xảy ra nên recall hôm qua là chính xác."}
+      - {id: c, text_md: "Vấn đề là tính quá ít; chỉ cần đo accuracy thay cho recall là xong vì accuracy ổn định hơn."}
+    answer: [a]
+    explain_md: "Nhãn trễ nghĩa là dữ liệu mới chưa có nhãn chín → mọi metric trên nó đều lạc quan giả. Phải dùng cửa sổ nhãn chín cho đánh giá chính thức. (b) sai vì nhãn KHÔNG tức thời; (c) accuracy vẫn vô dụng do mất cân bằng, và không giải quyết chuyện nhãn trễ."
+  - id: b07
+    type: text
+    md: |
+      **Đặc thù 3 — kẻ gian thích nghi và concept drift.** Khác bài nhận diện mèo/chó (phân bố ổn
+      định), ở đây **đối thủ là người**: khi một chiêu bị chặn, họ đổi cách (viết lách né từ khoá, đổi
+      thiết bị, tách giao dịch nhỏ). Phân bố dữ liệu **trôi (concept drift)** nên model **xuống cấp
+      nhanh** chỉ sau vài tuần.
+
+      Cách đối phó:
+      - **Retrain thường xuyên** (nhịp ngắn hơn hẳn các domain tĩnh), và **giám sát trôi**: theo dõi
+        tỉ lệ gắn cờ, phân bố điểm, precision trên nhãn người duyệt — báo động khi lệch.
+      - **Feature online/thời gian thực**, nhất là **velocity** (vd số giao dịch mỗi giờ của một thẻ)
+        và **graph** (thẻ/thiết bị dùng chung giữa nhiều tài khoản) — những tín hiệu kẻ gian khó giả.
+      - Giữ một **tầng luật (rules)** cập nhật được *ngay* để bịt lỗ hổng mới trong khi chờ model học
+        lại; đừng phụ thuộc mỗi một model bất biến.
+  - id: b08
+    type: text
+    md: |
+      **Kiến trúc pipeline nhiều tầng (layered), chấm thời gian thực.** Vì lưu lượng khổng lồ và phải
+      trả lời trong vài chục mili-giây, xếp tầng từ **rẻ → đắt**, tầng sau chỉ chạy cho ca còn nghi:
+      - **Tầng luật + allowlist/denylist:** rất rẻ, chặn/duyệt ngay các ca hiển nhiên (khách tin cậy
+        đã xác minh vào allowlist; mẫu lừa đã biết vào denylist). Giảm tải cho model.
+      - **Model nhẹ (online):** chấm điểm rủi ro gần như tức thời cho phần còn lại.
+      - **Model nặng / graph (offline hoặc gần thời gian thực):** chỉ chạy cho ca điểm trung bình, mờ.
+      - **Hàng chờ người duyệt (review queue):** ca mờ hoặc giá trị lớn đẩy cho người.
+
+      Với moderation còn phân **trước xuất bản (pre-publish)** cho nội dung rủi ro cao (giữ lại chờ
+      duyệt) và **sau xuất bản (post-publish)** cho phần còn lại (cho đăng rồi quét sau) — đánh đổi
+      giữa an toàn và trải nghiệm. Năm 2026, nhiều hệ dùng thêm **bộ phân loại an toàn bằng LLM (LLM
+      safety classifier)** cho đầu vào/đầu ra khi ngôn ngữ vi phạm tinh vi, khó bắt bằng luật.
+  - id: b09
+    type: text
+    md: |
+      **Vòng lặp người duyệt (human-review loop) và giải thích được (explainability).** Model **không
+      tự xử hết** — nó **phân loại ưu tiên (triage)**: chặn/cho qua các ca chắc chắn, và **đẩy vùng
+      xám cho người duyệt**. Điểm mấu chốt: **nhãn người duyệt quay trở lại làm dữ liệu train** (và để
+      đo precision), tạo một vòng cải tiến liên tục. Ưu tiên hàng chờ theo **rủi ro × giá trị** để sức
+      người đổ vào ca đáng nhất (đây chính là lý do cần precision@k ở trên).
+
+      **Explainability** là bắt buộc, không phải xa xỉ:
+      - để **người duyệt** hiểu vì sao ca bị gắn cờ mà quyết nhanh;
+      - để xử lý **kháng cáo (appeal):** khi người dùng khiếu nại bị chặn oan, phải nêu được **lý do**
+        và có đường **đảo ngược**;
+      - để **kiểm toán (auditability):** lưu vết quyết định, phục vụ tuân thủ và rà soát thiên lệch.
+  - id: b10
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền thuật ngữ còn thiếu: Vì đội người duyệt mỗi ngày chỉ soi được k ca, thay vì đo precision ở
+      một ngưỡng tuỳ ý, ta đo precision trong **top-k ca điểm cao nhất** — thước đo này gọi là
+      ______ , phản ánh đúng ràng buộc sức duyệt.
+    blanks:
+      - accept: ["precision@k", "precision at k", "precision@k theo sức duyệt", "precision tại k", "precision-at-k"]
+    explain_md: "precision@k (precision trong top-k ca điểm cao nhất) khớp thực tế 'mỗi ngày chỉ duyệt được k ca', nên hữu ích hơn precision ở một ngưỡng cố định khi năng lực người duyệt là nút cổ chai."
+  - id: b11
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Trong một hệ fraud/moderation nhiều tầng, vai trò của **người duyệt (human reviewer)** nên là gì để hệ tự tốt lên theo thời gian?"
+    options:
+      - {id: a, text_md: "Người duyệt xử **vùng xám** mà model đẩy sang; **nhãn của họ quay lại làm dữ liệu train và để đo precision**, tạo vòng lặp cải tiến; hàng chờ ưu tiên theo rủi ro × giá trị."}
+      - {id: b, text_md: "Người duyệt đọc **tất cả** mọi giao dịch/bài đăng trước khi model chạy, để model khỏi cần học."}
+      - {id: c, text_md: "Người duyệt chỉ để trưng bày; nhãn của họ không nên đưa lại vào train vì sẽ làm 'rò rỉ' dữ liệu."}
+    answer: [a]
+    explain_md: "Model triage, người duyệt lo vùng xám, và nhãn người duyệt là nguồn dữ liệu/đo quan trọng khép vòng cải tiến. (b) bất khả thi về quy mô và vô hiệu hoá model; (c) sai — đưa nhãn người duyệt vào train là đúng và cần thiết (chỉ cần tránh thiên lệch và trộn lẫn tập đánh giá)."
+  - id: b12
+    type: summary
+    bullets_vi:
+      - "Fraud/abuse/moderation = classifier, nhưng ba đặc thù chi phối thiết kế: ca xấu **cực hiếm**, nhãn **đến trễ & nhiễu**, kẻ gian **thích nghi** (drift)."
+      - "Ca hiếm làm **accuracy vô dụng**; đo **precision/recall tại ngưỡng, PR-AUC, precision@k** theo sức duyệt, và **per-category** (policy taxonomy, multi-label); chọn **ngưỡng theo chi phí** (cân bỏ sót vs chặn nhầm)."
+      - "Nhãn trễ (chargeback ~60 ngày): đánh giá chính thức chỉ trên dữ liệu qua **cửa sổ nhãn chín (label-maturity window)**; nhãn người duyệt lấp sớm nhưng thiên lệch."
+      - "Drift + đối thủ thích nghi: **retrain thường xuyên**, **giám sát trôi**, feature **online/velocity/graph**, giữ **tầng luật** cập nhật ngay."
+      - "Pipeline **nhiều tầng rẻ→đắt** (rules/allowlist → model nhẹ → model nặng/graph → người duyệt), chấm **thời gian thực**, có **pre/post-publish**."
+      - "**Vòng lặp người duyệt** khép lại: model triage, người lo vùng xám, nhãn quay về train; **explainability** cho người duyệt, **kháng cáo (appeal)** và **kiểm toán**."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S340], l2: [S341], l3: [S342]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

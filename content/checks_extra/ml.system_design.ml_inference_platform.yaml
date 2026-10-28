@@ -1,0 +1,85 @@
+subtopic_id: ml.system_design.ml_inference_platform
+items:
+  - id: S367
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Trên một nền tảng inference đa model, kể tên **ba cách tung một version model mới** và cho biết
+      **cách nào an toàn nhất cho người dùng** (không ảnh hưởng câu trả lời của họ). Ngoài ra, nhờ đâu
+      ta có thể **rollback** gần như tức thì khi version mới hỏng?
+    answer_md: |
+      Ba cách tung version mới:
+      - **Canary:** route một phần nhỏ (vd 5%) **traffic thật** sang version mới rồi tăng dần nếu ổn.
+      - **A/B:** chia traffic giữa hai version để **so chất lượng** bằng metric online.
+      - **Shadow traffic:** gửi một **bản sao** request thật sang version mới nhưng **không trả** kết
+        quả của nó cho khách, chỉ ghi lại để so **offline**.
+
+      **An toàn nhất cho người dùng là shadow traffic**, vì kết quả của version mới bị bỏ đi nên không
+      chạm vào câu trả lời thật (đổi lại tốn thêm GPU). **Rollback tức thì** có được nhờ **con trỏ
+      'production'** trỏ tới một version: đổi con trỏ về version cũ là xong (trọng số đã nằm sẵn trong
+      artifact store / cache).
+    rubric_md: "Đúng khi nêu được ≥2 trong 3 cách (canary / A-B / shadow) VÀ chỉ ra shadow là an toàn nhất vì không trả kết quả cho người dùng, VÀ nêu rollback bằng con trỏ production. Đủ ý: bằng chứng điểm 1. Nhầm canary là 'không ảnh hưởng ai' hoặc không nêu được cơ chế rollback: tối đa điểm 0."
+  - id: S368
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Một nền tảng inference GPU dùng chung gặp hai vấn đề trong một giờ cao điểm: **(1)** hàng đợi
+      phình và p99 của tier chat (interactive) vỡ SLO, trong khi một đội đổ một mẻ **tier batch** khổng
+      lồ; **(2)** một model hiếm dùng (đang scale-to-zero) khi có request đầu tiên mất ~**45 giây** mới
+      trả, dù GPU rảnh. Với **mỗi** vấn đề, nêu **nguyên nhân** và **cách xử lý** đúng. Và giải thích vì
+      sao **không** nên autoscale theo CPU.
+    answer_md: |
+      **(1) Quá tải + tranh chấp giữa tier:** nguyên nhân là hàng đợi vô hạn + một mẻ tier thấp ưu tiên
+      nuốt tài nguyên. Xử lý: **autoscale thêm GPU theo độ sâu hàng đợi / GPU utilization**, áp
+      **backpressure** (làm chậm hoặc 429) + **ưu tiên tier chat** theo SLO, chặn mẻ batch bằng
+      **quota/fairness**; không để hàng đợi phình vô hạn (chỉ biến quá tải thành độ trễ khổng lồ).
+
+      **(2) Cold start:** request đầu phải **nạp trọng số model vào GPU** nên chậm dù GPU rảnh. Xử lý:
+      model nhạy latency → giữ **warm pool** (không scale về 0) hoặc **cache trọng số gần GPU**; chỉ
+      scale-to-zero cho model chịu được độ trễ lần đầu và **ghi độ trễ cold start vào SLO**.
+
+      **Không autoscale theo CPU** vì inference bận ở **GPU**: GPU có thể cháy 100% trong khi CPU nhàn →
+      tín hiệu CPU không phản ánh tải thật. Dùng **queue depth / GPU utilization / pending token**.
+    rubric_md: "Đạt điểm 2 khi nêu đúng cả 3: (1) chống quá tải bằng autoscale theo tín hiệu đúng + backpressure/ưu tiên tier + quota; (2) nhận ra cold start = nạp trọng số và fix bằng warm pool/model caching; (3) lý do không dùng CPU (GPU bận, CPU nhàn). Đúng, trong time-box, tự giải thích được: bằng chứng điểm 2. Thiếu chẩn đoán cold start, hoặc autoscale sai tín hiệu (theo CPU): tối đa điểm 1."
+  - id: S369
+    difficulty: 3
+    type: concept
+    minutes: 14
+    prompt_md: |
+      **(Phỏng vấn AI engineer)** Thiết kế một **nền tảng inference GPU đa model** phục vụ nhiều đội
+      (cả model thường lẫn LLM). Trình bày:
+      (1) các **mảnh chính** và luồng request — sync/async + hàng đợi, model registry + versioning,
+      scheduler gom batch, autoscaling, multi-tenancy/SLO, observability + reliability — nêu lựa chọn
+      hợp lý cho từng mảnh;
+      (2) **ước lượng capacity và chi phí bằng số** cho một LLM có **đỉnh 20 request/s**, mỗi request
+      ~**500 token đầu ra**, mỗi GPU ~**200 token/s**, GPU ~**2 USD/giờ** — ra **số GPU** (kèm dự phòng)
+      và **chi phí xấp xỉ mỗi request**;
+      (3) nêu **hai đòn giảm chi phí** phù hợp.
+    answer_md: |
+      **(1) Các mảnh + luồng:**
+      - **API:** **sync** cho việc nhanh; **async** (trả job_id, hàng đợi, polling/webhook, metadata DB
+        giữ trạng thái) cho việc lâu.
+      - **Registry + versioning:** trọng số ở **artifact store + cache gần GPU**; tung bằng
+        **canary / A-B / shadow**, **rollback** bằng con trỏ production.
+      - **Scheduler + worker:** **dynamic batching có trần ms** cho model thường; **continuous batching
+        + KV cache + streaming + cancel** cho LLM; **backpressure (429) + ưu tiên tier** khi quá tải.
+      - **Autoscaling:** theo **queue depth / GPU utilization (không theo CPU)**; **warm pool / model
+        caching** chống **cold start**; **scale-to-zero** cho model ít dùng.
+      - **Multi-tenancy/SLO:** cô lập + **quota + fairness**; **SLO theo tier** (p99, availability),
+        routing ưu tiên tier cao.
+      - **Observability + reliability:** metric latency/throughput/**GPU-util/chi phí theo model**;
+        **health check, retry có giới hạn, fallback, fleet-wide backoff + jitter**.
+
+      **(2) Capacity + chi phí:**
+      - token/s cần = 20 × 500 = **10.000 token/s**.
+      - số GPU ở 100% bận = 10.000 ÷ 200 = **50 GPU**; nhắm ~70% bận → 50 ÷ 0,7 ≈ **72 GPU**, làm tròn
+        lên + cộng dự phòng hỏng hóc.
+      - chi phí = 72 × 2 = **~144 USD/giờ**; ở đỉnh 72.000 request/giờ → **~0,002 USD/request**. Khi tải
+        trung bình thấp hơn đỉnh mà vẫn giữ GPU, chi phí mỗi request **cao hơn** (GPU rảnh vẫn tính tiền).
+
+      **(3) Hai đòn giảm chi phí (bất kỳ hai):** cắt **token đầu ra** (mạnh nhất), model **nhỏ/quantize**,
+      **prompt cache / cache câu trả lời**, **routing/cascade**, **batch offline**, **autoscale** (kể cả
+      về 0 cho model ít dùng).
+    rubric_md: "Đạt mức 3 (phỏng vấn) khi: (1) ghép đủ mảnh với lựa chọn hợp lý — async+queue cho việc lâu, versioning an toàn (canary/shadow+rollback), batching đúng loại model, autoscale theo tín hiệu đúng + cold start, SLO/tier + backpressure, observability+reliability; VÀ (2) tính capacity đúng: 10.000 token/s → 50 GPU ở 100% → ~72 ở 70% + dự phòng, chi phí ~144 USD/giờ và ~0,002 USD/request ở đỉnh (và nhận xét GPU rảnh đội giá); VÀ (3) nêu ≥2 đòn giảm chi phí. Đúng, trong time-box, tự giải thích rõ: bằng chứng điểm 3. Thiếu phần ước lượng bằng số, hoặc autoscale sai tín hiệu / bỏ qua cold start: chưa đạt mức 3."

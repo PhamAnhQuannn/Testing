@@ -1,0 +1,164 @@
+id: ml.fundamentals.reinforcement_learning_basics
+version: 1
+status: published
+title_vi: "Cơ bản về học tăng cường (reinforcement learning): thử-và-sai, thưởng/phạt, và nền của alignment"
+est_minutes: 13
+objectives_vi:
+  - "Mô tả vòng lặp RL: tác tử (agent), môi trường (environment), trạng thái (state), hành động (action), thưởng (reward), chính sách (policy); mục tiêu = tối đa tổng thưởng có chiết khấu (discounted cumulative reward)."
+  - "Giải thích khám phá vs khai thác (exploration vs exploitation) và vì sao cần cả hai."
+  - "Hiểu Q-value và ý tưởng cập nhật Bellman bằng lời, rồi tự tính tay 2 bước cập nhật Q trên một hành lang nhỏ."
+  - "Nói được vì sao alignment (RLHF) mượn ý tưởng thưởng/phạt: reward model cho điểm thưởng, policy chính là LLM."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      **Học tăng cường (reinforcement learning, RL)** là cách máy học bằng **thử và sai**, giống
+      như dạy chó: con chó làm một việc, bạn **thưởng** (bánh) nếu tốt hay **phạt** (lờ đi) nếu
+      sai, lặp nhiều lần thì nó học được nên làm gì. Không ai đưa sẵn đáp án đúng cho từng bước;
+      máy tự rút ra từ phần thưởng nhận được.
+
+      Vòng lặp RL có sáu mảnh ghép:
+      - **Tác tử (agent)**: người học / người ra quyết định (con chó, con robot, hay LLM).
+      - **Môi trường (environment)**: thế giới mà tác tử tác động vào.
+      - **Trạng thái (state, s)**: tình huống hiện tại tác tử nhìn thấy (đang ở ô nào).
+      - **Hành động (action, a)**: việc tác tử chọn làm (đi trái / đi phải).
+      - **Thưởng (reward, r)**: điểm số môi trường trả lại sau hành động (+10, hay −1).
+      - **Chính sách (policy)**: quy tắc chọn hành động từ trạng thái — chính là "bộ não" ta muốn
+        luyện cho tốt dần.
+
+      Mỗi bước: tác tử thấy trạng thái → chọn hành động theo policy → môi trường trả thưởng và một
+      trạng thái mới → lặp lại.
+  - id: b02
+    type: text
+    md: |
+      **Mục tiêu của RL** không phải là thưởng của *một* bước, mà là **tổng thưởng về lâu dài**
+      (cumulative reward). Vì tương lai không chắc chắn và ta thích phần thưởng sớm hơn, mỗi phần
+      thưởng ở xa bị nhân với một **hệ số chiết khấu (discount, γ)** nhỏ hơn 1 (ví dụ γ = 0,9):
+      thưởng ngay đáng giá hơn thưởng mãi về sau.
+
+      Nói nôm na, giá trị của một tình huống = thưởng ngay + γ × (giá trị của tình huống kế tiếp).
+      Đây chính là **ý tưởng Bellman**: giá trị một ô bằng phần thưởng bước này cộng với giá trị
+      của ô bạn bước tới (đã nhân γ). Ví dụ nếu ô kế có giá trị 10, thưởng bước này là 1, γ = 0,9
+      thì giá trị ô hiện tại ≈ 1 + 0,9 × 10 = 10.
+  - id: b03
+    type: text
+    md: |
+      **Khám phá vs khai thác (exploration vs exploitation)** là bài toán cân bằng kinh điển của
+      RL:
+      - **Khai thác (exploitation)**: dùng cái bạn *đã biết* là tốt để ăn chắc phần thưởng.
+      - **Khám phá (exploration)**: thử cái *chưa biết*, chịu rủi ro, để biết đâu có lựa chọn tốt
+        hơn.
+
+      Nếu chỉ khai thác, tác tử kẹt ở một lựa chọn "tạm ổn" và không bao giờ phát hiện đường tốt
+      hơn. Nếu chỉ khám phá, nó cứ thử lung tung mà không tận dụng điều đã học. Một cách đơn giản
+      là **ε-greedy**: phần lớn thời gian chọn hành động tốt nhất đã biết, nhưng ε% số bước (ví dụ
+      10%) đi ngẫu nhiên để thử cái mới.
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một tác tử giao hàng luôn đi đúng một tuyến đường vì nó 'đã quen là ổn', nên không bao giờ biết có tuyến ngắn hơn. Vấn đề này là gì, và cách sửa hợp lý?"
+    options:
+      - {id: a, text_md: "Nó chỉ **khai thác (exploitation)** mà thiếu **khám phá (exploration)**; thêm một chút khám phá (ví dụ ε-greedy: thỉnh thoảng thử tuyến khác) để có cơ hội tìm đường tốt hơn."}
+      - {id: b, text_md: "Nó khám phá quá nhiều; cần tắt hẳn khám phá để luôn đi tuyến quen cho nhanh."}
+      - {id: c, text_md: "Đây là lỗi chiết khấu (discount); đặt γ = 0 để chỉ quan tâm thưởng tức thời là xong."}
+    answer: [a]
+    explain_md: "Tác tử kẹt vì chỉ dùng cái đã biết (khai thác) và không chịu thử cái mới (khám phá). ε-greedy cho nó thỉnh thoảng đi ngẫu nhiên, nhờ đó có thể phát hiện tuyến ngắn hơn. (b) ngược vấn đề; (c) γ điều chỉnh coi trọng tương lai bao nhiêu, không liên quan đến việc thử đường mới."
+  - id: b05
+    type: text
+    md: |
+      **Q-value, viết Q(s, a)**, là **kỳ vọng tổng thưởng tương lai** nếu tại trạng thái s ta chọn
+      hành động a (rồi sau đó chơi tốt). Nếu biết Q cho mọi (s, a), policy tốt rất đơn giản: ở mỗi
+      ô, chọn hành động có Q lớn nhất.
+
+      Ta học dần bảng Q bằng **cập nhật Bellman (Bellman update)**, bằng lời: sau mỗi bước, kéo
+      Q(s, a) hiện tại về gần hơn với "điều vừa quan sát được" — tức **thưởng vừa nhận cộng giá trị
+      tốt nhất ước lượng ở ô kế**. Công thức:
+
+      Q(s, a) ← Q(s, a) + α·[r + γ·max Q(s', ·) − Q(s, a)]
+
+      Đọc từng phần: **r** = thưởng vừa nhận; **max Q(s', ·)** = giá trị của nước đi tốt nhất ở
+      trạng thái mới s'; **γ** = chiết khấu; phần trong ngoặc là **sai số** (mục tiêu mới trừ ước
+      lượng cũ); **α** (tốc độ học, learning rate, ví dụ 0,5) quyết định ta chỉnh mạnh bao nhiêu
+      về phía mục tiêu đó.
+  - id: b06
+    type: text
+    md: |
+      **Ví dụ tính tay (hành lang 4 ô).** Các ô 0, 1, 2, 3 xếp thành một hàng. Bước vào ô 3 được
+      thưởng **+10** rồi dừng; mọi bước khác thưởng **−1**. Đặt α = 0,5, γ = 0,9, và ban đầu mọi
+      Q = 0. (Ô 3 là ô kết thúc nên Q của nó luôn 0.)
+
+      **Bước 1 — tác tử đi từ ô 2 sang ô 3 (hành động "phải").** Ở đây s = 2, a = phải, thưởng
+      r = +10, ô mới s' = 3 (kết thúc, nên max Q(3, ·) = 0):
+
+      Q(2, phải) ← 0 + 0,5 × [10 + 0,9 × 0 − 0] = 0,5 × 10 = **5**
+
+      **Bước 2 (lượt sau) — tác tử đi từ ô 1 sang ô 2 ("phải").** Giờ s = 1, a = phải, thưởng
+      r = −1, ô mới s' = 2. Ở ô 2 ta đã có Q(2, phải) = 5, nên max Q(2, ·) = 5:
+
+      Q(1, phải) ← 0 + 0,5 × [−1 + 0,9 × 5 − 0] = 0,5 × [−1 + 4,5] = 0,5 × 3,5 = **1,75**
+
+      Thấy điều hay: giá trị **+10** ở ô 3 đang **lan ngược** dần về các ô trước (ô 2 thành 5, rồi
+      ô 1 thành 1,75). Lặp nhiều lượt, bảng Q hội tụ và policy "luôn đi về phía ô 3" hiện ra.
+  - id: b07
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Dùng đúng công thức và số liệu ở ví dụ hành lang (α = 0,5, γ = 0,9, Q khởi tạo 0, đã có
+      Q(2, phải) = 5). Tác tử đi từ ô 1 sang ô 2 (thưởng −1, ô mới là ô 2). Giá trị **Q(1, phải)**
+      sau bước cập nhật này bằng bao nhiêu? (Điền số.)
+    blanks:
+      - accept: ["1,75", "1.75"]
+    explain_md: "Q(1, phải) ← 0 + 0,5 × [−1 + 0,9 × max Q(2, ·) − 0]. Vì max Q(2, ·) = 5 nên trong ngoặc là −1 + 4,5 = 3,5; nhân 0,5 được 1,75. Đây là cách phần thưởng ở ô 3 lan ngược về ô 1."
+  - id: b08
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Trong công thức Q(s, a) ← Q(s, a) + α·[r + γ·max Q(s', ·) − Q(s, a)], vai trò của hệ số **α** (learning rate) là gì?"
+    options:
+      - {id: a, text_md: "α quyết định chỉnh Q **mạnh bao nhiêu** về phía mục tiêu mới mỗi bước; α lớn thì học nhanh nhưng dễ dao động, α nhỏ thì chậm mà êm."}
+      - {id: b, text_md: "α là hệ số chiết khấu, làm thưởng ở xa nhỏ đi; đó chính là lý do thưởng gần đáng giá hơn."}
+      - {id: c, text_md: "α là phần thưởng tức thời nhận được ở mỗi bước."}
+    answer: [a]
+    explain_md: "α (learning rate) là bước chỉnh: Q mới = Q cũ + α × sai số, nên α kiểm soát ta tiến về mục tiêu nhanh hay chậm. (b) là vai trò của γ (discount), không phải α; (c) phần thưởng tức thời là r, không phải α."
+  - id: b09
+    type: text
+    md: |
+      **Vì sao alignment (RLHF) mượn ý tưởng thưởng/phạt.** Một LLM sau khi học đoán từ tiếp theo
+      thì "biết nói" nhưng chưa chắc nói theo cách con người muốn (hữu ích, an toàn). Khó mà viết
+      đáp án đúng cho mọi câu hỏi — nhưng con người **dễ nói câu nào tốt hơn câu nào**. RLHF
+      (reinforcement learning from human feedback) biến phản hồi đó thành thưởng/phạt:
+
+      - **Policy chính là LLM** đang được chỉnh (giống tác tử).
+      - **Hành động** = sinh ra một câu trả lời cho prompt.
+      - **Reward model (model thưởng)** là một model nhỏ, học từ các cặp người-thích/người-không
+        -thích, đóng vai **môi trường chấm điểm**: nó cho câu trả lời một điểm **thưởng**.
+      - Thuật toán RL **chỉnh LLM để tăng điểm thưởng** — tức đẩy nó nói những câu người chấm
+        thích, đúng tinh thần "được thưởng thì làm nhiều hơn".
+
+      Nói cách khác: cùng vòng lặp agent–reward–policy, chỉ khác là "môi trường" giờ là một reward
+      model học từ sở thích con người. (Chi tiết PPO/DPO học ở bài alignment ngay sau.)
+  - id: b10
+    type: callout
+    kind: interview
+    md: |
+      **Câu phỏng vấn hay gặp (AI engineer):** "Giải thích RL cơ bản và vì sao RLHF cần nó." Một
+      câu trả lời gọn, đủ: nêu vòng lặp agent–environment–state–action–reward–policy; mục tiêu là
+      tối đa **tổng thưởng có chiết khấu**; **Q(s, a)** là kỳ vọng thưởng tương lai, học bằng cập
+      nhật Bellman; cân bằng **khám phá/khai thác**. Rồi chốt: RLHF dùng chính ý tưởng thưởng/phạt,
+      với **reward model** cho điểm và **policy là LLM**, để luyện model nói theo ý con người. Nếu
+      được, tính tay một bước Q để chứng tỏ bạn hiểu công thức chứ không chỉ thuộc chữ.
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "RL = học bằng **thử và sai** qua thưởng/phạt (như dạy chó); vòng lặp gồm **agent, environment, state, action, reward, policy**."
+      - "Mục tiêu là tối đa **tổng thưởng có chiết khấu** (discount γ): thưởng gần đáng giá hơn thưởng xa; giá trị một ô = thưởng ngay + γ × giá trị ô kế (ý tưởng **Bellman**)."
+      - "**Khám phá vs khai thác**: phải vừa dùng cái đã biết tốt vừa thử cái mới (ví dụ ε-greedy) để không kẹt ở lựa chọn tạm ổn."
+      - "**Q(s, a)** = kỳ vọng thưởng tương lai của hành động a tại s; cập nhật Bellman Q(s, a) ← Q(s, a) + α·[r + γ·max Q(s', ·) − Q(s, a)] kéo Q về gần 'thưởng vừa nhận + giá trị tốt nhất ở ô kế'. Trên hành lang 4 ô: Q(2, phải) = 5 rồi Q(1, phải) = 1,75."
+      - "**Alignment (RLHF)** mượn ý thưởng/phạt: **reward model** chấm điểm (môi trường), **policy là LLM**, RL chỉnh LLM để tăng điểm thưởng — tức nói theo ý con người."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S370], l2: [S371], l3: [S372]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"
