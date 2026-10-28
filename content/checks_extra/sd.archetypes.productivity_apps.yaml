@@ -1,0 +1,59 @@
+subtopic_id: sd.archetypes.productivity_apps
+items:
+  - id: S268
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Nói ngắn gọn: vì sao một sự kiện lặp (recurring event) như "9 giờ sáng mỗi thứ Hai" nên lưu bằng
+      **một quy tắc (RRULE)** thay vì bung sẵn thành từng dòng, và khi đó lúc hiển thị lịch ta phải làm gì?
+    answer_md: |
+      Bung sẵn mỗi lần lặp thành một dòng sẽ tốn vô số dòng (nhiều năm, hoặc chuỗi không có hồi kết) và
+      không có điểm dừng; lưu **một quy tắc lặp (RRULE)** chỉ tốn một dòng mô tả cả chuỗi. Đổi lại, khi
+      hiển thị ta phải **tính các lần lặp lúc đọc (expand on read)** — chỉ sinh ra các buổi **nằm trong
+      cửa sổ thời gian được hỏi** (tuần/tháng đang xem), không dựng cả chuỗi.
+    rubric_md: "Đạt (điểm 1) khi nêu đúng cả hai vế: (1) lưu một quy tắc vì bung sẵn tốn vô số dòng/không có điểm dừng; (2) khi hiển thị phải tính các lần lặp lúc đọc trong cửa sổ thời gian được hỏi. Thiếu một vế: điểm 0."
+  - id: S269
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Một ứng dụng lịch cần tính năng "tìm giờ họp cho 5 người". Hãy trình bày: (1) ta cần dữ liệu gì của
+      mỗi người và **không** cần gì; (2) các bước để tìm một khe **tất cả cùng rảnh** cho cuộc họp dài
+      30 phút; (3) bài toán này quy về bài toán kinh điển nào trên các khoảng (interval)?
+    answer_md: |
+      (1) Chỉ cần các **khoảng bận (busy intervals)** của từng người trong cửa sổ hỏi; **không** cần tên
+      hay nội dung sự kiện (vừa đủ, vừa giữ riêng tư — chia sẻ bận/rảnh chứ không lộ chi tiết).
+      (2) Bước: bung lịch mỗi người ra danh sách khoảng bận → **gộp (union) khoảng bận của cả 5 người** →
+      **trộn các khoảng chồng lấn (merge overlapping intervals)** thành khối bận liền mạch → các **khoảng
+      hở (gap)** còn lại dài ≥ 30 phút chính là giờ trống chung.
+      (3) Đây chính là bài **gộp/trộn khoảng (merge intervals / interval overlap)**: sắp xếp theo mốc bắt
+      đầu rồi quét một lượt; giờ trống là phần bù của hợp các khoảng bận.
+    rubric_md: "Đạt (điểm 2) khi nêu đủ cả 3 ý: chỉ cần khoảng bận (không cần nội dung); gộp + merge các khoảng bận rồi lấy gap đủ dài làm giờ trống chung; nhận ra đây là bài merge intervals / interval overlap. Nếu lấy nhầm giao (intersection) các khoảng bận, hoặc chỉ xét lịch một người, hoặc không quy được về merge intervals: tối đa điểm 1."
+  - id: S270
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      Thiết kế phần lõi của một ứng dụng **lịch (calendar)** đáp ứng ba yêu cầu: lưu sự kiện lặp, tìm giờ
+      trống chung, và nhắc việc. Trình bày: (1) lưu sự kiện lặp bằng quy tắc và tính lúc đọc, kèm cách xử
+      lý sửa/huỷ riêng một buổi; (2) tìm giờ trống (free/busy) của nhiều người; (3) hẹn **nhắc việc
+      (reminder)** và vì sao tái dùng được bộ lập lịch job (job_scheduler); (4) bẫy **múi giờ và giờ mùa
+      hè (time zone + DST)** với sự kiện lặp và cách tránh.
+    answer_md: |
+      (1) **Sự kiện lặp**: lưu **một quy tắc lặp (RRULE)** (ngày bắt đầu + mô tả "mỗi tuần thứ Hai"), một
+      dòng cho cả chuỗi; khi hiển thị **tính các lần lặp lúc đọc (expand on read)** chỉ trong cửa sổ thời
+      gian được hỏi. Sửa/huỷ **riêng một buổi** lưu bằng **bản ghi đè (override / exception)**: khi bung
+      chuỗi thì áp ngoại lệ lên trên (thay buổi đã đổi giờ, bỏ buổi đã huỷ), không đụng quy tắc gốc.
+      (2) **Free/busy**: với mỗi người bung ra các **khoảng bận**, **gộp (union) khoảng bận của tất cả** rồi
+      **trộn khoảng chồng lấn (merge intervals)**; các **khoảng hở (gap)** đủ dài là giờ trống chung. Chỉ
+      cần biết bận/rảnh, không cần nội dung (riêng tư + đủ dùng).
+      (3) **Nhắc việc**: mỗi reminder là một **job hẹn một lần** chạy tại **event_time − lead** (ví dụ trước
+      10 phút). Tái dùng **job_scheduler**: lưu job kèm run_at có chỉ mục, scheduler quét job đến hạn rồi
+      bắn thông báo; vì chỉ đạt **at-least-once** nên bước gửi cần **khử trùng (dedupe)**, và khi sự kiện dời
+      giờ phải **huỷ/đặt lại** job nhắc.
+      (4) **Múi giờ/DST**: "9h sáng mỗi thứ Hai" là **9h giờ địa phương**, không phải mốc UTC cố định; nếu
+      chỉ lưu UTC thì sau đợt **giờ mùa hè (DST)** buổi họp lệch một tiếng. Cách tránh: lưu **múi giờ gốc
+      cùng với quy tắc lặp**, khi bung từng buổi mới quy ra mốc tuyệt đối theo đúng luật DST của múi giờ đó.
+      (Sự kiện một lần thì lưu thẳng mốc tuyệt đối là đủ.)
+    rubric_md: "Đạt mức 3 (mức phỏng vấn, theo mastery_bar: lưu sự kiện lặp bằng quy tắc, tìm giờ trống, nêu cách hẹn giờ nhắc) khi trình bày đủ bốn trụ: (1) RRULE + expand-on-read + ngoại lệ bằng override; (2) free/busy = gộp + merge khoảng bận rồi lấy gap; (3) reminder = job tại event_time − lead, tái dùng job_scheduler, có dedupe/đặt lại khi dời giờ; (4) chỉ ra bẫy múi giờ/DST và cách lưu múi giờ gốc cùng quy tắc. Sót một trụ (nhất là RRULE/expand-on-read, free/busy, hoặc reminder qua job scheduler): chưa đạt mức 3."

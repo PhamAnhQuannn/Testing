@@ -1,0 +1,144 @@
+id: sd.archetypes.lock_service
+version: 1
+status: published
+title_vi: "Thiết kế dịch vụ khoá phân tán và bầu leader (lock service) kiểu Chubby/ZooKeeper"
+est_minutes: 13
+objectives_vi:
+  - "Thiết kế API của dịch vụ khoá: acquire (lấy khoá) trả về số chặn (fencing token), renew (gia hạn)/heartbeat, release (nhả) — và quy tắc lease có hạn (lease with TTL)."
+  - "Thiết kế cụm máy: số lẻ 3 hoặc 5 node chạy đồng thuận (consensus Raft/Paxos), ghi qua leader + đa số (quorum), và tính cỡ cụm với quorum = ⌊n/2⌋+1."
+  - "Nói đúng client phải làm gì khi mất kết nối tới dịch vụ, và vì sao số chặn (fencing token) giúp tài nguyên loại được người giữ khoá cũ."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Mục này **thiết kế bản thân dịch vụ khoá (lock service)** — một sản phẩm dùng chung kiểu
+      **Chubby (Google)** hay **ZooKeeper / etcd** — chứ không nhắc lại lý thuyết. Lý thuyết lease
+      (khoá có hạn), **số chặn (fencing token)** và đồng thuận (consensus) bạn đã học ở
+      *sd.distributed.distributed_locks* và *sd.distributed.consensus*; ở đây ta **lắp chúng lại
+      thành một dịch vụ**.
+
+      Dịch vụ khoá là một **dịch vụ điều phối (coordination service) nhất quán mạnh (strongly
+      consistent)**, nhỏ gọn, làm ba việc: (1) cấp **khoá phân tán** để nhiều tiến trình thống nhất
+      "ai được làm việc này"; (2) **bầu leader (leader election)** cho các dịch vụ khác; (3) giữ một
+      ít **cấu hình dùng chung (config)**. Nó không chứa dữ liệu nghiệp vụ lớn — chỉ giữ một bảng
+      trạng thái bé mà *cực kỳ chính xác*.
+  - id: b02
+    type: text
+    md: |
+      **Thiết kế API** (phần người ta chấm nhiều nhất):
+      - **acquire(tên_khoá, lease_ttl)**: xin khoá trong một khoảng hạn `lease_ttl` (ví dụ 10 giây).
+        Thành công thì trả về một **số chặn (fencing token)** — một số **tăng dần đơn điệu
+        (monotonic)**, lần cấp sau luôn lớn hơn lần trước; thất bại thì từ chối (khoá đang bận).
+      - **renew(tên_khoá, token)** / **heartbeat**: gia hạn lease trước khi nó hết. Client phải
+        renew *đều đặn* (thường khi còn ~1/3 hạn) để giữ khoá.
+      - **release(tên_khoá, token)**: chủ động nhả khoá sớm khi làm xong.
+
+      Điểm cốt lõi của lease: **nếu client không renew kịp trước khi lease hết hạn, khoá tự nhả**.
+      Nhờ vậy một client bị treo hay chết không giữ khoá vĩnh viễn — dịch vụ không cần "biết" nó đã
+      chết, chỉ cần thấy lease hết hạn.
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "`acquire` trả về **số chặn (fencing token)** — một số tăng dần đơn điệu. Vai trò chính của nó là gì?"
+    options:
+      - {id: a, text_md: "Làm khoá chạy nhanh hơn vì client không phải gọi renew."}
+      - {id: b, text_md: "Để **tài nguyên được bảo vệ** so sánh và **từ chối ghi của người giữ khoá cũ**: một client bị treo rồi tỉnh dậy sẽ mang token nhỏ hơn token hiện tại nên bị loại."}
+      - {id: c, text_md: "Để mã hoá nội dung khoá nhằm chống nghe lén trên đường truyền."}
+    answer: [b]
+    explain_md: "Token tăng dần nên mỗi lần cấp khoá mới sinh một số lớn hơn. Tài nguyên (ví dụ storage) chỉ nhận ghi kèm token **lớn hơn hoặc bằng** token lớn nhất đã thấy; client cũ (bị GC pause/treo) tỉnh dậy mang token cũ nhỏ hơn nên ghi bị loại — đây là cách sửa đúng của khoá phân tán. (a)/(c) không phải việc của fencing token."
+  - id: b04
+    type: text
+    md: |
+      **Thiết kế cụm máy (cluster).** Trạng thái khoá phải *đúng tuyệt đối*, nên không giữ trên một
+      máy đơn (máy đó chết là mất khoá hoặc cấp trùng). Thay vào đó dùng một **cụm số lẻ 3 hoặc 5
+      node chạy giao thức đồng thuận (consensus: Raft hoặc Paxos)**. Bảng "tên khoá → chủ, số chặn,
+      hạn" được **nhân bản (replicate) nhất quán** qua cả cụm.
+
+      Mọi **ghi** (acquire/renew/release) đi qua **leader** và chỉ được coi là xong khi **đa số
+      (majority quorum)** node đã ghi nhận. Nhờ đồng thuận, cụm vẫn hoạt động đúng khi **thiểu số
+      (minority)** node chết: cụm **3 chịu được 1** máy chết, cụm **5 chịu được 2**. Dùng số lẻ để
+      đa số luôn xác định rõ (tránh chia đôi 2-2).
+  - id: b05
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao trạng thái khoá đặt trên **cụm 3–5 node đồng thuận** thay vì một máy đơn mạnh?"
+    options:
+      - {id: a, text_md: "Vì một cụm đồng thuận xử lý được nhiều ghi/giây hơn hẳn một máy đơn."}
+      - {id: b, text_md: "Vì khoá cần **nhất quán và chịu lỗi**: nhân bản qua đa số giúp trạng thái sống sót khi thiểu số node chết (3 chịu 1, 5 chịu 2) mà không bao giờ cấp khoá trùng."}
+      - {id: c, text_md: "Vì cụm nhiều node tự động làm client khỏi phải gia hạn lease."}
+    answer: [b]
+    explain_md: "Đồng thuận cho **an toàn (safety: không hai chủ cùng lúc) + sống sót qua lỗi thiểu số**, đó mới là điều khoá cần. Thực ra ghi qua quorum **chậm hơn** một máy đơn (a sai); và lease vẫn phải renew (c sai)."
+  - id: b06
+    type: text
+    md: |
+      **Client làm gì khi mất kết nối tới dịch vụ?** Đây là câu bẫy kinh điển. Khi client không liên
+      lạc được với dịch vụ khoá (mạng đứt, dịch vụ bận), nó **không biết** lease của mình còn hay
+      hết. Quy tắc an toàn: client phải **giả định xấu nhất — rằng nó có thể đã mất khoá** (vì không
+      renew được, lease sẽ hết hạn), và **dừng ngay mọi thao tác lên tài nguyên được bảo vệ**.
+
+      Không được "cứ làm tiếp cho chắc": trong lúc client mất liên lạc, lease có thể đã hết và dịch
+      vụ đã **cấp khoá cho người khác với số chặn lớn hơn**. Nếu client cũ vẫn ghi, **số chặn
+      (fencing token)** ở phía tài nguyên sẽ loại nó — đây là lớp bảo hiểm cuối khi "ngừng tự
+      nguyện" trễ vài mili-giây.
+  - id: b07
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền số. Quy tắc **quorum = ⌊n/2⌋+1** (đa số). Với cụm **n = 5** node: quorum = ___ node, và cụm
+      chịu được tối đa ___ node chết mà vẫn phục vụ.
+    blanks:
+      - {accept: ["3", "ba"]}
+      - {accept: ["2", "hai"]}
+    explain_md: "n=5 ⇒ quorum = ⌊5/2⌋+1 = 2+1 = **3**. Mất 2 node vẫn còn 3 ≥ quorum nên cụm sống; mất 3 thì chỉ còn 2 < 3, cụm ngừng ghi để giữ an toàn. Vậy cụm 5 **chịu được 2** máy chết (tổng quát: n node chịu ⌊(n-1)/2⌋)."
+  - id: b08
+    type: text
+    md: |
+      **Tính cỡ cụm (sizing).** Vì **mỗi ghi phải qua đa số**, thông lượng ghi của cả cụm chỉ cỡ
+      **vài nghìn đến vài chục nghìn ghi/giây** — không scale bằng cách thêm node (thêm node còn làm
+      quorum to ra, ghi chậm hơn). Hãy ước lượng tải ghi từ **renew**: 1 triệu khoá, mỗi khoá renew
+      mỗi 10 giây ⇒ ~**100.000 renew/giây**, vượt sức một cụm. Cách chia: **tách khoá theo tên ra
+      nhiều cụm độc lập (shard/partition)**, hoặc tăng `lease_ttl` để renew thưa hơn. Bộ nhớ thì nhẹ:
+      1 triệu khoá × ~100 byte ≈ 100 MB, vừa RAM.
+
+      **Bầu leader (leader election)** là một ứng dụng của cùng API: dùng một khoá tên
+      "leader-của-X"; bản nào giữ được khoá thì làm leader và **renew liên tục**; nếu nó chết, lease
+      hết hạn, một bản khác **acquire** được và nhận **số chặn lớn hơn** để các bên loại leader cũ.
+  - id: b09
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Trong lúc client **mất kết nối** tới dịch vụ khoá mà vẫn đang giữ khoá, hành vi đúng là gì?"
+    options:
+      - {id: a, text_md: "Cứ tiếp tục ghi lên tài nguyên cho tới khi kết nối lại, vì mình vẫn là chủ khoá cuối cùng mình biết."}
+      - {id: b, text_md: "**Giả định có thể đã mất khoá và dừng thao tác lên tài nguyên**; dựa thêm vào **số chặn** ở phía tài nguyên để chặn ghi muộn nếu lỡ không dừng kịp."}
+      - {id: c, text_md: "Tự ý gia hạn lease ở phía client (tăng hạn trong bộ nhớ mình) rồi làm tiếp."}
+    answer: [b]
+    explain_md: "Không renew được ⇒ lease có thể đã hết ⇒ dịch vụ có thể đã cấp khoá cho người khác. An toàn là **dừng** và để fencing token làm lớp bảo hiểm. (a) gây hai-chủ; (c) vô nghĩa vì hạn do **đồng hồ của dịch vụ** quyết, không phải đồng hồ client."
+  - id: b10
+    type: callout
+    kind: interview
+    md: |
+      **Khung trả lời "Thiết kế một dịch vụ khoá" ở mức phỏng vấn (L3).** Đi đúng bốn nhịp:
+      1. **API**: `acquire(tên, lease_ttl)` → trả **số chặn (fencing token)** tăng dần; `renew`/
+         heartbeat để giữ lease; `release` để nhả. Nói rõ *client renew khi còn ~1/3 hạn*.
+      2. **Cụm**: **3 hoặc 5 node đồng thuận (Raft/Paxos)**, ghi qua **leader + quorum**, số lẻ để đa
+         số rõ ràng; **5 chịu 2** node chết.
+      3. **Tính cỡ**: nhớ **quorum = ⌊n/2⌋+1**, ước lượng renew/giây, và chia khoá ra nhiều cụm khi
+         vượt vài chục nghìn ghi/giây.
+      4. **Khi client mất kết nối**: *giả định mất khoá, dừng thao tác tài nguyên*; fencing token
+         loại người giữ khoá cũ. Giữ **phép tính quorum đúng** là điểm cộng lớn.
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "Dịch vụ khoá (Chubby/ZooKeeper) là dịch vụ điều phối nhỏ, nhất quán mạnh: cấp khoá phân tán, bầu leader, giữ ít config — lắp từ lease + fencing token + consensus đã học."
+      - "API: acquire(tên, lease_ttl) trả **số chặn (fencing token)** tăng dần đơn điệu; renew/heartbeat giữ lease (renew khi còn ~1/3 hạn); release nhả. Không renew kịp ⇒ lease tự hết, khoá tự nhả."
+      - "Cụm **số lẻ 3 hoặc 5 node đồng thuận (Raft/Paxos)**, ghi qua **leader + đa số (quorum)**; nhất quán và chịu lỗi thiểu số — **3 chịu 1, 5 chịu 2** node chết."
+      - "Tính cỡ: **quorum = ⌊n/2⌋+1**; mỗi ghi qua đa số nên thông lượng ghi hữu hạn — ước lượng tải renew và **chia khoá ra nhiều cụm** khi cần; RAM nhẹ."
+      - "Client **mất kết nối ⇒ giả định mất khoá và dừng thao tác tài nguyên**; fencing token ở phía tài nguyên loại ghi của người giữ khoá cũ (lớp bảo hiểm cuối)."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S262], l2: [S263], l3: [S264]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

@@ -1,0 +1,145 @@
+id: sd.archetypes.productivity_apps
+version: 1
+status: published
+title_vi: "Thiết kế ứng dụng lịch và email (calendar and email)"
+est_minutes: 14
+objectives_vi:
+  - "Lưu sự kiện lặp bằng một **quy tắc (RRULE)** thay vì bung sẵn thành từng dòng, rồi **tính các lần lặp khi đọc (expand on read)** trong cửa sổ thời gian được hỏi, kèm ngoại lệ (exception) cho một buổi bị sửa/huỷ riêng."
+  - "Tìm **giờ trống chung (free/busy)** của nhiều người bằng cách gộp các khoảng bận (merge busy intervals) rồi lấy khe trống, và hẹn **nhắc việc (reminder)** bằng một job đến hạn ở thời điểm giờ-sự-kiện trừ lead (dùng lại job_scheduler)."
+  - "Mô tả thiết kế email: kho hộp thư (mailbox storage), **mục lục ngược (inverted index)** để tìm thư, luồng/nhãn (threading/labels), và gửi thư qua SMTP + hàng đợi có thử lại; nêu bẫy múi giờ và giờ mùa hè (time zone + DST)."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Nhóm **ứng dụng năng suất (productivity apps)** — tiêu biểu là **lịch (calendar)** và **email** —
+      có chung ba nhu cầu: lưu **sự kiện lặp lại (recurring events)** gọn gàng, **tìm giờ trống chung
+      (free/busy)** của nhiều người, và **nhắc việc đúng giờ (reminder)**. Bài này dựng trên hai thứ
+      bạn đã học: bộ lập lịch job (sd.archetypes.job_scheduler) để bắn nhắc việc đúng thời điểm, và mục
+      lục ngược (sd.data.search_indexing) để tìm trong hàng tỉ thư. Ta đi lần lượt: phần lịch trước,
+      phần email sau.
+  - id: b02
+    type: text
+    md: |
+      **Lưu sự kiện lặp bằng quy tắc, không bung sẵn thành từng dòng.** Một cuộc họp "9 giờ sáng mỗi
+      thứ Hai, mãi mãi" nếu lưu **mỗi lần một dòng (materialise)** thì cần vô số dòng (nhiều năm = hàng
+      nghìn bản ghi cho một sự kiện) — tốn kho và không có điểm dừng. Thay vào đó lưu **một quy tắc lặp
+      (recurrence rule, RRULE)**: ngày bắt đầu + mô tả "lặp mỗi tuần vào thứ Hai". Một dòng duy nhất mô
+      tả cả chuỗi vô hạn.
+
+      Đổi lại, khi hiển thị lịch ta phải **tính các lần lặp lúc đọc (expand on read)**: chỉ sinh ra các
+      buổi **nằm trong cửa sổ thời gian được hỏi** (ví dụ tuần này, tháng này). Đọc lịch một tuần thì
+      chỉ bung ra vài buổi, không bao giờ phải dựng cả chuỗi vô hạn.
+  - id: b03
+    type: text
+    md: |
+      **Ngoại lệ của một lần lặp (exception / override).** Người dùng thường muốn sửa **riêng một buổi**
+      của chuỗi lặp — dời buổi thứ Hai tuần sau sang 10 giờ, hoặc huỷ đúng buổi đó. Ta **không** đụng vào
+      quy tắc gốc; thay vào đó lưu một **bản ghi đè (override)** cho đúng một lần lặp đó: "buổi ngày X của
+      chuỗi này đổi giờ sang 10h" hoặc "buổi ngày X bị huỷ". Khi bung chuỗi lúc đọc, ta sinh các lần từ
+      quy tắc rồi **áp ngoại lệ lên trên**: thay buổi đã sửa, bỏ buổi đã huỷ. Nhờ vậy sửa một buổi vẫn là
+      một dòng nhỏ, không phải bung cả chuỗi ra để chỉnh.
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao ta lưu sự kiện lặp bằng **một quy tắc (RRULE)** và tính các lần lặp **khi đọc**, thay vì bung sẵn mỗi lần lặp thành một dòng trong database?"
+    options:
+      - {id: a, text_md: "Vì bung sẵn một chuỗi lặp dài (nhiều năm, hoặc không có hồi kết) tốn vô số dòng và không có điểm dừng; lưu một quy tắc chỉ tốn một dòng, còn khi đọc chỉ cần sinh các buổi trong cửa sổ thời gian được hỏi."}
+      - {id: b, text_md: "Vì database không cho phép lưu nhiều dòng có cùng tiêu đề sự kiện."}
+      - {id: c, text_md: "Vì tính lúc đọc thì không bao giờ cần xử lý ngoại lệ (sửa/huỷ một buổi riêng lẻ)."}
+    answer: [a]
+    explain_md: "RRULE nén cả chuỗi (kể cả vô hạn) thành một dòng; expand-on-read chỉ bung các buổi trong cửa sổ được hỏi nên rẻ. (b) sai — DB lưu được trùng tiêu đề, đó không phải lý do; (c) sai — vẫn phải xử lý ngoại lệ bằng bản ghi đè áp lên trên khi bung chuỗi."
+  - id: b05
+    type: text
+    md: |
+      **Tìm giờ trống chung (free/busy) = bài toán gộp khoảng (interval overlap / merge intervals).**
+      Để xếp một cuộc họp cho 5 người, ta cần một **khe thời gian mà tất cả đều rảnh**. Mẹo quan trọng:
+      chỉ cần biết các **khoảng bận (busy intervals)** của từng người, **không cần** xem tên hay nội dung
+      sự kiện (đây cũng là ranh giới riêng tư — chia sẻ "bận/rảnh" chứ không lộ chi tiết). Cách làm:
+
+      1. Với mỗi người, bung lịch trong cửa sổ hỏi ra thành danh sách khoảng bận [bắt đầu, kết thúc).
+      2. **Gộp (union) tất cả khoảng bận của mọi người** lại và **trộn các khoảng chồng lấn (merge
+         overlapping intervals)** thành những khối bận liền mạch.
+      3. **Giờ trống chung chính là các khoảng hở (gap)** giữa những khối bận đã gộp, với độ dài ≥ thời
+         lượng cuộc họp.
+
+      Đây đúng là bài merge-intervals: sắp xếp theo mốc bắt đầu rồi quét một lượt.
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Cách đúng để tìm một khe **tất cả 5 người đều rảnh** cho cuộc họp 30 phút là gì?"
+    options:
+      - {id: a, text_md: "Gộp (union) các **khoảng bận** của cả 5 người rồi **trộn các khoảng chồng lấn (merge overlapping intervals)**; các khoảng **hở (gap)** còn lại dài ≥ 30 phút chính là giờ trống chung."}
+      - {id: b, text_md: "Lấy giao (intersection) các khoảng **bận** của 5 người — chỗ nào mọi người cùng bận thì xếp họp vào đó."}
+      - {id: c, text_md: "Chọn người bận nhất rồi xếp họp vào bất kỳ khe trống nào của riêng người đó, bỏ qua lịch 4 người kia."}
+    answer: [a]
+    explain_md: "Khe chung rảnh là phần **không** bị bất kỳ ai chiếm; nên ta gộp mọi khoảng bận, merge lại, rồi lấy các gap đủ dài. (b) sai — giao các khoảng bận cho ra lúc *mọi người cùng bận*, ngược hẳn mục tiêu; (c) sai — bỏ qua lịch người khác sẽ đâm vào giờ bận của họ."
+  - id: b07
+    type: text
+    md: |
+      **Nhắc việc (reminder) = một job đến hạn.** Nhắc "trước họp 10 phút" chính là một **job hẹn một
+      lần** chạy ở thời điểm **giờ-sự-kiện trừ lead** (event_time − lead). Ta dùng lại nguyên bộ lập lịch
+      job đã học: lưu job kèm cột **giờ chạy (run_at)** có chỉ mục, tầng scheduler quét job đến hạn rồi
+      bắn thông báo; vì chỉ đạt **ít nhất một lần (at-least-once)** nên bước gửi nên **khử trùng (dedupe)**
+      để một người không bị nhắc hai lần. Khi sự kiện bị dời giờ, phải **huỷ/đặt lại** job nhắc tương ứng.
+
+      **Bẫy múi giờ và giờ mùa hè (time zone + DST).** Một sự kiện lặp "9 giờ sáng mỗi thứ Hai" là
+      **9 giờ theo giờ địa phương của người tạo**, không phải một mốc UTC cố định. Nếu chỉ lưu UTC, sau
+      đợt đổi **giờ mùa hè (daylight saving time, DST)** buổi họp sẽ lệch một tiếng. Vì vậy sự kiện lặp
+      cần lưu **múi giờ gốc cùng với quy tắc**, rồi khi bung từng buổi mới quy ra mốc tuyệt đối theo đúng
+      quy tắc DST của múi giờ đó. (Sự kiện một lần thì lưu thẳng mốc tuyệt đối là đủ.)
+  - id: b08
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền vào chỗ trống. Nhắc việc được hiện thực bằng một job chạy tại thời điểm giờ-sự-kiện trừ
+      [[1]], dùng lại bộ lập lịch job đã học. Một sự kiện lặp "9h sáng mỗi thứ Hai" phải lưu kèm [[2]]
+      gốc cùng với quy tắc lặp, nếu không thì sau đợt đổi [[3]] (giờ mùa hè) buổi họp sẽ lệch một tiếng.
+    blanks:
+      - accept: ["lead", "lead time", "khoảng báo trước", "thời gian báo trước"]
+      - accept: ["múi giờ", "time zone", "timezone", "múi giờ (time zone)"]
+      - accept: ["DST", "daylight saving time", "giờ mùa hè", "giờ mùa hè (DST)"]
+    explain_md: "Reminder = job đến hạn tại event_time − **lead**. Sự kiện lặp phải gắn **múi giờ** gốc với quy tắc, vì '9h sáng' là giờ địa phương; nếu bỏ qua, đợt đổi **DST (giờ mùa hè)** sẽ làm buổi họp lệch một giờ."
+  - id: b09
+    type: text
+    md: |
+      **Phần email.** Email có hình dạng khác lịch nhưng tái dùng nhiều ý đã học:
+      - **Kho hộp thư (mailbox storage)**: mỗi người dùng có một hộp thư là danh sách thư rất lớn; phân
+        mảnh (shard/partition) theo user_id để mỗi hộp thư nằm gọn và đọc nhanh. Đây là dữ liệu ghi một
+        lần, đọc nhiều — hợp với thêm vào cuối và đánh số theo thời gian.
+      - **Tìm kiếm bằng mục lục ngược (inverted index)**: muốn tìm thư theo từ khoá thì không quét cả hộp
+        thư; dựng **inverted index** (từ → danh sách thư chứa từ đó) đúng như sd.data.search_indexing, giới
+        hạn trong hộp thư của chính người dùng.
+      - **Luồng và nhãn (threading / labels)**: gom các thư cùng một hội thoại thành **luồng (thread)** nhờ
+        header tham chiếu thư trước; **nhãn (label)** là cách gắn thẻ nhiều-nhiều thay cho thư mục cứng.
+      - **Gửi thư qua SMTP + hàng đợi (queue) có thử lại (retry)**: gửi ra ngoài có thể hỏng tạm thời (máy
+        nhận bận), nên đẩy thư cần gửi vào hàng đợi và **thử lại giãn cách (retry with backoff)**; quá số
+        lần thì báo gửi thất bại (bounce). Mẫu hàng-đợi-worker này lặp lại ý của job_scheduler.
+  - id: b10
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn.** Với "thiết kế Google Calendar", đi theo mạch: (1) làm rõ yêu cầu (sự kiện lặp?
+      free/busy nhiều người? nhắc việc?); (2) **lưu sự kiện lặp bằng RRULE**, tính các lần lặp **khi đọc**
+      trong cửa sổ hỏi, ngoại lệ lưu bằng bản ghi đè; (3) **free/busy** = gộp + merge các khoảng bận rồi
+      lấy gap — nhấn mạnh chỉ cần bận/rảnh, không lộ chi tiết; (4) **nhắc việc** = job đến hạn ở event_time
+      − lead (tái dùng job_scheduler), nhớ xử lý khi dời giờ; (5) chủ động nêu **bẫy múi giờ/DST**. Với
+      "thiết kế email", nhấn kho hộp thư shard theo user, **inverted index** để tìm, threading/labels, và
+      gửi qua SMTP + hàng đợi có retry. Điểm cộng lớn là biết **tái dùng khối đã học** (job scheduler cho
+      nhắc việc, inverted index cho tìm kiếm) thay vì phát minh lại.
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "Sự kiện lặp lưu bằng **một quy tắc (RRULE)**, không bung sẵn từng dòng; khi hiển thị thì **tính các lần lặp lúc đọc (expand on read)** chỉ trong cửa sổ thời gian được hỏi."
+      - "Sửa/huỷ riêng một buổi lưu bằng **bản ghi đè (override / exception)** áp lên trên khi bung chuỗi, không đụng quy tắc gốc."
+      - "**Free/busy** = gộp (union) các khoảng bận của mọi người, **trộn khoảng chồng lấn (merge intervals)**, rồi lấy các khoảng hở (gap) đủ dài; chỉ cần bận/rảnh, không cần nội dung."
+      - "**Nhắc việc** là một job đến hạn ở **event_time − lead** (tái dùng job_scheduler); nhớ đặt lại khi dời giờ, và dedupe vì at-least-once."
+      - "Sự kiện lặp phải lưu **múi giờ gốc** cùng quy tắc để không lệch giờ sau đợt **giờ mùa hè (DST)**."
+      - "Email: kho hộp thư shard theo user, **mục lục ngược (inverted index)** để tìm, threading/labels, gửi qua **SMTP + hàng đợi có retry**."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S268], l2: [S269], l3: [S270]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

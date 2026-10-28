@@ -1,0 +1,146 @@
+id: sd.archetypes.delivery_maps
+version: 1
+status: published
+title_vi: "Giao hàng và theo dõi đơn (delivery): vòng đời đơn, gán shipper và vị trí trực tiếp"
+est_minutes: 13
+objectives_vi:
+  - "Mô tả vòng đời một đơn (order lifecycle) như một máy trạng thái (state machine) từ đặt đến giao, mỗi chuyển trạng thái được ghi lại tin cậy."
+  - "So sánh gán shipper gần nhất (nearest-available, mỗi chuyến một đơn) với gom đơn (batching, một shipper nhiều đơn) và chỉ ra đánh đổi tốc độ với hiệu quả/chi phí."
+  - "Giải thích cách đẩy vị trí shipper trực tiếp (live location) xuống app khách, tái dùng cách của bài gọi xe (ride_hailing)."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Bài này là một **archetype** (mẫu bài) của System Design: thiết kế hệ **giao hàng và theo dõi
+      đơn** (delivery) — ví dụ giao đồ ăn (food delivery) như DoorDash, hay theo dõi bưu kiện (parcel
+      tracking). Nó **xây trên** ba thứ bạn đã học, nên ở đây ta **áp dụng** chứ không dạy lại:
+      - **Gọi xe (ride_hailing):** ghép người cần với tài xế/shipper đang rảnh ở gần.
+      - **Chỉ mục địa lý (geo-index):** tìm quán/shipper trong một bán kính bằng cách tra ô lưới.
+      - **Giao thức thời gian thực (realtime protocols):** đẩy cập nhật xuống client qua WebSocket/SSE.
+
+      Điểm **mới** mà delivery thêm vào so với gọi xe: (1) một **vòng đời đơn nhiều bước** (đặt món,
+      quán nấu, rồi mới giao) chứ không phải một chuyến đi liền mạch; và (2) lựa chọn **gom nhiều đơn**
+      vào một chuyến (batching) để tiết kiệm. Đó là trọng tâm bài.
+  - id: b02
+    type: text
+    md: |
+      **Vòng đời đơn (order lifecycle) là một máy trạng thái (state machine).** Một đơn đi qua các
+      trạng thái, và mỗi **chuyển trạng thái** (transition) là một **sự kiện** được ghi lại **tin cậy**
+      (ghi vào database trước khi báo thành công):
+
+      1. **placed** (đã đặt): khách bấm đặt, đơn được tạo và gửi tới quán.
+      2. **assigned** (đã gán shipper): hệ chọn một shipper cho đơn (có thể song song lúc quán đang nấu).
+      3. **picked_up** (đã lấy hàng): shipper tới quán, nhận món, xác nhận.
+      4. **en_route** (đang giao): shipper đang trên đường tới khách.
+      5. **delivered** (đã giao): shipper giao xong, đơn kết thúc.
+
+      Vì sao phải là state machine rõ ràng? Để hệ **chỉ cho phép chuyển hợp lệ** (không thể "delivered"
+      khi chưa "picked_up"), để **thử lại/huỷ an toàn** khi một bước treo (quán không phản hồi thì huỷ
+      hoặc gán quán khác), và để mỗi chuyển là một **sự kiện bền** phục vụ cả thông báo cho khách lẫn
+      đối soát sau này. Ghi trạng thái phải **idempotent** (lặp sự kiện không tạo hai lần chuyển).
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao nên mô hình hoá vòng đời đơn như một **máy trạng thái** với mỗi chuyển trạng thái được ghi lại tin cậy, thay vì chỉ lưu một cột `status` và ghi đè?"
+    options:
+      - {id: a, text_md: "Vì state machine cho phép chỉ những chuyển hợp lệ, hỗ trợ thử lại/huỷ an toàn khi một bước treo, và để lại sự kiện bền để thông báo cho khách và đối soát."}
+      - {id: b, text_md: "Vì ghi đè một cột status nhanh hơn nên không bao giờ dùng trong hệ thật."}
+      - {id: c, text_md: "Vì state machine giúp tìm quán gần trong bán kính 10 km hiệu quả hơn."}
+    answer: [a]
+    explain_md: "State machine ràng buộc chuyển hợp lệ (không 'delivered' trước 'picked_up'), cho phép xử lý sự cố (quán treo thì huỷ/gán lại), và mỗi chuyển là sự kiện bền dùng cho thông báo + đối soát. (b) sai về bản chất; (c) lạc đề — tìm quán gần là việc của chỉ mục địa lý, không liên quan vòng đời đơn."
+  - id: b04
+    type: text
+    md: |
+      **Gán shipper (courier assignment).** Khi đơn cần người giao, có hai chiến lược chính:
+
+      - **Gần nhất, mỗi chuyến một đơn (nearest-available / single-order dispatch):** chọn shipper
+        **rảnh và gần quán nhất** (dùng chỉ mục địa lý để tìm trong bán kính), giao đúng **một đơn**.
+        Ưu: đơn giản, **nhanh cho từng khách** (ít vòng vo). Nhược: **tốn shipper/chi phí** — mỗi đơn
+        một chuyến, nhiều quãng đường chạy không tải, khó kham lúc cao điểm.
+      - **Gom đơn (batching):** một shipper nhận **2-3 đơn cùng tuyến** (cùng khu vực, cùng quán hoặc
+        quán gần nhau) trong một chuyến. Ưu: **hiệu quả/rẻ hơn** (chia sẻ quãng đường, cần ít shipper
+        hơn cho cùng lượng đơn). Nhược: **chậm hơn cho khách** bị giao sau, và bài toán **chọn tổ hợp**
+        đơn + thứ tự điểm dừng phức tạp hơn (không còn là "chọn người gần nhất").
+
+      Khác với gọi xe ở chỗ: gán shipper phải tính cả **thời gian quán chuẩn bị** (prep time) — gửi
+      shipper tới quá sớm thì phải đợi món, quá trễ thì món nguội. Thực tế thường **gán song song** lúc
+      quán đang nấu để shipper tới vừa lúc món xong.
+  - id: b05
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Đánh đổi **cốt lõi** giữa gán *gần nhất mỗi chuyến một đơn* (nearest-available) và *gom đơn* (batching) là gì?"
+    options:
+      - {id: a, text_md: "Gần nhất thì nhanh cho từng khách nhưng tốn shipper/chi phí; gom đơn thì rẻ/hiệu quả hơn nhưng một số khách bị giao chậm hơn và bài toán chọn tổ hợp phức tạp hơn."}
+      - {id: b, text_md: "Gom đơn luôn vừa nhanh hơn vừa rẻ hơn, nên gần như không ai dùng gán gần nhất."}
+      - {id: c, text_md: "Gần nhất cần WebSocket còn gom đơn thì không, nên khác nhau ở giao thức mạng."}
+    answer: [a]
+    explain_md: "Đây là đánh đổi tốc độ (nhanh cho từng khách) với hiệu quả/chi phí (ít shipper, chia sẻ quãng đường) kèm độ phức tạp tối ưu tổ hợp. (b) sai: gom đơn đổi lấy độ trễ cao hơn cho một số khách; (c) sai: đẩy vị trí dùng chung giao thức bất kể chiến lược gán."
+  - id: b06
+    type: text
+    md: |
+      **Theo dõi trực tiếp (live tracking): đẩy vị trí shipper xuống app khách.** Phần này **tái dùng
+      y hệt cách của bài gọi xe (ride_hailing)**:
+
+      - Shipper đang giao gửi toạ độ (GPS) lên server **vài giây một lần** — đây là luồng **ghi rất
+        nhiều** (high-write location ingest). Vị trí **mới nhất** của mỗi shipper được giữ **trong bộ
+        nhớ** (in-memory, ví dụ Redis) thay vì ghi hết vào database bền, vì nó thay đổi liên tục và chỉ
+        cần giá trị gần đây nhất.
+      - Server **đẩy (push)** vị trí đó xuống app của **đúng khách** đang theo dõi đơn qua một kết nối
+        **WebSocket** (hoặc SSE) đang mở — không bắt app **hỏi liên tục** (polling) cho tốn.
+
+      Mấu chốt: tách **vị trí sống** (đổi liên tục, giữ trong RAM, được đẩy đi) khỏi **trạng thái đơn**
+      (ít chuyển, ghi bền trong database). Chỉ gắn kết nối đẩy của một khách với **đơn/shipper của họ**,
+      không phát vị trí cho người không liên quan.
+  - id: b07
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền thuật ngữ. Vị trí shipper thay đổi liên tục nên chỉ giữ giá trị mới nhất trong bộ nhớ
+      (______ 1, ví dụ Redis) thay vì ghi hết vào database bền. Server chủ động ______ (2) vị trí đó
+      xuống app khách qua một kết nối ______ (3) đang mở, thay vì để app hỏi liên tục (polling).
+    blanks:
+      - {accept: ["in-memory", "in memory", "trong bộ nhớ", "bộ nhớ", "memory"]}
+      - {accept: ["push", "đẩy", "đẩy xuống"]}
+      - {accept: ["WebSocket", "websocket", "WebSocket/SSE", "SSE"]}
+    explain_md: "Vị trí sống được giữ in-memory (Redis) vì chỉ cần giá trị gần nhất và tần suất ghi rất cao; server push qua WebSocket (hoặc SSE) để tránh polling tốn kém — đúng cách đã học ở ride_hailing và realtime protocols."
+  - id: b08
+    type: text
+    md: |
+      **Ước lượng ETA (thời gian giao dự kiến).** ETA của một đơn giao đồ ăn **cộng nhiều thành phần**,
+      không chỉ là quãng đường:
+
+      - **Thời gian quán chuẩn bị** (prep time): bao lâu để nấu xong — ước lượng theo món và độ bận của quán.
+      - **Shipper tới quán:** thời gian di chuyển từ vị trí shipper đến quán.
+      - **Giao tới khách:** thời gian di chuyển từ quán đến khách, dựa trên **định tuyến + giao thông**
+        (routing/traffic) ở mức tổng quát — dùng dịch vụ bản đồ để ước lượng, không tự tính đường.
+
+      ETA sai thì khách thất vọng, nên nó được **cập nhật lại** khi trạng thái đổi (nấu xong, đã lấy
+      hàng) và đẩy xuống cùng kênh trực tiếp với vị trí. Ở mức phỏng vấn chỉ cần nêu **đủ các thành
+      phần** và biết nó **động** (thay đổi theo thực tế), không cần công thức chi tiết.
+  - id: b09
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn.** Với bài "Design food delivery / DoorDash", hãy trả lời theo ba trụ đã học:
+      *(1) vòng đời đơn* (vẽ state machine placed → assigned → picked_up → en_route → delivered, nói
+      mỗi chuyển là sự kiện bền); *(2) gán shipper* (nêu nearest vs batching và đánh đổi tốc độ ↔ chi
+      phí, nhớ prep time); *(3) theo dõi trực tiếp* (vị trí in-memory + push qua WebSocket như
+      ride_hailing). Đừng dạy lại chỉ mục địa lý — chỉ **nói là tái dùng** nó để tìm quán/shipper gần.
+      Người phỏng vấn chấm việc bạn **phân biệt được state bền (đơn) với state sống (vị trí)** và nêu
+      đúng đánh đổi gom đơn.
+  - id: b10
+    type: summary
+    bullets_vi:
+      - "Vòng đời đơn là một máy trạng thái (state machine): placed → assigned → picked_up → en_route → delivered; mỗi chuyển là một sự kiện ghi bền, idempotent, chỉ cho phép chuyển hợp lệ và hỗ trợ thử lại/huỷ."
+      - "Gán gần nhất (nearest-available, mỗi chuyến một đơn): nhanh cho từng khách nhưng tốn shipper/chi phí."
+      - "Gom đơn (batching, một shipper 2-3 đơn cùng tuyến): rẻ/hiệu quả hơn nhưng một số khách giao chậm hơn và phải giải bài toán chọn tổ hợp — đánh đổi tốc độ ↔ chi phí; gán shipper còn phải tính prep time của quán."
+      - "Theo dõi trực tiếp tái dùng ride_hailing: vị trí shipper giữ in-memory (Redis) vì ghi rất nhiều, rồi push xuống app khách qua WebSocket/SSE (không polling)."
+      - "ETA cộng nhiều thành phần (prep + shipper tới quán + giao tới khách theo routing/traffic) và được cập nhật động; tách state sống (vị trí) khỏi state bền (trạng thái đơn)."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S271], l2: [S272], l3: [S273]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

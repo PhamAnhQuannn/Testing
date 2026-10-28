@@ -1,0 +1,62 @@
+subtopic_id: sd.archetypes.kv_store
+items:
+  - id: S250
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Trong một kho key-value phân tán kiểu Dynamo, nói ngắn gọn: **N**, **W** và **R** là gì (mỗi
+      cái một câu)?
+    answer_md: |
+      - **N** = hệ số sao chép (replication factor): mỗi khoá được lưu trên N máy (thường N = 3).
+      - **W** = số bản sao phải xác nhận thì một lệnh **ghi** mới coi là thành công (write quorum).
+      - **R** = số bản sao phải trả lời thì một lệnh **đọc** mới coi là thành công (read quorum), và
+        client lấy bản có phiên bản mới nhất trong số đó.
+    rubric_md: "Đạt khi nêu đúng cả ba: N = số bản sao mỗi khoá, W = số bản xác nhận khi ghi, R = số bản trả lời khi đọc. Đúng cả ba: bằng chứng điểm 1. Thiếu hoặc lẫn một định nghĩa: tối đa điểm 0."
+  - id: S251
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Một kho key-value có **N = 3**. Nhóm sản phẩm yêu cầu: "sau khi ghi thành công, mọi lần đọc
+      tiếp theo **phải** đọc ra giá trị vừa ghi (không được đọc cũ)". (1) Hãy chọn một cặp **R, W**
+      thoả yêu cầu và (2) giải thích bằng điều kiện quorum vì sao cặp đó đảm bảo đọc không bị cũ.
+    answer_md: |
+      (1) Chọn ví dụ **R = 2, W = 2** (hoặc W = 3, R = 1 nếu muốn đọc rẻ hơn) — miễn là **R + W > N**.
+      (2) Với R + W > N (ở đây 2 + 2 = 4 > 3), tập W máy từng nhận lệnh ghi và tập R máy đang đọc
+      **chắc chắn giao nhau ít nhất một máy** (nguyên lý chuồng bồ câu). Máy giao đó đã giữ bản ghi
+      mới nhất, nên lần đọc **gặp** nó và client chọn bản có phiên bản mới nhất — không thể đọc cũ.
+    rubric_md: "Đạt khi: (1) chọn cặp R, W thoả R + W > N (ví dụ R = 2, W = 2) cho N = 3, và (2) giải thích đúng là tập đọc và tập ghi giao nhau nên đọc gặp bản mới nhất. Đúng, tự giải thích được điều kiện R + W > N: bằng chứng điểm 2. Chọn cặp không thoả R + W > N, hoặc không giải thích được chỗ giao nhau: tối đa điểm 1."
+  - id: S252
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      Thiết kế **phần lõi** của một distributed key-value store kiểu Dynamo. Trình bày theo mạch
+      **dựng dần** và với mỗi bước nói rõ nó gỡ điểm yếu gì: (1) từ một dict một máy đến vòng băm
+      nhất quán (consistent hashing) có nút ảo; (2) sao chép N bản; (3) quorum R/W và **giải thích vì
+      sao R + W > N đảm bảo mỗi lần đọc thấy bản ghi mới nhất**. Cuối cùng, với **N = 3**, chọn R, W
+      cho một yêu cầu **nghiêng nhất quán** và cho một yêu cầu **nghiêng sẵn sàng**, kèm cái giá phải
+      trả của lựa chọn nghiêng sẵn sàng.
+    answer_md: |
+      **Dựng dần:**
+      1. **Một dict → vòng băm nhất quán + nút ảo.** Một dict trong RAM nhanh nhưng dữ liệu không vừa
+         một máy và máy chết là mất. Trải nhiều máy lên vòng băm, băm khoá để chọn máy; mỗi máy chiếm
+         nhiều điểm (nút ảo) cho tải đều và để thêm/bớt máy chỉ dời ít khoá. Gỡ được giới hạn dung
+         lượng/thông lượng, nhưng mỗi khoá vẫn nằm trên một máy — máy đó chết là mất khoá.
+      2. **Sao chép N bản.** Lưu mỗi khoá trên N máy kế tiếp trên vòng (thường N = 3). Gỡ điểm chết:
+         mất tới N-1 máy vẫn còn bản phục vụ. Đổi lại sinh ra câu hỏi bản nào mới nhất và ghi chờ bao
+         nhiêu bản.
+      3. **Quorum R/W.** Ghi cần W bản xác nhận, đọc cần R bản trả lời (client lấy bản mới nhất trong
+         R bản đó). Chọn **R + W > N**: khi đó tập W máy từng ghi và tập R máy đang đọc luôn giao nhau
+         ít nhất một máy (chuồng bồ câu: W + R > N thì không thể rời nhau). Máy giao đó giữ bản ghi mới
+         nhất, nên đọc chắc chắn gặp và chọn đúng bản mới nhất → không đọc cũ.
+
+      **Chọn R, W với N = 3:**
+      - **Nghiêng nhất quán** (số dư, cấu hình phải luôn mới): R + W > N, ví dụ **R = 2, W = 2** (cân
+        bằng, chịu một máy chết) hoặc W = 3, R = 1 nếu đọc nhiều.
+      - **Nghiêng sẵn sàng** (giỏ hàng phải luôn ghi được dù có máy chết): nới **W = 1, R = 1**
+        (W + R = 2 ≤ N). **Cái giá:** mất bảo đảm đọc mới nhất — nhất quán cuối cùng, có thể đọc cũ và
+        sinh xung đột ghi; phải bù bằng vector clock (giữ cả hai ghi song song để hợp nhất) và read
+        repair / hinted handoff.
+    rubric_md: "Đạt (mức phỏng vấn, theo mastery_bar L3) khi: dựng đủ mạch dict → vòng băm nhất quán (nút ảo) → N bản sao → quorum, mỗi bước nói đúng điểm yếu nó gỡ; giải thích đúng vì sao R + W > N đảm bảo đọc thấy bản mới (tập đọc và tập ghi giao nhau); và với N = 3 chọn đúng R, W cho cả hai yêu cầu (nghiêng nhất quán: R + W > N ví dụ R = W = 2; nghiêng sẵn sàng: W = 1, R = 1) kèm cái giá nhất quán cuối cùng + cần giải quyết xung đột. Đầy đủ, quorum chính xác, tự giải thích rõ: bằng chứng điểm 3. Sai điều kiện quorum, hoặc thiếu phần chọn R, W cho hai yêu cầu, hoặc không nêu cái giá của nghiêng sẵn sàng: chưa đạt mức 3."

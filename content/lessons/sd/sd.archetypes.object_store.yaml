@@ -1,0 +1,160 @@
+id: sd.archetypes.object_store
+version: 1
+status: published
+title_vi: "Thiết kế kho đối tượng phân tán (object store): metadata, máy dữ liệu và độ bền"
+est_minutes: 14
+objectives_vi:
+  - "Tách hệ thành dịch vụ metadata (metadata service) và máy dữ liệu (data nodes), và nói đúng mỗi bên giữ gì."
+  - "Vẽ được đường ghi (write path) của một object: chia khối (chunk), chép bản (replication), rồi chốt metadata qua đồng thuận (consensus)."
+  - "So sánh chép 3 bản (3-way replication) với mã sửa lỗi (erasure coding) bằng con số: dung lượng và số máy chịu mất được."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Kho đối tượng (object store) như S3, hay hệ thống file phân tán (distributed file system) như
+      GFS của Google và HDFS của Hadoop, lưu hàng tỷ file với độ bền (durability) gần như tuyệt đối.
+      Bài **sd.data.object_blob_storage** đã cho bạn biết *dùng* một blob store; bài này **thiết kế**
+      nó từ bên trong.
+
+      Ý tưởng cốt lõi: tách hệ thành **hai phần** với hai bài toán rất khác nhau.
+      - **Dịch vụ metadata (metadata service):** sổ cái nhỏ nhưng tối quan trọng — nó nhớ *mỗi object
+        (file) nằm ở đâu*: khoá object (object key) ánh xạ tới danh sách khối (chunk) của nó, kích
+        thước, checksum (mã kiểm tra toàn vẹn), và phiên bản (version).
+      - **Máy dữ liệu / máy chứa khối (data nodes / chunk servers):** chỉ cất **byte thật** trong các
+        khối lớn, bất biến (immutable chunk/block). Thêm máy là thêm dung lượng.
+  - id: b02
+    type: text
+    md: |
+      Vì sao phải tách? Vì hai phần mở rộng theo hai cách và cần hai mức "chặt chẽ" khác nhau:
+      - Metadata **nhỏ** (vài trăm byte mỗi object) nhưng phải **nhất quán và không mất**: nếu quên
+        một object nằm ở đâu thì coi như mất file dù byte vẫn còn trên đĩa. Vì thế sổ metadata thường
+        đặt trên một kho có đồng thuận (consensus) để một nhóm bản sao luôn thấy cùng một sự thật.
+      - Dữ liệu **khổng lồ** nhưng "ngu" và dễ nhân bản: mỗi khối là một mảng byte lớn (ví dụ GFS/HDFS
+        dùng khối 64 MB), **ghi một lần, không sửa tại chỗ** (immutable). Muốn thêm sức chứa chỉ cần
+        cắm thêm máy dữ liệu; muốn bền hơn thì để nhiều bản của mỗi khối.
+
+      Chia nhỏ file thành khối lớn, bất biến làm mọi thứ sau này dễ hơn: chép, sửa chữa, và kiểm tra
+      toàn vẹn đều làm trên từng khối độc lập.
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao kho đối tượng tách **dịch vụ metadata** khỏi **máy dữ liệu** thay vì gộp làm một?"
+    options:
+      - {id: a, text_md: "Vì metadata nhỏ nhưng phải nhất quán/không mất (thường cần đồng thuận), còn dữ liệu thì khổng lồ nhưng dễ nhân bản — thêm máy là thêm dung lượng; hai bài toán khác nhau."}
+      - {id: b, text_md: "Vì máy dữ liệu không được phép lưu checksum, chỉ metadata mới giữ byte thật của file."}
+      - {id: c, text_md: "Vì tách ra thì không cần chép dữ liệu nhiều bản nữa, tiết kiệm dung lượng."}
+    answer: [a]
+    explain_md: "Metadata (object key → khối nào, kích thước, checksum, version) nhỏ mà tối quan trọng nên đặt trên kho có đồng thuận; dữ liệu lớn và dễ nhân bản nên scale ngang bằng cách cắm thêm máy. (b) sai — máy dữ liệu mới giữ byte thật; (c) sai — tách ra không bỏ được việc chép bản để bền."
+  - id: b04
+    type: text
+    md: |
+      **Đường ghi (write path) của một object** — vẽ được đúng thứ tự này là nửa điểm mức 3:
+      1. **Client hỏi dịch vụ metadata**: "tôi muốn ghi object key = X, kích thước 1 GB". Metadata
+         cấp chỗ và chọn các máy dữ liệu đích.
+      2. **Chia object thành khối (chunk)**: 1 GB cắt thành nhiều khối lớn (ví dụ 64 MB mỗi khối).
+      3. **Ghi mỗi khối xuống máy dữ liệu và chép bản (replication)** hoặc mã sửa lỗi (erasure
+         coding): ví dụ mỗi khối ghi thành 3 bản ở 3 máy ở 3 rack khác nhau.
+      4. **Chờ đủ bản xác nhận ghi xong (durable)** trên đĩa thì khối đó coi là an toàn.
+      5. **Chốt metadata (commit)**: metadata ghi "object X gồm các khối này, ở các máy này, checksum
+         này, version này" — thường qua kho metadata có **đồng thuận (consensus)** để lần chốt đó
+         không bao giờ bị mất hay mâu thuẫn. *Chốt metadata xong thì object mới chính thức tồn tại.*
+  - id: b05
+    type: text
+    md: |
+      **Đường đọc (read path)** là chiều ngược lại và nhẹ hơn nhiều:
+      1. Client gửi object key → **hỏi metadata**: object này gồm những khối nào, ở máy nào, checksum
+         bao nhiêu.
+      2. Client (hoặc một lớp proxy) **lấy từng khối trực tiếp từ máy dữ liệu**, nối lại, đối chiếu
+         checksum để chắc byte không hỏng.
+
+      Điểm quan trọng: metadata chỉ *chỉ đường* rồi đứng ra ngoài; byte đi thẳng giữa client và máy
+      dữ liệu, nên dịch vụ metadata nhỏ bé vẫn phục vụ được băng thông khổng lồ.
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Trong đường ghi một object, **khi nào** object được coi là chính thức tồn tại (ghi thành công)?"
+    options:
+      - {id: a, text_md: "Ngay khi client gửi xong byte cho máy dữ liệu đầu tiên."}
+      - {id: b, text_md: "Khi đủ số bản của mọi khối đã ghi bền (durable) xuống đĩa **và** metadata đã chốt (commit) được danh sách khối + vị trí, thường qua kho metadata có đồng thuận."}
+      - {id: c, text_md: "Khi metadata chọn xong các máy dữ liệu đích, trước khi byte được ghi."}
+    answer: [b]
+    explain_md: "Byte phải thực sự nằm bền ở đủ số bản, rồi metadata mới chốt 'object X ở những khối/máy này'; chính lần chốt metadata (qua consensus) đánh dấu object tồn tại. (a)/(c) đều quá sớm: nếu máy chết lúc đó thì object chưa an toàn hoặc metadata chưa biết nó ở đâu."
+  - id: b07
+    type: text
+    md: |
+      **Làm sao để gần như không bao giờ mất file?** Không để một bản duy nhất. Hai cách chính, hãy
+      nhớ *con số*:
+
+      - **Chép 3 bản (3-way replication):** giữ 3 bản y hệt của mỗi khối ở 3 failure domain khác nhau
+        (3 rack — mỗi rack là một tủ nhiều máy chủ dùng chung điện/mạng, cả tủ có thể hỏng cùng lúc).
+        Tốn **3 lần dung lượng (3x)**, **chịu mất 2 bản** mà vẫn còn 1 bản để đọc và chép lại. Đơn
+        giản, đọc nhanh (đọc từ bản gần nhất), nhưng đắt.
+      - **Mã sửa lỗi (erasure coding), ví dụ 10+4:** cắt dữ liệu thành **10 mảnh dữ liệu** cộng **4
+        mảnh chẵn lẻ (parity)** = 14 mảnh, rải trên 14 máy; mất **bất kỳ 4 mảnh** nào vẫn dựng lại đủ
+        10 mảnh gốc. Tốn chỉ **14/10 = 1,4 lần dung lượng (1,4x)**. Rẻ hơn nhiều mà còn chịu mất tới
+        4 máy — nhưng ghi và sửa chữa **tốn CPU/mạng hơn** (phải tính toán và đọc nhiều mảnh để dựng
+        lại), nên thường dùng cho dữ liệu lạnh, ít đọc.
+
+      Công thức chung của erasure coding **k+m**: tốn (k+m)/k lần dung lượng, chịu mất **m** mảnh.
+      Ví dụ 6+3 = 1,5x chịu mất 3.
+  - id: b08
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền số (một số mỗi chỗ trống) cho một khối **1 GB** dữ liệu:
+
+      1. Chép 3 bản (3-way replication) tốn khoảng ___ GB dung lượng.
+      2. Chép 3 bản chịu mất tối đa ___ bản mà vẫn khôi phục được.
+      3. Mã sửa lỗi **10+4** tốn khoảng ___ GB dung lượng.
+      4. Mã sửa lỗi **10+4** chịu mất tối đa ___ mảnh.
+    blanks:
+      - {accept: ["3", "3 GB", "3GB"]}
+      - {accept: ["2", "hai"]}
+      - {accept: ["1.4", "1,4", "1.4 GB", "1,4 GB"]}
+      - {accept: ["4", "bốn"]}
+    explain_md: "Chép 3 bản = 3 × 1 GB = 3 GB, mất 2 bản vẫn còn 1. Mã 10+4 tốn 14/10 = 1,4 × 1 GB = 1,4 GB, và mất bất kỳ 4 trong 14 mảnh vẫn dựng lại được. Erasure coding bền tương đương (hoặc hơn) mà tốn ít dung lượng hơn hẳn, đổi lại tốn CPU/mạng khi ghi và sửa chữa."
+  - id: b09
+    type: text
+    md: |
+      Lưu nhiều bản chưa đủ — phải **tự chữa lành** khi máy chết:
+      - **Chép lại / sửa chữa (re-replication / repair):** khi một máy dữ liệu chết, số bản của các
+        khối trên đó tụt xuống. Hệ phát hiện và **tự chép các khối thiếu sang máy khác** để quay về
+        đủ bản (hoặc dựng lại mảnh erasure bị mất). Mất nhanh càng nguy, nên hệ ưu tiên sửa nhanh để
+        xác suất "mất đủ số bản cùng lúc" cực nhỏ — đó là cách đạt độ bền 11 số 9 (xác suất mất một
+        file mỗi năm khoảng 10^-11).
+      - **Quét kiểm tra âm thầm (scrubbing):** định kỳ đọc lại từng khối, so với checksum để bắt lỗi
+        bit thối trên đĩa (bit rot) *trước khi* mất thêm bản, rồi sửa.
+      - **Bất biến và phiên bản (immutability + versioning):** khối không sửa tại chỗ; "sửa file" là
+        ghi khối/phiên bản mới rồi đổi con trỏ trong metadata. Xoá thì **đánh dấu xoá ngay**, còn dọn
+        đĩa thật để sau (thu gom rác — garbage collection). Bất biến khiến chép và cache an toàn,
+        tránh tranh chấp ghi đồng thời.
+  - id: b10
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn (đúng mức 3 của chủ đề này).** Khi được hỏi "thiết kế S3 / một blob store",
+      hãy chủ động làm đúng hai việc:
+      1. **Vẽ đường ghi một object**: client hỏi metadata → chia khối → ghi + chép bản xuống máy dữ
+         liệu ở các rack khác nhau → đủ bản bền → **chốt metadata qua đồng thuận**. Nhấn mạnh tách
+         *metadata service* khỏi *data nodes* và vì sao.
+      2. **So sánh độ bền bằng con số**: 3-way replication = 3x, chịu mất 2; erasure coding 10+4 =
+         1,4x, chịu mất 4. Kết luận: replication đơn giản/đọc nhanh cho dữ liệu nóng; erasure coding
+         rẻ dung lượng cho dữ liệu lạnh, đổi lại tốn CPU/mạng khi ghi và sửa chữa.
+      Đừng quên nói về **sửa chữa khi máy chết** và **scrubbing** — đó là cái thực sự tạo ra độ bền,
+      không phải chỉ "để nhiều bản".
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "Tách **dịch vụ metadata** (object key → khối nào/ở đâu, kích thước, checksum, version; nhỏ nhưng cần nhất quán, thường đặt trên kho có đồng thuận) khỏi **máy dữ liệu** (cất byte trong khối lớn, bất biến; thêm máy là thêm dung lượng)."
+      - "Đường ghi một object: hỏi metadata → chia khối → ghi + chép bản (hoặc erasure) xuống máy dữ liệu ở các rack khác nhau → đủ bản bền → **chốt metadata (commit) qua đồng thuận** thì object mới tồn tại."
+      - "Đường đọc: hỏi metadata để biết khối ở đâu → lấy byte thẳng từ máy dữ liệu → đối chiếu checksum."
+      - "Độ bền bằng con số: **3-way replication = 3x dung lượng, chịu mất 2**; **erasure coding 10+4 = 1,4x, chịu mất 4** (công thức k+m: (k+m)/k lần, chịu mất m). Replication đọc nhanh/đơn giản; erasure rẻ dung lượng nhưng tốn CPU/mạng."
+      - "Độ bền thật đến từ **sửa chữa nhanh khi máy chết (re-replication)** và **scrubbing** bắt bit rot; cộng với **bất biến + versioning** và xoá rồi dọn rác (garbage collection) sau."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S253], l2: [S254], l3: [S255]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

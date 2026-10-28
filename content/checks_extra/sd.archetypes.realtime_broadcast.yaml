@@ -1,0 +1,61 @@
+subtopic_id: sd.archetypes.realtime_broadcast
+items:
+  - id: S256
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Nói ngắn gọn: trong dạng bài phát tin thời gian thực (real-time broadcast), vì sao ta cần
+      **nhiều tầng máy biên (fan-out tiers)** thay vì cho nguồn đẩy thẳng tới mọi người xem?
+    answer_md: |
+      Vì **một máy không giữ nổi hàng triệu kết nối** mở cùng lúc và cũng không đẩy nổi tin cho cả
+      triệu người. Ta chia thành **nhiều máy biên (edge servers)**: nguồn đưa tin vào một **trục
+      pub/sub** theo chủ đề, mỗi máy biên đăng ký chủ đề và **mỗi máy chỉ ôm một phần** kết nối rồi
+      tự nhân tin ra cho client của nó — giống một CDN cho tin trực tiếp.
+    rubric_md: "Đạt khi nêu đúng ý: giới hạn của một máy (số kết nối/băng thông) và cách chia tải ra nhiều máy biên, mỗi máy ôm một phần kết nối. Đúng ý: bằng chứng điểm 1; chỉ nói chung chung 'cho nhanh' mà không nêu giới hạn hay phân tầng: điểm 0."
+  - id: S257
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Một bảng **tỷ số trực tiếp** phục vụ 5 triệu người xem; tỷ số đổi tới ~20 lần/giây. Hãy nêu:
+      (1) vì sao **không** nên gửi ngay mọi lần đổi xuống từng người; (2) cách gửi hợp lý hơn và tên
+      kỹ thuật của nó; (3) với người xem có **mạng chậm** thì xử lý thế nào để không làm nghẽn.
+    answer_md: |
+      (1) Gửi đủ ~20 lần/giây × 5 triệu người là lãng phí khổng lồ: phần lớn là trạng thái trung
+      gian sẽ bị ghi đè ngay, tốn băng thông và số lần ghi socket.
+      (2) **Gộp cập nhật (conflation / batching):** máy biên gom thay đổi trong một cửa sổ ngắn
+      (~100-500 ms) rồi chỉ gửi **trạng thái mới nhất** (tỷ số hiện tại) một lần mỗi cửa sổ; người
+      xem chỉ cần thấy giá trị hiện tại, không cần mọi bước.
+      (3) **Giới hạn theo từng người (per-client throttling):** người mạng chậm nhận **ít cập nhật
+      hơn** (gói to hơn, thưa hơn) thay vì để hàng đợi gửi của họ dồn ứ và kéo chậm cả máy biên.
+    rubric_md: "Đạt khi nêu đúng cả 3 ý: lãng phí khi gửi mọi thay đổi; gộp lại và gửi trạng thái mới nhất mỗi vài trăm ms (gọi đúng conflation/batching); per-client throttling cho người mạng chậm. Đúng, trong time-box, tự giải thích được: bằng chứng điểm 2. Thiếu tên kỹ thuật gộp hoặc bỏ ý mạng chậm: tối đa điểm 1."
+  - id: S258
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      Thiết kế hệ **bình luận trực tiếp (live comments)** cho một livestream 1 triệu người xem. Trình
+      bày theo ba trụ: (1) **phát từ một nguồn tới hàng triệu người bằng nhiều tầng** — vẽ đường đi
+      từ nguồn tới client và nói rõ máy nào giữ kết nối; (2) **gộp cập nhật (batching)** để giảm tải;
+      (3) **nối lại khi người xem mất mạng** bằng ảnh chụp cộng delta. Chốt bằng lựa chọn **SSE hay
+      WebSocket** và cách xử lý **chủ đề nóng lệch tải (hot topic skew)**.
+    answer_md: |
+      (1) **Fan-out nhiều tầng:** nguồn (ingest) nhận bình luận mới, đưa vào một **trục pub/sub**
+      theo chủ đề (một kênh cho buổi stream này). Rất nhiều **máy biên (edge / broadcast servers)**
+      đăng ký kênh đó; **chính các máy biên giữ các kết nối WebSocket/SSE của client** (mỗi máy hàng
+      chục nghìn kết nối). Trục đẩy mỗi tin **một lần** xuống mỗi máy biên, máy biên **nhân ra** cho
+      client của nó — như CDN cho tin trực tiếp, nên không máy nào ôm cả triệu kết nối.
+      (2) **Gộp cập nhật (batching/conflation):** thay vì đẩy từng bình luận ngay, máy biên gom các
+      bình luận trong ~100-500 ms rồi gửi **một lô**; thêm per-client throttling cho người mạng
+      chậm. Việc này cắt mạnh số lần ghi socket.
+      (3) **Nối lại bằng snapshot + delta:** mỗi tin mang **số thứ tự (sequence number)** liên tục.
+      Client mới vào nhận một **ảnh chụp (snapshot)** gồm N bình luận gần nhất kèm số thứ tự K, rồi
+      chỉ nhận **delta** K+1, K+2, ... Khi nối lại sau mất mạng, client gửi số thứ tự cuối nó có;
+      server gửi delta từ đó, hoặc một snapshot mới nếu khoảng cách quá xa. Nhảy số = phát hiện thiếu
+      tin để xin lại.
+      **Chốt:** nếu chỉ phát một chiều thì **SSE** đủ và đơn giản (HTTP, tự nối lại, Last-Event-ID);
+      nếu người xem cũng gửi bình luận/biểu cảm liên tục thì tách đường — phát xuống bằng SSE, gửi
+      lên bằng API riêng, hoặc dùng WebSocket cho hai chiều. **Hot topic skew:** rải người xem của
+      chủ đề nóng ra **nhiều máy biên** (nhiều máy cùng subscribe một kênh) thay vì để một máy ôm hết.
+    rubric_md: "Đạt (mức phỏng vấn, theo mastery bar Mức 3) khi trình bày được cả ba trụ đúng và mạch lạc: (a) fan-out nhiều tầng nguồn → pub/sub → máy biên giữ kết nối và tự nhân tin ra, nêu rõ không máy nào ôm cả triệu kết nối; (b) gộp cập nhật ~100-500 ms (và/hoặc per-client throttling); (c) nối lại bằng snapshot + delta có số thứ tự để bắt thiếu tin. Có chốt SSE vs WebSocket (một chiều → SSE) và xử lý hot topic skew. Đúng, trong time-box, tự giải thích được: bằng chứng điểm 3. Thiếu một trong ba trụ hoặc không xử lý nối lại/lệch tải: chưa đạt mức 3."

@@ -1,0 +1,152 @@
+id: sd.archetypes.ad_click_aggregation
+version: 1
+status: published
+title_vi: "Đếm click và top-K real-time: luồng nhanh (xấp xỉ) và lô đúng để tính tiền"
+est_minutes: 14
+objectives_vi:
+  - "Vẽ được pipeline hai nhánh kiểu lambda: nhánh luồng (streaming path) cho số xấp xỉ nhanh lên dashboard, nhánh lô (batch path) đếm lại cuối ngày ra số đúng để tính tiền."
+  - "Xử lý được **khoá nóng (hot key)** (một quảng cáo viral dồn vào một partition) bằng chia khoá (salting / pre-aggregate), và loại **click trùng (dedup)** bằng seen-set theo mã duy nhất."
+  - "Giải thích vì sao số cuối ngày của nhánh lô — chứ không phải số live của luồng — mới là con số dùng để tính tiền (billing)."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Bài toán: mỗi giây hàng nghìn **click** quảng cáo đổ về; ta cần (1) hiện số click theo từng cặp
+      (ad_id, phút) lên **dashboard** gần thời gian thực, độ trễ vài giây, và (2) ra con số **chính xác
+      tuyệt đối** để **tính tiền (billing)** cho nhà quảng cáo. Hai yêu cầu này kéo về hai hướng ngược
+      nhau — nhanh thì khó chính xác, chính xác thì khó nhanh — nên lời giải là chạy **hai nhánh**.
+
+      Mục này **ghép lại** các khối đã học, không giải thích lại chúng:
+      - **Khung ba tầng thu thập → xử lý → kho (ingestion → processing → sinks)** và Kafka làm bộ đệm
+        bền (ở `sd.archetypes.data_pipeline`).
+      - **Cửa sổ theo thời gian thật và watermark (windowing, event time, watermark)** để gộp theo phút
+        và chịu sự kiện đến muộn (ở `sd.async.stream_processing`).
+      - **Count-Min Sketch và heap** để đếm xấp xỉ và tìm phần tử nổi bật trong RAM (ở
+        `sd.data.probabilistic_structures`).
+  - id: b02
+    type: text
+    md: |
+      **Ghi sự kiện rồi mới chuyển hướng (302).** Khi người dùng bấm quảng cáo, server ghi ngay một
+      **sự kiện click** vào **Kafka** rồi trả **302 redirect** đưa người dùng tới trang đích — không
+      chờ đếm xong. Nhờ vậy đường đi của người dùng luôn nhanh, còn việc cộng dồn tách ra chạy sau
+      (asynchronous). Mỗi sự kiện mang **ad_id**, thời điểm click thật (**event time**) và một **mã
+      lượt hiển thị duy nhất (impression id)** — mã này quan trọng cho việc chống trùng ở phần sau.
+  - id: b03
+    type: text
+    md: |
+      **Nhánh luồng (streaming path) — số nhanh, xấp xỉ.** Một **bộ xử lý luồng (stream processor,
+      ví dụ Flink)** đọc từ Kafka, gộp theo **cửa sổ 1 phút theo event time** (cho sự kiện đến muộn
+      1-2 phút nhờ watermark), rồi **upsert** kết quả theo khoá (ad_id, phút) vào một **kho OLAP**
+      để dashboard truy vấn dưới một giây. Đây là con số để **xem nhanh**: nó có thể hơi sai — sự
+      kiện tới muộn sau watermark bị bỏ, và nếu nhánh luồng xử lý **ít nhất một lần (at-least-once)**
+      thì một sự kiện có thể bị **đếm hai lần (double-count)** khi job khởi động lại. Chấp nhận được
+      cho dashboard, **không** chấp nhận được cho hoá đơn.
+
+      **Top-K khi quá nhiều quảng cáo.** Nếu cần "100 quảng cáo được click nhiều nhất trong 1 giờ gần
+      đây, cập nhật mỗi phút" mà số quảng cáo ít, ta giữ đủ bộ đếm chính xác rồi lấy top. Khi số khoá
+      quá lớn để đếm hết trong RAM, dùng **Count-Min Sketch** (ước lượng tần suất bằng bộ nhớ nhỏ, chỉ
+      sai lệch lên) cộng một **heap (min-heap) cỡ K** giữ K phần tử nổi bật nhất (**heavy hitters**);
+      cửa sổ trượt 1 giờ làm bằng cách giữ 60 bảng đếm theo phút rồi cộng lại — cách triển khai đã học
+      ở `sd.data.probabilistic_structures`.
+  - id: b05
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao con số của **nhánh luồng (streaming path)** chỉ nên dùng cho dashboard, không dùng để tính tiền?"
+    options:
+      - {id: a, text_md: "Vì bộ xử lý luồng không đọc được từ Kafka nên luôn thiếu dữ liệu."}
+      - {id: b, text_md: "Vì nó là số xấp xỉ: sự kiện đến muộn sau watermark bị bỏ, và giao ít nhất một lần (at-least-once) có thể làm đếm trùng khi job khởi động lại."}
+      - {id: c, text_md: "Vì kho OLAP không cho truy vấn dưới một giây nên dashboard không kịp cập nhật."}
+    answer: [b]
+    explain_md: "Nhánh luồng đánh đổi độ chính xác lấy độ trễ thấp: watermark cắt sự kiện tới muộn, và at-least-once có thể double-count — ổn cho xem nhanh, không ổn cho hoá đơn. (a) sai, nó vẫn đọc Kafka; (c) sai, OLAP chính là để truy vấn nhanh."
+  - id: b06
+    type: text
+    md: |
+      **Nhánh lô (batch path) — số đúng, chậm hơn.** Mọi sự kiện click thô vẫn được giữ nguyên trong
+      **kho đối tượng (object store)**. Cuối ngày, một job **lô (batch, ví dụ Spark)** đọc lại toàn bộ
+      log thô của ngày và **đếm lại từ đầu** để ra con số **đúng, có thẩm quyền (authoritative)**. Vì
+      đọc trọn vẹn dữ liệu đã nằm yên (không còn đến muộn) và **loại trùng triệt để** theo impression
+      id, nó không mắc hai lỗi của nhánh luồng. **Đây là con số dùng để tính tiền.** Hệ thống còn
+      **đối soát (reconcile)**: so số lô với số luồng, lệch quá ngưỡng thì **cảnh báo** để tìm lỗi.
+
+      Hai nhánh cùng xử lý một nguồn sự kiện nhưng cho hai kết quả khác mục đích — đây chính là
+      **kiến trúc lambda (lambda architecture)**: một nhánh nhanh/xấp xỉ, một nhánh chậm/chính xác.
+  - id: b07
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao con số **cuối ngày của nhánh lô**, chứ không phải số live của luồng, mới được dùng để tính tiền cho nhà quảng cáo?"
+    options:
+      - {id: a, text_md: "Vì nhánh lô chạy nhanh hơn nhánh luồng nên cho kết quả sớm hơn."}
+      - {id: b, text_md: "Vì nhánh lô đọc lại toàn bộ log thô đã nằm yên và loại trùng triệt để, nên ra con số đúng, có thẩm quyền; số luồng chỉ xấp xỉ (có thể thiếu sự kiện muộn hoặc đếm trùng)."}
+      - {id: c, text_md: "Vì nhà quảng cáo không được phép xem dashboard real-time nên phải chờ đến cuối ngày."}
+    answer: [b]
+    explain_md: "Tính tiền cần đúng tuyệt đối. Nhánh lô reprocess log thô trọn vẹn và dedup triệt để nên là nguồn sự thật; nhánh luồng đổi chính xác lấy tốc độ nên chỉ để xem nhanh. (a) sai — lô chậm hơn; (c) sai — real-time vẫn hiện, chỉ không phải số để lập hoá đơn."
+  - id: b08
+    type: text
+    md: |
+      **Khoá nóng (hot key).** Ta thường **phân vùng theo ad_id** để mọi click của một quảng cáo về
+      cùng một partition cho dễ cộng dồn. Nhưng một quảng cáo **viral** có thể chiếm 50% toàn bộ
+      click — mọi click của nó dồn vào **một partition / một máy**, tạo **điểm nóng (hotspot)** quá
+      tải trong khi máy khác rảnh. Cách gỡ: **chia khoá nóng (salting / pre-aggregate)** — tách ad_id
+      nóng thành nhiều khoá con (ad_id#0 .. ad_id#9), rải đều click sang 10 partition, **đếm riêng từng
+      phần** rồi **cộng lại khi truy vấn**. Cái giá là truy vấn cho quảng cáo đó phải gộp 10 phần thay
+      vì đọc một chỗ — đổi một chút phức tạp lấy việc chia đều được tải.
+  - id: b09
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một quảng cáo viral chiếm 50% của 10.000 click/giây dồn hết vào một partition. Cách xử lý **khoá nóng (hot key)** hợp lý nhất là gì?"
+    options:
+      - {id: a, text_md: "Tăng số partition của Kafka lên gấp đôi; tất cả click của quảng cáo đó vẫn cùng một ad_id nên tự chia đều."}
+      - {id: b, text_md: "Chia ad_id nóng thành nhiều khoá con (salting, ad_id#0..9) để rải sang nhiều partition, đếm riêng từng phần rồi cộng lại khi truy vấn."}
+      - {id: c, text_md: "Bỏ bớt click của quảng cáo đó bằng lấy mẫu để giảm tải, chấp nhận số gần đúng cả khi tính tiền."}
+    answer: [b]
+    explain_md: "Vấn đề là mọi click cùng một ad_id về một partition; thêm partition không giúp vì khoá vẫn không đổi (a sai). Salting chia khoá nóng thành nhiều khoá con để rải tải, cộng lại lúc truy vấn (b). (c) sai — lấy mẫu phá độ chính xác cần cho billing."
+  - id: b10
+    type: text
+    md: |
+      **Loại click trùng (dedup).** Một click có thể tới **nhiều lần**: người dùng bấm lại, trình
+      duyệt retry, hoặc nhánh luồng giao lại khi job restart. Tính trùng là tính tiền sai. Cách làm:
+      mỗi lượt hiển thị có **mã duy nhất (impression id)** được server **ký bằng bí mật (chữ ký HMAC)**;
+      click gửi lại mã đó, server **kiểm chữ ký** (chặn click giả), rồi dùng một **seen-set / khoá
+      idempotency**: ghi mã vào **Redis bằng SET NX kèm TTL** — nếu mã đã tồn tại thì click lặp **không
+      được tính**. Nhánh lô cuối ngày cũng dedup theo cùng impression id, nên dù luồng lỡ đếm trùng,
+      con số tính tiền vẫn sạch.
+  - id: b11
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền thuật ngữ (tiếng Anh):
+      (1) Kỹ thuật tách một khoá nóng thành nhiều khoá con để rải đều tải giữa các partition gọi là ___.
+      (2) Cấu trúc giữ mã đã xử lý để một click lặp không bị tính lần nữa (đảm bảo xử lý một lần về mặt hiệu lực) gọi là ___ (hoặc idempotency key).
+    blanks:
+      - {accept: ["salting", "key salting", "salt"]}
+      - {accept: ["seen-set", "seen set", "dedup set", "dedup", "deduplication set"]}
+    explain_md: "Salting chia khoá nóng thành ad_id#0..9 để chống hotspot; seen-set (một idempotency key store, ví dụ Redis SET NX + TTL) nhớ impression id đã xử lý để click lặp không bị tính lần nữa."
+  - id: b12
+    type: callout
+    kind: interview
+    md: |
+      **Khung trả lời mức phỏng vấn (theo mastery bar).** Khi được hỏi "thiết kế đếm click và top-K",
+      vẽ **pipeline hai nhánh** và nói rõ bốn điểm mấu chốt:
+      1. **Nhánh luồng**: Kafka → stream processor gộp cửa sổ 1 phút theo event time → kho OLAP cho
+         dashboard; thêm Count-Min Sketch + heap cho top-K khi quá nhiều khoá.
+      2. **Nhánh lô**: cuối ngày đọc lại log thô từ object store, đếm lại ra số đúng, **đối soát** với
+         số luồng.
+      3. **Khoá nóng**: salting/pre-aggregate ad_id viral để tránh hotspot một partition.
+      4. **Dedup**: impression id ký HMAC + seen-set (Redis SET NX, TTL) để click lặp không bị tính.
+      Và câu chốt: **số cuối ngày của nhánh lô mới dùng để tính tiền**, số luồng chỉ để xem nhanh.
+  - id: b13
+    type: summary
+    bullets_vi:
+      - "Hai yêu cầu ngược nhau (nhanh cho dashboard vs đúng tuyệt đối cho billing) → kiến trúc **lambda hai nhánh**: luồng xấp xỉ + lô chính xác, cùng một nguồn sự kiện Kafka."
+      - "Nhánh luồng (stream processor + cửa sổ event time + watermark → OLAP) cho số nhanh nhưng **xấp xỉ** (bỏ sự kiện muộn, at-least-once có thể đếm trùng); top-K khi khoá nhiều dùng Count-Min Sketch + heap."
+      - "Nhánh lô cuối ngày đọc lại toàn bộ log thô trong object store, đếm lại + dedup triệt để → con số **đúng, có thẩm quyền để tính tiền**; đối soát hai nhánh và cảnh báo khi lệch."
+      - "**Khoá nóng (hot key)**: quảng cáo viral dồn vào một partition → **salting/pre-aggregate** chia thành khoá con, đếm riêng rồi cộng lại khi truy vấn."
+      - "**Dedup**: impression id ký HMAC + seen-set (Redis SET NX, TTL) để click lặp (retry, restart) không bị tính; đây là lý do số luồng có thể trùng còn số lô thì sạch."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S247], l2: [S248], l3: [S249]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

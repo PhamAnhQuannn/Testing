@@ -1,0 +1,59 @@
+subtopic_id: sd.archetypes.trading_brokerage
+items:
+  - id: S265
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Nói ngắn gọn: trong **sổ lệnh (order book)**, lệnh mua (bids) và lệnh bán (asks) được xếp theo
+      thứ tự nào, và khi một lệnh mới khớp với một lệnh đang nằm sẵn thì **giá khớp** lấy theo lệnh nào?
+    answer_md: |
+      Lệnh **mua (bids)** xếp từ **giá cao xuống thấp** (trả cao nhất được ưu tiên); lệnh **bán
+      (asks)** xếp từ **giá thấp lên cao** (bán rẻ nhất được ưu tiên); cùng giá thì **lệnh đến trước
+      khớp trước** (ưu tiên giá-thời gian). **Giá khớp là giá của lệnh đã nằm sẵn trong sổ**, không
+      phải giá của lệnh vừa tới.
+    rubric_md: "Đạt khi nêu đúng: bids cao->thấp, asks thấp->cao (ưu tiên giá-thời gian) VÀ giá khớp = giá lệnh nằm sẵn. Đúng cả hai ý: bằng chứng điểm 1; thiếu ý giá khớp: tối đa điểm 0."
+  - id: S266
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Sổ lệnh của mã VNM: **Bán (asks)** 51 (40 cp), 52 (50 cp); **Mua (bids)** 50 (100 cp), 49 (80 cp).
+      Tới lệnh mới **mua 70 cp, giá tối đa 51** (limit buy). Hãy khớp tay: nói rõ khớp bao nhiêu cp,
+      ở giá nào, với lệnh nào, và **còn lại gì** trong sổ sau đó. Đây là khớp đủ hay khớp một phần?
+    answer_md: |
+      Giá bán tốt nhất là **51** (40 cp). Mua 51 >= 51 -> khớp **40 cp ở giá 51** (giá lệnh nằm sẵn);
+      lệnh bán 51 hết hàng, rời sổ. Lệnh mua còn **30 cp**. Giá bán tốt nhất giờ là **52**; mua
+      51 < 52 nên **không khớp tiếp**. **30 cp còn lại** nằm lại sổ mua ở giá **51**, thành bid tốt
+      nhất mới (trên 50). Sau cùng: asks còn 52 (50 cp); bids: 51 (30 cp), 50 (100 cp), 49 (80 cp).
+      Đây là **khớp một phần (partial fill)** của lệnh mua — mới khớp 40/70 cp.
+    rubric_md: "Đạt (điểm 2) khi: khớp đúng 40 cp ở giá 51, nhận ra 30 cp dư không khớp 52 (vì 51 < 52) mà rest lại ở giá 51, và gọi đúng là khớp một phần. Đúng, trong time-box, tự giải thích được: bằng chứng điểm 2. Khớp sai giá (vd 51 cả 70 cp ở giá khác) hoặc bỏ sót phần rest: tối đa điểm 1."
+  - id: S267
+    difficulty: 3
+    type: concept
+    minutes: 11
+    prompt_md: |
+      Ở mức phỏng vấn, trình bày gọn một sàn khớp lệnh cho một mã, gồm **ba phần**:
+      (1) Khớp tay vài lệnh trên sổ nhỏ sau, **có khớp một phần**: Bán (asks) 51 (50 cp), 52 (30 cp);
+      Mua (bids) 50 (100 cp). Lệnh tới: **mua 100 cp giá tối đa 52**.
+      (2) Mô tả **đường đi của một lệnh (order path)** từ app đến khi khớp.
+      (3) Giải thích vì sao **sequencer chạy một luồng, trong bộ nhớ**, và cách **dựng lại sổ lệnh**
+      khi máy khớp lệnh chết.
+    answer_md: |
+      **(1) Khớp tay.** Mua 52 >= bán tốt nhất 51 -> khớp **50 cp ở giá 51**; bán 51 rời sổ, mua còn
+      50 cp. Bán tốt nhất giờ 52, mua 52 >= 52 -> khớp **30 cp ở giá 52**; bán 52 rời sổ, mua còn 20
+      cp. Hết bán trong tầm giá -> **20 cp còn lại nằm lại sổ mua ở giá 52** (bid tốt nhất mới). Lệnh
+      mua đã khớp với **hai** lệnh bán và dư 20 cp -> **khớp một phần**. (Giá khớp luôn là giá lệnh
+      nằm sẵn: 51 rồi 52.)
+      **(2) Order path.** app/gateway nhận + xác thực -> **kiểm tra rủi ro trước giao dịch** (đủ
+      tiền/cổ phiếu, trong hạn mức; **lệnh quá hạn bị loại tại đây, không chuyển lên sàn**) ->
+      **sequencer** gán số thứ tự tổng và ghi vào **event log** -> **matching engine** đọc theo đúng
+      thứ tự đó và khớp -> fills được đẩy real-time cho người xem (market data) và chuyển sang
+      **ledger** để **settlement** (tiền và cổ phiếu đổi chủ).
+      **(3) Sequencer một luồng + dựng lại.** Một luồng trong RAM, không khoá, cho **độ trễ
+      micro-giây** và áp **một thứ tự duy nhất** nên khớp **xác định (deterministic)** — chạy lại
+      cùng chuỗi lệnh ra kết quả y hệt; ghi DB mỗi lệnh thì quá chậm và khó đảm bảo thứ tự. Trạng
+      thái trong RAM mất khi máy chết **không sao**, vì mọi lệnh đã được ghi vào **event log theo thứ
+      tự trước khi khớp**: ta **chạy lại (replay)** log để **dựng lại sổ lệnh** đúng như cũ (event
+      sourcing), và bản **standby** nhận cùng log nên luôn sẵn sàng thay thế.
+    rubric_md: "Đạt mức 3 (phỏng vấn) khi làm đúng cả ba: (1) khớp đúng 50 cp@51 + 30 cp@52 và 20 cp rest ở 52, gọi đúng khớp một phần; (2) order path đủ app->risk (loại lệnh quá hạn)->sequencer+log->matching->market data+settlement qua ledger; (3) giải thích một luồng trong RAM = micro-giây + thứ tự xác định, và dựng lại sổ bằng replay event log (standby cùng log). Đúng, trong time-box, tự giải thích rõ ràng: bằng chứng điểm 3. Sai giá khớp, thiếu hẳn order path, hoặc không nêu được replay log để dựng lại: chưa đạt mức 3."
