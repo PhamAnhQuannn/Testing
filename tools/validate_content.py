@@ -219,7 +219,7 @@ class Validator:
             if not any(i["difficulty"] == 2 for i in items.values()):
                 self.fail(path, "concept subtopic needs a level-2 check item (SPEC 5.2)")
             if not lesson["mastery_check"]["l2"]:
-                self.fail(path, "concept subtopic needs a level-2 item in mastery_check.l2 (SPEC 5.2)")
+                self.fail(path, "concept subtopic needs a level-2 mastery_check.l2 item (SPEC 5.2)")
             return
         if not has_wc2:
             self.fail(path, "needs a level-2 write_code item in content/checks (SPEC 3.4/4.4)")
