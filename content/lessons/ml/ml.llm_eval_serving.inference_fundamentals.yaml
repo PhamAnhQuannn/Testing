@@ -1,0 +1,157 @@
+id: ml.llm_eval_serving.inference_fundamentals
+version: 1
+status: published
+title_vi: "Inference LLM: prefill, decode và KV cache — ước lượng bộ nhớ và độ trễ khi phục vụ"
+est_minutes: 14
+objectives_vi:
+  - "Phân biệt hai pha sinh chữ: **prefill** (xử lý cả prompt một lượt, giới hạn bởi sức tính / compute-bound, quyết định TTFT) và **decode** (sinh từng token một, tự hồi quy / autoregressive, giới hạn bởi băng thông bộ nhớ / memory-bandwidth-bound, quyết định throughput)."
+  - "Giải thích **KV cache**: lưu key/value của token cũ để mỗi token mới chỉ tốn O(1) thay vì tính lại O(n); và vì sao nó phình theo **batch × độ dài chuỗi (sequence length)**."
+  - "Ước lượng ngân sách bộ nhớ = **trọng số (weights)** + **KV cache** bằng số học đúng (fp16 = 2 byte/tham số → 7B ≈ 14 GB)."
+  - "Giải thích **TTFT** và **throughput** từ cơ chế prefill/decode, và vì sao decode nghẽn băng thông lại mở đường cho batching."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Bài này nói về **inference** — lúc một LLM đã huấn luyện xong *đang trả lời* người dùng, chứ
+      không phải lúc train. Hiểu inference là nền để phục vụ model: ước lượng bộ nhớ GPU cần, giải
+      thích độ trễ người dùng cảm nhận, và biết chỗ nào đáng tối ưu.
+
+      Một lần sinh chữ của LLM luôn gồm **hai pha** rất khác nhau về đặc tính phần cứng:
+      - **Prefill (nạp prompt):** đọc *toàn bộ* prompt một lượt, tính K/V cho mọi token của nó, rồi
+        sinh ra **token đầu tiên**.
+      - **Decode (sinh tiếp):** từ đó sinh **từng token một**, mỗi bước chỉ thêm đúng một token mới,
+        lặp cho tới khi hết câu trả lời.
+
+      Hai pha này nghẽn ở hai thứ khác nhau (sức tính vs băng thông bộ nhớ), nên quyết định hai loại
+      độ trễ khác nhau. Đây là ý cốt lõi của cả bài.
+  - id: b02
+    type: text
+    md: |
+      **Prefill — giới hạn bởi sức tính (compute-bound):** cả prompt (ví dụ 500 token) được đưa qua
+      model *song song* trong một lượt. Vì có nhiều token cùng lúc, GPU có rất nhiều phép nhân ma
+      trận để làm → nó bận **tính toán**, các nhân (core) được lấp đầy. Prefill quyết định
+      **TTFT (Time To First Token)** — thời gian từ lúc bấm gửi tới lúc chữ đầu tiên hiện ra. Prompt
+      càng dài, prefill càng lâu, TTFT càng lớn.
+
+      Nói cách khác: prefill làm *một* việc lớn, giàu phép tính, nên hiệu suất GPU cao và nút thắt là
+      **FLOP (số phép tính)**.
+  - id: b03
+    type: text
+    md: |
+      **Decode — giới hạn bởi băng thông bộ nhớ (memory-bandwidth-bound):** sau token đầu, model sinh
+      **một token mỗi bước**, và mỗi bước phải **đọc lại toàn bộ trọng số** của model từ VRAM để tính
+      ra đúng *một* token. Đây là điểm mấu chốt: lượng phép tính cho một token thì bé tí, nhưng lượng
+      dữ liệu (trọng số) phải kéo từ bộ nhớ lại rất lớn → GPU **ngồi chờ bộ nhớ**, không chờ phép
+      tính. Nút thắt là **băng thông bộ nhớ (memory bandwidth)**, không phải FLOP.
+
+      Decode là pha **tự hồi quy (autoregressive)**: token mới phụ thuộc mọi token trước, nên không
+      song song hoá theo thời gian được như prefill. Decode quyết định:
+      - **TPOT / ITL (Time Per Output Token / Inter-Token Latency):** thời gian giữa hai token liên
+        tiếp — tốc độ chữ "chảy ra".
+      - **Throughput (thông lượng):** tổng số token mỗi giây mà hệ thống phục vụ được cho *tất cả*
+        người dùng.
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao pha **decode** của LLM thường bị gọi là **memory-bandwidth-bound** (nghẽn băng thông bộ nhớ), còn **prefill** lại **compute-bound** (nghẽn sức tính)?"
+    options:
+      - {id: a, text_md: "Decode sinh một token mỗi bước nên phải đọc lại toàn bộ trọng số từ VRAM cho rất ít phép tính → GPU chờ bộ nhớ; prefill xử lý cả prompt song song, nhiều phép tính cùng lúc → GPU chờ sức tính."}
+      - {id: b, text_md: "Decode dùng nhiều GPU hơn prefill, còn prefill chỉ dùng một GPU nên chậm."}
+      - {id: c, text_md: "Prefill phải đọc lại trọng số mỗi token còn decode thì không, nên prefill mới là pha nghẽn bộ nhớ."}
+    answer: [a]
+    explain_md: "Decode: mỗi bước kéo lại toàn bộ trọng số (vd 14 GB cho model 7B) để sinh đúng 1 token — ít phép tính, nhiều dữ liệu → nghẽn băng thông. Prefill: cả prompt vào một lượt, rất nhiều phép nhân ma trận → nghẽn sức tính. (c) nói ngược; (b) sai bản chất, không liên quan số GPU."
+  - id: b05
+    type: text
+    md: |
+      **KV cache — vì sao decode không phải O(n) mỗi bước.** Trong attention (đã học ở bài attention),
+      mỗi token mới cần nhìn lại **key (K)** và **value (V)** của *mọi* token trước nó. Nếu không lưu
+      gì, sinh token thứ 100 phải tính lại K/V của 99 token trước → tốn O(n) mỗi bước, tổng O(n²).
+
+      **KV cache** lưu sẵn K và V của các token đã xử lý. Nhờ vậy mỗi bước decode chỉ cần tính K/V
+      cho **đúng một token mới**, rồi ghép với cache cũ → chi phí mỗi bước còn **O(1)** (tính theo số
+      token mới), đổi lấy việc phải **giữ cache trong bộ nhớ**. Đây là lý do sinh token thứ 100 nhanh
+      như token thứ 2: ta không tính lại gì của quá khứ.
+  - id: b06
+    type: callout
+    kind: warning
+    md: |
+      **KV cache phình theo batch × độ dài chuỗi.** Cache phải giữ K/V cho **từng token** của **từng
+      chuỗi đang chạy**. Vậy bộ nhớ KV ≈ (kích thước mỗi token) × (số token) × (**batch** — số yêu
+      cầu chạy song song). Ở **ngữ cảnh dài (long context)** và batch lớn, KV cache có thể **vượt cả
+      trọng số model** và trở thành thứ chiếm bộ nhớ nhiều nhất → nó là giới hạn thật sự của "bao
+      nhiêu người dùng / ngữ cảnh bao dài" mà một GPU gánh được.
+  - id: b07
+    type: text
+    md: |
+      **Ngân sách bộ nhớ GPU = trọng số (weights) + KV cache + activations.** Activations (kết quả
+      trung gian tạm thời) thường nhỏ khi phục vụ; hai phần lớn là trọng số và KV cache.
+
+      **Trọng số** = số tham số × số byte mỗi tham số. Ở **fp16/bf16 là 2 byte/tham số**:
+      - Model **7B** → 7 tỉ × 2 byte = **14 GB**.
+      - Model **13B** → 13 tỉ × 2 byte ≈ **26 GB**.
+      - Nếu lượng tử hoá (quantize) xuống **int8 (1 byte)** thì 7B ≈ 7 GB; **int4 (0,5 byte)** ≈
+        3,5 GB. Nhớ mốc: **fp16 = 2 byte → nhân đôi số tỉ tham số ra số GB**.
+  - id: b08
+    type: text
+    md: |
+      **Số học KV cache.** Cỡ cache cho mỗi token (tính cho một chuỗi) là:
+
+      **KV bytes mỗi token = 2 × số lớp (layers) × số kv_head × head_dim × byte mỗi số.**
+
+      Số **2** là vì lưu *cả* K và V. **kv_head** là số đầu có K/V riêng (với GQA/MQA nó nhỏ hơn số
+      head của Q). **head_dim** = chiều ẩn chia số head (vd 4096 / 32 = 128). Nhân thêm **số token**
+      rồi **batch** ra tổng.
+
+      Ví dụ (fp16 = 2 byte, 32 lớp, 8 kv_head, head_dim 128):
+      2 × 32 × 8 × 128 × 2 = **131.072 byte ≈ 0,13 MB cho mỗi token**. Với **4000 token** (một hội
+      thoại dài, batch 1): 0,13 MB × 4000 ≈ **0,5 GB**. Nếu model dùng **32 kv_head** (không rút gọn
+      bằng GQA): 2 × 32 × 32 × 128 × 2 = 524.288 byte/token, × 4000 ≈ **2 GB** — gấp 4 lần, cho thấy
+      **GQA/MQA** (nhiều Q-head dùng chung một bộ K/V) cắt KV cache mạnh thế nào.
+
+      Gộp lại cho model 7B (fp16): ~14 GB trọng số **+** ~0,5 GB KV cho một chuỗi 4k token → một GPU
+      24 GB còn dư chỗ để nhận thêm nhiều chuỗi (tăng batch) cho tới khi KV cache lấp đầy.
+  - id: b09
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền con số còn thiếu. Một model fp16 (**2 byte** mỗi tham số) có **7 tỉ** tham số. Chỉ tính
+      riêng **trọng số (weights)**, nó chiếm khoảng ______ GB VRAM.
+    blanks:
+      - accept: ["14", "14 GB", "14GB", "~14", "khoảng 14"]
+    explain_md: "7 tỉ × 2 byte = 14 tỉ byte = 14 GB. Mẹo nhớ: ở fp16 (2 byte/tham số), số GB của riêng trọng số ≈ 2 × số tỉ tham số. KV cache và activations cộng thêm trên con số này."
+  - id: b10
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Decode nghẽn băng thông: mỗi bước kéo lại toàn bộ trọng số chỉ để sinh 1 token, trong khi GPU còn thừa sức tính. Cách xử lý nào tận dụng được điểm này để **tăng throughput**?"
+    options:
+      - {id: a, text_md: "Gộp nhiều yêu cầu lại chạy cùng lúc (**batching**): một lần đọc trọng số phục vụ được nhiều chuỗi, lấp phần sức tính đang thừa → tổng token/giây tăng (đổi lại tốn thêm KV cache và có thể tăng độ trễ từng yêu cầu)."}
+      - {id: b, text_md: "Bắt mỗi token đọc trọng số hai lần để chắc chắn đúng, nhờ vậy chạy nhanh hơn."}
+      - {id: c, text_md: "Bỏ KV cache đi để tiết kiệm bộ nhớ, vì tính lại K/V mỗi bước luôn nhanh hơn đọc cache."}
+    answer: [a]
+    explain_md: "Vì sức tính đang thừa còn băng thông là nút thắt, **batching** cho nhiều chuỗi dùng chung một lần đọc trọng số → throughput tăng mạnh (chủ đề bài phục vụ tiếp theo). (b) vô nghĩa, chỉ tốn gấp đôi băng thông; (c) sai — bỏ cache làm mỗi bước quay về O(n), chậm hơn nhiều, dù đỡ tốn bộ nhớ."
+  - id: b11
+    type: callout
+    kind: interview
+    md: |
+      **Câu hỏi phỏng vấn hay gặp (AI engineer):** "Model X tỉ tham số chạy fp16 cần bao nhiêu VRAM
+      để phục vụ ngữ cảnh N token?" → Cách trả lời ghi điểm: tách **hai phần**. (1) Trọng số =
+      X tỉ × 2 byte (vd 7B → 14 GB). (2) KV cache = 2 × layers × kv_head × head_dim × 2 byte × N ×
+      batch; ước lượng ra GB. Rồi nối với độ trễ: **prefill (compute-bound) → TTFT**; **decode
+      (memory-bound) → TPOT/throughput**. Nêu thêm: ngữ cảnh dài khiến KV cache lấn át trọng số, và
+      **GQA/MQA** là đòn bẩy chính để cắt KV cache. Nói được chuỗi này là đủ mức 3 của bài.
+  - id: b12
+    type: summary
+    bullets_vi:
+      - "Sinh chữ có hai pha: **prefill** (cả prompt một lượt, **compute-bound**, quyết định **TTFT**) và **decode** (từng token một, **autoregressive**, **memory-bandwidth-bound**, quyết định **TPOT/throughput**)."
+      - "**KV cache** lưu K/V của token cũ để mỗi bước decode chỉ tốn **O(1)** thay vì tính lại **O(n)**; đổi lại nó chiếm bộ nhớ và **phình theo batch × độ dài chuỗi**, ở ngữ cảnh dài có thể vượt cả trọng số."
+      - "**Bộ nhớ = trọng số + KV cache + activations.** Trọng số = tham số × byte/tham số; **fp16 = 2 byte → 7B ≈ 14 GB** (int8 ≈ 7 GB, int4 ≈ 3,5 GB)."
+      - "**KV bytes = 2 × layers × kv_head × head_dim × byte/số × token × batch.** Vd 32 lớp, 8 kv_head, head_dim 128, fp16 ≈ 0,13 MB/token → 4000 token ≈ 0,5 GB; **GQA/MQA** (giảm kv_head) cắt cache nhiều lần."
+      - "Decode nghẽn băng thông (đọc lại toàn bộ trọng số cho 1 token) nên **batching** gộp nhiều yêu cầu để tăng throughput — nền cho bài phục vụ tiếp theo."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S322], l2: [S323], l3: [S324]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

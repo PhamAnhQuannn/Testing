@@ -1,0 +1,78 @@
+subtopic_id: ml.llm_eval_serving.guardrails_safety
+items:
+  - id: S319
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Nói ngắn gọn: **prompt injection trực tiếp (direct)** và **gián tiếp (indirect)** khác nhau
+      thế nào? Vì sao dạng gián tiếp thường nguy hiểm hơn?
+    answer_md: |
+      **Trực tiếp (direct)**: chính người dùng gõ lệnh độc vào, ví dụ "bỏ qua mọi hướng dẫn trước
+      và làm X". **Gián tiếp (indirect)**: lệnh độc **giấu trong dữ liệu mà app tự nạp vào** — tài
+      liệu lấy về (retrieved), email, trang web, hay kết quả trả về từ tool — chứ không do người
+      dùng cố ý nhập.
+
+      Gián tiếp nguy hiểm hơn vì **người dùng hợp lệ hoàn toàn không hề hay** (họ chỉ nhờ tóm tắt
+      một email/trang web bình thường), và kẻ tấn công có thể gieo lệnh vào bất kỳ nội dung nào
+      app sẽ đọc. Đó là lý do nguyên tắc nền là coi **mọi nội dung ngoài là untrusted (dữ liệu,
+      không phải lệnh)**.
+    rubric_md: "Đúng khi nêu được: trực tiếp = người dùng tự nhập lệnh; gián tiếp = lệnh giấu trong dữ liệu app nạp vào (tài liệu/email/web/kết quả tool); và một lý do gián tiếp nguy hiểm hơn (người dùng không hay / kẻ tấn công gieo được vào nội dung app đọc). Đủ ý: bằng chứng điểm 1. Thiếu định nghĩa một dạng, hoặc lẫn lộn hai dạng: tối đa điểm 0."
+  - id: S320
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Bạn xây một bot chăm sóc khách hàng: nó đọc lịch sử ticket của khách (có dữ liệu cá nhân) và
+      có một **tool 'hoàn tiền' (refund)**. Hãy đề xuất **phòng thủ nhiều lớp (defense in depth)**
+      để giảm rủi ro, nêu ít nhất **ba lớp khác nhau** và mỗi lớp chặn được điều gì (ví dụ: injection,
+      rò rỉ PII, hay lạm dụng tool refund).
+    answer_md: |
+      Một số lớp hợp lý (nêu được >= 3 lớp khác nhau kèm tác dụng):
+      - **Coi nội dung ticket là untrusted + đầu vào lọc/phân loại (input filtering)**: bọc nội dung
+        khách trong delimiter, luật ở system; một bộ lọc dò dấu hiệu injection → chặn **prompt
+        injection gián tiếp** giấu trong ticket.
+      - **Quyền tối thiểu + allowlist + người duyệt cho tool refund (least privilege + human
+        approval)**: tool refund chỉ hoàn trong hạn mức nhỏ, hoặc mọi lệnh hoàn tiền phải có **nhân
+        viên xác nhận** → chặn **lạm dụng tool (tool misuse)** khi model bị lừa.
+      - **Kiểm duyệt đầu ra + che PII (output moderation + PII redaction)**: soát câu trả lời, che
+        số thẻ/điện thoại/email trước khi trả hoặc ghi log → chặn **rò rỉ dữ liệu cá nhân**.
+      - (Có thể thêm) **Validator/đầu ra có cấu trúc**: refund chỉ kích hoạt khi đầu ra đúng khuôn
+        cho phép; **rate limit** số refund mỗi khách.
+
+      Ý cốt lõi: không lớp nào đủ một mình, nên xếp chồng; và hành động rủi ro (refund) phải có
+      người/luật cứng duyệt chứ không để model tự quyết theo văn bản.
+    rubric_md: "Đạt khi nêu >= 3 lớp KHÁC nhau và gắn đúng mối đe dọa mỗi lớp chặn, trong đó PHẢI có biện pháp bảo vệ tool refund (quyền tối thiểu / người duyệt / allowlist) vì đó là hành động rủi ro nhất. Đúng, trong time-box, tự giải thích được: bằng chứng điểm 2. Chỉ liệt kê lớp chung chung mà không gắn tác dụng, hoặc bỏ sót bảo vệ tool refund: tối đa điểm 1."
+  - id: S321
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      **(Phỏng vấn AI engineer)** Bạn thiết kế một trợ lý nội bộ: nó **đọc được tài liệu & email
+      công ty** (dữ liệu riêng), **tóm tắt được trang web/tài liệu bên ngoài** (nội dung không tin
+      cậy), và **có tool gửi email ra Internet**. Hãy trình bày:
+      (1) **liệt kê các mối đe dọa** của app này;
+      (2) **đề xuất phòng thủ nhiều lớp**;
+      (3) **giải thích "lethal trifecta"** và dùng nó để chỉ ra biện pháp kiến trúc chắc chắn nhất.
+    answer_md: |
+      **(1) Mối đe dọa:** prompt injection **trực tiếp & gián tiếp** (lệnh giấu trong web/tài liệu
+      ngoài mà trợ lý tóm tắt), **jailbreak**, **rò rỉ / tuồn dữ liệu nhạy cảm (exfiltration)** —
+      lộ tài liệu/email nội bộ hoặc bị dụ gửi chúng ra ngoài, **đầu ra có hại**, và **lạm dụng tool
+      gửi email (tool misuse)**.
+
+      **(2) Phòng thủ nhiều lớp (defense in depth):** coi mọi nội dung ngoài là untrusted (delimiter,
+      luật ở system); lọc/phân loại đầu vào; kiểm duyệt đầu ra + **che PII**; **guardrail model /
+      validator** riêng và đầu ra có cấu trúc; **quyền tối thiểu + allowlist + người duyệt** cho
+      tool gửi mail (chỉ cho gửi nội bộ, hoặc cần người xác nhận khi gửi ra ngoài); sandbox, rate
+      limit; và **red teaming** để kiểm, chấp nhận không lớp nào hoàn hảo (cân bằng refusal vs
+      over-refusal).
+
+      **(3) Lethal trifecta (Simon Willison):** app nguy hiểm nhất khi gộp đủ **ba** chân: (1) truy
+      cập **dữ liệu riêng** (email/tài liệu nội bộ), (2) tiếp xúc **nội dung không tin cậy** (web
+      ngoài), (3) **khả năng gửi ra ngoài** (tool email). Kẻ tấn công giấu lệnh ở chân 2, lệnh đọc
+      dữ liệu riêng (chân 1) rồi gửi ra ngoài (chân 3) — chuỗi tuồn dữ liệu hoàn chỉnh. App này có
+      **đủ cả ba chân**. Biện pháp kiến trúc chắc chắn nhất là **bỏ đi một chân**: ví dụ chặn tool
+      gửi ra Internet / chỉ cho allowlist miền nội bộ (bỏ chân 3), hoặc tách phiên sao cho khi đang
+      đọc web lạ thì không chạm dữ liệu riêng (bỏ chân 2) — cắt chân nào cũng phá được chuỗi, chắc
+      chắn hơn mọi lời dặn trong prompt.
+    rubric_md: "Đạt (mức phỏng vấn, điểm 3) khi: (1) liệt kê được các mối đe dọa chính (injection trực tiếp/gián tiếp, jailbreak, exfiltration, tool misuse, đầu ra có hại); (2) đề xuất phòng thủ nhiều lớp hợp lý, có bảo vệ tool gửi mail (quyền tối thiểu/người duyệt/allowlist) và coi nội dung ngoài là untrusted; VÀ (3) giải thích lethal trifecta ĐÚNG ba chân (dữ liệu riêng + nội dung không tin cậy + gửi ra ngoài) rồi chỉ ra rằng bỏ một chân là biện pháp chắc nhất. Đúng, trong time-box, tự giải thích rõ: bằng chứng điểm 3. Thiếu phần lethal trifecta hoặc nêu sai số chân, hoặc không nêu được phòng thủ nhiều lớp: chưa đạt mức 3."
