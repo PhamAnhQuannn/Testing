@@ -1,0 +1,168 @@
+id: ml.llm_eval_serving.online_eval_monitoring
+version: 1
+status: published
+title_vi: "Đánh giá khi chạy thật và giám sát app LLM: tín hiệu, vòng phản hồi và kiểm chứng suy giảm chất lượng"
+est_minutes: 13
+objectives_vi:
+  - "Hiểu vì sao eval offline (bộ thử cố định) chưa đủ khi app đã chạy thật: online không có đáp án chuẩn (ground truth) cho từng lượt."
+  - "Chọn và đọc các tín hiệu online: phản hồi trực tiếp (explicit feedback), tín hiệu gián tiếp (implicit signals), chi phí/độ trễ/tỉ lệ lỗi, và LLM-as-judge lấy mẫu online."
+  - "Thiết kế vòng phản hồi (feedback loop): log lượt + tín hiệu → lấy mẫu & gán nhãn → đẩy ca khó về eval set → chạy lại (đóng vòng)."
+  - "Phát hiện và kiểm chứng suy giảm chất lượng (quality regression) bằng số liệu: baseline + cảnh báo, A/B test, drift; xác minh bằng con số chứ không bằng giai thoại."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Ở bài trước (eval_sets_metrics) bạn đã dựng **eval set** (bộ câu hỏi thử) có đáp án chuẩn để đo
+      trước khi tung ra. Nhưng khi app LLM **đã chạy thật**, có một sự thật phũ phàng: **không có đáp
+      án chuẩn (ground truth) cho từng lượt người dùng**. Người dùng hỏi những câu bạn chưa từng
+      nghĩ tới, bằng giọng văn lạ, trong ngữ cảnh lạ — và không ai ngồi chấm điểm từng câu trả lời.
+
+      Vì vậy eval offline **cần nhưng chưa đủ**. Một tính năng đạt 90% trên eval set vẫn có thể bị
+      người dùng thật phàn nàn, vì: (1) phân bố câu hỏi thật khác bộ thử; (2) hành vi người dùng đổi
+      theo thời gian; (3) model/nhà cung cấp có thể bị cập nhật ngầm. Công việc của AI engineer khi
+      **giám sát (monitoring)** là: **ghi lại mọi lượt**, **thu tín hiệu gián tiếp thay cho đáp án
+      chuẩn**, rồi **đóng vòng** phản hồi đó trở lại eval set.
+  - id: b02
+    type: text
+    md: |
+      **Tín hiệu online (online signals)** chia thành vài nhóm. Nhóm đầu là **phản hồi trực tiếp
+      (explicit feedback)**: người dùng tự nói ra chất lượng — bấm 👍/👎 (thumbs up/down), cho sao
+      (rating), hoặc nút 'báo lỗi'. Rõ ràng nhưng **thưa**: đa số người dùng không bấm gì, và người
+      bấm thường là người rất hài lòng hoặc rất bực (thiên lệch lấy mẫu — sampling bias).
+
+      Nhóm quan trọng hơn trong thực tế là **tín hiệu gián tiếp (implicit signals)** — suy ra chất
+      lượng từ *hành vi*, không cần người dùng chấm điểm:
+      - **Tỉ lệ bấm tạo lại / hỏi lại (regeneration / retry rate)**: họ bấm 'thử lại' nhiều = câu trả
+        lời đầu chưa tốt.
+      - **Tỉ lệ sửa / chấp nhận (edit / accept rate)**: với gợi ý code hay bản nháp, người dùng giữ
+        nguyên (accept) hay sửa nhiều, hay bỏ hẳn.
+      - **Bỏ dở hội thoại (thread abandonment)** và **độ dài hội thoại (conversation length)**: bỏ
+        giữa chừng hoặc phải hỏi đi hỏi lại nhiều lượt thường là dấu hiệu xấu.
+      - **Hoàn thành tác vụ (task completion)**: người dùng có đạt được việc họ định làm không (ví dụ
+        đặt được vé, copy được đoạn trả lời, không quay lại hỏi lại trong 10 phút).
+  - id: b03
+    type: text
+    md: |
+      Hai nhóm tín hiệu còn lại:
+
+      **Chỉ số vận hành**: **độ trễ (latency)**, **token/chi phí (cost)** và **tỉ lệ lỗi (error
+      rate)** theo thời gian. Đây không phải chất lượng nội dung, nhưng một app trả lời đúng mà chậm
+      10 giây hoặc tốn gấp 3 tiền thì vẫn là app tệ. Luôn gắn chúng vào dashboard cạnh tín hiệu chất
+      lượng.
+
+      **LLM-as-judge lấy mẫu online (online LLM-as-judge sampling)**: ta không chấm được 100% lượt
+      bằng tay, nên **lấy mẫu ngẫu nhiên** (ví dụ 1-5% lượt, hoặc ưu tiên lượt có tín hiệu xấu) rồi
+      cho một model mạnh đóng vai giám khảo chấm theo rubric (tiêu chí). Cách này cho một ước lượng
+      chất lượng *liên tục* mà không cần đáp án chuẩn. Lưu ý: judge cũng có thể sai và thiên lệch, nên
+      định kỳ **đối chiếu điểm của judge với nhãn người thật** trên một mẫu nhỏ để tin được nó.
+
+      Nền tảng để có mọi tín hiệu trên là **tracing (ghi vết)**: log lại mỗi lượt gồm prompt, câu trả
+      lời, tool call, token, độ trễ (chuẩn chung hay dùng là OpenTelemetry GenAI conventions) — để khi
+      có sự cố còn mở ra xem lại được.
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một chatbot chỉ có rất ít người bấm 👍/👎, nên bạn gần như không có dữ liệu chất lượng. Hướng **đúng** để vẫn ước lượng được chất lượng là gì?"
+    options:
+      - {id: a, text_md: "Dựa vào **tín hiệu gián tiếp (implicit signals)** như tỉ lệ bấm tạo lại, tỉ lệ sửa/chấp nhận, bỏ dở hội thoại, cộng thêm **LLM-as-judge chấm trên mẫu ngẫu nhiên** các lượt."}
+      - {id: b, text_md: "Ép buộc mọi người dùng phải bấm 👍/👎 trước khi dùng tiếp, vì phản hồi trực tiếp luôn chính xác nhất."}
+      - {id: c, text_md: "Bỏ đo online, chỉ cần điểm trên eval set offline là đủ đại diện cho người dùng thật."}
+    answer: [a]
+    explain_md: "Phản hồi trực tiếp thường thưa và thiên lệch, nên ta suy chất lượng từ hành vi (implicit signals) và chấm mẫu bằng LLM-as-judge. (b) ép bấm làm hỏng trải nghiệm và vẫn thiên lệch; (c) eval offline không đại diện cho phân bố câu hỏi thật — chính là lý do phải đo online."
+  - id: b05
+    type: text
+    md: |
+      **Vòng phản hồi (feedback loop)** là thứ biến giám sát thành *cải thiện*. Các bước:
+      1. **Log**: ghi lại prompt + câu trả lời + mọi tín hiệu (explicit, implicit, chi phí, điểm
+         judge) cho mỗi lượt.
+      2. **Lấy mẫu & gán nhãn (sample & label)**: không xem hết được, nên lấy mẫu — ưu tiên các lượt
+         **có tín hiệu xấu** (bị 👎, bị tạo lại nhiều, bị bỏ dở) — rồi người hoặc judge gán nhãn đúng/sai
+         và ghi lý do.
+      3. **Đẩy ca khó về eval set (close the loop)**: những ca thật mà app làm sai được **thêm vào
+         eval set** kèm đáp án chuẩn. Nhờ vậy bộ thử **ngày càng giống thực tế**, không còn là bộ câu
+         hỏi tưởng tượng lúc đầu.
+      4. **Chạy lại (re-test)**: mỗi lần đổi prompt/model/retrieval, chạy lại eval set đã lớn lên này
+         (regression test) để chắc bản mới sửa được ca khó mà không làm hỏng ca cũ.
+
+      Đây là vòng khép kín: *sản phẩm → log → nhãn → eval set → thử nghiệm → sản phẩm*. Một eval set
+      **sống** (liên tục được nạp ca thật) đáng giá hơn nhiều một eval set dựng một lần rồi bỏ đó.
+  - id: b06
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền cụm còn thiếu: Khi app chạy thật, ta lấy những **ca mà app trả lời sai** (phát hiện qua
+      tín hiệu xấu), gán nhãn đúng, rồi thêm chúng vào ______ để lần sau chạy lại kiểm chứng. Việc này
+      gọi là 'đóng vòng' (closing the loop).
+    blanks:
+      - accept: ["eval set", "bộ đánh giá", "bộ câu hỏi thử", "evaluation set", "eval"]
+    explain_md: "Đẩy ca khó thật về **eval set** chính là 'đóng vòng': bộ thử lớn dần và giống thực tế hơn, nên các lần đo sau phản ánh đúng chất lượng người dùng gặp phải."
+  - id: b07
+    type: text
+    md: |
+      **Phát hiện suy giảm chất lượng (quality regression):**
+      - **Baseline + cảnh báo (alert)**: chốt một mức nền cho từng tín hiệu chủ chốt (ví dụ tỉ lệ 👎,
+        tỉ lệ tạo lại, điểm judge trung bình) rồi **đặt cảnh báo khi nó tụt** quá ngưỡng so với nền.
+      - **A/B test**: khi muốn đổi một thứ (prompt, model, retrieval), **chia ngẫu nhiên** người dùng
+        thành nhóm bản cũ (A) và bản mới (B) rồi so chỉ số giữa hai nhóm. So cùng thời điểm, cùng loại
+        người dùng mới công bằng; cần **đủ người và đủ thời gian** để con số đáng tin (chi tiết thống
+        kê ở ml.math.ab_testing).
+      - **Drift (trôi phân bố)**: chất lượng tụt dù bạn *không đổi gì*. Hai nguồn hay gặp: **đầu vào
+        đổi** (input distribution shift — người dùng bắt đầu hỏi loại câu mới, hoặc có đợt traffic lạ)
+        và **model/nhà cung cấp cập nhật ngầm** khiến hành vi đổi mà không báo. Cách bắt: định kỳ chạy
+        lại một **eval cố định (pinned eval)** — bộ thử không đổi — nếu điểm trên bộ cố định này tụt
+        thì chính model đổi, còn nếu bộ cố định vẫn ổn mà tín hiệu thật tụt thì nhiều khả năng đầu vào
+        đã drift.
+  - id: b08
+    type: callout
+    kind: interview
+    md: |
+      **Kiểm chứng một báo cáo 'model tệ đi' — đây là câu phỏng vấn kinh điển.** Khi có người nói
+      'tuần này bot trả lời tệ hơn', **đừng tin ngay vào giai thoại (anecdote)** — một vài ảnh chụp màn
+      hình không phải bằng chứng. Hãy xác minh bằng số:
+      - **So với baseline**: tín hiệu thực sự tụt bao nhiêu so với cửa sổ nền (baseline window) tuần
+        trước, trên *cùng khoảng thời gian* và cùng cách đo?
+      - **Cắt lát theo phân khúc (segment the metric)**: tụt ở toàn bộ hay chỉ ở một loại câu hỏi /
+        một nhóm người dùng / một ngôn ngữ? Thường 'tệ đi' chỉ nằm ở một lát.
+      - **Kiểm tra ý nghĩa thống kê (significance)**: mức tụt có vượt dao động ngẫu nhiên bình thường
+        không, hay chỉ là một ngày ít dữ liệu?
+      - **Tách nguyên nhân bằng pinned eval**: chạy lại bộ thử cố định. Tụt trên bộ cố định ⇒ model/
+        nhà cung cấp đổi; bộ cố định ổn mà tín hiệu thật tụt ⇒ nghi đầu vào drift hoặc một thay đổi
+        phía app.
+
+      Câu trả lời tốt luôn kết thúc bằng *một con số trên cùng cách đo*, không phải cảm giác.
+  - id: b09
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một product manager gửi 3 ảnh chụp màn hình và nói 'từ tuần trước bot trả lời tệ hẳn'. Bạn nên làm gì **đầu tiên** để kiểm chứng?"
+    options:
+      - {id: a, text_md: "So tín hiệu chủ chốt với **cửa sổ baseline** tuần trước, **cắt lát theo phân khúc**, kiểm tra ý nghĩa thống kê, và chạy lại **pinned eval** để tách nguyên nhân — tức xác minh bằng số liệu."}
+      - {id: b, text_md: "Đổi ngay sang model khác, vì 3 ảnh chụp màn hình đã đủ chứng minh model hiện tại hỏng."}
+      - {id: c, text_md: "Thêm câu 'hãy trả lời thật tốt' vào system prompt rồi coi như đã xử lý xong."}
+    answer: [a]
+    explain_md: "Giai thoại không phải bằng chứng. Phải so với baseline trên cùng cách đo, segment chỉ số, kiểm tra significance và dùng pinned eval để biết là model đổi hay đầu vào drift. (b) hành động mù khi chưa xác minh; (c) lời dặn suông, không đo gì."
+  - id: b10
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Bạn muốn thay prompt mới vì nghĩ nó tốt hơn. Cách **kiểm chứng online** đáng tin nhất trên người dùng thật là gì?"
+    options:
+      - {id: a, text_md: "**A/B test**: chia ngẫu nhiên người dùng thành nhóm bản cũ và bản mới chạy song song, so tín hiệu (👎, tạo lại, task completion, chi phí) giữa hai nhóm với đủ người và đủ thời gian."}
+      - {id: b, text_md: "Bật bản mới cho 100% người dùng ngay, rồi so chỉ số tuần này với tuần trước là xong."}
+      - {id: c, text_md: "Tự thử vài câu thấy 'có vẻ hay hơn' rồi chốt, khỏi cần đo tín hiệu."}
+    answer: [a]
+    explain_md: "A/B test so hai bản **cùng thời điểm, cùng loại người dùng**, nên loại được yếu tố thời gian/mùa vụ. (b) so tuần này với tuần trước lẫn lộn drift và thay đổi khác; (c) chính là 'cảm tính' mà bài eval_sets_metrics đã cảnh báo."
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "Online **không có đáp án chuẩn cho từng lượt**: eval offline cần nhưng chưa đủ, phải **ghi vết (tracing)** mọi lượt và thu tín hiệu để biết chất lượng thật."
+      - "Tín hiệu: **explicit** (👍/👎, rating — thưa & thiên lệch), **implicit** (tạo lại, sửa/chấp nhận, bỏ dở, độ dài, task completion), **chi phí/độ trễ/tỉ lệ lỗi**, và **LLM-as-judge lấy mẫu**."
+      - "**Vòng phản hồi**: log → lấy mẫu & gán nhãn (ưu tiên ca có tín hiệu xấu) → **đẩy ca khó về eval set (đóng vòng)** → chạy lại; eval set 'sống' đáng giá hơn bộ dựng một lần."
+      - "Phát hiện regression: **baseline + cảnh báo**, **A/B test** để so bản mới công bằng, canh **drift** (đầu vào đổi hoặc nhà cung cấp cập nhật ngầm)."
+      - "Kiểm chứng báo cáo 'tệ đi' bằng **số liệu**: so baseline window, **segment** chỉ số, kiểm tra **significance**, chạy **pinned eval** để tách nguyên nhân — không chốt bằng giai thoại."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S313], l2: [S314], l3: [S315]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

@@ -1,0 +1,142 @@
+id: ml.llm_eval_serving.batching_scheduling
+version: 1
+status: published
+title_vi: "Batching, scheduling và paged attention: ép GPU phục vụ nhiều request cùng lúc"
+est_minutes: 14
+objectives_vi:
+  - "Giải thích vì sao giai đoạn decode là memory-bound, nên gom nhiều request thành batch sẽ chia sẻ (amortize) chi phí nạp trọng số và nâng mạnh thông lượng (throughput), đổi lại tăng chút độ trễ (latency) mỗi request."
+  - "Phân biệt static batching với continuous / in-flight batching (vLLM, TGI) và nói được vì sao continuous batching tận dụng GPU tốt hơn hẳn."
+  - "Nêu vai trò của PagedAttention (quản KV cache theo trang) và prefix caching (dùng lại KV của phần prompt chung) trong việc tăng batch size và giảm tính lại."
+  - "Thiết kế một dịch vụ inference: chọn knob cân bằng latency/throughput và chọn tín hiệu autoscaling đúng (độ sâu hàng đợi / GPU utilization / pending token, không phải CPU)."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Ở bài **inference_fundamentals** ta đã thấy: khi sinh từng token (giai đoạn **decode**), GPU phải
+      nạp **toàn bộ trọng số (weights)** của model từ bộ nhớ về cho **mỗi** bước — mà một bước chỉ làm
+      vài phép tính nhỏ cho một request. Vì thế decode **nghẽn ở băng thông bộ nhớ (memory-bound)**:
+      GPU bận đi chở trọng số, phần tính toán (compute) lại rảnh.
+
+      Chìa khoá: **nạp trọng số một lần rồi dùng cho nhiều request cùng lúc**. Đó chính là **batching** —
+      gom nhiều request lại và chạy chung một bước. Chi phí nạp trọng số được **chia đều (amortize)** cho
+      cả nhóm, nên **thông lượng (throughput, đo bằng token/giây)** tăng gần như tuyến tính theo kích thước
+      batch cho tới khi GPU chuyển sang nghẽn compute. Cái giá phải trả: một request đơn lẻ có thể **chờ**
+      để được gom nhóm và chạy chậm hơn chút — đây là đánh đổi **độ trễ (latency) đổi lấy thông lượng**
+      xuyên suốt cả bài.
+  - id: b02
+    type: text
+    md: |
+      **Static batching (gom tĩnh)** là cách ngây thơ nhất: gom N request thành một batch, chạy tới khi
+      **cả nhóm xong hết** rồi mới nhận nhóm mới. Vấn đề: các request dài ngắn rất khác nhau. Ví dụ ba
+      request cần sinh 2, 5 và 3 token — cả batch phải chạy đủ 5 bước (theo request dài nhất), nên hai
+      request kia sinh xong vẫn bị **giữ slot** và GPU chạy không cho chúng.
+
+      Hậu quả là **GPU bị lãng phí**: request nhanh phải chờ request chậm nhất trong batch, và không có
+      request mới nào được nạp vào các slot đã rảnh cho tới khi cả batch kết thúc. Batch càng lớn, độ
+      chênh độ dài càng cao thì lãng phí càng nặng.
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao gom nhiều request thành batch lại **tăng throughput** ở giai đoạn decode của LLM?"
+    options:
+      - {id: a, text_md: "Decode là memory-bound (tốn nhất ở việc nạp trọng số mỗi bước); batch nạp trọng số **một lần** rồi dùng cho nhiều request, nên chi phí nạp được chia đều và token/giây tăng."}
+      - {id: b, text_md: "Batching làm mỗi request chạy ít bước sinh token hơn, nên từng request cũng nhanh hơn."}
+      - {id: c, text_md: "Batching nén trọng số của model xuống ít bit hơn nên GPU tải nhanh hơn."}
+    answer: [a]
+    explain_md: "Decode nghẽn băng thông bộ nhớ: nạp trọng số là phần đắt nhất. Gom batch chia sẻ (amortize) chi phí nạp đó cho nhiều request nên throughput tăng. (b) sai: số bước mỗi request không đổi, batching thậm chí thêm chút latency; (c) đó là quantization, một kỹ thuật khác."
+  - id: b04
+    type: text
+    md: |
+      **Continuous batching** (còn gọi **in-flight batching**, dùng trong vLLM và TGI) sửa đúng điểm yếu
+      trên. Thay vì gom một nhóm cố định rồi chờ cả nhóm, bộ **lập lịch (scheduler)** làm việc ở **từng
+      bước sinh token (iteration-level)**: ở mỗi bước, request nào **sinh xong** thì rời batch ngay và
+      slot của nó được **lấp bằng một request đang chờ** trong hàng đợi.
+
+      Nhờ vậy không còn chuyện request nhanh phải chờ request chậm: slot vừa trống là được tái sử dụng
+      tức thì, GPU gần như luôn chạy với batch đầy. Đây là **cú tăng throughput lớn nhất** của các engine
+      serving hiện đại, và thường cải thiện cả độ trễ trung bình vì request mới không phải xếp hàng chờ
+      cả batch cũ kết thúc.
+  - id: b05
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Điểm khác cốt lõi giữa **continuous (in-flight) batching** và **static batching** là gì?"
+    options:
+      - {id: a, text_md: "Continuous batching cho scheduler **thêm/loại request ở mỗi bước sinh token**: slot của request vừa xong được lấp ngay bằng request đang chờ, nên GPU không phải chờ cả batch kết thúc."}
+      - {id: b, text_md: "Continuous batching chỉ chạy một request tại một thời điểm nhưng xoay vòng thật nhanh giữa chúng."}
+      - {id: c, text_md: "Continuous batching bỏ qua các request dài để toàn bộ batch cùng kết thúc một lúc."}
+    answer: [a]
+    explain_md: "Continuous batching lập lịch ở mức từng vòng lặp (iteration-level): finished slot được tái sử dụng tức thì cho request mới, nên GPU luôn đầy việc. (b) sai: nó chạy nhiều request song song trong một batch; (c) sai: không request nào bị bỏ, request dài vẫn chạy tới khi xong."
+  - id: b06
+    type: text
+    md: |
+      Muốn gom batch lớn thì phải chứa được **KV cache** của nhiều request cùng lúc — mà KV cache rất
+      ngốn bộ nhớ (xem inference_fundamentals). Cách cũ cấp cho mỗi request một vùng nhớ liên tục đủ cho
+      độ dài **tối đa** có thể, nên khi request ngắn hơn thì phần thừa bị **phân mảnh (fragmentation)**
+      lãng phí, giới hạn số request nhét được.
+
+      **PagedAttention (vLLM)** mượn ý tưởng **bộ nhớ ảo của hệ điều hành (OS virtual memory / paging)**:
+      chia KV cache thành các **trang (page/block) nhỏ cố định**, cấp phát dần theo nhu cầu thay vì một
+      khối liền lớn. Kết quả: gần như hết phân mảnh, **nhét được nhiều request hơn → batch lớn hơn →
+      throughput cao hơn**, và vì các request tham chiếu trang qua một bảng ánh xạ nên có thể **chia sẻ
+      (sharing)** trang chung giữa nhiều request.
+  - id: b07
+    type: text
+    md: |
+      **Prefix caching (đệm tiền tố)** khai thác chính khả năng chia sẻ đó. Nhiều request thường có chung
+      một đoạn **đầu prompt (prefix)**: cùng một **system prompt**, cùng bộ ví dụ **few-shot**, hay cùng
+      một tài liệu nền. Phần KV cache của đoạn chung này **chỉ cần tính một lần** (ở bước **prefill**) rồi
+      **dùng lại** cho mọi request có cùng tiền tố — khỏi phải tính lại prefill cho phần đó.
+
+      Lợi ích rõ nhất: **giảm thời gian tới token đầu tiên (TTFT)** và tiết kiệm compute khi nhiều người
+      dùng chung một system prompt dài hoặc cùng hỏi trên một tài liệu. PagedAttention làm prefix caching
+      dễ hiện thực vì các trang KV của tiền tố chung có thể được nhiều request trỏ tới cùng lúc.
+  - id: b08
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền thuật ngữ còn thiếu: Khi nhiều request dùng chung một system prompt dài, ta có thể tính phần
+      KV của đoạn đầu chung **một lần** rồi dùng lại cho các request sau để khỏi chạy lại prefill — kỹ
+      thuật này gọi là ______.
+    blanks:
+      - accept: ["prefix caching", "prefix cache", "đệm tiền tố", "prefix-caching", "caching prefix"]
+    explain_md: "Prefix caching dùng lại KV cache của phần prompt chung (system prompt, few-shot, tài liệu nền) giữa các request, bỏ qua việc tính lại prefill cho đoạn đó — nhờ vậy giảm TTFT và tiết kiệm compute. PagedAttention (quản KV theo trang) giúp chia sẻ các trang tiền tố này."
+  - id: b09
+    type: callout
+    kind: interview
+    md: |
+      **Thiết kế dịch vụ inference (mức phỏng vấn AI engineer).** Hai **knob** chính để cân bằng
+      latency/throughput: **kích thước batch tối đa (max batch size)** và **ngân sách token mỗi bước
+      (max tokens / max num batched tokens)**. Đặt lớn → throughput cao nhưng độ trễ mỗi request dễ tăng
+      (và có **head-of-line blocking** nếu một prefill dài chặn hàng — khắc phục bằng **chunked prefill**,
+      băm prefill thành khúc). Đặt nhỏ → độ trễ thấp cho mỗi request nhưng phí GPU.
+
+      **Chọn tín hiệu autoscaling cho đúng**: scale theo **độ sâu hàng đợi (queue depth)**, **số token
+      đang chờ (pending tokens)** hoặc **GPU utilization** — những thứ phản ánh đúng tải LLM. **Đừng**
+      scale theo **CPU** như dịch vụ web thường làm: với LLM, CPU gần như rảnh trong khi GPU đã nghẽn,
+      nên CPU là tín hiệu sai và sẽ scale quá muộn.
+  - id: b10
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Bạn autoscale một cụm GPU chạy LLM với continuous batching. **Tín hiệu nào hợp lý nhất** để quyết định thêm/bớt GPU?"
+    options:
+      - {id: a, text_md: "**Độ sâu hàng đợi / số token đang chờ / GPU utilization** — các tín hiệu phản ánh trực tiếp tải và mức bận của GPU."}
+      - {id: b, text_md: "**CPU utilization** của node, giống cách scale một web service thông thường."}
+      - {id: c, text_md: "Dung lượng đĩa còn trống trên node, vì trọng số model nằm trên đĩa."}
+    answer: [a]
+    explain_md: "Với LLM, nút cổ chai là GPU và hàng đợi request; queue depth / pending tokens / GPU utilization cho tín hiệu đúng và kịp thời. (b) sai: CPU thường rảnh khi GPU đã nghẽn nên scale quá muộn; (c) không liên quan tới tải phục vụ."
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "Decode **memory-bound** → **batching** nạp trọng số một lần dùng cho nhiều request, chia đều chi phí nên **throughput (token/s) tăng mạnh**, đổi lấy chút **latency** mỗi request."
+      - "**Static batching** phí GPU vì request nhanh phải chờ request chậm nhất trong batch; **continuous / in-flight batching** (vLLM, TGI) lập lịch ở **mỗi bước**, lấp slot vừa trống bằng request mới → thắng lớn về throughput."
+      - "**PagedAttention** (vLLM) quản **KV cache theo trang** như bộ nhớ ảo của OS → gần hết phân mảnh, batch lớn hơn, cho phép **chia sẻ** trang."
+      - "**Prefix caching**: tính KV của **tiền tố chung** (system prompt, few-shot) **một lần** rồi dùng lại → bỏ qua prefill lặp, giảm TTFT."
+      - "Thiết kế service: knob **max batch size** và **max tokens** cân bằng latency/throughput (chunked prefill chống head-of-line blocking); **autoscale theo queue depth / pending tokens / GPU utilization, KHÔNG theo CPU**."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S325], l2: [S326], l3: [S327]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

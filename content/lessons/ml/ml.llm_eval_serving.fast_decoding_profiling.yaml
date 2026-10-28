@@ -1,0 +1,166 @@
+id: ml.llm_eval_serving.fast_decoding_profiling
+version: 1
+status: published
+title_vi: "Decoding nhanh và tìm nút thắt: speculative decoding và profiling memory-bound vs compute-bound"
+est_minutes: 13
+objectives_vi:
+  - "Giải thích speculative decoding: model nháp (draft model) đề xuất k token, model chính (target model) kiểm cả cụm trong một lượt (one parallel forward pass), nhận prefix đúng dài nhất."
+  - "Nói được vì sao speculative decoding **không đổi phân phối đầu ra** (output distribution unchanged) — đây là tăng tốc thuần, không đánh đổi chất lượng."
+  - "Dùng ý tưởng roofline / arithmetic intensity và số liệu GPU utilization + băng thông bộ nhớ để phân loại workload là **memory-bound** hay **compute-bound**, rồi chọn cách tối ưu đúng."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Ở bài trước (inference_fundamentals) bạn đã thấy vì sao sinh chữ (decode) chậm: model sinh
+      **từng token một** (autoregressive), và ở mỗi bước, với batch nhỏ (ca điển hình khi phục vụ
+      chat), GPU phải **đọc lại toàn bộ trọng số (weights)** từ VRAM chỉ để tính ra đúng một token.
+      Thời gian trôi chủ yếu vào việc **chuyển trọng số từ bộ nhớ** chứ không vào phép nhân ma trận.
+      Ta nói bước decode này **bị giới hạn bởi băng thông bộ nhớ (memory-bandwidth-bound)**: GPU
+      mạnh về tính toán nhưng ngồi chờ dữ liệu, nên hoạt động ở mức sử dụng thấp.
+
+      Bài này trả lời hai câu hỏi thực chiến của AI engineer: (1) làm sao sinh chữ **nhanh hơn**
+      mà **không đổi chất lượng** đầu ra — bằng **speculative decoding**; (2) khi một workload chậm,
+      làm sao **đo (profiling)** để biết đang nghẽn ở đâu rồi mới sửa đúng chỗ.
+  - id: b02
+    type: text
+    md: |
+      **Speculative decoding** (giải mã suy đoán) dựa trên một quan sát: kiểm (verify) một cụm token
+      cho sẵn **rẻ hơn nhiều** so với sinh từng token, vì kiểm k vị trí chỉ tốn **một lần đọc trọng
+      số** cho cả cụm. Ý tưởng:
+
+      - Một **model nháp (draft model)** nhỏ, rẻ, nhanh đề xuất trước **k token** tiếp theo (ví dụ
+        k = 4). Model nháp chạy tuần tự nhưng vì nó nhỏ nên rẻ.
+      - **Model chính (target model)** — model lớn, thật — nhận k token nháp đó và chạy **một lượt
+        tiến song song (one parallel forward pass)** trên cả cụm, tính được phân phối xác suất ở
+        **từng vị trí** cùng lúc.
+      - Theo luật **nhận/loại (accept/reject)**, model chính duyệt các token nháp **từ trái sang
+        phải**, **nhận prefix đúng dài nhất**; đến token nháp đầu tiên bị loại thì dừng và model
+        chính tự sinh một token thay thế ở ngay chỗ đó. Vậy mỗi lượt của model chính cho ra **nhiều
+        token** (các token nháp được nhận + 1 token sửa), thay vì chỉ 1 token như decode thường.
+
+      Kết quả: tốc độ thường tăng **2-3 lần** trên cùng phần cứng, vì ta thay nhiều lượt đọc trọng
+      số của model lớn bằng ít lượt hơn.
+  - id: b03
+    type: callout
+    kind: interview
+    md: |
+      **Vì sao phân phối đầu ra KHÔNG đổi (lossless)** — câu hỏi phỏng vấn lõi của chủ đề này.
+      Luật nhận/loại được thiết kế sao cho token cuối cùng mà ta giữ lại **được lấy mẫu đúng theo
+      phân phối của chính model chính (target distribution)**, không phải của model nháp. Khi một
+      token nháp bị loại, model chính **lấy mẫu lại từ phân phối đã hiệu chỉnh** của nó ở vị trí đó.
+
+      Vì mọi token xuất ra đều quy về phân phối của model chính, chuỗi sinh ra có **cùng phân phối**
+      như khi chỉ dùng model chính một mình. Model nháp **chỉ ảnh hưởng tốc độ, không ảnh hưởng chất
+      lượng**: đoán giỏi thì nhanh hơn, đoán tệ thì chậm lại (nhiều token bị loại) nhưng kết quả vẫn
+      đúng. Với giải mã tham lam (greedy) điều này mạnh hơn: **từng token giống hệt** như chạy model
+      chính trần. Chốt một câu: speculative decoding là **tăng tốc thuần**, trả giá bằng **tính toán
+      thừa khi bị loại** (reject), chứ không đánh đổi độ chính xác.
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Đồng nghiệp lo rằng bật speculative decoding sẽ làm câu trả lời 'khác đi' vì có model nháp xen vào. Câu trả lời **đúng** là gì?"
+    options:
+      - {id: a, text_md: "Phân phối đầu ra không đổi: luật nhận/loại (accept/reject) đảm bảo mọi token giữ lại được lấy mẫu theo phân phối của **model chính**; model nháp chỉ ảnh hưởng tốc độ, không ảnh hưởng chất lượng."}
+      - {id: b, text_md: "Có, chất lượng sẽ thấp hơn một chút vì đầu ra giờ là của model nháp nhỏ nên phải chấp nhận đánh đổi."}
+      - {id: c, text_md: "Chỉ đúng y hệt khi acceptance rate đạt 100%; nếu không thì phân phối đầu ra sẽ lệch dần."}
+    answer: [a]
+    explain_md: "Mấu chốt: token bị loại được lấy mẫu lại từ phân phối hiệu chỉnh của model chính, nên chuỗi ra có cùng phân phối với khi chỉ dùng model chính — lossless. (b) sai: đầu ra không phải của model nháp. (c) sai: tính lossless không phụ thuộc acceptance rate; tỉ lệ chấp nhận chỉ đổi tốc độ, không đổi phân phối."
+  - id: b05
+    type: text
+    md: |
+      **Acceptance rate (tỉ lệ chấp nhận)** là phần trăm token nháp được model chính nhận. Nó quyết
+      định mức tăng tốc: nháp càng giống model chính thì nhận càng nhiều token mỗi lượt, càng nhanh.
+      Vì vậy model nháp tốt là model **đủ gần** model chính (thường cùng họ, nhỏ hơn nhiều lần).
+      Chi phí phải trả là **tính toán thừa**: khi token nháp bị loại, công sức chạy model nháp và
+      phần verify cho các vị trí sau chỗ sai bị bỏ đi.
+
+      Có vài biến thể cùng ý tưởng "đoán rồi kiểm", chỉ cần biết ở mức tên gọi:
+      - **Medusa / EAGLE**: thay vì một model nháp riêng, gắn thêm vài **đầu dự đoán (draft heads)**
+        lên chính model chính để đề xuất nhiều token cùng lúc.
+      - **n-gram / prompt lookup**: đoán token tiếp theo bằng cách **tra lại chính ngữ cảnh/prompt**
+        (cụm đã xuất hiện), không cần model nháp — rẻ, hợp với tác vụ lặp nhiều như tóm tắt/sửa code.
+      - **Lookahead decoding**: sinh và kiểm nhiều nhánh token song song theo kiểu khác.
+
+      Tất cả đều **lossless** theo cùng nguyên lý verify ở trên; khác nhau ở cách tạo ra phần "đoán".
+  - id: b06
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền thuật ngữ còn thiếu: Trong speculative decoding, phần trăm token nháp (draft) được model
+      chính nhận gọi là ______ ; chỉ số này càng cao thì mỗi lượt của model chính cho ra càng nhiều
+      token nên càng tăng tốc.
+    blanks:
+      - accept: ["acceptance rate", "tỉ lệ chấp nhận", "ti le chap nhan", "acceptance", "tỷ lệ chấp nhận"]
+    explain_md: "Acceptance rate (tỉ lệ chấp nhận) đo mức độ model nháp đoán khớp model chính. Nó chỉ ảnh hưởng **tốc độ** (nhận nhiều token/lượt → nhanh hơn), không ảnh hưởng tính lossless của đầu ra."
+  - id: b07
+    type: text
+    md: |
+      Phần hai: **profiling để tìm nút thắt**. Trước khi tối ưu phải biết thời gian trôi ở đâu —
+      sửa mù thường vô ích hoặc làm chậm hơn. Câu hỏi phân loại quan trọng nhất là: workload đang
+      **memory-bandwidth-bound** hay **compute-bound**?
+
+      - **Memory-bandwidth-bound (nghẽn băng thông bộ nhớ):** thời gian chủ yếu để **chuyển dữ liệu**
+        (đọc trọng số, đọc KV cache) giữa bộ nhớ và nhân tính. Dấu hiệu: **GPU utilization thấp**
+        nhưng **băng thông bộ nhớ gần đỉnh**. Đây là ca **decode với batch nhỏ** — ca LLM thường gặp.
+      - **Compute-bound (nghẽn tính toán):** thời gian chủ yếu để **tính** (phép nhân ma trận,
+        matmul). Dấu hiệu: **GPU utilization cao, gần đỉnh FLOPs**. Đây là ca **prefill** (xử lý
+        prompt dài một lần) hoặc **batch lớn**, khi mỗi lần đọc trọng số được dùng cho nhiều phép tính.
+
+      Khung tư duy chuẩn là **roofline**: so **cường độ số học (arithmetic intensity)** = số phép
+      tính trên mỗi byte dữ liệu đọc, với tỉ số (đỉnh FLOPs / đỉnh băng thông) của GPU. Cường độ
+      **thấp** → bị băng thông chặn (memory-bound); **cao** → bị tính toán chặn (compute-bound).
+  - id: b08
+    type: text
+    md: |
+      Phân loại xong thì cách sửa đi theo hai hướng **khác hẳn nhau** — đây là lý do phải profiling
+      trước:
+
+      - Nếu **memory-bound** (ca decode điển hình): mục tiêu là **đọc trọng số ít đi hoặc dùng mỗi
+        lần đọc cho nhiều việc hơn**. Cách làm: **tăng batch** (gộp nhiều yêu cầu, như continuous
+        batching) để mỗi lần đọc trọng số phục vụ nhiều token; **quantize** (nén trọng số xuống
+        INT8/INT4) để mỗi token đọc ít byte hơn; và **speculative decoding** — chính là tận dụng
+        việc verify nhiều token trong một lần đọc trọng số.
+      - Nếu **compute-bound** (ca prefill / batch lớn): mục tiêu là **tính hiệu quả hơn** hoặc có
+        thêm FLOPs. Cách làm: **kernel tốt hơn** (fused kernel gộp nhiều phép nhỏ, CUDA graphs,
+        torch.compile / TensorRT-LLM), dùng phần cứng/định dạng số phù hợp. Ở đây tăng batch hay
+        quantize giúp ít hơn nhiều, vì nút thắt không nằm ở việc đọc dữ liệu.
+
+      Quy tắc nhớ: **chẩn đoán bằng số (GPU utilization + băng thông bộ nhớ) rồi mới kê đơn.** Dồn
+      sức quantize một workload đang compute-bound, hay mua thêm FLOPs cho workload đang memory-bound,
+      đều là tối ưu nhầm chỗ.
+  - id: b09
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Bạn profiling một bước decode (batch nhỏ) và thấy **GPU utilization ~30%** nhưng **băng thông bộ nhớ ~90%** đỉnh. Nút thắt là gì và nên thử gì trước?"
+    options:
+      - {id: a, text_md: "Memory-bandwidth-bound: GPU ngồi chờ dữ liệu, thời gian trôi vào đọc trọng số. Thử tăng batch, quantize, hoặc speculative decoding để giảm/khấu hao lượt đọc trọng số."}
+      - {id: b, text_md: "Compute-bound: GPU đang bận tính matmul. Thử fused kernel và thêm FLOPs."}
+      - {id: c, text_md: "Không kết luận được gì từ hai số này; phải đổi GPU rồi đo lại."}
+    answer: [a]
+    explain_md: "GPU utilization thấp + băng thông bộ nhớ gần đỉnh = cổ chai ở việc **chuyển dữ liệu**, không ở tính toán → memory-bound (đúng kiểu decode batch nhỏ). Cách đúng là giảm byte đọc / khấu hao lượt đọc: batch lớn hơn, quantize, speculative decoding. (b) đọc sai số liệu. (c) sai: hai số này đủ để phân loại."
+  - id: b10
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một workload **prefill** prompt rất dài với batch lớn cho thấy **GPU utilization gần 95%**, sát đỉnh FLOPs. Cách tối ưu nào **hợp lý nhất**?"
+    options:
+      - {id: a, text_md: "Tập trung vào tính toán: fused kernel / CUDA graphs / torch.compile hoặc TensorRT-LLM, dùng định dạng số và phần cứng phù hợp để tăng thông lượng FLOPs."}
+      - {id: b, text_md: "Bật speculative decoding, vì nó luôn tăng tốc mọi workload LLM bất kể nút thắt."}
+      - {id: c, text_md: "Tăng batch thật lớn nữa, vì tăng batch luôn là cách sửa đúng cho mọi nút thắt."}
+    answer: [a]
+    explain_md: "Utilization gần đỉnh FLOPs = compute-bound → tối ưu phần tính (kernel tốt hơn, nhiều FLOPs hơn). (b) sai: speculative decoding giúp ca **memory-bound** decode; prefill vốn đã song song/compute-bound nên lợi ích ít. (c) sai: tăng batch giúp khi memory-bound, và khi đã compute-bound thì càng tăng batch chỉ làm nghẽn tính toán thêm."
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "Decode batch nhỏ **memory-bandwidth-bound**: mỗi token tốn một lượt đọc toàn bộ trọng số, GPU chờ dữ liệu nên dùng ở mức thấp."
+      - "**Speculative decoding**: model nháp (draft) đề xuất k token, model chính (target) kiểm cả cụm trong **một lượt song song**, nhận prefix đúng dài nhất; thường nhanh 2-3x, trả giá bằng tính toán thừa khi bị loại."
+      - "Nó **lossless** — phân phối đầu ra không đổi — vì luật nhận/loại khiến mọi token giữ lại được lấy mẫu theo **phân phối của model chính**; model nháp chỉ đổi tốc độ (qua **acceptance rate**). Biến thể cùng ý: Medusa/EAGLE, n-gram/prompt lookup, lookahead."
+      - "**Profiling** trước khi tối ưu: dùng **roofline / arithmetic intensity** + GPU utilization + băng thông bộ nhớ để phân loại **memory-bound** (util thấp, băng thông gần đỉnh) hay **compute-bound** (util gần đỉnh FLOPs)."
+      - "Sửa đúng theo nút thắt: memory-bound → **batch lớn / quantize / speculative decoding**; compute-bound → **fused kernel / CUDA graphs / torch.compile / TensorRT-LLM**. Chẩn đoán bằng số rồi mới kê đơn."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S331], l2: [S332], l3: [S333]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

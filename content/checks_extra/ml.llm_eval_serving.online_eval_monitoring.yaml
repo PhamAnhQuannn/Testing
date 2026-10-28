@@ -1,0 +1,86 @@
+subtopic_id: ml.llm_eval_serving.online_eval_monitoring
+items:
+  - id: S313
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Khi một app LLM đã chạy thật, ta thường **không có đáp án chuẩn cho từng lượt**. Hãy kể vài
+      **tín hiệu (signals)** có thể ghi lại để ước lượng chất lượng, và phân biệt **phản hồi trực
+      tiếp (explicit feedback)** với **tín hiệu gián tiếp (implicit signals)**.
+    answer_md: |
+      **Phản hồi trực tiếp (explicit feedback)**: người dùng tự chấm — bấm 👍/👎 (thumbs up/down),
+      cho sao (rating), bấm nút báo lỗi. Rõ ràng nhưng **thưa** và **thiên lệch** (chỉ người rất thích
+      hoặc rất bực mới bấm).
+
+      **Tín hiệu gián tiếp (implicit signals)**: suy ra chất lượng từ *hành vi* mà không cần người
+      dùng chấm điểm, ví dụ: tỉ lệ bấm tạo lại / hỏi lại (regeneration / retry rate), tỉ lệ sửa hay
+      chấp nhận (edit / accept rate), bỏ dở hội thoại (thread abandonment), độ dài hội thoại, mức
+      hoàn thành tác vụ (task completion).
+
+      Ngoài ra còn các **chỉ số vận hành** (độ trễ, token/chi phí, tỉ lệ lỗi) và **LLM-as-judge lấy
+      mẫu** để chấm một phần lượt theo rubric.
+    rubric_md: "Đúng khi: (1) nêu được ít nhất một tín hiệu explicit (👍/👎, rating) và một tín hiệu implicit (tạo lại, sửa/chấp nhận, bỏ dở, task completion); (2) phân biệt đúng explicit = người dùng tự chấm, implicit = suy từ hành vi. Đủ ý: bằng chứng điểm 1. Chỉ kể được một loại, hoặc nhầm hai khái niệm: tối đa điểm 0."
+  - id: S314
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Bạn vừa tung một chatbot. Hiện bạn **chỉ** đo bằng 👍/👎, nhưng rất ít người bấm nên gần như
+      không có dữ liệu chất lượng; thỉnh thoảng có người kêu bot trả lời sai. Hãy đề xuất cách giám
+      sát tốt hơn: (1) chọn thêm tín hiệu nào để ước lượng chất lượng khi phản hồi trực tiếp quá thưa;
+      (2) mô tả **vòng phản hồi (feedback loop)** đưa ca xấu về eval set; (3) nêu một chỉ số vận hành
+      cũng nên theo dõi và vì sao.
+    answer_md: |
+      **(1) Thêm tín hiệu gián tiếp + LLM-as-judge**: vì explicit feedback thưa và thiên lệch, dùng
+      **implicit signals** — tỉ lệ bấm tạo lại / hỏi lại, tỉ lệ sửa/chấp nhận, bỏ dở hội thoại, độ dài
+      hội thoại, mức hoàn thành tác vụ — để suy chất lượng từ hành vi. Thêm **LLM-as-judge lấy mẫu
+      online**: chấm ngẫu nhiên 1-5% lượt (hoặc ưu tiên lượt có tín hiệu xấu) theo rubric để có ước
+      lượng liên tục; định kỳ đối chiếu điểm judge với nhãn người thật.
+
+      **(2) Vòng phản hồi**: log mỗi lượt (prompt + câu trả lời + tín hiệu) → **lấy mẫu & gán nhãn**,
+      ưu tiên các lượt có tín hiệu xấu (bị 👎, tạo lại nhiều, bỏ dở) → **thêm các ca app làm sai (kèm
+      đáp án chuẩn) vào eval set** (đóng vòng — closing the loop) → **chạy lại eval set** đã lớn lên
+      mỗi khi đổi prompt/model để chắc không làm hỏng ca cũ.
+
+      **(3) Chỉ số vận hành**: theo dõi **độ trễ (latency)** và/hoặc **token/chi phí** và **tỉ lệ lỗi**
+      — vì trả lời đúng mà quá chậm hoặc quá tốn kém thì vẫn là trải nghiệm tệ, và tỉ lệ lỗi tăng là
+      dấu hiệu sự cố cần báo động.
+    rubric_md: "Đạt khi nêu đủ cả 3: (1) thay/bổ sung bằng implicit signals (và/hoặc LLM-as-judge lấy mẫu) vì explicit quá thưa; (2) mô tả vòng phản hồi log → lấy mẫu & gán nhãn → đẩy ca xấu về eval set → chạy lại; (3) một chỉ số vận hành (latency/chi phí/tỉ lệ lỗi) kèm lý do. Đúng, trong time-box, tự giải thích được: bằng chứng điểm 2. Thiếu phần vòng phản hồi về eval set, hoặc chỉ nói 'thu thêm 👍/👎': tối đa điểm 1."
+  - id: S315
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      **(Phỏng vấn AI engineer)** Bạn phụ trách một tính năng trợ lý LLM đang chạy thật. Hãy trình
+      bày:
+      (1) cách bạn **thiết kế vòng phản hồi online về eval set** và **chọn tín hiệu** để giám sát chất
+      lượng (nêu rõ các nhóm tín hiệu và vì sao);
+      (2) tuần này có báo cáo 'từ tuần trước bot trả lời tệ hẳn' kèm vài ảnh chụp màn hình — hãy mô tả
+      cách **kiểm chứng báo cáo suy giảm chất lượng này bằng số liệu**, và cách phân biệt **model/nhà
+      cung cấp đổi** với **drift đầu vào**.
+    answer_md: |
+      **(1) Vòng phản hồi + chọn tín hiệu:**
+      - **Tracing**: log mỗi lượt (prompt, câu trả lời, tool call, token, độ trễ) làm nền cho mọi tín
+        hiệu.
+      - **Chọn tín hiệu đa tầng**: **explicit** (👍/👎, rating — rõ nhưng thưa, thiên lệch); **implicit**
+        (tỉ lệ tạo lại/hỏi lại, sửa/chấp nhận, bỏ dở hội thoại, độ dài, task completion — suy từ hành
+        vi, dồi dào hơn); **vận hành** (độ trễ, token/chi phí, tỉ lệ lỗi); và **LLM-as-judge lấy mẫu**
+        chấm theo rubric trên mẫu ngẫu nhiên, có đối chiếu với nhãn người thật.
+      - **Đóng vòng**: lấy mẫu các lượt (ưu tiên tín hiệu xấu) → gán nhãn đúng/sai → **đẩy ca khó về
+        eval set** kèm đáp án chuẩn → **chạy lại eval set** đã lớn lên mỗi lần đổi prompt/model/retrieval
+        (regression test). Nhờ vậy eval set ngày càng giống thực tế.
+
+      **(2) Kiểm chứng báo cáo 'tệ đi' bằng số liệu (đừng tin giai thoại):**
+      - **So với baseline window**: tín hiệu chủ chốt (tỉ lệ 👎, tỉ lệ tạo lại, điểm judge, task
+        completion) tụt bao nhiêu so với cửa sổ nền tuần trước, trên cùng cách đo và cùng khoảng thời
+        gian.
+      - **Segment (cắt lát)**: tụt toàn bộ hay chỉ ở một loại câu hỏi / nhóm người dùng / ngôn ngữ.
+      - **Significance**: mức tụt có vượt dao động ngẫu nhiên không, hay chỉ là một ngày ít dữ liệu
+        (so sánh cần đủ lượng; chi tiết ở ml.math.ab_testing).
+      - **Tách nguyên nhân bằng pinned eval**: chạy lại một **eval cố định** không đổi. Nếu điểm trên
+        bộ cố định **cũng tụt** ⇒ **model/nhà cung cấp đã đổi** (cập nhật ngầm). Nếu bộ cố định **vẫn
+        ổn** mà tín hiệu thật tụt ⇒ nghi **drift đầu vào** (người dùng hỏi loại câu mới) hoặc một thay
+        đổi phía app.
+      - Nếu định sửa, dùng **A/B test** để so bản mới với bản cũ công bằng thay vì bật 100% rồi đoán.
+    rubric_md: "Đạt (mức phỏng vấn, điểm 3) khi: (1) thiết kế vòng phản hồi đủ ý — tracing/log, chọn tín hiệu đa tầng (explicit + implicit + vận hành + LLM-as-judge) với lý do, và đóng vòng đẩy ca khó về eval set rồi chạy lại; VÀ (2) kiểm chứng bằng số liệu — so baseline window, segment, significance, và dùng pinned eval để phân biệt model đổi (bộ cố định cũng tụt) với drift đầu vào (bộ cố định vẫn ổn); nêu được 'không tin giai thoại'. Đúng, trong time-box, tự giải thích rõ: bằng chứng điểm 3. Thiếu phần đóng vòng về eval set, hoặc không phân biệt được model-đổi với drift bằng pinned eval: chưa đạt mức 3."

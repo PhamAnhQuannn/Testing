@@ -1,0 +1,194 @@
+id: ml.llm_eval_serving.cost_latency_design
+version: 1
+status: published
+title_vi: "Thiết kế serving: chi phí, độ trễ, dung lượng (cost, latency, capacity)"
+est_minutes: 14
+objectives_vi:
+  - "Tính dung lượng (capacity): đổi tải (QPS × token đầu ra) ra token/s cần, đo throughput (token/s) mỗi GPU ở độ trễ chấp nhận được, rồi suy ra số GPU kèm dự phòng (headroom)."
+  - "Nêu mục tiêu độ trễ (TTFT + độ trễ mỗi token) và giải thích thế căng ba chiều độ trễ ↔ throughput ↔ batch size."
+  - "Quy chi phí GPU-giờ ra chi phí mỗi 1 triệu token, so với giá mỗi token của API thuê, và lập luận điểm hoà vốn (break-even) self-host với con số."
+  - "Liệt kê các đòn giảm chi phí (smaller/quantized model, prompt cache, cap token, routing, batch offline, cache câu trả lời, autoscale) kèm ước lượng tiết kiệm."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Đây là bài tổng kết (capstone) của phần serving: gộp **batching_scheduling** (một GPU sinh được
+      bao nhiêu token mỗi giây) với **context_engineering** (prompt dài tốn gì) để **định cỡ và định
+      giá** một hệ LLM. Nó cũng dùng lại ý **ước lượng dung lượng** (back-of-envelope) đã học ở
+      `sd_eng_minimum`.
+
+      Khác biệt cốt lõi với system design thường: với LLM ta đếm **token mỗi giây (tokens/s)** chứ
+      không phải request mỗi giây (QPS), vì mỗi request dài ngắn rất khác nhau — một câu hỏi 20 token
+      và một bài tóm tắt 2.000 token tiêu tốn GPU hoàn toàn khác nhau. Ôn nhanh: **QPS** = số request
+      mỗi giây, **SLO** = mức dịch vụ cam kết, **p95/p99** = độ trễ mà 95%/99% request nằm dưới (xem
+      `sd_eng_minimum`).
+  - id: b02
+    type: text
+    md: |
+      **Định cỡ dung lượng (capacity planning)** theo ba bước:
+
+      1. **Đo throughput mỗi GPU**: ở một độ trễ chấp nhận được, một GPU với continuous batching sinh
+         được bao nhiêu token/s. Con số này đến từ bài batching — batch càng lớn thì tokens/s tổng càng
+         cao nhưng mỗi request chờ lâu hơn, nên ta chốt mức throughput **tại ngưỡng độ trễ còn chịu
+         được**, không phải throughput tối đa.
+      2. **Đổi tải ra token/s cần**: token/s cần = QPS × số token đầu ra trung bình mỗi request. Ví dụ
+         1.000 người dùng, mỗi người 2 lượt/phút, mỗi lượt sinh 300 token đầu ra → 1.000 × 2 = 2.000
+         lượt/phút = ~33 lượt/s; × 300 token = **10.000 token/s** cần sinh.
+      3. **Suy ra số GPU**: số GPU = token/s cần ÷ token/s mỗi GPU, **cộng dự phòng (headroom)**. Nếu
+         mỗi GPU sinh 2.500 token/s thì 10.000 ÷ 2.500 = **4 GPU** ở mức bận 100%. Nhưng chạy 100% là
+         tự sát khi có đỉnh tải, nên nhắm ~70% sử dụng: 10.000 ÷ (2.500 × 0,70) ≈ 5,7 → **đặt 6 GPU**.
+  - id: b03
+    type: text
+    md: |
+      Một chi tiết hay bị quên khi định cỡ: **prefill khác decode**.
+
+      - **Prefill** (nạp prompt): model đọc toàn bộ prompt một lượt, song song, nặng về **tính toán
+        (compute-bound)**; đây là phần quyết định **TTFT** (time to first token — thời gian tới chữ
+        đầu tiên).
+      - **Decode** (sinh chữ): model sinh **từng token một**, nặng về **băng thông bộ nhớ
+        (memory-bandwidth-bound)**; phần này quyết định **tốc độ mỗi token** và chiếm phần lớn thời
+        gian khi câu trả lời dài.
+
+      **Context dài làm tụt dung lượng theo hai đường**: prefill lâu hơn (prompt dài), và **KV cache**
+      phình to ngốn VRAM nên GPU chứa được ít request đồng thời hơn → tokens/s hữu dụng giảm. Vì vậy
+      con số "token/s mỗi GPU" phải đo đúng với độ dài context thật của ứng dụng, không lấy số lý
+      tưởng với prompt ngắn.
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: |
+      Một tính năng có 100 request/s, mỗi request sinh trung bình 500 token đầu ra. Mỗi GPU (đã bật
+      continuous batching) sinh được 5.000 token/s ở độ trễ chấp nhận được. **Bỏ qua dự phòng**, cần
+      tối thiểu bao nhiêu GPU?
+    options:
+      - {id: a, text_md: "10 GPU: token/s cần = 100 × 500 = 50.000 token/s; chia cho 5.000 token/s mỗi GPU = 10."}
+      - {id: b, text_md: "100 GPU: cứ mỗi request một GPU, vì GPU không chạy song song nhiều request."}
+      - {id: c, text_md: "1 GPU: continuous batching gộp mọi request nên một GPU luôn đủ bất kể tải."}
+    answer: [a]
+    explain_md: |
+      token/s cần = QPS × token đầu ra mỗi request = 100 × 500 = 50.000 token/s; số GPU = 50.000 ÷
+      5.000 = **10**. (b) sai: batching cho nhiều request dùng chung một GPU, không phải 1 GPU/request.
+      (c) sai: batching tăng throughput nhưng vẫn có trần token/s, vượt trần thì phải thêm GPU. Thực tế
+      còn phải cộng dự phòng nên sẽ hơn 10 một chút.
+  - id: b05
+    type: text
+    md: |
+      **Mục tiêu độ trễ (latency SLO)** cho LLM thường tách làm hai: **TTFT** (tới chữ đầu, do prefill
+      + hàng đợi) và **độ trễ mỗi token** (per-token / inter-token latency, do decode). **Streaming**
+      đẩy chữ hiện dần ngay khi sinh, nên dù tổng thời gian dài, người dùng vẫn thấy phản hồi tức thì —
+      TTFT thấp quan trọng hơn tổng thời gian với cảm giác "nhanh".
+
+      **Thế căng ba chiều: độ trễ ↔ throughput ↔ batch size.** Gộp nhiều request vào một batch lớn thì
+      **throughput tổng (tokens/s) tăng và chi phí mỗi token giảm** (GPU làm được nhiều việc hơn mỗi
+      lượt), nhưng **mỗi request phải chờ** các bạn cùng batch nên **độ trễ tăng**. Chỉnh batch size là
+      chọn điểm cân bằng: batch to để rẻ, hay batch nhỏ để nhanh. Đây chính là lý do throughput mỗi
+      GPU ở b02 phải đo "tại ngưỡng độ trễ còn chịu được".
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: |
+      Đội bạn tăng batch size tối đa trong continuous batching để tiết kiệm. Điều gì **thường** xảy ra?
+    options:
+      - {id: a, text_md: "Throughput tổng (token/s) tăng và chi phí mỗi token giảm, nhưng độ trễ mỗi request (nhất là TTFT và p95) có xu hướng tăng."}
+      - {id: b, text_md: "Cả throughput lẫn độ trễ cùng giảm, nên vừa rẻ vừa nhanh hơn mọi mặt."}
+      - {id: c, text_md: "Không ảnh hưởng độ trễ, chỉ làm giảm chất lượng câu trả lời."}
+    answer: [a]
+    explain_md: |
+      Batch lớn → GPU làm nhiều token mỗi lượt → throughput cao, rẻ hơn mỗi token; nhưng mỗi request
+      chờ lâu hơn → độ trễ tăng. Đó là đánh đổi độ trễ ↔ throughput. (b) sai: không thể cùng cải thiện
+      cả hai; (c) sai: batching không đổi nội dung đầu ra, nó tác động tới độ trễ/throughput.
+  - id: b07
+    type: text
+    md: |
+      **Chi phí: từ GPU-giờ ra chi phí mỗi 1 triệu token.** Giả sử thuê một GPU giá 2 USD/giờ, sinh
+      được 2.000 token/s. Trong một giờ: 2.000 × 3.600 = **7,2 triệu token/giờ**. Vậy chi phí ở mức
+      **bận 100%** = 2 USD ÷ 7,2 triệu ≈ **0,28 USD mỗi 1 triệu token**.
+
+      Nhưng GPU hiếm khi bận 100%. Nếu trung bình chỉ **bận 30%**, mỗi giờ chỉ sinh 0,30 × 7,2 = 2,16
+      triệu token thật, mà bạn vẫn trả đủ 2 USD → 2 ÷ 2,16 ≈ **0,93 USD mỗi 1 triệu token**. Bài học:
+      **GPU rảnh làm chi phí mỗi token đội lên** — tiền thuê là cố định, chỉ token thật mới chia ra
+      được. Một GPU chạy cả tháng = 2 USD/giờ × ~730 giờ ≈ **1.460 USD/tháng**, trả dù bận hay rảnh.
+
+      So sánh với **API thuê** tính theo token, ví dụ **0,60 USD mỗi 1 triệu token đầu ra**: với API
+      bạn không trả cho thời gian GPU rảnh, chỉ trả đúng token đã dùng.
+  - id: b08
+    type: text
+    md: |
+      **Self-host hay dùng API — điểm hoà vốn (break-even):**
+
+      - **API thắng khi tải thấp hoặc thất thường (spiky):** không có GPU rảnh để trả, không phải lo
+        vận hành (ops), tự co giãn. Ở 30% bận ta tính được 0,93 USD/triệu token khi self-host — đắt hơn
+        giá API 0,60, nên API rẻ hơn.
+      - **Self-host thắng khi tải cao và đều:** giữ GPU bận thì chi phí mỗi token tụt xuống 0,28, rẻ
+        hơn API 0,60.
+
+      **Hoà vốn bằng con số:** chi phí self-host mỗi triệu token = 0,28 ÷ (mức bận). Cho bằng giá API:
+      0,28 ÷ u = 0,60 → u ≈ **0,47**. Nghĩa là nếu bạn giữ được GPU **bận trên ~47%** trung bình thì
+      self-host rẻ hơn; dưới mức đó, tiền GPU rảnh khiến API rẻ hơn. Đây là cách trả lời phỏng vấn:
+      không nói "cái nào rẻ hơn" chung chung, mà chỉ ra **ngưỡng mức bận / khối lượng đều đặn** để lật
+      cán cân.
+  - id: b09
+    type: quiz_mcq
+    graded: true
+    prompt_md: |
+      Self-host tốn ~0,28 USD/triệu token **khi GPU bận 100%**; API tính 0,60 USD/triệu token. Phát
+      biểu nào **đúng** về khi nào self-host rẻ hơn?
+    options:
+      - {id: a, text_md: "Self-host rẻ hơn chỉ khi giữ GPU bận đủ cao (trên điểm hoà vốn ~47%) để chi phí mỗi token tụt dưới giá API; tải thấp/thất thường thì API rẻ hơn vì không phải trả cho GPU rảnh."}
+      - {id: b, text_md: "Self-host luôn rẻ hơn vì 0,28 < 0,60 bất kể mức bận của GPU."}
+      - {id: c, text_md: "API luôn rẻ hơn vì không phải mua phần cứng, bất kể khối lượng dùng."}
+    answer: [a]
+    explain_md: |
+      0,28 chỉ đạt được ở 100% bận; ở mức bận u, chi phí = 0,28 ÷ u. Chỉ khi u vượt ~47% (0,28/0,60)
+      thì self-host mới dưới 0,60 của API. (b) sai: bỏ qua GPU rảnh — ở 30% bận là 0,93, đắt hơn API.
+      (c) sai: khối lượng lớn và đều thì self-host rẻ hơn hẳn.
+  - id: b10
+    type: text
+    md: |
+      **Các đòn giảm chi phí (cost levers)** — kèm ước lượng tiết kiệm, nhớ rằng **token đầu ra
+      (decode) đắt hơn token đầu vào** nên cắt output là mạnh nhất:
+
+      - **Model nhỏ hơn / lượng tử hoá (quantization: INT8/FP8/INT4):** rẻ và nhanh hơn mỗi token,
+        tăng throughput — thường ~2-4×, đổi lại chất lượng giảm chút.
+      - **Prompt cache:** không tính (prefill) lại đoạn đầu prompt lặp lại (system prompt dài, tài liệu
+        chung) → giảm mạnh chi phí input và TTFT, có thể ~50-90% phần input cho tải nhiều prefix trùng.
+      - **Giới hạn max token đầu ra (cap max tokens):** chặn câu trả lời (và reasoning token) lan man;
+        tiết kiệm gần như tỉ lệ thuận với số token cắt được.
+      - **Routing / cascade:** model rẻ xử lý ca dễ, chỉ ca khó mới chuyển model mạnh (qua gateway) —
+        thường tiết kiệm ~30-70% tuỳ tỉ lệ ca dễ.
+      - **Batch / offline API cho việc không gấp:** chạy gộp ban đêm hoặc qua batch API (thường giảm
+        ~50% giá).
+      - **Cache câu trả lời (response cache + semantic cache):** câu hỏi trùng hoặc gần nghĩa trả lời
+        lại từ cache, bỏ qua model hẳn — tiết kiệm theo tỉ lệ cache hit.
+      - **Autoscale về 0 khi rảnh:** lúc vắng tải thì tắt bớt / về 0 GPU để không trả cho GPU rảnh —
+        đúng gốc rễ bài toán mức bận ở trên.
+  - id: b11
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền thuật ngữ còn thiếu: kỹ thuật ______ lưu lại phần tính toán cho đoạn đầu prompt lặp lại (ví
+      dụ một system prompt dài hoặc tài liệu dùng chung) để không phải prefill lại, nhờ đó giảm chi phí
+      token đầu vào và hạ TTFT.
+    blanks:
+      - accept: ["prompt cache", "prompt caching", "prompt cache (bộ nhớ đệm prompt)", "bộ nhớ đệm prompt", "caching prompt"]
+    explain_md: |
+      Prompt cache (bộ nhớ đệm prompt) tái dùng kết quả prefill của phần prefix trùng nhau giữa các
+      request, nên bỏ được phần tính toán lặp lại — giảm chi phí input và TTFT. Khác với response cache
+      (lưu nguyên câu trả lời) vì nó lưu phần tính của prompt, không phải đầu ra.
+  - id: b12
+    type: summary
+    bullets_vi:
+      - "Đếm **token/s** chứ không phải QPS: token/s cần = QPS × token đầu ra mỗi request; **số GPU = token/s cần ÷ token/s mỗi GPU + dự phòng** (nhắm ~70% bận, không 100%)."
+      - "Throughput mỗi GPU đo **tại ngưỡng độ trễ còn chịu được**; nhớ **prefill (TTFT, compute-bound) khác decode (mỗi token, memory-bound)**, và **context dài** làm phình KV cache → tụt dung lượng."
+      - "Thế căng **độ trễ ↔ throughput ↔ batch size**: batch to thì rẻ và throughput cao nhưng độ trễ tăng; **streaming + TTFT thấp** giữ cảm giác nhanh."
+      - "Chi phí: GPU-giờ → **chi phí mỗi 1 triệu token** (2 USD/giờ, 7,2 triệu token/giờ → ~0,28 USD ở 100% bận, ~0,93 ở 30%). GPU rảnh đội giá lên."
+      - "**Hoà vốn self-host vs API**: API thắng ở tải thấp/thất thường; self-host thắng khi giữ GPU bận trên ngưỡng (0,28/u = giá API → u ≈ 47%)."
+      - "**Giảm chi phí**: model nhỏ/quantize, prompt cache, cap max token, routing/cascade, batch offline, cache câu trả lời, autoscale về 0 — cắt token đầu ra là mạnh nhất."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S334], l2: [S335], l3: [S336]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

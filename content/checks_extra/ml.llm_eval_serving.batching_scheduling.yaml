@@ -1,0 +1,85 @@
+subtopic_id: ml.llm_eval_serving.batching_scheduling
+items:
+  - id: S325
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Nói ngắn gọn: vì sao **gom nhiều request thành batch** lại làm tăng **throughput (token/giây)** ở
+      giai đoạn decode của LLM, và cái giá phải trả là gì?
+    answer_md: |
+      Giai đoạn **decode** là **memory-bound**: mỗi bước sinh token, GPU phải nạp **toàn bộ trọng số
+      (weights)** của model từ bộ nhớ, trong khi chỉ làm rất ít phép tính. Khi **gom batch**, trọng số
+      được nạp **một lần** rồi dùng chung cho nhiều request trong cùng một bước, nên chi phí nạp được
+      **chia đều (amortize)** và tổng **token/giây (throughput)** tăng mạnh (gần như tuyến tính theo
+      batch size cho tới khi GPU chuyển sang nghẽn compute).
+
+      **Cái giá**: tăng chút **độ trễ (latency)** cho từng request — một request có thể phải chờ được gom
+      nhóm, và chạy chung khiến nó không nhanh hơn khi chạy riêng. Đó là đánh đổi latency ↔ throughput.
+    rubric_md: "Đúng khi nêu được: decode memory-bound (nạp trọng số là phần đắt) + batch chia sẻ/amortize chi phí nạp cho nhiều request nên throughput tăng; VÀ cái giá là thêm latency mỗi request. Đủ hai ý: bằng chứng điểm 1. Chỉ nói 'batch nhanh hơn' mà không giải thích memory-bound/amortize, hoặc không nêu đánh đổi latency: tối đa điểm 0."
+  - id: S326
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Một dịch vụ LLM đang dùng **static batching**: gom một nhóm request, chạy tới khi **cả nhóm xong
+      hết** rồi mới nhận nhóm mới. Mọi người than GPU được mua đắt tiền mà **tận dụng (utilization) thấp**
+      và độ trễ lúc tải cao thì tệ. Hãy: (1) chỉ ra **vì sao static batching lãng phí GPU**; (2) đề xuất
+      **continuous (in-flight) batching** và giải thích nó khắc phục ra sao; (3) nêu thêm **một** kỹ
+      thuật bộ nhớ (PagedAttention **hoặc** prefix caching) và nói nó giúp ở đâu.
+    answer_md: |
+      (1) **Vì sao static batching lãng phí**: các request dài ngắn rất khác nhau, nhưng cả batch phải
+      chạy tới khi **request dài nhất** xong. Request ngắn sinh xong vẫn **giữ slot**, GPU chạy không cho
+      chúng; và **không request mới nào** được nạp vào slot đã rảnh cho tới khi cả batch kết thúc → GPU
+      utilization thấp, request mới phải xếp hàng chờ.
+
+      (2) **Continuous / in-flight batching** (vLLM, TGI): scheduler làm việc ở **mỗi bước sinh token** —
+      request nào xong thì **rời batch ngay**, slot trống được **lấp tức thì bằng request đang chờ**. Nhờ
+      vậy GPU gần như luôn chạy batch đầy, request nhanh không phải chờ request chậm, và độ trễ trung bình
+      cũng giảm vì request mới không phải đợi cả batch cũ kết thúc.
+
+      (3) Một trong hai:
+      - **PagedAttention**: quản KV cache theo **trang nhỏ cố định** như bộ nhớ ảo của OS, cấp phát dần
+        theo nhu cầu → gần hết **phân mảnh**, nhét được nhiều request hơn → **batch lớn hơn**, throughput
+        cao hơn.
+      - **Prefix caching**: tính KV của phần **tiền tố chung** (system prompt, few-shot) **một lần** rồi
+        dùng lại cho các request cùng tiền tố → bỏ prefill lặp, **giảm TTFT** và tiết kiệm compute.
+    rubric_md: "Đạt khi nêu đúng cả 3: (1) static phí vì cả batch chờ request dài nhất + slot rảnh không được tái dùng tới khi batch xong; (2) continuous batching lập lịch mỗi bước, lấp finished slot bằng request mới ngay → GPU luôn đầy; (3) PagedAttention (KV theo trang, bớt phân mảnh, batch lớn hơn) HOẶC prefix caching (dùng lại KV tiền tố chung, giảm prefill/TTFT) kèm lý do. Đúng, trong time-box, tự giải thích được: bằng chứng điểm 2. Thiếu phần (2) continuous batching, hoặc chỉ nói chung chung không giải thích cơ chế lấp slot: tối đa điểm 1."
+  - id: S327
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      **(Phỏng vấn AI engineer)** Bạn phải **thiết kế một dịch vụ inference LLM** cho chatbot nhiều người
+      dùng, chạy trên một cụm GPU. Hãy trình bày:
+      (1) kiến trúc phục vụ dùng **continuous batching** và **prefix caching** — mỗi cái giải quyết vấn
+      đề gì;
+      (2) **đánh đổi latency ↔ throughput**: nêu các **knob** bạn chỉnh (ví dụ max batch size, max
+      tokens) và chúng kéo hệ về phía nào;
+      (3) **tín hiệu autoscaling** bạn chọn để thêm/bớt GPU, và vì sao **không** dùng CPU.
+    answer_md: |
+      **(1) Kiến trúc với continuous batching + prefix caching:**
+      - Dùng một engine serving (vLLM / TGI / SGLang) bật **continuous (in-flight) batching**: scheduler
+        thêm/loại request ở **mỗi bước sinh token**, lấp slot vừa trống bằng request đang chờ → GPU luôn
+        chạy batch đầy, giải quyết lãng phí của static batching và giảm độ trễ hàng đợi.
+      - Bật **PagedAttention** để quản KV cache theo trang (ít phân mảnh → batch lớn hơn) và **prefix
+        caching** để chia sẻ KV của **system prompt / few-shot chung** giữa các request: phần tiền tố chỉ
+        prefill **một lần**, nên **TTFT** của mỗi request giảm và tiết kiệm compute — rất hợp chatbot vì
+        nhiều người dùng chung một system prompt dài.
+
+      **(2) Đánh đổi latency ↔ throughput (knob):**
+      - **Max batch size** và **ngân sách token mỗi bước (max num batched tokens)**: đặt **lớn** → gom
+        được nhiều request, **throughput cao** nhưng độ trễ mỗi request và p99 dễ tăng; đặt **nhỏ** → độ
+        trễ thấp cho từng request nhưng GPU chạy chưa đầy, phí tài nguyên.
+      - Chống **head-of-line blocking** (một prefill dài chặn các request đang decode) bằng **chunked
+        prefill** — băm prefill dài thành khúc để xen kẽ với decode, giữ độ trễ ổn định.
+      - Nếu cần bảo đảm latency, đặt **SLO về TTFT / token/s** và chỉnh knob + số GPU để đạt SLO đó thay
+        vì tối đa hoá throughput mù quáng.
+
+      **(3) Tín hiệu autoscaling:**
+      - Scale theo **độ sâu hàng đợi (queue depth)**, **số token đang chờ (pending tokens)** hoặc **GPU
+        utilization** — các tín hiệu phản ánh trực tiếp tải LLM và mức bận GPU, nên phản ứng kịp khi tải
+        tăng.
+      - **Không** dùng **CPU utilization**: với LLM, CPU gần như rảnh trong khi GPU đã nghẽn, nên CPU là
+        tín hiệu sai, sẽ scale **quá muộn** và để hàng đợi phình ra trước khi thêm GPU.
+    rubric_md: "Đạt (mức phỏng vấn, điểm 3) khi: (1) mô tả kiến trúc có continuous batching (lập lịch mỗi bước, lấp slot) VÀ prefix caching (dùng lại KV tiền tố chung, giảm TTFT), nói rõ mỗi cái giải quyết vấn đề gì — có thể thêm PagedAttention; (2) nêu đánh đổi latency/throughput qua knob cụ thể (max batch size / max tokens) và hướng kéo của chúng (có thể thêm chunked prefill / SLO); VÀ (3) chọn tín hiệu autoscaling đúng (queue depth / pending tokens / GPU utilization) kèm lý do KHÔNG dùng CPU (CPU rảnh khi GPU nghẽn → scale muộn). Đúng, trong time-box, tự giải thích rõ cả ba: bằng chứng điểm 3. Thiếu đánh đổi latency/throughput qua knob, hoặc chọn sai/không lý giải được tín hiệu autoscaling: chưa đạt mức 3."

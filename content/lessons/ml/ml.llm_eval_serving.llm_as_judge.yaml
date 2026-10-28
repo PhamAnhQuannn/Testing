@@ -1,0 +1,162 @@
+id: ml.llm_eval_serving.llm_as_judge
+version: 1
+status: published
+title_vi: "LLM-as-judge và human eval: nhờ một LLM chấm điểm khi không có đáp án chuẩn"
+est_minutes: 13
+objectives_vi:
+  - "Giải thích LLM-as-judge (dùng một LLM mạnh làm giám khảo) là gì và vì sao nó rẻ, mở rộng được so với human eval (chấm tay); phân biệt pointwise (chấm từng câu theo rubric) với pairwise (so A/B)."
+  - "Thiết kế một judge tốt: rubric rõ ràng, few-shot, bắt giải thích rồi mới chấm (CoT-then-verdict), đầu ra có khuôn (constrained output), temperature 0."
+  - "Kiểm chứng judge bằng nhãn người (human labels): đo độ đồng thuận bằng Cohen's kappa (kappa) thay vì tỉ lệ % thô, và đọc được ý nghĩa các khoảng giá trị."
+  - "Nêu và giảm được ít nhất 3 thiên vị của judge (position, verbosity/length, self-preference), và biết khi nào vẫn cần human eval."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Ở bài trước (eval_sets_metrics) ta đo chất lượng khi **có đáp án chuẩn** (gold label) để so.
+      Nhưng rất nhiều đầu ra của LLM **không có một đáp án đúng duy nhất**: một câu trả lời chatbot,
+      một đoạn tóm tắt, một email soạn giúp khách. Không thể so khớp từng chữ, mà chấm tay hàng nghìn
+      câu thì **chậm và đắt**.
+
+      **LLM-as-judge** là cách giải: dùng một **LLM mạnh làm giám khảo (judge)** để **chấm** đầu ra
+      của model khác theo một bộ tiêu chí. Ưu điểm là **rẻ, nhanh, mở rộng được** (scalable) — chấm
+      vài nghìn câu trong vài phút, chạy lại mỗi lần sửa prompt như một eval set tự động. Đánh đổi:
+      judge chỉ là một LLM, nó cũng sai và **có thiên vị (bias)**, nên bắt buộc phải **kiểm chứng nó
+      bằng nhãn người (human labels)** trước khi tin — đó là trọng tâm của bài này.
+  - id: b02
+    type: text
+    md: |
+      Có **hai chế độ chấm** chính:
+
+      - **Pointwise (chấm điểm từng câu):** đưa cho judge **một** đầu ra và một **rubric** (bảng tiêu
+        chí), yêu cầu cho điểm, ví dụ thang 1-5 về "đúng sự thật" hay "hữu ích". Dễ triển khai, cho
+        ra một con số tuyệt đối, nhưng điểm tuyệt đối của LLM thường **không ổn định** (hôm nay 4,
+        mai 3 cho cùng một câu).
+      - **Pairwise (so cặp A/B):** đưa **hai** đầu ra cho cùng một câu hỏi và hỏi "A hay B tốt hơn?".
+        Phán đoán **so sánh tương đối** thường **đáng tin hơn** điểm tuyệt đối — con người cũng dễ nói
+        "cái nào hơn" hơn là cho điểm chính xác. Pairwise hợp để **so hai phiên bản model/prompt**;
+        gom nhiều cặp lại có thể xếp hạng (Elo/arena).
+
+      Kèm theo là trục **reference-based** (có đáp án mẫu cho judge tham chiếu) và **reference-free**
+      (không có; judge tự dựa vào rubric) — reference-free là tình huống phổ biến nhất khi dùng judge.
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Bạn muốn biết prompt mới (B) có thật sự tốt hơn prompt cũ (A) cho một chatbot trả lời tự do, nơi không có đáp án đúng duy nhất. Vì sao chấm **pairwise** thường đáng tin hơn chấm **pointwise**?"
+    options:
+      - {id: a, text_md: "Vì phán đoán so sánh tương đối ('A hay B tốt hơn') của LLM ổn định và đáng tin hơn điểm tuyệt đối (cho 1-5), vốn hay dao động cho cùng một câu."}
+      - {id: b, text_md: "Vì pairwise luôn rẻ hơn: chỉ cần gọi judge một lần cho cả hai câu nên tốn ít token hơn hẳn pointwise."}
+      - {id: c, text_md: "Vì pairwise không bao giờ có thiên vị, còn pointwise thì luôn luôn có."}
+    answer: [a]
+    explain_md: "Điểm tuyệt đối của LLM thường thiếu ổn định; hỏi 'cái nào hơn' là so sánh tương đối, đáng tin hơn và hợp để so hai phiên bản. (b) sai: pairwise không rẻ hơn một cách bản chất và vẫn phải đọc cả hai câu. (c) sai: pairwise vẫn dính thiên vị, điển hình là position bias (thích câu đứng trước)."
+  - id: b04
+    type: text
+    md: |
+      **Thiết kế một judge tốt** — quyết định judge có dùng được hay không:
+
+      - **Rubric/tiêu chí rõ ràng:** liệt kê tiêu chí (đúng sự thật, hữu ích, an toàn...) và **mô tả
+        từng mức điểm**. Ví dụ "Đúng sự thật: 1 = sai hẳn, 3 = đúng ý chính nhưng sai chi tiết, 5 =
+        đúng hoàn toàn". Mô tả mức càng cụ thể, điểm càng nhất quán.
+      - **Few-shot:** cho 1-3 ví dụ mẫu đã chấm sẵn (câu + điểm + lý do) để judge bắt chước chuẩn.
+      - **Bắt giải thích rồi mới chấm (CoT-then-verdict):** yêu cầu judge **nêu lý do trước**, **rồi
+        mới** đưa điểm/kết luận ở cuối. Lập luận trước giúp chấm đúng hơn và cho ta vết (trace) để soi.
+      - **Đầu ra có khuôn (constrained output):** chốt định dạng, ví dụ JSON `{"reason": ..., "score": 4}`
+        hoặc đúng một trong {A, B, tie}, để chương trình parse được, không phải đoán.
+      - **temperature 0:** chấm ở nhiệt độ 0 cho **ổn định, lặp lại được** (cùng đầu vào → cùng điểm).
+  - id: b05
+    type: callout
+    kind: tip
+    md: |
+      Thứ tự "lý do trước, điểm sau" không chỉ là hình thức. Nếu bắt judge **viết điểm ngay ở đầu**
+      rồi mới giải thích, phần giải thích chỉ là bào chữa cho con số đã lỡ chọn. Đặt **reason trước
+      verdict** ép judge thật sự cân nhắc theo rubric trước khi chốt — đây là mẹo G-Eval hay dùng và
+      là chi tiết hay bị hỏi khi phỏng vấn.
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Judge của bạn cho điểm 1-5 nhưng **điểm nhảy lung tung** giữa các lần chạy cho cùng một câu, và đầu ra là văn xuôi dài khó parse. Nhóm chỉnh nào **đúng hướng** nhất?"
+    options:
+      - {id: a, text_md: "Đặt temperature 0, viết rubric mô tả rõ từng mức điểm, bắt nêu lý do rồi mới chấm, và chốt đầu ra có khuôn (JSON) để parse được."}
+      - {id: b, text_md: "Tăng temperature để judge 'sáng tạo' hơn và yêu cầu nó viết câu trả lời dài hơn cho chắc chắn."}
+      - {id: c, text_md: "Bỏ rubric đi, chỉ hỏi 'câu này mấy điểm?' để judge tự do, rồi tự tay đọc từng câu trả lời của judge."}
+    answer: [a]
+    explain_md: "temperature 0 cho lặp lại được; rubric mô tả từng mức cho nhất quán; CoT-then-verdict cho chấm đúng hơn; constrained output cho parse được. (b) tăng temperature càng làm điểm dao động; (c) bỏ rubric làm điểm càng tùy hứng, và đọc tay thì mất luôn lợi thế tự động của judge."
+  - id: b07
+    type: text
+    md: |
+      **Kiểm chứng judge bằng nhãn người (human labels).** Đừng tin một judge chỉ vì nó chạy được.
+      Quy trình: lấy một mẫu 20-50 câu, cho **người chấm** (gold) rồi cho **judge chấm cùng mẫu đó**,
+      và đo chúng **đồng thuận** đến đâu.
+
+      Điểm mấu chốt: **đừng chỉ báo cáo tỉ lệ % trùng nhau.** Nếu nhãn phần lớn là "tốt", hai bên có
+      thể trùng 80% **chỉ nhờ ăn may** (cùng đoán "tốt"). Dùng **Cohen's kappa (kappa)** — nó **trừ đi
+      phần trùng do ngẫu nhiên**:
+
+      kappa = (p_quan_sát − p_ngẫu_nhiên) / (1 − p_ngẫu_nhiên).
+
+      Ví dụ trùng 80% nhưng do ngẫu nhiên đã 50%: kappa = (0,8 − 0,5) / (1 − 0,5) = 0,6. Đọc khoảng
+      giá trị: **1 = trùng hoàn toàn, 0 = chỉ như đoán mò, < 0 = tệ hơn đoán mò**; thô thì
+      **< 0,2 rất yếu, 0,2-0,4 yếu, 0,4-0,6 tạm, 0,6-0,8 khá tốt, > 0,8 rất tốt**. Chỉ khi kappa đủ
+      cao mới nên để judge thay người ở quy mô lớn.
+  - id: b08
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền thuật ngữ còn thiếu: Judge và người trùng nhãn 90% nghe có vẻ tốt, nhưng vì nhãn gần như
+      toàn "đạt" nên trùng do ngẫu nhiên đã rất cao. Để đo đồng thuận **sau khi trừ phần trùng do
+      ngẫu nhiên**, ta dùng hệ số ______ thay vì tỉ lệ % thô.
+    blanks:
+      - accept: ["Cohen's kappa", "cohen's kappa", "Cohen kappa", "cohen kappa", "kappa", "Kappa", "hệ số kappa"]
+    explain_md: "Cohen's kappa (kappa) chỉnh lại tỉ lệ trùng bằng cách trừ đi phần có thể trùng chỉ do ngẫu nhiên, nên đáng tin hơn % thô — đặc biệt khi nhãn lệch (phần lớn cùng một loại). kappa cao mới chứng tỏ judge thật sự bám theo người."
+  - id: b09
+    type: text
+    md: |
+      **Các thiên vị (bias) của judge cần biết tên và cách giảm** (nêu được ≥3 là yêu cầu cốt lõi):
+
+      - **Position bias (thiên vị vị trí):** trong pairwise, judge hay thích câu **đứng trước** (hoặc
+        đứng sau) bất kể nội dung. **Giảm:** chấm **cả hai thứ tự** (A trước, rồi B trước) và lấy trung
+        bình / chỉ tính là thắng khi thắng ở cả hai lần; hoán đổi vị trí ngẫu nhiên.
+      - **Verbosity / length bias (thiên vị độ dài):** judge thích câu **dài hơn** vì trông đầy đủ, dù
+        chưa chắc đúng hơn. **Giảm:** ghi rõ trong rubric "độ dài không phải tiêu chí", kiểm soát để
+        hai câu dài tương đương, hoặc phạt phần lan man.
+      - **Self-preference bias (thiên vị tự ưu ái):** judge thích văn phong của **chính họ hàng model
+        mình**. **Giảm:** dùng **judge thuộc dòng model khác** với model đang bị chấm, hoặc kết hợp
+        nhiều judge.
+      - Thêm: **leniency bias** (chấm dễ dãi, dồn về điểm cao) và **format bias** (thích câu trình bày
+        đẹp/đúng khuôn). Giảm bằng rubric neo mức điểm rõ và kiểm chứng lại bằng nhãn người.
+  - id: b10
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Dùng judge pairwise để so model A và B, bạn thấy **model nào được đặt ở vị trí thứ nhất cũng hay thắng hơn**, bất kể nội dung. Đây là thiên vị gì và cách giảm hợp lý nhất?"
+    options:
+      - {id: a, text_md: "Position bias (thiên vị vị trí); giảm bằng cách chấm cả hai thứ tự A/B rồi lấy trung bình (hoặc chỉ tính thắng khi thắng ở cả hai lần)."}
+      - {id: b, text_md: "Self-preference bias (tự ưu ái); giảm bằng cách tăng temperature của judge lên cao."}
+      - {id: c, text_md: "Verbosity bias (thiên vị độ dài); giảm bằng cách luôn đặt câu dài hơn lên trước."}
+    answer: [a]
+    explain_md: "Thắng theo *vị trí* chứ không theo nội dung chính là position bias; cách chuẩn là hoán đổi thứ tự, chấm hai lần rồi tổng hợp. (b) sai loại thiên vị và tăng temperature chỉ gây nhiễu; (c) sai loại và 'đặt câu dài lên trước' không liên quan gì tới vị trí, lại còn chồng thêm thiên vị độ dài."
+  - id: b11
+    type: callout
+    kind: interview
+    md: |
+      **Khi nào vẫn phải dùng human eval?** Judge là để **mở rộng**, không phải thay hẳn con người.
+      Vẫn cần người ở: (1) **chốt chất lượng cuối** trước khi ra mắt một tính năng quan trọng;
+      (2) **an toàn (safety)** và các ca nhạy cảm — không giao phán quyết cuối cho một LLM;
+      (3) **hiệu chỉnh/kiểm chứng (calibration)** judge định kỳ bằng một mẫu nhãn người, để bắt lúc
+      judge trôi (drift). Mẫu trả lời phỏng vấn gọn: "Judge chấm diện rộng và rẻ; người chấm một mẫu
+      nhỏ làm chuẩn vàng để đo kappa và canh judge."
+  - id: b12
+    type: summary
+    bullets_vi:
+      - "**LLM-as-judge**: dùng một LLM mạnh làm giám khảo để chấm đầu ra khi không có đáp án chuẩn — rẻ và mở rộng được so với human eval, nhưng phải kiểm chứng vì judge cũng có thiên vị."
+      - "**Pointwise** = chấm điểm từng câu theo rubric; **pairwise** = so A/B, thường đáng tin hơn vì là so sánh tương đối."
+      - "**Judge tốt**: rubric mô tả rõ từng mức, few-shot, **bắt nêu lý do rồi mới chấm** (CoT-then-verdict), đầu ra có khuôn (JSON), **temperature 0**."
+      - "**Kiểm chứng bằng nhãn người**: đo đồng thuận bằng **Cohen's kappa** (trừ phần trùng ngẫu nhiên), KHÔNG dùng % thô; kappa càng cao càng đáng tin (0,6-0,8 khá tốt)."
+      - "**Thiên vị cần biết (≥3)**: position (giảm: hoán đổi thứ tự, chấm hai lần), verbosity/length (giảm: rubric nói rõ, kiểm soát độ dài), self-preference (giảm: dùng judge dòng model khác); thêm leniency, format."
+      - "**Human eval vẫn cần** cho chốt chất lượng cuối, an toàn, và hiệu chỉnh/kiểm chứng judge định kỳ."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S316], l2: [S317], l3: [S318]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

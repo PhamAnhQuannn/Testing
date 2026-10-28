@@ -1,0 +1,176 @@
+id: ml.llm_eval_serving.quantization_compression
+version: 1
+status: published
+title_vi: "Quantization và nén mô hình: cắt bộ nhớ, chọn độ chính xác theo phần cứng và đo suy giảm chất lượng"
+est_minutes: 13
+objectives_vi:
+  - "Giải thích quantization (lượng tử hoá): lưu/tính trọng số (weight) ở độ chính xác thấp hơn để cắt bộ nhớ + băng thông (bandwidth), và vì decode là memory-bound nên thường nhanh hơn."
+  - "Tính bộ nhớ model theo công thức số byte mỗi tham số nhân số tham số, cho FP16/INT8/INT4 — ví dụ model 70B."
+  - "Phân biệt post-training quantization (PTQ: GPTQ, AWQ) với quantization-aware training (QAT), và weight-only với weight+activation / KV cache."
+  - "Chọn độ chính xác + phương pháp theo ràng buộc phần cứng (VRAM) và luôn đo suy giảm chất lượng trên eval set sau khi nén."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Ở bài inference fundamentals bạn đã thấy: lúc **decode** (sinh từng token), nút thắt thường là
+      **băng thông bộ nhớ (memory bandwidth)** — mỗi token mới phải đọc lại toàn bộ trọng số
+      (weights) từ VRAM, nên tốc độ bị giới hạn bởi việc chuyển byte, không phải bởi phép nhân
+      (memory-bound). **Quantization (lượng tử hoá)** là cách tấn công thẳng vào chi phí đó: lưu (và
+      đôi khi tính toán trên) các trọng số ở **độ chính xác số thấp hơn (lower precision)**, ví dụ
+      dùng số nguyên 8-bit thay cho số thực 16-bit.
+
+      Lợi ích gồm ba thứ gắn liền nhau: **bộ nhớ** (model chiếm ít VRAM hơn, có thể vừa một GPU nhỏ
+      hơn), **băng thông** (mỗi token đọc ít byte hơn) và — vì decode là memory-bound — thường kéo
+      theo **tốc độ** (ít byte phải đọc thì mỗi token xong nhanh hơn). Ngoài trọng số, ta còn có thể
+      lượng tử hoá **activation** (giá trị trung gian) và **KV cache** (bộ nhớ ngữ cảnh); bài này tập
+      trung vào trọng số vì đó là phần lớn nhất và phổ biến nhất.
+  - id: b02
+    type: text
+    md: |
+      Mấu chốt để tính mọi thứ là **số byte dùng để lưu một tham số (bytes per parameter)**. Các mức
+      độ chính xác hay gặp năm 2026:
+
+      - **FP16 / BF16** (số thực 16-bit): **2 byte** mỗi tham số — đây là mức "gốc" khi phục vụ
+        (serving) nhiều model mở.
+      - **INT8** (số nguyên 8-bit): **1 byte** mỗi tham số — nhẹ bằng nửa FP16.
+      - **INT4** (số nguyên 4-bit): **0,5 byte** mỗi tham số — nhẹ bằng một phần tư FP16.
+
+      Ý tưởng trực giác: quantization giống như **làm tròn** mỗi trọng số về một trong số ít các mức
+      cho phép. INT8 chỉ có 256 mức, INT4 chỉ có 16 mức. Càng ít bit thì càng nhẹ, nhưng việc làm
+      tròn càng thô, nên ta phải cẩn thận với chất lượng (phần sau).
+  - id: b03
+    type: text
+    md: |
+      **Phép tính bộ nhớ (memory math)** rất đơn giản: *bộ nhớ trọng số = số byte mỗi tham số × số
+      tham số*. Lấy một model **70B** (70 tỉ tham số, tức 70 × 10^9) làm ví dụ chuẩn:
+
+      - **FP16 (2 byte):** 70 × 10^9 × 2 = 140 × 10^9 byte ≈ **140 GB**.
+      - **INT8 (1 byte):** 70 × 10^9 × 1 = 70 × 10^9 byte ≈ **70 GB**.
+      - **INT4 (0,5 byte):** 70 × 10^9 × 0,5 = 35 × 10^9 byte ≈ **35 GB**.
+
+      Con số này là lý do quantization quan trọng với AI engineer: một GPU 48 GB VRAM **không** chứa
+      nổi 70B ở FP16 (140 GB) hay INT8 (70 GB), nhưng **vừa** ở INT4 (35 GB, còn dư chỗ cho KV cache
+      và overhead). Đổi độ chính xác là đổi được việc "model có chạy nổi trên phần cứng tôi có hay
+      không". Lưu ý thực tế: đây mới là bộ nhớ **trọng số**; còn phải cộng thêm KV cache và vùng đệm,
+      nên hãy chừa biên an toàn.
+  - id: b04
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Một model **70B** (70 × 10^9 tham số) được lượng tử hoá xuống **INT4** (0,5 byte mỗi tham số).
+      Chỉ tính bộ nhớ **trọng số**, nó chiếm khoảng bao nhiêu GB? (điền con số, kèm đơn vị GB)
+    blanks:
+      - accept: ["35 GB", "35GB", "35", "~35 GB", "khoảng 35 GB", "35 gb"]
+    explain_md: |
+      70 × 10^9 × 0,5 byte = 35 × 10^9 byte ≈ 35 GB. Đây chính là mẹo so sánh nhanh: INT4 bằng một
+      phần tư FP16 (140 GB), nên 70B ở INT4 ≈ 35 GB — vừa một GPU 48 GB, điều mà FP16 (140 GB) và
+      INT8 (70 GB) không làm được.
+  - id: b05
+    type: text
+    md: |
+      Có hai họ phương pháp chính để lượng tử hoá:
+
+      - **Post-training quantization (PTQ — lượng tử hoá sau huấn luyện):** nén một model đã huấn
+        luyện xong mà **không huấn luyện lại**. Chỉ cần một ít **dữ liệu hiệu chỉnh (calibration
+        data)** để chọn thang số sao cho sai số làm tròn nhỏ nhất. Hai cái tên hay gặp là **GPTQ** và
+        **AWQ**. PTQ **rẻ và nhanh** — chạy trong vài phút tới vài giờ trên một máy — nên là lựa chọn
+        mặc định của AI engineer khi lấy một model mở về và cần nó vừa phần cứng.
+      - **Quantization-aware training (QAT — lượng tử hoá có nhận biết khi huấn luyện):** cho model
+        "tập làm quen" với việc bị làm tròn ngay trong lúc huấn luyện/tinh chỉnh. Thường **giữ chất
+        lượng tốt hơn** ở mức bit rất thấp, nhưng **tốn kém** (cần pipeline huấn luyện, dữ liệu, GPU).
+
+      Một trục phân loại khác là **cái gì được lượng tử hoá**: **weight-only** (chỉ nén trọng số —
+      đơn giản, phổ biến, hợp với decode memory-bound) so với **weight + activation** (nén cả giá trị
+      trung gian — cắt thêm chi phí tính toán nhưng khó giữ chất lượng hơn vì activation có
+      **outlier**, các giá trị cá biệt rất lớn). KV cache cũng có thể nén để chứa ngữ cảnh dài hơn.
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Bạn lấy một model mở 70B về và cần nó vừa GPU, ngân sách thời gian/chi phí thấp, không có pipeline huấn luyện. Chọn PTQ (ví dụ GPTQ/AWQ) hay QAT, và vì sao?"
+    options:
+      - {id: a, text_md: "PTQ (GPTQ/AWQ): nén một model đã huấn luyện xong, chỉ cần ít dữ liệu hiệu chỉnh, không huấn luyện lại — rẻ và nhanh, hợp với ràng buộc ở đây."}
+      - {id: b, text_md: "QAT: luôn là lựa chọn đúng vì chất lượng cao nhất, bất kể chi phí và việc có cần huấn luyện lại hay không."}
+      - {id: c, text_md: "Không cần phương pháp nào: cứ ép kiểu dữ liệu xuống INT4 là xong, chất lượng chắc chắn không đổi."}
+    answer: [a]
+    explain_md: |
+      PTQ nén model đã train xong, chỉ cần calibration data, chạy nhanh và rẻ — khớp với ràng buộc
+      "không có pipeline huấn luyện, ngân sách thấp". (b) sai: QAT giữ chất lượng tốt hơn nhưng tốn
+      kém vì phải huấn luyện lại, không hợp tình huống này. (c) sai: ép bit mù quáng thường **làm tụt
+      chất lượng**; phải dùng phương pháp tốt (GPTQ/AWQ) và phải đo lại.
+  - id: b07
+    type: callout
+    kind: warning
+    md: |
+      **Nén không bao giờ "miễn phí" — phải đo suy giảm chất lượng (quality drop).** Cái giá của bit
+      ít hơn là làm tròn thô hơn, nên model có thể trả lời kém đi. Quy tắc thực hành: sau khi nén,
+      **chạy lại chính eval set của bạn** (bộ câu hỏi thử kèm đáp án chuẩn, như ở bài đánh giá) trên
+      bản đã nén và **so điểm với bản gốc**. Đừng giả định "INT4 chắc ổn" — hãy chứng minh bằng con số
+      trên tác vụ thật của bạn.
+
+      Kinh nghiệm chung năm 2026: với phương pháp tốt (GPTQ/AWQ) và weight-only, **INT4 thường chỉ
+      tụt chất lượng nhỏ** và đáng để đổi lấy việc model vừa phần cứng; xuống thấp hơn nữa (ví dụ
+      3-bit, 2-bit) rủi ro tụt mạnh tăng nhanh, nhất là ở các tác vụ suy luận khó. Luôn **đo trên
+      eval set của chính mình**, vì mức tụt phụ thuộc model và tác vụ.
+  - id: b08
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Chỉ có một GPU **48 GB** VRAM và cần phục vụ (serve) một model **70B**. Cách tiếp cận nào hợp lý nhất?"
+    options:
+      - {id: a, text_md: "Lượng tử hoá xuống INT4 (≈ 35 GB trọng số, vừa 48 GB và còn chỗ cho KV cache), bằng PTQ như GPTQ/AWQ, rồi đo chất lượng trên eval set để xác nhận mức tụt chấp nhận được."}
+      - {id: b, text_md: "Chạy nguyên FP16 (≈ 140 GB) trên GPU 48 GB; thiếu bộ nhớ thì model tự nén lại giúp."}
+      - {id: c, text_md: "Dùng INT8 (≈ 70 GB) vì INT8 luôn tốt hơn INT4; chuyện 70 GB không vừa 48 GB không quan trọng."}
+    answer: [a]
+    explain_md: |
+      INT4 ≈ 35 GB vừa khít 48 GB và chừa chỗ cho KV cache; PTQ (GPTQ/AWQ) là cách rẻ để đạt được, và
+      bước bắt buộc là đo chất lượng sau nén. (b) sai: 140 GB không thể vừa 48 GB, model không "tự
+      nén". (c) sai: 70 GB **không vừa** 48 GB, nên INT8 ở đây bất khả thi dù chất lượng nhỉnh hơn —
+      ràng buộc phần cứng quyết định.
+  - id: b09
+    type: text
+    md: |
+      Quantization không phải cách nén duy nhất — hai kỹ thuật bổ sung nên biết tên (interview hay
+      hỏi):
+
+      - **Knowledge distillation (chưng cất tri thức):** huấn luyện một model **nhỏ** (student) bắt
+        chước một model **lớn** (teacher), để có model gọn hơn mà giữ phần lớn năng lực. Khác
+        quantization ở chỗ nó tạo ra một model mới nhỏ hơn, không chỉ đổi cách lưu số.
+      - **Pruning (cắt tỉa) / sparsity (thưa):** bỏ bớt các trọng số ít quan trọng (đưa về 0). Cắt
+        có cấu trúc (structured) giúp phần cứng tăng tốc thật, nhưng thường cần tinh chỉnh lại để
+        hồi chất lượng.
+
+      Trong thực tế AI engineer, **quantization (nhất là INT4 bằng PTQ) là công cụ đầu tiên và dễ áp
+      dụng nhất** để làm model vừa phần cứng; distillation và pruning tốn công hơn và thường để dành
+      khi quantization chưa đủ.
+  - id: b10
+    type: callout
+    kind: interview
+    md: |
+      **Khung trả lời mức 3 (phỏng vấn AI engineer).** Khi được hỏi "làm sao đưa model X vào phần
+      cứng Y", hãy trả lời theo ba nhịp:
+
+      1. **Tính bộ nhớ theo ràng buộc phần cứng:** dùng *byte/tham số × số tham số* để xem mỗi mức
+         (FP16/INT8/INT4) chiếm bao nhiêu và mức nào vừa VRAM (nhớ chừa chỗ cho KV cache). Ví dụ 70B:
+         140 / 70 / 35 GB.
+      2. **Chọn độ chính xác + phương pháp:** chọn mức bit thấp nhất vẫn đạt chất lượng, và phương
+         pháp hợp ngân sách — PTQ (GPTQ/AWQ) khi cần nhanh/rẻ, QAT khi cần ép bit rất thấp mà vẫn giữ
+         chất lượng và có đủ nguồn lực huấn luyện.
+      3. **Đo suy giảm chất lượng trên eval set:** chạy bản gốc và bản nén trên cùng eval set, so
+         điểm, chỉ chấp nhận khi mức tụt nằm trong ngưỡng. Nói rõ "nén không miễn phí, phải đo" là
+         điểm cộng lớn.
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "**Quantization** = lưu/tính trọng số (và tuỳ chọn activation, KV cache) ở độ chính xác thấp hơn để cắt **bộ nhớ** + **băng thông**; vì decode là memory-bound nên thường **nhanh** hơn."
+      - "Byte mỗi tham số: **FP16/BF16 = 2**, **INT8 = 1**, **INT4 = 0,5**. Bộ nhớ trọng số = byte/tham số × số tham số."
+      - "Model **70B**: FP16 ≈ **140 GB**, INT8 ≈ **70 GB**, INT4 ≈ **35 GB** (70 × 10^9 × 0,5 = 35 × 10^9 byte)."
+      - "**PTQ** (GPTQ, AWQ) rẻ, không huấn luyện lại; **QAT** giữ chất lượng tốt hơn nhưng tốn kém. Weight-only đơn giản; weight+activation cắt thêm tính toán nhưng khó vì outlier."
+      - "Nén **không miễn phí**: luôn **đo suy giảm chất lượng trên eval set** sau nén; INT4 thường tụt nhỏ, thấp hơn nữa rủi ro tăng nhanh."
+      - "Chọn độ chính xác + phương pháp theo **ràng buộc phần cứng (VRAM)**; distillation và pruning là lựa chọn bổ sung khi quantization chưa đủ."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S328], l2: [S329], l3: [S330]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

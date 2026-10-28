@@ -1,0 +1,166 @@
+id: ml.llm_eval_serving.eval_sets_metrics
+version: 1
+status: published
+title_vi: "Đánh giá ứng dụng LLM: eval set và chọn metric theo tác vụ"
+est_minutes: 13
+objectives_vi:
+  - "Giải thích vì sao 'nhìn thấy ổn' (vibe check) không phải là đánh giá, và vì sao cần một eval set cố định."
+  - "Xây một eval set (golden set) từ dữ liệu thật và ca lỗi: đầu vào đại diện kèm đáp án chuẩn / tiêu chí, có đánh version."
+  - "Chọn metric theo tác vụ (exact-match/F1, recall@k cho RAG, pass@k cho code, LLM-as-judge cho sinh mở) và phân biệt offline vs online."
+  - "Nêu giới hạn của từng metric và vì sao phải cắt lát (slice) theo nhóm thay vì chỉ nhìn một con số."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      Ở bài prompt engineering ta đã gặp ý tưởng "đo trên một eval set thay vì cảm tính". Bài này là
+      **nền tảng đánh giá (evaluation)** cho mọi tính năng LLM: làm rõ eval set là gì, lấy từ đâu, và
+      chọn **thước đo (metric)** nào cho từng tác vụ.
+
+      Cạm bẫy số một của kỹ sư AI: thử vài câu, thấy model trả lời trôi chảy rồi kết luận "ổn rồi"
+      (**vibe check**). Vì sao không đủ:
+      - Vài câu tự nghĩ ra **không đại diện** cho cái người dùng thật hỏi.
+      - Một thay đổi prompt/model có thể sửa ca này nhưng **làm hỏng ca khác** mà bạn không hề thấy.
+      - "Trôi chảy" không bằng "đúng": LLM nói sai sự thật vẫn rất tự tin.
+
+      Kết luận: "nhìn thấy ổn" không phải đánh giá. Đánh giá = đo trên một **tập cố định** bằng những
+      **con số lặp lại được**.
+  - id: b02
+    type: text
+    md: |
+      **Eval set (còn gọi golden set / bộ câu hỏi thử)** là một tập **đã tuyển chọn và cố định
+      (versioned)** gồm các **đầu vào đại diện** kèm **đáp án chuẩn (gold / expected output)** hoặc
+      **tiêu chí chấm (criteria)**. Nó đóng vai trò "bài kiểm tra tự động" cho app LLM: mỗi lần đổi
+      prompt hay model, chạy lại cùng tập này rồi so số.
+
+      Lấy ví dụ từ đâu — điểm mấu chốt:
+      - Lấy từ **dữ liệu production thật** (log câu hỏi người dùng) và các **ca lỗi (failure cases)**
+        đã gặp — **không phải ví dụ tự bịa cho dễ**.
+      - Ví dụ tự nghĩ thường quá sạch, quá dễ; ca thật mới lộ ra chỗ model gãy.
+      - Mỗi lần gặp lỗi mới ngoài thực tế, **thêm nó vào eval set** để lần sau không tái phạm — đây là
+        vòng lặp cải thiện.
+      - Bắt đầu nhỏ cũng được: 20-50 ca có đáp án chuẩn (gồm cả ca khó/mơ hồ) đã hữu ích hơn hẳn so
+        với không có gì.
+
+      Lưu eval set như dữ liệu test, có **đánh version** để kết quả so sánh được qua thời gian.
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Bạn sắp dựng eval set cho một chatbot hỗ trợ khách hàng. Cách chọn ví dụ nào **đúng** nhất?"
+    options:
+      - {id: a, text_md: "Lấy câu hỏi thật từ log người dùng và các ca model từng trả lời sai, kèm đáp án/tiêu chí chuẩn; cố định lại và đánh version."}
+      - {id: b, text_md: "Tự nghĩ ra 100 câu hỏi 'đẹp, rõ ràng' để bộ test luôn sạch và model dễ đạt điểm cao."}
+      - {id: c, text_md: "Không cần tập cố định; mỗi lần sửa prompt cứ thử vài câu ngẫu nhiên khác nhau cho nhanh."}
+    answer: [a]
+    explain_md: "Eval set tốt phải **đại diện** (từ traffic thật) và gồm **ca lỗi** đã gặp, có đáp án/tiêu chí chuẩn và được cố định. (b) ví dụ bịa quá dễ, không lộ chỗ model gãy; (c) không có tập cố định thì không so được trước/sau, lại quay về vibe check."
+  - id: b04
+    type: text
+    md: |
+      **Không có một metric cho mọi bài** — chọn theo tác vụ. Nhóm có đáp án rõ ràng (đã quen từ bài
+      classification metrics):
+      - **Phân loại (classification)**: accuracy, **F1** (khi các lớp lệch nhau).
+      - **Trích xuất (extraction)** / tác vụ có đáp án cố định: **exact-match** (khớp đúng từng ký tự)
+        hoặc F1 trên token / trên từng trường.
+
+      Những metric này **tự động, rẻ, lặp lại được** — lý tưởng khi "đúng" là một đáp án xác định: một
+      nhãn, một con số, một trường JSON.
+  - id: b05
+    type: text
+    md: |
+      Khi đầu ra **không chỉ có một dạng đúng**, chọn metric khác:
+      - **RAG — bước tìm (retrieval)**: đo "có lấy đúng đoạn chứa câu trả lời không" bằng **recall@k**
+        (trong k đoạn lấy về, có đoạn đúng không) và precision@k.
+      - **RAG — bước sinh (generation)**: câu trả lời có **bám đoạn lấy về (groundedness)** không, và
+        có **đúng câu hỏi (answer relevance)** không; vì là sinh mở nên chấm bằng LLM-as-judge hoặc
+        người chấm.
+      - **Sinh code**: **pass@k** — xác suất ít nhất 1 trong k lần sinh vượt qua bộ test. Đúng = chạy
+        được, không cần khớp từng chữ.
+      - **Sinh văn bản có đáp án tham chiếu (reference-based)**: **BLEU / ROUGE** đếm từ/cụm trùng với
+        đáp án mẫu — tiện nhưng **chỉ là proxy yếu cho chất lượng** (xem block giới hạn).
+      - **Sinh mở, không có một đáp án đúng** (tóm tắt, trả lời tự do, chatbot): dùng **LLM-as-judge**
+        (một LLM chấm theo rubric) hoặc **người chấm (human rating)**. Phần này đi sâu ở bài
+        llm_as_judge.
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: |
+      Tính năng của bạn là **bước tìm tài liệu (retrieval) của một hệ RAG**: với mỗi câu hỏi, hệ lấy
+      về 5 đoạn để đưa cho model. Bạn muốn đo "hệ có lấy đúng đoạn chứa câu trả lời không". Metric nào
+      hợp nhất?
+    options:
+      - {id: a, text_md: "recall@k (ví dụ recall@5): trong 5 đoạn lấy về, có đoạn thật sự chứa câu trả lời không."}
+      - {id: b, text_md: "BLEU giữa câu hỏi và từng đoạn lấy về."}
+      - {id: c, text_md: "pass@k, giống như khi chấm sinh code."}
+    answer: [a]
+    explain_md: "Đo chất lượng bước tìm = đo khả năng lấy về đúng đoạn, đúng việc của **recall@k** (và precision@k). (b) BLEU đo từ trùng, không nói lên 'tìm đúng đoạn'; (c) pass@k dành cho sinh code chạy qua test, sai tác vụ."
+  - id: b07
+    type: callout
+    kind: warning
+    md: |
+      **Mỗi metric có giới hạn — biết giới hạn mới dùng đúng:**
+      - **exact-match quá khắt khe với văn bản tự do**: "Hà Nội" và "thành phố Hà Nội" cùng đúng nhưng
+        exact-match chấm sai; chỉ hợp khi đáp án thật sự cố định (và nên chuẩn hoá trước khi so).
+      - **BLEU/ROUGE bỏ sót nghĩa**: chúng đếm từ trùng, nên hai câu **cùng nghĩa khác từ** bị điểm
+        thấp, còn câu **trùng từ nhưng sai nghĩa** lại điểm cao — yếu với chat/tóm tắt vì có nhiều cách
+        diễn đạt đúng. (BERTScore so nghĩa bằng embedding, đỡ hơn nhưng vẫn không hoàn hảo.)
+      - **LLM-as-judge có thiên lệch** (thích câu dài, thích văn phong của chính nó) và tốn tiền — phải
+        hiệu chỉnh với nhãn người và chấm ở temperature 0.
+  - id: b08
+    type: text
+    md: |
+      **Một con số tổng che giấu chỗ hỏng.** "Accuracy 85%" nghe ổn, nhưng model có thể đúng 95% ở câu
+      dễ và chỉ 40% ở nhóm câu quan trọng nhất (vd câu về thanh toán). Vì vậy:
+      - **Cắt lát (slice) theo nhóm**: tính metric riêng cho từng loại câu hỏi / chủ đề / độ khó, không
+        chỉ nhìn số trung bình.
+      - **Error analysis**: đọc trực tiếp các ca sai, gom thành **nhóm lỗi** để biết nên sửa gì trước.
+      - Dùng một con số để quyết "tung hay không"; dùng các lát cắt để biết "hỏng ở đâu".
+  - id: b09
+    type: text
+    md: |
+      **Offline vs online** — hai lúc đánh giá khác nhau:
+      - **Offline eval**: chạy trên eval set **trước khi tung ra (pre-ship)**. Nhanh, rẻ, lặp lại được;
+        là cổng để quyết một thay đổi có nên lên không (đổi prompt/model → chạy eval → so số trước/sau
+        → mới tung). Đưa vào CI làm **regression suite** để không làm hỏng ca cũ.
+      - **Online eval**: đo khi **chạy thật với người dùng (production)** — tín hiệu thích/không thích,
+        tỉ lệ hỏi lại, A/B test, dashboard độ trễ và chi phí. Cần vì người dùng thật hỏi khác bộ thử và
+        hành vi đổi theo thời gian.
+      - Offline tốt **không bảo đảm** online tốt, nhưng là lớp phòng thủ đầu tiên bắt buộc phải có.
+        (Chi tiết phần online ở bài online_eval_monitoring.)
+  - id: b10
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền thuật ngữ: một hệ RAG lấy về k đoạn, và ta muốn đo "trong k đoạn đó có đoạn nào thật sự chứa
+      câu trả lời không". Metric chuẩn cho việc này là ______.
+    blanks:
+      - accept: ["recall@k", "recall@5", "recall at k", "recall", "Recall@k"]
+    explain_md: "recall@k đo trong k đoạn lấy về có đoạn đúng không — metric cho **bước tìm (retrieval)** của RAG. (precision@k đo ngược lại: trong k đoạn, bao nhiêu đoạn thật sự liên quan.)"
+  - id: b11
+    type: callout
+    kind: interview
+    md: |
+      **Câu hỏi phỏng vấn kinh điển: "Bạn đánh giá tính năng LLM X thế nào?"** Khung trả lời ăn điểm:
+      1. **Dựng eval set** từ **dữ liệu thật + ca lỗi** (không bịa), kèm đáp án/tiêu chí, có đánh version.
+      2. **Chọn metric theo tác vụ** của X: phân loại → F1; trích xuất → exact-match; RAG tìm →
+         recall@k; code → pass@k; sinh mở → LLM-as-judge / người chấm.
+      3. **Nêu giới hạn** của metric đã chọn và cách bù (vd exact-match quá khắt khe với văn bản tự do
+         → thêm judge; một số tổng che chỗ hỏng → cắt lát theo nhóm).
+      4. **Offline trước khi tung + online khi chạy thật**.
+
+      Người phỏng vấn tìm bước 1 và bước 3: biết metric nào **yếu ở đâu** quan trọng hơn là đọc tên
+      một metric.
+  - id: b12
+    type: summary
+    bullets_vi:
+      - "'Nhìn thấy ổn' (vibe check) không phải đánh giá: phải đo trên một tập cố định bằng con số lặp lại được."
+      - "**Eval set (golden set)**: đầu vào đại diện + đáp án/tiêu chí chuẩn, lấy từ **dữ liệu thật và ca lỗi** (không bịa), cố định và đánh version; thêm ca lỗi mới vào dần."
+      - "Chọn **metric theo tác vụ**: F1/exact-match (phân loại/trích xuất), recall@k (RAG tìm), pass@k (code), BLEU/ROUGE (có tham chiếu, proxy yếu), LLM-as-judge/người (sinh mở)."
+      - "Mọi metric có **giới hạn**: exact-match khắt khe với văn bản tự do, BLEU/ROUGE bỏ sót nghĩa; một con số tổng che chỗ hỏng → **cắt lát theo nhóm** + error analysis."
+      - "**Offline** (trên eval set, trước khi tung, đưa vào CI làm regression) vs **online** (người dùng thật, A/B, phản hồi); offline tốt chưa chắc online tốt."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S310], l2: [S311], l3: [S312]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"
