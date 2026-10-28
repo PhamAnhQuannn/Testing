@@ -1,0 +1,108 @@
+id: sd.fundamentals.scalability
+version: 1
+status: published
+title_vi: "Khả năng mở rộng (scalability): dọc, ngang và service stateless"
+est_minutes: 13
+objectives_vi:
+  - "Phân biệt mở rộng dọc (vertical) và ngang (horizontal), và vì sao scale ngang mới đi xa được."
+  - "Giải thích service **stateless** và vì sao nó là điều kiện để scale ngang sau load balancer."
+  - "Kể đúng lộ trình 5 bước từ một máy đến hệ nhiều tầng và chỉ ra cái gì nghẽn ở mỗi bước."
+blocks:
+  - id: b01
+    type: text
+    md: |
+      **Scalability** là khả năng phục vụ nhiều việc hơn (nhiều request, nhiều dữ liệu) khi ta thêm
+      tài nguyên — mà hiệu năng không sụp. Có hai hướng thêm tài nguyên:
+      - **Mở rộng dọc (vertical / scale up):** đổi sang một máy mạnh hơn (nhiều CPU, RAM hơn). Nhanh,
+        không phải đổi code, nhưng có **trần cứng** (máy to nhất vẫn hữu hạn) và là **một điểm chết**.
+      - **Mở rộng ngang (horizontal / scale out):** thêm **nhiều máy** chạy cùng một service, chia tải
+        giữa chúng. Gần như không có trần (thêm máy là thêm sức), chịu lỗi tốt hơn (một máy chết, máy
+        khác gánh), nhưng đòi hỏi hệ phải **chia được tải** — và đây là chỗ khó.
+  - id: b02
+    type: text
+    md: |
+      Chia tải ngang cần một **load balancer** (LB) đứng trước, nhận request rồi phân cho các máy phía
+      sau. Muốn LB rải request *bất kỳ* vào *bất kỳ* máy nào, mỗi máy phải xử lý được request mà
+      **không cần nhớ gì từ request trước** của cùng người dùng. Đó là service **stateless**: không
+      giữ trạng thái phiên (session) trong RAM của riêng nó. Trạng thái (giỏ hàng, phiên đăng nhập)
+      được đẩy ra **kho dùng chung** (database, cache như Redis). Nếu service **stateful** (giữ session
+      cục bộ), request sau của cùng người phải về đúng máy cũ (sticky session) — rải tải kém, và máy đó
+      chết là mất session.
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao mở rộng **ngang** thường đi xa hơn mở rộng **dọc** cho một web service lớn?"
+    options:
+      - {id: a, text_md: "Vì máy ngang luôn rẻ hơn máy dọc trên mỗi đơn vị tính toán."}
+      - {id: b, text_md: "Vì scale dọc có trần cứng và là một điểm chết, còn scale ngang thêm máy gần như không giới hạn và chịu lỗi tốt hơn."}
+      - {id: c, text_md: "Vì scale ngang không cần load balancer nên đơn giản hơn."}
+    answer: [b]
+    explain_md: "Scale dọc bị chặn bởi máy to nhất và sập cả hệ khi máy đó chết; scale ngang thêm máy là thêm sức và còn máy khác gánh khi một máy chết. (a) không luôn đúng; (c) sai — scale ngang *cần* load balancer."
+  - id: b04
+    type: text
+    md: |
+      **Lộ trình 5 bước** điển hình khi lượng người dùng tăng dần (học thuộc ý, không thuộc chữ):
+      1. **Một máy**: web + app + database chung một máy. Nghẽn: CPU/RAM của chính máy đó; sập là mất tất.
+      2. **Tách tầng**: database ra máy riêng, app ra máy riêng. Nghẽn chuyển sang **một app server**
+         và **một database**.
+      3. **Nhiều app server + load balancer**: nhân bản app (đã stateless) sau LB. Nghẽn dồn về
+         **database** (mọi máy app đọc/ghi cùng một DB).
+      4. **Giảm tải đọc**: thêm **cache** (Redis) cho dữ liệu nóng và **read replica** cho DB. Nghẽn
+         còn lại là **ghi** (mọi lệnh ghi vẫn về primary) và tính nhất quán giữa replica.
+      5. **Chia dữ liệu (sharding) / đa vùng**: tách DB theo khóa để chia cả tải ghi; xa hơn là nhiều
+         vùng địa lý. Nghẽn: độ phức tạp vận hành, giao dịch xuyên shard, đồng bộ giữa vùng.
+  - id: b05
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Ở bước 3 (nhiều app server stateless sau load balancer), cái gì thường trở thành nghẽn tiếp theo?"
+    options:
+      - {id: a, text_md: "Load balancer, vì nó phải nhớ session của từng người dùng."}
+      - {id: b, text_md: "Database dùng chung, vì mọi app server đều đọc/ghi về nó."}
+      - {id: c, text_md: "RAM của từng app server, vì mỗi máy phải giữ toàn bộ dữ liệu."}
+    answer: [b]
+    explain_md: "App đã stateless và nhân bản được, nên nghẽn dồn về DB dùng chung — lý do bước 4 thêm cache + read replica. (a) sai vì service stateless nên LB không cần nhớ session; (c) sai vì dữ liệu nằm ở DB, không phải RAM mỗi app."
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Điều kiện **cốt lõi** để một service nhân bản được sau load balancer là gì?"
+    options:
+      - {id: a, text_md: "Service phải **stateless**: không giữ trạng thái phiên trong RAM riêng, đẩy ra kho dùng chung."}
+      - {id: b, text_md: "Mỗi máy phải lưu một bản sao đầy đủ của database trong bộ nhớ."}
+      - {id: c, text_md: "Load balancer phải dùng sticky session để mỗi người luôn về đúng một máy."}
+    answer: [a]
+    explain_md: "Stateless cho phép LB rải request bất kỳ vào máy bất kỳ. (c) sticky session là giải pháp vá cho service stateful và làm rải tải kém đi; (b) không khả thi và không cần."
+  - id: b07
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn.** Khi được hỏi "mở rộng hệ này thế nào", đừng nhảy ngay vào sharding. Hãy đi
+      theo lộ trình: *ước lượng tải → tách tầng → scale ngang phần stateless sau LB → cache + read
+      replica để giảm tải đọc → sharding/đa vùng khi tải ghi quá lớn*. Mỗi bước **nói rõ cái gì đang
+      nghẽn** để biện minh bước sau. Người phỏng vấn chấm tư duy "nghẽn ở đâu", không chấm việc kể tên
+      công nghệ.
+  - id: b08
+    type: text
+    md: |
+      Vài điều cần phân biệt cho sạch:
+      - **Scalability ≠ performance.** Performance là nhanh cho *một* request; scalability là *giữ*
+        được hiệu năng khi tải tăng. Một hệ có thể nhanh lúc vắng mà không scale được lúc đông.
+      - **Scale ngang không miễn phí:** phải tách state ra ngoài, lo nhất quán giữa bản sao, và vận
+        hành nhiều máy. Vì vậy thực tế thường **scale dọc trước** (đơn giản) rồi mới ngang khi cần.
+      - **"Thêm máy" chỉ cứu được phần tính toán stateless.** Phần có state (database) cần cache, read
+        replica rồi sharding — khó hơn nhiều, nên thường là nghẽn cuối cùng.
+  - id: b09
+    type: summary
+    bullets_vi:
+      - "Scale dọc = máy mạnh hơn (đơn giản, có trần cứng, một điểm chết); scale ngang = nhiều máy sau load balancer (gần như không trần, chịu lỗi tốt, nhưng cần chia được tải)."
+      - "Service **stateless** (không giữ session trong RAM riêng, đẩy state ra DB/cache) là điều kiện để nhân bản và rải tải ngang."
+      - "Lộ trình 5 bước: 1 máy → tách tầng → nhiều app server + LB → cache + read replica → sharding/đa vùng."
+      - "Ở mỗi bước nghẽn dịch chuyển: máy đơn → app/DB đơn → **database dùng chung** → tải ghi → độ phức tạp sharding/đa vùng."
+      - "Scalability (giữ hiệu năng khi tải tăng) khác performance (nhanh cho một request); scale ngang có chi phí nên thường scale dọc trước."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [S001], l2: [S002], l3: [S003]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (concept-track content pipeline)"
+  reviewed_by: null
+  date: "2026-10-27"

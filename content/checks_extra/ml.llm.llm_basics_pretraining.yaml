@@ -1,0 +1,63 @@
+subtopic_id: ml.llm.llm_basics_pretraining
+items:
+  - id: S010
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      LLM học bằng trò chơi cốt lõi nào, và sau giai đoạn **pretraining** ta thu được loại model gì
+      (nó làm được gì, chưa làm được gì)?
+    answer_md: |
+      Trò chơi cốt lõi là **next-token prediction** (dự đoán token tiếp theo): nhìn chuỗi token tới
+      hiện tại và đoán token kế tiếp, lặp lại trên lượng văn bản khổng lồ. Sau **pretraining** ta có
+      một **base model**: nó giỏi **nối chữ cho mượt** (ngữ pháp, kiến thức, văn phong) nhưng **chưa
+      biết làm theo chỉ dẫn** — gặp một câu hỏi nó có thể viết tiếp thành câu hỏi khác thay vì trả lời.
+    rubric_md: "Nêu đúng cả hai ý: (1) trò chơi là next-token prediction (đoán token tiếp theo); (2) pretraining cho ra base model chỉ biết nối chữ, chưa biết làm theo chỉ dẫn. Đúng cả hai: bằng chứng điểm 1. Thiếu một vế: tối đa điểm 0."
+  - id: S011
+    difficulty: 2
+    type: concept
+    minutes: 7
+    prompt_md: |
+      Bạn đang làm một sản phẩm chatbot hỏi-đáp cho người dùng. Một đồng nghiệp đề xuất gọi thẳng một
+      **base model** (chỉ qua pretraining) để tiết kiệm. Hãy giải thích: (1) vì sao base model **không
+      hợp** cho chatbot và loại model nào mới hợp; (2) từ base model, cần **những giai đoạn huấn luyện
+      nào, theo thứ tự nào** để ra được model dùng cho chat; (3) mỗi giai đoạn thêm đó thay đổi điều gì
+      ở model.
+    answer_md: |
+      (1) Base model chỉ học next-token prediction nên chỉ biết **nối chữ**; gặp câu hỏi nó dễ **viết
+      tiếp** thành văn bản khác thay vì trả lời → trải nghiệm chat kém. Loại hợp cho chatbot là
+      **instruct / chat model**.
+      (2) Từ base model cần hai bước post-training theo thứ tự: **SFT (supervised fine-tuning)** rồi
+      **preference tuning (RLHF hoặc DPO)**. Tức đường đi đầy đủ là **pretraining → SFT → preference
+      tuning**.
+      (3) **SFT** dạy model gặp chỉ dẫn thì **trả lời** (nhờ các cặp hỏi-đáp mẫu), biến base thành
+      instruct model. **Preference tuning** chỉnh **hành vi** cho thiên về câu trả lời con người ưa
+      chuộng (hữu ích, an toàn, đúng văn phong), chứ không bơm thêm nhiều kiến thức mới.
+    rubric_md: "Đạt (score 2) khi nêu đúng cả 3 ý: (1) base model chỉ nối chữ nên không hợp, cần instruct/chat model; (2) đúng thứ tự SFT → preference tuning (RLHF/DPO) sau pretraining; (3) SFT dạy làm theo chỉ dẫn, preference tuning chỉnh hành vi (không phải thêm kiến thức). Đúng, trong time-box, tự giải thích được: bằng chứng điểm 2. Sai thứ tự hai bước, hoặc không chỉ ra được mỗi bước đổi gì: tối đa điểm 1."
+  - id: S012
+    difficulty: 3
+    type: concept
+    minutes: 9
+    prompt_md: |
+      Trả lời như trong phỏng vấn kỹ sư AI: (1) kể **đúng thứ tự** các giai đoạn huấn luyện một LLM
+      trợ lý và nói mỗi giai đoạn dùng dữ liệu gì, cho ra gì; (2) phân biệt **base vs instruct vs
+      reasoning model** và khi nào kỹ sư AI chọn loại nào; (3) giải thích **context window** là gì,
+      một **giới hạn** thực tế của nó, và vì sao nó **khác** knowledge cutoff.
+    answer_md: |
+      (1) Thứ tự: **pretraining** (next-token prediction trên dữ liệu web/sách/code khổng lồ → **base
+      model**, chứa hầu hết kiến thức) → **SFT / supervised fine-tuning** (cặp hỏi-đáp mẫu do người
+      viết → **instruct model** biết làm theo chỉ dẫn) → **preference tuning** bằng **RLHF hoặc DPO**
+      (con người chọn câu trả lời tốt hơn → chỉnh **hành vi** cho hữu ích/an toàn). Pretraining cho
+      kiến thức; hai bước sau cho hành vi.
+      (2) **Base** = chỉ pretraining, chỉ nối chữ, không dùng trực tiếp cho sản phẩm. **Instruct/chat**
+      = thêm SFT (+ preference tuning), biết trả lời theo chỉ dẫn → **mặc định** cho đa số sản phẩm
+      (chat, tóm tắt, trích xuất). **Reasoning** = luyện thêm (thường RL thưởng khi đúng) để nghĩ
+      nhiều bước trước khi trả lời → mạnh ở toán/code/logic khó nhưng **chậm và tốn token/tiền hơn**;
+      chỉ dùng khi bài toán thực sự cần suy luận nhiều bước.
+      (3) **Context window** = số **token** tối đa cho **một lần gọi**, gồm **cả** prompt (chỉ dẫn, dữ
+      liệu, lịch sử, tài liệu) **lẫn** phần model sinh ra. Giới hạn thực tế: vượt trần thì **lỗi hoặc bị
+      cắt** (phải chia nhỏ / dùng RAG), và prompt càng dài thì **càng chậm, càng đắt**, chất lượng có
+      thể giảm ở khúc giữa. Nó **khác knowledge cutoff** — mốc ngày cuối trong dữ liệu train: sau mốc
+      đó model không tự biết tin mới, muốn biết phải **đưa vào prompt**; mở rộng context window chỉ cho
+      chứa nhiều token hơn chứ **không** cập nhật kiến thức.
+    rubric_md: "Đạt mức 3 (phỏng vấn) khi đủ cả ba phần: (1) đúng thứ tự pretraining → SFT → preference tuning (RLHF/DPO), kèm dữ liệu và sản phẩm mỗi bước, và ý 'pretraining cho kiến thức, sau cho hành vi'; (2) phân biệt rõ base vs instruct vs reasoning và tiêu chí chọn (instruct mặc định, reasoning khi cần suy luận nhiều bước, đánh đổi chậm/đắt); (3) context window = token tối đa một lần gọi gồm cả input lẫn output, nêu một giới hạn thực tế (vượt trần lỗi/cắt, hoặc chậm/đắt hơn), và phân biệt đúng với knowledge cutoff. Đúng, trong time-box, tự giải thích mạch lạc: bằng chứng điểm 3. Thiếu một trong ba phần hoặc sai thứ tự giai đoạn: chưa đạt mức 3."

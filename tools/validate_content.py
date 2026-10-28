@@ -209,7 +209,19 @@ class Validator:
                     )
         if lesson["status"] == "draft":
             return
-        if not any(i["difficulty"] == 2 and i["type"] == "write_code" for i in items.values()):
+        section = lesson["id"].split(".")[0]
+        module = ".".join(lesson["id"].split(".")[:2])
+        concept_track = section in EXTRA_SECTIONS or module in EXTRA_MODULES
+        has_wc2 = any(i["difficulty"] == 2 and i["type"] == "write_code" for i in items.values())
+        if concept_track and not has_wc2:
+            # A concept subtopic (System Design + the AI-engineer LLM track, no code) is gated by a
+            # level-2 concept/read_code item instead of write_code (SPEC 5.2).
+            if not any(i["difficulty"] == 2 for i in items.values()):
+                self.fail(path, "concept subtopic needs a level-2 check item (SPEC 5.2)")
+            if not lesson["mastery_check"]["l2"]:
+                self.fail(path, "concept subtopic needs a level-2 mastery_check.l2 item (SPEC 5.2)")
+            return
+        if not has_wc2:
             self.fail(path, "needs a level-2 write_code item in content/checks (SPEC 3.4/4.4)")
         if lesson["id"] in NEEDS_L2_WRITE_CODE and not any(
             items.get(i, {}).get("type") == "write_code" for i in lesson["mastery_check"]["l2"]
