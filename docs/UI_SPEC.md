@@ -347,7 +347,7 @@ Trạng thái: **loading** (kiểm tra Pyodide); **lỗi tải Pyodide** (nút `
 
 #### S2. Placement (`/placement/:sessionId`)
 
-Mục đích: làm bài đánh giá thích nghi (mục 2). Vào từ: S1, banner S12, Settings, Map (làm lại module). Layout riêng chế độ tập trung (không nav, có thanh trạng thái).
+Mục đích: làm bài đánh giá thích nghi (mục 2). Vào từ: S1, banner S12, Học tiếp S4 (nút "Đánh giá lại năng lực"), Settings, Map (làm lại module). Layout riêng chế độ tập trung (không nav, có thanh trạng thái).
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
@@ -439,6 +439,8 @@ Mục đích: màn chính, chọn việc kế tiếp. Layout và quy tắc giữ
 | Banner tiếp tục | `GET /resume → primary` |
 | Các nhóm | `GET /next` (`must_raise`, `list`, `suggested_problems`, `due_count`, `backlog`, `milestones`) + mới `sweep[]` (mục `likely_known`, xếp **dưới** danh sách học) |
 | Thời gian | `GET /stats → today_s, week_s` |
+
+**Đánh giá lại năng lực.** Header S4 có nút phụ **"Đánh giá lại năng lực"** (luôn hiện sau onboarding) → mở modal chọn **Mức kinh nghiệm** (none/some/solid), mặc định = mức đã lưu trong hồ sơ (`GET /me → settings.experience`). Bấm "Bắt đầu đánh giá" gọi `POST /placement` với `experience` đã chọn rồi vào `/placement/:id`. Làm lại **không gieo/không hạ điểm**: điểm luôn recompute từ evidence append-only (SPEC 5), nên chỉ thêm bằng chứng. Nếu còn phiên `in_progress`, `POST /placement` trả về chính phiên đó (resume) — nhất quán với banner S12/PlacementStrip.
 
 Trạng thái: **loading** skeleton 3 nhóm; **empty** (xong 40 mục: "Bạn đã đi hết MVP", hiện Progress); **không còn thẻ**; **server down** (banner offline, hiển thị bản `GET /next` cache lần cuối trong IDB và nhãn "dữ liệu lúc 14:02"); **first-time sau skip placement** (hộp "Muốn đo trình độ? [Làm đánh giá]" một lần, ghi `settings.ui_prefs.hide_placement_tip`). Ghi: không ghi gì trừ ping thời gian.
 

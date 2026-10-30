@@ -36,7 +36,7 @@ const nextOf = (over: Record<string, unknown> = {}) =>
   });
 
 const view = (next = nextOf(), resume: Parameters<typeof HomeView>[0]["resume"] = null) =>
-  html(createElement(HomeView, { next, resume, onGo: noop }));
+  html(createElement(HomeView, { next, resume, experience: "some", onGo: noop }));
 
 const resumeOf = (over: Record<string, unknown> = {}) => ({
   primary: {
@@ -123,6 +123,12 @@ describe("Home (S4)", () => {
       expect(out).not.toContain(w);
     }
     expect(out).toContain("chỉ để xem");
+  });
+
+  it("offers the re-assessment button at the top", () => {
+    const out = view();
+    expect(out).toContain('data-testid="reassess-open"');
+    expect(out).toContain("Đánh giá lại năng lực");
   });
 
   it("formats study time neutrally", () => {

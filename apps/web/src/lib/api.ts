@@ -1103,6 +1103,7 @@ export interface SettingsView {
   tz: string;
   review_preset: number | null;
   display_name: string;
+  experience: "none" | "some" | "solid";
 }
 
 /** GET /api/me -> the editable slice of the settings. */
@@ -1112,6 +1113,7 @@ export async function getSettings(): Promise<SettingsView> {
     tz: String(s.tz ?? ""),
     review_preset: s.review_preset == null ? null : Number(s.review_preset),
     display_name: String(s.display_name ?? ""),
+    experience: s.experience === "none" || s.experience === "solid" ? s.experience : "some",
   };
 }
 
