@@ -1,8 +1,10 @@
 import { Link, Navigate, useNavigate } from "react-router-dom";
+import ReassessButton from "../components/ReassessButton";
 import {
   getNext,
   getOnboarding,
   getResumeView,
+  getSettings,
   type LockedPreview,
   type MapSubtopic,
   type MustRaise,
@@ -159,10 +161,12 @@ export function LockedRow({ item }: { item: LockedPreview }) {
 export function HomeView({
   next,
   resume,
+  experience,
   onGo,
 }: {
   next: NextData;
   resume: ResumeView | null;
+  experience?: "none" | "some" | "solid";
   onGo: (route: string) => void;
 }) {
   const names: Record<string, string> = {};
@@ -170,6 +174,12 @@ export function HomeView({
   for (const m of next.must_raise) names[m.prerequisite.id] = m.prerequisite.name_vi;
   return (
     <>
+      {experience && (
+        <div className="toolbar">
+          <span className="grow" />
+          <ReassessButton experience={experience} />
+        </div>
+      )}
       {resume && <ResumeBanner resume={resume} names={names} onGo={onGo} />}
       <p className="muted" data-testid="study-time">
         Hôm nay {formatStudy(next.study.today_s)} · tuần này {formatStudy(next.study.week_s)} (chỉ để xem)
@@ -236,6 +246,7 @@ export default function Home() {
   const resume = useAsync(() => getResumeView().catch(() => null), []);
   // First-time user (profile_done=false) is sent to S1. Unknown state (server down) never redirects.
   const onboarding = useAsync(() => getOnboarding().catch(() => null), []);
+  const settings = useAsync(getSettings, []);
   const navigate = useNavigate();
   if (onboarding.loading) return <div className="page" aria-busy="true" />;
   if (needsWelcome(onboarding.data)) return <Navigate to="/welcome" replace />;
@@ -258,7 +269,14 @@ export default function Home() {
           </button>
         </div>
       )}
-      {next.data && <HomeView next={next.data} resume={resume.data} onGo={(route) => navigate(route)} />}
+      {next.data && (
+        <HomeView
+          next={next.data}
+          resume={resume.data}
+          experience={settings.data?.experience}
+          onGo={(route) => navigate(route)}
+        />
+      )}
     </div>
   );
 }
