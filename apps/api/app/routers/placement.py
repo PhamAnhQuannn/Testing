@@ -139,6 +139,29 @@ def heartbeat_placement(
     return out
 
 
+class ModulesIn(BaseModel):
+    selected: list[str] = Field(default_factory=list, max_length=20)  # module ids; [] = skip
+    active_ms: int | None = Field(default=None, ge=0)
+
+
+@router.post("/placement/{placement_id}/modules")
+def select_placement_modules(
+    placement_id: int,
+    body: ModulesIn,
+    db: DB,
+    user: User,
+    content: Content,
+    now: Now,
+    key: IdemKey,
+):
+    """The concept-phase self-report: which modules the user knows (SPEC 5.6)."""
+    out = placement.select_modules(
+        db, content, user.id, placement_id, body.selected, body.active_ms, now, key=key
+    )
+    db.commit()
+    return out
+
+
 class FinishIn(BaseModel):
     active_ms: int | None = Field(default=None, ge=0)
 
