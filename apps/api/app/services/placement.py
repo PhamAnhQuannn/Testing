@@ -52,33 +52,40 @@ def _gate(code: str, sid: str, name: str, p0: str | None, p1: str | None, p2: st
 
 # In difficulty order (UI_SPEC 2.2, assessment clusters). p0 = mcq, p1 = read_code (both from
 # content/placement), p2 = the gate's level-2 write_code item. p0/p1 None = that rung is not
-# authored yet: the gate skips it (C3-C7 run P2 only).
+# authored yet: the gate skips it (every gate C1-C7 now has both).
 GATES: list[dict[str, Any]] = [
     _gate("C1", "py.core.strings", "Python căn bản", "P900", "P903", "Q012"),
     _gate(
         "C2", "py.datastructs.dict", "Cấu trúc dữ liệu Python, hàm, Big-O", "P910", "P913", "Q023"
     ),
     _gate(
-        "C3", "dsa.arrays_strings.hash_tables", "Mảng, chuỗi, hash, prefix sum", None, None, "Q258"
+        "C3",
+        "dsa.arrays_strings.hash_tables",
+        "Mảng, chuỗi, hash, prefix sum",
+        "P915",
+        "P918",
+        "Q258",
     ),
     _gate(
         "C4",
         "dsa.two_pointers_window.two_pointers",
         "Hai con trỏ, cửa sổ trượt",
-        None,
-        None,
+        "P920",
+        "P923",
         "Q070",
     ),
-    _gate("C5", "dsa.linked_list.ll_basics", "Class, linked list, stack/queue", None, None, "Q079"),
+    _gate(
+        "C5", "dsa.linked_list.ll_basics", "Class, linked list, stack/queue", "P925", "P928", "Q079"
+    ),
     _gate(
         "C6",
         "dsa.searching_sorting.binary_search_basics",
         "Binary search, sorting",
-        None,
-        None,
+        "P930",
+        "P933",
         "Q095",
     ),
-    _gate("C7", "dsa.trees.tree_basics", "Cây, heap, design, intervals", None, None, "Q105"),
+    _gate("C7", "dsa.trees.tree_basics", "Cây, heap, design, intervals", "P935", "P938", "Q105"),
 ]
 RUNG_KIND = ("mcq", "read_code", "write_code")  # P0, P1, P2
 DEFAULT_MINUTES = (1, 2, 6)
