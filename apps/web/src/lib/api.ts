@@ -1150,6 +1150,10 @@ export interface PlacementCurrent {
   subtopic_id: string;
   name_vi: string;
   probing: boolean;
+  /** "code" (default) | "concept" (concept-phase gate, always an mcq step). */
+  kind?: string;
+  /** Concept gates only: the module id. */
+  module?: string | null;
   /** 0 = knowledge (mcq), 1 = read code, 2 = write code; null/undefined when unknown. */
   rung?: number | null;
   check_session_id: number;
@@ -1158,9 +1162,29 @@ export interface PlacementCurrent {
   step: CheckStep | null;
 }
 
+export interface PlacementConceptOffer {
+  module: string;
+  name_vi: string;
+  hub_subtopic_id: string;
+}
+
+export interface PlacementConceptRow {
+  gate: string;
+  module: string | null;
+  name_vi: string;
+  subtopic_id: string;
+  outcome: string | null;
+  score: number;
+}
+
 export interface PlacementView {
   placement_id: number;
   status: PlacementStatus;
+  /** "code" | "concept_offer" | "concept" */
+  phase?: string;
+  awaiting_modules?: boolean;
+  concept_offer?: PlacementConceptOffer[] | null;
+  code_stop_reason?: string | null;
   resumed: boolean;
   stale: boolean;
   stop_reason: string | null;
@@ -1207,6 +1231,7 @@ export interface PlacementResult {
   skill_map: PlacementSkillNode[];
   strong_areas: PlacementGateRef[];
   weak_areas: PlacementGateRef[];
+  concept?: PlacementConceptRow[];
   start: { subtopic_id: string; name_vi: string } | null;
   content_pending: boolean;
   test_out_candidates: string[];
@@ -1221,6 +1246,15 @@ export function normalizePlacementView(data: unknown): PlacementView {
   return {
     placement_id: Number(raw.placement_id),
     status: String(raw.status ?? "in_progress"),
+    phase: String(raw.phase ?? "code"),
+    awaiting_modules: Boolean(raw.awaiting_modules),
+    concept_offer:
+      ((raw.concept_offer as Loose[] | null | undefined) ?? null)?.map((o) => ({
+        module: String(o.module),
+        name_vi: String(o.name_vi ?? o.module),
+        hub_subtopic_id: String(o.hub_subtopic_id ?? ""),
+      })) ?? null,
+    code_stop_reason: (raw.code_stop_reason as string | null | undefined) ?? null,
     resumed: Boolean(raw.resumed),
     stale: Boolean(raw.stale),
     stop_reason: (raw.stop_reason as string | null | undefined) ?? null,
@@ -1247,6 +1281,8 @@ export function normalizePlacementView(data: unknown): PlacementView {
           subtopic_id: String(cur.subtopic_id),
           name_vi: String(cur.name_vi ?? ""),
           probing: Boolean(cur.probing),
+          kind: String(cur.kind ?? "code"),
+          module: (cur.module as string | null | undefined) ?? null,
           rung: typeof cur.rung === "number" ? cur.rung : null,
           check_session_id: Number(cur.check_session_id),
           elapsed_ms: Number(cur.elapsed_ms ?? 0),
@@ -1295,6 +1331,14 @@ export function normalizePlacementResult(data: unknown): PlacementResult {
     })),
     strong_areas: ((raw.strong_areas as Loose[] | undefined) ?? []).map(gateRef),
     weak_areas: ((raw.weak_areas as Loose[] | undefined) ?? []).map(gateRef),
+    concept: ((raw.concept as Loose[] | undefined) ?? []).map((c) => ({
+      gate: String(c.gate),
+      module: (c.module as string | null | undefined) ?? null,
+      name_vi: String(c.name_vi ?? c.module ?? ""),
+      subtopic_id: String(c.subtopic_id),
+      outcome: (c.outcome as string | null | undefined) ?? null,
+      score: Number(c.score ?? 0),
+    })),
     start: start ? { subtopic_id: String(start.subtopic_id), name_vi: String(start.name_vi ?? "") } : null,
     content_pending: Boolean(raw.content_pending),
     test_out_candidates: ((raw.test_out_candidates as unknown[] | undefined) ?? []).map(String),
@@ -1345,6 +1389,23 @@ export async function skipPlacement(
 ): Promise<PlacementAnswerResponse> {
   return normalizePlacementAnswer(
     await request<unknown>(`/placement/${id}/skip`, { method: "POST", body, idempotencyKey: key }),
+  );
+}
+
+/** POST /api/placement/{id}/modules: the concept-phase self-report (module ids the user says they
+ * know). An empty list ends the sitting. Returns the placement view (`current` = first concept gate). */
+export async function selectPlacementModules(
+  id: number,
+  selected: string[],
+  key?: string,
+  activeMs?: number,
+): Promise<PlacementView> {
+  return normalizePlacementView(
+    await request<unknown>(`/placement/${id}/modules`, {
+      method: "POST",
+      body: activeMs === undefined ? { selected } : { selected, active_ms: Math.round(activeMs) },
+      idempotencyKey: key,
+    }),
   );
 }
 

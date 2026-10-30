@@ -1,7 +1,8 @@
 """Placement Phase A (A10): gate ladder + rungs, stop rules, budget, seeding (SPEC 5.6).
 
 Tests named `test_rung_*` run on content where C1 and C2 also have a placement pool (P0 mcq, P1
-read_code); every other test runs gates P2-only (the graceful fallback).
+read_code); tests named `test_concept_*` add concept hubs (System Design + AI) with C1/C2 mcqs;
+every other test runs gates P2-only (the graceful fallback).
 """
 
 from __future__ import annotations
@@ -45,7 +46,20 @@ def _sub(sid: str, order: int, prereqs: list[str]) -> dict:
     }
 
 
-def build_placement_content(root: Path, rungs: bool = False) -> Path:
+# concept hubs of the synthetic content: sid -> (prerequisites, has C1 mcq, has C2 mcq)
+CONCEPT_SUBS = {
+    "sd.data.intro": ([], False, False),
+    "sd.data.sql_vs_nosql": (["sd.data.intro"], True, True),
+    "sd.caching.patterns": (["sd.data.sql_vs_nosql"], True, True),
+    "sd.caching.eviction_invalidation": (["sd.caching.patterns"], False, False),
+    "sd.api.api_styles": ([], True, False),  # no level-2 mcq: not offered
+    "sd.networking.load_balancing": ([], False, False),  # nothing authored: not offered
+    "ml.rag_agents.rag_pipeline": ([], True, True),
+}
+HUB_DATA, HUB_CACHE = "sd.data.sql_vs_nosql", "sd.caching.patterns"
+
+
+def build_placement_content(root: Path, rungs: bool = False, concept: bool = False) -> Path:
     (root / "index").mkdir(parents=True)
     subs = [_sub(EXTRA, 1, [])]
     prev = EXTRA
@@ -53,9 +67,12 @@ def build_placement_content(root: Path, rungs: bool = False) -> Path:
         subs.append(_sub(sid, i + 2, [prev]))
         prev = sid
     subs.append(_sub(SIDE, 20, [CHAIN[0]]))
+    if concept:
+        for n, (sid, (prereqs, _c1, _c2)) in enumerate(CONCEPT_SUBS.items()):
+            subs.append(_sub(sid, 30 + n, prereqs))
     (root / "index" / "subtopics.json").write_text(json.dumps({"subtopics": subs}))
     (root / "index" / "assumed.json").write_text(json.dumps({"assumed": []}))
-    order = [EXTRA, *CHAIN, SIDE]
+    order = [EXTRA, *CHAIN, SIDE, *(CONCEPT_SUBS if concept else [])]
     days = [{"day": 1, "subtopics": [{"id": s} for s in order]}]
     (root / "index" / "plan.json").write_text(json.dumps({"days": days}))
     (root / "lessons" / "py").mkdir(parents=True)
@@ -138,13 +155,37 @@ def build_placement_content(root: Path, rungs: bool = False) -> Path:
             (root / "placement" / f"{spec['subtopic_id']}.yaml").write_text(
                 yaml.safe_dump({"subtopic_id": spec["subtopic_id"], "items": items})
             )
+    if concept:  # hubs: C1 = level-1 mcq (answer_index 1), C2 = level-2 mcq (answer_index 2)
+        (root / "placement").mkdir(exist_ok=True)
+        for n, (sid, (_prereqs, c1, c2)) in enumerate(CONCEPT_SUBS.items()):
+            items = []
+            for level, present, ans in ((1, c1, 1), (2, c2, 2)):
+                if present:
+                    items.append(
+                        {
+                            "id": f"M{n}{level}",
+                            "difficulty": level,
+                            "type": "mcq",
+                            "minutes": level,
+                            "prompt_md": f"hub {sid} level {level}",
+                            "choices": ["a", "b", "c"],
+                            "answer_index": ans,
+                            "explanation_md": "because",
+                        }
+                    )
+            if items:
+                (root / "placement" / f"{sid}.yaml").write_text(
+                    yaml.safe_dump({"subtopic_id": sid, "items": items})
+                )
     return root
 
 
 @pytest.fixture
 def content_dir(tmp_path: Path, request: pytest.FixtureRequest) -> Path:
-    rungs = request.function.__name__.startswith("test_rung")
-    return build_placement_content(tmp_path / "content", rungs)
+    name = request.function.__name__
+    return build_placement_content(
+        tmp_path / "content", name.startswith("test_rung"), name.startswith("test_concept")
+    )
 
 
 def key(n: str) -> dict[str, str]:
@@ -181,7 +222,7 @@ def drive(
     cur = client.get("/api/placement/current").json()["placement"]
     pid, active = cur["placement_id"], cur["active_ms"]
     steps = 0
-    while cur["status"] == "in_progress":
+    while cur["status"] == "in_progress" and cur["current"] is not None:
         c = cur["current"]
         step = c["step"]
         kind = step["type"]
@@ -725,3 +766,214 @@ def test_rung_mcq_needs_a_choice_and_over_time_is_not_clean(client):
     )
     assert r.json()["result"]["clean"] is False  # over 1.5 x 1 min: correct but not clean
     assert sub_row(client, CHAIN[0]).score == 0  # an unclean pass is no evidence
+
+
+# ---- concept phase: module self-report -> 2-rung hub gates K1.. (C1 level-1, C2 level-2 mcq) ----
+
+
+def set_track(client, track):
+    r = client.put(
+        "/api/profile",
+        json={"target_role": "intern", "track": track, "language": "python", "experience": "none"},
+    )
+    assert r.status_code == 200
+
+
+def to_concept_offer(client, clock, track="swe"):
+    """A weak profile: C1 failed -> the code ladder stops, the concept offer opens."""
+    set_track(client, track)
+    start(client)
+    end = drive(client, clock, {"C1": "fail"})
+    assert end["status"] == "in_progress" and end["phase"] == "concept_offer"
+    return end
+
+
+def post_modules(client, pid, modules, **kw):
+    return client.post(f"/api/placement/{pid}/modules", json={"selected": modules, **kw})
+
+
+def mcq(client, clock, pid, view, choice=None, *, minutes=1.0):
+    """Answer the current concept mcq (choice None = "Không biết"); returns the placement view."""
+    clock.advance(minutes=minutes)
+    cur = view["current"]
+    body = {"item_id": cur["step"]["item_id"], "elapsed_ms": int(minutes * 60_000)}
+    if choice is None:
+        r = client.post(f"/api/placement/{pid}/skip", json=body)
+    else:
+        r = client.post(f"/api/placement/{pid}/answer", json={**body, "choice": choice})
+    assert r.status_code == 200, r.text
+    return r.json()["placement"]
+
+
+def concept_outcomes(view):
+    return [g["outcome"] for g in view["gates"] if g["kind"] == "concept"]
+
+
+def test_concept_offer_opens_after_the_code_ladder_and_is_track_filtered(client, clock):
+    end = to_concept_offer(client, clock, "swe")
+    assert end["awaiting_modules"] is True and end["current"] is None
+    assert end["code_stop_reason"] == "failed_start" and end["stop_reason"] is None
+    # only System Design modules whose hub has BOTH a level-1 and a level-2 mcq
+    assert [o["module"] for o in end["concept_offer"]] == ["sd.data", "sd.caching"]
+    assert [o["hub_subtopic_id"] for o in end["concept_offer"]] == [HUB_DATA, HUB_CACHE]
+    assert "ml.rag_agents" not in json.dumps(end["concept_offer"])
+    assert "answer_index" not in json.dumps(end)
+    pid = end["placement_id"]
+    # the sitting is waiting: no item can be answered, a resume shows the same offer
+    r = client.post(f"/api/placement/{pid}/answer", json={"item_id": "x", "elapsed_ms": 1})
+    assert r.status_code == 409 and r.json()["error"]["code"] == "placement_awaiting_modules"
+    again = start(client)
+    assert again["resumed"] and again["phase"] == "concept_offer"
+    assert again["concept_offer"] == end["concept_offer"]
+    assert client.get("/api/me").json()["onboarding"]["placement"] == "in_progress"
+
+
+def test_concept_offer_for_the_ai_track_only_lists_ai_modules(client, clock):
+    end = to_concept_offer(client, clock, "ai")
+    assert [o["module"] for o in end["concept_offer"]] == ["ml.rag_agents"]
+
+
+def test_concept_hub_without_a_level_2_mcq_or_without_items_is_not_offered(client, clock):
+    end = to_concept_offer(client, clock)
+    mods = {o["module"] for o in end["concept_offer"]}
+    assert "sd.api" not in mods  # hub has only a level-1 mcq
+    assert "sd.networking" not in mods  # nothing authored
+    pid = end["placement_id"]
+    assert post_modules(client, pid, ["bogus"]).status_code == 422
+    # selecting an unauthored (but real) module is ignored: nothing to run -> the sitting ends
+    out = post_modules(client, pid, ["sd.api", "sd.networking"]).json()
+    assert out["status"] == "finished" and out["stop_reason"] == "failed_start"
+    assert not [g for g in out["gates"] if g["kind"] == "concept"]
+
+
+def test_concept_select_starts_the_first_hub_at_its_c1_mcq(client, clock):
+    end = to_concept_offer(client, clock)
+    pid = end["placement_id"]
+    v = post_modules(client, pid, ["sd.caching", "sd.data"]).json()  # tree order wins
+    assert v["phase"] == "concept" and v["awaiting_modules"] is False
+    cur = v["current"]
+    assert cur["kind"] == "concept" and cur["gate"] == "K1" and cur["module"] == "sd.data"
+    assert cur["subtopic_id"] == HUB_DATA and cur["rung"] == 0 and not cur["probing"]
+    assert cur["step"]["type"] == "mcq" and cur["step"]["level"] == 1
+    assert cur["step"]["choices"] == ["a", "b", "c"]
+    assert [g["code"] for g in v["gates"] if g["kind"] == "concept"] == ["K1", "K2"]
+    assert "answer_index" not in json.dumps(v) and "because" not in json.dumps(v)
+    # a second selection is refused
+    r = post_modules(client, pid, ["sd.data"])
+    assert r.status_code == 409 and r.json()["error"]["code"] == "placement_not_awaiting_modules"
+
+
+def test_concept_c1_pass_serves_c2_and_a_c2_pass_scores_2_then_the_next_hub(client, clock):
+    end = to_concept_offer(client, clock)
+    pid = end["placement_id"]
+    v = post_modules(client, pid, ["sd.data", "sd.caching"]).json()
+    v = mcq(client, clock, pid, v, 1)  # C1 pass
+    cur = v["current"]
+    assert cur["gate"] == "K1" and cur["rung"] == 2 and cur["step"]["level"] == 2
+    assert cur["step"]["type"] == "mcq" and cur["step"]["minutes"] == 2
+    row = sub_row(client, HUB_DATA)
+    assert row.score == 1 and not row.tested_out  # one keyed pass = tested_basic only
+    v = mcq(client, clock, pid, v, 2, minutes=2.0)  # C2 pass (keyed, level 2)
+    row = sub_row(client, HUB_DATA)
+    assert row.score == 2 and row.tested_out and row.unlocked_at is not None
+    assert row.known_basic is False and row.placement_hint is None
+    cur = v["current"]
+    assert cur["gate"] == "K2" and cur["subtopic_id"] == HUB_CACHE and cur["rung"] == 0
+    assert concept_outcomes(v) == ["passed", None]
+    # display-only inference: the hub's prerequisite is labelled, never scored
+    intro = sub_row(client, "sd.data.intro")
+    assert intro.placement_hint == "likely_known" and intro.score == 0
+    v = mcq(client, clock, pid, v, 1)
+    v = mcq(client, clock, pid, v, 2, minutes=2.0)
+    assert v["status"] == "finished" and v["stop_reason"] == "concept_done"
+    assert "module khái niệm" in v["message_vi"] and v["current"] is None
+    assert sub_row(client, HUB_CACHE).score == 2
+    results = [
+        (r.subtopic_id, r.item_type, r.level, r.passed, r.context)
+        for r in db_rows(client, t.CheckResult)
+        if r.subtopic_id in (HUB_DATA, HUB_CACHE)
+    ]
+    assert results == [
+        (HUB_DATA, "mcq", 1, True, "placement"),
+        (HUB_DATA, "mcq", 2, True, "placement"),
+        (HUB_CACHE, "mcq", 1, True, "placement"),
+        (HUB_CACHE, "mcq", 2, True, "placement"),
+    ]
+    assert_parity(client)
+    res = client.get(f"/api/placement/{pid}/result").json()
+    assert [c["outcome"] for c in res["concept"]] == ["passed", "passed"]
+    assert [c["score"] for c in res["concept"]] == [2, 2]
+    assert set(res["seeded"]) >= {HUB_DATA, HUB_CACHE}
+
+
+def test_concept_c1_fail_or_skip_skips_c2_labels_gap_and_moves_on(client, clock):
+    end = to_concept_offer(client, clock)
+    pid = end["placement_id"]
+    v = post_modules(client, pid, ["sd.data", "sd.caching"]).json()
+    v = mcq(client, clock, pid, v, 0)  # C1 wrong
+    cur = v["current"]
+    assert cur["gate"] == "K2" and cur["rung"] == 0 and cur["subtopic_id"] == HUB_CACHE
+    assert concept_outcomes(v) == ["knowledge_gap", None]
+    assert sub_row(client, HUB_DATA).score == 0 and sub_row(client, HUB_DATA).known_basic is False
+    # descendants of the failed hub are only labelled
+    assert sub_row(client, "sd.caching.eviction_invalidation").placement_hint == "likely_gap"
+    v = mcq(client, clock, pid, v, None)  # "Không biết" on K2's C1
+    assert v["status"] == "finished" and v["stop_reason"] == "concept_done"
+    got = [
+        (r.subtopic_id, r.level, r.passed, r.gave_up)
+        for r in db_rows(client, t.CheckResult)
+        if r.item_type == "mcq"
+    ]
+    assert got == [(HUB_DATA, 1, False, False), (HUB_CACHE, 1, False, True)]  # never a C2
+    assert all(sub_row(client, s).score == 0 for s in (HUB_DATA, HUB_CACHE))
+    assert_parity(client)
+
+
+def test_concept_c2_fail_keeps_the_c1_basic_pass_only(client, clock):
+    end = to_concept_offer(client, clock)
+    pid = end["placement_id"]
+    v = post_modules(client, pid, ["sd.data"]).json()
+    v = mcq(client, clock, pid, v, 1)
+    v = mcq(client, clock, pid, v, 0, minutes=2.0)  # C2 wrong
+    assert v["status"] == "finished" and v["stop_reason"] == "concept_done"
+    assert concept_outcomes(v) == ["failed"]
+    row = sub_row(client, HUB_DATA)
+    assert row.score == 1 and row.known_basic is True and not row.tested_out
+    assert sub_row(client, "sd.data.intro").placement_hint is None  # a C2 fail labels nothing
+    assert_parity(client)
+
+
+def test_concept_over_time_c2_pass_is_not_clean_and_scores_nothing_more(client, clock):
+    end = to_concept_offer(client, clock)
+    pid = end["placement_id"]
+    v = post_modules(client, pid, ["sd.data"]).json()
+    v = mcq(client, clock, pid, v, 1)
+    v = mcq(client, clock, pid, v, 2, minutes=4.0)  # > 1.5 x 2 min
+    assert concept_outcomes(v) == ["passed_unclean"]
+    row = sub_row(client, HUB_DATA)
+    assert row.score == 1 and not row.tested_out  # only the C1 keyed pass counts
+
+
+def test_concept_empty_selection_ends_with_the_code_stop_reason(client, clock):
+    end = to_concept_offer(client, clock)
+    out = post_modules(client, end["placement_id"], []).json()
+    assert out["status"] == "finished" and out["stop_reason"] == "failed_start"
+    assert out["phase"] == "finished" and out["concept_offer"] is None
+    assert "Chưa cần đo thêm" in out["message_vi"]
+    assert not [g for g in out["gates"] if g["kind"] == "concept"]
+    assert pl.MESSAGES["concept_skipped"] and pl.MESSAGES["concept_done"]
+
+
+def test_concept_finish_early_during_the_offer_keeps_the_code_results(client, clock):
+    end = to_concept_offer(client, clock)
+    out = client.post(f"/api/placement/{end['placement_id']}/finish").json()
+    assert out["status"] == "finished" and out["stop_reason"] == "user_finished"
+
+
+def test_concept_budget_guard_stops_when_no_c1_fits(client, clock):
+    end = to_concept_offer(client, clock)
+    pid = end["placement_id"]
+    clock.advance(minutes=60)
+    v = post_modules(client, pid, ["sd.data"], active_ms=int(59.5 * 60_000)).json()
+    assert v["status"] == "finished" and v["stop_reason"] == "budget"  # 59.5 + 1 > 60
+    assert db_rows(client, t.CheckResult)[-1].level == 2  # nothing was asked in the concept phase

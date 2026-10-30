@@ -7,12 +7,13 @@ import {
   normalizePlacementResult,
   normalizePlacementView,
   placementHeartbeat,
+  selectPlacementModules,
   skipPlacement,
   startPlacement,
   type CheckStepResult,
 } from "../lib/api";
 import { budgetView, gateChips, groupByModule, skillChip } from "../lib/placementFlow";
-import { PlacementFinishedView, PlacementResultView, PlacementSessionView } from "./PlacementPage";
+import { ModuleOfferView, PlacementFinishedView, PlacementResultView, PlacementSessionView } from "./PlacementPage";
 
 const html = (node: React.ReactElement) => renderToStaticMarkup(createElement(MemoryRouter, null, node));
 const noop = () => {};
@@ -313,5 +314,96 @@ describe("placement mcq step", () => {
     expect(out).toContain("Kiến thức");
     expect(out).toContain("A1");
     expect(out).toContain("hổng kiến thức");
+  });
+});
+
+describe("placement concept phase", () => {
+  const offerView = normalizePlacementView(
+    rawView({
+      phase: "concept_offer",
+      awaiting_modules: true,
+      code_stop_reason: "two_fails",
+      current: null,
+      concept_offer: [
+        { module: "sd.core", name_vi: "Nền tảng System Design", hub_subtopic_id: "sd.core.hub" },
+        { module: "sd.data", name_vi: "Dữ liệu và lưu trữ", hub_subtopic_id: "sd.data.hub" },
+      ],
+    }),
+  );
+
+  it("normalizes the offer and renders the checklist with both actions", () => {
+    expect(offerView.awaiting_modules).toBe(true);
+    expect(offerView.concept_offer).toHaveLength(2);
+    const out = html(
+      createElement(ModuleOfferView, {
+        offer: offerView.concept_offer!,
+        checked: ["sd.data"],
+        busy: false,
+        onToggle: noop,
+        onMeasure: noop,
+        onSkip: noop,
+      }),
+    );
+    expect(out).toContain("Nền tảng System Design");
+    expect(out).toContain('type="checkbox"');
+    expect(out).toContain("bỏ trống nếu muốn bắt đầu học luôn");
+    expect(out).toContain("Đo các mục đã chọn");
+    expect(out).toContain("Bỏ qua");
+  });
+
+  it("selectPlacementModules posts the selection with an Idempotency-Key", async () => {
+    const fetchMock = vi.fn().mockImplementation(
+      async () => new Response(JSON.stringify(rawView()), { status: 200, headers: { "Content-Type": "application/json" } }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      await selectPlacementModules(7, ["sd.core"], "k-m", 1234.4);
+      const init = fetchMock.mock.calls[0][1] as RequestInit & { headers: Record<string, string> };
+      expect(fetchMock.mock.calls[0][0]).toBe("/api/placement/7/modules");
+      expect(init.headers["Idempotency-Key"]).toBe("k-m");
+      expect(JSON.parse(init.body as string)).toEqual({ selected: ["sd.core"], active_ms: 1234 });
+      await selectPlacementModules(7, [], "k-n");
+      expect(JSON.parse((fetchMock.mock.calls[1][1] as RequestInit).body as string)).toEqual({ selected: [] });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("renders a concept mcq step with module name and Vận dụng label", () => {
+    const v = normalizePlacementView(
+      rawView({
+        phase: "concept",
+        gates: [{ code: "K1", kind: "concept", subtopic_id: "sd.core.hub", name_vi: "Nền tảng System Design", outcome: null, l1: null, retry_after: null }],
+        current: {
+          gate: "K1", kind: "concept", module: "sd.core", subtopic_id: "sd.core.hub", name_vi: "Nền tảng System Design",
+          probing: false, rung: 2, check_session_id: 20, elapsed_ms: 0,
+          step: { index: 0, count: 1, item_id: "c2", level: 2, type: "mcq", minutes: 2, time_limit_ms: 120000, prompt_md: "Chọn?", choices: ["X1", "Y1"] },
+        },
+      }),
+    );
+    expect(v.current!.kind).toBe("concept");
+    expect(v.current!.module).toBe("sd.core");
+    const out = html(createElement(PlacementSessionView, {
+      view: v, step: v.current!.step!, activeMs: 0, itemMs: 0, last: null, busy: false, confirm: null, softOffer: false,
+      onConfirm: noop, onGiveUp: noop, onFinish: noop, onExit: noop, onNext: noop, onKeepGoing: noop, commit: async () => true,
+    }));
+    expect(out).toContain("Nền tảng System Design");
+    expect(out).toContain("Vận dụng");
+    expect(out).toContain("X1");
+  });
+
+  it("result lists probed concept modules with a text outcome", () => {
+    const result = normalizePlacementResult(
+      rawResult({
+        concept: [
+          { gate: "K1", module: "sd.core", name_vi: "Nền tảng System Design", subtopic_id: "sd.core.hub", outcome: "passed", score: 2 },
+          { gate: "K2", module: "sd.data", name_vi: "Dữ liệu và lưu trữ", subtopic_id: "sd.data.hub", outcome: "knowledge_gap", score: 0 },
+        ],
+      }),
+    );
+    const out = html(createElement(PlacementResultView, { result }));
+    expect(out).toContain("Kiểm tra khái niệm");
+    expect(out).toContain("đã nắm");
+    expect(out).toContain("cần học thêm");
   });
 });

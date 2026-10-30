@@ -206,6 +206,14 @@ Trạng thái mỗi mục trong phiên: `unknown` · `measured` (có check_resul
 - **Không để sang M3**: M3 là đóng gói/đánh bóng.
 - **Cầu nối chỉ còn ở M1** (không có onboarding ở M1); từ M2a nút "Đánh giá trình độ" bật khi T2.9a xong. Placement đến sau khi Quan đã học một phần thì các mục điểm ≥ 2 tự loại khỏi phạm vi, mục điểm 0-1 vào phạm vi.
 
+### 2.10 Pha khái niệm (track System Design / AI-engineer)
+
+Chạy sau bậc thang cổng code (mục 2.4) cho track `swe` hoặc `ai`; luật điểm ở SPEC 5.6 mục 7. Phiên chuyển `phase`: `code` → `concept_offer` → `concept` → kết thúc.
+
+- **Màn tự báo module** (`phase=concept_offer`, `view.concept_offer`, `awaiting_modules`): tiêu đề "Bạn đã biết module nào?", danh sách checkbox theo module của track (chỉ module đã có item), tối đa 4 ô được chọn, nút chính "Đo các module đã chọn" (`POST /placement/{id}/modules`) và nút phụ "Bỏ qua phần này" (gửi danh sách rỗng, kết thúc theo lý do dừng của pha code). Không có item nào đang mở nên đồng hồ item dừng; ngân sách còn lại vẫn hiển thị.
+- **Bước concept**: mỗi module một cổng `K1..K4`, hiển thị như cổng code nhưng đầu bước ghi tên module. Rung đầu là `mcq` mức 1 (1 phút), đậu thì tới `mcq` mức 2 (2 phút); trượt hoặc "Không biết" thì sang module kế, không hỏi mức 2. Không có "thử cổng dưới". Hết module là màn kết quả (S3) với thông báo "Đã đo xong các module khái niệm bạn chọn."
+- **Kết quả**: mỗi hub hiện điểm (1 hoặc 2) cùng nhãn `likely_known`/`likely_gap` của các mục quanh nó (chỉ là gợi ý hiển thị).
+
 ---
 
 ## 3. Hệ thống UI

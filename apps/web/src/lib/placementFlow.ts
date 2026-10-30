@@ -44,6 +44,34 @@ export const OUTCOME_NOTE: Record<string, string> = {
   known_basic: "Nắm kiến thức cơ bản nhưng chưa chứng minh được bằng code.",
 };
 
+/** Rung label of a concept gate: C1 (rung 0) knowledge, C2 (rung 2) application. */
+export const CONCEPT_RUNG_TEXT: Record<number, string> = { 0: "Kiến thức", 2: "Vận dụng" };
+
+/** Outcome label for a probed concept module (result screen); text, never colour alone. */
+export const CONCEPT_OUTCOME_TEXT: Record<string, string> = {
+  passed: "đã nắm",
+  known: "đã nắm",
+  known_basic: "nắm kiến thức cơ bản",
+  knowledge_gap: "cần học thêm",
+  failed: "cần học thêm",
+  gave_up: "bỏ qua",
+};
+
+export const CONCEPT_STOP_TEXT: Record<string, string> = {
+  concept_done: "Đã đo xong các module khái niệm bạn chọn.",
+  concept_skipped: "Bạn đã bỏ qua phần đo module khái niệm.",
+};
+
+/** Header line for the open item: concept gates show module name + Kiến thức/Vận dụng. */
+export function currentLabel(cur: PlacementView["current"], fallbackLevel: string): string {
+  if (!cur) return "";
+  if (cur.kind === "concept") {
+    const r = cur.rung != null ? CONCEPT_RUNG_TEXT[cur.rung] : undefined;
+    return `${cur.name_vi} · ${r ?? fallbackLevel}`;
+  }
+  return `${cur.name_vi} · ${cur.rung != null && RUNG_TEXT[cur.rung] ? RUNG_TEXT[cur.rung] : fallbackLevel}`;
+}
+
 /** Chips for the gates that were decided plus the open one (gates never reached are not shown). */
 export function gateChips(view: PlacementView): { gate: PlacementGate; current: boolean }[] {
   const open = view.current?.gate;

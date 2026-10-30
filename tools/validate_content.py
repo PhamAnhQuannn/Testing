@@ -261,9 +261,9 @@ class Validator:
 
     def check_placement_files(self, subtopic_ids: set[str]) -> None:
         """content/placement/<subtopic_id>.yaml: placement-only P0 mcq / P1 read_code items (SPEC
-        5.6). A separate pool from content/checks: ids must still be unique across both, every mcq
-        answer must index into its choices, and the subtopic must exist. Not required for every
-        subtopic."""
+        5.6); a concept hub file may also hold a level-2 mcq (C2 of the concept phase). A separate
+        pool from content/checks: ids must still be unique across both, every mcq answer must index
+        into its choices, and the subtopic must exist. Not required for every subtopic."""
         taken = {item_id for items in self.checks.values() for item_id in items}
         seen: dict[str, Path] = {}
         for path in sorted((self.content / "placement").glob("*.yaml")):
@@ -284,8 +284,10 @@ class Validator:
                     self.fail(path, f"{item['id']}: answer_index is out of range of choices")
                 if item["type"] == "mcq" and len(set(item["choices"])) != len(item["choices"]):
                     self.fail(path, f"{item['id']}: duplicate choices")
-                if item["type"] in ("mcq", "read_code") and item["difficulty"] != 1:
-                    self.fail(path, f"{item['id']}: placement mcq/read_code must be difficulty 1")
+                if item["type"] == "read_code" and item["difficulty"] != 1:
+                    self.fail(path, f"{item['id']}: placement read_code must be difficulty 1")
+                if item["type"] == "mcq" and item["difficulty"] not in (1, 2):
+                    self.fail(path, f"{item['id']}: placement mcq must be difficulty 1 or 2")
                 if item["type"] == "read_code":
                     run = run_native(
                         item["code"],

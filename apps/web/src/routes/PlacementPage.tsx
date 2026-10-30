@@ -17,10 +17,12 @@ import {
   getPlacementResult,
   newIdempotencyKey,
   placementHeartbeat,
+  selectPlacementModules,
   skipPlacement,
   type CheckAnswerBody,
   type CheckStep,
   type CheckStepResult,
+  type PlacementConceptOffer,
   type PlacementResult,
   type PlacementView,
 } from "../lib/api";
@@ -28,13 +30,14 @@ import { formatRetry, LEVEL_TEXT, timebox } from "../lib/checkFlow";
 import { useAsync, usePageExit } from "../lib/hooks";
 import {
   budgetView,
+  CONCEPT_OUTCOME_TEXT,
+  currentLabel,
   GATE_TEXT,
   gateChips,
   gateProgressText,
   groupByModule,
   minutesText,
   OUTCOME_NOTE,
-  RUNG_TEXT,
   skillChip,
 } from "../lib/placementFlow";
 import { WriteCodeStep } from "./CheckPage";
@@ -116,10 +119,7 @@ export function PlacementSessionView(props: {
       {view.current && last === null && (
         // Hidden while a result is shown: `view` already holds the NEXT gate then.
         <p className="muted">
-          {view.current.name_vi} ·{" "}
-          {view.current.rung != null && RUNG_TEXT[view.current.rung]
-            ? RUNG_TEXT[view.current.rung]
-            : (LEVEL_TEXT[step.level] ?? `Mức ${step.level}`)}
+          {currentLabel(view.current, LEVEL_TEXT[step.level] ?? `Mức ${step.level}`)}
           <span className={`check-timer ${box.phase}`}> · ⏱ {formatClock(props.itemMs)} → {box.label}</span>
         </p>
       )}
@@ -224,6 +224,48 @@ export function PlacementFinishedView(props: { view: PlacementView; last: CheckS
   );
 }
 
+/** Concept phase, step 1: the user ticks the modules they already know; those get a quick check. */
+export function ModuleOfferView(props: {
+  offer: PlacementConceptOffer[];
+  checked: string[];
+  busy: boolean;
+  onToggle: (module: string) => void;
+  onMeasure: () => void;
+  onSkip: () => void;
+}) {
+  return (
+    <div className="page check-page placement-page">
+      <section className="card" aria-labelledby="pl-modules">
+        <h1 id="pl-modules">Chọn các mảng bạn đã nắm</h1>
+        <p>Chọn các mảng bạn đã nắm để kiểm tra nhanh; bỏ trống nếu muốn bắt đầu học luôn.</p>
+        <ul className="module-offer" style={{ listStyle: "none", padding: 0 }}>
+          {props.offer.map((o) => (
+            <li key={o.module}>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={props.checked.includes(o.module)}
+                  disabled={props.busy}
+                  onChange={() => props.onToggle(o.module)}
+                />{" "}
+                {o.name_vi}
+              </label>
+            </li>
+          ))}
+        </ul>
+        <div className="toolbar">
+          <button className="btn primary" disabled={props.busy || props.checked.length === 0} onClick={props.onMeasure}>
+            Đo các mục đã chọn
+          </button>
+          <button className="btn" disabled={props.busy} onClick={props.onSkip}>
+            Bỏ qua
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 type Phase = { kind: "loading" } | { kind: "error"; error: Error } | { kind: "running" };
 
 function PlacementRunner({ id }: { id: number }) {
@@ -236,6 +278,7 @@ function PlacementRunner({ id }: { id: number }) {
   const [confirm, setConfirm] = useState<PlacementConfirm>(null);
   const [softDismissed, setSoftDismissed] = useState(false);
   const [reload, setReload] = useState(0);
+  const [checkedModules, setCheckedModules] = useState<string[]>([]);
   const [clock, setClock] = useState({ item: 0, active: 0 });
   const itemRef = useRef(0);
   const activeRef = useRef(0);
@@ -357,6 +400,23 @@ function PlacementRunner({ id }: { id: number }) {
     }
   };
 
+  const sendModules = async (selected: string[]) => {
+    if (committing.current) return;
+    committing.current = true;
+    setBusy(true);
+    try {
+      const next = await selectPlacementModules(id, selected, newIdempotencyKey(), activeRef.current);
+      setLast(null);
+      adopt(next);
+      if (next.status !== "in_progress") goResult();
+    } catch (error) {
+      notify(`Chưa gửi được lựa chọn: ${(error as Error).message}`, { kind: "error" });
+    } finally {
+      committing.current = false;
+      setBusy(false);
+    }
+  };
+
   const exit = async () => {
     await placementHeartbeat(id, activeRef.current, itemRef.current).catch(() => undefined);
     navigate("/");
@@ -390,6 +450,19 @@ function PlacementRunner({ id }: { id: number }) {
           Về trang chính
         </Link>
       </div>
+    );
+  }
+  if (view.status === "in_progress" && (view.awaiting_modules || view.phase === "concept_offer") && !step) {
+    // The last code answer's result banner is skipped here: the offer replaces the empty state.
+    return (
+      <ModuleOfferView
+        offer={view.concept_offer ?? []}
+        checked={checkedModules}
+        busy={busy}
+        onToggle={(m) => setCheckedModules((cur) => (cur.includes(m) ? cur.filter((x) => x !== m) : [...cur, m]))}
+        onMeasure={() => void sendModules(checkedModules)}
+        onSkip={() => void sendModules([])}
+      />
     );
   }
   if (!step && last && view.status !== "in_progress") {
@@ -515,6 +588,19 @@ export function PlacementResultView({ result }: { result: PlacementResult }) {
           </p>
         )}
       </section>
+
+      {result.concept && result.concept.length > 0 && (
+        <section aria-labelledby="pl-concept">
+          <h2 id="pl-concept">Kiểm tra khái niệm</h2>
+          <ul>
+            {result.concept.map((c) => (
+              <li key={c.gate}>
+                {c.name_vi}: <strong>{CONCEPT_OUTCOME_TEXT[c.outcome ?? ""] ?? "chưa đo được"}</strong>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section className="card" aria-labelledby="pl-start">
         <h2 id="pl-start">Bắt đầu từ đây</h2>
