@@ -253,7 +253,7 @@ def test_real_content_has_all_seven_gates():
 
 def test_real_pilot_rungs_resolve_and_stay_out_of_the_mastery_pool():
     store = ContentStore.load(REPO_CONTENT)
-    for spec in pl.GATES[:2]:
+    for spec in pl.GATES:
         sid = spec["subtopic_id"]
         p0 = pl._rung_item(store, sid, spec["p0"], 0)
         p1 = pl._rung_item(store, sid, spec["p1"], 1)
@@ -263,8 +263,6 @@ def test_real_pilot_rungs_resolve_and_stay_out_of_the_mastery_pool():
         # the separate pool: mastery selectors and spec_for never see placement items
         assert spec["p0"] not in {i["id"] for i in store.checks[sid]}
         assert spec["p1"] not in {i["id"] for i in store.check_items(sid)[1]}
-    for spec in pl.GATES[2:]:
-        assert spec["p0"] is None and spec["p1"] is None
 
 
 # ---- weak profile ----
@@ -707,8 +705,8 @@ def test_rung_p1_fail_keeps_known_basic_skips_p2_and_probes_p2_below(client, clo
     assert_parity(client)
 
 
-def test_rung_a_gate_without_a_pool_falls_back_to_p2_only(client, clock):
-    set_experience(client, "solid")  # entry C3 has no P0 / P1
+def test_rung_a_gate_whose_pool_is_missing_falls_back_to_p2_only(client, clock):
+    set_experience(client, "solid")  # entry C3: the synthetic content has no C3 placement pool
     v = start(client)
     assert v["current"]["gate"] == "C3" and v["current"]["rung"] == 2
     assert v["current"]["step"]["type"] == "write_code"
