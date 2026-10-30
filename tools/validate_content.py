@@ -75,7 +75,7 @@ class Validator:
         self.checks: dict[str, dict[str, dict]] = {}  # subtopic id -> item id -> item
         self.schemas = {
             name: load_json(content / "schemas" / f"{name}.schema.json")
-            for name in ("lesson", "problem", "check")
+            for name in ("lesson", "problem", "check", "placement")
         }
 
     def fail(self, path: Path, message: str) -> None:
@@ -258,6 +258,43 @@ class Validator:
                     self.fail(
                         path, f"{item['id']}: problem {item['problem_id']} must be kind check"
                     )
+
+    def check_placement_files(self, subtopic_ids: set[str]) -> None:
+        """content/placement/<subtopic_id>.yaml: placement-only P0 mcq / P1 read_code items (SPEC
+        5.6). A separate pool from content/checks: ids must still be unique across both, every mcq
+        answer must index into its choices, and the subtopic must exist. Not required for every
+        subtopic."""
+        taken = {item_id for items in self.checks.values() for item_id in items}
+        seen: dict[str, Path] = {}
+        for path in sorted((self.content / "placement").glob("*.yaml")):
+            data = load_yaml(path)
+            if not self.check_schema(path, data, "placement"):
+                continue
+            if data["subtopic_id"] != path.stem or path.stem not in subtopic_ids:
+                self.fail(path, "file must be placement/<subtopic_id>.yaml for a known subtopic")
+            for item in data["items"]:
+                if item["id"] in taken:
+                    self.fail(path, f"item id {item['id']} is also a content/checks item id")
+                elif item["id"] in seen:
+                    self.fail(path, f"item id {item['id']} also appears in {seen[item['id']].name}")
+                seen[item["id"]] = path
+                if item["type"] == "write_code":
+                    self.fail(path, f"{item['id']}: placement items are mcq or read_code only")
+                if item["type"] == "mcq" and item["answer_index"] >= len(item["choices"]):
+                    self.fail(path, f"{item['id']}: answer_index is out of range of choices")
+                if item["type"] == "mcq" and len(set(item["choices"])) != len(item["choices"]):
+                    self.fail(path, f"{item['id']}: duplicate choices")
+                if item["type"] in ("mcq", "read_code") and item["difficulty"] != 1:
+                    self.fail(path, f"{item['id']}: placement mcq/read_code must be difficulty 1")
+                if item["type"] == "read_code":
+                    run = run_native(
+                        item["code"],
+                        {"mode": "stdout"},
+                        [{"id": item["id"], "expected": item["expected_output"]}],
+                        SNIPPET_TIME_MS,
+                    )
+                    if run["verdict"] != "AC":
+                        self.fail(path, f"{item['id']}: code output does not match expected_output")
 
     def check_extra_files(self, subtopic_ids: set[str]) -> None:
         """content/checks_extra/<id>.yaml holds author-added items; convert_checks.py merges them
@@ -477,6 +514,7 @@ class Validator:
         problem_ids = {p.name for p in self.problem_dirs()}
         self.check_check_files({s["id"] for s in subtopics})
         self.check_extra_files({s["id"] for s in subtopics})
+        self.check_placement_files({s["id"] for s in subtopics})
         return {
             "lessons": self.check_lessons(subtopics, problem_ids),
             "problems": self.check_problems(subtopics),

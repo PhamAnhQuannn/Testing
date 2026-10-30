@@ -100,7 +100,7 @@ def load_evidence(
             )
         )
     checks = tuple(
-        sc.CheckEv(c.item_id, c.level, c.passed, c.clean, c.gave_up, c.item_type)
+        sc.CheckEv(c.item_id, c.level, c.passed, c.clean, c.gave_up, c.item_type, c.context)
         for c in db.scalars(
             select(t.CheckResult).where(
                 t.CheckResult.user_id == user_id, t.CheckResult.subtopic_id == subtopic_id

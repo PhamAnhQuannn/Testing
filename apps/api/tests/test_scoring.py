@@ -182,6 +182,14 @@ _FAIL = sc.CheckEv("Q1", 2, passed=False)
 _PASS2 = sc.CheckEv("Q023", 2, True, True)
 _PASS3 = sc.CheckEv("Q024", 3, True, True, item_type="write_code")
 
+# tested_basic is PLACEMENT-only: a clean keyed level-1 pass counts for score 1 only in a placement
+# sitting, never in a mastery/test_out ladder (where level 1 is only the post-L2-fail diagnostic).
+_MCQ1 = sc.CheckEv("P900", 1, True, True, item_type="mcq", context="placement")
+_MCQ1_UNCLEAN = sc.CheckEv("P900", 1, True, False, item_type="mcq", context="placement")
+_READ1 = sc.CheckEv("P903", 1, True, True, item_type="read_code", context="placement")
+_READ1_MASTERY = sc.CheckEv("P903", 1, True, True, item_type="read_code")  # mastery diagnostic
+_CON1 = sc.CheckEv("C1", 1, True, True, item_type="concept", context="placement")
+
 WORKED = [
     # example 1 (dict: 1 practice problem, L2 = Q023, L3 = Q024, all write_code)
     ("ex1 day 2 lesson", DICT, sc.Evidence(True, _Q4), 1),
@@ -214,6 +222,19 @@ WORKED = [
     ("ex2 test out", DICT, sc.Evidence(checks=(_PASS2,)), 2),
     ("ex2 test out + L3 but no code review", DICT, sc.Evidence(checks=(_PASS2, _PASS3)), 2),
     # example 3 (a subtopic with one L2 item: fail, then the practice exit)
+    # placement leveled rungs: tested_basic (clean keyed level-1 pass) -> 1
+    ("pl clean mcq L1", DICT, sc.Evidence(checks=(_MCQ1,)), 1),
+    ("pl clean read_code L1", DICT, sc.Evidence(checks=(_READ1,)), 1),
+    ("pl unclean mcq L1 is no evidence", DICT, sc.Evidence(checks=(_MCQ1_UNCLEAN,)), 0),
+    ("pl self-graded concept L1 on a code subtopic stays 0", DICT, sc.Evidence(checks=(_CON1,)), 0),
+    # a clean keyed level-1 pass in the MASTERY ladder (post-L2-fail diagnostic) must NOT score 1
+    (
+        "mastery read_code L1 diagnostic is not tested_basic",
+        DICT,
+        sc.Evidence(checks=(_READ1_MASTERY,)),
+        0,
+    ),  # noqa: E501
+    ("pl clean write_code L2 is still 2", DICT, sc.Evidence(checks=(_PASS2,)), 2),
     ("ex3 fail only", _TWO_PRACTICE, sc.Evidence(True, _Q3, (), (_FAIL,)), 1),
     ("ex3 one clean AC is not enough", _TWO_PRACTICE, sc.Evidence(True, _Q3, (_P1,), (_FAIL,)), 1),
     (
@@ -242,9 +263,17 @@ def test_a_self_graded_concept_pass_is_never_evidence():
     spec = sc.SubtopicSpec(has_l2_items=True, has_l3_write_code=True)
     concept = sc.CheckEv("C", 2, passed=True, clean=False, item_type="concept")
     assert sc.score(spec, sc.Evidence(checks=(concept,))).score == 0
-    # a level 1 pass is diagnostic only
-    l1 = sc.CheckEv("Q", 1, passed=True, clean=True, item_type="read_code")
-    assert sc.score(spec, sc.Evidence(checks=(l1,))).score == 0
+    # a clean KEYED level-1 pass (read_code) IN PLACEMENT proves basics = score 1 (SPEC 5.6,
+    # tested_basic; changed by PR: placement leveled rungs). It never reaches 2 on its own.
+    l1 = sc.CheckEv("Q", 1, passed=True, clean=True, item_type="read_code", context="placement")
+    r = sc.score(spec, sc.Evidence(checks=(l1,)))
+    assert r.score == 1 and r.tested_basic and not r.tested_out
+    # ...but the SAME pass reached as a mastery diagnostic (default context) is not tested_basic
+    l1m = sc.CheckEv("Q", 1, passed=True, clean=True, item_type="read_code")
+    assert sc.score(spec, sc.Evidence(checks=(l1m,))).score == 0
+    # ...and a self-graded concept L1 pass on a code subtopic is never evidence
+    c1 = sc.CheckEv("C1", 1, passed=True, clean=True, item_type="concept", context="placement")
+    assert sc.score(spec, sc.Evidence(checks=(c1,))).score == 0
 
 
 # ---- concept subtopics: System Design + the AI-engineer LLM track (SPEC 5.2) ----

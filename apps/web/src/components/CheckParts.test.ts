@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 import type { CheckOutcome, CheckStep, CheckStepResult } from "../lib/api";
-import { ConceptStep, LockedCard, OutcomeCard, ReadCodeStep, ResultBanner, Stepper } from "./CheckParts";
+import { ConceptStep, LockedCard, McqChoices, McqStep, OutcomeCard, ReadCodeStep, ResultBanner, Stepper } from "./CheckParts";
 
 const html = (node: ReactElement) => renderToStaticMarkup(createElement(MemoryRouter, null, node));
 
@@ -139,5 +139,31 @@ describe("check results rendering", () => {
     const out = html(createElement(LockedCard, { subtopicId: "py.x", retryAfter: "2026-10-26T10:00:00Z", level: 2 }));
     expect(out).toContain("Làm lại được sau");
     expect(out).toContain('href="/s/py.x"');
+  });
+});
+
+describe("McqStep", () => {
+  const mcq = step({ type: "mcq", choices: ["Một", "Hai", "Ba"] });
+  it("renders every choice as a radio and disables submit until one is picked", () => {
+    const out = html(createElement(McqStep, { step: mcq, busy: false, onSubmit: () => {} }));
+    expect(out.match(/type="radio"/g)).toHaveLength(3);
+    expect(out).toContain("Hai");
+    expect(out).toMatch(/<button class="btn primary" disabled=""[^>]*>Trả lời<\/button>/);
+  });
+  it("calls onSubmit with the picked index", () => {
+    const calls: number[] = [];
+    const el = McqChoices({ step: mcq, busy: false, selected: 1, onSelect: () => {}, onSubmit: (i) => calls.push(i) }) as ReactElement;
+    const find = (n: unknown): ReactElement | null => {
+      if (!n || typeof n !== "object") return null;
+      const e = n as ReactElement<{ children?: unknown; onClick?: () => void }>;
+      if (e.type === "button") return e;
+      for (const c of ([] as unknown[]).concat(e.props?.children ?? [])) {
+        const r = find(c);
+        if (r) return r;
+      }
+      return null;
+    };
+    (find(el)!.props as { onClick: () => void }).onClick();
+    expect(calls).toEqual([1]);
   });
 });

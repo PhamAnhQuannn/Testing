@@ -31,6 +31,17 @@ export const GATE_TEXT: Record<string, string> = {
   failed: "chưa vững",
   gave_up: "bỏ qua",
   locked: "tạm khoá",
+  knowledge_gap: "hổng kiến thức",
+  known_basic: "biết kiến thức cơ bản",
+};
+
+/** Rung of a gate: 0 knowledge (mcq), 1 read code, 2 write code. */
+export const RUNG_TEXT: Record<number, string> = { 0: "Kiến thức", 1: "Đọc code", 2: "Viết code" };
+
+/** Short Vietnamese description of a gate outcome (result screen); "" when there is nothing to add. */
+export const OUTCOME_NOTE: Record<string, string> = {
+  knowledge_gap: "Chưa nắm kiến thức nền của mục này; nên học lại bài trước khi viết code.",
+  known_basic: "Nắm kiến thức cơ bản nhưng chưa chứng minh được bằng code.",
 };
 
 /** Chips for the gates that were decided plus the open one (gates never reached are not shown). */

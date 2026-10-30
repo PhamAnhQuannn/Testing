@@ -1,4 +1,8 @@
-"""Placement Phase A (A10): gate ladder, stop rules, budget, seeding only score 2 (SPEC 5.6)."""
+"""Placement Phase A (A10): gate ladder + rungs, stop rules, budget, seeding (SPEC 5.6).
+
+Tests named `test_rung_*` run on content where C1 and C2 also have a placement pool (P0 mcq, P1
+read_code); every other test runs gates P2-only (the graceful fallback).
+"""
 
 from __future__ import annotations
 
@@ -18,8 +22,8 @@ from app.services.content_loader import ContentStore
 REPO_CONTENT = Path(__file__).resolve().parents[3] / "content"
 
 # the seven gate subtopics form a prerequisite chain, like the real graph
-CHAIN = [g[1] for g in pl.GATES]
-GATE_ITEM = {g[1]: g[2] for g in pl.GATES}
+CHAIN = [g["subtopic_id"] for g in pl.GATES]
+GATE_ITEM = {g["subtopic_id"]: g["p2"] for g in pl.GATES}
 EXTRA = "py.core.getting_started"  # prerequisite of C1, with a published lesson, no check items
 SIDE = "py.core.loops"  # a descendant of C1 only (not a gate, no check items)
 
@@ -41,7 +45,7 @@ def _sub(sid: str, order: int, prereqs: list[str]) -> dict:
     }
 
 
-def build_placement_content(root: Path) -> Path:
+def build_placement_content(root: Path, rungs: bool = False) -> Path:
     (root / "index").mkdir(parents=True)
     subs = [_sub(EXTRA, 1, [])]
     prev = EXTRA
@@ -107,12 +111,40 @@ def build_placement_content(root: Path) -> Path:
                     }
                 )
             )
+    if rungs:  # a placement pool for C1 and C2 (P0 mcq answer_index 1, P1 read_code "1")
+        (root / "placement").mkdir()
+        for spec in pl.GATES[:2]:
+            items = [
+                {
+                    "id": spec["p0"],
+                    "difficulty": 1,
+                    "type": "mcq",
+                    "minutes": 1,
+                    "prompt_md": "pick b",
+                    "choices": ["a", "b", "c"],
+                    "answer_index": 1,
+                    "explanation_md": "because b",
+                },
+                {
+                    "id": spec["p1"],
+                    "difficulty": 1,
+                    "type": "read_code",
+                    "minutes": 2,
+                    "prompt_md": "what prints?",
+                    "code": "print(1)",
+                    "expected_output": "1",
+                },
+            ]
+            (root / "placement" / f"{spec['subtopic_id']}.yaml").write_text(
+                yaml.safe_dump({"subtopic_id": spec["subtopic_id"], "items": items})
+            )
     return root
 
 
 @pytest.fixture
-def content_dir(tmp_path: Path) -> Path:
-    return build_placement_content(tmp_path / "content")
+def content_dir(tmp_path: Path, request: pytest.FixtureRequest) -> Path:
+    rungs = request.function.__name__.startswith("test_rung")
+    return build_placement_content(tmp_path / "content", rungs)
 
 
 def key(n: str) -> dict[str, str]:
@@ -137,28 +169,42 @@ def write_body(item: str, ok: bool = True, elapsed_ms: int = 360_000, **kw) -> d
     }
 
 
-def drive(client, clock, script: dict[str, str], *, l1="fail", minutes=6.0, l1_minutes=3.0):
-    """Play the current placement to its end. script: gate code -> pass | fail | giveup."""
+MINUTES = {"mcq": 1.0, "read_code": 2.0, "write_code": 6.0}
+
+
+def drive(
+    client, clock, script: dict[str, str], *, minutes=6.0, rungs: dict[str, str] | None = None
+):
+    """Play the current placement to its end. script: gate code -> pass | fail | giveup for the P2
+    write_code item; rungs: "C1:P0" / "C1:P1" -> pass | fail | giveup (default pass)."""
+    rungs = rungs or {}
     cur = client.get("/api/placement/current").json()["placement"]
     pid, active = cur["placement_id"], cur["active_ms"]
     steps = 0
     while cur["status"] == "in_progress":
         c = cur["current"]
         step = c["step"]
-        mins = minutes if step["level"] == 2 else l1_minutes
+        kind = step["type"]
+        mins = minutes if kind == "write_code" else MINUTES[kind]
         clock.advance(minutes=mins)
         active += int(mins * 60_000)
         base = {"item_id": step["item_id"], "elapsed_ms": int(mins * 60_000)}
         base["session_elapsed_ms"] = active
-        if step["level"] == 2:
-            act = script[c["gate"]]
-            if act == "giveup":
-                r = client.post(f"/api/placement/{pid}/skip", json=base)
-            else:
-                body = write_body(step["item_id"], act == "pass", int(mins * 60_000))
-                r = client.post(f"/api/placement/{pid}/answer", json={**body, **base})
+        if kind == "write_code":
+            act = script.get(c["gate"], "pass")
         else:
-            ans = "1" if l1 == "pass" else "nope"
+            act = rungs.get(f"{c['gate']}:P{c['rung']}", "pass")
+        if act == "giveup":
+            r = client.post(f"/api/placement/{pid}/skip", json=base)
+        elif kind == "write_code":
+            body = write_body(step["item_id"], act == "pass", int(mins * 60_000))
+            r = client.post(f"/api/placement/{pid}/answer", json={**body, **base})
+        elif kind == "mcq":
+            r = client.post(
+                f"/api/placement/{pid}/answer", json={**base, "choice": 1 if act == "pass" else 0}
+            )
+        else:
+            ans = "1" if act == "pass" else "nope"
             r = client.post(f"/api/placement/{pid}/answer", json={**base, "answer": ans})
         assert r.status_code == 200, r.text
         cur = r.json()["placement"]
@@ -178,14 +224,14 @@ def sub_row(client, sid):
 
 
 def assert_parity(client):
-    """score cache == scoring(events) for every subtopic, and nothing placement-made is 1 or 3."""
+    """score cache == scoring(events) for every subtopic, and placement never makes a 3."""
     rt = client.app.state.rt
     with rt.session() as db:
         for sid in rt.content.subtopics:
             ev = progress.load_evidence(db, rt.content, sid)
             want = sc.score(rt.content.spec_for(sid), ev).score
             assert db.get(t.UserSubtopic, (1, sid)).score == want
-            assert want in (0, 2), (sid, want)  # placement alone never makes 1 or 3
+            assert want in (0, 1, 2), (sid, want)  # placement alone never makes 3
 
 
 def set_experience(client, exp):
@@ -198,11 +244,27 @@ def set_experience(client, exp):
 
 def test_real_content_has_all_seven_gates():
     store = ContentStore.load(REPO_CONTENT)
-    for code, sid, item_id, _ in pl.GATES:
-        item = pl._gate_item(store, sid, item_id)
-        assert item is not None, code
-        assert item["id"] == item_id and item["minutes"] == 6 and item["type"] == "write_code"
-        assert sid in store.subtopics
+    for spec in pl.GATES:
+        item = pl._gate_item(store, spec["subtopic_id"], spec["p2"])
+        assert item is not None, spec["code"]
+        assert item["id"] == spec["p2"] and item["minutes"] == 6 and item["type"] == "write_code"
+        assert spec["subtopic_id"] in store.subtopics
+
+
+def test_real_pilot_rungs_resolve_and_stay_out_of_the_mastery_pool():
+    store = ContentStore.load(REPO_CONTENT)
+    for spec in pl.GATES[:2]:
+        sid = spec["subtopic_id"]
+        p0 = pl._rung_item(store, sid, spec["p0"], 0)
+        p1 = pl._rung_item(store, sid, spec["p1"], 1)
+        assert p0 is not None and p0["type"] == "mcq" and 0 <= p0["answer_index"] < 4
+        assert p1 is not None and p1["type"] == "read_code"
+        assert store.find_check_item(sid, spec["p0"]) is p0
+        # the separate pool: mastery selectors and spec_for never see placement items
+        assert spec["p0"] not in {i["id"] for i in store.checks[sid]}
+        assert spec["p1"] not in {i["id"] for i in store.check_items(sid)[1]}
+    for spec in pl.GATES[2:]:
+        assert spec["p0"] is None and spec["p1"] is None
 
 
 # ---- weak profile ----
@@ -213,15 +275,12 @@ def test_weak_profile_stops_at_the_first_gate_within_9_minutes(client, clock):
     v = start(client)
     assert v["experience"] == "none" and v["current"]["gate"] == "C1"
     assert v["current"]["step"]["level"] == 2 and "expected_output" not in json.dumps(v)
-    end = drive(client, clock, {"C1": "fail"}, l1="fail")
+    end = drive(client, clock, {"C1": "fail"})
     assert end["status"] == "finished" and end["stop_reason"] == "failed_start"
     assert "Chưa cần đo thêm" in end["message_vi"]
-    assert end["active_ms"] <= 9 * 60_000  # 6 min item + 3 min level 1 (UI_SPEC 2.7)
+    assert end["active_ms"] <= 9 * 60_000  # one 6 min item (placement no longer adds a level 1)
     rows = db_rows(client, t.CheckResult)
-    assert [(r.level, r.passed, r.context) for r in rows] == [
-        (2, False, "placement"),
-        (1, False, "placement"),
-    ]
+    assert [(r.level, r.passed, r.context) for r in rows] == [(2, False, "placement")]
     assert all(sub_row(client, s).score == 0 for s in CHAIN)
     assert_parity(client)
     # the 24 h lock of a real fail applies to a later mastery check
@@ -246,16 +305,15 @@ def test_none_experience_never_goes_past_c2(client, clock):
     assert_parity(client)
 
 
-def test_give_up_does_not_lock_and_level1_pass_sets_known_basic_only(client, clock):
+def test_give_up_does_not_lock_and_a_p2_only_gate_has_no_known_basic(client, clock):
     set_experience(client, "none")
     start(client)
-    end = drive(client, clock, {"C1": "giveup"}, l1="pass")
+    end = drive(client, clock, {"C1": "giveup"})
     assert end["stop_reason"] == "failed_start"  # a give-up counts for stopping
     rows = db_rows(client, t.CheckResult)
-    assert rows[0].gave_up and not rows[0].passed
-    assert rows[1].level == 1 and rows[1].passed
+    assert len(rows) == 1 and rows[0].gave_up and not rows[0].passed
     row = sub_row(client, CHAIN[0])
-    assert row.known_basic is True and row.score == 0 and not row.tested_out
+    assert row.known_basic is False and row.score == 0 and not row.tested_out
     assert_parity(client)
     # no lock: a mastery check can start right away
     assert client.post(f"/api/checks/{CHAIN[0]}/start").status_code == 200
@@ -320,7 +378,7 @@ def test_over_time_pass_is_not_clean_and_seeds_nothing(client, clock):
 def test_fail_after_a_pass_stops_without_asking_further(client, clock):
     set_experience(client, "none")
     start(client)
-    end = drive(client, clock, {"C1": "pass", "C2": "fail"}, l1="fail")
+    end = drive(client, clock, {"C1": "pass", "C2": "fail"})
     assert end["stop_reason"] == "fail_after_pass"
     assert [g["outcome"] for g in end["gates"]][:3] == ["passed", "failed", None]
 
@@ -336,7 +394,9 @@ def test_entry_gate_fail_probes_exactly_one_gate_below(client, clock):
         json=write_body(v["current"]["step"]["item_id"], False),
     )
     nxt = r.json()["placement"]
-    assert nxt["current"]["step"]["level"] == 1  # diagnostic of the failed gate first
+    # no level-1 diagnostic any more: the probe of exactly one gate below (its P2) comes next
+    assert nxt["current"]["gate"] == "C2" and nxt["current"]["probing"]
+    assert nxt["current"]["step"]["level"] == 2
     end = drive(client, clock, {"C2": "pass"})
     gates = {g["code"]: g["outcome"] for g in end["gates"]}
     assert gates["C3"] == "failed" and gates["C2"] == "passed" and gates["C1"] is None
@@ -391,7 +451,7 @@ def test_active_time_is_monotonic_and_cannot_outrun_the_clock(client, clock):
 def test_hints_are_labels_and_real_evidence_clears_them(client, clock):
     set_experience(client, "solid")
     start(client)
-    end = drive(client, clock, {"C3": "pass", "C4": "fail"}, l1="fail")
+    end = drive(client, clock, {"C3": "pass", "C4": "fail"})
     assert end["stop_reason"] == "fail_after_pass"
     for sid in (EXTRA, CHAIN[0], CHAIN[1]):
         r = sub_row(client, sid)
@@ -540,3 +600,130 @@ def test_a_gate_already_at_score_2_is_skipped_and_a_locked_one_counts_as_failed(
     v = start(client)
     assert v["status"] == "finished" and v["gates"][1]["outcome"] == "locked"
     assert v["gates"][1]["retry_after"] and v["stop_reason"] == "fail_after_pass"
+
+
+# ---- rungs: P0 mcq -> P1 read_code -> P2 write_code (C1 and C2 have a placement pool) ----
+
+
+def test_rung_first_item_is_an_mcq_and_never_leaks_the_answer(client):
+    set_experience(client, "none")
+    v = start(client)
+    cur = v["current"]
+    assert cur["gate"] == "C1" and cur["rung"] == 0
+    step = cur["step"]
+    assert step["type"] == "mcq" and step["level"] == 1 and step["minutes"] == 1
+    assert step["choices"] == ["a", "b", "c"]
+    blob = json.dumps(v)
+    assert "answer_index" not in blob and "because b" not in blob
+
+
+def test_rung_climb_p0_pass_then_p1_then_p2_then_next_gate_starts_at_p0(client, clock):
+    set_experience(client, "none")
+    v = start(client)
+    pid = v["placement_id"]
+
+    def play(body, mins):
+        clock.advance(minutes=mins)
+        r = client.post(f"/api/placement/{pid}/answer", json=body)
+        assert r.status_code == 200, r.text
+        return r.json()
+
+    step = v["current"]["step"]
+    out = play({"item_id": step["item_id"], "elapsed_ms": 60_000, "choice": 1}, 1)
+    assert out["gate_outcome"] is None  # the gate is not decided after P0
+    cur = out["placement"]["current"]
+    assert cur["gate"] == "C1" and cur["rung"] == 1 and cur["step"]["type"] == "read_code"
+    assert "expected_output" not in json.dumps(out)
+    assert sub_row(client, CHAIN[0]).score == 1  # a clean keyed pass = tested_basic
+    step = cur["step"]
+    out = play({"item_id": step["item_id"], "elapsed_ms": 120_000, "answer": "1\n"}, 2)
+    cur = out["placement"]["current"]
+    assert cur["gate"] == "C1" and cur["rung"] == 2 and cur["step"]["level"] == 2
+    assert cur["step"]["type"] == "write_code"
+    out = play(write_body(cur["step"]["item_id"], True, 360_000), 6)
+    assert out["gate_outcome"] == "passed" and out["score"]["after"] == 2
+    cur = out["placement"]["current"]
+    assert cur["gate"] == "C2" and cur["rung"] == 0 and cur["step"]["type"] == "mcq"
+    results = db_rows(client, t.CheckResult)
+    assert [(r.item_type, r.level, r.passed, r.clean) for r in results] == [
+        ("mcq", 1, True, True),
+        ("read_code", 1, True, True),
+        ("write_code", 2, True, True),
+    ]
+    assert all(r.context == "placement" for r in results)
+    assert_parity(client)
+
+
+def test_rung_p0_fail_is_a_knowledge_gap_and_probes_only_the_p0_below(client, clock):
+    set_experience(client, "some")  # entry C2
+    v = start(client)
+    assert v["current"]["gate"] == "C2" and v["current"]["step"]["type"] == "mcq"
+    end = drive(client, clock, {}, rungs={"C2:P0": "fail"})
+    gates = {g["code"]: g["outcome"] for g in end["gates"]}
+    assert gates["C2"] == "knowledge_gap" and gates["C1"] == "known_basic"
+    assert end["stop_reason"] == "fail_after_pass"
+    results = db_rows(client, t.CheckResult)
+    # only the two P0 items were asked: no P1 / P2 anywhere
+    assert [(r.item_type, r.passed) for r in results] == [("mcq", False), ("mcq", True)]
+    assert sub_row(client, CHAIN[1]).score == 0
+    assert sub_row(client, CHAIN[0]).score == 1 and sub_row(client, CHAIN[0]).known_basic
+    assert sub_row(client, CHAIN[2]).placement_hint == "likely_gap"
+    assert_parity(client)
+
+
+def test_rung_p0_fail_at_c1_stops_at_once_and_a_give_up_counts(client, clock):
+    set_experience(client, "none")
+    start(client)
+    end = drive(client, clock, {}, rungs={"C1:P0": "giveup"})
+    assert end["stop_reason"] == "failed_start"
+    assert end["gates"][0]["outcome"] == "knowledge_gap"
+    rows = db_rows(client, t.CheckResult)
+    assert len(rows) == 1 and rows[0].gave_up and rows[0].item_type == "mcq"
+    assert end["active_ms"] == 60_000 and all(sub_row(client, s).score == 0 for s in CHAIN)
+
+
+def test_rung_two_p0_fails_in_a_row_stop(client, clock):
+    set_experience(client, "some")
+    start(client)
+    end = drive(client, clock, {}, rungs={"C2:P0": "fail", "C1:P0": "fail"})
+    assert end["stop_reason"] == "two_fails"
+    gates = {g["code"]: g["outcome"] for g in end["gates"]}
+    assert gates["C2"] == "knowledge_gap" and gates["C1"] == "knowledge_gap"
+
+
+def test_rung_p1_fail_keeps_known_basic_skips_p2_and_probes_p2_below(client, clock):
+    set_experience(client, "some")  # entry C2
+    start(client)
+    end = drive(client, clock, {"C1": "pass"}, rungs={"C2:P1": "fail"})
+    gates = {g["code"]: g["outcome"] for g in end["gates"]}
+    assert gates["C2"] == "failed" and gates["C1"] == "passed"
+    assert end["stop_reason"] == "fail_after_pass"
+    got = [(r.item_type, r.passed) for r in db_rows(client, t.CheckResult)]
+    # C2: P0 pass, P1 fail (no P2); then the probe is C1's P2 only (no P0 / P1)
+    assert got == [("mcq", True), ("read_code", False), ("write_code", True)]
+    c2 = sub_row(client, CHAIN[1])
+    assert c2.known_basic is True and c2.score == 1 and not c2.tested_out
+    assert sub_row(client, CHAIN[0]).score == 2
+    assert_parity(client)
+
+
+def test_rung_a_gate_without_a_pool_falls_back_to_p2_only(client, clock):
+    set_experience(client, "solid")  # entry C3 has no P0 / P1
+    v = start(client)
+    assert v["current"]["gate"] == "C3" and v["current"]["rung"] == 2
+    assert v["current"]["step"]["type"] == "write_code"
+
+
+def test_rung_mcq_needs_a_choice_and_over_time_is_not_clean(client):
+    v = start(client)
+    item = v["current"]["step"]["item_id"]
+    r = client.post(
+        f"/api/placement/{v['placement_id']}/answer", json={"item_id": item, "elapsed_ms": 1}
+    )
+    assert r.status_code == 422 and r.json()["error"]["code"] == "missing_field"
+    r = client.post(
+        f"/api/placement/{v['placement_id']}/answer",
+        json={"item_id": item, "elapsed_ms": 90_001, "choice": 1},
+    )
+    assert r.json()["result"]["clean"] is False  # over 1.5 x 1 min: correct but not clean
+    assert sub_row(client, CHAIN[0]).score == 0  # an unclean pass is no evidence

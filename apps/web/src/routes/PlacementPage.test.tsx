@@ -289,3 +289,29 @@ describe("placement api", () => {
     expect(JSON.parse(init(3).body as string)).toEqual({ active_ms: 15401, item_elapsed_ms: 3000 });
   });
 });
+
+describe("placement mcq step", () => {
+  it("renders an mcq step with rung label and knowledge_gap gate without crashing", () => {
+    const v = normalizePlacementView(
+      rawView({
+        gates: [
+          { code: "C1", subtopic_id: "a", name_vi: "Gate A", outcome: "knowledge_gap", l1: null, retry_after: null, rung_results: { "0": "failed" } },
+          { code: "C3", subtopic_id: "b", name_vi: "Gate B", outcome: null, l1: null, retry_after: null },
+        ],
+        current: {
+          gate: "C3", subtopic_id: "b", name_vi: "Gate B", probing: false, rung: 0, check_session_id: 12, elapsed_ms: 0,
+          step: { index: 0, count: 1, item_id: "m1", level: 1, type: "mcq", minutes: 1, time_limit_ms: 60000, prompt_md: "Chọn đúng?", choices: ["A1", "B1"] },
+        },
+      }),
+    );
+    expect(v.current!.rung).toBe(0);
+    expect(v.current!.step!.choices).toEqual(["A1", "B1"]);
+    const out = html(createElement(PlacementSessionView, {
+      view: v, step: v.current!.step!, activeMs: 0, itemMs: 0, last: null, busy: false, confirm: null, softOffer: false,
+      onConfirm: noop, onGiveUp: noop, onFinish: noop, onExit: noop, onNext: noop, onKeepGoing: noop, commit: async () => true,
+    }));
+    expect(out).toContain("Kiến thức");
+    expect(out).toContain("A1");
+    expect(out).toContain("hổng kiến thức");
+  });
+});

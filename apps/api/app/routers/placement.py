@@ -71,6 +71,7 @@ class AnswerIn(BaseModel):
     runtime_ms: int | None = Field(default=None, ge=0)
     answer: str | None = None  # read_code (level 1)
     self_grade: bool | None = None  # concept (level 1)
+    choice: int | None = Field(default=None, ge=0)  # mcq: index of the chosen option
 
 
 @router.post("/placement/{placement_id}/answer")

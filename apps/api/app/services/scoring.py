@@ -39,7 +39,8 @@ class CheckEv:
     passed: bool
     clean: bool = False
     gave_up: bool = False
-    item_type: str = "write_code"  # write_code | read_code | concept
+    item_type: str = "write_code"  # write_code | read_code | concept | mcq
+    context: str = "mastery"  # mastery | test_out | placement
 
 
 @dataclass(frozen=True)
@@ -83,6 +84,7 @@ class ScoreResult:
     s2: bool
     s3: bool
     tested_out: bool
+    tested_basic: bool
     quiz_best: float | None
     practice_ok: bool
     check2_ok: bool
@@ -138,6 +140,19 @@ def score(spec: SubtopicSpec, ev: Evidence) -> ScoreResult:
     best = quiz_best(ev.quiz_answers, spec.graded_quiz_ids, spec.min_items)
     s1 = ev.lesson_done and best is not None and best >= spec.pass_ratio
     tested_out = _check_pass(ev.checks, 2)
+    # Placement redesign (SPEC 5.6): a clean level-1 KEYED pass (mcq or read_code, objectively
+    # machine-graded) IN A PLACEMENT sitting proves basic knowledge = score 1. A self-graded
+    # `concept` pass never does, and this is PLACEMENT-ONLY: a level-1 read_code diagnostic reached
+    # in a mastery/test_out ladder (only after an L2 write_code fail) must NOT mark the subtopic
+    # score 1 / "done" — the mastery score-2 bar still rests on measured code there.
+    tested_basic = any(
+        c.level == 1
+        and c.passed
+        and c.clean
+        and c.context == "placement"
+        and c.item_type in ("mcq", "read_code")
+        for c in ev.checks
+    )
 
     practice = set(spec.practice_ids)
     ac_practice = {a.problem_id for a in ev.attempts if a.ac and a.problem_id in practice}
@@ -183,7 +198,7 @@ def score(spec: SubtopicSpec, ev: Evidence) -> ScoreResult:
         value = 3
     elif s2:
         value = 2
-    elif s1 or tested_out:
+    elif s1 or tested_out or tested_basic:
         value = 1
     else:
         value = 0
@@ -193,6 +208,7 @@ def score(spec: SubtopicSpec, ev: Evidence) -> ScoreResult:
         s2=s2,
         s3=s3,
         tested_out=tested_out,
+        tested_basic=tested_basic,
         quiz_best=best,
         practice_ok=practice_ok,
         check2_ok=check2_ok,

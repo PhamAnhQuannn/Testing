@@ -182,7 +182,7 @@ export function StartStep({
       <div className="toolbar" style={{ alignItems: "stretch", gap: "1rem" }}>
         <div className="card">
           <h3>Đánh giá trình độ</h3>
-          <p className="muted">~30-45 phút, dừng/tiếp tục được, bỏ qua phần bạn đã biết.</p>
+          <p className="muted">~30-45 phút, bắt đầu bằng vài câu hỏi kiến thức nhanh rồi chuyển sang code; dừng/tiếp tục được, bỏ qua phần bạn đã biết.</p>
           <button className={`btn${experience === "none" ? "" : " primary"}`} onClick={onPlacement} disabled={busy}>
             {resume ? "Tiếp tục đánh giá" : "Đánh giá trình độ"}
           </button>
