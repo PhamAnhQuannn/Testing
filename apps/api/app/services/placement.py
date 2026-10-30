@@ -1,18 +1,28 @@
-"""Placement, Phase A (SPEC 5.6, UI_SPEC 2): the gate ladder C1-C7 + stop rules + time budget.
+"""Placement, Phase A (SPEC 5.6, UI_SPEC 2): the gate ladder C1-C7 climbed in RUNGS (leveled).
 
 Placement is a mastery check ordered by the prerequisite graph. It writes ONLY `check_results`
 (context=placement) through the same `checks.answer` flow; the score is recomputed from events by
-`scoring.py`, so it can never be 1 or 3: a clean level-2 `write_code` pass is `tested_out` (2), a
-level-3 item is never asked here, and a level-1 pass only sets `known_basic`. Graph inference is a
-label (`user_subtopic.placement_hint`) and never a score. "Start from scratch" writes nothing.
+`scoring.py`. Each gate climbs up to three rungs of increasing type difficulty, one item each:
 
-Phase A: one gate item per gate (the cluster's gate subtopic, level 2 `write_code`, 6 minutes).
-`experience` picks the entry gate (none -> C1, some -> C2, solid -> C3); `none` only ever runs
-C1 -> C2. A pass asks the next gate up. A failed or given-up gate stops the run once the gate right
-below it has been tried (asking exactly that one gate if it was not measured yet), or at once when
-there is no gate below. A gate that fails (E2) goes down to a level-1 diagnostic item (E1) when it
-has one. The one-sitting budget is 45 min soft / 60 min hard of ACTIVE time (client heartbeats,
-absolute and monotonic); Phase A uses the hard one: no new gate when active + cost > 60 min.
+- P0 knowledge: an `mcq` item (level 1, ~1 min, keyed on the server);
+- P1 trace: a `read_code` item (level 1, ~2 min, "what does this print?", string compare);
+- P2 code: the gate's level-2 `write_code` item (6-9 min, graded by the browser tests).
+
+P0/P1 items come from the separate placement pool (`content.placement`, never mixed into the
+mastery checks). A gate without P0/P1 authored runs P2 only (the Phase A behaviour). Scoring: a
+clean P2 pass is `tested_out` (2); a clean keyed P0/P1 pass is `tested_basic` (1); a self-graded
+`concept` item is never asked here. Level 3 is never asked. Graph inference is a label
+(`user_subtopic.placement_hint`) and never a score. "Start from scratch" writes nothing.
+
+Branching per gate: P0 fail/give-up = `knowledge_gap` (no P1/P2; the gate one below gets its P0
+only, then stop); P0 pass -> P1; P1 fail/give-up stops the gate with `known_basic` set (skip P2;
+the gate one below gets its P2 as a probe, then stop); P1 pass -> P2; a P2 pass goes up to the next
+gate (starting at its P0); a P2 fail probes the gate one below (its P2) and stops. `experience`
+picks the entry gate (none -> C1, some -> C2, solid -> C3); `none` only ever runs C1 -> C2. A failed
+gate stops the run once the gate right below it has been tried, or at once when there is none.
+The one-sitting budget is 45 min soft / 60 min hard of ACTIVE time (client heartbeats, absolute and
+monotonic); Phase A uses the hard one: no new rung when active + its cost > 60 min.
+(Changed by PR: placement leveled rungs.)
 """
 
 from __future__ import annotations
@@ -35,21 +45,48 @@ HARD_MS = 60 * 60_000
 ACTIVE_SLACK_MS = 15_000  # reported active time may not outrun the wall clock by more than this
 STALE_AFTER = timedelta(days=7)
 
-# (code, gate subtopic, gate item, name_vi), in difficulty order (UI_SPEC 2.2, assessment clusters)
-GATES: list[tuple[str, str, str, str]] = [
-    ("C1", "py.core.strings", "Q012", "Python căn bản"),
-    ("C2", "py.datastructs.dict", "Q023", "Cấu trúc dữ liệu Python, hàm, Big-O"),
-    ("C3", "dsa.arrays_strings.hash_tables", "Q258", "Mảng, chuỗi, hash, prefix sum"),
-    ("C4", "dsa.two_pointers_window.two_pointers", "Q070", "Hai con trỏ, cửa sổ trượt"),
-    ("C5", "dsa.linked_list.ll_basics", "Q079", "Class, linked list, stack/queue"),
-    ("C6", "dsa.searching_sorting.binary_search_basics", "Q095", "Binary search, sorting"),
-    ("C7", "dsa.trees.tree_basics", "Q105", "Cây, heap, design, intervals"),
+
+def _gate(code: str, sid: str, name: str, p0: str | None, p1: str | None, p2: str) -> dict:
+    return {"code": code, "subtopic_id": sid, "name_vi": name, "p0": p0, "p1": p1, "p2": p2}
+
+
+# In difficulty order (UI_SPEC 2.2, assessment clusters). p0 = mcq, p1 = read_code (both from
+# content/placement), p2 = the gate's level-2 write_code item. p0/p1 None = that rung is not
+# authored yet: the gate skips it (C3-C7 run P2 only).
+GATES: list[dict[str, Any]] = [
+    _gate("C1", "py.core.strings", "Python căn bản", "P900", "P903", "Q012"),
+    _gate(
+        "C2", "py.datastructs.dict", "Cấu trúc dữ liệu Python, hàm, Big-O", "P910", "P913", "Q023"
+    ),
+    _gate(
+        "C3", "dsa.arrays_strings.hash_tables", "Mảng, chuỗi, hash, prefix sum", None, None, "Q258"
+    ),
+    _gate(
+        "C4",
+        "dsa.two_pointers_window.two_pointers",
+        "Hai con trỏ, cửa sổ trượt",
+        None,
+        None,
+        "Q070",
+    ),
+    _gate("C5", "dsa.linked_list.ll_basics", "Class, linked list, stack/queue", None, None, "Q079"),
+    _gate(
+        "C6",
+        "dsa.searching_sorting.binary_search_basics",
+        "Binary search, sorting",
+        None,
+        None,
+        "Q095",
+    ),
+    _gate("C7", "dsa.trees.tree_basics", "Cây, heap, design, intervals", None, None, "Q105"),
 ]
+RUNG_KIND = ("mcq", "read_code", "write_code")  # P0, P1, P2
+DEFAULT_MINUTES = (1, 2, 6)
 ENTRY = {"none": 0, "some": 1, "solid": 2}
 LAST_GATE = {"none": 1, "some": 6, "solid": 6}  # `none` only runs C1 -> C2 (UI_SPEC 2.4 A1)
 
-PASS_LIKE = {"passed", "passed_unclean", "known"}
-FAIL_LIKE = {"failed", "gave_up", "locked"}
+PASS_LIKE = {"passed", "passed_unclean", "known", "known_basic"}
+FAIL_LIKE = {"failed", "gave_up", "locked", "knowledge_gap"}
 
 MESSAGES = {
     "failed_start": "Chưa cần đo thêm; bắt đầu từ nền tảng sẽ hiệu quả hơn.",
@@ -86,28 +123,48 @@ def _gate_item(content: ContentStore, subtopic_id: str, item_id: str) -> dict[st
     return min(pool, key=lambda i: i.get("minutes") or 8) if pool else None
 
 
+def _rung_item(
+    content: ContentStore, sid: str, item_id: str | None, rung: int
+) -> dict[str, Any] | None:
+    """A P0/P1 item of the placement pool (level 1, the right type), else None (rung skipped)."""
+    if not item_id:
+        return None
+    it = content.find_check_item(sid, item_id)
+    if it is None or it["type"] != RUNG_KIND[rung] or it.get("difficulty") != 1:
+        return None
+    return it
+
+
 def _build_gates(
     db: Session, content: ContentStore, user_id: int, now: datetime
 ) -> list[dict[str, Any]]:
     gates: list[dict[str, Any]] = []
-    for code, sid, item_id, name in GATES:
+    for spec in GATES:
+        sid = spec["subtopic_id"]
         g: dict[str, Any] = {
-            "code": code,
+            "code": spec["code"],
             "subtopic_id": sid,
-            "name_vi": name,
-            "item_id": None,
-            "minutes": 6,
+            "name_vi": spec["name_vi"],
+            "rung_items": [None, None, None],  # item id per rung P0 / P1 / P2
+            "rung_minutes": list(DEFAULT_MINUTES),
+            "rung": None,  # the rung currently asked (0 / 1 / 2)
+            "rung_results": {},  # "0"/"1"/"2" -> passed | failed | gave_up
             "outcome": None,
             "check_session_id": None,
-            "l1": None,
+            "l1": None,  # label of the last knowledge rung (P0/P1) that was answered
             "retry_after": None,
         }
-        item = _gate_item(content, sid, item_id) if sid in content.subtopics else None
+        item = _gate_item(content, sid, spec["p2"]) if sid in content.subtopics else None
         if item is None:
             g["outcome"] = "unavailable"  # not placeable (no level-2 write_code check problem)
         else:
-            g["item_id"] = item["id"]
-            g["minutes"] = item.get("minutes") or 8
+            g["rung_items"][2] = item["id"]
+            g["rung_minutes"][2] = item.get("minutes") or 8
+            for r, key in ((0, "p0"), (1, "p1")):
+                rung_item = _rung_item(content, sid, spec[key], r)
+                if rung_item is not None:
+                    g["rung_items"][r] = rung_item["id"]
+                    g["rung_minutes"][r] = rung_item.get("minutes") or DEFAULT_MINUTES[r]
             row = db.get(t.UserSubtopic, (user_id, sid))
             if (row and row.score >= 2) or checks.level_passed(db, user_id, sid, 2):
                 g["outcome"] = "known"  # already >= 2: nothing to add (UI_SPEC 2.2)
@@ -193,6 +250,15 @@ def _stop(ps: t.PlacementSession, state: dict[str, Any], reason: str, now: datet
     state["probing"] = False
 
 
+def _first_rung(g: dict[str, Any]) -> int:
+    """The lowest authored rung of a gate (P2 when no P0/P1 is authored)."""
+    return next((r for r in (0, 1) if g["rung_items"][r]), 2)
+
+
+def _next_rung(g: dict[str, Any], rung: int) -> int:
+    return next((r for r in range(rung + 1, 2) if g["rung_items"][r]), 2)
+
+
 def _ask(
     db: Session,
     content: ContentStore,
@@ -202,25 +268,29 @@ def _ask(
     probing: bool,
     now: datetime,
     key: str | None,
+    rung: int | None = None,
 ) -> None:
+    """Open the session of one rung of gate `idx` (default: its lowest authored rung)."""
     g = state["gates"][idx]
-    if ps.active_ms + int(g["minutes"] * 60_000) > HARD_MS:
-        _stop(ps, state, "budget", now)  # no new gate when it cannot finish inside the hard cap
+    r = _first_rung(g) if rung is None else rung
+    if ps.active_ms + int(g["rung_minutes"][r] * 60_000) > HARD_MS:
+        _stop(ps, state, "budget", now)  # no new rung when it cannot finish inside the hard cap
         return
-    item = checks.find_item(content, g["subtopic_id"], g["item_id"])
+    item = checks.find_item(content, g["subtopic_id"], g["rung_items"][r])
     cs = checks.begin_session(
         db,
         content,
         ps.user_id,
         g["subtopic_id"],
         "placement",
-        2,
+        2 if r == 2 else 1,
         now,
         key=key,
         item=item,
         placement_session_id=ps.id,
     )
     g["check_session_id"] = cs.id
+    g["rung"] = r
     state["cursor"] = idx
     state["probing"] = probing
 
@@ -257,7 +327,11 @@ def _after_fail(
     k: int,
     now: datetime,
     key: str | None,
+    *,
+    knowledge_only: bool = False,
 ) -> None:
+    """Probe exactly one gate below, or stop. After a P0 failure (`knowledge_only`) the probe is
+    the lower gate's P0 only (when it has one); after any other failure it is its P2."""
     gates = state["gates"]
     if state["probing"]:
         return _stop(ps, state, "two_fails", now)
@@ -268,7 +342,8 @@ def _after_fail(
         return _stop(ps, state, "fail_after_pass", now)
     if below["outcome"] in FAIL_LIKE:
         return _stop(ps, state, "two_fails", now)
-    _ask(db, content, ps, state, k - 1, True, now, key)  # exactly one gate below
+    rung = 0 if knowledge_only and below["rung_items"][0] else 2
+    _ask(db, content, ps, state, k - 1, True, now, key, rung)  # exactly one gate below
 
 
 def _after_pass(
@@ -285,53 +360,61 @@ def _after_pass(
     _go_up(db, content, ps, state, k + 1, now, key)
 
 
-def _l2_result(cs: t.CheckSession) -> dict[str, Any] | None:
-    return next(
-        (s["result"] for s in cs.ladder["steps"] if s["level"] == 2 and s["result"] is not None),
-        None,
-    )
+def _rung_result(cs: t.CheckSession) -> dict[str, Any] | None:
+    """The result of the (single) item a rung session asks."""
+    return next((s["result"] for s in cs.ladder["steps"] if s["result"] is not None), None)
 
 
-def _l1_label(cs: t.CheckSession) -> str | None:
-    r = next((s["result"] for s in cs.ladder["steps"] if s["level"] == 1 and s["result"]), None)
-    if r is None:
-        return None
-    return "gave_up" if r["gave_up"] else "passed" if r["passed"] else "failed"
+def _label_of(res: dict[str, Any]) -> str:
+    return "gave_up" if res["gave_up"] else "passed" if res["passed"] else "failed"
 
 
 def _close_gate(
     db: Session, content: ContentStore, ps: t.PlacementSession, state: dict[str, Any]
-) -> str | None:
-    """Fix the outcome of the current gate from its level-2 result and label the graph.
-    Returns the outcome, or None when level 2 has not been answered."""
+) -> tuple[str | None, str | None]:
+    """Record the result of the current rung. Returns (rung label, gate outcome): the label is None
+    when the rung was not answered; the outcome is None while the gate still has rungs to climb
+    (a clean P0/P1 pass). Labels the graph and flags `known_basic` as evidence comes in."""
     g = state["gates"][state["cursor"]]
     cs = db.get(t.CheckSession, g["check_session_id"])
     assert cs is not None
-    res = _l2_result(cs)
+    res = _rung_result(cs)
     if res is None:
-        return None
-    if res["gave_up"]:
-        out = "gave_up"
-    elif res["passed"]:
-        out = "passed" if res["clean"] else "passed_unclean"
-    else:
-        out = "failed"
-    g["outcome"] = out
-    g["l1"] = _l1_label(cs)
-    if out in FAIL_LIKE:
-        state["fails"] += 1
+        return None, None
+    rung, label = g["rung"], _label_of(res)
+    g["rung_results"][str(rung)] = label
+    if rung < 2:
+        g["l1"] = label
     row = db.get(t.UserSubtopic, (ps.user_id, g["subtopic_id"]))
+    keyed_pass = any(g["rung_results"].get(k) == "passed" for k in ("0", "1"))
+    if rung == 2:
+        out = "gave_up" if label == "gave_up" else "failed" if label == "failed" else None
+        out = out or ("passed" if res["clean"] else "passed_unclean")
+    elif label == "passed":
+        out = "known_basic" if state["probing"] else None  # a probe never climbs further
+    elif keyed_pass:  # P1 failed after a P0 pass: knows the basics, cannot trace code
+        out = label
+    else:
+        out = "knowledge_gap"  # the first knowledge rung failed / was given up
     if row is not None:
-        row.placement_hint = None  # real evidence replaces any label
-        row.placement_session_id = ps.id
-        if g["l1"] == "passed" and out in FAIL_LIKE:
-            row.known_basic = True  # only level 1 passed: "đã biết sơ", the score is untouched
+        if label == "passed" or out is not None:
+            row.placement_hint = None  # real evidence replaces any label
+            row.placement_session_id = ps.id
+        if out is not None:
+            # Set once the gate is decided: True when only P0/P1 passed ("đã biết sơ", score 1
+            # via tested_basic), False when P2 cleanly tested out (score 2) so the flag never
+            # lingers over a fully-known subtopic.
+            row.known_basic = keyed_pass and out not in ("passed", "passed_unclean")
+    if out is None:
+        db.flush()
+        return label, None
+    g["outcome"] = out
     if out == "passed":
         _label(db, content, ps, g["subtopic_id"], True)
     elif out in FAIL_LIKE:
         _label(db, content, ps, g["subtopic_id"], False)
     db.flush()
-    return out
+    return label, out
 
 
 def _settle(
@@ -342,21 +425,27 @@ def _settle(
     now: datetime,
     key: str | None,
 ) -> None:
-    """The current gate has finished its ladder: decide the next gate or stop."""
+    """The current rung has been answered: climb to the next rung, or the gate is decided and we
+    go up / probe below / stop."""
     k = state["cursor"]
-    out = _close_gate(db, content, ps, state)
-    assert out is not None
+    g = state["gates"][k]
+    rung = g["rung"]
+    label, out = _close_gate(db, content, ps, state)
+    assert label is not None
+    if out is None:  # a clean pass below P2: the next rung of the same gate
+        _ask(db, content, ps, state, k, False, now, key, _next_rung(g, rung))
+        return
     progress.record_event(
         db,
         "placement_gate_done",
-        {"placement_id": ps.id, "gate": state["gates"][k]["code"], "outcome": out},
+        {"placement_id": ps.id, "gate": g["code"], "outcome": out},
         now=now,
         idem_key=key,
     )
     if out in PASS_LIKE:
         _after_pass(db, content, ps, state, k, now, key)
     else:
-        _after_fail(db, content, ps, state, k, now, key)
+        _after_fail(db, content, ps, state, k, now, key, knowledge_only=out == "knowledge_gap")
 
 
 # ---- views ----
@@ -388,6 +477,7 @@ def view(
             "subtopic_id": g["subtopic_id"],
             "name_vi": g["name_vi"],
             "probing": state["probing"],
+            "rung": g["rung"],
             "check_session_id": cs.id,
             "elapsed_ms": cs.elapsed_ms,
             "step": (
@@ -431,7 +521,18 @@ def view(
             "gates_done": sum(1 for g in in_scope if _decided(g)),
         },
         "gates": [
-            {k: g[k] for k in ("code", "subtopic_id", "name_vi", "outcome", "l1", "retry_after")}
+            {
+                k: g[k]
+                for k in (
+                    "code",
+                    "subtopic_id",
+                    "name_vi",
+                    "outcome",
+                    "l1",
+                    "retry_after",
+                    "rung_results",
+                )
+            }
             for g in state["gates"]
         ],
         "current": current,
@@ -482,8 +583,8 @@ def onboarding_state(db: Session, user_id: int, choice: str | None) -> str:
 def _ensure_gate(
     db: Session, content: ContentStore, ps: t.PlacementSession, now: datetime, key: str | None
 ) -> None:
-    """A gate item idle for 24 h is `expired` (not a failure): reissue it, or, when its level 2 was
-    already answered, take that result as the gate outcome."""
+    """A rung item idle for 24 h is `expired` (not a failure): reissue it, or, when it was already
+    answered, take that result and move on."""
     state = copy.deepcopy(ps.state)
     cs = _gate_session(db, state)
     if cs is None or cs.status != "in_progress":
@@ -491,10 +592,11 @@ def _ensure_gate(
     if now < cs.last_active_at + checks.SESSION_TTL:
         return
     cs.status = "expired"
-    if _l2_result(cs) is not None:
+    if _rung_result(cs) is not None:
         _settle(db, content, ps, state, now, key)
     else:
-        _ask(db, content, ps, state, state["cursor"], state["probing"], now, key)
+        g = state["gates"][state["cursor"]]
+        _ask(db, content, ps, state, state["cursor"], state["probing"], now, key, g["rung"])
     ps.state = state
     db.flush()
 
@@ -527,7 +629,7 @@ def start(
             user_id=user_id,
             status="skipped",
             experience=exp,
-            state={"gates": [], "cursor": None, "probing": False, "fails": 0, "last": -1},
+            state={"gates": [], "cursor": None, "probing": False, "last": -1},
             active_ms=0,
             stop_reason="skipped",
             started_at=now,
@@ -547,7 +649,6 @@ def start(
         "last": LAST_GATE[exp],
         "cursor": None,
         "probing": False,
-        "fails": 0,
     }
     ps = t.PlacementSession(
         user_id=user_id,
@@ -669,7 +770,7 @@ def answer(
     db.refresh(cs)
     if cs.status == "done":
         _settle(db, content, ps, state, now, key)
-    else:  # level 1 is next in the same gate
+    else:  # not finished (cannot happen: a rung is one item); keep the session marked
         row = db.get(t.UserSubtopic, (user_id, g["subtopic_id"]))
         if row is not None:
             row.placement_session_id = ps.id
@@ -711,7 +812,7 @@ def finish(
         _sync_active(ps, active_ms, now)
         cs = _gate_session(db, state)
         if cs is not None and cs.status == "in_progress":
-            _close_gate(db, content, ps, state)  # labels only if its level 2 was answered
+            _close_gate(db, content, ps, state)  # records evidence only if it was answered
             cs.status = "expired"
         _stop(ps, state, "user_finished", now)
         ps.state = state

@@ -5,7 +5,7 @@
 // shows a reference solution, and "Không biết" is a give-up, not a failure.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { ConceptStep, ReadCodeStep, ResultBanner } from "../components/CheckParts";
+import { ConceptStep, McqStep, ReadCodeStep, ResultBanner } from "../components/CheckParts";
 import { formatClock } from "../components/EditorPanel";
 import { ConfirmModal } from "../components/Modal";
 import { useToast } from "../components/Toast";
@@ -33,6 +33,8 @@ import {
   gateProgressText,
   groupByModule,
   minutesText,
+  OUTCOME_NOTE,
+  RUNG_TEXT,
   skillChip,
 } from "../lib/placementFlow";
 import { WriteCodeStep } from "./CheckPage";
@@ -114,7 +116,10 @@ export function PlacementSessionView(props: {
       {view.current && last === null && (
         // Hidden while a result is shown: `view` already holds the NEXT gate then.
         <p className="muted">
-          {view.current.name_vi} · {LEVEL_TEXT[step.level] ?? `Mức ${step.level}`}
+          {view.current.name_vi} ·{" "}
+          {view.current.rung != null && RUNG_TEXT[view.current.rung]
+            ? RUNG_TEXT[view.current.rung]
+            : (LEVEL_TEXT[step.level] ?? `Mức ${step.level}`)}
           <span className={`check-timer ${box.phase}`}> · ⏱ {formatClock(props.itemMs)} → {box.label}</span>
         </p>
       )}
@@ -143,6 +148,8 @@ export function PlacementSessionView(props: {
         />
       ) : step.type === "read_code" ? (
         <ReadCodeStep key={step.item_id} step={step} busy={props.busy} onAnswer={(answer) => void props.commit({ answer })} />
+      ) : step.type === "mcq" ? (
+        <McqStep key={step.item_id} step={step} busy={props.busy} onSubmit={(choice) => void props.commit({ choice })} />
       ) : (
         <ConceptStep
           key={step.item_id}
@@ -485,6 +492,13 @@ export function PlacementResultView({ result }: { result: PlacementResult }) {
           <strong>Làm tốt:</strong>{" "}
           {result.strong_areas.length ? result.strong_areas.map((a) => a.name_vi).join(" · ") : "Chưa có mục nào được đo."}
         </p>
+        {[...result.strong_areas, ...result.weak_areas]
+          .filter((a) => a.outcome && OUTCOME_NOTE[a.outcome])
+          .map((a) => (
+            <p key={a.gate} className="muted">
+              {a.name_vi}: {OUTCOME_NOTE[a.outcome!]}
+            </p>
+          ))}
         <p>
           <strong>Cần củng cố:</strong>{" "}
           {result.weak_areas.length

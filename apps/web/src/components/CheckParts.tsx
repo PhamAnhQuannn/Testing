@@ -101,6 +101,49 @@ export function ConceptStep(props: {
   );
 }
 
+/** Presentational part of McqStep (no hooks, so it can be unit-tested directly). */
+export function McqChoices(props: {
+  step: CheckStep;
+  busy: boolean;
+  selected: number | null;
+  onSelect: (index: number) => void;
+  onSubmit: (index: number) => void;
+}) {
+  const { selected } = props;
+  return (
+    <section className="card" aria-label="Câu trắc nghiệm">
+      <Markdown md={props.step.prompt_md} />
+      <div role="radiogroup" aria-label="Các lựa chọn">
+        {(props.step.choices ?? []).map((choice, i) => (
+          <label key={i} style={{ display: "block", margin: "0.4rem 0" }}>
+            <input
+              type="radio"
+              name={`mcq-${props.step.item_id}`}
+              checked={selected === i}
+              onChange={() => props.onSelect(i)}
+            />{" "}
+            <strong>{String.fromCharCode(65 + i)}.</strong> {choice}
+          </label>
+        ))}
+      </div>
+      <div className="toolbar">
+        <button
+          className="btn primary"
+          disabled={props.busy || selected === null}
+          onClick={() => selected !== null && props.onSubmit(selected)}
+        >
+          Trả lời
+        </button>
+      </div>
+    </section>
+  );
+}
+
+export function McqStep(props: { step: CheckStep; busy: boolean; onSubmit: (choice: number) => void }) {
+  const [selected, setSelected] = useState<number | null>(null);
+  return <McqChoices {...props} selected={selected} onSelect={setSelected} />;
+}
+
 export function LockedCard({ subtopicId, retryAfter, level }: { subtopicId: string; retryAfter: string; level?: number }) {
   return (
     <section className="card check-locked" role="alert">

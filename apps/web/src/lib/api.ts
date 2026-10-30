@@ -507,7 +507,7 @@ export async function getResume(): Promise<ResumeState | null> {
 
 // ---------------------------------------------------------------- mastery check (docs/API_M2A.md)
 
-export type CheckType = "write_code" | "read_code" | "concept";
+export type CheckType = "write_code" | "read_code" | "concept" | "mcq";
 export type CheckContext = "mastery" | "test_out";
 
 export interface CheckStep {
@@ -525,6 +525,8 @@ export interface CheckStep {
   code?: string;
   /** concept: shown only after the learner asks for it */
   answer_md?: string;
+  /** mcq: the options (the server never sends the correct index) */
+  choices?: string[];
 }
 
 export interface CheckStepResult {
@@ -588,6 +590,7 @@ export type CheckAnswerBody =
   | { code: string; language: "python"; verdict: string; passed_tests: number; total: number; runtime_ms?: number }
   | { answer: string }
   | { self_grade: boolean }
+  | { choice: number }
   | { gave_up: true };
 
 const ids = (value: unknown): string[] =>
@@ -609,6 +612,7 @@ export function normalizeCheckStep(raw: Loose): CheckStep {
     problem_id: raw.problem_id as string | undefined,
     code: raw.code as string | undefined,
     answer_md: raw.answer_md as string | undefined,
+    choices: Array.isArray(raw.choices) ? (raw.choices as unknown[]).map(String) : undefined,
   };
 }
 
@@ -1131,6 +1135,8 @@ export interface PlacementGate {
   outcome: string | null;
   l1: string | null;
   retry_after: string | null;
+  /** rung ("0" | "1" | "2") -> passed | failed | gave_up. Rung 0 = knowledge, 1 = read code, 2 = write code. */
+  rung_results?: Record<string, string>;
 }
 
 export interface PlacementBudget {
@@ -1144,6 +1150,8 @@ export interface PlacementCurrent {
   subtopic_id: string;
   name_vi: string;
   probing: boolean;
+  /** 0 = knowledge (mcq), 1 = read code, 2 = write code; null/undefined when unknown. */
+  rung?: number | null;
   check_session_id: number;
   elapsed_ms: number;
   /** Same shape as a check step (no reference / solution). null when the gate has nothing open. */
@@ -1231,6 +1239,7 @@ export function normalizePlacementView(data: unknown): PlacementView {
       outcome: (g.outcome as string | null | undefined) ?? null,
       l1: (g.l1 as string | null | undefined) ?? null,
       retry_after: (g.retry_after as string | null | undefined) ?? null,
+      rung_results: (g.rung_results as Record<string, string> | undefined) ?? undefined,
     })),
     current: cur
       ? {
@@ -1238,6 +1247,7 @@ export function normalizePlacementView(data: unknown): PlacementView {
           subtopic_id: String(cur.subtopic_id),
           name_vi: String(cur.name_vi ?? ""),
           probing: Boolean(cur.probing),
+          rung: typeof cur.rung === "number" ? cur.rung : null,
           check_session_id: Number(cur.check_session_id),
           elapsed_ms: Number(cur.elapsed_ms ?? 0),
           step: cur.step ? normalizeCheckStep(cur.step as Loose) : null,

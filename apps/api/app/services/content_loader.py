@@ -99,6 +99,9 @@ class ContentStore:
     lessons: dict[str, LessonEntry] = field(default_factory=dict)
     problems: dict[str, ProblemEntry] = field(default_factory=dict)
     checks: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+    # Placement-only items (mcq / read_code rungs), kept OUT of `checks` so that spec_for and the
+    # mastery item selectors never see them. Resolved for grading by `find_check_item`.
+    placement: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
     sort_key: dict[str, tuple[int, int]] = field(default_factory=dict)
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
@@ -151,6 +154,12 @@ class ContentStore:
             data = _load_yaml(path)
             if isinstance(data, dict) and "items" in data:
                 self.checks[data["subtopic_id"]] = data["items"]
+
+        self.placement = {}
+        for path in sorted((root / "placement").glob("*.yaml")):
+            data = _load_yaml(path)
+            if isinstance(data, dict) and "items" in data:
+                self.placement[data["subtopic_id"]] = data["items"]
 
     # ---- visibility ----
 
@@ -294,11 +303,17 @@ class ContentStore:
                     return sid, i
         return None
 
+    def find_check_item(self, subtopic_id: str, item_id: str) -> dict[str, Any] | None:
+        """A check item by id: the mastery pool first, then the placement-only pool."""
+        for pool in (self.checks, self.placement):
+            for i in pool.get(subtopic_id, []):
+                if i["id"] == item_id:
+                    return i
+        return None
+
     def check_item_type(self, subtopic_id: str, item_id: str) -> str:
-        for i in self.checks.get(subtopic_id, []):
-            if i["id"] == item_id:
-                return i["type"]
-        return "write_code"
+        item = self.find_check_item(subtopic_id, item_id)
+        return item["type"] if item else "write_code"
 
     # ---- public views ----
 

@@ -690,7 +690,10 @@ Nguyên tắc: **LLM không bao giờ viết `expected` bằng tay**; mọi expe
 ```
 score(subtopic, user):
   s1 = lesson_done AND quiz_best >= 0.7
-  tested_out = có check pass mức 2 (clean)       # flow D; mức 1 chỉ để chẩn đoán khi trượt mức 2
+  tested_out = có check pass mức 2 (clean)       # flow D
+  tested_basic = có check pass mức 1 (clean) loại mcq HOẶC read_code, context=placement
+                 # chỉ trong phiên placement; có đáp án trên server; concept tự chấm KHÔNG bao giờ
+                 # tính; mức-1 diagnostic trong mastery KHÔNG tính (đổi bởi PR: placement leveled rungs)
 
   practice_ok = số problem practice khác nhau đạt AC >= min(2, số problem practice của mục)
                 # mục không có problem practice: practice_ok = true
@@ -714,7 +717,7 @@ score(subtopic, user):
                  # mục concept ôn bằng thẻ recall (không có bài code); đúng ý "còn nhớ sau >= 7 ngày"
   s3 = s2 AND level3_ok AND retention_ok
 
-  score = 3 nếu s3; 2 nếu s2; 1 nếu s1 OR tested_out; ngược lại 0
+  score = 3 nếu s3; 2 nếu s2; 1 nếu s1 OR tested_out OR tested_basic; ngược lại 0
 ```
 
 Hệ quả cần nhớ:
@@ -792,9 +795,9 @@ Quy tắc:
 Thuật toán chọn item, ngân sách thời gian và luật dừng nằm ở `UI_SPEC.md` mục 2. Phần dưới là phần **thuộc luật điểm** nên đặt ở đây:
 
 1. Placement là một phiên mastery check xếp theo đồ thị tiền đề, chạy bằng cùng engine flow C/D và **chỉ ghi `check_results`** (kèm `context=placement`); điểm vẫn do `scoring.py` tính lại từ sự kiện, nên không có luật điểm riêng.
-2. Item vào mức 2 chỉ là `write_code`; `concept`/`read_code` không bao giờ làm bằng chứng điểm 2.
-3. Đậu mức 2 sạch = `tested_out` → điểm 2 và mở khoá (5.3). Đậu mức 3 sạch (item `write_code`) = `level3_ok`, **điểm vẫn 2** (cần `retention_ok` từ ôn bằng bài code). Placement **không bao giờ ghi điểm 1 hoặc 3**.
-4. Chỉ đậu mức 1 = không có điểm; đặt `user_subtopic.known_basic = true` ("đã biết sơ") để hiển thị lesson rút gọn. Cờ này không đổi `lesson_done`, `quiz_best` hay điểm.
+2. Mỗi cổng leo tối đa 3 **rung** (đổi bởi PR: placement leveled rungs), mỗi rung một item: **P0 kiến thức** (`mcq`, mức 1, ~1 phút, đáp án giữ trên server), **P1 truy vết** (`read_code`, mức 1, ~2 phút, "code in ra gì?", so khớp chuỗi) và **P2 code** (`write_code` mức 2 của cổng, 6-9 phút). Item P0/P1 nằm ở `content/placement/` (kho riêng, không lẫn `content/checks`); cổng chưa có P0/P1 chạy P2 như cũ. P0 trượt hoặc "Không biết" = `knowledge_gap` (không hỏi P1/P2, chỉ thử P0 của cổng ngay dưới rồi dừng); P0 đạt thì hỏi P1; P1 trượt thì dừng cổng đó (đặt `known_basic`) và thử P2 của cổng ngay dưới; P1 đạt thì hỏi P2; P2 đạt thì lên cổng kế (bắt đầu từ P0 của nó); P2 trượt thì thử P2 của cổng ngay dưới rồi dừng. Item vào mức 2 chỉ là `write_code`; `concept` không bao giờ được hỏi ở placement.
+3. Đậu mức 2 sạch (P2 `write_code`) = `tested_out` → điểm 2 và mở khoá (5.3); điểm 2 **chỉ** đến từ đây (mục có code). Đậu P0 hoặc P1 sạch (item `mcq`/`read_code` mức 1) = `tested_basic` → **điểm 1** (không mở khoá). Đậu mức 3 sạch (item `write_code`) = `level3_ok`, **điểm vẫn 2** (cần `retention_ok`). Placement **không bao giờ ghi điểm 3**, và không bao giờ ghi điểm 1 từ item `concept` tự chấm (dễ bị gian lận).
+4. Chỉ đậu P0/P1 (không đậu P2) = điểm 1 qua `tested_basic` và đặt `user_subtopic.known_basic = true` ("đã biết sơ") để hiển thị lesson rút gọn. Cờ này không đổi `lesson_done` hay `quiz_best`.
 5. Suy luận theo đồ thị tiền đề/cụm chỉ ghi `placement_hint` (`likely_known`/`likely_gap`) để hiển thị và gợi ý Test out; không bao giờ thành điểm và bị xoá khi mục có bằng chứng thật.
 6. Trượt thật (đã nộp) tính như trượt check mức 2 (`attempt_no`, khoá làm lại 24 giờ, mở lối thoát `check2_ok`); "Không biết" ghi `gave_up=true` và không khoá, không tính trượt **cho điểm/khoá** nhưng được tính để **dừng sớm** (`UI_SPEC.md` 2.4 S1). E2 trượt mở sẵn lối thoát `check2_ok` là chủ đích (vô hại: lối thoát vẫn cần 2 practice AC). Bỏ qua placement không ghi gì.
 

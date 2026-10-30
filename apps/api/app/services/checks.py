@@ -43,7 +43,8 @@ _TYPE_ORDER = {
 
 
 def find_item(content: ContentStore, subtopic_id: str, item_id: str) -> dict[str, Any] | None:
-    return next((i for i in content.checks.get(subtopic_id, []) if i["id"] == item_id), None)
+    """Mastery pool first, then the placement-only pool (mcq / read_code rungs)."""
+    return content.find_check_item(subtopic_id, item_id)
 
 
 def pick_item(
@@ -138,6 +139,8 @@ def public_item(content: ContentStore, subtopic_id: str, step: dict[str, Any]) -
         out["problem_id"] = item.get("problem_id")
     elif step["type"] == "read_code":
         out["code"] = item.get("code", "")
+    elif step["type"] == "mcq":
+        out["choices"] = list(item.get("choices", []))  # never answer_index / explanation
     elif step["type"] == "concept":
         out["answer_md"] = item.get("answer_md", "")  # self-graded: shown after the attempt
     return out
@@ -343,6 +346,19 @@ def _grade(
             "counts_as_evidence": is_concept and clean,
         }
 
+    if kind == "mcq":
+        choice = getattr(body, "choice", None)
+        if choice is None:
+            raise ApiError(422, "missing_field", "choice is required for an mcq item")
+        correct = choice == item.get("answer_index")
+        clean = correct and in_time
+        res = {"correct": correct, "passed": correct, "clean": clean, "gave_up": False}
+        if not correct:
+            res["reason"] = "wrong_answer"
+        elif not clean:
+            res["reason"] = "over_time"
+        return res
+
     if kind == "read_code":
         if body.answer is None:
             raise ApiError(422, "missing_field", "answer is required for a read_code item")
@@ -431,9 +447,10 @@ def _advance(
     """Add the next step after `step` was answered, or mark the session done."""
     res = step["result"]
     nxt_level = None
-    if step["level"] == 2:
-        # placement never goes up to level 3 (SPEC 5.6: Phase C is separate and optional)
-        nxt_level = (None if sess.context == "placement" else 3) if res["correct"] else 1
+    if step["level"] == 2 and sess.context != "placement":
+        # placement drives its own P0/P1/P2 rungs (SPEC 5.6): a level-2 answer there always ends
+        # the session (no level-3, no auto level-1 diagnostic)
+        nxt_level = 3 if res["correct"] else 1
     if nxt_level is not None:
         item = pick_item(content, sess.subtopic_id, nxt_level, sess.attempt_no)
         if item is not None:
