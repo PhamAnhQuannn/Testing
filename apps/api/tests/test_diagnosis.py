@@ -3,14 +3,19 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
+import yaml
 
 from app.models import tables as t
+from app.services.concepts import registry_of, slugify
 from app.services.content_loader import TRACKS, module_name, track_of
 from app.services.diagnosis import (
+    ConceptResult,
     SubtopicView,
+    concept_status,
     diagnose,
     level_of,
     pick_concepts,
@@ -233,3 +238,91 @@ def test_api_role_param(client) -> None:
     assert {"readiness_pct", "coverage_warning"} <= body.keys()
     assert client.get("/api/diagnosis?role=nope").status_code == 400
     assert client.get("/api/diagnosis").json()["role"]["key"] == "swe-intern"
+
+
+def cr(slug, item, passed, text=None):
+    return ConceptResult(slug, text or slug.title(), item, passed, "mcq")
+
+
+def test_concept_status_thresholds() -> None:
+    out = concept_status(
+        [
+            cr("a", "Q1", False), cr("a", "Q2", False),  # two independent misses -> weak
+            cr("b", "Q3", False),  # one lone miss -> suspected, never weak
+            cr("c", "Q4", True),  # hit only -> ok (omitted)
+        ]
+    )  # fmt: skip
+    assert out == [
+        {"slug": "a", "text": "A", "status": "weak", "n_hit": 0, "n_miss": 2},
+        {"slug": "b", "text": "B", "status": "suspected", "n_hit": 0, "n_miss": 1},
+    ]
+    assert concept_status([]) == []
+
+
+def test_concept_status_hit_wins_and_dedupes() -> None:
+    out = concept_status(
+        [cr("a", "Q1", False), cr("a", "Q1", True), cr("a", "Q2", False), cr("a", "Q2", False)]
+    )
+    assert out == [{"slug": "a", "text": "A", "status": "suspected", "n_hit": 1, "n_miss": 1}]
+
+
+def test_concept_status_orders_weak_first() -> None:
+    out = concept_status([cr("a", "Q1", False), cr("z", "Q2", False), cr("z", "Q3", False)])
+    assert [c["slug"] for c in out] == ["z", "a"]
+
+
+def test_slugify_and_registry() -> None:
+    assert slugify("Vòng lặp for (cơ bản)!") == "vong-lap-for"
+    assert slugify("  List  comprehension ") == "list-comprehension"
+    assert len(slugify("x" * 100)) == 40
+    node = {"concepts_vi": [{"text": "Biến (var)", "level": "basic"}], "key_concepts": ["zzz"]}
+    assert registry_of(node) == {"bien": "Biến (var)"}
+    assert registry_of({"key_concepts": ["Two Pointers"]}) == {"two-pointers": "Two Pointers"}
+
+
+def test_registry_problems_flags_collisions_and_empty() -> None:
+    from app.services.concepts import registry_problems
+
+    assert registry_problems({"key_concepts": ["C", "C++"]})  # both slugify to "c"
+    assert registry_problems({"key_concepts": ["!!!"]})  # empty slug
+    assert registry_problems({"key_concepts": ["heap", "binary search"]}) == []
+
+
+def test_api_concept_status_empty_without_tags(client) -> None:
+    with client.app.state.rt.session() as db:
+        db.get(t.UserSubtopic, (1, "py.a.two")).placement_hint = "likely_gap"
+        db.commit()
+    (m,) = client.get("/api/diagnosis").json()["domains"][0]["modules"]
+    assert m["improve"] and all(i["concept_status"] == [] for i in m["improve"])
+
+
+def test_api_concept_status_from_tagged_items(content_dir, make_client) -> None:
+    idx = content_dir / "index" / "subtopics.json"
+    subs = json.loads(idx.read_text())
+    sub = next(x for x in subs["subtopics"] if x["id"] == "py.a.one")
+    sub["concepts_vi"] = [{"text": "Vòng lặp", "level": "basic"}]
+    idx.write_text(json.dumps(subs))
+    cpath = content_dir / "checks" / "py.a.one.yaml"
+    data = yaml.safe_load(cpath.read_text())
+    for item in data["items"]:
+        if item["id"] in ("Q1", "Q2"):
+            item["concepts"] = ["vong-lap", "bogus"]  # unknown slug is ignored
+    cpath.write_text(yaml.safe_dump(data))
+    client = make_client()
+    assert client.app.state.rt.content.item_concepts("py.a.one", "Q1") == ["vong-lap"]
+    with client.app.state.rt.session() as db:
+        for item_id in ("Q1", "Q2"):
+            db.add(
+                t.CheckResult(
+                    user_id=1, subtopic_id="py.a.one", item_id=item_id, level=1, passed=False,
+                    taken_at=datetime(2026, 1, 1, tzinfo=UTC), item_type="mcq",
+                )
+            )  # fmt: skip
+        db.get(t.UserSubtopic, (1, "py.a.one")).score = 1
+        db.commit()
+    body = client.get("/api/diagnosis").json()
+    improve = [i for d in body["domains"] for m in d["modules"] for i in m["improve"]]
+    one = next(i for i in improve if i["subtopic_id"] == "py.a.one")
+    assert one["concept_status"] == [
+        {"slug": "vong-lap", "text": "Vòng lặp", "status": "weak", "n_hit": 0, "n_miss": 2}
+    ]

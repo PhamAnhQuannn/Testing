@@ -25,6 +25,9 @@ from pathlib import Path
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import best_match
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "apps/api"))
+
+from app.services.concepts import registry_of, registry_problems  # noqa: E402
 from common import CONTENT, load_json, load_yaml, read_jsonl
 from gen_hidden import generate_hidden, load_generator
 from run_problem import engine_limit_ms, load_tests, run_native, run_pyodide
@@ -72,6 +75,7 @@ class Validator:
         self.public = public
         self.errors: list[str] = []
         self._problems: dict[str, dict] | None = None
+        self.subtopic_nodes: list[dict] = []
         self.checks: dict[str, dict[str, dict]] = {}  # subtopic id -> item id -> item
         self.schemas = {
             name: load_json(content / "schemas" / f"{name}.schema.json")
@@ -111,6 +115,7 @@ class Validator:
         cycle = find_cycle(prerequisites)
         if cycle:
             self.fail(index / "subtopics.json", "prerequisite cycle: " + " -> ".join(cycle))
+        self.subtopic_nodes = subtopics
         return subtopics
 
     # --- lessons -----------------------------------------------------------------------------
@@ -234,6 +239,25 @@ class Validator:
 
     # --- mastery check files -----------------------------------------------------------------
 
+    def concept_tag_errors(self, path: Path, subtopic_id: str, items: list[dict]) -> None:
+        """Item `concepts` must be slugs of the subtopic's index concepts, so a reworded concept
+        fails the build instead of silently mis-mapping."""
+        if not any(item.get("concepts") for item in items):
+            return  # untagged subtopic: nothing to enforce
+        node = next((s for s in self.subtopic_nodes if s["id"] == subtopic_id), {})
+        # A tagged subtopic must have a clean registry (no slug collision / empty slug), else a tag
+        # could silently map to the wrong concept text.
+        for problem in registry_problems(node):
+            self.fail(path, f"{subtopic_id}: {problem}")
+        valid = registry_of(node)
+        for item in items:
+            for slug in item.get("concepts") or []:
+                if slug not in valid:
+                    self.fail(
+                        path,
+                        f"{item['id']}: unknown concept slug {slug!r}; valid: {sorted(valid)}",
+                    )
+
     def check_check_files(self, subtopic_ids: set[str]) -> None:
         problems = self.problem_meta()
         seen: dict[str, Path] = {}
@@ -243,6 +267,7 @@ class Validator:
                 continue
             if data["subtopic_id"] != path.stem or path.stem not in subtopic_ids:
                 self.fail(path, "file must be checks/<subtopic_id>.yaml for a known subtopic")
+            self.concept_tag_errors(path, data["subtopic_id"], data["items"])
             items = self.checks.setdefault(data["subtopic_id"], {})
             for item in data["items"]:
                 if item["id"] in seen:
@@ -272,6 +297,7 @@ class Validator:
                 continue
             if data["subtopic_id"] != path.stem or path.stem not in subtopic_ids:
                 self.fail(path, "file must be placement/<subtopic_id>.yaml for a known subtopic")
+            self.concept_tag_errors(path, data["subtopic_id"], data["items"])
             for item in data["items"]:
                 if item["id"] in taken:
                     self.fail(path, f"item id {item['id']} is also a content/checks item id")

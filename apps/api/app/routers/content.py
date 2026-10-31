@@ -8,6 +8,7 @@ from typing import Any
 
 from fastapi import APIRouter, Query
 from sqlalchemy import func, select
+from sqlalchemy.orm import Session
 
 from ..deps import DB, Content, Now, User
 from ..errors import ApiError
@@ -286,6 +287,38 @@ def _readiness_for(
     return {"views": targeted, "domains": domains, **diagnosis.readiness_summary(domains, targeted)}
 
 
+def _concept_groups(
+    db: Session, user_id: int, content: ContentStore
+) -> dict[str, list[diagnosis.ConceptResult]]:
+    """The user's answered items that carry concept tags, grouped by subtopic (one query)."""
+    # Build the (subtopic, item) -> [(slug, text)] map ONCE over the authored items that actually
+    # carry tags (each subtopic's registry slugified once), so the per-result loop is dict lookups
+    # and untagged results are skipped — no per-row find_check_item scan or re-slugify.
+    tagged: dict[tuple[str, str], list[tuple[str, str]]] = {}
+    for pool in (content.checks, content.placement):
+        for sid, items in pool.items():
+            reg: dict[str, str] | None = None
+            for it in items:
+                cs = it.get("concepts") or []
+                if not cs:
+                    continue
+                if reg is None:
+                    reg = content.concept_registry(sid)
+                tagged[(sid, it["id"])] = [(s, reg[s]) for s in cs if s in reg]
+    if not tagged:
+        return {}
+    groups: dict[str, list[diagnosis.ConceptResult]] = {}
+    for row in db.scalars(select(t.CheckResult).where(t.CheckResult.user_id == user_id)):
+        pairs = tagged.get((row.subtopic_id, row.item_id))
+        if not pairs:
+            continue
+        groups.setdefault(row.subtopic_id, []).extend(
+            diagnosis.ConceptResult(s, text, row.item_id, row.passed, row.item_type)
+            for s, text in pairs
+        )
+    return groups
+
+
 @router.get("/diagnosis")
 def get_diagnosis(
     db: DB, user: User, content: Content, now: Now, role: str | None = Query(default=None)
@@ -322,6 +355,13 @@ def get_diagnosis(
             )
         )
     chosen = _readiness_for(views, content.subtopics, track, level)
+    groups = _concept_groups(db, user.id, content)
+    for d in chosen["domains"]:
+        for m in d.modules:
+            for entry in m.improve:
+                entry["concept_status"] = diagnosis.concept_status(
+                    groups.get(entry["subtopic_id"], [])
+                )
     levels = []
     for lvl in LEVELS:
         pct = (chosen if lvl == level else _readiness_for(views, content.subtopics, track, lvl))[
