@@ -128,20 +128,24 @@ export default function ReassessButton({ experience }: { experience: Experience 
     if (!ok) setBusy(false); // on success the route changes; keep the button locked until then
   };
 
+  const openModal = () => {
+    setChoice(experience); // preselect the saved level each time it opens
+    setBusy(inFlight.current); // still locked if a request from a prior open is running
+    setOpen(true);
+  };
+
   return (
     <>
-      <button
-        ref={triggerRef}
-        className="btn sm ghost"
-        data-testid="reassess-open"
-        onClick={() => {
-          setChoice(experience); // preselect the saved level each time it opens
-          setBusy(inFlight.current); // still locked if a request from a prior open is running
-          setOpen(true);
-        }}
-      >
-        Đánh giá lại năng lực
-      </button>
+      <section className="reassess-card" aria-labelledby="reassess-card-title">
+        <div className="reassess-card__body">
+          <span className="reassess-card__eyebrow">Lộ trình học tập</span>
+          <h2 id="reassess-card-title">Đánh giá lại năng lực</h2>
+          <p className="muted">Kiểm tra lại trình độ để mở nhanh các mục bạn đã vững.</p>
+        </div>
+        <button ref={triggerRef} className="btn primary" data-testid="reassess-open" onClick={openModal}>
+          Đánh giá lại năng lực
+        </button>
+      </section>
       {open && (
         <ReassessModal
           value={choice}

@@ -17,8 +17,10 @@ const noop = () => {};
 describe("ReassessButton", () => {
   beforeEach(() => vi.mocked(startPlacement).mockReset());
 
-  it("renders a subtle open button and no modal until clicked", () => {
+  it("renders a prominent card with the open button and no modal until clicked", () => {
     const out = html(createElement(ReassessButton, { experience: "some" }));
+    expect(out).toContain('class="reassess-card"');
+    expect(out).toContain("Lộ trình học tập");
     expect(out).toContain('data-testid="reassess-open"');
     expect(out).toContain("Đánh giá lại năng lực");
     expect(out).not.toContain("dialog");
