@@ -549,6 +549,8 @@ Nguồn: `GET /review/queue` (toàn bộ, hoặc `?preset=1`); khi mở thẻ se
 
 Mục đích: xem tiến độ trung tính (không streak, không so lịch). Nguồn: `GET /stats`. Thành phần: heatmap 40 mục (màu theo điểm), cột "tuần này" (AC, phút code, thẻ đã ôn, giờ học), biểu đồ giờ theo tuần, heatmap lịch `study_time`, bảng "mục yếu" (điểm < target hoặc nhiều `lapses`), "đã xong X / 40 mục" và mục kế tiếp, độ đúng theo hộp (`review_log`), lịch sử đánh giá đầu vào (`placement_sessions`, mở S3). Trạng thái: **empty** (chưa có dữ liệu: "Học bài đầu tiên để thấy biểu đồ"), loading (skeleton biểu đồ), offline (cache). Không ghi.
 
+Ghi chú (PR sau): trang "Hồ sơ kỹ năng" (`/diagnosis`) dùng `GET /diagnosis` (`tracks[]`, `domains[]` > `modules[]` với `level`, `coverage`, `tier`, `strong`, `improve`; luật ở SPEC 5.7); chỉ hiển thị, không đổi điểm.
+
 #### S11. Settings (`/settings`)
 
 Mục đích: cài đặt và quản trị dữ liệu. Tab: `Chung` · `Dữ liệu & backup` · `Đánh giá`.

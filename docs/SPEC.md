@@ -802,6 +802,15 @@ Thuật toán chọn item, ngân sách thời gian và luật dừng nằm ở `
 6. Trượt thật (đã nộp) tính như trượt check mức 2 (`attempt_no`, khoá làm lại 24 giờ, mở lối thoát `check2_ok`); "Không biết" ghi `gave_up=true` và không khoá, không tính trượt **cho điểm/khoá** nhưng được tính để **dừng sớm** (`UI_SPEC.md` 2.4 S1). E2 trượt mở sẵn lối thoát `check2_ok` là chủ đích (vô hại: lối thoát vẫn cần 2 practice AC). Bỏ qua placement không ghi gì.
 7. **Pha khái niệm (track System Design / AI-engineer, không có code)**: khi bậc thang cổng code dừng, nếu track của hồ sơ (`swe` → module System Design, `ai` → module AI) có module đã soạn item, người dùng tự báo module nào mình đã biết (`POST /placement/{id}/modules`, tối đa 4 module, theo thứ tự cây). Mỗi module chọn thành một **cổng khái niệm** trên **subtopic hub** của module (`CONCEPT_HUBS` trong `services/placement.py`), gồm 2 rung, mỗi rung một `mcq` có đáp án giữ trên server, item ở `content/placement/<hub>.yaml`: **C1** `mcq` mức 1 (nhận biết), đậu sạch = `tested_basic` → **điểm 1** trên hub; **C2** `mcq` mức 2 (áp dụng), đậu sạch = `tested_out` → **điểm 2** + mở khoá qua đường concept (hub là subtopic concept; đây là bằng chứng được duyệt, có đáp án, không tự chấm). C2 chỉ được hỏi sau khi đậu C1 nên điểm 2 cần **hai** lần đậu có đáp án (chống đoán mò MCQ). C1 trượt/"Không biết" = `knowledge_gap`, không hỏi C2, hậu duệ của hub gắn `likely_gap`; C1 đậu mà C2 trượt giữ điểm 1 và `known_basic`. C2 đậu thì tiền đề của hub gắn `likely_known`. Suy luận theo đồ thị chỉ là nhãn hiển thị (`placement_hint`), không bao giờ thành điểm. Cổng khái niệm không leo lên, không thử cổng dưới; hết cổng thì dừng với `concept_done`. Module chưa có item mức 1 và mức 2 ở hub thì không được mời.
 
+### 5.7 Diagnosis view (derived, non-normative)
+
+`GET /diagnosis` là một **VIEW tính lúc đọc** trên điểm 0-3 của từng subtopic; không lưu gì, không thêm luật điểm. Nó gom theo domain (`section`) rồi sub-domain (`module`); mỗi nhóm có `level`, `coverage` (= số mục đã đo / tổng), `tier`, danh sách mục mạnh (điểm đo ≥ 2) và danh sách "cần cải thiện" (mục đo điểm < 2 hoặc `likely_gap`; xếp: đã đo trước suy luận, điểm thấp trước).
+
+- Mục **đã đo** = có bằng chứng thật (`score > 0`, `tested_out` hoặc `known_basic`). Xong lesson KHÔNG tính là đã đo (đọc ≠ đã kiểm tra). Điểm dùng để lấy trung bình: đã đo = điểm thật; chỉ có `placement_hint` thì `likely_known` = 2,0 và `likely_gap` = 0,5; chưa đo và không có hint thì bị loại khỏi trung bình.
+- `level` theo trung bình: < 0,75 "Mới", < 1,5 "Cơ bản", < 2,25 "Vững", còn lại "Thành thạo"; nếu `coverage` < 0,4 thì "Chưa đủ dữ liệu".
+- `tier`: "đã đo" khi `coverage` ≥ 0,4 (cùng ngưỡng với `level`, nên không bao giờ hiện "đã đo" cạnh "Chưa đủ dữ liệu"); dưới ngưỡng, có bất kỳ tín hiệu (đã đo hoặc hint) thì "suy luận"; không có gì thì "chưa đo".
+- View này **không bao giờ** là đầu vào của unlock (5.3), Leitner (5.4) hay điểm (5.2). Cấu hình track/tên domain nằm một chỗ ở `content_loader.py` (`TRACKS`, `SECTION_NAMES`, `MODULE_NAMES`).
+
 ---
 
 ## 6. Kiến trúc kỹ thuật

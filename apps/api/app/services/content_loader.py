@@ -31,6 +31,68 @@ CONCEPT_SECTIONS = {"sd"}
 CONCEPT_MODULES = {"ml.llm", "ml.rag_agents", "ml.llm_eval_serving", "ml.system_design"}
 
 
+# Domain config: the single authority for tracks, section and module labels. GET /diagnosis serves
+# it so the web does not duplicate it.
+TRACKS: list[dict[str, Any]] = [
+    {"key": "foundation", "name_vi": "Nền tảng", "sections": ["py", "cs", "dsa"]},
+    {"key": "system_design", "name_vi": "System Design", "sections": ["sd"]},
+    {"key": "ai", "name_vi": "AI engineer (LLM)", "sections": ["ml"]},
+]
+SECTION_NAMES: dict[str, str] = {
+    "py": "Python nền tảng",
+    "cs": "Độ phức tạp & CS",
+    "dsa": "Thuật toán & CTDL (DSA)",
+    "sd": "System Design",
+    "ml": "AI engineer (LLM)",
+}
+MODULE_NAMES: dict[str, str] = {
+    "py.core": "Cốt lõi Python",
+    "py.datastructs": "Cấu trúc dữ liệu Python",
+    "py.functions": "Hàm",
+    "py.oop": "Hướng đối tượng",
+    "cs.complexity": "Độ phức tạp",
+    "dsa.foundations": "Nền tảng DSA",
+    "dsa.arrays_strings": "Mảng & chuỗi",
+    "dsa.two_pointers_window": "Hai con trỏ & cửa sổ trượt",
+    "dsa.linked_list": "Danh sách liên kết",
+    "dsa.stack_queue": "Ngăn xếp & hàng đợi",
+    "dsa.recursion_backtracking": "Đệ quy & quay lui",
+    "dsa.searching_sorting": "Tìm kiếm & sắp xếp",
+    "dsa.trees": "Cây",
+    "sd.fundamentals": "Nền tảng thiết kế hệ thống",
+    "sd.networking": "Mạng",
+    "sd.api": "Thiết kế API",
+    "sd.data": "Dữ liệu & lưu trữ",
+    "sd.caching": "Cache",
+    "sd.async": "Bất đồng bộ & hàng đợi",
+    "sd.distributed": "Hệ phân tán",
+    "sd.reliability_ops": "Độ tin cậy & vận hành",
+    "sd.framework": "Khung thiết kế",
+    "sd.technologies": "Công nghệ thường gặp",
+    "sd.archetypes": "Bài toán thiết kế mẫu",
+    "ml.llm": "LLM cơ bản",
+    "ml.rag_agents": "RAG & agent",
+    "ml.llm_eval_serving": "Đánh giá & triển khai LLM",
+    "ml.system_design": "Thiết kế hệ thống AI",
+}
+
+
+def module_name(module_id: str) -> str:
+    """Vietnamese label of a module, or a prettified fallback from its last dotted segment."""
+    known = MODULE_NAMES.get(module_id)
+    if known:
+        return known
+    return module_id.rsplit(".", 1)[-1].replace("_", " ").capitalize()
+
+
+def track_of(section: str) -> str:
+    """Key of the track a section belongs to ("other" if none)."""
+    for tr in TRACKS:
+        if section in tr["sections"]:
+            return tr["key"]
+    return "other"
+
+
 def _hash(*paths: Path) -> str:
     h = hashlib.sha256()
     for p in paths:
