@@ -5,6 +5,7 @@ import { getPlacementCurrent, getResumeView, type PlacementView, type ResumeView
 import { showResumeStrip } from "./lib/onboarding";
 import { useOnline } from "./lib/hooks";
 import { useTheme } from "./lib/theme";
+import DiagnosisPage from "./routes/DiagnosisPage";
 import CheckPage from "./routes/CheckPage";
 import Home from "./routes/Home";
 import MapPage from "./routes/MapPage";
@@ -32,6 +33,9 @@ function Nav() {
       </NavLink>
       <NavLink to="/map" className={({ isActive }) => `link${isActive ? " active" : ""}`}>
         Map
+      </NavLink>
+      <NavLink to="/profile" className={({ isActive }) => `link${isActive ? " active" : ""}`}>
+        Hồ sơ
       </NavLink>
       <NavLink to="/review" className={({ isActive }) => `link${isActive ? " active" : ""}`}>
         Ôn tập
@@ -130,6 +134,7 @@ export default function App() {
               <Route path="/" element={<Home />} />
               <Route path="/welcome" element={<Welcome />} />
               <Route path="/map" element={<MapPage />} />
+              <Route path="/profile" element={<DiagnosisPage />} />
               <Route path="/review" element={<ReviewPage />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/s/:subtopicId" element={<LessonPage />} />
