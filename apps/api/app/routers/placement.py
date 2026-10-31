@@ -22,6 +22,8 @@ class StartIn(BaseModel):
     experience: Literal["none", "some", "solid"] | None = None  # default: the saved profile
     restart: bool = False  # abandon a stale/unwanted sitting ("Làm lại từ đầu")
     skip: bool = False  # "Bắt đầu từ đầu": a skipped session, nothing is seeded
+    kind: Literal["initial", "deep_dive"] = "initial"  # deep_dive: one module, P0/P1 rungs only
+    module: str | None = None  # required for a deep_dive
 
 
 @router.post("/placement")
@@ -37,6 +39,8 @@ def start_placement(
         experience=b.experience,
         restart=b.restart,
         skip=b.skip,
+        kind=b.kind,
+        module=b.module,
         key=key,
     )
     out = placement.view(db, content, ps, resumed=resumed, now=now)

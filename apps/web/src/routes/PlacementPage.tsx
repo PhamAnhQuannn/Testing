@@ -644,6 +644,9 @@ export function PlacementResultView({ result }: { result: PlacementResult }) {
         <Link className="btn" to="/map">
           Xem Map
         </Link>
+        <Link className="btn" to="/profile">
+          Xem hồ sơ kỹ năng
+        </Link>
       </div>
     </div>
   );

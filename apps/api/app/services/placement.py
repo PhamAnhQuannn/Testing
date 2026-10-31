@@ -150,6 +150,7 @@ MESSAGES = {
     "no_gates": "Chưa có cổng đánh giá nào sẵn sàng.",
     "concept_done": "Đã đo xong các module khái niệm bạn chọn.",
     "concept_skipped": "Bạn đã bỏ qua phần đo module khái niệm.",
+    "deep_dive_done": "Đã đo xong các chủ đề có sẵn câu hỏi trong module này.",
 }
 
 
@@ -309,6 +310,10 @@ def _is_concept(g: dict[str, Any]) -> bool:
     return g.get("kind", "code") == "concept"
 
 
+def _is_deep(g: dict[str, Any]) -> bool:
+    return g.get("kind", "code") == "deep"
+
+
 def _concept_item(content: ContentStore, hub: str, level: int) -> dict[str, Any] | None:
     """The hub's keyed mcq of this difficulty from the placement pool (first one authored)."""
     return next(
@@ -396,7 +401,7 @@ def _ask(
     r = _first_rung(g) if rung is None else rung
     if ps.active_ms + int(g["rung_minutes"][r] * 60_000) > HARD_MS:
         # no new rung when it cannot finish inside the hard cap
-        if _is_concept(g):
+        if _is_concept(g) or _is_deep(g):
             _stop(ps, state, "budget", now)
         else:
             _end_code_phase(db, content, ps, state, "budget", now)
@@ -511,6 +516,8 @@ def _close_gate(
     g["rung_results"][str(rung)] = label
     if _is_concept(g):
         return label, _close_concept(db, content, ps, g, rung, label, res)
+    if _is_deep(g):
+        return label, _close_deep(db, ps, g, rung, label)
     if rung < 2:
         g["l1"] = label
     row = db.get(t.UserSubtopic, (ps.user_id, g["subtopic_id"]))
@@ -584,6 +591,126 @@ def _close_concept(
     return out
 
 
+def _close_deep(
+    db: Session, ps: t.PlacementSession, g: dict[str, Any], rung: int, label: str
+) -> str | None:
+    """Decide a deep-dive gate after a knowledge rung (P0 mcq -> P1 read_code, no P2). A pass with
+    a rung left -> None (climb on); all authored rungs passed -> `known_basic`; a later rung failed
+    after a pass -> that label (basics known, cannot trace code); nothing passed ->
+    `knowledge_gap`. Only display flags are set; the score comes from the recompute (score 1)."""
+    row = db.get(t.UserSubtopic, (ps.user_id, g["subtopic_id"]))
+    keyed_pass = any(g["rung_results"].get(k) == "passed" for k in ("0", "1"))
+    out: str | None
+    if label == "passed":
+        out = None if _next_rung(g, rung) < 2 else "known_basic"
+    elif keyed_pass:
+        out = label
+    else:
+        out = "knowledge_gap"
+    if row is not None:
+        if label == "passed" or out is not None:
+            row.placement_hint = None
+            row.placement_session_id = ps.id
+        if out is not None:
+            row.known_basic = keyed_pass
+    if out is not None:
+        g["outcome"] = out
+    db.flush()
+    return out
+
+
+def _settle_deep(
+    db: Session,
+    content: ContentStore,
+    ps: t.PlacementSession,
+    state: dict[str, Any],
+    now: datetime,
+    key: str | None,
+) -> None:
+    """A deep-dive rung was answered: climb P0 -> P1 on a pass, else the gate is decided and the
+    next deep gate starts; none left = `deep_dive_done`. Never touches write_code / unlock."""
+    k = state["cursor"]
+    g = state["gates"][k]
+    rung = g["rung"]
+    label, out = _close_gate(db, content, ps, state)
+    assert label is not None
+    if out is None:
+        _ask(db, content, ps, state, k, False, now, key, _next_rung(g, rung))
+        return
+    progress.record_event(
+        db,
+        "placement_gate_done",
+        {"placement_id": ps.id, "gate": g["code"], "outcome": out},
+        now=now,
+        idem_key=key,
+    )
+    _start_next_deep(db, content, ps, state, k + 1, now, key)
+
+
+def _start_next_deep(
+    db: Session,
+    content: ContentStore,
+    ps: t.PlacementSession,
+    state: dict[str, Any],
+    idx: int,
+    now: datetime,
+    key: str | None,
+) -> None:
+    gates = state["gates"]
+    while idx < len(gates):
+        if gates[idx]["outcome"] is None:
+            _ask(db, content, ps, state, idx, False, now, key)
+            return
+        idx += 1
+    _stop(ps, state, "deep_dive_done", now)
+
+
+def _build_deep_gates(
+    db: Session, content: ContentStore, module: str, user_id: int
+) -> list[dict[str, Any]]:
+    """One knowledge-only gate per subtopic of `module` with a level-1 mcq and/or read_code in the
+    placement pool (tree order). rung_items = [P0 mcq, P1 read_code, None]: no P2, no ladder.
+    Subtopics already at score >= 2 are skipped (already mastered, nothing to re-measure)."""
+    gates: list[dict[str, Any]] = []
+    for sid in content.ordered_subtopic_ids():
+        info = content.subtopics[sid]
+        if info.get("module") != module:
+            continue
+        row = db.get(t.UserSubtopic, (user_id, sid))
+        if row is not None and row.score >= 2:
+            continue
+        pool = content.placement.get(sid, [])
+        found: list[dict[str, Any] | None] = [None, None]
+        for r in (0, 1):
+            found[r] = next(
+                (i for i in pool if _rung_item(content, sid, i["id"], r) is not None), None
+            )
+        if found[0] is None and found[1] is None:
+            continue
+        gates.append(
+            {
+                "code": f"D{len(gates) + 1}",
+                "kind": "deep",
+                "subtopic_id": sid,
+                "module": module,
+                "name_vi": info["name_vi"],
+                "rung_items": [f["id"] if f else None for f in found] + [None],
+                "rung_minutes": [
+                    (f.get("minutes") if f else None) or DEFAULT_MINUTES[r]
+                    for r, f in enumerate(found)
+                ]
+                + [0],
+                "rung": None,
+                "rung_results": {},
+                "outcome": None,
+                "check_session_id": None,
+                "l1": None,
+                "retry_after": None,
+            }
+        )
+    return gates
+
+
 def _settle_concept(
     db: Session,
     content: ContentStore,
@@ -642,6 +769,8 @@ def _settle(
     go up / probe below / stop."""
     if _is_concept(state["gates"][state["cursor"]]):
         return _settle_concept(db, content, ps, state, now, key)
+    if _is_deep(state["gates"][state["cursor"]]):
+        return _settle_deep(db, content, ps, state, now, key)
     k = state["cursor"]
     g = state["gates"][k]
     rung = g["rung"]
@@ -785,9 +914,28 @@ def _own(db: Session, user_id: int, placement_id: int) -> t.PlacementSession:
 
 
 def active(db: Session, user_id: int) -> t.PlacementSession | None:
+    # Only the main ("initial") placement: a module-scoped deep-dive is a side session and must not
+    # be picked up by resume, the "Tiếp tục" strip, or onboarding state.
     return db.scalar(
         select(t.PlacementSession)
-        .where(t.PlacementSession.user_id == user_id, t.PlacementSession.status == "in_progress")
+        .where(
+            t.PlacementSession.user_id == user_id,
+            t.PlacementSession.status == "in_progress",
+            t.PlacementSession.kind == "initial",
+        )
+        .order_by(t.PlacementSession.id.desc())
+        .limit(1)
+    )
+
+
+def _active_deep(db: Session, user_id: int) -> t.PlacementSession | None:
+    return db.scalar(
+        select(t.PlacementSession)
+        .where(
+            t.PlacementSession.user_id == user_id,
+            t.PlacementSession.status == "in_progress",
+            t.PlacementSession.kind == "deep_dive",
+        )
         .order_by(t.PlacementSession.id.desc())
         .limit(1)
     )
@@ -799,6 +947,7 @@ def latest(db: Session, user_id: int) -> t.PlacementSession | None:
         .where(
             t.PlacementSession.user_id == user_id,
             t.PlacementSession.status.in_(("in_progress", "finished", "skipped")),
+            t.PlacementSession.kind == "initial",
         )
         .order_by(t.PlacementSession.id.desc())
         .limit(1)
@@ -845,17 +994,31 @@ def start(
     experience: str | None = None,
     restart: bool = False,
     skip: bool = False,
+    kind: str = "initial",
+    module: str | None = None,
     key: str | None = None,
 ) -> tuple[t.PlacementSession, bool]:
     """Begin a placement, or resume the one in progress. `skip` = "Bắt đầu từ đầu": a session row
     with status `skipped` and nothing else (no check_results, no events about scores)."""
+    deep = kind == "deep_dive" and not skip
+    if deep:
+        if not module:
+            raise ApiError(422, "module_required", "A deep-dive needs a module")
+        if module not in {s.get("module") for s in content.subtopics.values()}:
+            raise ApiError(422, "unknown_module", f"Not a module: {module}")
     cur = active(db, user_id)
-    if cur is not None and not restart and not skip:
+    if cur is not None and not restart and not skip and not deep:
         _ensure_gate(db, content, cur, now, key)
         cur.last_active_at = now
         db.flush()
         return cur, True
-    if cur is not None:  # restart / skip: abandon the sitting; measured results stay evidence
+    if deep:
+        # A deep-dive coexists with the initial sitting (never abandons it); it only replaces a
+        # previous in-progress deep-dive.
+        prior = _active_deep(db, user_id)
+        if prior is not None:
+            _abandon(db, prior, now)
+    elif cur is not None:  # restart / skip: abandon the sitting; measured results stay evidence
         _abandon(db, cur, now)
     settings = db.get(t.UserSettings, user_id)
     exp = experience or (settings.experience if settings else None) or "none"
@@ -877,19 +1040,32 @@ def start(
         db.flush()
         return ps, False
 
-    gates = _build_gates(db, content, user_id, now)
-    state: dict[str, Any] = {
-        "gates": gates,
-        "entry": ENTRY[exp],
-        "last": LAST_GATE[exp],
-        "cursor": None,
-        "probing": False,
-        "phase": "code",
-    }
+    state: dict[str, Any]
+    if deep:
+        assert module is not None
+        gates = _build_deep_gates(db, content, module, user_id)
+        state = {
+            "gates": gates,
+            "entry": 0,
+            "last": len(gates) - 1,
+            "cursor": None,
+            "probing": False,
+            "phase": "deep",
+        }
+    else:
+        gates = _build_gates(db, content, user_id, now)
+        state = {
+            "gates": gates,
+            "entry": ENTRY[exp],
+            "last": LAST_GATE[exp],
+            "cursor": None,
+            "probing": False,
+            "phase": "code",
+        }
     ps = t.PlacementSession(
         user_id=user_id,
-        kind="initial",
-        scope="all",
+        kind="deep_dive" if deep else "initial",
+        scope=module if deep else "all",
         status="in_progress",
         experience=exp,
         state=state,
@@ -907,7 +1083,9 @@ def start(
         idem_key=key,
     )
     state = copy.deepcopy(state)
-    if not any(g["outcome"] != "unavailable" for g in gates):
+    if deep:
+        _start_next_deep(db, content, ps, state, 0, now, key)
+    elif not any(g["outcome"] != "unavailable" for g in gates):
         _stop(ps, state, "no_gates", now)
     else:
         _go_up(db, content, ps, state, state["entry"], now, key)
