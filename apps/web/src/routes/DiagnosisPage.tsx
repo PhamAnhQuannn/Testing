@@ -167,25 +167,79 @@ function DomainSection({ domain: d }: { domain: DiagnosisDomain }) {
   );
 }
 
-export const ROLE_OPTIONS = [
-  { key: "swe-intern", label: "SWE Intern" },
-  { key: "swe-new_grad", label: "SWE New Grad" },
-  { key: "ai-intern", label: "AI Engineer Intern" },
-  { key: "ai-new_grad", label: "AI Engineer New Grad" },
+export const TRACK_OPTIONS = [
+  { key: "swe", label: "SWE" },
+  { key: "ai", label: "AI Engineer" },
+];
+export const LEVEL_OPTIONS = [
+  { key: "intern", label: "Intern" },
+  { key: "fresher", label: "Fresher" },
+  { key: "junior", label: "Junior" },
+  { key: "senior", label: "Senior" },
 ];
 
+export const composeRole = (track: string, level: string) => `${track}-${level}`;
+
+/** `swe-junior` -> ["swe", "junior"]; unknown parts fall back to swe / intern. */
+export function splitRole(key: string): [string, string] {
+  const [track = "", level = ""] = key.split("-");
+  return [
+    TRACK_OPTIONS.some((o) => o.key === track) ? track : "swe",
+    LEVEL_OPTIONS.some((o) => o.key === level) ? level : "intern",
+  ];
+}
+
+/** Track toggle + level select; the level only changes the readiness target, never the path. */
 export function RoleSelector({ value, onChange }: { value: string; onChange: (key: string) => void }) {
+  const [track, level] = splitRole(value);
   return (
-    <label className="role-select">
-      Vai trò mục tiêu{" "}
-      <select value={value} onChange={(e) => onChange(e.target.value)} data-testid="role-select">
-        {ROLE_OPTIONS.map((o) => (
-          <option key={o.key} value={o.key}>
+    <div className="role-select">
+      <div role="group" aria-label="Track" data-testid="track-toggle">
+        {TRACK_OPTIONS.map((o) => (
+          <button
+            key={o.key}
+            type="button"
+            className="btn"
+            aria-pressed={o.key === track}
+            onClick={() => onChange(composeRole(o.key, level))}
+          >
             {o.label}
-          </option>
+          </button>
         ))}
-      </select>
-    </label>
+      </div>
+      <label>
+        Level mục tiêu{" "}
+        <select
+          value={level}
+          onChange={(e) => onChange(composeRole(track, e.target.value))}
+          data-testid="level-select"
+        >
+          {LEVEL_OPTIONS.map((o) => (
+            <option key={o.key} value={o.key}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </label>
+    </div>
+  );
+}
+
+export function LevelsRow({ view }: { view: DiagnosisView }) {
+  if (view.levels.length === 0) return null;
+  return (
+    <p className="muted levels-row" data-testid="levels-row">
+      {view.levels.map((l, i) => {
+        const name = LEVEL_OPTIONS.find((o) => o.key === l.level)?.label ?? l.level;
+        const text = l.readiness_pct == null ? name : `${name} ${l.readiness_pct}%`;
+        return (
+          <span key={l.level}>
+            {i > 0 && " · "}
+            {l.level === view.role.level ? <strong aria-current="true">{text}</strong> : text}
+          </span>
+        );
+      })}
+    </p>
   );
 }
 
@@ -197,6 +251,7 @@ export function ReadinessHeadline({ view }: { view: DiagnosisView }) {
         Sẵn sàng cho {label}
         {view.readiness_pct != null ? `: ${view.readiness_pct}% chuẩn` : ""}
       </h2>
+      <LevelsRow view={view} />
       {view.readiness_pct == null && (
         <p className="muted">Vai trò này chưa có mục cần đo trong cây kiến thức.</p>
       )}

@@ -95,7 +95,9 @@ export function ProfileStep({
         onChange={(v) => set("target_role", v)}
         options={[
           { v: "intern", label: "Intern" },
-          { v: "new_grad", label: "New-grad" },
+          { v: "fresher", label: "Fresher" },
+          { v: "junior", label: "Junior" },
+          { v: "senior", label: "Senior" },
         ]}
       />
       <Radio

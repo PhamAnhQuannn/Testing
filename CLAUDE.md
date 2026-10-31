@@ -8,7 +8,7 @@ plan) and `docs/OVERVIEW.md` (requirements and status, Vietnamese).
 1. Personal learning app for Quan, in the style of Coddy / HackerRank: short lessons and code
    problems side by side (split view), Python runs and is graded in the browser (Pyodide).
 2. Per-subtopic score 0-3, one-way prerequisite unlock, Leitner spaced review (D+1/3/7/14/28).
-3. Content comes from a 530-subtopic skill tree and a 30-day Meta intern/new-grad plan
+3. Content comes from a 530-subtopic skill tree and a 30-day Meta intern/fresher plan
    (`source/`); the MVP is 40 subtopics (plan days 1-12).
 4. Single user (Quan) now; every progress table has `user_id` so multi-user can come later.
 5. Status: M0, M1 and **M2a are merged** — the full learning loop (unlock + skill map, mastery

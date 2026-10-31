@@ -23,7 +23,9 @@ describe("S1 screens", () => {
       createElement(ProfileStep, { draft, onChange: noop, onBack: noop, onSubmit: noop, busy: false, error: null }),
     );
     for (const name of ["target_role", "track", "language", "experience"]) expect(out).toContain(`name="${name}"`);
-    expect(out).toContain("New-grad");
+    for (const v of ["intern", "fresher", "junior", "senior"]) expect(out).toContain(`value="${v}"`);
+    expect(out).not.toContain("New-grad");
+    expect(out).toMatch(/name="target_role" checked="" value="intern"/); // default level
     expect(out).toContain("AI engineer");
     expect(out).toContain("Khá (đã giải bài LeetCode easy)");
   });
@@ -90,6 +92,12 @@ describe("onboarding logic", () => {
       display_name: "Quan",
       tz: "Asia/Ho_Chi_Minh",
     });
+  });
+
+  it("payload carries the chosen level", () => {
+    for (const level of ["fresher", "junior", "senior"] as const) {
+      expect(profilePayload({ ...draft, target_role: level })?.target_role).toBe(level);
+    }
   });
 
   it("resume strip hides on Home, focus screens and its own target", () => {

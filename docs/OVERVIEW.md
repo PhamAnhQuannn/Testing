@@ -54,7 +54,7 @@ interview-research/      dataset quy trình phỏng vấn (10.888 câu, 571 proc
 interview-prep/          mô hình 4 tầng
   tầng 1 cây kiến thức (530 mục)  ──►  tầng 2 đánh giá 0-3  ──►  tầng 3 bài học  ──►  tầng 4 mock + ôn
         │                                                                              
-plans/meta_1month/       kế hoạch 30 ngày Meta intern/new-grad + bộ đánh giá (254 item)
+plans/meta_1month/       kế hoạch 30 ngày Meta intern/fresher + bộ đánh giá (254 item)
 interview-research/meta_2026/mock/   bộ mock Word (10 mock intern + new grad)
         │
 learning-app/ + repo Testing   ◄── ứng dụng học: biến các file tĩnh trên thành vòng lặp học tương tác
@@ -83,7 +83,7 @@ learning-app/ + repo Testing   ◄── ứng dụng học: biến các file t�
 
 ### 1.4 Kế hoạch Meta 30 ngày và bộ mock (`plan`, `mem:interview-prep-model`, `mem:interview-research-outputs`)
 
-- **Kế hoạch (2026-10-24)**: intern/new-grad Meta, SWE + Python. 30 ngày = 4 tuần + 2 ngày buffer, 4h ngày thường + 6h cuối tuần, tổng khoảng 131h (131,25h trên tối đa 136h, `plan/review.md`). Giữ **82 subtopic** ở mức điểm 2 (khoảng 91,5h nội dung; `plan/plan.md` mục 0 và 2.1). Review của kế hoạch: **DUYỆT**, còn 3 nit không chặn (`plan/review.md`).
+- **Kế hoạch (2026-10-24)**: intern/fresher Meta, SWE + Python. 30 ngày = 4 tuần + 2 ngày buffer, 4h ngày thường + 6h cuối tuần, tổng khoảng 131h (131,25h trên tối đa 136h, `plan/review.md`). Giữ **82 subtopic** ở mức điểm 2 (khoảng 91,5h nội dung; `plan/plan.md` mục 0 và 2.1). Review của kế hoạch: **DUYỆT**, còn 3 nit không chặn (`plan/review.md`).
 - **Bộ đánh giá kèm theo**: 254 item (`assessment.json`; `mem:interview-prep-model`), Day 0 là bài chẩn đoán đầu vào, quiz cuối mỗi tuần, rubric chấm mock.
 - **Mock**: file Word `meta_2026/mock/Meta_2026_Intern_NewGrad_Mock.docx`, **10 mock** (I1-I4 cho intern, N1-N6 cho new grad), 284 trang. Quan thu hẹp từ bản đầu 8 mock mọi cấp (251 trang) xuống chỉ intern + new grad. Chỉ các mock có trong lịch (I1-R1, I3, N1, N2, N6-R1 mức 1-2) được "để dành", phần còn lại thả vào kho bài luyện (`mem:interview-prep-model`).
 
@@ -114,7 +114,7 @@ Cột "Ngày" lấy từ memory hoặc từ changelog `REV`. Cột "Nguồn" cho
 |---|---|---|---|
 | R7 | Chữ phải dễ và ngắn cho người mới hoàn toàn; kiểm bằng learner sim | 2026-10-14 | `mem:interview-prep-model` |
 | R8 | Giữ sửa tầng 1 (vòng 3) trước khi làm tầng 2 | 2026-10-19 | `mem:interview-prep-model` |
-| R9 | Kế hoạch ôn Meta 30 ngày intern/new-grad + đánh giá kiểu tầng 2 | 2026-10-24 | `mem:interview-prep-model`, `plan` |
+| R9 | Kế hoạch ôn Meta 30 ngày intern/fresher + đánh giá kiểu tầng 2 | 2026-10-24 | `mem:interview-prep-model`, `plan` |
 | R10 | Gói mock phỏng vấn Meta (Word), sau đó chỉ giữ intern + new grad | 2026-10-24 | `mem:interview-research-outputs` |
 | R11 | Kiểm tra claim về quy trình Meta 2026 | 2026-10-24 | `mem:interview-research-outputs` |
 | R12 | Đề bài song ngữ trong app (EN là bản chính, VI là bản giải thích, bật/tắt một nút); lesson viết tiếng Việt, thuật ngữ giữ tiếng Anh | quyết định spec, không phải lời Quan (2026-10-24) | `SPEC §1.3` |
@@ -215,7 +215,7 @@ Chi tiết đầy đủ: `SPEC §1-5` và `UI_SPEC §1-3`. Dưới đây là ph�
 
 ```
 Lần đầu mở ──► /welcome: kiểm tra Pyodide, hồ sơ 4 câu
-               (target_role intern/new_grad · track swe/ai · language python · experience none/some/solid)
+               (target_role intern/fresher/junior/senior · track swe/ai · language python · experience none/some/solid)
           ──► chọn: [Đánh giá trình độ] (placement) hoặc [Bắt đầu từ đầu] (không gieo điểm)
           ──► (placement) kết quả: skill map đã gieo, mạnh/yếu, mục bắt đầu, giờ còn lại
           ──► "/" Học tiếp ──► học lesson ──► làm bài ──► kiểm tra ──► ôn lặp ──┐

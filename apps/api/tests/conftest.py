@@ -39,8 +39,8 @@ def _sub(sid: str, order: int, prereqs: list[str], intern: int = 2) -> dict:
         "summary_vi": "tóm tắt",
         "mastery_bar_vi": "mức 3",
         "prerequisites": prereqs,
-        "target_swe": {"intern": intern, "fresher": 3},
-        "target_ai": {"intern": intern, "fresher": 3},
+        "target_swe": {"intern": intern, "fresher": 3, "junior": 3, "senior": 3},
+        "target_ai": {"intern": intern, "fresher": 3, "junior": 3, "senior": 3},
         "est_hours": 1.0,
         "plan_order": order,
     }

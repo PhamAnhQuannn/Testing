@@ -209,9 +209,16 @@ export interface DiagnosisRole {
   key: string;
   label_vi: string;
 }
+export interface DiagnosisLevel {
+  level: string;
+  readiness_pct: number | null;
+  label_vi: string;
+}
 export interface DiagnosisView {
   tracks: DiagnosisTrack[];
   role: DiagnosisRole;
+  /** Readiness of the selected track at each of the 4 levels (readiness view only). */
+  levels: DiagnosisLevel[];
   readiness_pct: number | null;
   coverage_warning: boolean;
   coverage_message: string | null;
@@ -251,6 +258,11 @@ export function normalizeDiagnosis(data: unknown): DiagnosisView {
       label_vi: String(role.label_vi ?? ""),
     },
     readiness_pct: root.readiness_pct == null ? null : finite(root.readiness_pct),
+    levels: asArray(root, ["levels"]).map((l) => ({
+      level: String(l.level ?? ""),
+      readiness_pct: l.readiness_pct == null ? null : finite(l.readiness_pct),
+      label_vi: String(l.label_vi ?? l.level ?? ""),
+    })),
     coverage_warning: root.coverage_warning === true,
     coverage_message: typeof root.coverage_message === "string" ? root.coverage_message : null,
     tracks: asArray(root, ["tracks"]).map((t) => ({
@@ -1195,7 +1207,7 @@ export interface Onboarding {
 }
 
 export interface Profile {
-  target_role: "intern" | "new_grad";
+  target_role: "intern" | "fresher" | "junior" | "senior";
   track: "swe" | "ai";
   language: "python";
   experience: "none" | "some" | "solid";

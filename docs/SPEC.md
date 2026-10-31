@@ -21,7 +21,7 @@ Tài liệu này mô tả sản phẩm và kiến trúc. Không chứa code ứn
 
 ### 1.1 Mục tiêu
 
-Quan là người gần như mới bắt đầu, chuẩn bị phỏng vấn Meta intern/new-grad SWE và AI engineer (Python trước, Java sau). Bộ dữ liệu đã có (cây kiến thức 530 mục, kế hoạch 30 ngày, 254 item đánh giá, 10.888 câu hỏi thật) nhưng đang là file tĩnh. App biến chúng thành một vòng lặp học theo nhịp riêng của Quan (không có định mức mỗi ngày):
+Quan là người gần như mới bắt đầu, chuẩn bị phỏng vấn Meta intern/fresher SWE và AI engineer (Python trước, Java sau). Bộ dữ liệu đã có (cây kiến thức 530 mục, kế hoạch 30 ngày, 254 item đánh giá, 10.888 câu hỏi thật) nhưng đang là file tĩnh. App biến chúng thành một vòng lặp học theo nhịp riêng của Quan (không có định mức mỗi ngày):
 
 ```
  học (lesson ngắn) ──► luyện (code ngay cạnh bài) ──► kiểm tra (quiz + Submit hidden test + mastery check)
@@ -222,7 +222,7 @@ Mục đang khoá hoặc chưa học có nút "Test out": chạy flow C. Đạt 
 
 **Flow G, lần đầu mở app và đánh giá đầu vào**
 
-1. `GET /me` có `onboarding.profile_done=false` thì app vào `/welcome`: kiểm tra Pyodide, xin lưu trữ bền vững, thu hồ sơ (`target_role` intern/new_grad, `track` swe/ai, `language` python, `experience` none/some/solid) bằng `PUT /profile`.
+1. `GET /me` có `onboarding.profile_done=false` thì app vào `/welcome`: kiểm tra Pyodide, xin lưu trữ bền vững, thu hồ sơ (`target_role` intern/fresher/junior/senior, `track` swe/ai, `language` python, `experience` none/some/solid) bằng `PUT /profile`.
 2. Chọn **Đánh giá trình độ** (`POST /placement`) hoặc **Bắt đầu từ đầu** (`POST /placement/skip`, không gieo điểm). Placement chạy theo `UI_SPEC.md` mục 2 và gieo điểm theo mục 5.6.
 3. Kết quả (`/placement/:id/result`): skill map đã gieo, mạnh/yếu, mục bắt đầu theo thứ tự plan, giờ còn lại ước tính; rồi vào `/`. Có thể đo thêm hoặc làm lại theo module bất cứ lúc nào; Test out từng mục luôn có.
 
@@ -810,7 +810,8 @@ Thuật toán chọn item, ngân sách thời gian và luật dừng nằm ở `
 - Mục **đã đo** = có bằng chứng thật (`score > 0`, `tested_out` hoặc `known_basic`). Xong lesson KHÔNG tính là đã đo (đọc ≠ đã kiểm tra). Điểm dùng để lấy trung bình: đã đo = điểm thật; chỉ có `placement_hint` thì `likely_known` = 2,0 và `likely_gap` = 0,5; chưa đo và không có hint thì bị loại khỏi trung bình.
 - `level` theo trung bình: < 0,75 "Mới", < 1,5 "Cơ bản", < 2,25 "Vững", còn lại "Thành thạo"; nếu `coverage` < 0,4 thì "Chưa đủ dữ liệu".
 - `tier`: "đã đo" khi `coverage` ≥ 0,4 (cùng ngưỡng với `level`, nên không bao giờ hiện "đã đo" cạnh "Chưa đủ dữ liệu"); dưới ngưỡng, có bất kỳ tín hiệu (đã đo hoặc hint) thì "suy luận"; không có gì thì "chưa đo".
-- **Role-readiness (so với vai trò mục tiêu)**: `GET /diagnosis?role=swe-intern|swe-new_grad|ai-intern|ai-new_grad` (mặc định từ `settings.track` + `target_role`) đặt `target` (0-3, từ `target_swe`/`target_ai` của index, thiếu = 0) cho từng subtopic. Chỉ xét mục **liên quan vai trò** (`target > 0`): `gap = Σ max(0, target − điểm đã đo)`, `readiness = Σ min(điểm đã đo, target) / Σ target` (0..1, làm tròn 2; 0 nếu không có target), kèm `role_relevant`, `below_target` (đã đo hoặc suy luận mà dưới target) và `unmeasured_relevant` (chưa có bằng chứng thật). **Suy luận (`likely_known`/`likely_gap`) KHÔNG BAO GIỜ tính vào readiness**, chỉ bằng chứng thật (đã đo) mới tính. Trả thêm `role {track, level, label_vi}`, `readiness_pct` (0-100 trên toàn bộ domain) và `coverage_warning` (+ `coverage_message`, nêu domain thiếu nhiều nhất) khi hơn 50% mục liên quan chưa đo. Mục đo mà `updated_at` cũ hơn 180 ngày là `stale` (UI nhắc đo lại; không đổi điểm). Danh sách "cần cải thiện" xếp: mục chặn tiền đề, rồi `gap` lớn trước, rồi đã đo trước suy luận, rồi điểm thấp. Đây vẫn là VIEW dẫn xuất, không cần migration.
+- **Role-readiness (so với vai trò mục tiêu)**: `GET /diagnosis?role=<swe|ai>-<intern|fresher|junior|senior>` (4 level của cây kiến thức; `new_grad` cũ được map thành `fresher`; mặc định từ `settings.track` + `target_role`) đặt `target` (0-3, từ `target_swe`/`target_ai` của index, thiếu = 0) cho từng subtopic. Chỉ xét mục **liên quan vai trò** (`target > 0`): `gap = Σ max(0, target − điểm đã đo)`, `readiness = Σ min(điểm đã đo, target) / Σ target` (0..1, làm tròn 2; 0 nếu không có target), kèm `role_relevant`, `below_target` (đã đo hoặc suy luận mà dưới target) và `unmeasured_relevant` (chưa có bằng chứng thật). **Suy luận (`likely_known`/`likely_gap`) KHÔNG BAO GIỜ tính vào readiness**, chỉ bằng chứng thật (đã đo) mới tính. Trả thêm `role {track, level, label_vi}`, `readiness_pct` (0-100 trên toàn bộ domain) và `coverage_warning` (+ `coverage_message`, nêu domain thiếu nhiều nhất) khi hơn 50% mục liên quan chưa đo. Mục đo mà `updated_at` cũ hơn 180 ngày là `stale` (UI nhắc đo lại; không đổi điểm). Danh sách "cần cải thiện" xếp: mục chặn tiền đề, rồi `gap` lớn trước, rồi đã đo trước suy luận, rồi điểm thấp. Đây vẫn là VIEW dẫn xuất, không cần migration.
+- **Level vai trò** (`intern`, `fresher`, `junior`, `senior`) chỉ chọn `target` của view readiness này; nó KHÔNG BAO GIỜ ảnh hưởng điểm, unlock, Leitner hay `/next` (các phần đó luôn dùng nền `target_intern`). Target đơn điệu theo level: intern ≤ fresher ≤ junior ≤ senior cho từng subtopic, nên `gap` không giảm khi level tăng. (`readiness_pct` tính riêng theo từng level = % so với chuẩn của chính level đó, nên KHÔNG nhất thiết đơn điệu giữa các level — mục có target tăng 0→n làm đổi tập liên quan.) Response trả thêm `levels: [{level, readiness_pct, label_vi}]` (readiness của track đã chọn ở cả 4 level; `readiness_pct` null nếu level đó không có mục liên quan).
 - View này **không bao giờ** là đầu vào của unlock (5.3), Leitner (5.4) hay điểm (5.2). Cấu hình track/tên domain nằm một chỗ ở `content_loader.py` (`TRACKS`, `SECTION_NAMES`, `MODULE_NAMES`).
 
 ---
@@ -882,7 +883,7 @@ Nội dung (đọc từ file, nạp vào bảng lúc khởi động, khoá ngo�
 
 | Bảng | Field chính |
 |---|---|
-| `subtopics` | `id` PK, `name_vi`, `section`, `module`, `ord`, `prereqs` (JSON), `target_intern`, `target_ai`, `targets` (JSON `{swe:{intern,fresher}, ai:{intern,fresher}}`, v0.6: chỉ để hiển thị vòng đích theo hồ sơ; `done` vẫn dùng `target_intern`), `est_hours`, `summary_vi`, `mastery_bar_vi`, `content_status` |
+| `subtopics` | `id` PK, `name_vi`, `section`, `module`, `ord`, `prereqs` (JSON), `target_intern`, `target_ai`, `targets` (JSON `{swe:{intern,fresher,junior,senior}, ai:{intern,fresher,junior,senior}}`, v0.6: chỉ để hiển thị vòng đích theo hồ sơ; `done` vẫn dùng `target_intern`), `est_hours`, `summary_vi`, `mastery_bar_vi`, `content_status` |
 | `lessons` | `subtopic_id` PK/FK, `version`, `path`, `content_hash`, `est_minutes` |
 | `problems` | `id` PK, `subtopic_id`, `kind`, `title`, `difficulty`, `source_type`, `lc`, `time_target_min`, `path`, `content_hash`, `version` |
 | `quiz_items` | `id` PK (`<lesson>#<block>` hoặc id assessment), `subtopic_id`, `source` (`lesson`/`assessment`), `level`, `type`, `graded` |
@@ -894,7 +895,7 @@ Người dùng và tiến độ:
 | Bảng | Field chính |
 |---|---|
 | `users` | `id` PK, `name`, `created_at`. MVP: đúng một dòng `id=1` |
-| `settings` | `user_id` PK, `tz`, `review_preset` (int, null = tắt nút "Phiên ngắn"; mặc định cỡ 6), `backlog_warn` (int, mặc định 20), **v0.6**: `target_role` (`intern`\|`new_grad`), `track` (`swe`\|`ai`), `language`, `experience` (`none`\|`some`\|`solid`), `display_name`, `onboarded_at`, `backup_every_hours` (6), `backup_keep` (20), `ui_prefs` (JSON: theme, cỡ chữ, bố cục). Không có ngày bắt đầu plan, con trỏ ngày hay trần thẻ |
+| `settings` | `user_id` PK, `tz`, `review_preset` (int, null = tắt nút "Phiên ngắn"; mặc định cỡ 6), `backlog_warn` (int, mặc định 20), **v0.6**: `target_role` (`intern`\|`fresher`\|`junior`\|`senior`), `track` (`swe`\|`ai`), `language`, `experience` (`none`\|`some`\|`solid`), `display_name`, `onboarded_at`, `backup_every_hours` (6), `backup_keep` (20), `ui_prefs` (JSON: theme, cỡ chữ, bố cục). Không có ngày bắt đầu plan, con trỏ ngày hay trần thẻ |
 | `study_time` | `(user_id, day)` PK (`day` theo `tz`), `seconds`. Cộng dồn thời gian tương tác thật (tab hiện, có thao tác trong 2 phút gần nhất) để vẽ tổng theo tuần và heatmap; chỉ để xem, không có mục tiêu |
 | `user_subtopic` | `(user_id, subtopic_id)` PK, `score` (0-3, cache), `lesson_done_at`, `quiz_best`, `tested_out`, `unlocked_at` (null = chưa mở; ghi một lần, không xoá), `status`, `updated_at`, **v0.6**: `known_basic` (bool, từ placement mức 1), `placement_hint` (`likely_known`\|`likely_gap`\|null, chỉ hiển thị), `placement_session_id` |
 | `quiz_answers` | `id`, `user_id`, `quiz_item_id`, `run_no` (lượt làm lesson), `attempt_no`, `answer` (JSON), `correct`, `answered_at` |

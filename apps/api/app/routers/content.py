@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from datetime import timedelta
 from typing import Any
 
@@ -13,7 +13,13 @@ from ..deps import DB, Content, Now, User
 from ..errors import ApiError
 from ..models import tables as t
 from ..services import diagnosis, progress, unlock
-from ..services.content_loader import TRACKS, ContentStore
+from ..services.content_loader import (
+    LEGACY_LEVELS,
+    LEVELS,
+    ROLE_TRACKS,
+    TRACKS,
+    ContentStore,
+)
 
 router = APIRouter(prefix="/api")
 
@@ -237,26 +243,47 @@ def list_problems(
     return {"problems": out}
 
 
+_TRACK_LABELS = {"swe": "SWE", "ai": "AI Engineer"}
 ROLE_LABELS = {
-    ("swe", "intern"): "SWE Intern",
-    ("swe", "new_grad"): "SWE New Grad",
-    ("ai", "intern"): "AI Engineer Intern",
-    ("ai", "new_grad"): "AI Engineer New Grad",
+    (track, level): f"{_TRACK_LABELS[track]} {level.capitalize()}"
+    for track in ROLE_TRACKS
+    for level in LEVELS
 }
 
 
 def parse_role(role: str | None, settings: t.UserSettings | None) -> tuple[str, str]:
-    """`swe-intern` style key -> (track, level); default from the user's settings."""
+    """`swe-junior` style key -> (track, level); default from the user's settings.
+
+    The legacy `new_grad` level maps to `fresher`.
+    """
     if role is None:
-        key = (
-            (settings.track if settings else None) or "swe",
-            (settings.target_role if settings else None) or "intern",
-        )
+        track = (settings.track if settings else None) or "swe"
+        level = (settings.target_role if settings else None) or "intern"
+        key = (track, LEGACY_LEVELS.get(level, level))
         return key if key in ROLE_LABELS else ("swe", "intern")
     track, _, level = role.partition("-")
+    level = LEGACY_LEVELS.get(level, level)
     if (track, level) not in ROLE_LABELS:
         raise ApiError(400, "invalid_role", f"Unknown role: {role}")
     return track, level
+
+
+def _readiness_for(
+    views: list[diagnosis.SubtopicView],
+    subtopics: dict[str, dict[str, Any]],
+    track: str,
+    level: str,
+) -> dict[str, Any]:
+    """Re-target `views` at (track, level) and return the readiness headline for it.
+
+    Returns the new views too, so the selected level reuses them for the detailed domains.
+    """
+    targeted = [
+        replace(v, target=int((subtopics[v.id].get(f"target_{track}") or {}).get(level) or 0))
+        for v in views
+    ]
+    domains = diagnosis.diagnose(targeted, role=f"{track}-{level}")
+    return {"views": targeted, "domains": domains, **diagnosis.readiness_summary(domains, targeted)}
 
 
 @router.get("/diagnosis")
@@ -291,11 +318,16 @@ def get_diagnosis(
                 inferred_hint=row.placement_hint if row and not measured else None,
                 has_lesson=content.lesson(sid) is not None,
                 concepts=diagnosis.pick_concepts(info),
-                target=int((info.get(f"target_{track}") or {}).get(level) or 0),
                 stale=bool(measured and updated is not None and updated < stale_before),
             )
         )
-    domains = diagnosis.diagnose(views, role=f"{track}-{level}")
+    chosen = _readiness_for(views, content.subtopics, track, level)
+    levels = []
+    for lvl in LEVELS:
+        pct = (chosen if lvl == level else _readiness_for(views, content.subtopics, track, lvl))[
+            "readiness_pct"
+        ]
+        levels.append({"level": lvl, "readiness_pct": pct, "label_vi": ROLE_LABELS[(track, lvl)]})
     return {
         "tracks": TRACKS,
         "role": {
@@ -304,6 +336,10 @@ def get_diagnosis(
             "key": f"{track}-{level}",
             "label_vi": ROLE_LABELS[(track, level)],
         },
-        **diagnosis.readiness_summary(domains, views),
-        "domains": [asdict(d) for d in domains],
+        "levels": levels,
+        **{
+            k: chosen[k]
+            for k in ("readiness_pct", "coverage_warning", "coverage_message", "worst_domain")
+        },
+        "domains": [asdict(d) for d in chosen["domains"]],
     }

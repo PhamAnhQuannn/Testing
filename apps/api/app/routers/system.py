@@ -16,6 +16,7 @@ from ..errors import ApiError
 from ..models import tables as t
 from ..runtime import head_revision
 from ..services import placement
+from ..services.content_loader import LEGACY_LEVELS
 
 router = APIRouter(prefix="/api")
 
@@ -81,7 +82,7 @@ def _settings_json(s: t.UserSettings) -> dict:
         "tz": s.tz,
         "review_preset": s.review_preset,
         "backlog_warn": s.backlog_warn,
-        "target_role": s.target_role,
+        "target_role": LEGACY_LEVELS.get(s.target_role, s.target_role),
         "track": s.track,
         "language": s.language,
         "experience": s.experience,
@@ -150,7 +151,7 @@ class ProfileIn(BaseModel):
     """S1 profile. Every field is optional so the screen can save step by step; `onboarded_at`
     is set once all four answers exist."""
 
-    target_role: Literal["intern", "new_grad"] | None = None
+    target_role: Literal["intern", "fresher", "junior", "senior"] | None = None
     track: Literal["swe", "ai"] | None = None
     language: Literal["python"] | None = None
     experience: Literal["none", "some", "solid"] | None = None

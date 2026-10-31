@@ -4,7 +4,7 @@ Reads files directly (no app imports):
   content/index/subtopics.json, content/placement/*.yaml, content/checks/*.yaml,
   content/lessons/<section>/<subtopic_id>.yaml
 
-Usage: uv run python tools/assessment_gaps.py [--role swe-intern|swe-new_grad|ai-intern|ai-new_grad]
+Usage: uv run python tools/assessment_gaps.py [--role <swe|ai>-<intern|fresher|junior|senior>]
 With --role, also counts role-relevant subtopics (target > 0) and, assuming score 0, the gap total.
 """
 
@@ -19,7 +19,9 @@ from common import CONTENT, load_json, load_yaml
 # Item kinds that probe AI-era skills (prompting, LLM evaluation, RAG...). None are authored yet;
 # the column stays 0 until such a kind exists, which flags the gap.
 AI_ERA_KINDS = frozenset({"prompt_eval", "llm_trace", "rag_design", "ai_review", "ai_debug"})
-ROLES = ("swe-intern", "swe-new_grad", "ai-intern", "ai-new_grad")
+LEVELS = ("intern", "fresher", "junior", "senior")  # = the tree's `levels` / app LEVELS
+ROLES = tuple(f"{track}-{level}" for track in ("swe", "ai") for level in LEVELS)
+LEGACY_ROLES = {"swe-new_grad": "swe-fresher", "ai-new_grad": "ai-fresher"}
 
 
 def _items(path: Path) -> list[dict]:
@@ -125,9 +127,14 @@ def render(rows: list[dict], role: str | None) -> str:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--role", choices=ROLES, help="also count role-relevant subtopics and gap@0")
+    ap.add_argument(
+        "--role",
+        choices=ROLES + tuple(LEGACY_ROLES),
+        help="also count role-relevant subtopics and gap@0",
+    )
     args = ap.parse_args()
-    print(render(build_rows(args.role), args.role))
+    role = LEGACY_ROLES.get(args.role, args.role)
+    print(render(build_rows(role), role))
 
 
 if __name__ == "__main__":

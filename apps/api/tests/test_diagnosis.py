@@ -188,9 +188,48 @@ def test_readiness_summary_and_warning() -> None:
     assert readiness_summary([], [])["readiness_pct"] is None  # no role targets -> no false 0%
 
 
-def test_api_role_param(client) -> None:
+ROLES8 = [(tr, lv) for tr in ("swe", "ai") for lv in ("intern", "fresher", "junior", "senior")]
+
+
+@pytest.mark.parametrize("track,level", ROLES8)
+def test_api_role_combos(client, track, level) -> None:
+    r = client.get(f"/api/diagnosis?role={track}-{level}")
+    assert r.status_code == 200
+    body = r.json()
+    label = ("SWE" if track == "swe" else "AI Engineer") + " " + level.capitalize()
+    assert body["role"] == {
+        "track": track, "level": level, "key": f"{track}-{level}", "label_vi": label,
+    }  # fmt: skip
+    assert [lv["level"] for lv in body["levels"]] == ["intern", "fresher", "junior", "senior"]
+    assert all({"readiness_pct", "label_vi"} <= lv.keys() for lv in body["levels"])
+
+
+def test_api_legacy_new_grad_maps_to_fresher(client) -> None:
     body = client.get("/api/diagnosis?role=ai-new_grad").json()
-    assert body["role"]["key"] == "ai-new_grad" and body["role"]["label_vi"]
+    assert body["role"]["level"] == "fresher" and body["role"]["key"] == "ai-fresher"
+
+
+def test_api_default_role_from_settings(client) -> None:
+    client.put("/api/profile", json={"target_role": "junior", "track": "ai"})
+    assert client.get("/api/diagnosis").json()["role"]["key"] == "ai-junior"
+
+
+def test_gap_non_decreasing_across_levels() -> None:
+    # Per-subtopic targets are monotonic intern <= fresher <= junior <= senior, so the total gap is
+    # non-decreasing as the level rises. (readiness % is per-level and NOT necessarily monotonic: a
+    # subtopic whose target grows 0->n enters the relevant set and can shift the ratio either way.)
+    targets = {"a": (1, 2, 3, 3), "b": (1, 1, 2, 3), "c": (2, 2, 3, 3)}
+    scores = {"a": 1, "b": 2, "c": 0}
+    gaps = []
+    for idx in range(4):
+        views = [rv(i, targets[i][idx], scores[i]) for i in targets]
+        gaps.append(sum(d.gap for d in diagnose(views)))
+    assert gaps == sorted(gaps) and gaps[0] < gaps[-1]
+
+
+def test_api_role_param(client) -> None:
+    body = client.get("/api/diagnosis?role=ai-fresher").json()
+    assert body["role"]["key"] == "ai-fresher" and body["role"]["label_vi"]
     assert {"readiness_pct", "coverage_warning"} <= body.keys()
     assert client.get("/api/diagnosis?role=nope").status_code == 400
     assert client.get("/api/diagnosis").json()["role"]["key"] == "swe-intern"

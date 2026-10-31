@@ -319,7 +319,7 @@ Mục đích: lần đầu mở app, thu hồ sơ tối thiểu rồi chọn cá
 │  Lưu trữ bền vững (không bị trình duyệt xoá) ... ✓ đã cấp   │
 │                                              [Tiếp ►]       │
 ├──────────────────────── Bước 2: hồ sơ ─────────────────────┤
-│ Mục tiêu    (•) Intern   ( ) New-grad                       │
+│ Mục tiêu    (•) Intern ( ) Fresher ( ) Junior ( ) Senior    │
 │ Track       (•) SWE      ( ) AI engineer  ⓘ MVP chỉ có nền  │
 │                              tảng Python + DSA dùng chung   │
 │ Ngôn ngữ    (•) Python   ( ) Java (sắp có, M5)  [tắt]       │
@@ -340,7 +340,7 @@ Mục đích: lần đầu mở app, thu hồ sơ tối thiểu rồi chọn cá
 |---|---|
 | Tiến trình Pyodide | client: tải `public/pyodide/` (cache HTTP bất biến từ M1; service worker từ M3); không ghi server |
 | Xin lưu trữ bền vững | `navigator.storage.persist()`; kết quả hiện ✓ hoặc cảnh báo "Trình duyệt có thể xoá dữ liệu cục bộ; dữ liệu chính vẫn an toàn trong server" |
-| Hồ sơ | ghi `PUT /profile` → `settings.target_role` (`intern`\|`new_grad`), `track` (`swe`\|`ai`), `language`, `experience` (`none`\|`some`\|`solid`), `display_name`, `tz`, `onboarded_at` |
+| Hồ sơ | ghi `PUT /profile` → `settings.target_role` (`intern`\|`fresher`\|`junior`\|`senior`), `track` (`swe`\|`ai`), `language`, `experience` (`none`\|`some`\|`solid`), `display_name`, `tz`, `onboarded_at` |
 | Lựa chọn bước 3 | "Đánh giá" → `POST /placement` (kind=initial) rồi `/placement/:id`; "Bắt đầu từ đầu" → `POST /placement/skip` (ghi `placement_sessions.status=skipped`) rồi `/` |
 
 Trạng thái: **loading** (kiểm tra Pyodide); **lỗi tải Pyodide** (nút `Thử lại`, vẫn cho qua bước và học phần không cần code); **server down** (màn "Server chưa chạy. Chạy `docker compose up`" với nút `Kiểm tra lại`); nút Đánh giá bật khi T2.9a xong; `experience=none` thì nút khuyên dùng ở bước 3 là "Bắt đầu từ đầu". `target_role`/`track` chỉ đổi *vòng đích hiển thị* (`targets[track][role]`) và bảng "mục yếu"; `done`, mở khoá và thứ tự học **không đổi** (vẫn `target_intern`) để giữ luật SPEC 5.3 **[SPEC↑ 6.3 `subtopics.targets`]**. Thoát giữa chừng: hồ sơ lưu từng bước, mở lại vào đúng bước.
@@ -549,7 +549,7 @@ Nguồn: `GET /review/queue` (toàn bộ, hoặc `?preset=1`); khi mở thẻ se
 
 Mục đích: xem tiến độ trung tính (không streak, không so lịch). Nguồn: `GET /stats`. Thành phần: heatmap 40 mục (màu theo điểm), cột "tuần này" (AC, phút code, thẻ đã ôn, giờ học), biểu đồ giờ theo tuần, heatmap lịch `study_time`, bảng "mục yếu" (điểm < target hoặc nhiều `lapses`), "đã xong X / 40 mục" và mục kế tiếp, độ đúng theo hộp (`review_log`), lịch sử đánh giá đầu vào (`placement_sessions`, mở S3). Trạng thái: **empty** (chưa có dữ liệu: "Học bài đầu tiên để thấy biểu đồ"), loading (skeleton biểu đồ), offline (cache). Không ghi.
 
-Ghi chú: trang "Hồ sơ kỹ năng" (`/profile`) dùng `GET /diagnosis` (`tracks[]`, `domains[]` > `modules[]` với `level`, `coverage`, `tier`, `strong`, `improve`; luật ở SPEC 5.7); chỉ hiển thị, không đổi điểm. Mỗi thẻ module có nút "Đo sâu" mở phiên placement `deep_dive` của module đó (SPEC 5.6 mục 8); kết quả có link "Xem hồ sơ kỹ năng" (`/profile`).
+Ghi chú: trang "Hồ sơ kỹ năng" (`/profile`) dùng `GET /diagnosis` (`tracks[]`, `domains[]` > `modules[]` với `level`, `coverage`, `tier`, `strong`, `improve`; luật ở SPEC 5.7; chọn vai trò bằng nút track SWE/AI + select level intern/fresher/junior/senior, kèm hàng readiness `levels[]` cho 4 level, level chỉ đổi target của view này); chỉ hiển thị, không đổi điểm. Mỗi thẻ module có nút "Đo sâu" mở phiên placement `deep_dive` của module đó (SPEC 5.6 mục 8); kết quả có link "Xem hồ sơ kỹ năng" (`/profile`).
 
 #### S11. Settings (`/settings`)
 
