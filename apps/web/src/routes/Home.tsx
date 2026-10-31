@@ -169,17 +169,13 @@ export function HomeView({
   experience?: "none" | "some" | "solid";
   onGo: (route: string) => void;
 }) {
+  const level = experience ?? "some";
   const names: Record<string, string> = {};
   for (const i of next.up_next) names[i.id] = i.name_vi;
   for (const m of next.must_raise) names[m.prerequisite.id] = m.prerequisite.name_vi;
   return (
     <>
-      {experience && (
-        <div className="toolbar">
-          <span className="grow" />
-          <ReassessButton experience={experience} />
-        </div>
-      )}
+      <ReassessButton experience={level} />
       {resume && <ResumeBanner resume={resume} names={names} onGo={onGo} />}
       <p className="muted" data-testid="study-time">
         Hôm nay {formatStudy(next.study.today_s)} · tuần này {formatStudy(next.study.week_s)} (chỉ để xem)
