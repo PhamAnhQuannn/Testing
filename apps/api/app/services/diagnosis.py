@@ -77,6 +77,44 @@ class DomainDiagnosis:
     unmeasured_relevant: int = 0
 
 
+@dataclass(frozen=True)
+class ConceptResult:
+    """One answered check item that is tagged with a concept (a CheckResult row, joined)."""
+
+    slug: str
+    text: str
+    item_id: str
+    passed: bool
+    item_type: str = ""
+
+
+def concept_status(results: Iterable[ConceptResult]) -> list[dict[str, Any]]:
+    """Per-concept weakness derived from item results (SPEC 5.7). Pure; never feeds score/unlock.
+
+    An item is a hit if it was ever passed, else a miss. `weak` = >= 2 distinct missed items,
+    `suspected` = exactly 1 (a lone miss, e.g. one mcq, is never weak). Concepts with only hits
+    (ok) or no results (untested) are omitted. Weak first, then by slug."""
+    ever: dict[tuple[str, str], bool] = {}
+    texts: dict[str, str] = {}
+    for r in results:
+        key = (r.slug, r.item_id)
+        ever[key] = ever.get(key, False) or r.passed
+        texts.setdefault(r.slug, r.text)
+    counts: dict[str, list[int]] = {}
+    for (slug, _item), passed in ever.items():
+        counts.setdefault(slug, [0, 0])[0 if passed else 1] += 1
+    out = []
+    for slug, (n_hit, n_miss) in counts.items():
+        if n_miss == 0:
+            continue
+        status = "weak" if n_miss >= 2 else "suspected"
+        out.append(
+            {"slug": slug, "text": texts[slug], "status": status, "n_hit": n_hit, "n_miss": n_miss}
+        )
+    out.sort(key=lambda c: (c["status"] != "weak", c["slug"]))
+    return out
+
+
 def pick_concepts(node: dict[str, Any], limit: int = CONCEPTS_MAX) -> list[str]:
     """Concept texts of an index node: `concepts_vi` basics first, else `key_concepts`."""
     rich = [c for c in node.get("concepts_vi") or [] if c.get("text")]

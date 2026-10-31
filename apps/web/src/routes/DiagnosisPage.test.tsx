@@ -53,6 +53,30 @@ describe("DiagnosisPage", () => {
     expect(out).toContain("2 chủ đề chưa đo");
   });
 
+  it("renders weak and suspected concept status, else the descriptive concepts", () => {
+    const withStatus = render(
+      view([
+        mod({
+          improve: [
+            improve({
+              concepts: ["for", "while"],
+              concept_status: [
+                { slug: "for-loop", text: "Vòng for", status: "weak", n_hit: 0, n_miss: 2 },
+                { slug: "break", text: "break", status: "suspected", n_hit: 1, n_miss: 1 },
+              ],
+            }),
+          ],
+        }),
+      ]),
+    );
+    expect(withStatus).toContain("Hổng: Vòng for");
+    expect(withStatus).toContain("break (nghi ngờ — cần đo thêm)");
+    expect(withStatus).not.toContain("Trọng tâm");
+    const empty = render(view([mod({})]));
+    expect(empty).toContain("Trọng tâm: for, while");
+    expect(empty).not.toContain("concept-status");
+  });
+
   it("renders a Đo sâu button per module", () => {
     const out = render(view([mod({}), mod({ module: "py.datastructs", name_vi: "Cấu trúc dữ liệu" })]));
     expect(out.match(/Đo sâu</g)).toHaveLength(2);

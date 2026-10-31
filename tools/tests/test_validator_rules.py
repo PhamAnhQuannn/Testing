@@ -451,6 +451,26 @@ def test_draft_lesson_needs_no_level2_write_code(fx):
     assert not any("level-2 write_code" in e for e in errors_of(fx))
 
 
+def tag_concepts(fx, slugs):
+    edit(
+        fx / "index/subtopics.json",
+        f'"id": "{SUB}",',
+        f'"id": "{SUB}", "key_concepts": ["Loop (for)"],',
+    )
+    patch_yaml(fx / CHECKS, lambda checks: checks["items"][0].update(concepts=slugs))
+
+
+def test_valid_concept_tag_passes(fx):
+    tag_concepts(fx, ["loop"])
+    assert errors_of(fx) == []
+
+
+def test_unknown_concept_tag_fails(fx):
+    tag_concepts(fx, ["lop"])
+    errors = errors_of(fx)
+    assert any("unknown concept slug 'lop'" in e and "['loop']" in e for e in errors), errors
+
+
 @pytest.mark.parametrize(("expected", "break_it"), CASES.values(), ids=CASES.keys())
 def test_rule_is_enforced(fx, expected, break_it):
     break_it(fx)

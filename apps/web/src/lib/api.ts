@@ -161,10 +161,18 @@ export interface DiagnosisStrong {
   name_vi: string;
   score: number;
 }
+export interface ConceptStatus {
+  slug: string;
+  text: string;
+  status: "weak" | "suspected";
+  n_hit: number;
+  n_miss: number;
+}
 export interface DiagnosisImprove extends DiagnosisStrong {
   state: "measured" | "likely_gap";
   firm: boolean;
   concepts: string[];
+  concept_status: ConceptStatus[];
   has_lesson: boolean;
   target: number;
   gap: number;
@@ -293,6 +301,7 @@ export function normalizeDiagnosis(data: unknown): DiagnosisView {
           state: i.state === "likely_gap" ? ("likely_gap" as const) : ("measured" as const),
           firm: i.firm === true,
           concepts: ((i.concepts as unknown[] | undefined) ?? []).map(String),
+          concept_status: normalizeConceptStatus(i.concept_status),
           has_lesson: i.has_lesson === true,
           target: finite(i.target),
           gap: finite(i.gap),
@@ -302,6 +311,20 @@ export function normalizeDiagnosis(data: unknown): DiagnosisView {
       })),
     })),
   };
+}
+
+function normalizeConceptStatus(raw: unknown): ConceptStatus[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((c): c is Record<string, unknown> => typeof c === "object" && c !== null)
+    .map((c) => ({
+      slug: String(c.slug ?? ""),
+      text: String(c.text ?? ""),
+      status: c.status === "weak" ? ("weak" as const) : ("suspected" as const),
+      n_hit: finite(c.n_hit),
+      n_miss: finite(c.n_miss),
+    }))
+    .filter((c) => c.text !== "");
 }
 
 /** GET /api/diagnosis -> per-domain / per-module skill profile with honest confidence tiers. */

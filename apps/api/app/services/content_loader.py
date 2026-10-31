@@ -20,6 +20,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..models import tables as t
+from .concepts import registry_of
 from .scoring import SubtopicSpec
 
 GRADED_TYPES = {"quiz_mcq", "quiz_fill", "predict_output"}
@@ -379,6 +380,18 @@ class ContentStore:
                 if i["id"] == item_id:
                     return i
         return None
+
+    def concept_registry(self, subtopic_id: str) -> dict[str, str]:
+        """{slug: text} of the subtopic's index concepts (the valid item `concepts` tags)."""
+        return registry_of(self.subtopics.get(subtopic_id) or {})
+
+    def item_concepts(self, subtopic_id: str, item_id: str) -> list[str]:
+        """Concept slugs an item is tagged with; unknown slugs are ignored defensively."""
+        item = self.find_check_item(subtopic_id, item_id)
+        if not item:
+            return []
+        registry = self.concept_registry(subtopic_id)
+        return [c for c in item.get("concepts") or [] if c in registry]
 
     def check_item_type(self, subtopic_id: str, item_id: str) -> str:
         item = self.find_check_item(subtopic_id, item_id)

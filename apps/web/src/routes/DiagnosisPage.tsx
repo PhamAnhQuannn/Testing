@@ -36,7 +36,17 @@ function ImproveItem({ item: i }: { item: DiagnosisImprove }) {
     <li>
       <span>{i.name_vi}</span>
       {i.stale && <span className="muted">(đã lâu — nên đo lại)</span>}
-      {i.concepts.length > 0 && <span className="muted">Trọng tâm: {i.concepts.join(", ")}</span>}
+      {i.concept_status.length > 0 ? (
+        <span className="muted" data-testid="concept-status">
+          {i.concept_status.map((c) => (
+            <span key={c.slug} className={`concept-${c.status}`}>
+              {c.status === "weak" ? `Hổng: ${c.text}` : `${c.text} (nghi ngờ — cần đo thêm)`}{" "}
+            </span>
+          ))}
+        </span>
+      ) : (
+        i.concepts.length > 0 && <span className="muted">Trọng tâm: {i.concepts.join(", ")}</span>
+      )}
       {i.has_lesson && (
         <Link to={`/s/${i.subtopic_id}`} aria-label={`Học ${i.name_vi}`}>
           Học
