@@ -17,37 +17,29 @@ import ProblemPage from "./routes/ProblemPage";
 import { useEffect, useState } from "react";
 
 function Nav() {
-  const path = useLocation().pathname;
-  // Onboarding precedes Home (Home redirects to /welcome until profile_done), so a nav there would
-  // loop — keep it hidden. Timed pages (check/placement) show a SLIM bar: brand (→ Home) + theme
-  // only, so every page still has a route home without the full tab set distracting a timed task.
+  // Full nav on every route — including the timed check/placement pages and onboarding. Leaving a
+  // timed page is safe (placement resumes, an unsubmitted check records nothing, usePageExit flushes
+  // on unmount); on /welcome the links route to "/", which Home redirects back until profile_done.
   const [theme, setTheme] = useTheme();
   const cycle = () => setTheme(theme === "auto" ? "light" : theme === "light" ? "dark" : "auto");
-  if (path.startsWith("/welcome")) return null;
-  const slim = path.startsWith("/check/") || path.startsWith("/placement/"); // focus mode (UI_SPEC S2/S8)
   return (
     <nav className="nav" aria-label="Điều hướng chính">
       <NavLink to="/" className="logo">
         Prep App
       </NavLink>
-      {!slim && (
-        <>
-          <NavLink to="/" end className={({ isActive }) => `link${isActive ? " active" : ""}`}>
-            Học tiếp
-          </NavLink>
-          <NavLink to="/map" className={({ isActive }) => `link${isActive ? " active" : ""}`}>
-            Map
-          </NavLink>
-          <NavLink to="/review" className={({ isActive }) => `link${isActive ? " active" : ""}`}>
-            Ôn tập
-          </NavLink>
-          <NavLink to="/settings" className={({ isActive }) => `link${isActive ? " active" : ""}`}>
-            Cài đặt
-          </NavLink>
-        </>
-      )}
+      <NavLink to="/" end className={({ isActive }) => `link${isActive ? " active" : ""}`}>
+        Học tiếp
+      </NavLink>
+      <NavLink to="/map" className={({ isActive }) => `link${isActive ? " active" : ""}`}>
+        Map
+      </NavLink>
+      <NavLink to="/review" className={({ isActive }) => `link${isActive ? " active" : ""}`}>
+        Ôn tập
+      </NavLink>
+      <NavLink to="/settings" className={({ isActive }) => `link${isActive ? " active" : ""}`}>
+        Cài đặt
+      </NavLink>
       <span className="spacer" />
-      {slim && <span className="muted">Chế độ tập trung</span>}
       <button className="btn sm ghost" onClick={cycle} aria-label={`Giao diện: ${theme}`}>
         {theme === "dark" ? "🌙" : theme === "light" ? "☀️" : "🌓"}
       </button>

@@ -307,7 +307,7 @@ Quy ước mỗi màn: **Mục đích · Vào từ · Wireframe · Component →
 
 #### S1. Welcome và hồ sơ (`/welcome`, `/welcome/profile`, `/welcome/start`)
 
-Mục đích: lần đầu mở app, thu hồ sơ tối thiểu rồi chọn cách bắt đầu. Vào từ: tự chuyển khi `GET /me → onboarding.profile_done=false`. Không có nav (màn tập trung).
+Mục đích: lần đầu mở app, thu hồ sơ tối thiểu rồi chọn cách bắt đầu. Vào từ: tự chuyển khi `GET /me → onboarding.profile_done=false`. Nav đầy đủ vẫn hiện; bấm link điều hướng sẽ về `/` nhưng Home tự redirect lại /welcome tới khi xong hồ sơ, nên người dùng vẫn ở trong onboarding.
 
 ```
 ┌───────────────────────── 1 ─ 2 ─ 3 ─────────────────────────┐
@@ -347,7 +347,7 @@ Trạng thái: **loading** (kiểm tra Pyodide); **lỗi tải Pyodide** (nút `
 
 #### S2. Placement (`/placement/:sessionId`)
 
-Mục đích: làm bài đánh giá thích nghi (mục 2). Vào từ: S1, banner S12, Học tiếp S4 (nút "Đánh giá lại năng lực"), Settings, Map (làm lại module). Layout riêng chế độ tập trung (không nav, có thanh trạng thái).
+Mục đích: làm bài đánh giá thích nghi (mục 2). Vào từ: S1, banner S12, Học tiếp S4 (nút "Đánh giá lại năng lực"), Settings, Map (làm lại module). Layout tập trung nhưng **vẫn hiện nav đầy đủ** trên cùng (về Trang chủ/Map/Ôn tập/Cài đặt được từ mọi trang), kèm thanh trạng thái.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
