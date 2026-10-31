@@ -52,6 +52,11 @@ describe("DiagnosisPage", () => {
     expect(out).toContain("2 chủ đề chưa đo");
   });
 
+  it("renders a Đo sâu button per module", () => {
+    const out = render(view([mod({}), mod({ module: "py.datastructs", name_vi: "Cấu trúc dữ liệu" })]));
+    expect(out.match(/Đo sâu</g)).toHaveLength(2);
+  });
+
   it("shows the firm header for a measured gap", () => {
     const out = render(view([mod({})])); // improve item is firm by default
     expect(out).toContain(">Cần cải thiện<");

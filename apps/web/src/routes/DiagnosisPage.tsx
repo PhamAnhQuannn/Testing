@@ -1,6 +1,11 @@
-import { Link } from "react-router-dom";
+import { useRef, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useToast } from "../components/Toast";
 import {
+  ApiError,
   getDiagnosis,
+  newIdempotencyKey,
+  startPlacement,
   type DiagnosisDomain,
   type DiagnosisImprove,
   type DiagnosisModule,
@@ -42,6 +47,41 @@ function ImproveItem({ item: i }: { item: DiagnosisImprove }) {
   );
 }
 
+/** "Đo sâu": a module-scoped placement (knowledge rungs only) to fill in this module's coverage. */
+function DeepDiveButton({ module }: { module: string }) {
+  const navigate = useNavigate();
+  const notify = useToast();
+  const inFlight = useRef(false);
+  const [busy, setBusy] = useState(false);
+  const start = async () => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    setBusy(true);
+    try {
+      const view = await startPlacement({ kind: "deep_dive", module }, newIdempotencyKey());
+      navigate(`/placement/${view.placement_id}`);
+    } catch (e) {
+      notify(
+        e instanceof ApiError && e.isNetwork ? "Server chưa chạy nên chưa thực hiện được." : (e as Error).message,
+        { kind: "error" },
+      );
+      inFlight.current = false;
+      setBusy(false);
+    }
+  };
+  return (
+    <button
+      className="btn sm"
+      data-testid="deep-dive-button"
+      onClick={start}
+      disabled={busy}
+      title="Đo các chủ đề của module này bằng câu hỏi ngắn"
+    >
+      Đo sâu
+    </button>
+  );
+}
+
 function ModuleCard({ module: m }: { module: DiagnosisModule }) {
   // Split by per-item evidence, not the module tier: a measured gap (firm) is a real "cần cải thiện"
   // even in a low-coverage module, while an inferred gap stays under the hedged header.
@@ -53,6 +93,7 @@ function ModuleCard({ module: m }: { module: DiagnosisModule }) {
         <h3>{m.name_vi}</h3>
         <TierChip tier={m.tier} coverage={m.coverage} />
         <span className="muted">{m.level}</span>
+        <DeepDiveButton module={m.module} />
       </div>
       {m.strong.length > 0 && (
         <>

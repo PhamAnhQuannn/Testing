@@ -214,12 +214,22 @@ MINUTES = {"mcq": 1.0, "read_code": 2.0, "write_code": 6.0}
 
 
 def drive(
-    client, clock, script: dict[str, str], *, minutes=6.0, rungs: dict[str, str] | None = None
+    client,
+    clock,
+    script: dict[str, str],
+    *,
+    minutes=6.0,
+    rungs: dict[str, str] | None = None,
+    pid: int | None = None,
 ):
-    """Play the current placement to its end. script: gate code -> pass | fail | giveup for the P2
-    write_code item; rungs: "C1:P0" / "C1:P1" -> pass | fail | giveup (default pass)."""
+    """Play a placement to its end. script: gate code -> pass | fail | giveup for the P2 write_code
+    item; rungs: "C1:P0" / "C1:P1" -> pass | fail | giveup (default pass). `pid` drives that session
+    directly (deep-dives aren't surfaced by /current, which tracks only the initial sitting)."""
     rungs = rungs or {}
-    cur = client.get("/api/placement/current").json()["placement"]
+    if pid is not None:
+        cur = client.get(f"/api/placement/{pid}").json()
+    else:
+        cur = client.get("/api/placement/current").json()["placement"]
     pid, active = cur["placement_id"], cur["active_ms"]
     steps = 0
     while cur["status"] == "in_progress" and cur["current"] is not None:
@@ -977,3 +987,89 @@ def test_concept_budget_guard_stops_when_no_c1_fits(client, clock):
     v = post_modules(client, pid, ["sd.data"], active_ms=int(59.5 * 60_000)).json()
     assert v["status"] == "finished" and v["stop_reason"] == "budget"  # 59.5 + 1 > 60
     assert db_rows(client, t.CheckResult)[-1].level == 2  # nothing was asked in the concept phase
+
+
+# ---- deep-dive (module-scoped, knowledge rungs only) ----
+
+
+def test_rung_deep_dive_builds_gates_for_probed_subtopics_only(client, clock):
+    v = start(client, kind="deep_dive", module="py.core")
+    assert v["kind"] == "deep_dive" and v["scope"] == "py.core" and v["phase"] == "deep"
+    assert [g["subtopic_id"] for g in v["gates"]] == ["py.core.strings"]
+    assert v["gates"][0]["kind"] == "deep" and v["gates"][0]["code"] == "D1"
+    cur = v["current"]
+    assert cur["kind"] == "deep" and cur["rung"] == 0 and cur["step"]["type"] == "mcq"
+    with client.app.state.rt.session() as db:
+        ps = db.get(t.PlacementSession, v["placement_id"])
+        assert ps.state["gates"][0]["rung_items"][2] is None
+
+
+def test_rung_deep_dive_clean_passes_score_1_never_2_or_unlock(client, clock):
+    v = start(client, kind="deep_dive", module="py.core")
+    end = drive(client, clock, {}, pid=v["placement_id"])
+    assert end["status"] == "finished" and end["stop_reason"] == "deep_dive_done"
+    assert end["message_vi"] == pl.MESSAGES["deep_dive_done"]
+    assert end["gates"][0]["rung_results"] == {"0": "passed", "1": "passed"}
+    assert end["gates"][0]["outcome"] == "known_basic"
+    row = sub_row(client, "py.core.strings")
+    assert row.score == 1 and row.unlocked_at is None and row.known_basic
+    rows = db_rows(client, t.CheckResult)
+    assert {(r.level, r.context) for r in rows} == {(1, "placement")}
+    assert v["placement_id"] == end["placement_id"]
+    assert_parity(client)
+
+
+def test_rung_deep_dive_p0_fail_is_a_gap_and_skips_p1(client, clock):
+    v = start(client, kind="deep_dive", module="py.core")
+    end = drive(client, clock, {}, rungs={"D1:P0": "fail"}, pid=v["placement_id"])
+    assert end["stop_reason"] == "deep_dive_done"
+    assert end["gates"][0]["outcome"] == "knowledge_gap"
+    assert end["gates"][0]["rung_results"] == {"0": "failed"}
+    assert sub_row(client, "py.core.strings").score == 0
+
+
+def test_rung_deep_dive_module_without_probes_stops_at_once(client, clock):
+    v = start(client, kind="deep_dive", module="dsa.arrays_strings")
+    assert v["status"] == "finished" and v["stop_reason"] == "deep_dive_done"
+    assert v["gates"] == [] and v["current"] is None
+
+
+def test_rung_deep_dive_validates_module(client, clock):
+    r = client.post("/api/placement", json={"kind": "deep_dive"})
+    assert r.status_code == 422
+    r = client.post("/api/placement", json={"kind": "deep_dive", "module": "nope.nope"})
+    assert r.status_code == 422
+
+
+def test_rung_deep_dive_coexists_with_the_initial_sitting(client, clock):
+    first = start(client)
+    deep = start(client, kind="deep_dive", module="py.core")
+    assert deep["placement_id"] != first["placement_id"] and not deep["resumed"]
+    # The initial sitting is left untouched (not abandoned); it stays what current/onboarding see.
+    old = client.get(f"/api/placement/{first['placement_id']}").json()
+    assert old["status"] == "in_progress"
+    assert (
+        client.get("/api/placement/current").json()["placement"]["placement_id"]
+        == first["placement_id"]
+    )
+    assert client.get("/api/me").json()["onboarding"]["placement"] == "in_progress"
+
+
+def test_rung_deep_dive_p0_pass_p1_fail_still_score_1_no_unlock(client, clock):
+    v = start(client, kind="deep_dive", module="py.core")
+    end = drive(client, clock, {}, rungs={"D1:P1": "fail"}, pid=v["placement_id"])
+    assert end["stop_reason"] == "deep_dive_done"
+    assert end["gates"][0]["rung_results"] == {"0": "passed", "1": "failed"}
+    row = sub_row(client, "py.core.strings")
+    assert row.score == 1 and row.unlocked_at is None and row.known_basic
+    assert {(r.level, r.context) for r in db_rows(client, t.CheckResult)} == {(1, "placement")}
+
+
+def test_rung_deep_dive_skips_already_mastered_subtopics(client, clock):
+    with client.app.state.rt.session() as db:
+        row = db.get(t.UserSubtopic, (1, "py.core.strings"))
+        row.score = 2
+        db.commit()
+    v = start(client, kind="deep_dive", module="py.core")
+    # py.core.strings is the only probed subtopic today; mastered -> no gates -> stops at once.
+    assert v["gates"] == [] and v["status"] == "finished" and v["stop_reason"] == "deep_dive_done"

@@ -1457,7 +1457,13 @@ export function normalizePlacementResult(data: unknown): PlacementResult {
 
 /** POST /api/placement: start, or resume the sitting in progress (`resumed`). `skip` writes nothing. */
 export async function startPlacement(
-  opts: { experience?: "none" | "some" | "solid"; restart?: boolean; skip?: boolean } = {},
+  opts: {
+    experience?: "none" | "some" | "solid";
+    restart?: boolean;
+    skip?: boolean;
+    kind?: "initial" | "deep_dive";
+    module?: string;
+  } = {},
   key?: string,
 ): Promise<PlacementView> {
   return normalizePlacementView(
