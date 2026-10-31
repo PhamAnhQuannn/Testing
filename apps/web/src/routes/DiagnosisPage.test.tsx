@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 import { normalizeDiagnosis } from "../lib/api";
-import { DiagnosisContent } from "./DiagnosisPage";
+import { DiagnosisContent, RoleSelector, composeRole, splitRole } from "./DiagnosisPage";
 
 const improve = (over: Record<string, unknown>) => ({
   subtopic_id: "py.core.loops",
@@ -135,5 +135,37 @@ describe("DiagnosisPage", () => {
   it("survives missing fields", () => {
     expect(() => render(normalizeDiagnosis({ domains: [{ section: "py", modules: [{}] }] }))).not.toThrow();
     expect(normalizeDiagnosis(null).domains).toEqual([]);
+  });
+
+  it("renders the 4-level readiness row with the selected level emphasized", () => {
+    const out = render(
+      view([mod({})], {
+        role: { track: "swe", level: "junior", key: "swe-junior", label_vi: "SWE Junior" },
+        readiness_pct: 30,
+        levels: [
+          { level: "intern", readiness_pct: 60, label_vi: "SWE Intern" },
+          { level: "fresher", readiness_pct: 45, label_vi: "SWE Fresher" },
+          { level: "junior", readiness_pct: 30, label_vi: "SWE Junior" },
+          { level: "senior", readiness_pct: null, label_vi: "SWE Senior" },
+        ],
+      }),
+    );
+    expect(out).toContain("Sẵn sàng cho SWE Junior: 30% chuẩn");
+    expect(out).toContain("Intern 60%");
+    expect(out).toContain("Fresher 45%");
+    expect(out).toContain("<strong aria-current=\"true\">Junior 30%</strong>");
+    expect(out).toContain("<span> · Senior</span>"); // null % hidden
+  });
+
+  it("composes role keys from the track toggle and level select", () => {
+    expect(composeRole("swe", "junior")).toBe("swe-junior");
+    expect(splitRole("ai-senior")).toEqual(["ai", "senior"]);
+    expect(splitRole("garbage")).toEqual(["swe", "intern"]);
+    const out = renderToStaticMarkup(
+      createElement(RoleSelector, { value: "swe-junior", onChange: () => {} }),
+    );
+    expect(out).toContain('data-testid="track-toggle"');
+    expect(out).toMatch(/<option value="junior" selected/);
+    expect(out.match(/<option /g)).toHaveLength(4);
   });
 });

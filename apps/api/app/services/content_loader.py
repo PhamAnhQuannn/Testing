@@ -31,6 +31,13 @@ CONCEPT_SECTIONS = {"sd"}
 CONCEPT_MODULES = {"ml.llm", "ml.rag_agents", "ml.llm_eval_serving", "ml.system_design"}
 
 
+# Role model: the knowledge tree's 4 levels and the 2 role tracks. The chosen level selects the
+# readiness `target` ONLY (SPEC 5.7); it never feeds score, unlock, Leitner or /next.
+LEVELS = ("intern", "fresher", "junior", "senior")
+ROLE_TRACKS = ("swe", "ai")
+LEGACY_LEVELS = {"new_grad": "fresher"}  # pre-4-level settings / links still resolve
+
+
 # Domain config: the single authority for tracks, section and module labels. GET /diagnosis serves
 # it so the web does not duplicate it.
 TRACKS: list[dict[str, Any]] = [

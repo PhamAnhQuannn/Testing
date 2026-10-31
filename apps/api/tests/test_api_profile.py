@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 FULL = {"target_role": "intern", "track": "swe", "language": "python", "experience": "none"}
 
 
@@ -24,11 +26,11 @@ def test_profile_persists_and_marks_done(client) -> None:
 
 
 def test_partial_profile_not_done_until_all_four(client) -> None:
-    r = client.put("/api/profile", json={"target_role": "new_grad", "track": "ai"})
+    r = client.put("/api/profile", json={"target_role": "fresher", "track": "ai"})
     assert r.json()["onboarding"]["profile_done"] is False
     r = client.put("/api/profile", json={"language": "python", "experience": "some"})
     assert r.json()["onboarding"]["profile_done"] is True
-    assert client.get("/api/me").json()["settings"]["target_role"] == "new_grad"
+    assert client.get("/api/me").json()["settings"]["target_role"] == "fresher"
 
 
 def test_skip_flag_reported(client) -> None:
@@ -40,6 +42,7 @@ def test_skip_flag_reported(client) -> None:
 def test_profile_validation(client) -> None:
     for bad in (
         {"target_role": "ceo"},
+        {"target_role": "new_grad"},  # legacy value is no longer writable
         {"track": "devops"},
         {"language": "java"},
         {"experience": "expert"},
@@ -60,3 +63,10 @@ def test_profile_idempotent(client) -> None:
     c = client.put("/api/profile", json={**FULL, "track": "ai"}, headers=h)
     assert c.json() == a.json()
     assert client.get("/api/me").json()["settings"]["track"] == "swe"
+
+
+@pytest.mark.parametrize("level", ["intern", "fresher", "junior", "senior"])
+def test_profile_accepts_each_level(client, level) -> None:
+    r = client.put("/api/profile", json={**FULL, "target_role": level})
+    assert r.status_code == 200
+    assert client.get("/api/me").json()["settings"]["target_role"] == level
