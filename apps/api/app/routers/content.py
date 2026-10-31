@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import asdict
 from typing import Any
 
 from fastapi import APIRouter, Query
@@ -10,8 +11,8 @@ from sqlalchemy import func, select
 from ..deps import DB, Content, Now, User
 from ..errors import ApiError
 from ..models import tables as t
-from ..services import progress, unlock
-from ..services.content_loader import ContentStore
+from ..services import diagnosis, progress, unlock
+from ..services.content_loader import TRACKS, ContentStore
 
 router = APIRouter(prefix="/api")
 
@@ -233,3 +234,36 @@ def list_problems(
         )
     out.sort(key=lambda x: (content.sort_key.get(x["subtopic_id"], (10_000, 0)), x["id"]))
     return {"problems": out}
+
+
+@router.get("/diagnosis")
+def get_diagnosis(db: DB, user: User, content: Content):
+    """Derived skill diagnosis (SPEC 5.7): read-only, never feeds scoring, unlock or Leitner."""
+    rows = {
+        r.subtopic_id: r
+        for r in db.scalars(select(t.UserSubtopic).where(t.UserSubtopic.user_id == user.id))
+    }
+    views = []
+    for sid in content.ordered_subtopic_ids():
+        info = content.subtopics[sid]
+        row = rows.get(sid)
+        # "measured" = a real skill signal. A finished lesson is NOT one (reading != assessed), so
+        # it is excluded: counting it would inflate coverage and drag the mean to 0 with no proof.
+        measured = row is not None and (row.score > 0 or row.tested_out or row.known_basic)
+        views.append(
+            diagnosis.SubtopicView(
+                id=sid,
+                section=info["section"],
+                module=info["module"],
+                name_vi=info["name_vi"],
+                score=row.score if row else 0,
+                measured=measured,
+                inferred_hint=row.placement_hint if row and not measured else None,
+                has_lesson=content.lesson(sid) is not None,
+                concepts=diagnosis.pick_concepts(info),
+            )
+        )
+    return {
+        "tracks": TRACKS,
+        "domains": [asdict(d) for d in diagnosis.diagnose(views)],
+    }
