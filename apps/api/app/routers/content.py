@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+from datetime import timedelta
 from typing import Any
 
 from fastapi import APIRouter, Query
@@ -236,13 +237,39 @@ def list_problems(
     return {"problems": out}
 
 
+ROLE_LABELS = {
+    ("swe", "intern"): "SWE Intern",
+    ("swe", "new_grad"): "SWE New Grad",
+    ("ai", "intern"): "AI Engineer Intern",
+    ("ai", "new_grad"): "AI Engineer New Grad",
+}
+
+
+def parse_role(role: str | None, settings: t.UserSettings | None) -> tuple[str, str]:
+    """`swe-intern` style key -> (track, level); default from the user's settings."""
+    if role is None:
+        key = (
+            (settings.track if settings else None) or "swe",
+            (settings.target_role if settings else None) or "intern",
+        )
+        return key if key in ROLE_LABELS else ("swe", "intern")
+    track, _, level = role.partition("-")
+    if (track, level) not in ROLE_LABELS:
+        raise ApiError(400, "invalid_role", f"Unknown role: {role}")
+    return track, level
+
+
 @router.get("/diagnosis")
-def get_diagnosis(db: DB, user: User, content: Content):
+def get_diagnosis(
+    db: DB, user: User, content: Content, now: Now, role: str | None = Query(default=None)
+):
     """Derived skill diagnosis (SPEC 5.7): read-only, never feeds scoring, unlock or Leitner."""
+    track, level = parse_role(role, db.get(t.UserSettings, user.id))
     rows = {
         r.subtopic_id: r
         for r in db.scalars(select(t.UserSubtopic).where(t.UserSubtopic.user_id == user.id))
     }
+    stale_before = now - timedelta(days=diagnosis.STALE_DAYS)
     views = []
     for sid in content.ordered_subtopic_ids():
         info = content.subtopics[sid]
@@ -250,6 +277,9 @@ def get_diagnosis(db: DB, user: User, content: Content):
         # "measured" = a real skill signal. A finished lesson is NOT one (reading != assessed), so
         # it is excluded: counting it would inflate coverage and drag the mean to 0 with no proof.
         measured = row is not None and (row.score > 0 or row.tested_out or row.known_basic)
+        updated = row.updated_at if row else None
+        if updated is not None and updated.tzinfo is None:
+            updated = updated.replace(tzinfo=now.tzinfo)
         views.append(
             diagnosis.SubtopicView(
                 id=sid,
@@ -261,9 +291,19 @@ def get_diagnosis(db: DB, user: User, content: Content):
                 inferred_hint=row.placement_hint if row and not measured else None,
                 has_lesson=content.lesson(sid) is not None,
                 concepts=diagnosis.pick_concepts(info),
+                target=int((info.get(f"target_{track}") or {}).get(level) or 0),
+                stale=bool(measured and updated is not None and updated < stale_before),
             )
         )
+    domains = diagnosis.diagnose(views, role=f"{track}-{level}")
     return {
         "tracks": TRACKS,
-        "domains": [asdict(d) for d in diagnosis.diagnose(views)],
+        "role": {
+            "track": track,
+            "level": level,
+            "key": f"{track}-{level}",
+            "label_vi": ROLE_LABELS[(track, level)],
+        },
+        **diagnosis.readiness_summary(domains, views),
+        "domains": [asdict(d) for d in domains],
     }

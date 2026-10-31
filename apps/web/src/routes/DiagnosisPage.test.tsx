@@ -29,8 +29,9 @@ const mod = (over: Record<string, unknown>) => ({
   ...over,
 });
 
-const view = (modules: unknown[]) =>
+const view = (modules: unknown[], extra: Record<string, unknown> = {}) =>
   normalizeDiagnosis({
+    ...extra,
     tracks: [{ key: "foundation", name_vi: "Nền tảng", sections: ["py"] }],
     domains: [
       { section: "py", name_vi: "Python", track: "foundation", level: "Cơ bản", mean: 1.5, coverage: 0.4, tier: "đã đo", modules },
@@ -89,6 +90,46 @@ describe("DiagnosisPage", () => {
     expect(out).toContain('href="/s/py.core.loops"');
     expect(out).not.toContain('href="/s/py.core.x"');
     expect(out).toContain('href="/check/py.core.x?ctx=test_out"');
+  });
+
+  it("renders the role readiness headline", () => {
+    const out = render(
+      view([mod({})], {
+        role: { track: "swe", level: "intern", key: "swe-intern", label_vi: "SWE Intern" },
+        readiness_pct: 42,
+      }),
+    );
+    expect(out).toContain("Sẵn sàng cho SWE Intern: 42% chuẩn");
+    expect(out).not.toContain("coverage-warning");
+  });
+
+  it("shows the coverage warning only when flagged", () => {
+    const warned = render(
+      view([mod({})], { coverage_warning: true, coverage_message: "Phần lớn Python chưa đo — kết quả còn là ước tính" }),
+    );
+    expect(warned).toContain("Phần lớn Python chưa đo");
+  });
+
+  it("shows the gap note and stale hint", () => {
+    const out = render(
+      view([
+        mod({
+          role_relevant: 4,
+          below_target: 3,
+          gap: 5,
+          readiness: 0.4,
+          unmeasured_relevant: 2,
+          improve: [improve({ stale: true })],
+        }),
+      ]),
+    );
+    expect(out).toContain("Cần nâng 3/4 mục lên chuẩn");
+    expect(out).toContain("sẵn sàng 40%");
+    expect(out).toContain("(đã lâu — nên đo lại)");
+  });
+
+  it("omits the gap note when nothing is role-relevant", () => {
+    expect(render(view([mod({})]))).not.toContain("gap-note");
   });
 
   it("survives missing fields", () => {

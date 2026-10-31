@@ -9,7 +9,13 @@ import pytest
 
 from app.models import tables as t
 from app.services.content_loader import TRACKS, module_name, track_of
-from app.services.diagnosis import SubtopicView, diagnose, level_of, pick_concepts
+from app.services.diagnosis import (
+    SubtopicView,
+    diagnose,
+    level_of,
+    pick_concepts,
+    readiness_summary,
+)
 
 
 def v(i, score=0, measured=None, hint=None, module="py.a", section="py", concepts=()):
@@ -146,3 +152,45 @@ def test_api_shape_and_hint_not_strong(client) -> None:
     assert ids == ["py.a.three"]
     assert m["improve"][0]["state"] == "likely_gap" and m["improve"][0]["firm"] is False
     assert m["not_assessed_count"] == 1
+
+
+def rv(i, target, score=0, measured=None, hint=None):
+    if measured is None:
+        measured = score > 0
+    return SubtopicView(i, "py", "py.a", f"N {i}", score, measured, hint, True, [], target, False)
+
+
+def test_role_stats_count_only_real_evidence() -> None:
+    views = [rv("a", 3, 1), rv("b", 2, hint="likely_known"), rv("c", 0, 3), rv("d", 2, 3)]
+    m = mod(views)
+    assert m.role_relevant == 3  # "c" has no target
+    assert m.gap == 2 + 2 + 0  # a: 3-1, b: inferred does not count, d: met
+    assert m.readiness == round((1 + 0 + 2) / 7, 2)
+    assert m.unmeasured_relevant == 1
+    # real-evidence-only: a (1<3) and b (unmeasured) are below; d (met) is not
+    assert m.below_target == 2
+
+
+def test_improve_prioritises_largest_gap() -> None:
+    m = mod([rv("small", 2, 1), rv("big", 3, 0, measured=True), rv("mid", 3, 1)])
+    assert [i["subtopic_id"] for i in m.improve][0] == "big"
+    assert m.improve[0]["gap"] == 3
+
+
+def test_readiness_summary_and_warning() -> None:
+    views = [rv("a", 2, 2), rv("b", 2), rv("c", 2)]
+    doms = diagnose(views)
+    s = readiness_summary(doms, views)
+    assert s["readiness_pct"] == 33 and s["coverage_warning"] is True
+    assert "Phần lớn" in s["coverage_message"]
+    ok = [rv("a", 2, 2), rv("b", 2, 2)]
+    assert readiness_summary(diagnose(ok), ok)["coverage_warning"] is False
+    assert readiness_summary([], [])["readiness_pct"] is None  # no role targets -> no false 0%
+
+
+def test_api_role_param(client) -> None:
+    body = client.get("/api/diagnosis?role=ai-new_grad").json()
+    assert body["role"]["key"] == "ai-new_grad" and body["role"]["label_vi"]
+    assert {"readiness_pct", "coverage_warning"} <= body.keys()
+    assert client.get("/api/diagnosis?role=nope").status_code == 400
+    assert client.get("/api/diagnosis").json()["role"]["key"] == "swe-intern"
