@@ -166,8 +166,18 @@ export interface DiagnosisImprove extends DiagnosisStrong {
   firm: boolean;
   concepts: string[];
   has_lesson: boolean;
+  target: number;
+  gap: number;
+  stale: boolean;
 }
-export interface DiagnosisModule {
+export interface DiagnosisRoleStats {
+  gap: number;
+  readiness: number;
+  role_relevant: number;
+  below_target: number;
+  unmeasured_relevant: number;
+}
+export interface DiagnosisModule extends DiagnosisRoleStats {
   module: string;
   name_vi: string;
   level: string;
@@ -178,7 +188,7 @@ export interface DiagnosisModule {
   improve: DiagnosisImprove[];
   not_assessed_count: number;
 }
-export interface DiagnosisDomain {
+export interface DiagnosisDomain extends DiagnosisRoleStats {
   section: string;
   name_vi: string;
   track: string;
@@ -193,8 +203,18 @@ export interface DiagnosisTrack {
   name_vi: string;
   sections: string[];
 }
+export interface DiagnosisRole {
+  track: string;
+  level: string;
+  key: string;
+  label_vi: string;
+}
 export interface DiagnosisView {
   tracks: DiagnosisTrack[];
+  role: DiagnosisRole;
+  readiness_pct: number | null;
+  coverage_warning: boolean;
+  coverage_message: string | null;
   domains: DiagnosisDomain[];
 }
 
@@ -208,9 +228,31 @@ function normalizeStrong(raw: Loose): DiagnosisStrong {
   return { subtopic_id: id, name_vi: String(raw.name_vi ?? id), score: finite(raw.score) };
 }
 
+function normalizeRoleStats(raw: Loose): DiagnosisRoleStats {
+  return {
+    gap: finite(raw.gap),
+    readiness: finite(raw.readiness),
+    role_relevant: finite(raw.role_relevant),
+    below_target: finite(raw.below_target),
+    unmeasured_relevant: finite(raw.unmeasured_relevant),
+  };
+}
+
 export function normalizeDiagnosis(data: unknown): DiagnosisView {
   const root = (data ?? {}) as Loose;
+  const role = (root.role ?? {}) as Loose;
+  const track = String(role.track ?? "swe");
+  const level = String(role.level ?? "intern");
   return {
+    role: {
+      track,
+      level,
+      key: String(role.key ?? `${track}-${level}`),
+      label_vi: String(role.label_vi ?? ""),
+    },
+    readiness_pct: root.readiness_pct == null ? null : finite(root.readiness_pct),
+    coverage_warning: root.coverage_warning === true,
+    coverage_message: typeof root.coverage_message === "string" ? root.coverage_message : null,
     tracks: asArray(root, ["tracks"]).map((t) => ({
       key: String(t.key ?? ""),
       name_vi: String(t.name_vi ?? t.key ?? ""),
@@ -224,6 +266,7 @@ export function normalizeDiagnosis(data: unknown): DiagnosisView {
       mean: finite(d.mean),
       coverage: finite(d.coverage),
       tier: String(d.tier ?? "chưa đo"),
+      ...normalizeRoleStats(d),
       modules: asArray(d, ["modules"]).map((m) => ({
         module: String(m.module ?? ""),
         name_vi: String(m.name_vi ?? m.module ?? ""),
@@ -231,6 +274,7 @@ export function normalizeDiagnosis(data: unknown): DiagnosisView {
         mean: finite(m.mean),
         coverage: finite(m.coverage),
         tier: String(m.tier ?? "chưa đo"),
+        ...normalizeRoleStats(m),
         strong: asArray(m, ["strong"]).map(normalizeStrong),
         improve: asArray(m, ["improve"]).map((i) => ({
           ...normalizeStrong(i),
@@ -238,6 +282,9 @@ export function normalizeDiagnosis(data: unknown): DiagnosisView {
           firm: i.firm === true,
           concepts: ((i.concepts as unknown[] | undefined) ?? []).map(String),
           has_lesson: i.has_lesson === true,
+          target: finite(i.target),
+          gap: finite(i.gap),
+          stale: i.stale === true,
         })),
         not_assessed_count: finite(m.not_assessed_count),
       })),
@@ -246,8 +293,9 @@ export function normalizeDiagnosis(data: unknown): DiagnosisView {
 }
 
 /** GET /api/diagnosis -> per-domain / per-module skill profile with honest confidence tiers. */
-export async function getDiagnosis(): Promise<DiagnosisView> {
-  return normalizeDiagnosis(await request<unknown>("/diagnosis"));
+export async function getDiagnosis(role?: string): Promise<DiagnosisView> {
+  const qs = role ? `?role=${encodeURIComponent(role)}` : "";
+  return normalizeDiagnosis(await request<unknown>(`/diagnosis${qs}`));
 }
 
 // ---------------------------------------------------------------- lesson
