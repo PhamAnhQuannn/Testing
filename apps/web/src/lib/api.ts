@@ -103,12 +103,18 @@ export interface LockReason {
 
 type Loose = Record<string, unknown>;
 const asArray = (data: unknown, keys: string[]): Loose[] => {
-  if (Array.isArray(data)) return data as Loose[];
-  for (const key of keys) {
-    const value = (data as Loose | null)?.[key];
-    if (Array.isArray(value)) return value as Loose[];
+  let arr: unknown[] | null = Array.isArray(data) ? data : null;
+  if (!arr) {
+    for (const key of keys) {
+      const value = (data as Loose | null)?.[key];
+      if (Array.isArray(value)) {
+        arr = value;
+        break;
+      }
+    }
   }
-  return [];
+  // Drop non-object entries so a stray null/primitive in the array can't crash a normalizer.
+  return (arr ?? []).filter((x): x is Loose => typeof x === "object" && x !== null);
 };
 
 /** `lock_reasons: [{prerequisite, name_vi, score, need}]` -> "cần X ≥ 2". Locks are advisory in M1. */
@@ -146,6 +152,102 @@ export function normalizeMap(data: unknown): MapSubtopic[] {
 /** GET /api/map -> subtopics[] (array or {subtopics|items:[...]}) */
 export async function getMap(): Promise<MapSubtopic[]> {
   return normalizeMap(await request<unknown>("/map"));
+}
+
+// ---------------------------------------------------------------- diagnosis
+
+export interface DiagnosisStrong {
+  subtopic_id: string;
+  name_vi: string;
+  score: number;
+}
+export interface DiagnosisImprove extends DiagnosisStrong {
+  state: "measured" | "likely_gap";
+  firm: boolean;
+  concepts: string[];
+  has_lesson: boolean;
+}
+export interface DiagnosisModule {
+  module: string;
+  name_vi: string;
+  level: string;
+  mean: number;
+  coverage: number;
+  tier: string;
+  strong: DiagnosisStrong[];
+  improve: DiagnosisImprove[];
+  not_assessed_count: number;
+}
+export interface DiagnosisDomain {
+  section: string;
+  name_vi: string;
+  track: string;
+  level: string;
+  mean: number;
+  coverage: number;
+  tier: string;
+  modules: DiagnosisModule[];
+}
+export interface DiagnosisTrack {
+  key: string;
+  name_vi: string;
+  sections: string[];
+}
+export interface DiagnosisView {
+  tracks: DiagnosisTrack[];
+  domains: DiagnosisDomain[];
+}
+
+const finite = (v: unknown): number => {
+  const n = Number(v ?? 0);
+  return Number.isFinite(n) ? n : 0;
+};
+
+function normalizeStrong(raw: Loose): DiagnosisStrong {
+  const id = String(raw.subtopic_id ?? "");
+  return { subtopic_id: id, name_vi: String(raw.name_vi ?? id), score: finite(raw.score) };
+}
+
+export function normalizeDiagnosis(data: unknown): DiagnosisView {
+  const root = (data ?? {}) as Loose;
+  return {
+    tracks: asArray(root, ["tracks"]).map((t) => ({
+      key: String(t.key ?? ""),
+      name_vi: String(t.name_vi ?? t.key ?? ""),
+      sections: ((t.sections as unknown[] | undefined) ?? []).map(String),
+    })),
+    domains: asArray(root, ["domains"]).map((d) => ({
+      section: String(d.section ?? ""),
+      name_vi: String(d.name_vi ?? d.section ?? ""),
+      track: String(d.track ?? ""),
+      level: String(d.level ?? "Chưa đủ dữ liệu"),
+      mean: finite(d.mean),
+      coverage: finite(d.coverage),
+      tier: String(d.tier ?? "chưa đo"),
+      modules: asArray(d, ["modules"]).map((m) => ({
+        module: String(m.module ?? ""),
+        name_vi: String(m.name_vi ?? m.module ?? ""),
+        level: String(m.level ?? "Chưa đủ dữ liệu"),
+        mean: finite(m.mean),
+        coverage: finite(m.coverage),
+        tier: String(m.tier ?? "chưa đo"),
+        strong: asArray(m, ["strong"]).map(normalizeStrong),
+        improve: asArray(m, ["improve"]).map((i) => ({
+          ...normalizeStrong(i),
+          state: i.state === "likely_gap" ? ("likely_gap" as const) : ("measured" as const),
+          firm: i.firm === true,
+          concepts: ((i.concepts as unknown[] | undefined) ?? []).map(String),
+          has_lesson: i.has_lesson === true,
+        })),
+        not_assessed_count: finite(m.not_assessed_count),
+      })),
+    })),
+  };
+}
+
+/** GET /api/diagnosis -> per-domain / per-module skill profile with honest confidence tiers. */
+export async function getDiagnosis(): Promise<DiagnosisView> {
+  return normalizeDiagnosis(await request<unknown>("/diagnosis"));
 }
 
 // ---------------------------------------------------------------- lesson
