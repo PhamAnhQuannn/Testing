@@ -1,6 +1,7 @@
 """Hidden-test inputs for fix-collect-evens; expected comes from solution.py.
 
-Every case has at least two batches: the buggy shared default list leaks evens from one batch into the next.
+Every case has at least two batches: the buggy shared default list leaks evens
+from one batch into the next.
 """
 
 

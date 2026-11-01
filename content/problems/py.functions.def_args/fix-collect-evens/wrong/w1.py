@@ -1,4 +1,4 @@
-def collect_evens(nums, acc=[]):
+def collect_evens(nums, acc=[]):  # noqa: B006  (the mutable default is the bug under test)
     for n in nums:
         if n % 2 == 0:
             acc.append(n)
