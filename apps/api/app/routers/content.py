@@ -14,6 +14,7 @@ from ..deps import DB, Content, Now, User
 from ..errors import ApiError
 from ..models import tables as t
 from ..services import diagnosis, progress, unlock
+from ..services.concepts import PRACTICES
 from ..services.content_loader import (
     LEGACY_LEVELS,
     LEVELS,
@@ -287,36 +288,46 @@ def _readiness_for(
     return {"views": targeted, "domains": domains, **diagnosis.readiness_summary(domains, targeted)}
 
 
-def _concept_groups(
+def _tag_groups(
     db: Session, user_id: int, content: ContentStore
-) -> dict[str, list[diagnosis.ConceptResult]]:
-    """The user's answered items that carry concept tags, grouped by subtopic (one query)."""
-    # Build the (subtopic, item) -> [(slug, text)] map ONCE over the authored items that actually
-    # carry tags (each subtopic's registry slugified once), so the per-result loop is dict lookups
-    # and untagged results are skipped — no per-row find_check_item scan or re-slugify.
+) -> tuple[dict[str, list[diagnosis.ConceptResult]], list[diagnosis.PracticeResult]]:
+    """The user's answered items that carry concept / practice tags (ONE CheckResult query).
+
+    Returns concept results grouped by subtopic, and practice results (global, flat)."""
+    # Build the (subtopic, item) -> tags maps ONCE over the authored items that actually carry
+    # tags (each subtopic's registry slugified once), so the per-result loop is dict lookups and
+    # untagged results are skipped — no per-row find_check_item scan or re-slugify.
     tagged: dict[tuple[str, str], list[tuple[str, str]]] = {}
+    practiced: dict[tuple[str, str], list[str]] = {}
     for pool in (content.checks, content.placement):
         for sid, items in pool.items():
             reg: dict[str, str] | None = None
             for it in items:
                 cs = it.get("concepts") or []
-                if not cs:
-                    continue
-                if reg is None:
-                    reg = content.concept_registry(sid)
-                tagged[(sid, it["id"])] = [(s, reg[s]) for s in cs if s in reg]
-    if not tagged:
-        return {}
+                if cs:
+                    if reg is None:
+                        reg = content.concept_registry(sid)
+                    tagged[(sid, it["id"])] = [(s, reg[s]) for s in cs if s in reg]
+                ps = [p for p in it.get("practices") or [] if p in PRACTICES]
+                if ps:
+                    practiced[(sid, it["id"])] = ps
     groups: dict[str, list[diagnosis.ConceptResult]] = {}
+    practices: list[diagnosis.PracticeResult] = []
+    if not tagged and not practiced:
+        return groups, practices
     for row in db.scalars(select(t.CheckResult).where(t.CheckResult.user_id == user_id)):
-        pairs = tagged.get((row.subtopic_id, row.item_id))
-        if not pairs:
-            continue
-        groups.setdefault(row.subtopic_id, []).extend(
-            diagnosis.ConceptResult(s, text, row.item_id, row.passed, row.item_type)
-            for s, text in pairs
+        key = (row.subtopic_id, row.item_id)
+        pairs = tagged.get(key)
+        if pairs:
+            groups.setdefault(row.subtopic_id, []).extend(
+                diagnosis.ConceptResult(s, text, row.item_id, row.passed, row.item_type)
+                for s, text in pairs
+            )
+        practices.extend(
+            diagnosis.PracticeResult(p, row.subtopic_id, row.item_id, row.passed, row.item_type)
+            for p in practiced.get(key, [])
         )
-    return groups
+    return groups, practices
 
 
 @router.get("/diagnosis")
@@ -355,7 +366,7 @@ def get_diagnosis(
             )
         )
     chosen = _readiness_for(views, content.subtopics, track, level)
-    groups = _concept_groups(db, user.id, content)
+    groups, practice_results = _tag_groups(db, user.id, content)
     for d in chosen["domains"]:
         for m in d.modules:
             for entry in m.improve:
@@ -382,4 +393,5 @@ def get_diagnosis(
             for k in ("readiness_pct", "coverage_warning", "coverage_message", "worst_domain")
         },
         "domains": [asdict(d) for d in chosen["domains"]],
+        "practices": diagnosis.practice_status(practice_results),
     }

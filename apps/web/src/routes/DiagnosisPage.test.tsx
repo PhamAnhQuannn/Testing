@@ -77,6 +77,22 @@ describe("DiagnosisPage", () => {
     expect(empty).not.toContain("concept-status");
   });
 
+  it("renders the practices section with a status chip per practice", () => {
+    const practices = [
+      { practice: "verify", label_vi: "Kiểm chứng đầu ra", status: "weak", n_hit: 0, n_miss: 2 },
+      { practice: "review", label_vi: "Đọc & review code", status: "suspected", n_hit: 0, n_miss: 1 },
+      { practice: "measure", label_vi: "Đo lường & eval", status: "untested", n_hit: 0, n_miss: 0 },
+    ];
+    const out = render(view([mod({})], { practices }));
+    expect(out).toContain("Thói quen làm việc");
+    expect(out).toContain("Kiểm chứng đầu ra");
+    expect(out).toContain(">Hổng<");
+    expect(out).toContain(">nghi ngờ<");
+    expect(out).toContain(">chưa đo<");
+    expect(render(view([mod({})]))).not.toContain("Thói quen làm việc");
+    expect(normalizeDiagnosis(null).practices).toEqual([]);
+  });
+
   it("renders a Đo sâu button per module", () => {
     const out = render(view([mod({}), mod({ module: "py.datastructs", name_vi: "Cấu trúc dữ liệu" })]));
     expect(out.match(/Đo sâu</g)).toHaveLength(2);

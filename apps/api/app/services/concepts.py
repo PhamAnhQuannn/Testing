@@ -58,3 +58,12 @@ def registry_problems(node: dict[str, Any]) -> list[str]:
         else:
             seen.setdefault(slug, text)
     return problems
+
+
+# Cross-cutting work practices an item can be tagged with (fixed vocabulary, no registry).
+PRACTICES = ("verify", "review", "measure")
+PRACTICE_LABELS = {
+    "verify": "Kiểm chứng đầu ra (bắt bug, nhất là code AI viết)",
+    "review": "Đọc & review code",
+    "measure": "Đo lường & eval (precision/recall…)",
+}

@@ -222,6 +222,14 @@ export interface DiagnosisLevel {
   readiness_pct: number | null;
   label_vi: string;
 }
+export type PracticeState = "weak" | "suspected" | "ok" | "untested";
+export interface PracticeStatus {
+  practice: string;
+  label_vi: string;
+  status: PracticeState;
+  n_hit: number;
+  n_miss: number;
+}
 export interface DiagnosisView {
   tracks: DiagnosisTrack[];
   role: DiagnosisRole;
@@ -231,6 +239,8 @@ export interface DiagnosisView {
   coverage_warning: boolean;
   coverage_message: string | null;
   domains: DiagnosisDomain[];
+  /** Global work-practice readout (verify/review/measure); [] if the server omits it. */
+  practices: PracticeStatus[];
 }
 
 const finite = (v: unknown): number => {
@@ -273,6 +283,7 @@ export function normalizeDiagnosis(data: unknown): DiagnosisView {
     })),
     coverage_warning: root.coverage_warning === true,
     coverage_message: typeof root.coverage_message === "string" ? root.coverage_message : null,
+    practices: normalizePractices(root.practices),
     tracks: asArray(root, ["tracks"]).map((t) => ({
       key: String(t.key ?? ""),
       name_vi: String(t.name_vi ?? t.key ?? ""),
@@ -311,6 +322,24 @@ export function normalizeDiagnosis(data: unknown): DiagnosisView {
       })),
     })),
   };
+}
+
+const PRACTICE_STATES: PracticeState[] = ["weak", "suspected", "ok", "untested"];
+
+function normalizePractices(raw: unknown): PracticeStatus[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((p): p is Record<string, unknown> => typeof p === "object" && p !== null)
+    .map((p) => ({
+      practice: String(p.practice ?? ""),
+      label_vi: String(p.label_vi ?? p.practice ?? ""),
+      status: PRACTICE_STATES.includes(p.status as PracticeState)
+        ? (p.status as PracticeState)
+        : ("untested" as const),
+      n_hit: finite(p.n_hit),
+      n_miss: finite(p.n_miss),
+    }))
+    .filter((p) => p.practice !== "");
 }
 
 function normalizeConceptStatus(raw: unknown): ConceptStatus[] {

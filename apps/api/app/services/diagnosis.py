@@ -10,6 +10,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any
 
+from .concepts import PRACTICE_LABELS, PRACTICES
 from .content_loader import SECTION_NAMES, TRACKS, module_name, track_of
 
 LIKELY_KNOWN_SCORE = 2.0
@@ -112,6 +113,53 @@ def concept_status(results: Iterable[ConceptResult]) -> list[dict[str, Any]]:
             {"slug": slug, "text": texts[slug], "status": status, "n_hit": n_hit, "n_miss": n_miss}
         )
     out.sort(key=lambda c: (c["status"] != "weak", c["slug"]))
+    return out
+
+
+@dataclass(frozen=True)
+class PracticeResult:
+    """One answered check item tagged with a work practice (a CheckResult row, joined)."""
+
+    practice: str
+    subtopic_id: str
+    item_id: str
+    passed: bool
+    item_type: str = ""
+
+
+def practice_status(results: Iterable[PracticeResult]) -> list[dict[str, Any]]:
+    """GLOBAL per-practice status (SPEC 5.7), all of PRACTICES in order. Pure; never feeds scoring.
+
+    A distinct item (subtopic, item) is a hit if ever passed, else a miss. `weak` = >= 2 misses,
+    `suspected` = 1, `ok` = >= 1 hit and no miss, `untested` = no results."""
+    ever: dict[tuple[str, str, str], bool] = {}
+    for r in results:
+        key = (r.practice, r.subtopic_id, r.item_id)
+        ever[key] = ever.get(key, False) or r.passed
+    counts: dict[str, list[int]] = {p: [0, 0] for p in PRACTICES}
+    for (practice, _sid, _item), passed in ever.items():
+        if practice in counts:
+            counts[practice][0 if passed else 1] += 1
+    out = []
+    for p in PRACTICES:
+        n_hit, n_miss = counts[p]
+        if n_miss >= 2:
+            status = "weak"
+        elif n_miss == 1:
+            status = "suspected"
+        elif n_hit >= 1:
+            status = "ok"
+        else:
+            status = "untested"
+        out.append(
+            {
+                "practice": p,
+                "label_vi": PRACTICE_LABELS[p],
+                "status": status,
+                "n_hit": n_hit,
+                "n_miss": n_miss,
+            }
+        )
     return out
 
 

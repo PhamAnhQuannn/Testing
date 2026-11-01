@@ -471,6 +471,18 @@ def test_unknown_concept_tag_fails(fx):
     assert any("unknown concept slug 'lop'" in e and "['loop']" in e for e in errors), errors
 
 
+def test_valid_practice_tag_passes(fx):
+    patch_yaml(
+        fx / CHECKS, lambda checks: checks["items"][0].update(practices=["verify", "review"])
+    )
+    assert errors_of(fx) == []
+
+
+def test_unknown_practice_tag_fails(fx):
+    patch_yaml(fx / CHECKS, lambda checks: checks["items"][0].update(practices=["bogus"]))
+    assert errors_of(fx), "a practice outside verify/review/measure must fail validation"
+
+
 @pytest.mark.parametrize(("expected", "break_it"), CASES.values(), ids=CASES.keys())
 def test_rule_is_enforced(fx, expected, break_it):
     break_it(fx)
