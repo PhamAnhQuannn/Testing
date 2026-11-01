@@ -139,6 +139,9 @@ LAST_GATE = {"none": 1, "some": 6, "solid": 6}  # `none` only runs C1 -> C2 (UI_
 PASS_LIKE = {"passed", "passed_unclean", "known", "known_basic"}
 FAIL_LIKE = {"failed", "gave_up", "locked", "knowledge_gap"}
 
+DEEP_GAP_STOP = 2  # consecutive knowledge_gap gates that stop a deep-dive ("weak start")
+DEEP_STRONG_STOP = 3  # consecutive known_basic gates that stop a deep-dive ("strong enough")
+
 MESSAGES = {
     "failed_start": "Chưa cần đo thêm; bắt đầu từ nền tảng sẽ hiệu quả hơn.",
     "two_fails": "Chưa cần đo thêm; bắt đầu từ nền tảng sẽ hiệu quả hơn.",
@@ -151,6 +154,8 @@ MESSAGES = {
     "concept_done": "Đã đo xong các module khái niệm bạn chọn.",
     "concept_skipped": "Bạn đã bỏ qua phần đo module khái niệm.",
     "deep_dive_done": "Đã đo xong các chủ đề có sẵn câu hỏi trong module này.",
+    "deep_weak_start": "Nền tảng module này còn trống — nên học lại từ đầu; đã dừng đo sớm.",
+    "deep_strong_enough": "Nền tảng module này đã vững — đã dừng đo sớm.",
 }
 
 
@@ -644,6 +649,20 @@ def _settle_deep(
         now=now,
         idem_key=key,
     )
+    # Symmetric early-stop on consecutive outcomes (diagnostic only; no score/unlock effect).
+    if out == "known_basic":
+        state["deep_strong_streak"] = state.get("deep_strong_streak", 0) + 1
+        state["deep_gap_streak"] = 0
+    elif out == "knowledge_gap":
+        state["deep_gap_streak"] = state.get("deep_gap_streak", 0) + 1
+        state["deep_strong_streak"] = 0
+    else:  # partial (P0 passed, later rung failed/given up): neither a clear gap nor strong
+        state["deep_gap_streak"] = 0
+        state["deep_strong_streak"] = 0
+    if state["deep_gap_streak"] >= DEEP_GAP_STOP:
+        return _stop(ps, state, "deep_weak_start", now)
+    if state["deep_strong_streak"] >= DEEP_STRONG_STOP:
+        return _stop(ps, state, "deep_strong_enough", now)
     _start_next_deep(db, content, ps, state, k + 1, now, key)
 
 
@@ -1051,6 +1070,8 @@ def start(
             "cursor": None,
             "probing": False,
             "phase": "deep",
+            "deep_gap_streak": 0,
+            "deep_strong_streak": 0,
         }
     else:
         gates = _build_gates(db, content, user_id, now)

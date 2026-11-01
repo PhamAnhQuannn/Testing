@@ -56,10 +56,14 @@ CONCEPT_SUBS = {
     "sd.networking.load_balancing": ([], False, False),  # nothing authored: not offered
     "ml.rag_agents.rag_pipeline": ([], True, True),
 }
+DEEP_MOD = "dp.early"  # synthetic module with 5 probed subtopics for the early-stop tests
+DEEP_SUBS = [f"{DEEP_MOD}.s{i}" for i in range(1, 6)]
 HUB_DATA, HUB_CACHE = "sd.data.sql_vs_nosql", "sd.caching.patterns"
 
 
-def build_placement_content(root: Path, rungs: bool = False, concept: bool = False) -> Path:
+def build_placement_content(
+    root: Path, rungs: bool = False, concept: bool = False, deep_mod: bool = False
+) -> Path:
     (root / "index").mkdir(parents=True)
     subs = [_sub(EXTRA, 1, [])]
     prev = EXTRA
@@ -70,9 +74,18 @@ def build_placement_content(root: Path, rungs: bool = False, concept: bool = Fal
     if concept:
         for n, (sid, (prereqs, _c1, _c2)) in enumerate(CONCEPT_SUBS.items()):
             subs.append(_sub(sid, 30 + n, prereqs))
+    if deep_mod:
+        for n, sid in enumerate(DEEP_SUBS):
+            subs.append(_sub(sid, 60 + n, [EXTRA]))  # locked, like real subtopics
     (root / "index" / "subtopics.json").write_text(json.dumps({"subtopics": subs}))
     (root / "index" / "assumed.json").write_text(json.dumps({"assumed": []}))
-    order = [EXTRA, *CHAIN, SIDE, *(CONCEPT_SUBS if concept else [])]
+    order = [
+        EXTRA,
+        *CHAIN,
+        SIDE,
+        *(CONCEPT_SUBS if concept else []),
+        *(DEEP_SUBS if deep_mod else []),
+    ]
     days = [{"day": 1, "subtopics": [{"id": s} for s in order]}]
     (root / "index" / "plan.json").write_text(json.dumps({"days": days}))
     (root / "lessons" / "py").mkdir(parents=True)
@@ -155,6 +168,33 @@ def build_placement_content(root: Path, rungs: bool = False, concept: bool = Fal
             (root / "placement" / f"{spec['subtopic_id']}.yaml").write_text(
                 yaml.safe_dump({"subtopic_id": spec["subtopic_id"], "items": items})
             )
+    if deep_mod:  # every deep subtopic: P0 mcq (answer_index 1) + P1 read_code ("1")
+        (root / "placement").mkdir(exist_ok=True)
+        for n, sid in enumerate(DEEP_SUBS):
+            items = [
+                {
+                    "id": f"DP{n}0",
+                    "difficulty": 1,
+                    "type": "mcq",
+                    "minutes": 1,
+                    "prompt_md": "pick b",
+                    "choices": ["a", "b", "c"],
+                    "answer_index": 1,
+                    "explanation_md": "because b",
+                },
+                {
+                    "id": f"DP{n}1",
+                    "difficulty": 1,
+                    "type": "read_code",
+                    "minutes": 2,
+                    "prompt_md": "what prints?",
+                    "code": "print(1)",
+                    "expected_output": "1",
+                },
+            ]
+            (root / "placement" / f"{sid}.yaml").write_text(
+                yaml.safe_dump({"subtopic_id": sid, "items": items})
+            )
     if concept:  # hubs: C1 = level-1 mcq (answer_index 1), C2 = level-2 mcq (answer_index 2)
         (root / "placement").mkdir(exist_ok=True)
         for n, (sid, (_prereqs, c1, c2)) in enumerate(CONCEPT_SUBS.items()):
@@ -184,7 +224,10 @@ def build_placement_content(root: Path, rungs: bool = False, concept: bool = Fal
 def content_dir(tmp_path: Path, request: pytest.FixtureRequest) -> Path:
     name = request.function.__name__
     return build_placement_content(
-        tmp_path / "content", name.startswith("test_rung"), name.startswith("test_concept")
+        tmp_path / "content",
+        name.startswith("test_rung"),
+        name.startswith("test_concept"),
+        name.startswith("test_rung_deep_early"),
     )
 
 
@@ -1073,3 +1116,71 @@ def test_rung_deep_dive_skips_already_mastered_subtopics(client, clock):
     v = start(client, kind="deep_dive", module="py.core")
     # py.core.strings is the only probed subtopic today; mastered -> no gates -> stops at once.
     assert v["gates"] == [] and v["status"] == "finished" and v["stop_reason"] == "deep_dive_done"
+
+
+# ---- deep-dive symmetric early-stop (2 gaps -> weak start, 3 known_basic -> strong enough) ----
+
+
+def _deep_early(client, clock, rungs):
+    v = start(client, kind="deep_dive", module=DEEP_MOD)
+    assert [g["subtopic_id"] for g in v["gates"]] == DEEP_SUBS
+    return drive(client, clock, {}, rungs=rungs, pid=v["placement_id"])
+
+
+def _outcomes(end):
+    return [g["outcome"] for g in end["gates"]]
+
+
+def test_rung_deep_early_two_gaps_stop_weak_start(client, clock):
+    end = _deep_early(client, clock, {"D1:P0": "fail", "D2:P0": "giveup"})
+    assert end["status"] == "finished" and end["stop_reason"] == "deep_weak_start"
+    assert end["message_vi"] == pl.MESSAGES["deep_weak_start"]
+    assert _outcomes(end) == ["knowledge_gap", "knowledge_gap", None, None, None]
+    assert {r.subtopic_id for r in db_rows(client, t.CheckResult)} == set(DEEP_SUBS[:2])
+    for sid in DEEP_SUBS:
+        assert sub_row(client, sid) is None or sub_row(client, sid).score == 0
+    assert_parity(client)
+
+
+def test_rung_deep_early_three_strong_stop_strong_enough(client, clock):
+    end = _deep_early(client, clock, {})
+    assert end["status"] == "finished" and end["stop_reason"] == "deep_strong_enough"
+    assert end["message_vi"] == pl.MESSAGES["deep_strong_enough"]
+    assert _outcomes(end) == ["known_basic"] * 3 + [None, None]
+    for sid in DEEP_SUBS[:3]:
+        row = sub_row(client, sid)
+        assert row.score == 1 and row.known_basic and row.unlocked_at is None
+    assert {r.subtopic_id for r in db_rows(client, t.CheckResult)} == set(DEEP_SUBS[:3])
+    assert_parity(client)
+
+
+def test_rung_deep_early_alternating_never_stops_early(client, clock):
+    rungs = {"D2:P0": "fail", "D4:P0": "fail"}
+    end = _deep_early(client, clock, rungs)
+    assert end["stop_reason"] == "deep_dive_done"
+    assert _outcomes(end) == ["known_basic", "knowledge_gap"] * 2 + ["known_basic"]
+
+
+def test_rung_deep_early_partial_resets_the_strong_streak(client, clock):
+    end = _deep_early(client, clock, {"D3:P1": "fail"})
+    assert end["stop_reason"] == "deep_dive_done"
+    assert _outcomes(end)[:3] == ["known_basic", "known_basic", end["gates"][2]["outcome"]]
+    assert end["gates"][2]["outcome"] not in (None, "known_basic", "knowledge_gap")
+    assert _outcomes(end)[3:] == ["known_basic", "known_basic"]  # D4 alone does not stop
+
+
+def test_rung_deep_early_partial_resets_the_gap_streak(client, clock):
+    end = _deep_early(client, clock, {"D1:P0": "fail", "D2:P1": "fail", "D3:P0": "fail"})
+    assert end["stop_reason"] == "deep_dive_done"  # gap, partial, gap: never two in a row
+
+
+def test_rung_deep_early_small_module_below_threshold_is_not_strong_stopped(client, clock):
+    with client.app.state.rt.session() as db:
+        for sid in DEEP_SUBS[2:]:
+            db.get(t.UserSubtopic, (1, sid)).score = 2
+        db.commit()
+    v = start(client, kind="deep_dive", module=DEEP_MOD)
+    assert len(v["gates"]) == 2
+    end = drive(client, clock, {}, pid=v["placement_id"])
+    assert _outcomes(end) == ["known_basic", "known_basic"]
+    assert end["stop_reason"] == "deep_dive_done"
