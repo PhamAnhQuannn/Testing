@@ -28,7 +28,7 @@ from jsonschema.exceptions import best_match
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "apps/api"))
 
 from app.services.concepts import PRACTICES, registry_of, registry_problems  # noqa: E402
-from common import CONTENT, load_json, load_yaml, read_jsonl
+from common import CONTENT, ROOT, load_json, load_yaml, read_jsonl
 from gen_hidden import generate_hidden, load_generator
 from run_problem import engine_limit_ms, load_tests, run_native, run_pyodide
 from sync_tree import EXTRA_MODULES, EXTRA_SECTIONS
@@ -41,6 +41,17 @@ MAX_HIDDEN_BYTES = 1_000_000
 CROSS_CHECK_CASES = 200
 CROSS_CHECK_SEED = 20260101
 SNIPPET_TIME_MS = 5000
+# write_test items (SPEC 5.7): the learner's test is appended to an implementation and the shared
+# driver, then run through the harness `function` mode on `_prep_run_tests` (same bytes as the web).
+TESTDRIVER = ROOT / "apps/web/src/runner/pyodide/testdriver.py"
+WRITE_TEST_IO = {
+    "mode": "function",
+    "entry": "_prep_run_tests",
+    "params": [],
+    "returns": "str",
+    "compare": "exact",
+}
+WRITE_TEST_PYODIDE_MS = 30_000  # per run under Pyodide in Node (cold start of the module)
 GRADED_TYPES = {"quiz_mcq", "quiz_fill", "predict_output"}
 MIN_GRADED_BLOCKS = 3
 LEVELS = {"l1": 1, "l2": 2, "l3": 3}
@@ -285,7 +296,7 @@ class Validator:
                     self.fail(path, f"item id {item['id']} also appears in {seen[item['id']].name}")
                 seen[item["id"]] = path
                 items[item["id"]] = item
-                if item["type"] != "write_code":
+                if item["type"] not in ("write_code", "write_test"):
                     continue
                 problem = problems.get(item["problem_id"])
                 if problem is None:
@@ -293,6 +304,12 @@ class Validator:
                 elif problem.get("kind") != "check":
                     self.fail(
                         path, f"{item['id']}: problem {item['problem_id']} must be kind check"
+                    )
+                elif (problem.get("item_kind") == "write_test") != (item["type"] == "write_test"):
+                    self.fail(
+                        path,
+                        f"{item['id']}: type {item['type']} does not match problem "
+                        f"{item['problem_id']} item_kind {problem.get('item_kind')!r}",
                     )
 
     def check_placement_files(self, subtopic_ids: set[str]) -> None:
@@ -316,7 +333,7 @@ class Validator:
                 elif item["id"] in seen:
                     self.fail(path, f"item id {item['id']} also appears in {seen[item['id']].name}")
                 seen[item["id"]] = path
-                if item["type"] == "write_code":
+                if item["type"] in ("write_code", "write_test"):
                     self.fail(path, f"{item['id']}: placement items are mcq or read_code only")
                 if item["type"] == "mcq" and item["answer_index"] >= len(item["choices"]):
                     self.fail(path, f"{item['id']}: answer_index is out of range of choices")
@@ -369,6 +386,15 @@ class Validator:
             return
         if problem["id"] != directory.name:
             self.fail(directory, "directory name must equal the problem id")
+        if problem.get("item_kind") == "write_test":
+            if problem["subtopic_id"] != directory.parent.name:
+                self.fail(directory, "problem must live in problems/<subtopic_id>/")
+            if problem["subtopic_id"] not in subtopic_ids:
+                self.fail(directory, f"unknown subtopic {problem['subtopic_id']}")
+            if problem["kind"] != "check":
+                self.fail(directory, "a write_test problem must be kind check")
+            self.check_write_test(directory)
+            return
         if problem["io"].get("compare") == "custom":
             self.fail(
                 directory, "io.compare custom is not supported yet: harness.py has no checker"
@@ -520,6 +546,67 @@ class Validator:
                     directory,
                     f"{name} must exceed {SLOW_TIME_FACTOR} x time_ms, got {run['verdict']}",
                 )
+
+    def check_write_test(self, directory: Path) -> None:
+        """A write_test problem (SPEC 5.7): the reference test must FAIL on buggy.py and PASS on
+        solution.py (so it is AC), and every wrong_test/*.py must be WA (miss the bug or raise a
+        false alarm). Runs natively, and under Pyodide too with --pyodide."""
+        needed = ("buggy.py", "solution.py", "ref_test.py")
+        absent = [name for name in needed if not (directory / name).is_file()]
+        for name in absent:
+            self.fail(directory, f"write_test problem is missing {name}")
+        wrongs = sorted((directory / "wrong_test").glob("*.py"))
+        if not wrongs:
+            self.fail(directory, "write_test problem needs at least one wrong_test/*.py")
+        if absent:
+            return
+        buggy = (directory / "buggy.py").read_text(encoding="utf-8")
+        good = (directory / "solution.py").read_text(encoding="utf-8")
+        if buggy.strip() == good.strip():
+            self.fail(directory, "buggy.py and solution.py are identical")
+        driver = TESTDRIVER.read_text(encoding="utf-8")
+        engines = ["native"] + (["pyodide"] if self.pyodide else [])
+
+        def verdicts(test_path: Path, engine: str) -> tuple[bool, bool] | None:
+            """(fails on buggy, passes on correct); None when the module does not run."""
+            test = test_path.read_text(encoding="utf-8")
+            caught = passed = False
+            for impl, expected in ((buggy, "FAIL"), (good, "PASS")):
+                module = impl + "\n" + test + "\n" + driver
+                cases = [{"id": expected.lower(), "args": [], "expected": expected}]
+                if engine == "pyodide":
+                    run = run_pyodide(module, WRITE_TEST_IO, cases, WRITE_TEST_PYODIDE_MS)
+                else:
+                    run = run_native(module, WRITE_TEST_IO, cases, SNIPPET_TIME_MS)
+                if run["verdict"] not in ("AC", "WA"):
+                    detail = run["results"][0]["error"] if run["results"] else ""
+                    self.fail(
+                        directory,
+                        f"{test_path.relative_to(directory)} {run['verdict']} ({engine}): {detail}",
+                    )
+                    return None
+                if expected == "FAIL":
+                    caught = run["verdict"] == "AC"
+                else:
+                    passed = run["verdict"] == "AC"
+            return caught, passed
+
+        for engine in engines:
+            ref = verdicts(directory / "ref_test.py", engine)
+            if ref is not None and ref != (True, True):
+                caught, passed = ref
+                if not caught:
+                    self.fail(directory, f"ref_test.py does not fail on buggy.py ({engine})")
+                if not passed:
+                    self.fail(directory, f"ref_test.py does not pass on solution.py ({engine})")
+            for wrong in wrongs:
+                got = verdicts(wrong, engine)
+                if got == (True, True):
+                    self.fail(
+                        directory,
+                        f"{wrong.relative_to(directory)} would be AC ({engine}): it must miss the "
+                        "bug or raise a false alarm",
+                    )
 
     def check_pyodide(
         self, directory: Path, problem: dict, solution: Path, hidden: list[dict]

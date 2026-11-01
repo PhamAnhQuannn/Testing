@@ -32,6 +32,7 @@ import { lsGet, lsSet, useAsync, useOnline, usePageExit, useRunnerState } from "
 import { idbStore } from "../lib/idb";
 import { ResumeReporter } from "../lib/resumeReporter";
 import { runProblem } from "../lib/runProblem";
+import { runFailingTest } from "../lib/runTest";
 
 const HEARTBEAT_MS = 30_000;
 
@@ -300,6 +301,8 @@ function CheckRunner({ subtopicId, context }: { subtopicId: string; context: Che
         </section>
       ) : step.type === "write_code" ? (
         <WriteCodeStep key={step.item_id} session={session} step={step} busy={busy} commit={commit} />
+      ) : step.type === "write_test" ? (
+        <WriteTestStep key={step.item_id} session={session} step={step} busy={busy} commit={commit} />
       ) : step.type === "read_code" ? (
         <ReadCodeStep key={step.item_id} step={step} busy={busy} onAnswer={(answer) => void commit({ answer })} />
       ) : (
@@ -536,4 +539,156 @@ function WriteCodeView(props: {
   );
 
   return <SplitLayout left={left} right={right} leftTab="Đề bài" rightTab="Code" />;
+}
+
+export function WriteTestStep(props: {
+  session: { session_id: number };
+  step: CheckStep;
+  busy: boolean;
+  commit: (body: CheckAnswerBody) => Promise<boolean>;
+}) {
+  const problem = useAsync(() => getProblem(props.step.problem_id!), [props.step.problem_id]);
+  if (problem.loading) {
+    return (
+      <div className="page" aria-busy="true">
+        <div className="skeleton" style={{ width: "60%" }} />
+        <div className="skeleton" style={{ height: 200 }} />
+      </div>
+    );
+  }
+  if (problem.error || !problem.data) {
+    return (
+      <div className="error-block" role="alert">
+        <strong>Không tải được đề bài</strong>
+        <p>{problem.error?.message}</p>
+        <button className="btn" onClick={problem.reload}>
+          Thử lại
+        </button>
+      </div>
+    );
+  }
+  return <WriteTestView {...props} problem={problem.data} />;
+}
+
+/** Runs the learner's test against buggy + correct code and builds the write_code-shaped answer body. */
+export async function attemptWriteTest(
+  problem: Problem,
+  userTest: string,
+  setPanel: (panel: PanelState | null) => void,
+): Promise<CheckAnswerBody> {
+  const result = await runFailingTest(problem, userTest, setPanel);
+  return {
+    code: userTest,
+    language: "python",
+    verdict: result.verdict,
+    passed_tests: result.passed,
+    total: result.total,
+    runtime_ms: result.elapsed_ms,
+  };
+}
+
+export function WriteTestView(props: {
+  session: { session_id: number };
+  step: CheckStep;
+  problem: Problem;
+  busy: boolean;
+  commit: (body: CheckAnswerBody) => Promise<boolean>;
+}) {
+  const { problem, step } = props;
+  const notify = useToast();
+  const runnerState = useRunnerState();
+  const draftKey = `prep:check:${props.session.session_id}:${step.item_id}:test`;
+  const starter = problem.starter_test ?? "";
+  const [code, setCode] = useState(() => lsGet(draftKey) ?? starter);
+  const [panel, setPanel] = useState<PanelState | null>(null);
+  const [running, setRunning] = useState(false);
+  const [failed, setFailed] = useState<FailedSubmit | null>(null);
+  const [confirmReset, setConfirmReset] = useState(false);
+  const codeRef = useRef(code);
+
+  const onChange = useCallback(
+    (next: string) => {
+      codeRef.current = next;
+      setCode(next);
+      setFailed(null);
+      lsSet(draftKey, next);
+    },
+    [draftKey],
+  );
+
+  const execute = async () => {
+    if (running || props.busy) return;
+    setRunning(true);
+    setFailed(null);
+    try {
+      const body = await attemptWriteTest(problem, codeRef.current, setPanel);
+      // Same pattern as WriteCodeView: AC is committed at once, anything else waits for "Chốt kết quả này".
+      if ("verdict" in body && body.verdict === "AC") await props.commit(body);
+      else setFailed({ body });
+    } catch (error) {
+      setPanel(null);
+      notify(`Không chạy được: ${(error as Error).message}`, { kind: "error" });
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  const left = (
+    <article>
+      <h1>{problem.title_vi || problem.title}</h1>
+      <Markdown md={step.prompt_md} />
+      <Markdown md={problem.statement_en_md} lang="en" />
+      {problem.statement_vi_md && <Markdown md={problem.statement_vi_md} lang="vi" />}
+      <h3>Code có bug (chỉ đọc)</h3>
+      <pre className="block-card" aria-label="Code có bug">
+        <code>{problem.buggy_code ?? ""}</code>
+      </pre>
+      <p>
+        Viết một test (dùng <code>assert</code>) sao cho test <strong>FAIL</strong> trên code có bug nhưng{" "}
+        <strong>PASS</strong> trên bản đúng. Hãy viết test bắt bug này.
+      </p>
+    </article>
+  );
+
+  const right = (
+    <>
+      <EditorPanel
+        code={code}
+        onChange={onChange}
+        onRun={() => void execute()}
+        onSubmit={() => void execute()}
+        onReset={() => setConfirmReset(true)}
+        running={running || props.busy}
+        runnerLoading={runnerState === "loading"}
+        status={{ state: "idle" }}
+      />
+      <TestResultPanel state={panel} />
+      {failed && (
+        <div className="check-banner bad" role="alert">
+          <strong>Test chưa bắt được bug (hoặc báo động giả).</strong>
+          <div>Bạn có thể sửa test rồi chạy lại, hoặc chốt kết quả hiện tại (tính là chưa đúng).</div>
+          <div className="toolbar">
+            <button className="btn sm" disabled={props.busy} onClick={() => void props.commit(failed.body)}>
+              Chốt kết quả này
+            </button>
+          </div>
+        </div>
+      )}
+      {confirmReset && (
+        <ConfirmModal
+          title="Reset về starter?"
+          confirmLabel="Reset"
+          onCancel={() => setConfirmReset(false)}
+          onConfirm={() => {
+            setConfirmReset(false);
+            onChange(starter);
+          }}
+        >
+          <p>Test hiện tại sẽ bị thay bằng khung test ban đầu.</p>
+        </ConfirmModal>
+      )}
+    </>
+  );
+
+  return <SplitLayout left={left} right={right} leftTab="Đề bài" rightTab="Test" />;
 }

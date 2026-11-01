@@ -7,7 +7,10 @@ Ladder: level 2 first (write_code preferred). A correct answer goes on to level 
 has one), clean or not; a wrong answer or "give up" goes down to level 1 as a diagnostic (no level
 1 item: stop, "learn the lesson"). Only a wrong (not given-up) answer starts the 24 h lock. `clean`
 (no solution, <= 1 hint, in time) alone gates score-2/3 evidence. Level 1 never changes the score.
-A subtopic whose level 2 is already (clean) passed starts at level 3. `concept` items are
+A subtopic whose level 2 is already (clean) passed starts at level 3. `write_test` items
+(the learner writes a test that catches a planted bug) are diagnostic-only: recorded, never `clean`
+evidence, never a level pass, never a lock and never a score gate (they feed practices[verify] and
+concept_status only). `concept` items are
 self-graded: on a code subtopic they are recorded but never `clean`, so they are never evidence
 for score 2 or 3; on a concept subtopic (System Design + the AI-engineer LLM track, no code to
 measure) a correct in-time self-graded pass is `clean` and is the approved score-2/3 evidence.
@@ -31,6 +34,7 @@ LOCK = timedelta(hours=24)  # redo lock after a failed level (SPEC flow C step 4
 SESSION_TTL = timedelta(hours=24)  # no activity this long: the session expires (not a failure)
 CLEAN_TIME_FACTOR = 1.5  # SPEC 5.1 `clean`
 CONTEXTS = ("mastery", "test_out")
+DIAGNOSTIC_TYPES = ("write_test",)  # recorded, but never a level pass, a lock or score evidence
 
 _TYPE_ORDER = {
     2: {"write_code": 0, "read_code": 1, "concept": 2},
@@ -61,6 +65,16 @@ def pick_item(
     return group[(max(attempt_no, 1) - 1) % len(group)]
 
 
+def _first_write_test(
+    content: ContentStore, subtopic_id: str, shown_ids: set[str]
+) -> dict[str, Any] | None:
+    """First (file order) write_test item of the subtopic that this ladder has not shown yet."""
+    for item in content.checks.get(subtopic_id, []):
+        if item.get("type") == "write_test" and item["id"] not in shown_ids:
+            return item
+    return None
+
+
 def _step(item: dict[str, Any], level: int) -> dict[str, Any]:
     return {
         "item_id": item["id"],
@@ -85,6 +99,7 @@ def level_passed(db: Session, user_id: int, subtopic_id: str, level: int) -> boo
         t.CheckResult.level == level,
         t.CheckResult.passed.is_(True),
         t.CheckResult.clean.is_(True),
+        t.CheckResult.item_type.not_in(DIAGNOSTIC_TYPES),
     )
     if level == 3:
         q = q.where(t.CheckResult.item_type == "write_code")
@@ -102,6 +117,7 @@ def retry_after(
             t.CheckResult.level == level,
             t.CheckResult.passed.is_(False),
             t.CheckResult.gave_up.is_(False),
+            t.CheckResult.item_type.not_in(DIAGNOSTIC_TYPES),  # a wrong write_test never locks
         )
     )
     if last is None:
@@ -135,8 +151,8 @@ def public_item(content: ContentStore, subtopic_id: str, step: dict[str, Any]) -
         "time_limit_ms": int(step["minutes"] * 60_000),
         "prompt_md": item.get("prompt_md", ""),
     }
-    if step["type"] == "write_code":
-        out["problem_id"] = item.get("problem_id")
+    if step["type"] in ("write_code", "write_test"):
+        out["problem_id"] = item.get("problem_id")  # write_test: the client fetches the problem
     elif step["type"] == "read_code":
         out["code"] = item.get("code", "")
     elif step["type"] == "mcq":
@@ -371,7 +387,9 @@ def _grade(
             res["reason"] = "over_time"
         return res
 
-    # write_code: the browser ran the hidden tests (same engine as Submit); we record an attempt
+    # write_code: the browser ran the hidden tests (same engine as Submit); we record an attempt.
+    # write_test: same body, same trust: the browser ran the learner's test against the buggy and
+    # the correct implementation (2 runs, passed_tests 0..2 of total 2); the server re-runs nothing.
     if body.code is None or body.verdict is None or body.passed_tests is None or body.total is None:
         raise ApiError(
             422, "missing_field", "code, verdict, passed_tests and total are required here"
@@ -451,6 +469,8 @@ def _advance(
         # placement drives its own P0/P1/P2 rungs (SPEC 5.6): a level-2 answer there always ends
         # the session (no level-3, no auto level-1 diagnostic)
         nxt_level = 3 if res["correct"] else 1
+    if step["type"] in DIAGNOSTIC_TYPES:
+        nxt_level = None  # diagnostic-only: right or wrong, the ladder neither climbs nor drops
     if nxt_level is not None:
         item = pick_item(content, sess.subtopic_id, nxt_level, sess.attempt_no)
         if item is not None:
@@ -458,6 +478,15 @@ def _advance(
             sess.current_item_id = item["id"]
             return
         ladder["need_lesson"] = nxt_level == 1  # no level 1 item: "learn the lesson first"
+    # The scoring ladder has ended. Append the subtopic's write_test as one last DIAGNOSTIC step
+    # (never displacing a scoring gate, never after another write_test, never in placement).
+    if sess.context != "placement" and step["type"] not in DIAGNOSTIC_TYPES:
+        shown = {s["item_id"] for s in ladder["steps"]}
+        wt = _first_write_test(content, sess.subtopic_id, shown)
+        if wt is not None:
+            ladder["steps"].append(_step(wt, wt["difficulty"]))
+            sess.current_item_id = wt["id"]
+            return
     sess.current_item_id = None
     sess.status = "done"
 
@@ -581,7 +610,8 @@ def _outcome(
 ) -> dict[str, Any]:
     by_level: dict[int, dict[str, Any]] = {}
     for s in ladder["steps"]:
-        if s["result"] is not None:
+        # a diagnostic write_test step shares level 2 with the real item: never let it overwrite
+        if s["result"] is not None and s["type"] not in DIAGNOSTIC_TYPES:
             by_level[s["level"]] = s["result"]
 
     def label(level: int) -> str | None:

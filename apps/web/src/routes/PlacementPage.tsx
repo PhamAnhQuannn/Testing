@@ -146,6 +146,10 @@ export function PlacementSessionView(props: {
           busy={props.busy}
           commit={props.commit}
         />
+      ) : step.type === "write_test" ? (
+        <div className="error-block" role="alert">
+          Loại câu hỏi này chưa hỗ trợ trong bài xếp lớp.
+        </div>
       ) : step.type === "read_code" ? (
         <ReadCodeStep key={step.item_id} step={step} busy={props.busy} onAnswer={(answer) => void props.commit({ answer })} />
       ) : step.type === "mcq" ? (

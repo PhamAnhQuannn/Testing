@@ -116,6 +116,10 @@ def check_item(item: dict) -> dict:
     }
     if item["type"] == "write_code":
         out["problem_id"] = slug_of(item["id"])
+    elif item["type"] == "write_test":
+        # diagnostic item: a hand-written problem dir (buggy/solution/ref_test), no answer_md and
+        # no generated kind:check problem (convert() only generates those for write_code)
+        out["problem_id"] = slug_of(item["id"])
     elif item["type"] == "read_code":
         out["code"] = item["code"]
         out["expected_output"] = item["expected_output"]
