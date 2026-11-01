@@ -11,6 +11,8 @@ import {
   type DiagnosisModule,
   type DiagnosisRoleStats,
   type DiagnosisView,
+  type PracticeState,
+  type PracticeStatus,
 } from "../lib/api";
 import { useAsync } from "../lib/hooks";
 import { ScoreBadge } from "./Home";
@@ -28,6 +30,34 @@ export function TierChip({ tier, coverage }: { tier: string; coverage: number })
     <span className={`tier-chip ${TIER_CLASS[tier] ?? "unmeasured"}`}>
       {tier} {pct(coverage)}
     </span>
+  );
+}
+
+const PRACTICE_CHIP: Record<PracticeState, { cls: string; text: string }> = {
+  weak: { cls: "weak", text: "Hổng" },
+  suspected: { cls: "inferred", text: "nghi ngờ" },
+  ok: { cls: "measured", text: "ổn" },
+  untested: { cls: "unmeasured", text: "chưa đo" },
+};
+
+/** Global "Thói quen làm việc" readout: verify / review / measure, each with a status chip. */
+export function PracticesSection({ practices }: { practices: PracticeStatus[] }) {
+  if (practices.length === 0) return null;
+  return (
+    <div className="card practices" data-testid="practices">
+      <h2>Thói quen làm việc</h2>
+      <ul className="profile-improve">
+        {practices.map((p) => {
+          const chip = PRACTICE_CHIP[p.status];
+          return (
+            <li key={p.practice} data-practice={p.practice}>
+              <span>{p.label_vi}</span>{" "}
+              <span className={`tier-chip ${chip.cls}`}>{chip.text}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }
 
@@ -279,6 +309,7 @@ export function DiagnosisContent({ view }: { view: DiagnosisView }) {
   return (
     <>
       <ReadinessHeadline view={view} />
+      <PracticesSection practices={view.practices} />
       {view.domains.map((d) => (
         <DomainSection key={d.section} domain={d} />
       ))}

@@ -27,7 +27,7 @@ from jsonschema.exceptions import best_match
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "apps/api"))
 
-from app.services.concepts import registry_of, registry_problems  # noqa: E402
+from app.services.concepts import PRACTICES, registry_of, registry_problems  # noqa: E402
 from common import CONTENT, load_json, load_yaml, read_jsonl
 from gen_hidden import generate_hidden, load_generator
 from run_problem import engine_limit_ms, load_tests, run_native, run_pyodide
@@ -239,6 +239,16 @@ class Validator:
 
     # --- mastery check files -----------------------------------------------------------------
 
+    def practice_tag_errors(self, path: Path, items: list[dict]) -> None:
+        """Item `practices` must come from the fixed vocabulary (verify/review/measure)."""
+        for item in items:
+            for practice in item.get("practices") or []:
+                if practice not in PRACTICES:
+                    self.fail(
+                        path,
+                        f"{item['id']}: unknown practice {practice!r}; valid: {list(PRACTICES)}",
+                    )
+
     def concept_tag_errors(self, path: Path, subtopic_id: str, items: list[dict]) -> None:
         """Item `concepts` must be slugs of the subtopic's index concepts, so a reworded concept
         fails the build instead of silently mis-mapping."""
@@ -268,6 +278,7 @@ class Validator:
             if data["subtopic_id"] != path.stem or path.stem not in subtopic_ids:
                 self.fail(path, "file must be checks/<subtopic_id>.yaml for a known subtopic")
             self.concept_tag_errors(path, data["subtopic_id"], data["items"])
+            self.practice_tag_errors(path, data["items"])
             items = self.checks.setdefault(data["subtopic_id"], {})
             for item in data["items"]:
                 if item["id"] in seen:
@@ -298,6 +309,7 @@ class Validator:
             if data["subtopic_id"] != path.stem or path.stem not in subtopic_ids:
                 self.fail(path, "file must be placement/<subtopic_id>.yaml for a known subtopic")
             self.concept_tag_errors(path, data["subtopic_id"], data["items"])
+            self.practice_tag_errors(path, data["items"])
             for item in data["items"]:
                 if item["id"] in taken:
                     self.fail(path, f"item id {item['id']} is also a content/checks item id")

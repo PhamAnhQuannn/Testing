@@ -14,11 +14,13 @@ from app.services.concepts import registry_of, slugify
 from app.services.content_loader import TRACKS, module_name, track_of
 from app.services.diagnosis import (
     ConceptResult,
+    PracticeResult,
     SubtopicView,
     concept_status,
     diagnose,
     level_of,
     pick_concepts,
+    practice_status,
     readiness_summary,
 )
 
@@ -271,6 +273,31 @@ def test_concept_status_orders_weak_first() -> None:
     assert [c["slug"] for c in out] == ["z", "a"]
 
 
+def pr(practice, sid, item, passed):
+    return PracticeResult(practice, sid, item, passed, "write_code")
+
+
+def test_practice_status_global_thresholds_and_order() -> None:
+    out = practice_status(
+        [
+            pr("verify", "s1", "F1", False), pr("verify", "s2", "F2", False),  # 2 subtopics
+            pr("review", "s1", "F1", False),  # 1 miss -> suspected
+            pr("review", "s1", "F3", True),
+        ]
+    )  # fmt: skip
+    assert [p["practice"] for p in out] == ["verify", "review", "measure"]
+    assert [p["status"] for p in out] == ["weak", "suspected", "untested"]
+    assert (out[0]["n_hit"], out[0]["n_miss"]) == (0, 2)
+    assert (out[1]["n_hit"], out[1]["n_miss"]) == (1, 1)
+    assert all(p["label_vi"] for p in out)
+
+
+def test_practice_status_ok_untested_and_hit_overrides_miss() -> None:
+    out = practice_status([pr("measure", "s1", "F1", False), pr("measure", "s1", "F1", True)])
+    assert [p["status"] for p in out] == ["untested", "untested", "ok"]
+    assert [p["status"] for p in practice_status([])] == ["untested"] * 3
+
+
 def test_slugify_and_registry() -> None:
     assert slugify("Vòng lặp for (cơ bản)!") == "vong-lap-for"
     assert slugify("  List  comprehension ") == "list-comprehension"
@@ -326,3 +353,27 @@ def test_api_concept_status_from_tagged_items(content_dir, make_client) -> None:
     assert one["concept_status"] == [
         {"slug": "vong-lap", "text": "Vòng lặp", "status": "weak", "n_hit": 0, "n_miss": 2}
     ]
+
+
+def test_api_practices_top_level_and_from_tagged_items(content_dir, make_client) -> None:
+    cpath = content_dir / "checks" / "py.a.one.yaml"
+    data = yaml.safe_load(cpath.read_text())
+    for item in data["items"]:
+        if item["id"] in ("Q1", "Q2"):
+            item["practices"] = ["verify"]
+    cpath.write_text(yaml.safe_dump(data))
+    client = make_client()
+    base = client.get("/api/diagnosis").json()["practices"]
+    assert [p["practice"] for p in base] == ["verify", "review", "measure"]
+    assert {p["status"] for p in base} == {"untested"}
+    with client.app.state.rt.session() as db:
+        db.add(
+            t.CheckResult(
+                user_id=1, subtopic_id="py.a.one", item_id="Q1", level=1, passed=False,
+                taken_at=datetime(2026, 1, 1, tzinfo=UTC), item_type="mcq",
+            )
+        )  # fmt: skip
+        db.commit()
+    got = client.get("/api/diagnosis").json()["practices"]
+    assert got[0]["practice"] == "verify" and got[0]["status"] == "suspected"
+    assert got[1]["status"] == "untested"
