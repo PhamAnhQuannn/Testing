@@ -1,0 +1,47 @@
+subtopic_id: py.functions.scope_closures
+items:
+- id: P1017
+  difficulty: 1
+  type: mcq
+  minutes: 1
+  prompt_md: 'Trong closure, từ khóa `nonlocal count` dùng để làm gì?'
+  choices:
+  - 'Cho phép gán lại biến `count` của hàm bao ngoài thay vì tạo biến local mới'
+  - 'Biến `count` thành biến toàn cục (global)'
+  - 'Tạo bản sao giá trị `count` tại thời điểm định nghĩa hàm'
+  - 'Xóa biến `count` khỏi hàm bao ngoài'
+  answer_index: 0
+  explanation_md: 'Không có `nonlocal`, `count += 1` sẽ coi `count` là biến local và gây `UnboundLocalError`. `nonlocal` trỏ tới biến ở hàm enclosing gần nhất.'
+- id: P1018
+  difficulty: 1
+  type: read_code
+  minutes: 2
+  prompt_md: 'Chạy tay (không chạy máy): đoạn code dưới in ra gì? Ghi đúng từng dòng.'
+  code: |-
+    x = "global"
+    def outer():
+        x = "enclosing"
+        def inner():
+            return x
+        return inner
+    f = outer()
+    print(f())
+    print(x)
+    def make_counter():
+        count = 0
+        def inc():
+            nonlocal count
+            count += 1
+            return count
+        return inc
+    c = make_counter()
+    c()
+    c()
+    print(c())
+    fs = [lambda: i for i in range(3)]
+    print([g() for g in fs])
+  expected_output: |-
+    enclosing
+    global
+    3
+    [2, 2, 2]
