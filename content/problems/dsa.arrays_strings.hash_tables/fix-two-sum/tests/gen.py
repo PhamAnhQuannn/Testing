@@ -1,10 +1,11 @@
 """Hidden-test inputs for fix-two-sum; expected comes from solution.py."""
+
 import random
 
 
 def hidden_inputs():
     rng = random.Random(1)
-    big = rng.sample(range(-10**6, 10**6), 2000)
+    big = rng.sample(range(-(10**6), 10**6), 2000)
     return [
         {"id": "h01", "args": [[2, 7, 11, 15], 9], "tags": []},
         {"id": "h02", "args": [[3, 2, 4], 6], "tags": ["edge", "self-pair"]},
