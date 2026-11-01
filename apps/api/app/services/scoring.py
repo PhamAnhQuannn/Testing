@@ -39,7 +39,9 @@ class CheckEv:
     passed: bool
     clean: bool = False
     gave_up: bool = False
-    item_type: str = "write_code"  # write_code | read_code | concept | mcq
+    # write_code | read_code | concept | mcq score; write_test is diagnostic-only (the learner
+    # writes a test that catches a planted bug): it never gates a score, a level or a lock.
+    item_type: str = "write_code"
     context: str = "mastery"  # mastery | test_out | placement
 
 
@@ -128,7 +130,8 @@ def quiz_best(
 
 def _check_pass(checks: Iterable[CheckEv], level: int, item_type: str | None = None) -> bool:
     return any(
-        c.level == level
+        c.item_type != "write_test"
+        and c.level == level
         and c.passed
         and c.clean
         and (item_type is None or c.item_type == item_type)
@@ -146,7 +149,8 @@ def score(spec: SubtopicSpec, ev: Evidence) -> ScoreResult:
     # in a mastery/test_out ladder (only after an L2 write_code fail) must NOT mark the subtopic
     # score 1 / "done" — the mastery score-2 bar still rests on measured code there.
     tested_basic = any(
-        c.level == 1
+        c.item_type != "write_test"
+        and c.level == 1
         and c.passed
         and c.clean
         and c.context == "placement"
@@ -165,7 +169,10 @@ def score(spec: SubtopicSpec, ev: Evidence) -> ScoreResult:
     if tested_out:
         check2_ok = True
     elif spec.has_l2_items:
-        failed_l2 = any(c.level == 2 and not c.passed and not c.gave_up for c in ev.checks)
+        failed_l2 = any(
+            c.level == 2 and not c.passed and not c.gave_up and c.item_type != "write_test"
+            for c in ev.checks
+        )
         check2_ok = failed_l2 and bool(clean_practice) and len(ac_practice) >= need
     elif practice:
         check2_ok = bool(clean_practice)

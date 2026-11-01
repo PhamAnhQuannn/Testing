@@ -187,7 +187,7 @@ def post_attempt(body: AttemptIn, db: DB, user: User, content: Content, now: Now
     started = body.started_at or (draft.started_at if draft else None) or st.first_opened_at
     if st.first_opened_at is None:
         st.first_opened_at = started or now
-    limit_ms = 1.5 * p.data["time_target_min"] * 60_000
+    limit_ms = 1.5 * p.data.get("time_target_min", 8) * 60_000
     clean = (
         body.mode == "submit"
         and ac

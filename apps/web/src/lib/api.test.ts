@@ -15,6 +15,7 @@ import {
   answerCheck,
   checkHeartbeat,
   getReviewQueue,
+  normalizeCheckStep,
   postReviewResult,
 } from "./api";
 
@@ -231,6 +232,22 @@ describe("mastery check api", () => {
     await checkHeartbeat(7, 1234.6);
     expect(fetchMock.mock.calls[0][0]).toBe("/api/checks/7/heartbeat");
     expect(JSON.parse(lastInit().body as string)).toEqual({ elapsed_ms: 1235 });
+  });
+});
+
+describe("write_test items", () => {
+  it("normalizeCheckStep keeps problem_id and getProblem surfaces the write_test fields", async () => {
+    expect(normalizeCheckStep({ item_id: "w1", type: "write_test", problem_id: "wt-1" })).toMatchObject({
+      type: "write_test",
+      problem_id: "wt-1",
+    });
+    fetchMock.mockResolvedValue(
+      json({ id: "wt-1", item_kind: "write_test", buggy_code: "B", reference_code: "R", starter_test: "S" }),
+    );
+    const p = await getProblem("wt-1");
+    expect(p).toMatchObject({ item_kind: "write_test", buggy_code: "B", reference_code: "R", starter_test: "S" });
+    fetchMock.mockResolvedValue(json({ id: "plain" }));
+    expect(await getProblem("plain")).not.toHaveProperty("buggy_code");
   });
 });
 

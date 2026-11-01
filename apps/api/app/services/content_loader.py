@@ -444,7 +444,20 @@ class ContentStore:
         out = {k: copy.deepcopy(d[k]) for k in keys if k in d}
         out["sample_tests"] = self.sample_tests(e)
         out["hint_count"] = len(d.get("hints", []))
+        if d.get("item_kind") == "write_test":
+            # write_test (SPEC 5.7): the client runs the learner's test against the buggy and the
+            # correct implementation itself, so both sources are served. The hidden-test token flow
+            # is not used. These are not secrets: the learner is shown the buggy code anyway, and
+            # `reference_code` is only a correct implementation to run the learner's test against.
+            out["item_kind"] = "write_test"
+            out["buggy_code"] = self._read_text(e.dir / "buggy.py")
+            out["reference_code"] = self._read_text(e.dir / "solution.py")
+            out["starter_test"] = (d.get("starter") or {}).get("python", "")
         return out
+
+    @staticmethod
+    def _read_text(path: Path) -> str:
+        return path.read_text(encoding="utf-8") if path.exists() else ""
 
     def sample_tests(self, e: ProblemEntry) -> list[dict[str, Any]]:
         rel = e.data.get("tests", {}).get("sample")
@@ -523,10 +536,10 @@ class ContentStore:
             prow.subtopic_id = pe.subtopic_id
             prow.kind = pe.data.get("kind", "practice")
             prow.title = pe.data["title"]
-            prow.difficulty = pe.data["difficulty"]
+            prow.difficulty = pe.data.get("difficulty", "medium")  # write_test: none
             prow.source_type = src.get("type", "original")
             prow.lc = src.get("lc")
-            prow.time_target_min = pe.data["time_target_min"]
+            prow.time_target_min = pe.data.get("time_target_min", 8)
             prow.path = str(pe.dir.relative_to(self.root))
             prow.content_hash = pe.content_hash
             session.merge(prow)

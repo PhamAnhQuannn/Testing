@@ -5,11 +5,28 @@
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "id", "subtopic_id", "secondary_subtopics", "kind", "title", "title_vi", "difficulty",
-    "source", "statement_en_md", "statement_vi_md", "constraints", "examples", "io", "starter",
-    "limits", "time_target_min", "hints", "solution", "tests", "tags", "status", "version"
+    "id", "subtopic_id", "kind", "title", "statement_en_md", "statement_vi_md", "starter",
+    "status"
+  ],
+  "allOf": [
+    {
+      "description": "A normal problem (no item_kind): the full SPEC 3.3 field set.",
+      "if": {"not": {"required": ["item_kind"]}},
+      "then": {
+        "required": [
+          "secondary_subtopics", "title_vi", "difficulty", "source", "constraints", "examples",
+          "io", "limits", "time_target_min", "hints", "solution", "tests", "tags", "version"
+        ]
+      }
+    },
+    {
+      "description": "write_test: the problem dir holds buggy.py, solution.py, ref_test.py, wrong_test/.",
+      "if": {"required": ["item_kind"], "properties": {"item_kind": {"const": "write_test"}}},
+      "then": {"required": ["item_kind", "title_vi", "source", "version"]}
+    }
   ],
   "properties": {
+    "item_kind": {"type": "string", "enum": ["write_test"]},
     "id": {"$ref": "#/$defs/slug"},
     "subtopic_id": {"$ref": "#/$defs/subtopic_id"},
     "secondary_subtopics": {

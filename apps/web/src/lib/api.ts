@@ -542,6 +542,11 @@ export interface Problem {
   hints_total: number;
   status?: string;
   solved: boolean;
+  /** write_test only: "write_test", the planted-bug implementation, the correct one (run payload only, never rendered), and the starter test. */
+  item_kind?: string;
+  buggy_code?: string;
+  reference_code?: string;
+  starter_test?: string;
 }
 
 export function normalizeProblem(data: unknown): Problem {
@@ -570,6 +575,10 @@ export function normalizeProblem(data: unknown): Problem {
     hints_total: hintsTotal,
     status: root.status as string | undefined,
     solved: root.status === "solved" || Boolean(root.solved),
+    ...(typeof root.item_kind === "string" ? { item_kind: root.item_kind } : {}),
+    ...(typeof root.buggy_code === "string" ? { buggy_code: root.buggy_code } : {}),
+    ...(typeof root.reference_code === "string" ? { reference_code: root.reference_code } : {}),
+    ...(typeof root.starter_test === "string" ? { starter_test: root.starter_test } : {}),
   };
 }
 
@@ -721,7 +730,7 @@ export async function getResume(): Promise<ResumeState | null> {
 
 // ---------------------------------------------------------------- mastery check (docs/API_M2A.md)
 
-export type CheckType = "write_code" | "read_code" | "concept" | "mcq";
+export type CheckType = "write_code" | "write_test" | "read_code" | "concept" | "mcq";
 export type CheckContext = "mastery" | "test_out";
 
 export interface CheckStep {
@@ -733,7 +742,7 @@ export interface CheckStep {
   minutes: number;
   time_limit_ms: number;
   prompt_md: string;
-  /** write_code */
+  /** write_code, write_test */
   problem_id?: string;
   /** read_code */
   code?: string;

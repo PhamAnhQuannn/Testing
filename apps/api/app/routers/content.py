@@ -155,7 +155,7 @@ def get_subtopic(subtopic_id: str, db: DB, user: User, content: Content, now: No
             "id": p.id,
             "title": p.data["title"],
             "title_vi": p.data.get("title_vi"),
-            "difficulty": p.data["difficulty"],
+            "difficulty": p.data.get("difficulty", "medium"),
             "kind": p.data["kind"],
             "role": "practice" if p.id in practice else "extra",
             **problem_status(db, user.id, p.id),
@@ -221,7 +221,7 @@ def list_problems(
         d = p.data
         if subtopic and p.subtopic_id != subtopic:
             continue
-        if difficulty and d["difficulty"] != difficulty:
+        if difficulty and d.get("difficulty", "medium") != difficulty:
             continue
         if kind and d["kind"] != kind:
             continue
@@ -234,9 +234,9 @@ def list_problems(
                 "subtopic_id": p.subtopic_id,
                 "title": d["title"],
                 "title_vi": d.get("title_vi"),
-                "difficulty": d["difficulty"],
+                "difficulty": d.get("difficulty", "medium"),
                 "kind": d["kind"],
-                "time_target_min": d["time_target_min"],
+                "time_target_min": d.get("time_target_min", 8),
                 "tags": d.get("tags", []),
                 **st,
             }
