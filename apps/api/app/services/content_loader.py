@@ -30,6 +30,14 @@ GRADED_TYPES = {"quiz_mcq", "quiz_fill", "predict_output"}
 # selection in tools/sync_tree.py.
 CONCEPT_SECTIONS = {"sd"}
 CONCEPT_MODULES = {"ml.llm", "ml.rag_agents", "ml.llm_eval_serving", "ml.system_design"}
+# Explicit per-subtopic concept-track override: py/dsa/cs subtopics with no code evidence path
+# (only concept/read_code checks). Keep in sync with tools/validate_content.py.
+CONCEPT_SUBTOPICS = {
+    "dsa.foundations.memory_model",
+    "dsa.foundations.interview_method",
+    "py.functions.scope_closures",
+    "cs.complexity.big_o",
+}
 
 
 # Role model: the knowledge tree's 4 levels and the 2 role tracks. The chosen level selects the
@@ -315,7 +323,9 @@ class ContentStore:
         # either and uses the normal code path. has_l3_items gates the concept level-3 pass.
         node = self.subtopics.get(subtopic_id, {})
         in_concept_track = (
-            node.get("section") in CONCEPT_SECTIONS or node.get("module") in CONCEPT_MODULES
+            node.get("section") in CONCEPT_SECTIONS
+            or node.get("module") in CONCEPT_MODULES
+            or subtopic_id in CONCEPT_SUBTOPICS
         )
         has_code = bool(practice) or any(i.get("type") == "write_code" for i in all_items)
         is_concept = in_concept_track and not has_code

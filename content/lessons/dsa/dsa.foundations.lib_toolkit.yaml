@@ -1,24 +1,211 @@
 id: dsa.foundations.lib_toolkit
 version: 1
-status: draft
-title_vi: Chọn đúng cấu trúc dữ liệu và công cụ thư viện (data structure selection)
-est_minutes: 10
+status: published
+title_vi: "Bộ công cụ Python cho phỏng vấn (interview toolkit)"
+est_minutes: 14
 objectives_vi:
-- Đọc đề, liệt kê các thao tác cần làm rồi chọn đúng cấu trúc.
-- Viết nhanh không cần tra cứu việc đếm, nhóm, sắp xếp nhiều tiêu chí.
-blocks: []
-problems:
-  practice: []
-  extra: []
-mastery_check:
-  l1: []
-  l2: []
-  l3: []
-checkpoint:
-  pass_ratio: 0.7
-  min_items: 3
+  - "Chọn đúng công cụ: list, dict, set, Counter, defaultdict, deque, heapq, bisect theo thao tác cần làm."
+  - "Dùng Counter và defaultdict(list) để đếm và nhóm không cần tra cứu."
+  - "Dùng heapq (min-heap, nlargest) và bisect (bisect_left/right, insort) đúng ngữ nghĩa."
+blocks:
+  - id: s_count_group
+    type: section
+    title_vi: "Đếm, nhóm và sắp xếp nhiều tiêu chí"
+    summary_vi: "Counter, defaultdict(list), sorted với key là tuple."
+    exercise_ref: ex_top_k
+  - id: l01
+    type: text
+    md: |
+      Trong phỏng vấn, chọn đúng công cụ có sẵn giúp code ngắn và ít lỗi. Bước đầu: **liệt kê các thao
+      tác** bài cần (tra cứu theo khóa? đếm? lấy phần tử nhỏ nhất liên tục? chèn vào dãy đã sắp?), rồi
+      chọn cấu trúc.
+
+      - **Counter** (`collections`): đếm tần suất. `c[x]` của khóa chưa có trả về `0` và **không** thêm khóa.
+      - **defaultdict(list)**: dict có giá trị mặc định, hợp để nhóm: `g[key].append(v)`.
+      - **set**: kiểm tra tồn tại trung bình O(1), loại trùng.
+      - **sorted(..., key=...)**: sắp theo nhiều tiêu chí bằng key là tuple, ví dụ `(-count, word)` là
+        đếm giảm dần, hòa thì theo bảng chữ cái.
+  - id: l02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      from collections import Counter, defaultdict
+      c = Counter("abracadabra")
+      print(sorted(c.items()))
+      print(c.most_common(1))
+      g = defaultdict(list)
+      for w in ["eat", "tea", "tan", "ate", "nat"]:
+          g["".join(sorted(w))].append(w)
+      print(sorted(g.items()))
+    expected_output: |
+      [('a', 5), ('b', 2), ('c', 1), ('d', 1), ('r', 2)]
+      [('a', 5)]
+      [('aet', ['eat', 'tea', 'ate']), ('ant', ['tan', 'nat'])]
+  - id: l03
+    type: callout
+    kind: tip
+    md: "Khi in dict hoặc set trong bài kiểm tra, hãy `sorted(...)` trước để thứ tự ổn định giữa các lần chạy."
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Cần nhóm các từ có cùng bộ chữ cái (anagram) vào cùng một danh sách. Công cụ nào gọn nhất?"
+    options:
+      - {id: a, text_md: "`Counter` của cả danh sách từ"}
+      - {id: b, text_md: "`defaultdict(list)` với khóa là từ đã sắp chữ cái"}
+      - {id: c, text_md: "`heapq` trên độ dài từ"}
+    answer: [b]
+    explain_md: "Nhóm theo khóa là việc của `defaultdict(list)`; khóa chuẩn tắc là `\"\".join(sorted(w))` giống nhau cho mọi anagram. Counter chỉ đếm, heapq lấy min/max."
+  - id: p01
+    type: predict_output
+    code: |
+      from collections import Counter
+      c = Counter([1, 1, 2])
+      print(c[3], c[1], len(c))
+    expected_output: |
+      0 2 2
+    explain_md: "`c[3]` trả `0` cho khóa chưa có và không thêm khóa, nên `len(c)` vẫn là 2 (các khóa 1 và 2)."
+  - id: ex_top_k
+    type: code_exercise
+    md: |
+      Viết `top_k_words(words, k)` trả về list `k` từ xuất hiện nhiều nhất, sắp theo số lần giảm dần;
+      hòa thì theo thứ tự bảng chữ cái. Ví dụ `["a","b","a","c","b","a"]`, `k = 2` cho `["a", "b"]`.
+    entry: top_k_words
+    starter: |
+      from collections import Counter
+
+      def top_k_words(words, k):
+          # TODO: đếm, rồi sắp theo (-số lần, từ) và lấy k từ đầu
+          pass
+    guidance_md: |
+      - Dùng `Counter(words)` để có số lần của từng từ.
+      - Sắp các cặp `(từ, số lần)` bằng `sorted` với `key` là tuple `(-số lần, từ)`.
+      - Lấy `k` phần tử đầu và chỉ giữ lại các từ.
+    hints:
+      - level: nudge
+        md: "Làm sao để một phép sắp xếp vừa giảm theo số lần vừa tăng theo chữ cái?"
+      - level: approach
+        md: "Key là tuple `(-count, word)`: số âm đảo chiều thứ tự đếm, phần sau phá hòa."
+      - level: near_solution
+        md: |
+          cnt = Counter(words)
+          ordered = sorted(cnt.items(), key=lambda kv: (-kv[1], kv[0]))
+          return [w for w, _ in ordered[:k]]
+    tests:
+      - {args: [["a", "b", "a", "c", "b", "a"], 2], expected: ["a", "b"]}
+      - {args: [["x", "y", "z"], 2], expected: ["x", "y"]}
+      - {args: [[], 3], expected: []}
+      - {args: [["b", "a", "b", "a"], 1], expected: ["a"]}
+    solution: |
+      from collections import Counter
+
+      def top_k_words(words, k):
+          cnt = Counter(words)
+          ordered = sorted(cnt.items(), key=lambda kv: (-kv[1], kv[0]))
+          return [w for w, _ in ordered[:k]]
+  - id: s_heap_bisect
+    type: section
+    title_vi: "deque, heapq và bisect"
+    summary_vi: "Hàng đợi hai đầu, min-heap, tìm vị trí chèn trong mảng đã sắp."
+    exercise_ref: ex_first_ge
+  - id: l04
+    type: text
+    md: |
+      - **deque**: thêm/lấy ở **hai đầu** O(1) (`appendleft`, `popleft`); `list.pop(0)` thì O(n). Dùng cho BFS và hàng đợi.
+      - **heapq**: **min-heap** trên list thường. `heappush`, `heappop` là O(log n), `h[0]` là phần tử nhỏ nhất.
+        Muốn max-heap thì đẩy số âm. `heapq.nlargest(k, xs)` lấy `k` phần tử lớn nhất.
+      - **bisect** trên list **đã sắp**: `bisect_left(a, x)` là chỉ số đầu tiên có `a[i] >= x`;
+        `bisect_right(a, x)` là chỉ số đầu tiên có `a[i] > x`; `insort` chèn giữ nguyên thứ tự. Tra cứu O(log n).
+  - id: l05
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      import heapq, bisect
+      from collections import deque
+      h = []
+      for x in [5, 1, 8, 3]:
+          heapq.heappush(h, x)
+      print(heapq.heappop(h), h[0])
+      print(heapq.nlargest(2, [5, 1, 8, 3]))
+      a = [1, 3, 3, 7]
+      print(bisect.bisect_left(a, 3), bisect.bisect_right(a, 3))
+      bisect.insort(a, 4)
+      print(a)
+      d = deque([1, 2, 3])
+      d.appendleft(0); d.pop()
+      print(list(d))
+    expected_output: |
+      1 3
+      [8, 5]
+      1 3
+      [1, 3, 3, 4, 7]
+      [0, 1, 2]
+  - id: q02
+    type: quiz_fill
+    prompt_md: "`heapq` của Python là min-heap; để lấy phần tử lớn nhất ra trước, ta đẩy vào heap các số ___ (điền: âm hoặc dương)."
+    blanks: [{accept: ["âm", "am", "negative"]}]
+    explain_md: "Đổi dấu làm thứ tự đảo ngược: số lớn nhất trở thành số âm nhỏ nhất và nằm ở đỉnh heap."
+  - id: p02
+    type: predict_output
+    code: |
+      import bisect
+      a = [2, 4, 4, 9]
+      print(bisect.bisect_left(a, 4), bisect.bisect_right(a, 4), bisect.bisect_left(a, 5))
+    expected_output: |
+      1 3 3
+    explain_md: "Với giá trị 4 lặp ở chỉ số 1 và 2: `bisect_left` = 1, `bisect_right` = 3. Giá trị 5 chèn vào trước 9, tức chỉ số 3."
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "BFS cần lấy phần tử ở đầu hàng đợi nhiều lần. Chọn gì để mỗi lần lấy là O(1)?"
+    options:
+      - {id: a, text_md: "`list.pop(0)`"}
+      - {id: b, text_md: "`collections.deque.popleft()`"}
+      - {id: c, text_md: "`sorted(list)[0]`"}
+    answer: [b]
+    explain_md: "`deque.popleft()` là O(1). `list.pop(0)` phải dời mọi phần tử nên O(n); sắp xếp lại còn đắt hơn."
+  - id: ex_first_ge
+    type: code_exercise
+    md: |
+      `first_ge(a, x)` phải trả về chỉ số **đầu tiên** của phần tử `>= x` trong list đã sắp `a`
+      (nếu không có thì trả `len(a)`). Bản dưới đây dùng nhầm hàm của `bisect` nên sai khi `x` lặp lại. Hãy sửa.
+    entry: first_ge
+    starter: |
+      import bisect
+
+      def first_ge(a, x):
+          return bisect.bisect_right(a, x)
+    guidance_md: |
+      - Thử bằng tay `a = [1, 3, 3, 7]`, `x = 3`: đáp án đúng là 1, hàm trả gì?
+      - Nhớ: một hàm bisect trả chỉ số đầu của nhóm bằng `x`, hàm kia trả chỉ số sau nhóm đó.
+    hints:
+      - level: nudge
+        md: "Kết quả cho `x = 3` đang là 3 thay vì 1: nó nhảy qua cả nhóm các số 3."
+      - level: approach
+        md: "Cần chỉ số đầu tiên có `a[i] >= x`; hàm nào của bisect có đúng ngữ nghĩa đó?"
+      - level: near_solution
+        md: "Thay `bisect_right` bằng `bisect_left`."
+    tests:
+      - {args: [[1, 3, 3, 7], 3], expected: 1}
+      - {args: [[1, 3, 3, 7], 4], expected: 3}
+      - {args: [[1, 3, 3, 7], 8], expected: 4}
+      - {args: [[], 5], expected: 0}
+      - {args: [[2, 2, 2], 2], expected: 0}
+    solution: |
+      import bisect
+
+      def first_ge(a, x):
+          return bisect.bisect_left(a, x)
+  - id: l06
+    type: summary
+    bullets_vi:
+      - "Liệt kê thao tác trước, rồi chọn: đếm là Counter, nhóm là defaultdict(list), tồn tại là set, hai đầu là deque, min/max liên tục là heapq, chèn/tìm trong dãy sắp là bisect."
+      - "Sắp nhiều tiêu chí bằng key là tuple, ví dụ (-count, word)."
+      - "heapq là min-heap (đẩy số âm để có max-heap); bisect_left cho chỉ số đầu của nhóm bằng x, bisect_right cho chỉ số sau nhóm."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [Q046], l2: [Q047], l3: []}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
 source:
   tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
-  authored_by: tools/gen_lesson_stubs.py
+  authored_by: "claude"
   reviewed_by: null
-  date: '2026-10-24'
+  date: "2026-11-02"
