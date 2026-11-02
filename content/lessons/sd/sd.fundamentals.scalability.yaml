@@ -1,5 +1,5 @@
 id: sd.fundamentals.scalability
-version: 1
+version: 2
 status: published
 title_vi: "Khả năng mở rộng (scalability): dọc, ngang và service stateless"
 est_minutes: 13
@@ -8,6 +8,10 @@ objectives_vi:
   - "Giải thích service **stateless** và vì sao nó là điều kiện để scale ngang sau load balancer."
   - "Kể đúng lộ trình 5 bước từ một máy đến hệ nhiều tầng và chỉ ra cái gì nghẽn ở mỗi bước."
 blocks:
+  - id: s_vert_horiz
+    type: section
+    title_vi: "Mở rộng dọc và mở rộng ngang"
+    summary_vi: "Scale dọc = máy mạnh hơn (đơn giản nhưng có trần cứng và là một điểm chết); scale ngang = thêm nhiều máy chia tải (gần như không trần, chịu lỗi tốt) nhưng đòi hệ phải chia được tải."
   - id: b01
     type: text
     md: |
@@ -18,16 +22,6 @@ blocks:
       - **Mở rộng ngang (horizontal / scale out):** thêm **nhiều máy** chạy cùng một service, chia tải
         giữa chúng. Gần như không có trần (thêm máy là thêm sức), chịu lỗi tốt hơn (một máy chết, máy
         khác gánh), nhưng đòi hỏi hệ phải **chia được tải** — và đây là chỗ khó.
-  - id: b02
-    type: text
-    md: |
-      Chia tải ngang cần một **load balancer** (LB) đứng trước, nhận request rồi phân cho các máy phía
-      sau. Muốn LB rải request *bất kỳ* vào *bất kỳ* máy nào, mỗi máy phải xử lý được request mà
-      **không cần nhớ gì từ request trước** của cùng người dùng. Đó là service **stateless**: không
-      giữ trạng thái phiên (session) trong RAM của riêng nó. Trạng thái (giỏ hàng, phiên đăng nhập)
-      được đẩy ra **kho dùng chung** (database, cache như Redis). Nếu service **stateful** (giữ session
-      cục bộ), request sau của cùng người phải về đúng máy cũ (sticky session) — rải tải kém, và máy đó
-      chết là mất session.
   - id: b03
     type: quiz_mcq
     graded: true
@@ -38,6 +32,34 @@ blocks:
       - {id: c, text_md: "Vì scale ngang không cần load balancer nên đơn giản hơn."}
     answer: [b]
     explain_md: "Scale dọc bị chặn bởi máy to nhất và sập cả hệ khi máy đó chết; scale ngang thêm máy là thêm sức và còn máy khác gánh khi một máy chết. (a) không luôn đúng; (c) sai — scale ngang *cần* load balancer."
+  - id: s_stateless
+    type: section
+    title_vi: "Service stateless sau load balancer"
+    summary_vi: "Load balancer chỉ rải request tùy ý vào máy bất kỳ được khi service stateless: không giữ session trong RAM riêng mà đẩy state ra kho dùng chung (DB, Redis); stateful buộc dùng sticky session và mất session khi máy chết."
+  - id: b02
+    type: text
+    md: |
+      Chia tải ngang cần một **load balancer** (LB) đứng trước, nhận request rồi phân cho các máy phía
+      sau. Muốn LB rải request *bất kỳ* vào *bất kỳ* máy nào, mỗi máy phải xử lý được request mà
+      **không cần nhớ gì từ request trước** của cùng người dùng. Đó là service **stateless**: không
+      giữ trạng thái phiên (session) trong RAM của riêng nó. Trạng thái (giỏ hàng, phiên đăng nhập)
+      được đẩy ra **kho dùng chung** (database, cache như Redis). Nếu service **stateful** (giữ session
+      cục bộ), request sau của cùng người phải về đúng máy cũ (sticky session) — rải tải kém, và máy đó
+      chết là mất session.
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Điều kiện **cốt lõi** để một service nhân bản được sau load balancer là gì?"
+    options:
+      - {id: a, text_md: "Service phải **stateless**: không giữ trạng thái phiên trong RAM riêng, đẩy ra kho dùng chung."}
+      - {id: b, text_md: "Mỗi máy phải lưu một bản sao đầy đủ của database trong bộ nhớ."}
+      - {id: c, text_md: "Load balancer phải dùng sticky session để mỗi người luôn về đúng một máy."}
+    answer: [a]
+    explain_md: "Stateless cho phép LB rải request bất kỳ vào máy bất kỳ. (c) sticky session là giải pháp vá cho service stateful và làm rải tải kém đi; (b) không khả thi và không cần."
+  - id: s_roadmap
+    type: section
+    title_vi: "Lộ trình 5 bước và điểm nghẽn"
+    summary_vi: "Hệ lớn dần qua 5 bước: 1 máy, tách tầng, nhiều app server + LB, cache + read replica, sharding/đa vùng; nghẽn dịch chuyển từ máy đơn sang database dùng chung rồi tải ghi."
   - id: b04
     type: text
     md: |
@@ -61,16 +83,10 @@ blocks:
       - {id: c, text_md: "RAM của từng app server, vì mỗi máy phải giữ toàn bộ dữ liệu."}
     answer: [b]
     explain_md: "App đã stateless và nhân bản được, nên nghẽn dồn về DB dùng chung — lý do bước 4 thêm cache + read replica. (a) sai vì service stateless nên LB không cần nhớ session; (c) sai vì dữ liệu nằm ở DB, không phải RAM mỗi app."
-  - id: b06
-    type: quiz_mcq
-    graded: true
-    prompt_md: "Điều kiện **cốt lõi** để một service nhân bản được sau load balancer là gì?"
-    options:
-      - {id: a, text_md: "Service phải **stateless**: không giữ trạng thái phiên trong RAM riêng, đẩy ra kho dùng chung."}
-      - {id: b, text_md: "Mỗi máy phải lưu một bản sao đầy đủ của database trong bộ nhớ."}
-      - {id: c, text_md: "Load balancer phải dùng sticky session để mỗi người luôn về đúng một máy."}
-    answer: [a]
-    explain_md: "Stateless cho phép LB rải request bất kỳ vào máy bất kỳ. (c) sticky session là giải pháp vá cho service stateful và làm rải tải kém đi; (b) không khả thi và không cần."
+  - id: s_interview
+    type: section
+    title_vi: "Cách trả lời phỏng vấn và những điều dễ nhầm"
+    summary_vi: "Đi theo lộ trình và luôn nói rõ cái gì đang nghẽn; scalability khác performance, scale ngang có chi phí nên thường scale dọc trước, và thêm máy chỉ cứu được phần stateless còn database mới là nghẽn cuối."
   - id: b07
     type: callout
     kind: interview
