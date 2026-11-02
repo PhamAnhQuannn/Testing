@@ -1,5 +1,5 @@
 id: py.core.strings
-version: 1
+version: 2
 status: published
 title_vi: "Chuỗi và xử lý văn bản (strings)"
 est_minutes: 12
@@ -8,6 +8,11 @@ objectives_vi:
   - "Dùng các phương thức split, join, strip, replace, find, count, startswith/endswith, lower/upper và isalnum/isdigit/isalpha."
   - "Định dạng chuỗi bằng f-string và format spec; biết str khác bytes ở chỗ nào (encode/decode)."
 blocks:
+  - id: s_index_slice
+    type: section
+    title_vi: "Chỉ số, slicing và tính bất biến"
+    summary_vi: "Lấy phần của chuỗi bằng chỉ số và s[a:b:c]; vì sao str không sửa tại chỗ."
+    exercise_ref: ex_swap_ends
   - id: b01
     type: text
     md: |
@@ -39,6 +44,56 @@ blocks:
       i w ter iew
       itriw weiv 9
     explain_md: "`s[2:5]` là các chỉ số 2, 3, 4: `ter`. `s[-3:]` là ba ký tự cuối: `iew`. `s[::2]` lấy chỉ số 0, 2, 4, 6, 8: `itriw`. `s[::-1]` là `weivretni`, lấy 4 ký tự đầu: `weiv`."
+  - id: b08
+    type: quiz_fill
+    prompt_md: "Điền vào chỗ trống để lấy 3 ký tự **cuối** của chuỗi `s`: `s[___:]`"
+    blanks: [{accept: ["-3"]}]
+    explain_md: "Chỉ số âm đếm từ cuối: `-3` là ký tự thứ ba tính từ cuối, và để trống phần sau dấu `:` nghĩa là lấy đến hết chuỗi. Ví dụ `\"interview\"[-3:]` là `\"iew\"`."
+  - id: ex_swap_ends
+    type: code_exercise
+    md: |
+      Viết `swap_ends(s)` trả về chuỗi mới có **ký tự đầu và ký tự cuối đổi chỗ cho nhau**, phần giữa
+      giữ nguyên. Chuỗi có ít hơn 2 ký tự thì trả về nguyên chuỗi. Ví dụ `"abcd"` thành `"dbca"`.
+    entry: swap_ends
+    starter: |
+      def swap_ends(s):
+          # TODO: dùng chỉ số và slicing để ghép lại chuỗi mới
+          return s
+    guidance_md: |
+      - Xử lý riêng chuỗi ngắn hơn 2 ký tự: trả về nguyên `s`.
+      - Xác định ba phần: ký tự đầu, đoạn giữa, ký tự cuối.
+      - Chuỗi bất biến nên không gán vào `s[0]`; hãy ghép ba phần theo thứ tự mới thành chuỗi mới.
+    hints:
+      - level: nudge
+        md: "Chuỗi bất biến, vậy làm sao có được chuỗi với hai đầu đã đổi chỗ?"
+      - level: approach
+        md: "Lấy `s[0]`, `s[-1]` và đoạn giữa `s[1:-1]`, rồi dùng `+` ghép theo thứ tự cuối, giữa, đầu."
+      - level: pseudocode
+        md: |
+          nếu độ dài của s < 2: trả về s
+          trả về (ký tự cuối) + (đoạn giữa) + (ký tự đầu)
+      - level: near_solution
+        md: |
+          def swap_ends(s):
+              if len(s) < 2:
+                  return s
+              return s[...] + s[...] + s[...]
+    tests:
+      - {args: [""], expected: ""}
+      - {args: ["a"], expected: "a"}
+      - {args: ["ab"], expected: "ba"}
+      - {args: ["abcd"], expected: "dbca"}
+      - {args: ["interview"], expected: "wnterviei"}
+    solution: |
+      def swap_ends(s):
+          if len(s) < 2:
+              return s
+          return s[-1] + s[1:-1] + s[0]
+  - id: s_methods
+    type: section
+    title_vi: "Phương thức xử lý chuỗi"
+    summary_vi: "split, join, strip, replace, find, count, kiểm tra đầu/cuối và loại ký tự."
+    exercise_ref: b09
   - id: b03
     type: text
     md: |
@@ -97,6 +152,55 @@ blocks:
       - {id: c, text_md: "Báo `TypeError`, vì không được gọi phương thức trên chuỗi"}
     answer: [b]
     explain_md: "Chuỗi bất biến: `s.upper()` tạo ra chuỗi `\"ABC\"` nhưng bị bỏ đi vì không được gán lại. Phải viết `s = s.upper()` mới đổi được tên `s`."
+  - id: b09
+    type: code_exercise
+    md: |
+      Viết `initials(full_name)` trả về chữ cái đầu của mỗi từ trong tên, viết hoa và ghép lại.
+      Ví dụ `"ada lovelace"` cho `"AL"`. Tên có thể có khoảng trắng thừa ở đầu, cuối hoặc giữa các từ.
+      Gợi ý: `split()`, một vòng `for`, `word[0]` và `upper()`.
+
+      Xem trước về hàm: `def` tạo một **hàm** (function), tức một khối code có tên, nhận đầu vào
+      (tham số, ở đây là `full_name`) và trả kết quả bằng `return`. `pass` chỉ là chỗ giữ chỗ, bạn
+      thay nó bằng code của mình. Hàm sẽ được học đầy đủ ở `py.functions`.
+    entry: initials
+    starter: |
+      def initials(full_name):
+          # TODO: tách từ, lấy chữ cái đầu của mỗi từ, viết hoa, ghép lại
+          pass
+    tests:
+      - {args: ["ada lovelace"], expected: "AL"}
+      - {args: ["grace brewster hopper"], expected: "GBH"}
+      - {args: ["alan"], expected: "A"}
+      - {args: ["  linus   torvalds "], expected: "LT"}
+      - {args: ["Ho Chi Minh"], expected: "HCM"}
+    guidance_md: |
+      - Tách tên thành danh sách các từ bằng `split()` (không tham số, tự bỏ khoảng trắng thừa).
+      - Chuẩn bị một chuỗi kết quả rỗng.
+      - Duyệt từng từ: lấy ký tự đầu bằng chỉ số `0` rồi viết hoa bằng `upper()`.
+      - Nối ký tự đó vào kết quả; duyệt xong thì trả về kết quả.
+    hints:
+      - level: nudge
+        md: "Tên có khoảng trắng thừa. Cách tách nào không sinh ra phần tử rỗng?"
+      - level: approach
+        md: "Dùng `full_name.split()` rồi `for` qua từng từ; mỗi từ lấy chữ cái đầu và viết hoa, nối dần vào kết quả."
+      - level: pseudocode
+        md: |
+          result = chuỗi rỗng
+          với mỗi word trong full_name.split():
+              result = result + (chữ cái đầu của word, viết hoa)
+          trả về result
+      - level: near_solution
+        md: |
+          def initials(full_name):
+              result = ""
+              for word in full_name.split():
+                  result += ...  # chữ cái đầu của word, viết hoa
+              return result
+    solution: "def initials(full_name):\n    result = \"\"\n    for word in full_name.split():\n        result += word[0].upper()\n    return result\n"
+  - id: s_format
+    type: section
+    title_vi: "f-string và str/bytes"
+    summary_vi: "Định dạng đầu ra bằng f-string và format spec; phân biệt văn bản và byte."
   - id: b06
     type: text
     md: |
@@ -124,34 +228,6 @@ blocks:
       Lan duoc 8.50 diem
       007 | 1,234,567 | 25.6% |    Lan|Lan   |
     explain_md: "`.2f` hiện 2 chữ số thập phân nên `8.50`. `03d` đệm số 0 thành `007`; `,` ngăn cách hàng nghìn; `.1%` đổi 0.256 thành `25.6%`. `>6` căn phải ô rộng 6 (3 dấu cách rồi `Lan`), `<6` căn trái (`Lan` rồi 3 dấu cách)."
-  - id: b08
-    type: quiz_fill
-    prompt_md: "Điền vào chỗ trống để lấy 3 ký tự **cuối** của chuỗi `s`: `s[___:]`"
-    blanks: [{accept: ["-3"]}]
-    explain_md: "Chỉ số âm đếm từ cuối: `-3` là ký tự thứ ba tính từ cuối, và để trống phần sau dấu `:` nghĩa là lấy đến hết chuỗi. Ví dụ `\"interview\"[-3:]` là `\"iew\"`."
-  - id: b09
-    type: code_exercise
-    md: |
-      Viết `initials(full_name)` trả về chữ cái đầu của mỗi từ trong tên, viết hoa và ghép lại.
-      Ví dụ `"ada lovelace"` cho `"AL"`. Tên có thể có khoảng trắng thừa ở đầu, cuối hoặc giữa các từ.
-      Gợi ý: `split()`, một vòng `for`, `word[0]` và `upper()`.
-
-      Xem trước về hàm: `def` tạo một **hàm** (function), tức một khối code có tên, nhận đầu vào
-      (tham số, ở đây là `full_name`) và trả kết quả bằng `return`. `pass` chỉ là chỗ giữ chỗ, bạn
-      thay nó bằng code của mình. Hàm sẽ được học đầy đủ ở `py.functions`.
-    entry: initials
-    starter: |
-      def initials(full_name):
-          # TODO: tách từ, lấy chữ cái đầu của mỗi từ, viết hoa, ghép lại
-          pass
-    tests:
-      - {args: ["ada lovelace"], expected: "AL"}
-      - {args: ["grace brewster hopper"], expected: "GBH"}
-      - {args: ["alan"], expected: "A"}
-      - {args: ["  linus   torvalds "], expected: "LT"}
-      - {args: ["Ho Chi Minh"], expected: "HCM"}
-    hint_md: "Tạo `result = \"\"`. Lặp `for word in full_name.split():` rồi `result += word[0].upper()`. `split()` không tham số đã bỏ khoảng trắng thừa."
-    solution: "def initials(full_name):\n    result = \"\"\n    for word in full_name.split():\n        result += word[0].upper()\n    return result\n"
   - id: b10
     type: problem_ref
     problem_id: length-of-last-word

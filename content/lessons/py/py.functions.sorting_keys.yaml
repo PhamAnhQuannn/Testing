@@ -1,5 +1,5 @@
 id: py.functions.sorting_keys
-version: 1
+version: 2
 status: published
 title_vi: "Sắp xếp với key và tính ổn định (sorting)"
 est_minutes: 14
@@ -8,6 +8,10 @@ objectives_vi:
   - "Viết hàm `key` (lambda, `len`, `str.lower`...) và sắp xếp nhiều tiêu chí bằng key là tuple (đổi dấu để giảm dần)."
   - "Giải thích tính ổn định (stable) của sort, và sắp xếp dict theo giá trị."
 blocks:
+  - id: s_sort_basics
+    type: section
+    title_vi: "sorted, sort và reverse"
+    summary_vi: "Hai cách sắp xếp; tại chỗ so với list mới."
   - id: b01
     type: text
     md: |
@@ -42,6 +46,10 @@ blocks:
       - {id: c, text_md: "`[3, 1, 2]`"}
     answer: [b]
     explain_md: "`list.sort()` sắp xếp tại chỗ và trả về `None`; gán kết quả đó lại cho `nums` làm mất list. Dùng `nums.sort()` một mình, hoặc `nums = sorted(nums)`."
+  - id: s_key
+    type: section
+    title_vi: "Tham số key"
+    summary_vi: "Hàm key gọi một lần cho mỗi phần tử."
   - id: b04
     type: text
     md: |
@@ -67,6 +75,11 @@ blocks:
       ['fig', 'apple', 'banana', 'Cherry']
       [-1, 2, 4, -5]
       ['banana', 'apple', 'fig', 'Cherry']
+  - id: s_stable_multi
+    type: section
+    title_vi: "Tính ổn định và nhiều tiêu chí"
+    summary_vi: "Stable sort, key là tuple, đổi dấu để giảm dần."
+    exercise_ref: b12
   - id: b06
     type: text
     md: |
@@ -111,6 +124,38 @@ blocks:
       - {id: c, text_md: "`key=lambda p: (p[1], -p[0])`"}
     answer: [b]
     explain_md: "Đổi dấu tuổi để giảm dần và giữ tên nguyên để tăng dần. Đáp án a đảo cả tên (hoà thì tên giảm dần); c lỗi vì không đổi dấu được chuỗi."
+  - id: b12
+    type: code_exercise
+    md: "Viết `sort_by_abs(nums)` trả list mới sắp xếp theo **giá trị tuyệt đối** tăng dần; hai số cùng giá trị tuyệt đối thì số **nhỏ hơn** đứng trước (ví dụ `-3` trước `3`). Không làm đổi `nums`."
+    entry: sort_by_abs
+    starter: |
+      def sort_by_abs(nums):
+          # TODO: sorted với key là tuple (abs(x), x)
+          pass
+    tests:
+      - {args: [[3, -1, -3, 2]], expected: [-1, 2, -3, 3]}
+      - {args: [[]], expected: []}
+      - {args: [[5, -5, 5]], expected: [-5, 5, 5]}
+      - {args: [[0, -2, 1]], expected: [0, 1, -2]}
+    guidance_md: |
+      - Tiêu chí chính là giá trị tuyệt đối; tiêu chí phụ (khi hoà) là chính giá trị số.
+      - `key` có thể trả về một tuple gồm cả hai tiêu chí.
+      - Dùng `sorted` (không phải `.sort()`) để không làm đổi `nums`.
+    hints:
+      - level: nudge
+        md: "Khi hai số có cùng giá trị tuyệt đối, tiêu chí nào quyết định thứ tự? Làm sao gộp hai tiêu chí vào một `key`?"
+      - level: approach
+        md: "Cho `key` trả về tuple `(tiêu_chí_chính, tiêu_chí_phụ)`; tuple so sánh từ trái sang phải."
+      - level: near_solution
+        md: |
+          def sort_by_abs(nums):
+              return sorted(nums, key=lambda x: (..., ...))
+    solution: "def sort_by_abs(nums):\n    return sorted(nums, key=lambda x: (abs(x), x))\n"
+  - id: s_dict
+    type: section
+    title_vi: "Sắp xếp dict"
+    summary_vi: "Sắp xếp theo giá trị và lấy top k."
+    exercise_ref: b13
   - id: b10
     type: text
     md: |
@@ -139,21 +184,6 @@ blocks:
       [('binh', 9), ('an', 7), ('chi', 7)]
       ('binh', 9) ['binh', 'an', 'chi']
       ('an', 7)
-  - id: b12
-    type: code_exercise
-    md: "Viết `sort_by_abs(nums)` trả list mới sắp xếp theo **giá trị tuyệt đối** tăng dần; hai số cùng giá trị tuyệt đối thì số **nhỏ hơn** đứng trước (ví dụ `-3` trước `3`). Không làm đổi `nums`."
-    entry: sort_by_abs
-    starter: |
-      def sort_by_abs(nums):
-          # TODO: sorted với key là tuple (abs(x), x)
-          pass
-    tests:
-      - {args: [[3, -1, -3, 2]], expected: [-1, 2, -3, 3]}
-      - {args: [[]], expected: []}
-      - {args: [[5, -5, 5]], expected: [-5, 5, 5]}
-      - {args: [[0, -2, 1]], expected: [0, 1, -2]}
-    hint_md: "`return sorted(nums, key=lambda x: (abs(x), x))`."
-    solution: "def sort_by_abs(nums):\n    return sorted(nums, key=lambda x: (abs(x), x))\n"
   - id: b13
     type: code_exercise
     md: "Viết `top_words(freq, k)`: `freq` là dict `{từ: số_lần}`; trả list `k` từ có số lần **nhiều nhất** (giảm dần), hoà thì theo chữ cái. (`k` không vượt quá số từ.)"
@@ -167,7 +197,20 @@ blocks:
       - {args: [{"x": 1}, 1], expected: ["x"]}
       - {args: [{"b": 3, "a": 1, "c": 3}, 3], expected: ["b", "c", "a"]}
       - {args: [{}, 0], expected: []}
-    hint_md: "`ranked = sorted(freq.items(), key=lambda kv: (-kv[1], kv[0]))` rồi `return [w for w, c in ranked[:k]]`."
+    guidance_md: |
+      - Sắp xếp các cặp `(từ, số_lần)` từ `freq.items()`.
+      - Số lần phải giảm dần (đổi dấu), từ giữ nguyên để tăng dần khi hoà.
+      - Cắt lấy `k` cặp đầu rồi chỉ giữ lại phần từ.
+    hints:
+      - level: nudge
+        md: "`sorted(freq)` chỉ trả khoá. Bạn cần sắp xếp thứ gì để có cả từ lẫn số lần?"
+      - level: approach
+        md: "Sắp xếp `freq.items()` với key tuple `(-số_lần, từ)`, cắt `[:k]`, rồi lấy phần tử từ của mỗi cặp."
+      - level: pseudocode
+        md: |
+          ranked = sorted(freq.items(), key = (âm số_lần, từ))
+          lấy k cặp đầu của ranked
+          trả về list các từ trong k cặp đó
     solution: "def top_words(freq, k):\n    ranked = sorted(freq.items(), key=lambda kv: (-kv[1], kv[0]))\n    return [w for w, c in ranked[:k]]\n"
   - id: b14
     type: problem_ref
