@@ -3,7 +3,7 @@ import { ConfirmModal } from "../components/Modal";
 import { EditorPanel } from "../components/EditorPanel";
 import { Markdown } from "../components/Markdown";
 import { TestResultPanel, type PanelState } from "../components/TestResultPanel";
-import type { LessonBlock } from "../lib/api";
+import type { ExerciseHint, LessonBlock } from "../lib/api";
 import { DraftController, type Draft, type SaveStatus } from "../lib/draftStore";
 import { useRunnerState } from "../lib/hooks";
 import { idbStore } from "../lib/idb";
@@ -12,6 +12,19 @@ import { getRunner } from "../runner";
 import type { RunResult, TestCase } from "../runner/Runner";
 
 type Exercise = Extract<LessonBlock, { type: "code_exercise" }>;
+
+const HINT_LABEL: Record<ExerciseHint["level"], string> = {
+  nudge: "Gợi ý nhẹ",
+  approach: "Hướng tiếp cận",
+  pseudocode: "Giả mã",
+  near_solution: "Gần lời giải",
+};
+
+/** hints[] when present; else the legacy single hint_md as a one-step list. */
+function hintList(block: Exercise): { label: string; md: string }[] {
+  if (block.hints?.length) return block.hints.map((h) => ({ label: HINT_LABEL[h.level] ?? "Gợi ý", md: h.md }));
+  return block.hint_md ? [{ label: "Gợi ý", md: block.hint_md }] : [];
+}
 
 /** Right-hand pane of the lesson split view: the active code_exercise, same Runner as problems. */
 export function ExercisePane({
@@ -29,7 +42,9 @@ export function ExercisePane({
   const [status, setStatus] = useState<SaveStatus>({ state: "idle" });
   const [panel, setPanel] = useState<PanelState | null>(null);
   const [running, setRunning] = useState(false);
-  const [hint, setHint] = useState(false);
+  const [hintsUsed, setHintsUsed] = useState(0);
+  const hints = useMemo(() => hintList(block), [block]);
+  const runId = useRef(0);
   const [solution, setSolution] = useState(false);
   const [confirm, setConfirm] = useState<"solution" | "reset" | null>(null);
   const codeRef = useRef("");
@@ -42,6 +57,13 @@ export function ExercisePane({
         onStatus: setStatus,
       }),
     [subtopicId, block.id],
+  );
+  // unmount (section change) invalidates any in-flight run so it cannot touch state
+  useEffect(
+    () => () => {
+      runId.current += 1;
+    },
+    [],
   );
   useEffect(() => {
     let alive = true;
@@ -64,6 +86,8 @@ export function ExercisePane({
 
   const run = useCallback(async () => {
     if (running) return;
+    const myRun = ++runId.current;
+    const fresh = () => runId.current === myRun;
     setRunning(true);
     await controller.flush();
     const options = { hidden: false, label: (_t: TestCase | undefined, i: number) => `Test ${i + 1}` };
@@ -76,13 +100,14 @@ export function ExercisePane({
         limits: { time_ms: 1000, memory_mb: 256, time_multiplier: 3 },
         onProgress: (r) => {
           seen.push(r);
-          setPanel(buildPanel("run", tests, seen, options, true));
+          if (fresh()) setPanel(buildPanel("run", tests, seen, options, true));
         },
       });
-      setPanel(buildPanel("run", tests, result.results, options, false, result));
+      if (fresh()) setPanel(buildPanel("run", tests, result.results, options, false, result));
+      // a genuine pass is still recorded even if the learner already moved on
       if (result.verdict === "AC") onPassed(block.id);
     } catch (error) {
-      setPanel({
+      if (fresh()) setPanel({
         kind: "run",
         rows: [{ label: "Runner", verdict: "RE", error: (error as Error).message }],
         total: tests.length,
@@ -92,7 +117,7 @@ export function ExercisePane({
         stderr: "",
       });
     } finally {
-      setRunning(false);
+      if (fresh()) setRunning(false);
     }
   }, [running, controller, block.entry, block.id, tests, onPassed]);
 
@@ -102,6 +127,12 @@ export function ExercisePane({
         <strong>Bài tập: {block.entry}()</strong>
       </div>
       <Markdown md={block.md} />
+      {block.guidance_md && (
+        <div className="callout tip guidance">
+          <div className="label">Các bước làm</div>
+          <Markdown md={block.guidance_md} />
+        </div>
+      )}
       {code === null ? (
         <div className="skeleton" style={{ height: 160 }} />
       ) : (
@@ -119,16 +150,22 @@ export function ExercisePane({
           onReset={() => setConfirm("reset")}
           running={running}
           runnerLoading={runnerState === "loading"}
-          hintButton={{ used: hint ? 1 : 0, total: 1, onClick: () => setHint(true) }}
+          hintButton={
+            hints.length
+              ? { used: hintsUsed, total: hints.length, onClick: () => setHintsUsed((n) => Math.min(hints.length, n + 1)) }
+              : undefined
+          }
           status={status}
         />
       )}
-      {hint && (
-        <div className="callout tip">
-          <div className="label">Gợi ý</div>
-          <Markdown md={block.hint_md} />
+      {hints.slice(0, hintsUsed).map((h, i) => (
+        <div className="callout tip" key={i}>
+          <div className="label">
+            {h.label} {hints.length > 1 ? `${i + 1}/${hints.length}` : ""}
+          </div>
+          <Markdown md={h.md} />
         </div>
-      )}
+      ))}
       <TestResultPanel state={panel} />
       {block.solution && (
         <div className="toolbar">

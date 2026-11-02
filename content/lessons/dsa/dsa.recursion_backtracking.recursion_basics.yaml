@@ -6,7 +6,254 @@ est_minutes: 10
 objectives_vi:
 - Viết đệ quy có điểm dừng đúng, vẽ cây đệ quy để ước lượng độ phức tạp.
 - Thêm memo, và đổi sang vòng lặp khi sợ vượt giới hạn tầng.
-blocks: []
+blocks:
+  - id: s_base
+    type: section
+    title_vi: "Điểm dừng và bước đệ quy"
+    summary_vi: "Mọi hàm đệ quy cần base case (điểm dừng) và recursive case thu nhỏ bài toán."
+    exercise_ref: ex_sum_to
+  - id: t1
+    type: text
+    md: |
+      **Đệ quy (recursion)** là hàm tự gọi lại chính nó với bài toán **nhỏ hơn**. Một hàm đệ quy cần
+      hai phần:
+
+      - **Base case (điểm dừng)**: trường hợp đủ nhỏ để trả lời ngay, không gọi tiếp.
+      - **Recursive case**: thu nhỏ bài toán rồi gọi lại chính hàm đó, và dùng kết quả để trả lời.
+
+      Thiếu base case, hàm gọi mãi và gây `RecursionError`. Mỗi lần gọi chiếm một "tầng" trong call
+      stack, nên độ sâu đệ quy tốn bộ nhớ O(độ sâu).
+  - id: c1
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      def countdown(n):
+          if n == 0:          # base case
+              print("xong")
+              return
+          print(n)
+          countdown(n - 1)    # bài toán nhỏ hơn
+
+      countdown(3)
+    expected_output: |
+      3
+      2
+      1
+      xong
+  - id: ex_sum_to
+    type: code_exercise
+    md: |
+      Viết `sum_to(n)` đệ quy, trả về `1 + 2 + ... + n` (với `n = 0` là `0`). Không dùng vòng lặp
+      hay `sum`.
+    entry: sum_to
+    starter: |
+      def sum_to(n):
+          # TODO: base case rồi recursive case
+          pass
+    guidance_md: |
+      - Base case: `n == 0` thì trả về `0`.
+      - Recursive case: `sum_to(n)` bằng `n` cộng với `sum_to` của bài toán nhỏ hơn.
+      - Đảm bảo mỗi lần gọi `n` giảm dần về base case.
+    hints:
+      - level: nudge
+        md: "Tổng `1..n` liên hệ thế nào với tổng `1..(n-1)`?"
+      - level: approach
+        md: "`sum_to(n) = n + sum_to(n - 1)`, dừng ở `n == 0`."
+      - level: pseudocode
+        md: |
+          nếu n bằng 0: trả về 0
+          ngược lại: trả về n cộng (kết quả của chính hàm với n - 1)
+    tests:
+      - {args: [0], expected: 0}
+      - {args: [1], expected: 1}
+      - {args: [4], expected: 10}
+      - {args: [10], expected: 55}
+    solution: "def sum_to(n):\n    if n == 0:\n        return 0\n    return n + sum_to(n - 1)\n"
+  - id: s_factorial
+    type: section
+    title_vi: "Ví dụ: giai thừa và bẫy điểm dừng sai"
+    summary_vi: "Giai thừa là ví dụ đệ quy sạch nhất; base case sai làm mọi kết quả sai."
+    exercise_ref: ex_factorial
+  - id: t2
+    type: text
+    md: |
+      Giai thừa: `n! = n * (n-1)!` và `0! = 1! = 1`. Base case ở đây phải trả về **1** (phần tử
+      trung hòa của phép nhân), không phải 0, nếu không mọi kết quả đều thành 0.
+  - id: p2
+    type: predict_output
+    code: |
+      def f(n):
+          if n <= 1:
+              return 1
+          return n * f(n - 1)
+
+      print(f(4), f(1))
+    expected_output: |
+      24 1
+    explain_md: "`f(4) = 4 * 3 * 2 * 1 = 24` và `f(1)` rơi ngay vào base case nên là 1."
+  - id: ex_factorial
+    type: code_exercise
+    md: |
+      `factorial(n)` bên dưới trả về sai (luôn ra `0` với `n >= 1`). Hãy sửa điểm dừng.
+    entry: factorial
+    starter: |
+      def factorial(n):
+          if n <= 1:
+              return 0
+          return n * factorial(n - 1)
+    guidance_md: |
+      - Thử `factorial(1)`: kết quả hiện tại là gì, kết quả đúng là gì?
+      - Ghi nhớ: base case là giá trị của bài toán nhỏ nhất.
+      - Sửa giá trị trả về của base case.
+    hints:
+      - level: nudge
+        md: "Mọi kết quả đều là 0 vì `n * 0 = 0`. Giá trị nào làm phép nhân không đổi?"
+      - level: near_solution
+        md: "Base case `n <= 1` phải trả về `1`."
+    tests:
+      - {args: [0], expected: 1}
+      - {args: [1], expected: 1}
+      - {args: [5], expected: 120}
+      - {args: [10], expected: 3628800}
+    solution: "def factorial(n):\n    if n <= 1:\n        return 1\n    return n * factorial(n - 1)\n"
+  - id: s_iter
+    type: section
+    title_vi: "Đệ quy so với vòng lặp"
+    summary_vi: "Đệ quy gọn nhưng tốn call stack và có thể lặp việc; vòng lặp tránh cả hai."
+    exercise_ref: ex_fib_iter
+  - id: t3
+    type: text
+    md: |
+      Mọi đệ quy đều có thể đổi sang vòng lặp. Đệ quy cho code ngắn, hợp bài toán có cấu trúc cây;
+      vòng lặp không tốn call stack (Python giới hạn độ sâu khoảng 1000) và tránh việc tính lặp.
+
+      Ví dụ Fibonacci `fib(n) = fib(n-1) + fib(n-2)`: bản đệ quy thuần gọi lặp lại cùng giá trị,
+      tốn thời gian mũ. Vòng lặp chỉ cần giữ hai giá trị gần nhất: O(n) thời gian, O(1) bộ nhớ.
+  - id: c3
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      def fib_iter(n):
+          a, b = 0, 1
+          for _ in range(n):
+              a, b = b, a + b
+          return a
+
+      print([fib_iter(i) for i in range(8)])
+    expected_output: |
+      [0, 1, 1, 2, 3, 5, 8, 13]
+  - id: ex_fib_iter
+    type: code_exercise
+    md: |
+      Viết `fib_iter(n)` trả về số Fibonacci thứ `n` (`fib(0) = 0`, `fib(1) = 1`) bằng **vòng lặp**,
+      không đệ quy. Phải chạy nhanh với `n = 30`.
+    entry: fib_iter
+    starter: |
+      def fib_iter(n):
+          # TODO: giữ hai giá trị gần nhất và cập nhật n lần
+          pass
+    guidance_md: |
+      - Khởi tạo hai biến `a = 0` (fib(0)) và `b = 1` (fib(1)).
+      - Lặp `n` lần.
+      - Mỗi lần, dịch cặp: `a` nhận `b`, `b` nhận `a + b` (dùng phép gán đồng thời).
+      - Trả về `a`.
+    hints:
+      - level: nudge
+        md: "Mỗi số chỉ phụ thuộc hai số ngay trước nó. Bạn cần nhớ bao nhiêu giá trị?"
+      - level: approach
+        md: "Giữ cặp `(fib(i), fib(i+1))` và dịch cặp này sang phải `n` lần."
+      - level: pseudocode
+        md: |
+          a, b = 0, 1
+          lặp n lần:
+              (a, b) trở thành (b, a + b)
+          trả về a
+    tests:
+      - {args: [0], expected: 0}
+      - {args: [1], expected: 1}
+      - {args: [2], expected: 1}
+      - {args: [10], expected: 55}
+      - {args: [30], expected: 832040}
+    solution: "def fib_iter(n):\n    a, b = 0, 1\n    for _ in range(n):\n        a, b = b, a + b\n    return a\n"
+  - id: s_backtrack
+    type: section
+    title_vi: "Nhập môn quay lui: sinh mọi tập con"
+    summary_vi: "Quay lui: chọn, đệ quy, rồi hoàn tác lựa chọn để thử nhánh khác."
+    exercise_ref: ex_subsets
+  - id: t4
+    type: text
+    md: |
+      **Quay lui (backtracking)** là đệ quy thử mọi lựa chọn: ở mỗi bước *chọn* một khả năng, gọi
+      đệ quy, rồi **hoàn tác (undo)** lựa chọn đó để thử khả năng khác.
+
+      Sinh mọi tập con của `nums`: với mỗi phần tử có hai lựa chọn, **bỏ** hoặc **lấy**. Khi đã xét
+      hết phần tử (base case) thì ghi lại tập hiện tại. Chú ý ghi lại **bản sao** (`cur[:]`) vì
+      `cur` còn bị sửa tiếp.
+  - id: c4
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      def subsets(nums):
+          res = []
+          def go(i, cur):
+              if i == len(nums):
+                  res.append(cur[:])
+                  return
+              go(i + 1, cur)        # bỏ nums[i]
+              cur.append(nums[i])   # chọn
+              go(i + 1, cur)
+              cur.pop()             # hoàn tác
+          go(0, [])
+          return sorted(res)
+
+      print(subsets([1, 2]))
+    expected_output: |
+      [[], [1], [1, 2], [2]]
+  - id: ex_subsets
+    type: code_exercise
+    md: |
+      Viết `subsets(nums)` trả về mọi tập con của `nums` (các phần tử khác nhau) dưới dạng list
+      các list, rồi **`sorted`** để kết quả có thứ tự cố định. Dùng đệ quy quay lui.
+    entry: subsets
+    starter: |
+      def subsets(nums):
+          # TODO: hàm con go(i, cur): bỏ/lấy nums[i], nhớ hoàn tác
+          pass
+    guidance_md: |
+      - Tạo `res = []` và hàm con `go(i, cur)`.
+      - Base case: `i == len(nums)` thì thêm bản sao `cur[:]` vào `res`.
+      - Nhánh bỏ: `go(i + 1, cur)`.
+      - Nhánh lấy: `cur.append(nums[i])`, gọi `go(i + 1, cur)`, rồi `cur.pop()` để hoàn tác.
+      - Gọi `go(0, [])` và `return sorted(res)`.
+    hints:
+      - level: nudge
+        md: "Mỗi phần tử có đúng hai lựa chọn. Số tập con của `n` phần tử là bao nhiêu, và khi nào ghi nhận một tập?"
+      - level: approach
+        md: "Đệ quy theo chỉ số `i`; khi `i` chạm cuối thì lưu một bản sao của tập hiện tại. Nhớ `pop` sau nhánh lấy."
+      - level: pseudocode
+        md: |
+          go(i, cur):
+              nếu i == độ dài: lưu bản sao của cur; dừng
+              go(i + 1, cur)            # không lấy
+              thêm nums[i] vào cur
+              go(i + 1, cur)            # lấy
+              bỏ phần tử vừa thêm
+    tests:
+      - {args: [[]], expected: [[]]}
+      - {args: [[1]], expected: [[], [1]]}
+      - {args: [[1, 2]], expected: [[], [1], [1, 2], [2]]}
+      - {args: [[1, 2, 3]], expected: [[], [1], [1, 2], [1, 2, 3], [1, 3], [2], [2, 3], [3]]}
+    solution: "def subsets(nums):\n    res = []\n\n    def go(i, cur):\n        if i == len(nums):\n            res.append(cur[:])\n            return\n        go(i + 1, cur)\n        cur.append(nums[i])\n        go(i + 1, cur)\n        cur.pop()\n\n    go(0, [])\n    return sorted(res)\n"
+  - id: sum1
+    type: summary
+    bullets_vi:
+      - "Hàm đệ quy cần base case (dừng) và recursive case (thu nhỏ bài toán)."
+      - "Base case sai giá trị làm sai mọi kết quả; thiếu base case gây `RecursionError`."
+      - "Đệ quy tốn call stack theo độ sâu; có thể đổi sang vòng lặp để tránh tốn bộ nhớ và tính lặp."
+      - "Quay lui: chọn, đệ quy, hoàn tác lựa chọn."
 problems:
   practice: []
   extra: []

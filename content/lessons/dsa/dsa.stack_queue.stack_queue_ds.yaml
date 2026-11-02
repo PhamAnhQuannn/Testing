@@ -7,7 +7,193 @@ objectives_vi:
 - Dùng đúng stack và queue trong Python.
 - Giải thích vì sao deque tốt hơn list.pop(0).
 - Cài queue từ hai stack với chi phí trung bình O(1).
-blocks: []
+blocks:
+  - id: s_stack
+    type: section
+    title_vi: "Stack: vào sau ra trước (LIFO)"
+    summary_vi: "Stack dùng list với append/pop ở cuối; ví dụ kiểm tra ngoặc."
+    exercise_ref: ex_parens
+  - id: t1
+    type: text
+    md: |
+      **Stack** là chồng đĩa: chỉ đặt hoặc lấy ở **trên cùng**, nên phần tử vào sau ra trước
+      (**LIFO**, last in first out). Trong Python dùng `list`: `append(x)` để push, `pop()` để lấy
+      phần tử cuối; cả hai đều O(1). Xem phần tử trên cùng: `stack[-1]`.
+
+      Ứng dụng kinh điển: kiểm tra ngoặc hợp lệ, hoàn tác (undo), duyệt DFS không đệ quy.
+  - id: c1
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      stack = []
+      stack.append(1)
+      stack.append(2)
+      stack.append(3)
+      print(stack.pop(), stack[-1], len(stack))
+    expected_output: |
+      3 2 2
+  - id: ex_parens
+    type: code_exercise
+    md: |
+      Viết `valid_parentheses(s)` trả về `True` nếu mọi ngoặc `()`, `[]`, `{}` trong `s` được đóng
+      đúng loại và đúng thứ tự (chuỗi rỗng là hợp lệ).
+    entry: valid_parentheses
+    starter: |
+      def valid_parentheses(s):
+          # TODO: dùng một list làm stack
+          pass
+    guidance_md: |
+      - Tạo `stack = []` và một dict ghép ngoặc đóng với ngoặc mở tương ứng.
+      - Gặp ngoặc mở: `append` vào stack.
+      - Gặp ngoặc đóng: stack phải khác rỗng và `pop()` phải ra đúng ngoặc mở; nếu không thì `False`.
+      - Cuối cùng, hợp lệ khi stack rỗng.
+    hints:
+      - level: nudge
+        md: "Ngoặc đóng gần nhất luôn phải khớp với ngoặc mở chưa đóng *gần nhất*. Cấu trúc nào lấy ra phần tử vào sau cùng?"
+      - level: approach
+        md: "Đẩy ngoặc mở vào stack; với ngoặc đóng, so với phần tử vừa pop. Đừng quên trường hợp stack rỗng và còn thừa ngoặc mở."
+      - level: pseudocode
+        md: |
+          stack rỗng
+          với mỗi ký tự ch:
+              nếu ch là ngoặc mở: push ch
+              nếu ch là ngoặc đóng:
+                  nếu stack rỗng hoặc pop() không khớp: trả về False
+          trả về (stack rỗng)
+    tests:
+      - {args: ["()[]{}"], expected: true}
+      - {args: ["(]"], expected: false}
+      - {args: ["([)]"], expected: false}
+      - {args: ["(("], expected: false}
+      - {args: [""], expected: true}
+    solution: "def valid_parentheses(s):\n    stack = []\n    pairs = {\")\": \"(\", \"]\": \"[\", \"}\": \"{\"}\n    for ch in s:\n        if ch in \"([{\":\n            stack.append(ch)\n        elif ch in pairs:\n            if not stack or stack.pop() != pairs[ch]:\n                return False\n    return not stack\n"
+  - id: s_queue
+    type: section
+    title_vi: "Queue: vào trước ra trước (FIFO) với deque"
+    summary_vi: "Queue lấy từ đầu hàng; dùng collections.deque thay vì list.pop(0)."
+    exercise_ref: ex_process_queue
+  - id: t2
+    type: text
+    md: |
+      **Queue** là hàng xếp mua vé: vào ở **cuối**, ra ở **đầu** (**FIFO**, first in first out).
+      Dùng `list.pop(0)` thì mỗi lần lấy phải dời toàn bộ phần tử còn lại: O(n). Hãy dùng
+      **`collections.deque`**: `append(x)` thêm cuối, `popleft()` lấy đầu, cả hai O(1).
+  - id: c2
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      from collections import deque
+
+      q = deque()
+      q.append("a")
+      q.append("b")
+      q.append("c")
+      print(q.popleft(), q[0], len(q))
+    expected_output: |
+      a b 2
+  - id: ex_process_queue
+    type: code_exercise
+    md: |
+      `process_queue(items, k)` phải "phục vụ" `k` phần tử đầu hàng (lấy ra theo thứ tự FIFO, bỏ
+      qua nếu hàng đã hết) rồi trả về list các phần tử còn lại. Bản dưới đây lấy nhầm từ **cuối**
+      hàng như stack. Hãy sửa.
+    entry: process_queue
+    starter: |
+      from collections import deque
+
+
+      def process_queue(items, k):
+          q = deque(items)
+          for _ in range(k):
+              if q:
+                  q.pop()
+          return list(q)
+    guidance_md: |
+      - Chạy tay với `["a","b","c","d"]`, `k = 2`: kết quả đúng là `["c","d"]`.
+      - Hàng đợi phục vụ phần tử ở **đầu**, không phải cuối.
+      - Tìm method của `deque` lấy phần tử bên trái.
+      - Giữ nguyên kiểm tra `if q` để không lấy từ hàng rỗng.
+    hints:
+      - level: nudge
+        md: "`pop()` lấy phần tử cuối: đó là hành vi của stack, không phải queue."
+      - level: approach
+        md: "`deque` có method riêng để lấy phần tử bên trái (đầu hàng) trong O(1)."
+      - level: near_solution
+        md: "Thay `q.pop()` bằng `q.popleft()`."
+    tests:
+      - {args: [["a", "b", "c", "d"], 2], expected: ["c", "d"]}
+      - {args: [["a"], 3], expected: []}
+      - {args: [["a", "b"], 0], expected: ["a", "b"]}
+    solution: "from collections import deque\n\n\ndef process_queue(items, k):\n    q = deque(items)\n    for _ in range(k):\n        if q:\n            q.popleft()\n    return list(q)\n"
+  - id: s_which
+    type: section
+    title_vi: "Khi nào dùng stack, khi nào dùng queue"
+    summary_vi: "LIFO cho việc lồng nhau/hoàn tác; FIFO cho thứ tự đến trước phục vụ trước."
+    exercise_ref: ex_min_stack
+  - id: t3
+    type: text
+    md: |
+      - Dùng **stack** khi cần xử lý cái **mới nhất trước**: ngoặc lồng nhau, undo, DFS.
+      - Dùng **queue** khi cần **công bằng theo thứ tự đến**: hàng chờ, BFS, lập lịch tác vụ.
+
+      Stack có thể được "tăng cường": mỗi phần tử kèm thêm thông tin tổng hợp, ví dụ **giá trị nhỏ
+      nhất từ đáy đến phần tử đó**, để hỏi min trong O(1).
+  - id: p3
+    type: predict_output
+    code: |
+      from collections import deque
+
+      s = [1, 2, 3]
+      q = deque([1, 2, 3])
+      print(s.pop(), q.popleft())
+      s.append(9)
+      q.append(9)
+      print(s, list(q))
+    expected_output: |
+      3 1
+      [1, 2, 9] [2, 3, 9]
+    explain_md: "Stack lấy phần tử cuối (3), queue lấy phần tử đầu (1). Sau khi thêm 9: stack là [1, 2, 9], queue là [2, 3, 9]."
+  - id: ex_min_stack
+    type: code_exercise
+    md: |
+      Viết `min_stack_ops(ops)` mô phỏng một stack số nguyên. Mỗi thao tác là chuỗi: `"push x"`,
+      `"pop"`, hoặc `"min"`. Trả về list kết quả của các thao tác `"min"` (giá trị nhỏ nhất đang
+      có trong stack). Mọi thao tác hợp lệ (không pop/min trên stack rỗng).
+    entry: min_stack_ops
+    starter: |
+      def min_stack_ops(ops):
+          # TODO: mỗi phần tử stack lưu kèm min từ đáy đến nó
+          pass
+    guidance_md: |
+      - Dùng stack mà mỗi phần tử là cặp `(giá_trị, min_đến_đây)`.
+      - Khi `push x`: min mới là `min(x, min của phần tử trên cùng)` (hoặc `x` nếu stack rỗng).
+      - Khi `pop`: bỏ phần tử trên cùng, min tự quay về giá trị cũ.
+      - Khi `min`: thêm min của phần tử trên cùng vào kết quả.
+    hints:
+      - level: nudge
+        md: "Sau khi `pop`, min phải quay về giá trị trước đó. Làm sao nhớ được nó mà không quét lại cả stack?"
+      - level: approach
+        md: "Mỗi lần push, lưu kèm min của toàn stack tại thời điểm đó. Pop sẽ tự bỏ luôn giá trị min đó."
+      - level: pseudocode
+        md: |
+          stack = [], ket_qua = []
+          với mỗi thao tác:
+              "push x": min_moi = x nếu stack rỗng, ngược lại min(x, min của đỉnh); push (x, min_moi)
+              "pop": pop
+              "min": thêm min của đỉnh vào ket_qua
+    tests:
+      - {args: [["push 3", "push 5", "min", "push 1", "min", "pop", "min"]], expected: [3, 1, 3]}
+      - {args: [["push 2", "min"]], expected: [2]}
+      - {args: [["push 4", "push 4", "pop", "min", "push -1", "min"]], expected: [4, -1]}
+    solution: "def min_stack_ops(ops):\n    stack = []\n    out = []\n    for op in ops:\n        if op.startswith(\"push\"):\n            v = int(op.split()[1])\n            cur = min(v, stack[-1][1]) if stack else v\n            stack.append((v, cur))\n        elif op == \"pop\":\n            stack.pop()\n        else:\n            out.append(stack[-1][1])\n    return out\n"
+  - id: sum1
+    type: summary
+    bullets_vi:
+      - "Stack là LIFO: `append`/`pop` ở cuối list, đều O(1)."
+      - "Queue là FIFO: dùng `collections.deque` với `append`/`popleft` O(1); `list.pop(0)` là O(n)."
+      - "Chọn stack cho việc lồng nhau/hoàn tác, queue cho thứ tự đến trước phục vụ trước."
 problems:
   practice: []
   extra: []

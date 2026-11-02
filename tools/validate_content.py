@@ -54,6 +54,8 @@ WRITE_TEST_IO = {
 WRITE_TEST_PYODIDE_MS = 30_000  # per run under Pyodide in Node (cold start of the module)
 GRADED_TYPES = {"quiz_mcq", "quiz_fill", "predict_output"}
 MIN_GRADED_BLOCKS = 3
+HINT_LEVELS = ("nudge", "approach", "pseudocode", "near_solution")
+HINT_LEAK_RATIO = 0.8
 LEVELS = {"l1": 1, "l2": 2, "l3": 3}
 # SPEC 3.4: once these subtopics have a lesson they need a level-2 write_code mastery item.
 NEEDS_L2_WRITE_CODE = {
@@ -183,6 +185,8 @@ class Validator:
         needed = max(MIN_GRADED_BLOCKS, lesson["checkpoint"]["min_items"])
         if lesson["status"] != "draft" and len(graded) < needed:
             self.fail(path, f"needs at least {needed} graded blocks, has {len(graded)}")
+        for message in section_errors(blocks):
+            self.fail(path, message)
         for block in blocks:
             for message in block_code_errors(block):
                 self.fail(path, f"block {block['id']}: {message}")
@@ -672,7 +676,7 @@ def exercise_errors(block: dict) -> list[str]:
     """A code_exercise's solution must pass its tests and its starter must not."""
     io = {"mode": "function", "entry": block["entry"]}
     tests = [{"id": f"t{i}", **t} for i, t in enumerate(block["tests"], start=1)]
-    errors = []
+    errors = hint_errors(block)
     solution = run_native(block["solution"], io, tests, SNIPPET_TIME_MS)
     if solution["verdict"] != "AC":
         errors.append(f"solution {solution['verdict']}")
@@ -681,6 +685,53 @@ def exercise_errors(block: dict) -> list[str]:
         errors.append("starter does not compile")
     elif starter["verdict"] == "AC":
         errors.append("starter already passes every test")
+    return errors
+
+
+def section_errors(blocks: list[dict]) -> list[str]:
+    """Rules for `section` divider blocks (SPEC 3.2); a no-op for a lesson without any."""
+    errors: list[str] = []
+    sections = [(i, b) for i, b in enumerate(blocks) if b["type"] == "section"]
+    if not sections:
+        return errors
+    ids = [b["id"] for _, b in sections]
+    for dup in sorted({i for i in ids if ids.count(i) > 1}):
+        errors.append(f"duplicate section id {dup}")
+    titles = [b["title_vi"].strip() for _, b in sections]
+    for title in titles:
+        if not title:
+            errors.append("section title_vi must not be blank")
+    for dup in sorted({t for t in titles if t and titles.count(t) > 1}):
+        errors.append(f"duplicate section title {dup!r}")
+    bounds = [i for i, _ in sections] + [len(blocks)]
+    for n, (start, section) in enumerate(sections):
+        inside = blocks[start + 1 : bounds[n + 1]]
+        if not inside:  # `section` blocks never count as content, so any block means non-empty
+            errors.append(f"section {section['id']} is empty")
+        ref = section.get("exercise_ref")
+        if ref is None:
+            continue
+        target = next((b for b in inside if b["id"] == ref), None)
+        if target is None or target["type"] != "code_exercise":
+            errors.append(
+                f"section {section['id']}: exercise_ref {ref} is not a code_exercise inside it"
+            )
+    return errors
+
+
+def hint_errors(block: dict) -> list[str]:
+    """Multi-level `hints`: canonical level order; the last one must not leak the solution."""
+    hints = block.get("hints")
+    if not hints:
+        return []
+    errors = []
+    ranks = [HINT_LEVELS.index(h["level"]) for h in hints]
+    if ranks != sorted(ranks):
+        errors.append(f"hints out of order; expected non-decreasing {list(HINT_LEVELS)}")
+    lines = [line.strip() for line in block["solution"].splitlines() if line.strip()]
+    last = {line.strip() for line in hints[-1]["md"].splitlines()}
+    if lines and sum(line in last for line in lines) / len(lines) > HINT_LEAK_RATIO:
+        errors.append("last hint leaks the solution (>80% of solution lines appear verbatim)")
     return errors
 
 

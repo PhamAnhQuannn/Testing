@@ -88,8 +88,21 @@
         {"$ref": "#/$defs/predict_output"},
         {"$ref": "#/$defs/code_exercise"},
         {"$ref": "#/$defs/problem_ref"},
-        {"$ref": "#/$defs/summary"}
+        {"$ref": "#/$defs/summary"},
+        {"$ref": "#/$defs/section"}
       ]
+    },
+    "section": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "title_vi"],
+      "properties": {
+        "id": {"$ref": "#/$defs/block_id"},
+        "type": {"const": "section"},
+        "title_vi": {"type": "string", "minLength": 1},
+        "summary_vi": {"type": "string", "minLength": 1},
+        "exercise_ref": {"type": "string"}
+      }
     },
     "text": {
       "type": "object",
@@ -202,7 +215,8 @@
     "code_exercise": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "type", "md", "entry", "starter", "tests", "hint_md", "solution"],
+      "required": ["id", "type", "md", "entry", "starter", "tests", "solution"],
+      "anyOf": [{"required": ["hint_md"]}, {"required": ["hints"]}],
       "properties": {
         "id": {"$ref": "#/$defs/block_id"},
         "type": {"const": "code_exercise"},
@@ -221,6 +235,21 @@
           }
         },
         "hint_md": {"$ref": "#/$defs/md"},
+        "hints": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 4,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["level", "md"],
+            "properties": {
+              "level": {"enum": ["nudge", "approach", "pseudocode", "near_solution"]},
+              "md": {"$ref": "#/$defs/md"}
+            }
+          }
+        },
+        "guidance_md": {"$ref": "#/$defs/md"},
         "solution": {"type": "string", "minLength": 1}
       }
     },

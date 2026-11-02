@@ -197,7 +197,7 @@ async function main() {
     await mcq.locator("button:has-text('Kiểm tra')").click();
     await mcq.locator("text=Đúng").first().waitFor({ timeout: 5000 }).catch(() => undefined);
     check("quiz_mcq graded by the server (shows explain)", (await mcq.innerText()).includes("Đúng") && (await mcq.innerText()).includes("KeyError"));
-    await page.locator("button:has-text('Làm bài này')").click();
+    // split width: exercise auto-paired in the right pane
     await page.waitForSelector(".pane.right .cm-content");
     await page.click(".pane.right .cm-content");
     await page.keyboard.press("Control+A");
