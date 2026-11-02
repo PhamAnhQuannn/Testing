@@ -20,6 +20,8 @@ export interface BlockContext {
   doneExercises: Set<string>;
   onOpenExercise: (blockId: string) => void;
   canEdit: boolean;
+  /** Show an explicit "open in editor" button (tabs layout / several exercises in one section). */
+  showOpen?: boolean;
 }
 
 type Of<T extends LessonBlock["type"]> = Extract<LessonBlock, { type: T }>;
@@ -58,6 +60,8 @@ export function BlockView({ block, ctx }: { block: LessonBlock; ctx: BlockContex
           Bài tập đầy đủ: <Link to={`/p/${block.problem_id}`}>{block.problem_id}</Link>
         </div>
       );
+    case "section":
+      return null; // consumed by deriveSections, never rendered as a block
     case "summary":
       return (
         <div className="block-card">
@@ -375,16 +379,24 @@ function ExerciseCard({ block, ctx }: { block: Of<"code_exercise">; ctx: BlockCo
   const active = ctx.activeExercise === block.id;
   return (
     <div className="block-card">
-      <strong>Bài tập nhỏ {done && <span className="chip ok">✔ Xong</span>}</strong>
+      <strong>
+        Bài tập nhỏ {done && <span className="chip ok">✔ Xong</span>}
+      </strong>
       <Markdown md={block.md} />
-      <button
-        className="btn sm primary"
-        onClick={() => ctx.onOpenExercise(block.id)}
-        disabled={!ctx.canEdit}
-        title={ctx.canEdit ? undefined : "Mở trên máy tính để viết code"}
-      >
-        {active ? "Đang làm ở editor →" : "Làm bài này"}
-      </button>
+      {ctx.showOpen ? (
+        <button
+          className="btn sm primary"
+          onClick={() => ctx.onOpenExercise(block.id)}
+          disabled={!ctx.canEdit}
+          title={ctx.canEdit ? undefined : "Mở trên máy tính để viết code"}
+        >
+          {active ? "Đang làm ở editor →" : "Làm bài này"}
+        </button>
+      ) : (
+        <p className="muted" style={{ margin: 0 }}>
+          Bài tập → khung bên phải
+        </p>
+      )}
     </div>
   );
 }

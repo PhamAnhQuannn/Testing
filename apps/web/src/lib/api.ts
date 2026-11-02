@@ -364,6 +364,12 @@ export async function getDiagnosis(role?: string): Promise<DiagnosisView> {
 
 // ---------------------------------------------------------------- lesson
 
+export type HintLevel = "nudge" | "approach" | "pseudocode" | "near_solution";
+export interface ExerciseHint {
+  level: HintLevel;
+  md: string;
+}
+
 export type LessonBlock =
   | { id: string; type: "text"; md: string }
   | { id: string; type: "callout"; kind: "tip" | "warning" | "beginner" | "interview"; md: string }
@@ -409,8 +415,18 @@ export type LessonBlock =
       entry: string;
       starter: string;
       tests: { args: unknown[]; expected: unknown }[];
-      hint_md: string;
+      /** Legacy single hint; at least one of hint_md / hints is present. */
+      hint_md?: string;
+      hints?: ExerciseHint[];
+      guidance_md?: string;
       solution?: string;
+    }
+  | {
+      id: string;
+      type: "section";
+      title_vi: string;
+      summary_vi?: string;
+      exercise_ref?: string;
     }
   | { id: string; type: "problem_ref"; problem_id: string }
   | { id: string; type: "summary"; bullets_vi: string[] };
@@ -435,6 +451,37 @@ export interface Lesson {
   completed: boolean;
 }
 
+const HINT_LEVELS = ["nudge", "approach", "pseudocode", "near_solution"];
+
+/** Defensive: copy section/hints/guidance fields only when well-formed; legacy blocks pass through untouched. */
+function normalizeBlocks(raw: unknown): LessonBlock[] {
+  if (!Array.isArray(raw)) return [];
+  return (raw as Loose[]).map((b) => {
+    if (b.type === "code_exercise") {
+      const out: Loose = { ...b };
+      if (Array.isArray(b.hints)) {
+        const hints = (b.hints as Loose[])
+          .filter((h) => typeof h?.md === "string" && h.md !== "")
+          .map((h) => ({
+            level: (HINT_LEVELS.includes(h.level as string) ? h.level : "nudge") as HintLevel,
+            md: h.md as string,
+          }));
+        if (hints.length) out.hints = hints;
+        else delete out.hints;
+      }
+      if (typeof b.guidance_md !== "string" || !b.guidance_md) delete out.guidance_md;
+      return out as unknown as LessonBlock;
+    }
+    if (b.type === "section") {
+      const out: Loose = { id: b.id, type: "section", title_vi: String(b.title_vi ?? "") };
+      if (typeof b.summary_vi === "string" && b.summary_vi) out.summary_vi = b.summary_vi;
+      if (typeof b.exercise_ref === "string" && b.exercise_ref) out.exercise_ref = b.exercise_ref;
+      return out as unknown as LessonBlock;
+    }
+    return b as unknown as LessonBlock;
+  });
+}
+
 export function normalizeLesson(data: unknown): Lesson {
   const root = ((data as Loose).lesson ?? data) as Loose;
   const progress = (root.progress ?? {}) as Loose;
@@ -448,7 +495,7 @@ export function normalizeLesson(data: unknown): Lesson {
     title_vi: String(root.title_vi ?? root.id),
     est_minutes: Number(root.est_minutes ?? 0),
     objectives_vi: (root.objectives_vi as string[]) ?? [],
-    blocks: (root.blocks as LessonBlock[]) ?? [],
+    blocks: normalizeBlocks(root.blocks),
     problems: (root.problems as Lesson["problems"]) ?? { practice: [], extra: [] },
     checkpoint: (root.checkpoint as Lesson["checkpoint"]) ?? { pass_ratio: 0.7, min_items: 3 },
     status: root.status as string | undefined,

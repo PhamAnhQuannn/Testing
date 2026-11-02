@@ -287,10 +287,18 @@ Các loại block (`type`):
 | `quiz_fill` | `prompt_md` (chỗ trống `___`), `blanks[{accept[], regex?}]`, `explain_md` | So khớp sau khi trim; `accept` là danh sách chấp nhận |
 | `predict_output` | `code`, `expected_output`, `explain_md` | Người học gõ output; sau khi đúng hoặc sai hiện kết quả thật (đã verify bằng runner khi build) |
 | `code_exercise` | `starter`, `entry`, `tests[]` (3-5), `hint_md`, `solution` | Bài nhỏ ngay trong lesson, chạy ở editor bên phải; chỉ có Run |
+| `section` | `title_vi`, `summary_vi?`, `exercise_ref?` | Vạch chia mục (xem 3.2a): mở một mục, kéo dài đến `section` kế tiếp hoặc hết `blocks`; không chấm điểm |
 | `problem_ref` | `problem_id` | Liên kết sang problem đầy đủ |
 | `summary` | `bullets_vi[]` | Cuối lesson, 3-6 gạch đầu dòng |
 
 Chỉ `quiz_*` và `predict_output` có `graded: true` (mặc định) tính vào `quiz_best`. `code_exercise` trong lesson không tính điểm riêng; bài đánh giá là problem và mastery check.
+
+**3.2a Mục (`section`) và gợi ý nhiều mức.**
+
+- `section` là block chia nhóm hiển thị: nó MỞ một mục và mục kéo dài đến block `section` kế tiếp hoặc hết `blocks`. Các block đứng trước `section` đầu tiên thuộc mục "intro" ngầm định. Lesson không có block `section` nào = một mục ngầm định = hành vi hiện tại (tương thích ngược hoàn toàn; mọi lesson cũ vẫn hợp lệ không đổi).
+- Trường: `id` (như mọi block), `title_vi` (bắt buộc, không rỗng, duy nhất trong lesson), `summary_vi?`, `exercise_ref?` (id của một `code_exercise` nằm TRONG mục đó). `id` của section duy nhất; mỗi mục phải có ít nhất 1 block không phải `section`.
+- `code_exercise` có thêm `hints?` (2-4 mục `{level, md}`, `level` thuộc `nudge < approach < pseudocode < near_solution`, xuất hiện theo thứ tự không giảm; hint cuối không được lộ lời giải: validator báo lỗi nếu hơn 80% dòng khác rỗng của `solution` xuất hiện nguyên văn trong hint cuối) và `guidance_md?`. `hint_md` thành tùy chọn nhưng bài phải có `hint_md` hoặc `hints`.
+- Section chỉ là cách nhóm khi trình bày. `code_exercise` vẫn là bài luyện không chấm điểm (formative); `section` không bao giờ chấm điểm và không nằm trong `graded_quiz_ids`. Số quiz tính điểm, `checkpoint` và quy tắc điểm 1 (score-1) KHÔNG đổi khi chia mục.
 
 ### 3.3 Problem
 
@@ -431,6 +439,8 @@ problems: {practice: [ransom-note], extra: []}
 mastery_check: {l1: [Q022], l2: [Q023], l3: [Q024]}
 checkpoint: {pass_ratio: 0.7, min_items: 3}
 ```
+
+Lưu ý: ví dụ này là lesson phẳng (không có `section`). Lesson chia mục chèn các block `section` (3.2a) giữa các block; `blocks` còn lại, `checkpoint`, quiz tính điểm và điểm 1 không đổi, và `hints`/`guidance_md` chỉ thêm vào `code_exercise` (3.2a).
 
 Ghi chú: ví dụ lấy `concepts_vi` và `examples_vi` của node (dict, set, đếm chữ cái, loại trùng, phần chung) và item `Q022/Q023/Q024` trong `assessment.json`. `Q023` là Two Sum bằng dict; trong plan Two Sum (LC 1) nằm ở ngày 6 (`hashing_patterns`), nên nó chỉ xuất hiện như check item ở mục này, không lặp trong danh sách bài.
 

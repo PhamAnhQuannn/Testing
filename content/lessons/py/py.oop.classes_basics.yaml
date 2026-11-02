@@ -7,7 +7,313 @@ objectives_vi:
 - Thiết kế class nhỏ có __init__.
 - Method, property kiểm tra dữ liệu.
 - Giải thích self và bẫy thuộc tính class.
-blocks: []
+blocks:
+  - id: s_define
+    type: section
+    title_vi: "Định nghĩa class và __init__"
+    summary_vi: "Class là bản thiết kế, object là vật tạo ra từ nó; __init__ gán dữ liệu ban đầu."
+    exercise_ref: ex_student
+  - id: t1
+    type: text
+    md: |
+      **Class** là bản thiết kế; **object** (instance) là một vật cụ thể tạo từ bản thiết kế đó.
+      Ví dụ class `Student` mô tả "một học sinh có tên và điểm", còn `Student("An", 9)` là một học
+      sinh cụ thể.
+
+      Hàm đặc biệt **`__init__`** chạy tự động ngay khi tạo object; nó gán dữ liệu ban đầu cho các
+      **thuộc tính (attribute)** của object qua `self`.
+  - id: c1
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class Student:
+          def __init__(self, name, score):
+              self.name = name
+              self.score = score
+
+      a = Student("An", 9)
+      b = Student("Binh", 7)
+      print(a.name, a.score)
+      print(b.name, b.score)
+    expected_output: |
+      An 9
+      Binh 7
+  - id: ex_student
+    type: code_exercise
+    md: |
+      Hoàn thiện class `Student` với `__init__(self, name, score)` lưu hai thuộc tính cùng tên.
+      Hàm `make_student(name, score)` đã tạo object và trả về chuỗi `"tên:điểm"`; bạn chỉ cần sửa
+      class cho đúng.
+    entry: make_student
+    starter: |
+      class Student:
+          pass
+
+
+      def make_student(name, score):
+          st = Student(name, score)
+          return f"{st.name}:{st.score}"
+    guidance_md: |
+      - Trong class, định nghĩa `def __init__(self, name, score):`.
+      - Gán `self.name = name`.
+      - Gán `self.score = score`.
+      - Không cần sửa `make_student`.
+    hints:
+      - level: nudge
+        md: "Hiện `Student(name, score)` báo lỗi vì class chưa nhận tham số nào. Class cần hàm khởi tạo nào?"
+      - level: approach
+        md: "Thêm `__init__` nhận `self` cùng hai tham số, rồi lưu từng tham số vào một thuộc tính của `self`."
+      - level: pseudocode
+        md: |
+          class Student:
+              def __init__(self, name, score):
+                  self.name  <- name
+                  self.score <- score
+    tests:
+      - {args: ["An", 9], expected: "An:9"}
+      - {args: ["Binh", 7], expected: "Binh:7"}
+      - {args: ["", 0], expected: ":0"}
+    solution: "class Student:\n    def __init__(self, name, score):\n        self.name = name\n        self.score = score\n\n\ndef make_student(name, score):\n    st = Student(name, score)\n    return f\"{st.name}:{st.score}\"\n"
+  - id: s_methods
+    type: section
+    title_vi: "Method và self"
+    summary_vi: "Method là hàm của class; self trỏ tới chính object đang gọi."
+    exercise_ref: ex_account
+  - id: t2
+    type: text
+    md: |
+      **Method** là hàm nằm trong class. Tham số đầu tiên luôn là **`self`**: chính object đang gọi
+      method. Khi viết `acc.deposit(50)`, Python tự truyền `acc` làm `self`, nên method đọc và sửa
+      được dữ liệu của đúng object đó (`self.balance += 50`).
+
+      Mỗi object có dữ liệu riêng: hai tài khoản `a` và `b` không ảnh hưởng nhau.
+  - id: p2
+    type: predict_output
+    code: |
+      class Counter:
+          def __init__(self):
+              self.n = 0
+
+          def add(self, k):
+              self.n += k
+              return self.n
+
+      a = Counter()
+      b = Counter()
+      a.add(2)
+      a.add(3)
+      print(a.add(1), b.add(10))
+    expected_output: |
+      6 10
+    explain_md: "`a` và `b` có `n` riêng: `a.n` đi 2 -> 5 -> 6, còn `b.n` là 10."
+  - id: ex_account
+    type: code_exercise
+    md: |
+      Hoàn thiện method `withdraw(self, x)` của `Account`: chỉ trừ tiền khi `x` **không vượt quá**
+      số dư (`self.balance`); nếu vượt thì giữ nguyên. Method luôn trả về số dư hiện tại.
+      `final_balance(start, ops)` áp dụng các thao tác: số dương là nạp, số âm là rút.
+    entry: final_balance
+    starter: |
+      class Account:
+          def __init__(self, balance):
+              self.balance = balance
+
+          def deposit(self, x):
+              self.balance += x
+
+          def withdraw(self, x):
+              # TODO: chỉ trừ khi x <= self.balance; trả về số dư
+              pass
+
+
+      def final_balance(start, ops):
+          acc = Account(start)
+          for op in ops:
+              if op > 0:
+                  acc.deposit(op)
+              else:
+                  acc.withdraw(-op)
+          return acc.balance
+    guidance_md: |
+      - So sánh `x` với `self.balance` bằng `if`.
+      - Nếu đủ tiền, cập nhật `self.balance -= x`.
+      - Nếu không đủ, không làm gì.
+      - Cuối method, `return self.balance`.
+    hints:
+      - level: nudge
+        md: "Method chưa làm gì cả. Dữ liệu cần đọc và sửa nằm ở đâu: biến cục bộ hay `self`?"
+      - level: approach
+        md: "Dùng một `if` kiểm tra đủ số dư; chỉ khi đúng mới trừ vào `self.balance`. Luôn trả về số dư."
+      - level: pseudocode
+        md: |
+          nếu x <= số dư của self:
+              trừ x khỏi số dư của self
+          trả về số dư của self
+    tests:
+      - {args: [100, [50, -30, -100, 20]], expected: 40}
+      - {args: [0, [10, -5, -6]], expected: 5}
+      - {args: [20, []], expected: 20}
+    solution: "class Account:\n    def __init__(self, balance):\n        self.balance = balance\n\n    def deposit(self, x):\n        self.balance += x\n\n    def withdraw(self, x):\n        if x <= self.balance:\n            self.balance -= x\n        return self.balance\n\n\ndef final_balance(start, ops):\n    acc = Account(start)\n    for op in ops:\n        if op > 0:\n            acc.deposit(op)\n        else:\n            acc.withdraw(-op)\n    return acc.balance\n"
+  - id: s_class_attr
+    type: section
+    title_vi: "Thuộc tính class và bẫy dùng chung"
+    summary_vi: "Thuộc tính khai báo ở thân class được MỌI object dùng chung; dữ liệu riêng phải gán qua self."
+    exercise_ref: ex_baskets
+  - id: t3
+    type: text
+    md: |
+      Thuộc tính khai báo **ở thân class** (ngoài mọi method) là **thuộc tính class**: tất cả object
+      **dùng chung** một bản. Với giá trị bất biến (số, chuỗi) thì thường vô hại, nhưng với giá trị
+      **có thể thay đổi như list** thì đây là bẫy: mọi object cùng sửa một list.
+
+      Dữ liệu riêng cho từng object phải được tạo trong `__init__` bằng `self.xxx = ...`.
+  - id: p3
+    type: predict_output
+    code: |
+      class Box:
+          items = []
+
+      a = Box()
+      b = Box()
+      a.items.append("x")
+      print(len(b.items))
+    expected_output: |
+      1
+    explain_md: "`items` là thuộc tính class nên `a` và `b` dùng chung một list; thêm qua `a` thì `b` cũng thấy."
+  - id: ex_baskets
+    type: code_exercise
+    md: |
+      Class `Basket` bên dưới có lỗi dùng chung dữ liệu: thêm đồ vào giỏ này làm giỏ kia cũng đổi.
+      `two_baskets(a_items, b_items)` tạo hai giỏ, thêm đồ vào từng giỏ và trả về `[số đồ giỏ 1,
+      số đồ giỏ 2]`. Hãy sửa `Basket` để mỗi giỏ có list riêng.
+    entry: two_baskets
+    starter: |
+      class Basket:
+          items = []
+
+
+      def two_baskets(a_items, b_items):
+          b1 = Basket()
+          b2 = Basket()
+          for x in a_items:
+              b1.items.append(x)
+          for x in b_items:
+              b2.items.append(x)
+          return [len(b1.items), len(b2.items)]
+    guidance_md: |
+      - Nhận ra `items = []` ở thân class tạo một list **dùng chung**.
+      - Xóa dòng đó khỏi thân class.
+      - Thêm `__init__(self)` và tạo list mới ở đó.
+      - Gán `self.items = []` để mỗi object có list riêng.
+    hints:
+      - level: nudge
+        md: "Với `(['x','y'], ['z'])` kết quả hiện tại là `[3, 3]`. Tại sao hai giỏ cùng đếm 3?"
+      - level: approach
+        md: "List nằm ở thân class nên chỉ có một bản. Hãy tạo list trong hàm khởi tạo để mỗi object có bản riêng."
+      - level: near_solution
+        md: |
+          class Basket:
+              def __init__(self):
+                  ...  # tạo list riêng cho self ở đây
+    tests:
+      - {args: [["x", "y"], ["z"]], expected: [2, 1]}
+      - {args: [[], ["a", "b", "c"]], expected: [0, 3]}
+      - {args: [["p"], []], expected: [1, 0]}
+    solution: "class Basket:\n    def __init__(self):\n        self.items = []\n\n\ndef two_baskets(a_items, b_items):\n    b1 = Basket()\n    b2 = Basket()\n    for x in a_items:\n        b1.items.append(x)\n    for x in b_items:\n        b2.items.append(x)\n    return [len(b1.items), len(b2.items)]\n"
+  - id: s_property
+    type: section
+    title_vi: "property kiểm tra dữ liệu"
+    summary_vi: "@property cho phép gán thuộc tính nhưng vẫn kiểm tra giá trị hợp lệ."
+    exercise_ref: ex_score_property
+  - id: t4
+    type: text
+    md: |
+      **`@property`** biến một method thành thuộc tính đọc được như `obj.score`. Thêm
+      **`@score.setter`** để chạy code mỗi khi gán `obj.score = v`; ở đó bạn kiểm tra giá trị và
+      `raise ValueError` nếu không hợp lệ. Dữ liệu thật thường lưu ở thuộc tính "riêng" `self._score`.
+  - id: c4
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class Student:
+          def __init__(self):
+              self._score = 0
+
+          @property
+          def score(self):
+              return self._score
+
+          @score.setter
+          def score(self, v):
+              if not 0 <= v <= 10:
+                  raise ValueError("score ngoai 0..10")
+              self._score = v
+
+      s = Student()
+      s.score = 8
+      print(s.score)
+      try:
+          s.score = 99
+      except ValueError as e:
+          print("loi:", e)
+      print(s.score)
+    expected_output: |
+      8
+      loi: score ngoai 0..10
+      8
+  - id: ex_score_property
+    type: code_exercise
+    md: |
+      Class `Student` bên dưới dùng thuộc tính thường nên nhận cả điểm vô lý. Hãy biến `score`
+      thành `@property` với setter chỉ chấp nhận `0 <= v <= 10` (ngoài khoảng thì `raise
+      ValueError`). `try_scores(vals)` gán lần lượt từng giá trị (bỏ qua lỗi) và trả về điểm sau
+      mỗi lần gán.
+    entry: try_scores
+    starter: |
+      class Student:
+          def __init__(self):
+              self.score = 0
+
+
+      def try_scores(vals):
+          st = Student()
+          out = []
+          for v in vals:
+              try:
+                  st.score = v
+              except ValueError:
+                  pass
+              out.append(st.score)
+          return out
+    guidance_md: |
+      - Trong `__init__`, lưu điểm vào `self._score = 0`.
+      - Viết method `score(self)` với `@property` để trả về `self._score`.
+      - Viết `@score.setter` nhận `v`; nếu `v` ngoài `0..10` thì `raise ValueError`.
+      - Nếu hợp lệ, gán `self._score = v`.
+    hints:
+      - level: nudge
+        md: "Gán `st.score = 11` hiện vẫn thành công. Cần chặn ở đâu mỗi khi gán?"
+      - level: approach
+        md: "Đổi tên dữ liệu thật thành `_score`, rồi viết property getter và setter có kiểm tra khoảng."
+      - level: pseudocode
+        md: |
+          __init__: _score = 0
+          getter score: trả về _score
+          setter score(v): nếu v ngoài [0, 10] thì ném ValueError; ngược lại _score = v
+    tests:
+      - {args: [[5, 11, -1, 7]], expected: [5, 5, 5, 7]}
+      - {args: [[3]], expected: [3]}
+      - {args: [[10, 0, -2, 10, 11]], expected: [10, 0, 0, 10, 10]}
+    solution: "class Student:\n    def __init__(self):\n        self._score = 0\n\n    @property\n    def score(self):\n        return self._score\n\n    @score.setter\n    def score(self, v):\n        if not 0 <= v <= 10:\n            raise ValueError(\"bad\")\n        self._score = v\n\n\ndef try_scores(vals):\n    st = Student()\n    out = []\n    for v in vals:\n        try:\n            st.score = v\n        except ValueError:\n            pass\n        out.append(st.score)\n    return out\n"
+  - id: sum1
+    type: summary
+    bullets_vi:
+      - "Class là bản thiết kế, object là vật cụ thể; `__init__` gán thuộc tính ban đầu qua `self`."
+      - "Method nhận `self` làm tham số đầu: đó là object đang gọi, nên mỗi object có dữ liệu riêng."
+      - "Thuộc tính ở thân class được dùng chung; list/dict phải tạo trong `__init__` để tránh bẫy."
+      - "`@property` + setter cho phép kiểm tra dữ liệu khi gán."
 problems:
   practice: []
   extra: []

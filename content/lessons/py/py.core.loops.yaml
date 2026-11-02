@@ -1,5 +1,5 @@
 id: py.core.loops
-version: 1
+version: 2
 status: published
 title_vi: "Vòng lặp (loops)"
 est_minutes: 10
@@ -8,6 +8,11 @@ objectives_vi:
   - "Dự đoán chính xác các giá trị của range(start, stop, step), kể cả bước âm."
   - "Dùng while với điều kiện dừng (sentinel), break, continue, else của vòng lặp và vòng lặp lồng nhau."
 blocks:
+  - id: s_for_range
+    type: section
+    title_vi: "for, range và mẫu cộng dồn"
+    summary_vi: "Duyệt dãy bằng for, hiểu range(start, stop, step), cộng dồn và đếm."
+    exercise_ref: ex_count_vowels
   - id: b01
     type: text
     md: |
@@ -66,6 +71,15 @@ blocks:
       duyệt `1..n` gồm cả `n`, viết `range(1, n + 1)`. Nếu `start` đã vượt `stop` theo chiều của
       `step` thì dãy rỗng và vòng lặp không chạy lần nào. `range` không tạo sẵn cả dãy trong bộ
       nhớ, nên `range(10**9)` vẫn nhẹ.
+  - id: b06
+    type: quiz_mcq
+    prompt_md: "`range(3, 12, 4)` sinh ra những giá trị nào?"
+    options:
+      - {id: a, text_md: "`3, 7`: hai giá trị"}
+      - {id: b, text_md: "`3, 7, 11`: ba giá trị"}
+      - {id: c, text_md: "`3, 7, 11, 12`: bốn giá trị"}
+    answer: [b]
+    explain_md: "Bắt đầu từ 3, cộng 4 mỗi lần: 3, 7, 11; giá trị kế tiếp là 15 vượt quá `stop = 12` nên dừng. `stop` không bao giờ nằm trong dãy."
   - id: b04
     type: predict_output
     code: |
@@ -80,7 +94,53 @@ blocks:
       10,7,4,1,
       10
     explain_md: "`range(10, 0, -3)` đếm lùi 10, 7, 4, 1 và dừng trước 0. `range(1, 5)` là 1, 2, 3, 4 (không gồm 5) nên tổng là 10. Vòng lặp thứ hai `print(total)` nằm ngoài vòng lặp nên chỉ in một lần."
-  - id: b05
+  - id: ex_count_vowels
+    type: code_exercise
+    md: |
+      Viết `count_vowels(s)` trả về **số nguyên âm** (`a e i o u`, cả chữ hoa lẫn chữ thường) trong
+      chuỗi `s`. Ví dụ `"Education"` có 5 nguyên âm.
+    entry: count_vowels
+    starter: |
+      def count_vowels(s):
+          # TODO: duyệt từng ký tự và đếm
+          pass
+    guidance_md: |
+      - Chuẩn bị một biến để nhớ số nguyên âm đã gặp, bắt đầu từ 0.
+      - Duyệt lần lượt từng ký tự của chuỗi.
+      - Với mỗi ký tự, kiểm tra xem nó có phải một nguyên âm không (nhớ cả chữ hoa lẫn chữ thường).
+      - Mỗi lần kiểm tra đúng thì tăng biến nhớ lên một.
+      - Khi đã duyệt hết chuỗi, trả về giá trị biến nhớ.
+    hints:
+      - level: nudge
+        md: "Làm sao để biết một ký tự có nằm trong tập các nguyên âm hay không?"
+      - level: approach
+        md: "Dùng mẫu duyệt + đếm: `for` qua chuỗi, và toán tử `in` để hỏi ký tự có thuộc một chuỗi chứa các nguyên âm (cả hoa lẫn thường) không."
+      - level: near_solution
+        md: |
+          def count_vowels(s):
+              dem = 0
+              for ch in s:
+                  if ...:  # ch là nguyên âm?
+                      ...  # đếm thêm một
+              return dem
+    tests:
+      - {args: [""], expected: 0}
+      - {args: ["xyz"], expected: 0}
+      - {args: ["Education"], expected: 5}
+      - {args: ["AEIOUbcd"], expected: 5}
+    solution: |
+      def count_vowels(s):
+          dem = 0
+          for ch in s:
+              if ch in "aeiouAEIOU":
+                  dem += 1
+          return dem
+  - id: s_while
+    type: section
+    title_vi: "while và điều kiện dừng"
+    summary_vi: "Lặp khi chưa biết trước số lần; sentinel làm điều kiện dừng."
+    exercise_ref: b09
+  - id: b05a
     type: text
     md: |
       **`while`** lặp khi điều kiện còn đúng, hợp với việc "chưa biết trước số lần". Điều kiện dừng
@@ -95,68 +155,8 @@ blocks:
       print(tong)         # 15
       ```
 
-      Hai lệnh điều khiển vòng lặp:
-
-      - **`break`** thoát hẳn vòng lặp ngay lập tức.
-      - **`continue`** bỏ qua phần còn lại của lần lặp này và nhảy sang lần tiếp theo. Ví dụ cộng
-        các số từ 1 đến 9 trừ bội của 3: `if i % 3 == 0: continue` rồi `tong += i` cho kết quả `27`.
-
-      Vòng lặp còn có thể có nhánh **`else`**, chạy khi vòng lặp **kết thúc bình thường (không bị
-      `break`)**. Rất tiện cho kiểu "tìm thấy thì dừng, không thấy thì làm gì đó":
-
-      ```python
-      for n in range(2, 8):          # in các số nguyên tố trong 2..7
-          for d in range(2, n):      # vòng lặp lồng: vòng trong chạy trọn cho mỗi n
-              if n % d == 0:
-                  break              # n có ước d nên không nguyên tố
-          else:
-              print(n, end=",")      # không break: không có ước nào
-      # in ra: 2,3,5,7,
-      ```
-
-      Trong **vòng lặp lồng nhau (nested loop)**, `break` và `continue` chỉ tác động tới vòng lặp
-      *trong cùng* chứa chúng.
-  - id: b06
-    type: quiz_mcq
-    prompt_md: "`range(3, 12, 4)` sinh ra những giá trị nào?"
-    options:
-      - {id: a, text_md: "`3, 7`: hai giá trị"}
-      - {id: b, text_md: "`3, 7, 11`: ba giá trị"}
-      - {id: c, text_md: "`3, 7, 11, 12`: bốn giá trị"}
-    answer: [b]
-    explain_md: "Bắt đầu từ 3, cộng 4 mỗi lần: 3, 7, 11; giá trị kế tiếp là 15 vượt quá `stop = 12` nên dừng. `stop` không bao giờ nằm trong dãy."
-  - id: b07
-    type: quiz_mcq
-    prompt_md: |
-      Khi nào khối `else` của một vòng `for` chạy?
-
-      ```python
-      for x in dãy:
-          ...
-      else:
-          ...
-      ```
-    options:
-      - {id: a, text_md: "Khi vòng lặp chạy hết mà **không** gặp `break`"}
-      - {id: b, text_md: "Khi điều kiện của vòng lặp sai ngay từ đầu, và chỉ khi đó"}
-      - {id: c, text_md: "Khi vòng lặp bị thoát bởi `break`"}
-    answer: [a]
-    explain_md: "`else` của vòng lặp chạy khi vòng lặp kết thúc tự nhiên (kể cả dãy rỗng), và bị bỏ qua nếu vòng lặp thoát vì `break`."
-  - id: b08
-    type: predict_output
-    code: |
-      for i in range(1, 4):
-          for j in range(1, 4):
-              if j == 2:
-                  continue
-              if i == j:
-                  break
-              print(i, j)
-    expected_output: |
-      2 1
-      2 3
-      3 1
-    explain_md: "Với `i = 1`: `j = 1` thì `i == j` nên `break` vòng trong, không in gì. Với `i = 2`: in `2 1`, `j = 2` bị `continue`, in `2 3`. Với `i = 3`: in `3 1`, bỏ qua `j = 2`, rồi `j = 3` làm `i == j` nên `break`. `break` chỉ thoát vòng trong; vòng ngoài vẫn chạy tiếp."
+      Quy tắc: mỗi lần lặp phải làm biến trong điều kiện **tiến gần tới việc dừng** (ở đây `n //= 10`).
+      Quên cập nhật biến này là lỗi vô hạn kinh điển.
   - id: b09
     type: code_exercise
     md: |
@@ -179,8 +179,174 @@ blocks:
       - {args: [6], expected: 8}
       - {args: [7], expected: 16}
       - {args: [27], expected: 111}
-    hint_md: "Đặt `steps = 0`. `while n != 1:` nếu `n % 2 == 0` thì `n //= 2`, ngược lại `n = 3 * n + 1`; sau đó `steps += 1`. Cuối cùng `return steps`."
+    guidance_md: |
+      - Khởi tạo `steps = 0`.
+      - Dùng `while n != 1:` làm điều kiện dừng (sentinel).
+      - Trong vòng lặp: nếu `n % 2 == 0` thì `n //= 2`, ngược lại `n = 3 * n + 1`.
+      - Tăng `steps += 1` sau mỗi bước, cuối cùng `return steps`.
+    hints:
+      - level: nudge
+        md: "Bạn chưa biết trước số lần lặp, nên `while` hợp hơn `for`. Điều kiện dừng là gì?"
+      - level: approach
+        md: "Lặp trong khi `n != 1`; mỗi lần lặp biến đổi `n` theo chẵn/lẻ và đếm một bước."
+      - level: pseudocode
+        md: |
+          steps = 0
+          trong khi n khác 1:
+              nếu n chẵn: n = n // 2
+              ngược lại: n = 3 * n + 1
+              steps += 1
+          trả về steps
     solution: "def collatz_steps(n):\n    steps = 0\n    while n != 1:\n        if n % 2 == 0:\n            n //= 2\n        else:\n            n = 3 * n + 1\n        steps += 1\n    return steps\n"
+  - id: s_break_continue
+    type: section
+    title_vi: "break, continue và vòng lặp lồng"
+    summary_vi: "Thoát vòng lặp, bỏ qua một lần lặp, và phạm vi tác động trong vòng lặp lồng."
+    exercise_ref: ex_skip_multiples
+  - id: b05b
+    type: text
+    md: |
+      Hai lệnh điều khiển vòng lặp:
+
+      - **`break`** thoát hẳn vòng lặp ngay lập tức.
+      - **`continue`** bỏ qua phần còn lại của lần lặp này và nhảy sang lần tiếp theo. Ví dụ cộng
+        các số từ 1 đến 9 trừ bội của 3: `if i % 3 == 0: continue` rồi `tong += i` cho kết quả `27`.
+
+      Trong **vòng lặp lồng nhau (nested loop)**, `break` và `continue` chỉ tác động tới vòng lặp
+      *trong cùng* chứa chúng.
+  - id: b08
+    type: predict_output
+    code: |
+      for i in range(1, 4):
+          for j in range(1, 4):
+              if j == 2:
+                  continue
+              if i == j:
+                  break
+              print(i, j)
+    expected_output: |
+      2 1
+      2 3
+      3 1
+    explain_md: "Với `i = 1`: `j = 1` thì `i == j` nên `break` vòng trong, không in gì. Với `i = 2`: in `2 1`, `j = 2` bị `continue`, in `2 3`. Với `i = 3`: in `3 1`, bỏ qua `j = 2`, rồi `j = 3` làm `i == j` nên `break`. `break` chỉ thoát vòng trong; vòng ngoài vẫn chạy tiếp."
+  - id: ex_skip_multiples
+    type: code_exercise
+    md: |
+      Hàm `sum_skip(n, k)` phải cộng các số từ `1` đến `n` **trừ các bội của `k`**. Bản dưới đây
+      bị lỗi: dùng sai lệnh điều khiển nên dừng cả vòng lặp thay vì chỉ bỏ qua một số. Hãy sửa.
+    entry: sum_skip
+    starter: |
+      def sum_skip(n, k):
+          tong = 0
+          for i in range(1, n + 1):
+              if i % k == 0:
+                  break
+              tong += i
+          return tong
+    guidance_md: |
+      - Chạy thử bằng tay với `n = 9, k = 3`: điều gì xảy ra khi `i = 3`?
+      - Xác định: bạn muốn **thoát hẳn** vòng lặp hay **bỏ qua một lần lặp**?
+      - Thay lệnh sai bằng lệnh đúng, giữ nguyên phần còn lại.
+    hints:
+      - level: nudge
+        md: "Kết quả với `n = 9, k = 3` đang là 3 thay vì 27. Vòng lặp dừng sớm ở đâu?"
+      - level: approach
+        md: "`break` thoát cả vòng lặp; muốn chỉ bỏ qua số hiện tại rồi sang số tiếp theo thì cần lệnh khác."
+      - level: near_solution
+        md: "Trong nhánh `if i % k == 0:` hãy dùng `continue` thay cho `break`."
+    tests:
+      - {args: [9, 3], expected: 27}
+      - {args: [10, 5], expected: 40}
+      - {args: [5, 7], expected: 15}
+      - {args: [12, 4], expected: 54}
+    solution: |
+      def sum_skip(n, k):
+          tong = 0
+          for i in range(1, n + 1):
+              if i % k == 0:
+                  continue
+              tong += i
+          return tong
+  - id: s_for_else
+    type: section
+    title_vi: "else của vòng lặp"
+    summary_vi: "Nhánh else chạy khi vòng lặp không bị break; mẫu tìm kiếm."
+    exercise_ref: ex_is_prime
+  - id: b05c
+    type: text
+    md: |
+      Vòng lặp còn có thể có nhánh **`else`**, chạy khi vòng lặp **kết thúc bình thường (không bị
+      `break`)**. Rất tiện cho kiểu "tìm thấy thì dừng, không thấy thì làm gì đó":
+
+      ```python
+      for n in range(2, 8):          # in các số nguyên tố trong 2..7
+          for d in range(2, n):      # vòng lặp lồng: vòng trong chạy trọn cho mỗi n
+              if n % d == 0:
+                  break              # n có ước d nên không nguyên tố
+          else:
+              print(n, end=",")      # không break: không có ước nào
+      # in ra: 2,3,5,7,
+      ```
+  - id: b07
+    type: quiz_mcq
+    prompt_md: |
+      Khi nào khối `else` của một vòng `for` chạy?
+
+      ```python
+      for x in dãy:
+          ...
+      else:
+          ...
+      ```
+    options:
+      - {id: a, text_md: "Khi vòng lặp chạy hết mà **không** gặp `break`"}
+      - {id: b, text_md: "Khi điều kiện của vòng lặp sai ngay từ đầu, và chỉ khi đó"}
+      - {id: c, text_md: "Khi vòng lặp bị thoát bởi `break`"}
+    answer: [a]
+    explain_md: "`else` của vòng lặp chạy khi vòng lặp kết thúc tự nhiên (kể cả dãy rỗng), và bị bỏ qua nếu vòng lặp thoát vì `break`."
+  - id: ex_is_prime
+    type: code_exercise
+    md: |
+      Viết `is_prime(n)` trả về `True` nếu `n` là số nguyên tố, ngược lại `False` (các số `< 2`
+      không nguyên tố). Gợi ý: dùng vòng `for` với `else` như ví dụ ở trên.
+    entry: is_prime
+    starter: |
+      def is_prime(n):
+          # TODO: n < 2 thì không nguyên tố; thử các ước d trong range(2, n)
+          pass
+    guidance_md: |
+      - Xử lý riêng trường hợp `n < 2`: trả về `False`.
+      - Duyệt `d` trong `range(2, n)`; nếu `n % d == 0` thì đã tìm thấy ước.
+      - Khi tìm thấy ước, thoát vòng lặp và trả về `False`.
+      - Nếu vòng lặp chạy hết không `break` (nhánh `else`), trả về `True`.
+    hints:
+      - level: nudge
+        md: "Nghĩ tới câu hỏi: khi nào cần `break`, và khi nào nhánh `else` của vòng lặp chạy?"
+      - level: approach
+        md: "Tìm một ước trong `2..n-1`: có thì `n` không nguyên tố; không có (vòng lặp không bị `break`) thì nguyên tố."
+      - level: pseudocode
+        md: |
+          nếu n < 2: trả về False
+          với mỗi d trong range(2, n):
+              nếu n chia hết cho d: thoát vòng lặp
+          else (không bị thoát): trả về True
+          trả về False
+    tests:
+      - {args: [0], expected: false}
+      - {args: [1], expected: false}
+      - {args: [2], expected: true}
+      - {args: [9], expected: false}
+      - {args: [13], expected: true}
+    solution: |
+      def is_prime(n):
+          if n < 2:
+              return False
+          for d in range(2, n):
+              if n % d == 0:
+                  break
+          else:
+              return True
+          return False
   - id: b10
     type: problem_ref
     problem_id: ugly-number

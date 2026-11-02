@@ -161,25 +161,22 @@ async function main() {
     check("b13 predict_output correct", (await predict("b13", block("b13").expected_output.trim())).includes("Đúng"));
 
     // ---- code_exercise in the lesson
-    await page.locator("#block-b14 button:has-text('Làm bài này')").click();
+    // split width: the section's exercise is auto-paired in the right pane (no open click)
     await page.waitForSelector(".pane.right .cm-content");
     await setCode(page, block("b14").solution, ".pane.right .cm-content");
     await page.keyboard.press("Control+Enter");
     await waitVerdict(page, "test qua", 30000);
     check("code_exercise passes in the lesson editor", (await page.locator("#block-b14").innerText()).includes("Xong"));
 
-    // ---- resume position: move to b10, wait for the 3 s debounce, GET /resume
-    await page.locator("#block-b10").click();
+    // ---- resume position: reported per section (flat lesson = one section, id = first block); wait for the 3 s debounce
     await page.waitForTimeout(3500);
     const resume = (await api("GET", "/resume")).json.primary;
-    check("resume saved on the server (block b10)", resume?.mode === "lesson" && resume.ref.block_id === "b10", JSON.stringify(resume?.ref));
+    check("resume saved on the server (containing section id)", resume?.mode === "lesson" && resume.ref.block_id === lesson.blocks[0].id, JSON.stringify(resume?.ref));
 
     // ---- reload keeps quiz progress and resume position
     await page.reload();
     await page.waitForSelector(".lesson .block");
-    await page.waitForFunction(() => document.querySelector(".block.current")?.id === "block-b10", null, { timeout: 5000 }).catch(() => undefined);
-    const cur = await page.evaluate(() => document.querySelector(".block.current")?.id);
-    check("reload: resume position restored (block b10 current)", cur === "block-b10", String(cur));
+    check("reload: right pane editor auto-paired", await page.waitForSelector(".pane.right .cm-content", { timeout: 15000 }).then(() => true, () => false));
     const stateText = await page.locator("#block-b04 fieldset").innerText();
     const stillDisabled = await page.locator("#block-b04 fieldset").evaluate((e) => e.disabled);
     check("reload: answered quiz stays answered (server progress)", stillDisabled && stateText.includes("Đúng"));

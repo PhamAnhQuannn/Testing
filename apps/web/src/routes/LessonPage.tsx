@@ -21,7 +21,9 @@ import { lsGet, lsSet, useAsync, useLayout, usePageExit } from "../lib/hooks";
 import { idbStore } from "../lib/idb";
 import { ResumeReporter } from "../lib/resumeReporter";
 import { BlockView, type BlockContext } from "../lesson/Blocks";
-import { ExercisePane } from "../lesson/ExercisePane";
+import { SectionPane } from "../lesson/SectionPane";
+import { SectionRail } from "../lesson/SectionRail";
+import { deriveSections, sectionIndexOfBlock, type Section } from "../lesson/sections";
 
 export default function LessonPage() {
   const { subtopicId } = useParams();
@@ -72,6 +74,16 @@ function readDone(id: string): Set<string> {
   }
 }
 
+const viewedKey = (id: string) => `prep:secviewed:${id}`;
+
+function readViewed(id: string): Set<string> {
+  try {
+    return new Set(JSON.parse(lsGet(viewedKey(id)) ?? "[]") as string[]);
+  } catch {
+    return new Set();
+  }
+}
+
 function LessonView({ lesson }: { lesson: Lesson }) {
   const notify = useToast();
   const navigate = useNavigate();
@@ -80,7 +92,9 @@ function LessonView({ lesson }: { lesson: Lesson }) {
   const preview = lock !== null && isLocked(lock);
   const [tab, setTab] = useState<"lesson" | "problems">("lesson");
   const [pane, setPane] = useState<"left" | "right">("left");
-  const [current, setCurrent] = useState(0);
+  const sections = useMemo(() => deriveSections(lesson.blocks), [lesson.blocks]);
+  const [sectionIdx, setSectionIdx] = useState(0);
+  const [viewed, setViewed] = useState<Set<string>>(() => readViewed(lesson.id));
   const [runNo, setRunNo] = useState(lesson.run_no);
   const [results, setResults] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(Object.entries(lesson.answers).map(([id, a]) => [id, a.correct])),
@@ -90,27 +104,42 @@ function LessonView({ lesson }: { lesson: Lesson }) {
   const [completing, setCompleting] = useState(false);
   const [outcome, setOutcome] = useState<LessonCompleteResult | null>(null);
   const [completed, setCompleted] = useState(lesson.completed);
-  const blockEls = useRef<(HTMLDivElement | null)[]>([]);
+  const topRef = useRef<HTMLDivElement | null>(null);
   const completeKey = useRef(newIdempotencyKey());
 
   const reporter = useMemo(() => new ResumeReporter(putResume, idbStore<ResumeState>("resume")), []);
   usePageExit(useCallback((keepalive: boolean) => void reporter.flush(keepalive), [reporter]));
   useEffect(() => () => void reporter.flush(), [reporter]);
 
-  const goTo = useCallback(
-    (index: number, scroll = true) => {
-      const clamped = Math.max(0, Math.min(lesson.blocks.length - 1, index));
-      setCurrent(clamped);
-      if (scroll) {
-        const el = blockEls.current[clamped];
-        el?.scrollIntoView({ block: "start", behavior: "smooth" });
-        el?.focus({ preventScroll: true });
-      }
+  const section: Section = sections[Math.min(sectionIdx, sections.length - 1)];
+  const isLast = sectionIdx >= sections.length - 1;
+
+  const markViewed = useCallback(
+    (sectionId: string) => {
+      setViewed((previous) => {
+        if (previous.has(sectionId)) return previous;
+        const next = new Set(previous).add(sectionId);
+        lsSet(viewedKey(lesson.id), JSON.stringify([...next]));
+        return next;
+      });
     },
-    [lesson.blocks.length],
+    [lesson.id],
   );
 
-  // Restore position: newest of IndexedDB and GET /resume for this lesson.
+  const goTo = useCallback(
+    (index: number, scroll = true) => {
+      const clamped = Math.max(0, Math.min(sections.length - 1, index));
+      if (clamped !== sectionIdx) {
+        markViewed(sections[sectionIdx].id); // leaving counts as viewed
+        setPane("left"); // never auto-switch to the exercise tab on section change
+      }
+      setSectionIdx(clamped);
+      if (scroll) topRef.current?.scrollIntoView?.({ block: "start", behavior: "smooth" });
+    },
+    [sections, sectionIdx, markViewed],
+  );
+
+  // Restore position: newest of IndexedDB and GET /resume for this lesson (block id -> its section).
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -121,39 +150,36 @@ function LessonView({ lesson }: { lesson: Lesson }) {
       const mine = [server, local]
         .filter((s): s is ResumeState => Boolean(s) && s!.mode === "lesson" && s!.ref?.subtopic_id === lesson.id)
         .sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at))[0];
-      const blockId = mine?.ref.block_id as string | undefined;
-      const index = lesson.blocks.findIndex((b) => b.id === blockId);
-      if (alive && index > 0) goTo(index);
+      const index = sectionIndexOfBlock(sections, mine?.ref.block_id as string | undefined);
+      if (alive && index > 0) setSectionIdx(index);
     })();
     return () => {
       alive = false;
     };
-  }, [lesson, goTo]);
+  }, [lesson.id, sections]);
 
-  const block = lesson.blocks[current];
   useEffect(() => {
-    if (!block) return;
     reporter.report({
       mode: "lesson",
       route: `/s/${lesson.id}`,
-      ref: { subtopic_id: lesson.id, block_id: block.id, tab },
+      ref: { subtopic_id: lesson.id, block_id: section.id, tab },
     });
-  }, [reporter, lesson.id, block, tab]);
+  }, [reporter, lesson.id, section.id, tab]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (!event.altKey) return;
       if (event.key === "ArrowRight") {
         event.preventDefault();
-        goTo(current + 1);
+        goTo(sectionIdx + 1);
       } else if (event.key === "ArrowLeft") {
         event.preventDefault();
-        goTo(current - 1);
+        goTo(sectionIdx - 1);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [current, goTo]);
+  }, [sectionIdx, goTo]);
 
   const onAnswered = useCallback((blockId: string, correct: boolean) => {
     setResults((r) => ({ ...r, [blockId]: correct }));
@@ -171,19 +197,25 @@ function LessonView({ lesson }: { lesson: Lesson }) {
     [lesson.id],
   );
 
-  const exercise = lesson.blocks.find((b) => b.id === active && b.type === "code_exercise");
+  const exercisesInSection = section.blocks.filter((b) => b.type === "code_exercise");
+  const exercise =
+    exercisesInSection.find((b) => b.id === active && b.type === "code_exercise") ?? section.exercise;
+  const sectionDone = (s: Section) => (s.exercise ? done.has(s.exercise.id) : viewed.has(s.id));
+  const exercisePassed = section.exercise ? done.has(section.exercise.id) : false;
+  const doneCount = sections.filter(sectionDone).length;
   const ctx: BlockContext = {
     subtopicId: lesson.id,
     runNo,
     known: runNo === lesson.run_no ? lesson.answers : {},
     onAnswered,
-    activeExercise: active,
+    activeExercise: exercise?.id ?? null,
     doneExercises: done,
     onOpenExercise: (id) => {
       setActive(id);
       setPane("right");
     },
     canEdit: layout !== "narrow" && !preview,
+    showOpen: layout === "tabs" || exercisesInSection.length > 1,
   };
 
   const stats = tally(lesson.blocks, results);
@@ -226,6 +258,13 @@ function LessonView({ lesson }: { lesson: Lesson }) {
   const quizBest = outcome?.quiz_best ?? stats.ratio;
   const passed = outcome ? (outcome.quiz_passed ?? quizBest >= passRatio) : false;
   const wrongBlocks = stats.wrong;
+  const showWrong = (id: string) => {
+    const i = sectionIndexOfBlock(sections, id);
+    if (i >= 0) {
+      goTo(i, false);
+      setTimeout(() => document.getElementById(`block-${id}`)?.scrollIntoView?.({ block: "start" }), 0);
+    }
+  };
 
   const left = (
     <>
@@ -260,28 +299,27 @@ function LessonView({ lesson }: { lesson: Lesson }) {
         <ProblemList lesson={lesson} />
       ) : (
         <div className="lesson">
+          <div ref={topRef} />
           <h1>{lesson.title_vi}</h1>
-          <ul>
-            {lesson.objectives_vi.map((o, i) => (
-              <li key={i}>{o}</li>
-            ))}
-          </ul>
+          {sectionIdx === 0 && (
+            <ul>
+              {lesson.objectives_vi.map((o, i) => (
+                <li key={i}>{o}</li>
+              ))}
+            </ul>
+          )}
+          {sections.length > 1 && (
+            <SectionRail sections={sections} idx={sectionIdx} done={sectionDone} viewed={viewed} onSelect={goTo} />
+          )}
           <fieldset className="preview-fieldset" disabled={preview}>
-          {lesson.blocks.map((b, i) => (
-            <div
-              key={b.id}
-              id={`block-${b.id}`}
-              ref={(el) => {
-                blockEls.current[i] = el;
-              }}
-              tabIndex={-1}
-              className={`block${i === current ? " current" : ""}`}
-              onFocusCapture={() => setCurrent(i)}
-              onClick={() => setCurrent(i)}
-            >
+          {section.title && <h2>{section.title}</h2>}
+          {section.title && section.summary && <p className="muted">{section.summary}</p>}
+          {section.blocks.map((b) => (
+            <div key={b.id} id={`block-${b.id}`} className="block">
               <BlockView block={b} ctx={ctx} />
             </div>
           ))}
+          {isLast && (
           <section className="card" aria-label="Hoàn thành bài học">
             {!completed && (
               <button className="btn primary" onClick={() => void complete()} disabled={completing || preview}>
@@ -306,7 +344,10 @@ function LessonView({ lesson }: { lesson: Lesson }) {
                     <ul>
                       {wrongBlocks.map((id) => (
                         <li key={id}>
-                          <a href={`#block-${id}`} onClick={() => goTo(lesson.blocks.findIndex((b) => b.id === id))}>
+                          <a href={`#block-${id}`} onClick={(e) => {
+                            e.preventDefault();
+                            showWrong(id);
+                          }}>
                             {id}
                           </a>
                         </li>
@@ -321,54 +362,60 @@ function LessonView({ lesson }: { lesson: Lesson }) {
             )}
             {completed && !outcome && <p className="muted">Bạn đã hoàn thành bài học này.</p>}
           </section>
+          )}
           </fieldset>
-          <div className="blocknav">
-            <button className="btn sm" onClick={() => goTo(current - 1)} disabled={current === 0}>
-              ◄ Block trước
-            </button>
-            <span aria-live="polite">
-              {current + 1}/{lesson.blocks.length}
-            </span>
-            <button
-              className="btn sm"
-              onClick={() => goTo(current + 1)}
-              disabled={current >= lesson.blocks.length - 1}
-            >
-              Tiếp ►
-            </button>
-          </div>
-          <div className="progress" aria-hidden="true">
-            <div style={{ width: `${((current + 1) / Math.max(1, lesson.blocks.length)) * 100}%` }} />
-          </div>
+          {sections.length > 1 && (
+            <>
+              <div className="blocknav">
+                <button className="btn sm" onClick={() => goTo(sectionIdx - 1)} disabled={sectionIdx === 0}>
+                  ◄ Phần trước
+                </button>
+                <span aria-live="polite">
+                  Phần {sectionIdx + 1}/{sections.length} · xong {doneCount}/{sections.length}
+                </span>
+                {section.exercise && !exercisePassed && !isLast && (
+                  <button className="btn sm ghost" onClick={() => goTo(sectionIdx + 1)} title="Bỏ qua bài tập, sang phần sau">
+                    Bỏ qua
+                  </button>
+                )}
+                <button
+                  className={`btn sm${exercisePassed ? " primary" : ""}`}
+                  onClick={() => goTo(sectionIdx + 1)}
+                  disabled={isLast}
+                >
+                  Phần sau ►
+                </button>
+              </div>
+              <div className="progress" aria-hidden="true">
+                <div style={{ width: `${(doneCount / Math.max(1, sections.length)) * 100}%` }} />
+              </div>
+            </>
+          )}
         </div>
       )}
     </>
   );
 
-  const right = exercise && exercise.type === "code_exercise" ? (
-    <ExercisePane key={exercise.id} subtopicId={lesson.id} block={exercise} onPassed={onPassed} />
-  ) : (
-    <div className="empty">
-      <p>Chọn &quot;Làm bài này&quot; ở một bài tập trong bài học để nạp code vào đây.</p>
-      {lesson.problems.practice.length > 0 && (
-        <p>
-          Bài luyện chính:{" "}
-          {lesson.problems.practice.map((id) => (
-            <Link key={id} to={`/p/${id}`}>
-              {id}
-            </Link>
-          ))}
-        </p>
-      )}
-    </div>
+  const right = (
+    <SectionPane
+      subtopicId={lesson.id}
+      section={section}
+      exercise={exercise}
+      canEdit={ctx.canEdit}
+      results={results}
+      practice={lesson.problems.practice}
+      onPassed={onPassed}
+      onNext={() => goTo(sectionIdx + 1)}
+      isLast={isLast}
+    />
   );
 
   return (
     <SplitLayout
       left={left}
       right={right}
-      leftTab="Bài học"
-      rightTab="Code"
+      leftTab="Lý thuyết"
+      rightTab="Bài tập"
       activeTab={pane}
       onTabChange={setPane}
     />
