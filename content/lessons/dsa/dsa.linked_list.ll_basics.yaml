@@ -1,24 +1,361 @@
 id: dsa.linked_list.ll_basics
 version: 1
-status: draft
-title_vi: Danh sách liên kết đơn và đôi (singly and doubly linked list)
-est_minutes: 10
+status: published
+title_vi: "Danh sách liên kết đơn và đôi (singly and doubly linked list)"
+est_minutes: 12
 objectives_vi:
-- Cài linked list đơn và đôi có node giả.
-- Chèn xoá đúng ở đầu, giữa, cuối mà không lỗi None, và so sánh được với mảng.
-blocks: []
-problems:
-  practice: []
-  extra: []
-mastery_check:
-  l1: []
-  l2: []
-  l3: []
-checkpoint:
-  pass_ratio: 0.7
-  min_items: 3
+  - "Mô tả linked list bằng Node (val, next) và dựng được list đơn bằng class Node."
+  - "Duyệt list bằng con trỏ cur, tính độ dài và tìm một giá trị mà không lỗi None."
+  - "Chèn một node vào đầu hoặc giữa list bằng cách nối lại con trỏ đúng thứ tự."
+  - "So sánh linked list với mảng: truy cập O(n), chèn/xoá khi đã có con trỏ O(1)."
+blocks:
+  - id: s_node_traverse
+    type: section
+    title_vi: "Node, duyệt list và độ dài"
+    summary_vi: "Dựng Node(val, next), duyệt từ head tới None bằng con trỏ cur."
+    exercise_ref: ex_length
+  - id: t01
+    type: text
+    md: |
+      **Linked list (danh sách liên kết)** là một đoàn tàu: mỗi toa là một **node** chứa một giá trị
+      (`val`) và một cái móc `next` nối tới node sau. Toa cuối có `next = None`. Ta chỉ giữ **head**
+      (đầu tàu); muốn tới node thứ k phải đi từ head qua k bước, nên truy cập theo chỉ số là **O(n)**.
+
+      ```python
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+      ```
+
+      Mẫu duyệt (traversal) quan trọng nhất: một con trỏ `cur` bắt đầu ở `head` và đi tiếp
+      `cur = cur.next` cho đến khi `cur` là `None`. Điều kiện vòng lặp là `while cur:` (hoặc
+      `while cur is not None:`), **không phải** `while cur.next:` vì cách sau bỏ sót node cuối.
+  - id: t02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+      head = Node(10, Node(20, Node(30)))
+      cur = head
+      while cur:
+          print(cur.val, end=" ")
+          cur = cur.next
+      print()
+    expected_output: |
+      10 20 30
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Linked list đơn chỉ lưu `head`. Truy cập node ở vị trí thứ `i` tốn bao nhiêu thời gian?"
+    options:
+      - {id: a, text_md: "O(1), như mảng"}
+      - {id: b, text_md: "O(log n)"}
+      - {id: c, text_md: "O(n): phải đi qua từng node từ head"}
+    answer: [c]
+    explain_md: "Không có chỉ số trực tiếp; phải theo `next` từng bước từ head, tối đa n bước. Đây là điểm yếu so với mảng."
+  - id: ex_length
+    type: code_exercise
+    md: |
+      Cho sẵn `Node` và hàm `build(values)` dựng linked list từ một list Python. Viết
+      `list_length(values)` dựng list rồi **đếm số node** bằng cách duyệt từ head.
+      Ví dụ `[1, 2, 3, 4]` có độ dài 4, list rỗng có độ dài 0.
+    entry: list_length
+    starter: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+      def build(values):
+          head = None
+          for v in reversed(values):
+              head = Node(v, head)
+          return head
+
+      def list_length(values):
+          head = build(values)
+          # TODO: duyệt từ head, đếm số node
+          pass
+    guidance_md: |
+      - Dùng một biến đếm bắt đầu từ 0 và một con trỏ `cur` bắt đầu ở `head`.
+      - Lặp trong khi `cur` chưa là `None`.
+      - Mỗi bước: tăng đếm rồi di chuyển `cur` sang node kế.
+      - Trả về biến đếm khi hết list.
+    hints:
+      - level: nudge
+        md: "Khi nào thì bạn biết đã đi hết list?"
+      - level: approach
+        md: "Duyệt bằng `cur = head`, lặp tới khi `cur` là `None`, đếm mỗi node gặp."
+      - level: pseudocode
+        md: |
+          dem = 0
+          cur = head
+          trong khi cur khác None:
+              dem += 1
+              cur = cur.next
+          trả về dem
+      - level: near_solution
+        md: |
+          cur = head
+          dem = 0
+          while ...:   # điều kiện dừng?
+              ...      # đếm
+              ...      # đi tiếp
+          return dem
+    tests:
+      - {args: [[]], expected: 0}
+      - {args: [[7]], expected: 1}
+      - {args: [[1, 2, 3, 4]], expected: 4}
+      - {args: [[5, 5, 5]], expected: 3}
+    solution: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+      def build(values):
+          head = None
+          for v in reversed(values):
+              head = Node(v, head)
+          return head
+
+      def list_length(values):
+          head = build(values)
+          dem = 0
+          cur = head
+          while cur:
+              dem += 1
+              cur = cur.next
+          return dem
+  - id: s_search
+    type: section
+    title_vi: "Tìm kiếm trong list"
+    summary_vi: "Tìm một giá trị và tránh lỗi bỏ sót node cuối hoặc None."
+    exercise_ref: ex_contains
+  - id: t03
+    type: text
+    md: |
+      Tìm kiếm trong linked list là **tìm tuyến tính (linear search)**: duyệt từng node, so `cur.val`
+      với giá trị cần tìm, thấy thì trả `True` ngay, hết list mà không thấy thì trả `False`. Độ
+      phức tạp **O(n)** thời gian, **O(1)** bộ nhớ phụ.
+
+      Hai lỗi kinh điển: (1) viết `while cur.next:` làm node cuối không được kiểm tra; (2) truy cập
+      `cur.val` khi `cur` đã là `None` gây `AttributeError`. Luôn kiểm tra `cur` trước khi dùng nó.
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Toa cuối của linked list đơn có `next` bằng ___ (điền giá trị Python)."
+    blanks: [{accept: ["None", "none"]}]
+    explain_md: "Node cuối không nối tới đâu cả nên `next` là `None`; vòng duyệt `while cur:` dừng ở đó."
+  - id: ex_contains
+    type: code_exercise
+    md: |
+      Hàm `ll_contains(values, target)` phải trả `True` nếu `target` có trong list. Bản dưới đây bị
+      lỗi: nó bỏ sót node cuối (và lỗi với list rỗng). Hãy sửa.
+    entry: ll_contains
+    starter: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+      def build(values):
+          head = None
+          for v in reversed(values):
+              head = Node(v, head)
+          return head
+
+      def ll_contains(values, target):
+          cur = build(values)
+          while cur.next is not None:
+              if cur.val == target:
+                  return True
+              cur = cur.next
+          return False
+    guidance_md: |
+      - Thử bằng tay với `[4]` và target `4`: vòng lặp có chạy không?
+      - Điều kiện `cur.next is not None` dừng sớm một node. Điều kiện đúng là gì?
+      - Sửa điều kiện vòng lặp, giữ nguyên phần còn lại.
+    hints:
+      - level: nudge
+        md: "Với list `[4]`, kết quả đang là `False`. Node cuối có được so sánh không?"
+      - level: approach
+        md: "Điều kiện `cur.next is not None` dừng *trước* node cuối. Ta muốn lặp khi bản thân `cur` còn tồn tại."
+      - level: near_solution
+        md: "Đổi dòng `while` thành `while cur is not None:`."
+    tests:
+      - {args: [[1, 2, 3], 3], expected: true}
+      - {args: [[1, 2, 3], 2], expected: true}
+      - {args: [[], 1], expected: false}
+      - {args: [[4], 4], expected: true}
+      - {args: [[1, 2], 9], expected: false}
+    solution: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+      def build(values):
+          head = None
+          for v in reversed(values):
+              head = Node(v, head)
+          return head
+
+      def ll_contains(values, target):
+          cur = build(values)
+          while cur is not None:
+              if cur.val == target:
+                  return True
+              cur = cur.next
+          return False
+  - id: s_insert
+    type: section
+    title_vi: "Chèn node bằng cách nối lại con trỏ"
+    summary_vi: "Chèn ở đầu và sau một node; thứ tự gán con trỏ quyết định đúng sai."
+    exercise_ref: ex_insert
+  - id: t04
+    type: text
+    md: |
+      Chèn node mới `new` ngay sau node `p` chỉ cần hai phép gán, và **thứ tự rất quan trọng**:
+
+      ```python
+      new.next = p.next   # 1) móc new vào phần sau trước
+      p.next = new        # 2) rồi mới móc p vào new
+      ```
+
+      Nếu làm ngược (gán `p.next = new` trước) bạn mất tham chiếu tới phần còn lại của list. Khi đã
+      có `p`, chèn tốn **O(1)**; chèn vào đầu list là `head = Node(x, head)`, cũng O(1). Đây là điểm
+      mạnh so với mảng (chèn đầu mảng phải dịch O(n) phần tử). **Doubly linked list** (list đôi)
+      thêm con trỏ `prev` để đi lùi, đổi lại mỗi node tốn thêm bộ nhớ và phải nối lại cả hai chiều.
+  - id: q03
+    type: predict_output
+    code: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+      a = Node(1)
+      b = Node(2)
+      c = Node(3)
+      a.next = b
+      b.next = c
+      cur = a.next
+      print(cur.val)
+      a.next = c
+      n = 0
+      cur = a
+      while cur:
+          n += 1
+          cur = cur.next
+      print(n)
+    expected_output: |
+      2
+      2
+    explain_md: "Lúc đầu `a.next` là `b` nên in 2. Sau `a.next = c`, `b` bị bỏ qua: chuỗi là a -> c, nên có 2 node."
+  - id: ex_insert
+    type: code_exercise
+    md: |
+      Viết `insert_after(values, index, x)`: dựng list từ `values`, chèn node mới có giá trị `x`
+      **ngay sau node ở vị trí `index`** (đếm từ 0, đảm bảo hợp lệ), rồi trả về list kết quả dưới
+      dạng list Python (đã có sẵn `to_list`). Ví dụ `([1, 2, 3], 0, 9)` cho `[1, 9, 2, 3]`.
+    entry: insert_after
+    starter: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+      def build(values):
+          head = None
+          for v in reversed(values):
+              head = Node(v, head)
+          return head
+
+      def to_list(head):
+          out = []
+          while head:
+              out.append(head.val)
+              head = head.next
+          return out
+
+      def insert_after(values, index, x):
+          head = build(values)
+          # TODO: đi tới node ở vị trí index, rồi chèn Node(x)
+          return to_list(head)
+    guidance_md: |
+      - Dùng con trỏ `p` đi từ head `index` bước để tới node cần chèn sau nó.
+      - Tạo node mới `new = Node(x)`.
+      - Nối `new.next` tới phần sau của `p` trước, rồi mới trỏ `p.next` tới `new`.
+    hints:
+      - level: nudge
+        md: "Bạn cần đứng ở node thứ `index`. Đi tới đó bằng cách nào?"
+      - level: approach
+        md: "Lặp `index` lần `p = p.next` để tới node nền; sau đó hai phép gán: `new.next = p.next`, `p.next = new`."
+      - level: pseudocode
+        md: |
+          p = head
+          lặp index lần: p = p.next
+          new = Node(x)
+          new.next = p.next
+          p.next = new
+      - level: near_solution
+        md: |
+          p = head
+          for _ in range(index):
+              p = p.next
+          new = Node(x)
+          new.next = ...   # phần sau của p
+          ...              # p trỏ tới new
+    tests:
+      - {args: [[1, 2, 3], 0, 9], expected: [1, 9, 2, 3]}
+      - {args: [[1, 2, 3], 2, 9], expected: [1, 2, 3, 9]}
+      - {args: [[5], 0, 6], expected: [5, 6]}
+      - {args: [[1, 2, 3, 4], 1, 0], expected: [1, 2, 0, 3, 4]}
+    solution: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+      def build(values):
+          head = None
+          for v in reversed(values):
+              head = Node(v, head)
+          return head
+
+      def to_list(head):
+          out = []
+          while head:
+              out.append(head.val)
+              head = head.next
+          return out
+
+      def insert_after(values, index, x):
+          head = build(values)
+          p = head
+          for _ in range(index):
+              p = p.next
+          new = Node(x)
+          new.next = p.next
+          p.next = new
+          return to_list(head)
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Node có `val` và `next`; list chỉ giữ `head`, node cuối có `next = None`."
+      - "Duyệt: `cur = head; while cur: ...; cur = cur.next`. Dùng `while cur.next` sẽ bỏ sót node cuối."
+      - "Truy cập/tìm kiếm O(n); chèn hoặc xoá khi đã có con trỏ tới node trước là O(1)."
+      - "Khi chèn sau `p`: `new.next = p.next` trước, rồi `p.next = new`."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [Q078], l2: [Q079], l3: []}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
 source:
   tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
-  authored_by: tools/gen_lesson_stubs.py
+  authored_by: "claude"
   reviewed_by: null
-  date: '2026-10-24'
+  date: "2026-11-02"

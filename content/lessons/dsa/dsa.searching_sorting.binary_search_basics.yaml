@@ -1,24 +1,307 @@
 id: dsa.searching_sorting.binary_search_basics
 version: 1
-status: draft
-title_vi: Binary search cơ bản (binary search fundamentals)
-est_minutes: 10
+status: published
+title_vi: "Binary search cơ bản (binary search fundamentals)"
+est_minutes: 13
 objectives_vi:
-- Viết binary search theo bất biến.
-- Không lặp vô hạn hay lệch một, và phân biệt được lower_bound với upper_bound.
-blocks: []
-problems:
-  practice: []
-  extra: []
-mastery_check:
-  l1: []
-  l2: []
-  l3: []
-checkpoint:
-  pass_ratio: 0.7
-  min_items: 3
+  - "Viết binary search tìm giá trị trên mảng đã sắp theo bất biến (loop invariant), không lặp vô hạn."
+  - "Phân biệt lower_bound và upper_bound, tránh lỗi lệch một (off-by-one) ở biên."
+  - "Dùng hai bound để đếm số lần xuất hiện của một giá trị trong O(log n)."
+blocks:
+  - id: s_find
+    type: section
+    title_vi: "Tìm giá trị bằng binary search"
+    summary_vi: "Thu hẹp đoạn [lo, hi] còn khả năng chứa target, mỗi bước bỏ một nửa."
+    exercise_ref: ex_bsearch
+  - id: b01
+    type: text
+    md: |
+      **Binary search** tìm một giá trị trong mảng **đã sắp** bằng cách mỗi bước so với phần tử
+      giữa rồi bỏ đi một nửa: O(log n) so với O(n) khi duyệt tuần tự.
+
+      Cách viết an toàn là giữ một **bất biến (invariant)**: *"nếu target có trong mảng thì nó nằm
+      trong `a[lo..hi]`"* (đóng hai đầu).
+
+      ```python
+      lo, hi = 0, len(a) - 1
+      while lo <= hi:
+          mid = lo + (hi - lo) // 2
+          if a[mid] == target:
+              return mid
+          elif a[mid] < target:
+              lo = mid + 1      # a[lo..mid] đều < target: loại hết
+          else:
+              hi = mid - 1      # a[mid..hi] đều > target: loại hết
+      return -1
+      ```
+
+      Vì mỗi nhánh loại cả `mid` (`mid + 1` hoặc `mid - 1`) nên đoạn luôn co lại và vòng lặp chắc
+      chắn dừng. Dùng `lo <= hi` vì khi `lo == hi` vẫn còn một ứng viên cần kiểm tra.
+  - id: b02
+    type: callout
+    kind: tip
+    md: |
+      **Vì sao `mid = lo + (hi - lo) // 2`?** Trong C++/Java, `(lo + hi) // 2` có thể tràn số
+      (overflow) khi `lo + hi` quá lớn. Python có số nguyên không giới hạn nên không tràn, nhưng
+      nên giữ thói quen viết `lo + (hi - lo) // 2`.
+  - id: b03
+    type: predict_output
+    code: |
+      a = [1, 3, 5, 7, 9, 11]
+      target = 7
+      lo, hi = 0, len(a) - 1
+      while lo <= hi:
+          mid = (lo + hi) // 2
+          print(mid)
+          if a[mid] == target:
+              break
+          elif a[mid] < target:
+              lo = mid + 1
+          else:
+              hi = mid - 1
+    expected_output: |
+      2
+      4
+      3
+    explain_md: "Lần 1: lo=0, hi=5, mid=2, a[2]=5 < 7 nên lo=3. Lần 2: lo=3, hi=5, mid=4, a[4]=9 > 7 nên hi=3. Lần 3: lo=3, hi=3, mid=3, a[3]=7 khớp nên dừng. Chỉ 3 lần so sánh cho 6 phần tử."
+  - id: ex_bsearch
+    type: code_exercise
+    md: |
+      Viết `binary_search(nums, target)` trả về **chỉ số** của `target` trong mảng đã sắp tăng
+      `nums` (các phần tử phân biệt), hoặc `-1` nếu không có. Yêu cầu O(log n). Ví dụ
+      `binary_search([1, 3, 5, 7, 9], 7)` là `3`.
+    entry: binary_search
+    starter: |
+      def binary_search(nums, target):
+          # TODO: giữ đoạn [lo, hi] còn có thể chứa target
+          pass
+    guidance_md: |
+      - Đặt `lo` ở đầu mảng và `hi` ở cuối mảng (đoạn đóng hai đầu).
+      - Lặp khi đoạn còn ít nhất một phần tử.
+      - Lấy phần tử ở giữa và so với target.
+      - Khớp thì trả chỉ số; nhỏ hơn target thì bỏ nửa trái (kể cả mid); lớn hơn thì bỏ nửa phải.
+      - Hết đoạn mà chưa thấy thì trả -1.
+    hints:
+      - level: nudge
+        md: "Sau khi so `nums[mid]` với target, bạn có thể loại bỏ những phần tử nào chắc chắn không phải đáp án?"
+      - level: approach
+        md: "Giữ bất biến 'target nếu có thì nằm trong `nums[lo..hi]`'. Nhánh nhỏ hơn: `lo = mid + 1`. Nhánh lớn hơn: `hi = mid - 1`."
+      - level: pseudocode
+        md: |
+          lo, hi = 0, len - 1
+          while lo <= hi:
+              mid = lo + (hi - lo) // 2
+              nếu nums[mid] == target: trả mid
+              nếu nums[mid] < target: lo = mid + 1
+              ngược lại: hi = mid - 1
+          trả -1
+      - level: near_solution
+        md: |
+          def binary_search(nums, target):
+              lo, hi = 0, len(nums) - 1
+              while lo <= hi:
+                  mid = lo + (hi - lo) // 2
+                  if nums[mid] == target:
+                      ...
+                  elif nums[mid] < target:
+                      ...
+                  else:
+                      ...
+              return -1
+    tests:
+      - {args: [[1, 3, 5, 7, 9], 7], expected: 3}
+      - {args: [[1, 3, 5, 7, 9], 1], expected: 0}
+      - {args: [[1, 3, 5, 7, 9], 9], expected: 4}
+      - {args: [[1, 3, 5], 4], expected: -1}
+      - {args: [[], 1], expected: -1}
+    solution: |
+      def binary_search(nums, target):
+          lo, hi = 0, len(nums) - 1
+          while lo <= hi:
+              mid = lo + (hi - lo) // 2
+              if nums[mid] == target:
+                  return mid
+              elif nums[mid] < target:
+                  lo = mid + 1
+              else:
+                  hi = mid - 1
+          return -1
+  - id: s_lower
+    type: section
+    title_vi: "lower_bound và đoạn nửa mở"
+    summary_vi: "Tìm vị trí đầu tiên thoả điều kiện; hi = len là ứng viên hợp lệ."
+    exercise_ref: ex_lower
+  - id: b04
+    type: text
+    md: |
+      Thường ta cần **vị trí đầu tiên** thoả một điều kiện hơn là khớp chính xác:
+
+      - **lower_bound(a, x)**: chỉ số nhỏ nhất `i` sao cho `a[i] >= x` (nếu không có thì là `len(a)`).
+      - **upper_bound(a, x)**: chỉ số nhỏ nhất `i` sao cho `a[i] > x`.
+
+      Đáp án có thể là `len(a)` (chèn vào cuối), nên không gian tìm kiếm là `[0, len(a)]` gồm `len + 1`
+      vị trí. Ta dùng đoạn **nửa mở** `[lo, hi)` với `hi = len(a)` và vòng `while lo < hi`:
+
+      ```python
+      lo, hi = 0, len(a)
+      while lo < hi:
+          mid = lo + (hi - lo) // 2
+          if a[mid] < x:     # mid chưa đạt: đáp án nằm bên phải
+              lo = mid + 1
+          else:              # mid đã đạt: mid có thể là đáp án, giữ lại
+              hi = mid
+      return lo
+      ```
+
+      Ở đây `hi = mid` (không trừ 1) vì `mid` vẫn có thể là đáp án; khi `lo == hi` thì đáp án là `lo`.
+      Đổi `a[mid] < x` thành `a[mid] <= x` thì được upper_bound.
+  - id: b05
+    type: quiz_mcq
+    prompt_md: "Mảng có 1 000 000 phần tử đã sắp. Binary search cần tối đa khoảng bao nhiêu lần so sánh?"
+    options:
+      - {id: a, text_md: "Khoảng 1 000 000"}
+      - {id: b, text_md: "Khoảng 20"}
+      - {id: c, text_md: "Khoảng 1 000"}
+    answer: [b]
+    explain_md: "Mỗi bước giảm đoạn một nửa nên cần khoảng log2(1 000 000) ≈ 20 bước. Đó là sức mạnh của O(log n)."
+  - id: ex_lower
+    type: code_exercise
+    md: |
+      `lower_bound(a, x)` phải trả về chỉ số nhỏ nhất `i` sao cho `a[i] >= x` trong mảng đã sắp
+      tăng (có thể có phần tử trùng), hoặc `len(a)` nếu mọi phần tử đều nhỏ hơn `x`. Code bên dưới
+      có **lỗi ở biên**: hãy tìm và sửa. Ví dụ `lower_bound([1, 3, 5], 6)` phải là `3`.
+    entry: lower_bound
+    starter: |
+      def lower_bound(a, x):
+          lo, hi = 0, len(a) - 1
+          while lo < hi:
+              mid = lo + (hi - lo) // 2
+              if a[mid] < x:
+                  lo = mid + 1
+              else:
+                  hi = mid
+          return lo
+    guidance_md: |
+      - Chạy thử `lower_bound([1, 3, 5], 6)` bằng tay: kết quả là gì, đáng lẽ là gì?
+      - Đáp án có thể nhận những giá trị nào? Có cả `len(a)` không?
+      - Đoạn tìm kiếm khởi tạo đã chứa mọi đáp án có thể chưa?
+    hints:
+      - level: nudge
+        md: "Khi mọi phần tử đều nhỏ hơn x, đáp án đúng là `len(a)`. Code hiện tại có thể trả giá trị đó không?"
+      - level: approach
+        md: "Vòng lặp nửa mở `[lo, hi)` với `while lo < hi` cần `hi` bắt đầu ở vị trí lớn nhất mà đáp án có thể bằng."
+      - level: near_solution
+        md: "Sửa đúng một chỗ ở dòng khởi tạo: `hi` phải là `len(a)` thay vì `len(a) - 1`. Phần còn lại giữ nguyên."
+    tests:
+      - {args: [[1, 3, 3, 5], 3], expected: 1}
+      - {args: [[1, 3, 3, 5], 4], expected: 3}
+      - {args: [[1, 3, 5], 6], expected: 3}
+      - {args: [[1, 3, 5], 0], expected: 0}
+      - {args: [[], 2], expected: 0}
+    solution: |
+      def lower_bound(a, x):
+          lo, hi = 0, len(a)
+          while lo < hi:
+              mid = lo + (hi - lo) // 2
+              if a[mid] < x:
+                  lo = mid + 1
+              else:
+                  hi = mid
+          return lo
+  - id: s_count
+    type: section
+    title_vi: "Đếm bằng hai bound"
+    summary_vi: "upper_bound - lower_bound cho số lần xuất hiện của một giá trị."
+    exercise_ref: ex_count
+  - id: b06
+    type: text
+    md: |
+      Trong mảng đã sắp, các phần tử bằng `x` nằm thành một khối liên tiếp: bắt đầu tại
+      `lower_bound(a, x)` và kết thúc ngay trước `upper_bound(a, x)`. Vì vậy:
+
+      `số lần xuất hiện của x = upper_bound(a, x) - lower_bound(a, x)`
+
+      Hai lần binary search cho O(log n), thay vì O(n) khi đếm tuần tự. Hai hàm chỉ khác nhau đúng
+      một dấu so sánh: `<` cho lower_bound và `<=` cho upper_bound.
+  - id: b07
+    type: quiz_fill
+    prompt_md: "Điền vào chỗ trống để thành upper_bound: `if a[mid] ___ x: lo = mid + 1` (bỏ cả các phần tử bằng x)"
+    blanks: [{accept: ["<="]}]
+    explain_md: "upper_bound tìm phần tử đầu tiên **lớn hơn** x, nên mọi phần tử `<= x` đều phải bị bỏ qua: điều kiện là `a[mid] <= x`."
+  - id: ex_count
+    type: code_exercise
+    md: |
+      Viết `count_occurrences(nums, target)` trả về số lần `target` xuất hiện trong mảng đã sắp tăng
+      `nums` (có thể trùng), trong O(log n). Gợi ý: viết một hàm phụ tìm vị trí đầu tiên thoả điều
+      kiện, gọi hai lần. Ví dụ `count_occurrences([1, 2, 2, 2, 3], 2)` là `3`.
+    entry: count_occurrences
+    starter: |
+      def count_occurrences(nums, target):
+          # TODO: upper_bound - lower_bound
+          pass
+    guidance_md: |
+      - Viết một hàm phụ tìm chỉ số đầu tiên mà phần tử không còn bị bỏ qua.
+      - lower_bound bỏ qua phần tử `<` target, upper_bound bỏ qua phần tử `<=` target.
+      - Cả hai tìm trên đoạn nửa mở `[0, len)`.
+      - Kết quả là hiệu của hai vị trí.
+    hints:
+      - level: nudge
+        md: "Các phần tử bằng target nằm liền nhau. Nếu biết điểm bắt đầu và điểm kết thúc của khối đó thì đếm thế nào?"
+      - level: approach
+        md: "Viết một hàm bound(include_equal) dùng `while lo < hi`; hai lần gọi chỉ khác điều kiện bỏ qua `<` hay `<=`. Đáp án là `upper - lower`."
+      - level: pseudocode
+        md: |
+          hàm bound(gồm_bằng):
+              lo, hi = 0, len(nums)
+              trong khi lo < hi:
+                  mid = giữa
+                  nếu nums[mid] < target hoặc (gồm_bằng và nums[mid] == target): lo = mid + 1
+                  ngược lại: hi = mid
+              trả lo
+          trả bound(True) - bound(False)
+      - level: near_solution
+        md: |
+          def count_occurrences(nums, target):
+              def bound(include_equal):
+                  lo, hi = 0, len(nums)
+                  while lo < hi:
+                      mid = lo + (hi - lo) // 2
+                      if nums[mid] < target or (include_equal and nums[mid] == target):
+                          ...
+                      else:
+                          ...
+                  return lo
+              return ...
+    tests:
+      - {args: [[1, 2, 2, 2, 3], 2], expected: 3}
+      - {args: [[1, 2, 3], 4], expected: 0}
+      - {args: [[], 1], expected: 0}
+      - {args: [[2, 2, 2], 2], expected: 3}
+      - {args: [[1, 3, 5], 2], expected: 0}
+    solution: |
+      def count_occurrences(nums, target):
+          def bound(include_equal):
+              lo, hi = 0, len(nums)
+              while lo < hi:
+                  mid = lo + (hi - lo) // 2
+                  if nums[mid] < target or (include_equal and nums[mid] == target):
+                      lo = mid + 1
+                  else:
+                      hi = mid
+              return lo
+          return bound(True) - bound(False)
+  - id: b08
+    type: summary
+    bullets_vi:
+      - "Binary search cần mảng đã sắp; mỗi bước loại một nửa nên O(log n)."
+      - "Giữ bất biến: target nếu có thì nằm trong đoạn đang xét. Đoạn đóng `[lo, hi]` dùng `while lo <= hi` với `lo = mid + 1` / `hi = mid - 1`."
+      - "lower_bound/upper_bound dùng đoạn nửa mở `[lo, hi)`, `hi = len(a)`, `while lo < hi`, nhánh giữ lại là `hi = mid`."
+      - "`mid = lo + (hi - lo) // 2` tránh tràn số ở ngôn ngữ có overflow; `upper_bound - lower_bound` là số lần xuất hiện."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [Q096], l2: [Q095], l3: [Q097]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
 source:
   tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
-  authored_by: tools/gen_lesson_stubs.py
+  authored_by: "claude"
   reviewed_by: null
-  date: '2026-10-24'
+  date: "2026-11-02"

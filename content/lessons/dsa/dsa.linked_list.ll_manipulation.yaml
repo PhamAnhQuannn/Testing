@@ -1,24 +1,409 @@
 id: dsa.linked_list.ll_manipulation
 version: 1
-status: draft
-title_vi: Đảo, ghép, nối lại con trỏ và sao chép list (list rewiring)
-est_minutes: 10
+status: published
+title_vi: "Đảo, ghép, nối lại con trỏ và sao chép list (list rewiring)"
+est_minutes: 14
 objectives_vi:
-- Đảo, ghép, xoá node thứ n từ cuối bằng vòng lặp mà không làm mất phần list còn lại.
-- Không lỗi None.
-blocks: []
-problems:
-  practice: []
-  extra: []
-mastery_check:
-  l1: []
-  l2: []
-  l3: []
-checkpoint:
-  pass_ratio: 0.7
-  min_items: 3
+  - "Đảo ngược linked list bằng vòng lặp với ba biến prev/cur/nxt mà không mất phần list còn lại."
+  - "Ghép hai list đã sắp thành một list sắp bằng dummy node và đuôi (tail)."
+  - "Xoá node thứ n từ cuối bằng dummy node và hai con trỏ cách nhau n bước."
+blocks:
+  - id: s_reverse
+    type: section
+    title_vi: "Đảo ngược list (reverse)"
+    summary_vi: "Quay móc của từng node về phía trước, luôn giữ node sau trong tay."
+    exercise_ref: ex_reverse
+  - id: t01
+    type: text
+    md: |
+      Hầu hết bài linked list là **"tháo móc rồi móc lại"**. Để **đảo ngược** list ta đi từng node và
+      quay `next` của nó về node trước. Cần ba biến:
+
+      ```python
+      prev = None
+      cur = head
+      while cur:
+          nxt = cur.next    # 1) giữ node sau trước khi tháo móc
+          cur.next = prev   # 2) quay móc về phía trước
+          prev = cur        # 3) tiến prev
+          cur = nxt         # 4) tiến cur
+      return prev           # prev là head mới
+      ```
+
+      Quên bước 1 (lưu `nxt`) là mất phần còn lại của list. Độ phức tạp **O(n)** thời gian, **O(1)**
+      bộ nhớ phụ. (Các bài này dùng lại `Node`, `build`, `to_list` như ở bài trước.)
+  - id: q01
+    type: predict_output
+    code: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+      head = Node(1, Node(2, Node(3)))
+      prev = None
+      cur = head
+      while cur:
+          nxt = cur.next
+          cur.next = prev
+          prev = cur
+          cur = nxt
+      out = []
+      while prev:
+          out.append(prev.val)
+          prev = prev.next
+      print(out)
+    expected_output: |
+      [3, 2, 1]
+    explain_md: "Sau vòng lặp, `prev` trỏ node 3 và các móc đã quay ngược: 3 -> 2 -> 1."
+  - id: ex_reverse
+    type: code_exercise
+    md: |
+      Viết `reverse_list(values)`: dựng linked list từ `values`, **đảo ngược** nó bằng các con
+      trỏ (không tạo node mới), rồi trả về kết quả bằng `to_list`. Ví dụ `[1, 2, 3]` cho `[3, 2, 1]`.
+    entry: reverse_list
+    starter: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+      def build(values):
+          head = None
+          for v in reversed(values):
+              head = Node(v, head)
+          return head
+
+      def to_list(head):
+          out = []
+          while head:
+              out.append(head.val)
+              head = head.next
+          return out
+
+      def reverse_list(values):
+          head = build(values)
+          # TODO: đảo các con trỏ next bằng prev/cur/nxt
+          return to_list(head)
+    guidance_md: |
+      - Khởi tạo `prev = None`, `cur = head`.
+      - Mỗi bước: lưu `nxt = cur.next` trước khi sửa gì.
+      - Quay móc: `cur.next = prev`, rồi tiến `prev` và `cur`.
+      - Khi `cur` là `None`, `prev` là head mới.
+    hints:
+      - level: nudge
+        md: "Nếu bạn gán `cur.next = prev` ngay, bạn còn cách nào tới node sau không?"
+      - level: approach
+        md: "Lưu node sau vào một biến tạm trước, rồi quay móc, rồi tiến hai con trỏ."
+      - level: pseudocode
+        md: |
+          prev = None; cur = head
+          trong khi cur:
+              nxt = cur.next
+              cur.next = prev
+              prev = cur
+              cur = nxt
+          head = prev
+      - level: near_solution
+        md: |
+          prev = None
+          cur = head
+          while cur:
+              nxt = ...        # giữ node sau
+              ...              # quay móc về prev
+              prev, cur = ..., ...
+          head = prev
+    tests:
+      - {args: [[]], expected: []}
+      - {args: [[1]], expected: [1]}
+      - {args: [[1, 2, 3]], expected: [3, 2, 1]}
+      - {args: [[4, 5, 6, 7, 8]], expected: [8, 7, 6, 5, 4]}
+    solution: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+      def build(values):
+          head = None
+          for v in reversed(values):
+              head = Node(v, head)
+          return head
+
+      def to_list(head):
+          out = []
+          while head:
+              out.append(head.val)
+              head = head.next
+          return out
+
+      def reverse_list(values):
+          head = build(values)
+          prev = None
+          cur = head
+          while cur:
+              nxt = cur.next
+              cur.next = prev
+              prev = cur
+              cur = nxt
+          head = prev
+          return to_list(head)
+  - id: s_merge
+    type: section
+    title_vi: "Ghép hai list đã sắp (merge)"
+    summary_vi: "Dummy node và con trỏ đuôi giúp tránh xử lý riêng node đầu."
+    exercise_ref: ex_merge
+  - id: t02
+    type: text
+    md: |
+      Để **ghép hai list đã sắp tăng**, dùng một **dummy node** (node giả) làm điểm bắt đầu và con trỏ
+      `tail` luôn trỏ node cuối của kết quả. So `a.val` và `b.val`, nối node nhỏ hơn vào `tail.next`,
+      tiến con trỏ tương ứng; khi một list hết, nối nguyên phần còn lại của list kia. Kết quả là
+      `dummy.next`.
+
+      Dummy node là kỹ thuật rất hay gặp: nó khiến "node đầu" và "node giữa" được xử lý giống nhau,
+      tránh phải viết `if` riêng cho head. Độ phức tạp **O(n + m)**.
+  - id: q02
+    type: quiz_mcq
+    prompt_md: "Vì sao khi ghép hai list ta thường tạo một **dummy node** trước?"
+    options:
+      - {id: a, text_md: "Để list kết quả nhanh hơn O(log n)"}
+      - {id: b, text_md: "Để không phải xử lý riêng trường hợp node đầu của kết quả"}
+      - {id: c, text_md: "Để tự động sắp xếp các node"}
+    answer: [b]
+    explain_md: "Dummy cho `tail` một chỗ bắt đầu hợp lệ; ta luôn viết `tail.next = ...`, kể cả cho node đầu tiên. Nó không ảnh hưởng độ phức tạp hay thứ tự."
+  - id: ex_merge
+    type: code_exercise
+    md: |
+      Viết `merge_two(a, b)`: nhận hai list Python **đã sắp tăng**, dựng thành hai linked list,
+      ghép thành một list sắp tăng bằng dummy node + `tail`, trả về bằng `to_list`.
+      Ví dụ `([1, 3], [2, 4])` cho `[1, 2, 3, 4]`.
+    entry: merge_two
+    starter: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+      def build(values):
+          head = None
+          for v in reversed(values):
+              head = Node(v, head)
+          return head
+
+      def to_list(head):
+          out = []
+          while head:
+              out.append(head.val)
+              head = head.next
+          return out
+
+      def merge_two(a, b):
+          l1 = build(a)
+          l2 = build(b)
+          dummy = Node(0)
+          tail = dummy
+          # TODO: so sánh l1.val và l2.val, nối node nhỏ hơn vào tail
+          return to_list(dummy.next)
+    guidance_md: |
+      - Lặp trong khi cả `l1` và `l2` còn node.
+      - Chọn node có `val` nhỏ hơn, nối vào `tail.next`, tiến con trỏ list đó, rồi tiến `tail`.
+      - Hết vòng lặp, nối phần còn lại (list chưa hết) vào `tail.next`.
+    hints:
+      - level: nudge
+        md: "Khi một list hết trước, phần còn lại của list kia đã sắp sẵn. Bạn làm gì với nó?"
+      - level: approach
+        md: "Vòng lặp chọn node nhỏ hơn giữa hai đầu; sau vòng lặp, `tail.next = l1 or l2`."
+      - level: pseudocode
+        md: |
+          trong khi l1 và l2:
+              nếu l1.val <= l2.val: tail.next = l1; l1 = l1.next
+              ngược lại: tail.next = l2; l2 = l2.next
+              tail = tail.next
+          tail.next = l1 nếu l1 còn, ngược lại l2
+      - level: near_solution
+        md: |
+          while l1 and l2:
+              if l1.val <= l2.val:
+                  ...   # nối l1, tiến l1
+              else:
+                  ...   # nối l2, tiến l2
+              tail = tail.next
+          tail.next = l1 or l2
+    tests:
+      - {args: [[1, 3], [2, 4]], expected: [1, 2, 3, 4]}
+      - {args: [[], [1, 2]], expected: [1, 2]}
+      - {args: [[5], []], expected: [5]}
+      - {args: [[1, 2, 4], [1, 3, 4]], expected: [1, 1, 2, 3, 4, 4]}
+      - {args: [[], []], expected: []}
+    solution: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+      def build(values):
+          head = None
+          for v in reversed(values):
+              head = Node(v, head)
+          return head
+
+      def to_list(head):
+          out = []
+          while head:
+              out.append(head.val)
+              head = head.next
+          return out
+
+      def merge_two(a, b):
+          l1 = build(a)
+          l2 = build(b)
+          dummy = Node(0)
+          tail = dummy
+          while l1 and l2:
+              if l1.val <= l2.val:
+                  tail.next = l1
+                  l1 = l1.next
+              else:
+                  tail.next = l2
+                  l2 = l2.next
+              tail = tail.next
+          tail.next = l1 or l2
+          return to_list(dummy.next)
+  - id: s_remove_nth
+    type: section
+    title_vi: "Xoá node thứ n từ cuối"
+    summary_vi: "Hai con trỏ cách nhau n bước và dummy node xử lý cả trường hợp xoá head."
+    exercise_ref: ex_remove_nth
+  - id: t03
+    type: text
+    md: |
+      Muốn xoá node thứ `n` tính từ cuối **trong một lượt**: cho `fast` đi trước `n` bước, rồi cho
+      `fast` và `slow` cùng đi tới khi `fast` chạm node cuối. Lúc đó `slow` đứng ngay **trước** node
+      cần xoá, và ta xoá bằng `slow.next = slow.next.next`.
+
+      Nếu cần xoá chính head (n bằng độ dài list) thì không có node nào đứng trước. Giải pháp: đặt
+      một **dummy** trước head và cho `slow`, `fast` đều bắt đầu từ dummy. Cùng ý tưởng hai con trỏ
+      với tốc độ khác nhau (nhanh 2 bước, chậm 1 bước) dùng để tìm node giữa và phát hiện vòng lặp
+      (Floyd).
+  - id: q03
+    type: quiz_fill
+    prompt_md: "Để xoá node `x` khỏi list đơn khi đã có `p` là node ngay trước `x`, ta gán `p.next = p.next.___` (điền tên thuộc tính)."
+    blanks: [{accept: ["next"]}]
+    explain_md: "`p.next` là `x`; `x.next` là node sau `x`. Gán `p.next = p.next.next` bỏ `x` ra khỏi chuỗi."
+  - id: ex_remove_nth
+    type: code_exercise
+    md: |
+      Hàm `remove_nth_from_end(values, n)` xoá node thứ `n` từ cuối (`1 <= n <= độ dài`) và trả list
+      kết quả. Bản dưới đây bị lỗi: chạy sai (lỗi `None`) khi cần xoá chính head. Hãy sửa bằng dummy
+      node.
+    entry: remove_nth_from_end
+    starter: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+      def build(values):
+          head = None
+          for v in reversed(values):
+              head = Node(v, head)
+          return head
+
+      def to_list(head):
+          out = []
+          while head:
+              out.append(head.val)
+              head = head.next
+          return out
+
+      def remove_nth_from_end(values, n):
+          head = build(values)
+          fast = head
+          slow = head
+          for _ in range(n):
+              fast = fast.next
+          while fast.next is not None:
+              fast = fast.next
+              slow = slow.next
+          slow.next = slow.next.next
+          return to_list(head)
+    guidance_md: |
+      - Thử `([1], 1)` và `([1, 2], 2)` bằng tay: `fast` thành gì sau `n` bước?
+      - Khi xoá head, cần một node đứng trước head. Dùng `dummy = Node(0, head)`.
+      - Cho `slow` và `fast` bắt đầu từ `dummy`; kết quả là `dummy.next`.
+    hints:
+      - level: nudge
+        md: "Khi `n` bằng độ dài list, `slow` phải đứng ở đâu để xoá head?"
+      - level: approach
+        md: "Thêm một dummy node trước head và cho cả hai con trỏ xuất phát từ dummy; trả về `dummy.next`."
+      - level: pseudocode
+        md: |
+          dummy = Node(0, head)
+          fast = slow = dummy
+          đi fast tới n bước
+          trong khi fast.next: fast, slow cùng tiến
+          slow.next = slow.next.next
+          trả về dummy.next
+      - level: near_solution
+        md: |
+          dummy = Node(0, head)
+          fast = slow = dummy
+          for _ in range(n):
+              fast = fast.next
+          while fast.next is not None:
+              ...
+          slow.next = slow.next.next
+          return to_list(...)   # đầu mới nằm ở đâu?
+    tests:
+      - {args: [[1, 2, 3, 4, 5], 2], expected: [1, 2, 3, 5]}
+      - {args: [[1, 2], 2], expected: [2]}
+      - {args: [[1], 1], expected: []}
+      - {args: [[1, 2, 3], 1], expected: [1, 2]}
+      - {args: [[1, 2, 3], 3], expected: [2, 3]}
+    solution: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+      def build(values):
+          head = None
+          for v in reversed(values):
+              head = Node(v, head)
+          return head
+
+      def to_list(head):
+          out = []
+          while head:
+              out.append(head.val)
+              head = head.next
+          return out
+
+      def remove_nth_from_end(values, n):
+          head = build(values)
+          dummy = Node(0, head)
+          fast = dummy
+          slow = dummy
+          for _ in range(n):
+              fast = fast.next
+          while fast.next is not None:
+              fast = fast.next
+              slow = slow.next
+          slow.next = slow.next.next
+          return to_list(dummy.next)
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Đảo list: `nxt = cur.next; cur.next = prev; prev = cur; cur = nxt`; trả `prev`. Luôn lưu `nxt` trước khi tháo móc."
+      - "Ghép hai list đã sắp: dummy node + `tail`, chọn node nhỏ hơn, cuối cùng nối phần còn lại (`tail.next = l1 or l2`)."
+      - "Xoá node thứ n từ cuối: dummy + hai con trỏ cách nhau n bước; `slow.next = slow.next.next`."
+      - "Dummy node giúp node đầu được xử lý giống node giữa; các thao tác đều O(n) thời gian, O(1) bộ nhớ phụ."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [], l2: [Q080], l3: [Q081]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
 source:
   tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
-  authored_by: tools/gen_lesson_stubs.py
+  authored_by: "claude"
   reviewed_by: null
-  date: '2026-10-24'
+  date: "2026-11-02"

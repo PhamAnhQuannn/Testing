@@ -1,24 +1,286 @@
 id: dsa.stack_queue.stack_problems
 version: 1
-status: draft
-title_vi: 'Bài toán stack: ngoặc, min stack, tính biểu thức (stack problems)'
-est_minutes: 10
+status: published
+title_vi: "Bài toán stack: ngoặc, min stack, next greater (stack problems)"
+est_minutes: 14
 objectives_vi:
-- Nhận ra bài cần stack (ngoặc, lồng nhau, min stack, RPN).
-- Code đúng ngay lần đầu, kể cả khi stack rỗng.
-blocks: []
-problems:
-  practice: []
-  extra: []
-mastery_check:
-  l1: []
-  l2: []
-  l3: []
-checkpoint:
-  pass_ratio: 0.7
-  min_items: 3
+  - "Nhận ra bài cần stack: cấu trúc lồng nhau, cái mở sau phải đóng trước (LIFO)."
+  - "Kiểm tra ngoặc hợp lệ đúng cả khi stack rỗng hoặc còn thừa phần tử."
+  - "Cài min stack bằng stack phụ để lấy giá trị nhỏ nhất trong O(1)."
+  - "Dùng monotonic stack để tìm phần tử lớn hơn kế tiếp (next greater) trong O(n)."
+blocks:
+  - id: s_parens
+    type: section
+    title_vi: "Ghép ngoặc hợp lệ"
+    summary_vi: "Gặp ngoặc mở thì push, gặp ngoặc đóng thì pop và so khớp; cuối cùng stack phải rỗng."
+    exercise_ref: ex_valid
+  - id: b01
+    type: text
+    md: |
+      **Stack** là cấu trúc **LIFO** (last in, first out): phần tử vào sau ra trước. Mọi bài có dạng
+      "cái mở sau phải đóng trước" (ngoặc, thẻ HTML, hộp lồng hộp) đều hợp với stack.
+
+      Thuật toán kiểm tra chuỗi ngoặc `()[]{}` hợp lệ:
+
+      - Gặp ngoặc **mở** (`(`, `[`, `{`): `push` lên stack.
+      - Gặp ngoặc **đóng**: nếu stack rỗng thì sai (không có gì để khớp); ngược lại `pop` phần tử trên
+        cùng và kiểm tra nó đúng **loại** với ngoặc đóng vừa gặp.
+      - Hết chuỗi: chỉ hợp lệ nếu stack **rỗng** (không còn ngoặc mở chưa đóng).
+
+      Trong Python, dùng `list` làm stack: `st.append(x)` để push, `st.pop()` để pop, `st[-1]` để xem
+      phần tử trên cùng mà không lấy ra.
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      st = []
+      st.append(1)
+      st.append(2)
+      st.append(3)
+      print(st.pop(), st)
+      print(st[-1], len(st))
+    expected_output: |
+      3 [1, 2]
+      2 2
+  - id: b03
+    type: callout
+    kind: warning
+    md: |
+      **Hai lỗi kinh điển:** (1) `pop()` khi stack rỗng gây `IndexError`, nên luôn kiểm tra
+      `if not st` trước khi pop; (2) quên kiểm tra stack rỗng ở cuối, nên `"(("` bị báo đúng.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Chuỗi nào dưới đây **không** hợp lệ theo thuật toán ghép ngoặc?"
+    options:
+      - {id: a, text_md: "`\"([{}])\"`"}
+      - {id: b, text_md: "`\"()[]{}\"`"}
+      - {id: c, text_md: "`\"([)]\"`"}
+      - {id: d, text_md: "`\"\"` (chuỗi rỗng)"}
+    answer: [c]
+    explain_md: "Với `\"([)]\"`: push `(`, push `[`, gặp `)` thì pop ra `[` nhưng `[` không khớp `)`, nên sai. Các chuỗi còn lại đều lồng đúng; chuỗi rỗng hợp lệ vì không có ngoặc nào chưa đóng."
+  - id: ex_valid
+    type: code_exercise
+    md: |
+      Viết `is_valid(s)` trả về `True` nếu chuỗi `s` chỉ chứa các ngoặc `()[]{}` (có thể lẫn ký tự khác,
+      cứ bỏ qua) và các ngoặc được ghép đúng loại, đúng thứ tự. Chuỗi rỗng là hợp lệ.
+    entry: is_valid
+    starter: |
+      def is_valid(s):
+          # TODO: dùng một list làm stack
+          pass
+    guidance_md: |
+      - Chuẩn bị một dict ánh xạ mỗi ngoặc đóng sang ngoặc mở tương ứng, và một stack rỗng.
+      - Duyệt từng ký tự; nếu là ngoặc mở thì push.
+      - Nếu là ngoặc đóng: stack rỗng thì trả về sai ngay; nếu không thì pop và so với ngoặc mở mong đợi.
+      - Ký tự khác thì bỏ qua.
+      - Sau vòng lặp, chuỗi hợp lệ khi và chỉ khi stack rỗng.
+    hints:
+      - level: nudge
+        md: "Khi gặp ngoặc đóng, bạn cần biết ngoặc mở nào gần nhất chưa được ghép. Cấu trúc nào cho bạn điều đó?"
+      - level: approach
+        md: "Dùng stack: push ngoặc mở; với ngoặc đóng thì pop và kiểm tra khớp loại. Đừng quên hai trường hợp biên: stack rỗng khi gặp ngoặc đóng, và stack còn dư khi hết chuỗi."
+      - level: pseudocode
+        md: |
+          pairs = {")": "(", "]": "[", "}": "{"}
+          st = []
+          for ch in s:
+              if ch là ngoặc mở: push
+              elif ch là ngoặc đóng:
+                  nếu st rỗng hoặc pop() != pairs[ch]: return False
+          return st rỗng
+    tests:
+      - {args: [""], expected: true}
+      - {args: ["()[]{}"], expected: true}
+      - {args: ["([{}])"], expected: true}
+      - {args: ["(]"], expected: false}
+      - {args: ["(("], expected: false}
+    solution: |
+      def is_valid(s):
+          pairs = {")": "(", "]": "[", "}": "{"}
+          st = []
+          for ch in s:
+              if ch in "([{":
+                  st.append(ch)
+              elif ch in pairs:
+                  if not st or st.pop() != pairs[ch]:
+                      return False
+          return not st
+  - id: s_minstack
+    type: section
+    title_vi: "Min stack: nhỏ nhất trong O(1)"
+    summary_vi: "Thêm một stack phụ lưu giá trị nhỏ nhất tại mỗi thời điểm."
+    exercise_ref: ex_min_stack
+  - id: b04
+    type: text
+    md: |
+      **Min stack** là stack hỗ trợ thêm thao tác `min` trả về giá trị nhỏ nhất hiện có trong **O(1)**.
+      Nếu mỗi lần hỏi lại duyệt cả stack thì mất O(n).
+
+      Mẹo: giữ một **stack phụ** `mins` song song. Mỗi lần `push(x)`, đẩy vào `mins` giá trị
+      `min(x, mins[-1])` (hoặc chính `x` nếu `mins` còn rỗng). Khi `pop`, pop cả hai stack. Đỉnh của
+      `mins` luôn là giá trị nhỏ nhất của phần stack còn lại, kể cả sau khi pop phần tử nhỏ nhất.
+  - id: b05
+    type: predict_output
+    code: |
+      st, mins = [], []
+      for x in [5, 2, 7]:
+          st.append(x)
+          mins.append(x if not mins else min(x, mins[-1]))
+      print(mins)
+      st.pop()
+      mins.pop()
+      print(mins[-1])
+    expected_output: |
+      [5, 2, 2]
+      2
+    explain_md: "`mins` lưu giá trị nhỏ nhất tại mỗi thời điểm: sau 5 là 5, sau 2 là 2, sau 7 vẫn là 2. Sau khi pop 7 (và pop `mins`), đỉnh `mins` là 2."
+  - id: ex_min_stack
+    type: code_exercise
+    md: |
+      Mô phỏng một min stack. `min_stack_run(ops)` nhận danh sách thao tác, mỗi thao tác là
+      `["push", x]`, `["pop"]` hoặc `["min"]`. Trả về list kết quả của các thao tác `"min"` theo thứ tự.
+      Đề bảo đảm không pop hay hỏi min khi stack rỗng.
+    entry: min_stack_run
+    starter: |
+      def min_stack_run(ops):
+          # TODO: giữ stack chính và stack phụ lưu min
+          pass
+    guidance_md: |
+      - Tạo stack chính, stack phụ `mins` và list kết quả.
+      - Với `push`: thêm vào stack chính, và thêm vào `mins` giá trị nhỏ hơn giữa `x` và đỉnh `mins`.
+      - Với `pop`: pop cả hai stack.
+      - Với `min`: thêm đỉnh của `mins` vào kết quả.
+      - Trả về list kết quả.
+    hints:
+      - level: nudge
+        md: "Sau khi pop phần tử nhỏ nhất, làm sao biết giá trị nhỏ nhất mới mà không duyệt lại?"
+      - level: approach
+        md: "Giữ stack phụ có cùng độ dài với stack chính; phần tử thứ i của nó là min của i phần tử đầu."
+      - level: near_solution
+        md: |
+          def min_stack_run(ops):
+              st, mins, out = [], [], []
+              for op in ops:
+                  if op[0] == "push":
+                      ...  # push vào st và vào mins
+                  elif op[0] == "pop":
+                      ...  # pop cả hai
+                  else:
+                      ...  # ghi mins[-1] vào out
+              return out
+    tests:
+      - {args: [[["push", 3], ["min"]]], expected: [3]}
+      - {args: [[["push", 5], ["push", 2], ["push", 7], ["min"], ["pop"], ["min"], ["pop"], ["min"]]], expected: [2, 2, 5]}
+      - {args: [[["push", 4], ["push", 4], ["pop"], ["min"]]], expected: [4]}
+      - {args: [[["push", -1], ["push", -3], ["min"], ["pop"], ["min"]]], expected: [-3, -1]}
+    solution: |
+      def min_stack_run(ops):
+          st, mins, out = [], [], []
+          for op in ops:
+              if op[0] == "push":
+                  x = op[1]
+                  st.append(x)
+                  mins.append(x if not mins else min(x, mins[-1]))
+              elif op[0] == "pop":
+                  st.pop()
+                  mins.pop()
+              else:
+                  out.append(mins[-1])
+          return out
+  - id: s_nextgreater
+    type: section
+    title_vi: "Next greater element (monotonic stack)"
+    summary_vi: "Stack lưu các chỉ số đang chờ phần tử lớn hơn; gặp số lớn hơn thì giải quyết hàng loạt."
+    exercise_ref: ex_next_greater
+  - id: b06
+    type: text
+    md: |
+      **Next greater element**: với mỗi `nums[i]`, tìm giá trị lớn hơn đầu tiên nằm bên **phải** nó (`-1` nếu
+      không có). Cách vét cạn là O(n²).
+
+      Dùng **monotonic stack**: giữ stack các **chỉ số** chưa tìm được đáp án (giá trị tương ứng giảm dần
+      từ đáy lên đỉnh). Duyệt `x = nums[i]`: **chừng nào** đỉnh stack có giá trị nhỏ hơn `x`, pop nó và
+      gán đáp án là `x`; sau đó push `i`. Mỗi chỉ số được push và pop tối đa một lần nên tổng là **O(n)**.
+
+      ```python
+      res = [-1] * len(nums)
+      st = []
+      for i, x in enumerate(nums):
+          while st and nums[st[-1]] < x:
+              res[st.pop()] = x
+          st.append(i)
+      ```
+  - id: b07
+    type: callout
+    kind: interview
+    md: |
+      Dấu hiệu nhận ra: "phần tử lớn hơn/nhỏ hơn **gần nhất** bên trái hoặc phải". Bài daily temperatures,
+      stock span, largest rectangle đều là biến thể của monotonic stack.
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Điền vào chỗ trống để xem phần tử trên cùng của stack `st` mà không lấy ra: `st[___]`"
+    blanks: [{accept: ["-1"]}]
+    explain_md: "`st[-1]` là phần tử cuối list, tức đỉnh stack. `st.pop()` thì vừa trả về vừa xoá phần tử đó."
+  - id: ex_next_greater
+    type: code_exercise
+    md: |
+      Hàm `next_greater(nums)` dưới đây cần trả về, với mỗi vị trí, giá trị lớn hơn đầu tiên bên phải (hoặc
+      `-1`). Code đang có **lỗi**: nó chỉ xử lý được một phần tử mỗi bước. Hãy sửa. Ví dụ
+      `[2, 1, 3]` phải cho `[3, 3, -1]`.
+    entry: next_greater
+    starter: |
+      def next_greater(nums):
+          res = [-1] * len(nums)
+          st = []
+          for i, x in enumerate(nums):
+              if st and nums[st[-1]] < x:
+                  res[st.pop()] = x
+              st.append(i)
+          return res
+    guidance_md: |
+      - Chạy tay với `[2, 1, 3]`: khi gặp 3, những chỉ số nào đang chờ trên stack?
+      - Số 3 có thể là đáp án cho nhiều phần tử cùng lúc, nhưng code chỉ pop một lần.
+      - Tìm câu lệnh điều kiện chỉ chạy tối đa một lần mỗi bước.
+      - Đổi nó thành vòng lặp để pop liên tục khi điều kiện còn đúng.
+    hints:
+      - level: nudge
+        md: "Thử `[2, 1, 3]`: khi tới 3, cả 2 và 1 đều đang chờ. Code hiện tại giải quyết được mấy phần tử?"
+      - level: approach
+        md: "Một số mới có thể là đáp án của nhiều chỉ số đang chờ trên stack. Phần kiểm tra điều kiện cần lặp lại cho đến khi đỉnh stack không còn nhỏ hơn `x`."
+      - level: pseudocode
+        md: |
+          for i, x in enumerate(nums):
+              <lặp lại> khi st không rỗng và nums[đỉnh] < x:
+                  gán đáp án cho đỉnh rồi pop
+              push i
+    tests:
+      - {args: [[]], expected: []}
+      - {args: [[2, 1, 3]], expected: [3, 3, -1]}
+      - {args: [[4, 5, 2, 10, 8]], expected: [5, 10, 10, -1, -1]}
+      - {args: [[3, 2, 1]], expected: [-1, -1, -1]}
+      - {args: [[1, 1, 2]], expected: [2, 2, -1]}
+    solution: |
+      def next_greater(nums):
+          res = [-1] * len(nums)
+          st = []
+          for i, x in enumerate(nums):
+              while st and nums[st[-1]] < x:
+                  res[st.pop()] = x
+              st.append(i)
+          return res
+  - id: b08
+    type: summary
+    bullets_vi:
+      - "Bài lồng nhau kiểu mở-sau-đóng-trước là LIFO: dùng stack (`append`, `pop`, `st[-1]`)."
+      - "Ghép ngoặc: push khi mở; khi đóng, stack rỗng thì sai, nếu không pop và so loại; cuối cùng stack phải rỗng."
+      - "Min stack: stack phụ lưu min tại mỗi thời điểm, push/pop cả hai, min là `mins[-1]` trong O(1)."
+      - "Monotonic stack: `while` đỉnh nhỏ hơn `x` thì pop và gán đáp án; mỗi phần tử vào/ra một lần nên O(n)."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [], l2: [Q084], l3: [Q085]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
 source:
   tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
-  authored_by: tools/gen_lesson_stubs.py
+  authored_by: "claude"
   reviewed_by: null
-  date: '2026-10-24'
+  date: "2026-11-02"
