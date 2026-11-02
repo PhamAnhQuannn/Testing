@@ -1,5 +1,5 @@
 id: py.functions.lambda_hof
-version: 1
+version: 2
 status: published
 title_vi: "lambda và hàm bậc cao (higher-order functions)"
 est_minutes: 14
@@ -8,6 +8,10 @@ objectives_vi:
   - "Dùng `map`, `filter` (trả iterator nên bọc `list()`), `functools.reduce`, `functools.partial` và module `operator`."
   - "Chọn giữa lambda, `def`, `map`/`filter` và list comprehension cho dễ đọc."
 blocks:
+  - id: s_lambda
+    type: section
+    title_vi: "lambda và hàm là giá trị"
+    summary_vi: "Hàm như một giá trị; lambda một biểu thức."
   - id: b01
     type: text
     md: |
@@ -48,6 +52,11 @@ blocks:
       - {id: c, text_md: "`lambda x: y = x + 1`"}
     answer: [a]
     explain_md: "Thân lambda phải là một biểu thức. `return` và phép gán `=` là câu lệnh nên b, c lỗi cú pháp; còn `x if x > 0 else 0` là một biểu thức."
+  - id: s_map_filter
+    type: section
+    title_vi: "map, filter và comprehension"
+    summary_vi: "Áp dụng, lọc dãy; iterator chỉ duyệt một lần."
+    exercise_ref: b10
   - id: b04
     type: text
     md: |
@@ -89,6 +98,38 @@ blocks:
       print(list(r), sum(map(lambda w: len(w), words)), list(filter(lambda w: len(w) > 1, words)))
     expected_output: "[2, 1, 3] 6 ['bb', 'ccc']"
     explain_md: "`map(len, words)` cho độ dài `[2, 1, 3]`; `sum(map(...))` chạy trên một iterator mới nên cũng được 6; `filter` giữ các từ dài hơn 1 là `bb`, `ccc`."
+  - id: b10
+    type: code_exercise
+    md: "Viết `evens_squared(nums)` trả list bình phương của các số **chẵn** trong `nums`, giữ nguyên thứ tự. Dùng `map` và `filter` (nhớ bọc `list()`)."
+    entry: evens_squared
+    starter: |
+      def evens_squared(nums):
+          # TODO: list(map(..., filter(..., nums)))
+          pass
+    tests:
+      - {args: [[1, 2, 3, 4]], expected: [4, 16]}
+      - {args: [[]], expected: []}
+      - {args: [[3, 5]], expected: []}
+      - {args: [[-2, 6, 0]], expected: [4, 36, 0]}
+    guidance_md: |
+      - Lọc trước, rồi mới bình phương: `filter` đi trước `map`.
+      - Điều kiện chẵn là `x % 2 == 0`.
+      - `map` và `filter` trả iterator, nên cần bọc `list(...)` ở ngoài cùng.
+    hints:
+      - level: nudge
+        md: "Thứ tự nên là lọc các số chẵn trước hay bình phương trước? Và kết quả của `map` là kiểu gì?"
+      - level: approach
+        md: "`filter` giữ số chẵn, `map` bình phương phần còn lại, cuối cùng bọc `list(...)` để lấy list."
+      - level: near_solution
+        md: |
+          def evens_squared(nums):
+              return list(map(lambda x: ..., filter(lambda x: ..., nums)))
+    solution: "def evens_squared(nums):\n    return list(map(lambda x: x * x, filter(lambda x: x % 2 == 0, nums)))\n"
+  - id: s_reduce_partial
+    type: section
+    title_vi: "reduce, partial và operator"
+    summary_vi: "Gộp dãy, cố định đối số, hàm trả về hàm."
+    exercise_ref: b11
   - id: b07
     type: text
     md: |
@@ -145,21 +186,6 @@ blocks:
       - {id: c, text_md: "`r` là tuple `('1', '2')`"}
     answer: [b]
     explain_md: "`map` trả về iterator (lười), không phải list. Cần `list(r)` để lấy giá trị, và sau khi duyệt hết thì `r` rỗng."
-  - id: b10
-    type: code_exercise
-    md: "Viết `evens_squared(nums)` trả list bình phương của các số **chẵn** trong `nums`, giữ nguyên thứ tự. Dùng `map` và `filter` (nhớ bọc `list()`)."
-    entry: evens_squared
-    starter: |
-      def evens_squared(nums):
-          # TODO: list(map(..., filter(..., nums)))
-          pass
-    tests:
-      - {args: [[1, 2, 3, 4]], expected: [4, 16]}
-      - {args: [[]], expected: []}
-      - {args: [[3, 5]], expected: []}
-      - {args: [[-2, 6, 0]], expected: [4, 36, 0]}
-    hint_md: "`list(map(lambda x: x * x, filter(lambda x: x % 2 == 0, nums)))`."
-    solution: "def evens_squared(nums):\n    return list(map(lambda x: x * x, filter(lambda x: x % 2 == 0, nums)))\n"
   - id: b11
     type: code_exercise
     md: "Viết `product(nums)` trả tích của mọi số trong `nums`, và `1` nếu `nums` rỗng. Dùng `functools.reduce` kèm giá trị đầu."
@@ -176,7 +202,19 @@ blocks:
       - {args: [[]], expected: 1}
       - {args: [[5]], expected: 5}
       - {args: [[-1, 4, 0]], expected: 0}
-    hint_md: "`return reduce(lambda acc, x: acc * x, nums, 1)`; giá trị đầu 1 làm dãy rỗng trả 1."
+    guidance_md: |
+      - Phép gộp ở đây là nhân hai giá trị `acc` và `x`.
+      - Chọn giá trị đầu sao cho nhân vào không làm đổi kết quả (và dãy rỗng vẫn có đáp án).
+      - Truyền giá trị đầu làm đối số thứ ba của `reduce`.
+    hints:
+      - level: nudge
+        md: "Với dãy rỗng, kết quả mong muốn là 1. Giá trị đầu nào của bộ tích luỹ cho điều đó?"
+      - level: approach
+        md: "`reduce(f, nums, đầu)` với `f` nhân `acc` với `x` và `đầu` là phần tử trung hoà của phép nhân."
+      - level: near_solution
+        md: |
+          def product(nums):
+              return reduce(lambda acc, x: ..., nums, ...)
     solution: "from functools import reduce\n\n\ndef product(nums):\n    return reduce(lambda acc, x: acc * x, nums, 1)\n"
   - id: b12
     type: problem_ref

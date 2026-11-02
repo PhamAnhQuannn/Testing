@@ -1,5 +1,5 @@
 id: py.core.variables_types
-version: 1
+version: 2
 status: published
 title_vi: "Biến, kiểu dữ liệu và dynamic typing (variables & types)"
 est_minutes: 12
@@ -9,6 +9,10 @@ objectives_vi:
   - "Đổi kiểu bằng int(), float(), str() và dự đoán được kết quả (kể cả lỗi)."
   - "Giải thích vì sao 0.1 + 0.2 != 0.3, và dùng gán nhiều biến để hoán đổi giá trị."
 blocks:
+  - id: s_names_types
+    type: section
+    title_vi: "Biến là tên và các kiểu cơ bản"
+    summary_vi: "Biến gắn nhãn vào giá trị; int, float, bool, str, None; dynamic và strong typing."
   - id: b01
     type: text
     md: |
@@ -59,6 +63,11 @@ blocks:
       - {id: c, text_md: "Báo `TypeError`, vì Python (strong typing) không tự trộn `str` với `int`"}
     answer: [c]
     explain_md: "Python không tự đổi kiểu giữa chuỗi và số. Muốn cộng phải tự đổi: `int(\"5\") + 3` hoặc `\"5\" + str(3)`."
+  - id: s_conversion
+    type: section
+    title_vi: "Đổi kiểu (conversion)"
+    summary_vi: "int(), float(), str(), bool(); phép chia và lặp chuỗi."
+    exercise_ref: b09
   - id: b04
     type: text
     md: |
@@ -82,6 +91,51 @@ blocks:
       print(int(n) * 2, n * 2, type(n * 2).__name__)
     expected_output: "24 1212 str"
     explain_md: "`int(n) * 2` là số `24`. `n * 2` lặp chuỗi `\"12\"` hai lần thành `\"1212\"`, kiểu `str` (`__name__` là tên kiểu)."
+  - id: b09
+    type: code_exercise
+    md: |
+      Viết `total_cost(price_text, qty_text)`: cả hai tham số là **chuỗi** (ví dụ giá `"2.5"`, số
+      lượng `"4"`). Trả về tổng tiền là `float`: giá nhân số lượng.
+
+      Xem trước về hàm: `def` tạo một **hàm** (function), tức một khối code có tên, nhận đầu vào
+      (tham số, ở đây là `price_text` và `qty_text`) và trả kết quả bằng `return`. `pass` chỉ là
+      chỗ giữ chỗ, bạn thay nó bằng code của mình. Hàm sẽ được học đầy đủ ở `py.functions`.
+    entry: total_cost
+    starter: |
+      def total_cost(price_text, qty_text):
+          # TODO: đổi price_text sang float, qty_text sang int rồi nhân
+          pass
+    tests:
+      - {args: ["2.5", "4"], expected: 10.0}
+      - {args: ["10", "3"], expected: 30.0}
+      - {args: ["0.5", "5"], expected: 2.5}
+      - {args: ["0", "9"], expected: 0.0}
+    guidance_md: |
+      - Hai tham số đều là chuỗi nên chưa nhân được ngay.
+      - Đổi giá sang số thực và số lượng sang số nguyên bằng tên kiểu như một hàm.
+      - Nhân hai giá trị đã đổi và trả về (kết quả là `float`).
+    hints:
+      - level: nudge
+        md: "Đầu vào là `str`. Nhân hai chuỗi có cho ra tổng tiền không?"
+      - level: approach
+        md: "Đổi kiểu bằng `float(...)` cho giá và `int(...)` cho số lượng, rồi nhân; `float` nhân `int` ra `float`."
+      - level: pseudocode
+        md: |
+          gia = đổi price_text sang float
+          sl = đổi qty_text sang int
+          trả về gia * sl
+      - level: near_solution
+        md: |
+          def total_cost(price_text, qty_text):
+              gia = float(...)
+              sl = int(...)
+              return ...  # nhân hai giá trị
+    solution: "def total_cost(price_text, qty_text):\n    return float(price_text) * int(qty_text)\n"
+  - id: s_float_swap
+    type: section
+    title_vi: "Sai số float và gán nhiều biến"
+    summary_vi: "Vì sao 0.1 + 0.2 != 0.3, cách so sánh an toàn; hoán đổi bằng a, b = b, a."
+    exercise_ref: ex_float_eq
   - id: b06
     type: text
     md: |
@@ -119,27 +173,43 @@ blocks:
       print(a, b)
     expected_output: "2 3"
     explain_md: "Vế phải tính trước với giá trị cũ: `(b, a + b)` = `(2, 3)`, rồi mới gán `a = 2`, `b = 3`."
-  - id: b09
+  - id: ex_float_eq
     type: code_exercise
     md: |
-      Viết `total_cost(price_text, qty_text)`: cả hai tham số là **chuỗi** (ví dụ giá `"2.5"`, số
-      lượng `"4"`). Trả về tổng tiền là `float`: giá nhân số lượng.
-
-      Xem trước về hàm: `def` tạo một **hàm** (function), tức một khối code có tên, nhận đầu vào
-      (tham số, ở đây là `price_text` và `qty_text`) và trả kết quả bằng `return`. `pass` chỉ là
-      chỗ giữ chỗ, bạn thay nó bằng code của mình. Hàm sẽ được học đầy đủ ở `py.functions`.
-    entry: total_cost
+      Viết `sum_equals(a, b, target)` trả về `True` nếu `a + b` **bằng `target` khi làm tròn đến
+      2 chữ số thập phân**, ngược lại `False`. Dùng `==` trực tiếp trên float sẽ sai với
+      `0.1 + 0.2` và `0.3`.
+    entry: sum_equals
     starter: |
-      def total_cost(price_text, qty_text):
-          # TODO: đổi price_text sang float, qty_text sang int rồi nhân
-          pass
+      def sum_equals(a, b, target):
+          # TODO: đừng so sánh float bằng == trực tiếp
+          return a + b == target
+    guidance_md: |
+      - Chạy thử bằng tay `0.1 + 0.2 == 0.3`: kết quả là gì và vì sao?
+      - Làm tròn cả hai vế về cùng số chữ số thập phân trước khi so sánh.
+      - Trả về kết quả so sánh (một `bool`).
+    hints:
+      - level: nudge
+        md: "`0.1 + 0.2` thật sự bằng bao nhiêu trong float? Có nên so sánh `==` ngay không?"
+      - level: approach
+        md: "Làm tròn cả `a + b` và `target` bằng `round(x, 2)` rồi mới so sánh."
+      - level: pseudocode
+        md: |
+          tong = a + b
+          trả về (tong làm tròn 2 chữ số) == (target làm tròn 2 chữ số)
+      - level: near_solution
+        md: |
+          def sum_equals(a, b, target):
+              return round(..., 2) == round(..., 2)
     tests:
-      - {args: ["2.5", "4"], expected: 10.0}
-      - {args: ["10", "3"], expected: 30.0}
-      - {args: ["0.5", "5"], expected: 2.5}
-      - {args: ["0", "9"], expected: 0.0}
-    hint_md: "Dùng `float(price_text) * int(qty_text)`. Nhân `float` với `int` cho `float`."
-    solution: "def total_cost(price_text, qty_text):\n    return float(price_text) * int(qty_text)\n"
+      - {args: [0.1, 0.2, 0.3], expected: true}
+      - {args: [0.1, 0.2, 0.4], expected: false}
+      - {args: [1.5, 2.5, 4.0], expected: true}
+      - {args: [0.7, 0.1, 0.8], expected: true}
+      - {args: [1.0, 1.0, 2.5], expected: false}
+    solution: |
+      def sum_equals(a, b, target):
+          return round(a + b, 2) == round(target, 2)
   - id: b10a
     type: text
     md: "Bài luyện dưới đây cần vòng lặp và dict (học ở các bài sau), nên làm sau cũng được; nếu bí thì quay lại khi đã học tới đó."

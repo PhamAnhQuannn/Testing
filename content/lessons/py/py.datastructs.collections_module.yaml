@@ -1,5 +1,5 @@
 id: py.datastructs.collections_module
-version: 1
+version: 2
 status: published
 title_vi: "Module collections (Counter, deque, defaultdict)"
 est_minutes: 13
@@ -8,6 +8,11 @@ objectives_vi:
   - "Dùng defaultdict để đếm và nhóm không cần kiểm tra khoá."
   - "Dùng deque cho hàng đợi và giải thích vì sao nhanh hơn list khi lấy phần tử ở đầu."
 blocks:
+  - id: s_counter
+    type: section
+    title_vi: "Counter: đếm và most_common"
+    summary_vi: "Đếm tần suất, phép cộng/trừ Counter và xử lý hoà số đếm."
+    exercise_ref: ex_top_word
   - id: b01
     type: text
     md: |
@@ -64,6 +69,51 @@ blocks:
       - {id: c, text_md: "`Counter({'a': 2, 'b': 1})`"}
     answer: [b]
     explain_md: "a: 2 - 1 = 1; b: 1 - 2 = -1 bị bỏ vì phép trừ chỉ giữ số đếm dương."
+  - id: ex_top_word
+    type: code_exercise
+    md: |
+      Viết `top_word(words)` trả về từ xuất hiện **nhiều nhất** trong list `words` (không rỗng). Nếu
+      nhiều từ hoà số đếm thì trả từ **nhỏ hơn theo thứ tự bảng chữ cái**. Ví dụ
+      `["b", "a", "b", "a", "c"]` cho `"a"`.
+    entry: top_word
+    starter: |
+      from collections import Counter
+
+
+      def top_word(words):
+          # TODO: đếm bằng Counter rồi lấy phần tử phổ biến nhất
+          return words[0]
+    guidance_md: |
+      - Đếm số lần xuất hiện của từng từ bằng một công cụ có sẵn trong `collections`.
+      - Khi hoà, `most_common` giữ thứ tự xuất hiện đầu tiên: làm sao để từ nhỏ hơn đứng trước?
+      - Lấy phần tử phổ biến nhất rồi chỉ trả phần từ, không trả cặp.
+    hints:
+      - level: nudge
+        md: "Nhớ mẹo ở đầu bài về việc xử lý hoà số đếm: sắp xếp dãy trước khi đếm."
+      - level: approach
+        md: "`Counter(sorted(words)).most_common(1)` cho list một cặp `(từ, số_lần)`; lấy từ ở vị trí đầu của cặp đầu."
+      - level: near_solution
+        md: |
+          def top_word(words):
+              dem = Counter(...)  # sắp xếp trước khi đếm
+              return dem.most_common(1)[0][...]
+    tests:
+      - {args: [["b", "a", "b", "a", "c"]], expected: "a"}
+      - {args: [["x", "y", "y"]], expected: "y"}
+      - {args: [["z", "z", "a", "a", "m"]], expected: "a"}
+      - {args: [["q"]], expected: "q"}
+    solution: |
+      from collections import Counter
+
+
+      def top_word(words):
+          dem = Counter(sorted(words))
+          return dem.most_common(1)[0][0]
+  - id: s_defaultdict
+    type: section
+    title_vi: "defaultdict: đếm và nhóm"
+    summary_vi: "Giá trị mặc định tự tạo cho khoá vắng; nhóm theo khoá không cần kiểm tra."
+    exercise_ref: b14
   - id: b06
     type: text
     md: |
@@ -99,6 +149,42 @@ blocks:
       print(len(d), d["c"], len(d))
     expected_output: "2 [] 3"
     explain_md: "`d['b']` chỉ đọc nhưng đã tạo khoá `b` nên `len` là 2; `d['c']` tạo thêm khoá `c` (giá trị `[]`) trước khi `len` thứ hai chạy nên là 3."
+  - id: b14
+    type: code_exercise
+    md: "Viết `group_by_first(words)` trả dict nhóm các từ theo chữ cái đầu: khoá là chữ cái đầu, giá trị là list các từ theo thứ tự xuất hiện. Dùng `defaultdict(list)`."
+    entry: group_by_first
+    starter: |
+      from collections import defaultdict
+
+
+      def group_by_first(words):
+          # TODO: nhom[w[0]].append(w)
+          pass
+    tests:
+      - {args: [["an", "bo", "ao", "ba"]], expected: {"a": ["an", "ao"], "b": ["bo", "ba"]}}
+      - {args: [[]], expected: {}}
+      - {args: [["x"]], expected: {"x": ["x"]}}
+    guidance_md: |
+      - Cần một dict mà khoá chưa có thì tự có giá trị mặc định là list rỗng.
+      - Duyệt từng từ, lấy chữ cái đầu làm khoá.
+      - Thêm từ vào list của khoá đó, giữ thứ tự xuất hiện.
+      - Trả về dict thường (không phải defaultdict) khi xong.
+    hints:
+      - level: nudge
+        md: "Làm sao thêm vào list của một khoá mà không phải kiểm tra khoá đã tồn tại chưa?"
+      - level: approach
+        md: "`defaultdict(list)` cho phép viết thẳng `nhom[khoá].append(w)`; khoá là chữ cái đầu `w[0]`."
+      - level: near_solution
+        md: |
+          nhom = defaultdict(list)
+          for w in words:
+              ...  # thêm w vào nhom[chữ cái đầu]
+          return dict(nhom)
+    solution: "from collections import defaultdict\n\n\ndef group_by_first(words):\n    nhom = defaultdict(list)\n    for w in words:\n        nhom[w[0]].append(w)\n    return dict(nhom)\n"
+  - id: s_deque
+    type: section
+    title_vi: "deque và chọn công cụ"
+    summary_vi: "Hàng đợi hai đầu O(1), maxlen, rotate; chọn Counter/defaultdict/deque theo chi phí."
   - id: b09
     type: text
     md: |
@@ -136,6 +222,11 @@ blocks:
       - {id: c, text_md: "Hai cách như nhau"}
     answer: [b]
     explain_md: "`pop(0)` của list dời toàn bộ phần tử còn lại, O(n) mỗi lần; `popleft()` của deque là O(1)."
+  - id: b13
+    type: quiz_fill
+    prompt_md: "Điền vào chỗ trống để lấy phần tử ở đầu deque trong O(1): `q.___()`"
+    blanks: [{accept: ["popleft"]}]
+    explain_md: "`popleft()` lấy và xoá phần tử ở đầu; `pop()` lấy ở cuối."
   - id: b12
     type: callout
     kind: interview
@@ -144,28 +235,6 @@ blocks:
       `defaultdict(list)`; hàng đợi, BFS, cửa sổ trượt thì `deque`; tra khoá, danh sách thông thường
       thì `dict`/`list`. **OrderedDict** chỉ cần nhận ra: dict thường đã nhớ thứ tự thêm vào,
       `OrderedDict` còn có `move_to_end()` và `popitem(last=False)`, hữu ích cho bài kiểu LRU cache.
-  - id: b13
-    type: quiz_fill
-    prompt_md: "Điền vào chỗ trống để lấy phần tử ở đầu deque trong O(1): `q.___()`"
-    blanks: [{accept: ["popleft"]}]
-    explain_md: "`popleft()` lấy và xoá phần tử ở đầu; `pop()` lấy ở cuối."
-  - id: b14
-    type: code_exercise
-    md: "Viết `group_by_first(words)` trả dict nhóm các từ theo chữ cái đầu: khoá là chữ cái đầu, giá trị là list các từ theo thứ tự xuất hiện. Dùng `defaultdict(list)`."
-    entry: group_by_first
-    starter: |
-      from collections import defaultdict
-
-
-      def group_by_first(words):
-          # TODO: nhom[w[0]].append(w)
-          pass
-    tests:
-      - {args: [["an", "bo", "ao", "ba"]], expected: {"a": ["an", "ao"], "b": ["bo", "ba"]}}
-      - {args: [[]], expected: {}}
-      - {args: [["x"]], expected: {"x": ["x"]}}
-    hint_md: "`nhom = defaultdict(list)`, duyệt từng `w`, `nhom[w[0]].append(w)`, cuối cùng `return dict(nhom)`."
-    solution: "from collections import defaultdict\n\n\ndef group_by_first(words):\n    nhom = defaultdict(list)\n    for w in words:\n        nhom[w[0]].append(w)\n    return dict(nhom)\n"
   - id: b15
     type: problem_ref
     problem_id: majority-element

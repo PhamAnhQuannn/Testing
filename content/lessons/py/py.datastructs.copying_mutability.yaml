@@ -1,5 +1,5 @@
 id: py.datastructs.copying_mutability
-version: 1
+version: 2
 status: published
 title_vi: "Mutability, aliasing và sao chép (copying)"
 est_minutes: 14
@@ -8,6 +8,10 @@ objectives_vi:
   - "Chọn sao chép nông (shallow copy) hay sâu (deep copy) cho đúng, và tránh bẫy `[[0]*n]*m`."
   - "Biết `+=` trên list sửa tại chỗ còn trên tuple tạo đối tượng mới."
 blocks:
+  - id: s_alias
+    type: section
+    title_vi: "Biến là nhãn và aliasing"
+    summary_vi: "mutable/immutable, b = a không sao chép, is và ==."
   - id: b01
     type: text
     md: |
@@ -34,6 +38,11 @@ blocks:
     expected_output: |
       [1, 2, 3, 4] True True
       5 6
+  - id: s_copy
+    type: section
+    title_vi: "Shallow copy và deep copy"
+    summary_vi: "Sao chép nông giữ list con dùng chung; deepcopy tách mọi tầng."
+    exercise_ref: ex_snapshots
   - id: b03
     type: text
     md: |
@@ -103,6 +112,50 @@ blocks:
     expected_output: |
       [[1, 2], [3]] [[1, 2, 9], [3]]
       False True
+  - id: ex_snapshots
+    type: code_exercise
+    md: |
+      Viết `prefix_snapshots(n)` trả về list gồm `n` "ảnh chụp": ảnh thứ `i` là list `[0, 1, ..., i]`.
+      Bạn xây một list `cur` tăng dần và lưu ảnh chụp của nó sau mỗi bước. Ví dụ `n = 3` cho
+      `[[0], [0, 1], [0, 1, 2]]`. Bản lưu phải là **bản sao**, nếu không mọi ảnh đều là cùng một list.
+    entry: prefix_snapshots
+    starter: |
+      def prefix_snapshots(n):
+          cur = []
+          ds = []
+          for i in range(n):
+              cur.append(i)
+              ds.append(cur)
+          return ds
+    guidance_md: |
+      - Chạy thử bằng tay với `n = 2`: `ds[0]` và `ds[1]` có phải cùng một đối tượng không?
+      - Cái cần lưu là một list độc lập tại thời điểm đó, không phải nhãn tới `cur`.
+      - Chọn một cách shallow copy phù hợp (phần tử là số nên shallow là đủ).
+    hints:
+      - level: nudge
+        md: "Với `n = 3`, bản đang cho `[[0, 1, 2], [0, 1, 2], [0, 1, 2]]`. Vì sao ba phần tử giống nhau?"
+      - level: approach
+        md: "`ds.append(cur)` chỉ gắn thêm nhãn tới cùng list. Lưu một bản sao nông của `cur` tại mỗi bước."
+      - level: near_solution
+        md: "Thay `ds.append(cur)` bằng append một bản sao của `cur`, ví dụ dạng cắt `cur[:]`."
+    tests:
+      - {args: [3], expected: [[0], [0, 1], [0, 1, 2]]}
+      - {args: [0], expected: []}
+      - {args: [1], expected: [[0]]}
+      - {args: [4], expected: [[0], [0, 1], [0, 1, 2], [0, 1, 2, 3]]}
+    solution: |
+      def prefix_snapshots(n):
+          cur = []
+          ds = []
+          for i in range(n):
+              cur.append(i)
+              ds.append(cur[:])
+          return ds
+  - id: s_grid
+    type: section
+    title_vi: "Bẫy lưới 2D"
+    summary_vi: "[[0]*n]*m lặp lại tham chiếu; tạo mỗi hàng mới bằng comprehension."
+    exercise_ref: b13
   - id: b08
     type: text
     md: |
@@ -132,6 +185,39 @@ blocks:
       print(m, m[0] is m[1])
     expected_output: "[[0, 7], [0, 7]] True"
     explain_md: "Hai hàng là cùng một list con, nên gán `m[1][1] = 7` cũng đổi hàng 0, và `m[0] is m[1]` là `True`."
+  - id: b13
+    type: code_exercise
+    md: |
+      Viết `grid_with(rows, cols, r, c, v)`: tạo lưới `rows` hàng, `cols` cột toàn số 0, gán ô hàng `r`
+      cột `c` bằng `v`, rồi trả về lưới. Mỗi hàng phải là list riêng, để chỉ ô `(r, c)` đổi.
+    entry: grid_with
+    starter: |
+      def grid_with(rows, cols, r, c, v):
+          # TODO: tạo lưới bằng comprehension (không dùng [[0] * cols] * rows), rồi gán ô (r, c)
+          pass
+    tests:
+      - {args: [2, 3, 1, 2, 7], expected: [[0, 0, 0], [0, 0, 7]]}
+      - {args: [1, 1, 0, 0, 5], expected: [[5]]}
+      - {args: [3, 2, 0, 0, 1], expected: [[1, 0], [0, 0], [0, 0]]}
+    guidance_md: |
+      - Đừng nhân list con (`* rows`): các hàng sẽ là cùng một đối tượng.
+      - Tạo mỗi hàng bằng một biểu thức chạy lại cho từng hàng (comprehension).
+      - Sau khi có lưới, gán đúng ô `(r, c)` rồi trả về lưới.
+    hints:
+      - level: nudge
+        md: "Làm sao để mỗi hàng là một list mới, không phải cùng một đối tượng lặp lại?"
+      - level: approach
+        md: "Dùng comprehension `[... for _ in range(rows)]` mà biểu thức bên trong tạo một list `[0] * cols` mới mỗi lần."
+      - level: near_solution
+        md: |
+          luoi = [[0] * cols for _ in range(...)]
+          luoi[r][c] = ...
+          return luoi
+    solution: "def grid_with(rows, cols, r, c, v):\n    luoi = [[0] * cols for _ in range(rows)]\n    luoi[r][c] = v\n    return luoi\n"
+  - id: s_iadd
+    type: section
+    title_vi: "+= trên list và tuple"
+    summary_vi: "list sửa tại chỗ, tuple tạo đối tượng mới."
   - id: b11
     type: text
     md: |
@@ -152,22 +238,6 @@ blocks:
       print(b, u)
     expected_output: "[1, 2, 3] (1, 2)"
     explain_md: "`a += [3]` sửa tại chỗ list mà `b` cũng trỏ tới nên `b` thành `[1, 2, 3]`. `t += (3,)` tạo tuple mới cho `t`; `u` vẫn là tuple cũ `(1, 2)`."
-  - id: b13
-    type: code_exercise
-    md: |
-      Viết `grid_with(rows, cols, r, c, v)`: tạo lưới `rows` hàng, `cols` cột toàn số 0, gán ô hàng `r`
-      cột `c` bằng `v`, rồi trả về lưới. Mỗi hàng phải là list riêng, để chỉ ô `(r, c)` đổi.
-    entry: grid_with
-    starter: |
-      def grid_with(rows, cols, r, c, v):
-          # TODO: tạo lưới bằng comprehension (không dùng [[0] * cols] * rows), rồi gán ô (r, c)
-          pass
-    tests:
-      - {args: [2, 3, 1, 2, 7], expected: [[0, 0, 0], [0, 0, 7]]}
-      - {args: [1, 1, 0, 0, 5], expected: [[5]]}
-      - {args: [3, 2, 0, 0, 1], expected: [[1, 0], [0, 0], [0, 0]]}
-    hint_md: "`luoi = [[0] * cols for _ in range(rows)]`, sau đó `luoi[r][c] = v` và `return luoi`."
-    solution: "def grid_with(rows, cols, r, c, v):\n    luoi = [[0] * cols for _ in range(rows)]\n    luoi[r][c] = v\n    return luoi\n"
   - id: b14
     type: problem_ref
     problem_id: pascals-triangle

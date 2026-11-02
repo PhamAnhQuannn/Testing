@@ -1,5 +1,5 @@
 id: py.datastructs.list
-version: 1
+version: 2
 status: published
 title_vi: "Danh sách (list)"
 est_minutes: 12
@@ -8,6 +8,10 @@ objectives_vi:
   - "Phân biệt thao tác sửa tại chỗ (append, sort) với thao tác tạo list mới (cắt lát, sorted)."
   - "Biết thao tác nào nhanh, thao tác nào chậm khi list dài."
 blocks:
+  - id: s_list_index
+    type: section
+    title_vi: "List và chỉ số (index)"
+    summary_vi: "Tạo list, chỉ số từ 0, chỉ số âm, len và IndexError."
   - id: b01
     type: text
     md: |
@@ -41,6 +45,10 @@ blocks:
       - {id: d, text_md: "Báo `IndexError`"}
     answer: [b]
     explain_md: "`-1` là phần tử cuối (40), `-2` là phần tử đứng trước nó (30)."
+  - id: s_list_mutate
+    type: section
+    title_vi: "Sửa list tại chỗ và tạo list mới"
+    summary_vi: "append, pop, remove, extend; sort() sửa tại chỗ còn sorted() trả list mới."
   - id: b05
     type: text
     md: |
@@ -74,6 +82,20 @@ blocks:
       print(a, b)
     expected_output: "[1, 2, [3, 4]] [1, 2, 3, 4]"
     explain_md: "`append` thêm *một* phần tử (ở đây là cả list `[3, 4]`), còn `extend` thêm *từng* phần tử của list kia."
+  - id: b12
+    type: predict_output
+    code: |
+      a = [3, 1, 2]
+      b = sorted(a)
+      kq = a.sort()
+      print(a, b, kq)
+    expected_output: "[1, 2, 3] [1, 2, 3] None"
+    explain_md: "`sorted(a)` trả list mới; `a.sort()` sắp xếp ngay trên `a` và trả `None`, nên đừng viết `a = a.sort()`."
+  - id: s_list_slice_iter
+    type: section
+    title_vi: "Cắt lát, duyệt list và hiệu năng"
+    summary_vi: "Slicing tạo list mới, enumerate/zip để duyệt, và thao tác nào chậm khi list dài."
+    exercise_ref: b14
   - id: b09
     type: text
     md: |
@@ -109,15 +131,6 @@ blocks:
       - {id: c, text_md: "`[4]`"}
     answer: [a]
     explain_md: "Cắt lát `a[:]` tạo một bản sao, nên sửa `b` không ảnh hưởng `a`. Còn `b = a` thì hai tên cùng trỏ một list."
-  - id: b12
-    type: predict_output
-    code: |
-      a = [3, 1, 2]
-      b = sorted(a)
-      kq = a.sort()
-      print(a, b, kq)
-    expected_output: "[1, 2, 3] [1, 2, 3] None"
-    explain_md: "`sorted(a)` trả list mới; `a.sort()` sắp xếp ngay trên `a` và trả `None`, nên đừng viết `a = a.sort()`."
   - id: b13
     type: callout
     kind: warning
@@ -140,7 +153,29 @@ blocks:
       - {args: [[1, 2, 3], 0], expected: [1, 2, 3]}
       - {args: [[1, 2, 3], 4], expected: [3, 1, 2]}
       - {args: [[], 3], expected: []}
-    hint_md: "Lấy `k %= len(nums)` rồi ghép `nums[-k:]` (phần cuối) với `nums[:-k]` (phần đầu). Coi chừng `k = 0`."
+    guidance_md: |
+      - Xử lý list rỗng trước (không có gì để xoay, và tránh chia cho 0).
+      - Rút gọn `k` về khoảng `0..len(nums)-1` bằng phép chia lấy dư.
+      - Xác định điểm cắt: phần cuối dài `k` sẽ chuyển lên đầu.
+      - Ghép hai phần cắt lát theo thứ tự mới và trả về list mới.
+    hints:
+      - level: nudge
+        md: "Xoay `len(nums)` vị trí thì list y nguyên. Vậy `k` lớn có thể rút gọn thế nào?"
+      - level: approach
+        md: "Dùng `k %= len(nums)`, rồi lấy `k` phần tử cuối đưa lên trước phần còn lại. Coi chừng `k = 0` và list rỗng."
+      - level: pseudocode
+        md: |
+          nếu nums rỗng: trả về []
+          k = k mod len(nums)
+          cut = len(nums) - k
+          kết quả = (phần từ cut đến hết) nối (phần từ đầu đến cut)
+      - level: near_solution
+        md: |
+          def rotate_right(nums, k):
+              ...  # xử lý list rỗng
+              k %= len(nums)
+              cut = ...
+              return nums[...] + nums[...]
     solution: "def rotate_right(nums, k):\n    if not nums:\n        return []\n    k %= len(nums)\n    cut = len(nums) - k\n    return nums[cut:] + nums[:cut]\n"
   - id: b15
     type: problem_ref

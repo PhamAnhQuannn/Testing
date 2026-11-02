@@ -1,5 +1,5 @@
 id: py.datastructs.heapq_bisect
-version: 1
+version: 2
 status: published
 title_vi: "heapq và bisect"
 est_minutes: 14
@@ -8,6 +8,10 @@ objectives_vi:
   - "Biết đảo dấu để làm max-heap và đẩy cặp `(ưu tiên, phần tử)` vào heap."
   - "Dùng bisect để tìm vị trí chèn đúng trong list đã sắp xếp (`bisect_left` khác `bisect_right`)."
 blocks:
+  - id: s_heap_basics
+    type: section
+    title_vi: "heapq: min-heap, max-heap và tuple ưu tiên"
+    summary_vi: "heappush/heappop, h[0] là nhỏ nhất, đảo dấu để lấy lớn nhất, đẩy cặp (ưu tiên, phần tử)."
   - id: b01
     type: text
     md: |
@@ -63,6 +67,11 @@ blocks:
       - {id: c, text_md: "Dùng `heapq.maxheap(h)`"}
     answer: [a]
     explain_md: "`heapq` chỉ là min-heap (`heappop` trả số nhỏ nhất) và không có `maxheap`; mẹo là lưu số đối dấu."
+  - id: s_heap_k
+    type: section
+    title_vi: "nlargest và heap kích thước k"
+    summary_vi: "Lấy k số lớn nhất bằng nlargest hoặc min-heap giữ k phần tử, O(n log k)."
+    exercise_ref: b12
   - id: b06
     type: text
     md: |
@@ -100,6 +109,41 @@ blocks:
       print(h[0])
     expected_output: "4"
     explain_md: "Heap giữ 2 số lớn nhất đã thấy; sau cùng là {4, 7} nên số nhỏ nhất trong heap (`h[0]`) là 4, tức số lớn thứ 2."
+  - id: b12
+    type: code_exercise
+    md: "Viết `sum_of_k_largest(nums, k)` trả tổng của `k` số lớn nhất trong `nums` (`1 <= k <= len(nums)`). Dùng `heapq.nlargest`."
+    entry: sum_of_k_largest
+    starter: |
+      import heapq
+
+
+      def sum_of_k_largest(nums, k):
+          # TODO: heapq.nlargest(k, nums) rồi cộng lại
+          pass
+    tests:
+      - {args: [[5, 1, 8, 3], 2], expected: 13}
+      - {args: [[4], 1], expected: 4}
+      - {args: [[2, 2, 2], 2], expected: 4}
+    guidance_md: |
+      - Tìm trong `heapq` hàm trả ra `k` số lớn nhất.
+      - Hàm đó trả về một list; bạn chỉ cần tổng của list này.
+      - Dùng `sum` để cộng lại rồi `return`.
+    hints:
+      - level: nudge
+        md: "Bạn không cần tự dựng heap: `heapq` có sẵn hàm lấy `k` số lớn nhất."
+      - level: approach
+        md: "Gọi `heapq.nlargest(k, nums)` để có list `k` số lớn nhất, rồi cộng chúng lại bằng `sum`."
+      - level: near_solution
+        md: |
+          def sum_of_k_largest(nums, k):
+              top = heapq.nlargest(...)
+              return ...(top)
+    solution: "import heapq\n\n\ndef sum_of_k_largest(nums, k):\n    return sum(heapq.nlargest(k, nums))\n"
+  - id: s_bisect
+    type: section
+    title_vi: "bisect trên list đã sắp xếp"
+    summary_vi: "bisect_left khác bisect_right; tìm vị trí chèn bằng tìm kiếm nhị phân."
+    exercise_ref: b13
   - id: b09
     type: text
     md: |
@@ -135,23 +179,6 @@ blocks:
       - {id: c, text_md: "`bisect_left(a, 3)`"}
     answer: [b]
     explain_md: "`bisect_right` trả 4 (ngay sau các số 3) và `bisect_left` trả 1 (trước các số 3): 4 - 1 = 3. Đáp án a cho -3, còn c chỉ là vị trí bắt đầu."
-  - id: b12
-    type: code_exercise
-    md: "Viết `sum_of_k_largest(nums, k)` trả tổng của `k` số lớn nhất trong `nums` (`1 <= k <= len(nums)`). Dùng `heapq.nlargest`."
-    entry: sum_of_k_largest
-    starter: |
-      import heapq
-
-
-      def sum_of_k_largest(nums, k):
-          # TODO: heapq.nlargest(k, nums) rồi cộng lại
-          pass
-    tests:
-      - {args: [[5, 1, 8, 3], 2], expected: 13}
-      - {args: [[4], 1], expected: 4}
-      - {args: [[2, 2, 2], 2], expected: 4}
-    hint_md: "`return sum(heapq.nlargest(k, nums))`."
-    solution: "import heapq\n\n\ndef sum_of_k_largest(nums, k):\n    return sum(heapq.nlargest(k, nums))\n"
   - id: b13
     type: code_exercise
     md: "Viết `insert_position(nums, target)`: `nums` đã sắp xếp tăng dần; trả về chỉ số mà `target` nằm hoặc sẽ được chèn vào để list vẫn có thứ tự (nếu `target` đã có thì trả chỉ số đầu tiên). Dùng `bisect`."
@@ -168,7 +195,19 @@ blocks:
       - {args: [[1, 3, 5, 6], 2], expected: 1}
       - {args: [[1, 3, 5, 6], 7], expected: 4}
       - {args: [[], 3], expected: 0}
-    hint_md: "`return bisect.bisect_left(nums, target)`."
+    guidance_md: |
+      - Đề muốn chỉ số đầu tiên mà `target` nằm hoặc sẽ được chèn vào.
+      - Nhớ lại khác biệt giữa `bisect_left` và `bisect_right` khi `target` đã có trong list.
+      - Chọn hàm cho đúng yêu cầu "chỉ số đầu tiên", rồi trả về kết quả của nó.
+    hints:
+      - level: nudge
+        md: "List đã sắp xếp và cần một vị trí: module nào dùng tìm kiếm nhị phân cho việc này?"
+      - level: approach
+        md: "Khi `target` đã có, đề muốn chỉ số **đầu tiên**; hàm bisect nào trả vị trí bên trái các số bằng `target`?"
+      - level: near_solution
+        md: |
+          def insert_position(nums, target):
+              return bisect.<bisect_left hay bisect_right>(nums, target)
     solution: "import bisect\n\n\ndef insert_position(nums, target):\n    return bisect.bisect_left(nums, target)\n"
   - id: b14
     type: problem_ref

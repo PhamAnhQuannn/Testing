@@ -1,5 +1,5 @@
 id: py.functions.def_args
-version: 1
+version: 2
 status: published
 title_vi: "Định nghĩa hàm và đối số (functions & arguments)"
 est_minutes: 15
@@ -8,6 +8,10 @@ objectives_vi:
   - "Phân biệt đối số vị trí và đối số tên, đặt giá trị mặc định, và giải thích bẫy giá trị mặc định là list."
   - "Dùng `*args`/`**kwargs`, giải nén (`*`/`**`) khi gọi hàm, và hiểu hàm nhận tham chiếu tới đối tượng (pass-by-object-reference)."
 blocks:
+  - id: s_def_return
+    type: section
+    title_vi: "def, return và cách truyền đối số"
+    summary_vi: "Hàm không return trả None; trả nhiều giá trị; đối số vị trí, đối số tên, giá trị mặc định."
   - id: b01
     type: text
     md: |
@@ -61,6 +65,11 @@ blocks:
       - {id: c, text_md: "`4`"}
     answer: [b]
     explain_md: "Hàm tính `x * 2` nhưng không `return` nó, nên kết quả bị bỏ và hàm trả về `None`. Sửa: `return x * 2`."
+  - id: s_defaults
+    type: section
+    title_vi: "Bẫy giá trị mặc định là list"
+    summary_vi: "Mặc định được tính một lần và dùng chung; sửa bằng None."
+    exercise_ref: b13
   - id: b04
     type: text
     md: |
@@ -105,6 +114,48 @@ blocks:
       print(log("a"), log("b"), log("c", []), log("d"))
     expected_output: "1 2 1 3"
     explain_md: "`log(\"a\")` và `log(\"b\")` dùng chung list mặc định (độ dài 1 rồi 2). `log(\"c\", [])` truyền list mới nên trả 1 và không đụng list chung. `log(\"d\")` quay lại list chung đã có `a, b` nên thành 3."
+  - id: b13
+    type: code_exercise
+    md: "Viết `append_to(item, bucket=None)`: thêm `item` vào cuối `bucket` rồi trả về `bucket`. Nếu không truyền `bucket` thì bắt đầu từ một list rỗng **mới** ở mỗi lần gọi (tránh bẫy mặc định)."
+    entry: append_to
+    starter: |
+      def append_to(item, bucket=None):
+          # TODO: nếu bucket là None thì tạo list mới bên trong hàm
+          pass
+    tests:
+      - {args: ["a"], expected: ["a"]}
+      - {args: ["b", ["x"]], expected: ["x", "b"]}
+      - {args: ["c"], expected: ["c"]}
+      - {args: ["d", []], expected: ["d"]}
+    guidance_md: |
+      - Nhớ bẫy: mặc định là `None`, không phải `[]`.
+      - Kiểm tra `bucket` có phải `None` không; nếu có, tạo list rỗng mới bên trong hàm.
+      - Thêm `item` vào cuối `bucket`.
+      - Trả về `bucket`.
+    hints:
+      - level: nudge
+        md: "Vì sao mặc định lại là `None` mà không viết thẳng `bucket=[]`?"
+      - level: approach
+        md: "Trong thân hàm: nếu `bucket is None` thì gán một list rỗng mới, sau đó thêm `item` và trả về `bucket`."
+      - level: pseudocode
+        md: |
+          nếu bucket là None:
+              bucket = list rỗng mới
+          thêm item vào cuối bucket
+          trả về bucket
+      - level: near_solution
+        md: |
+          def append_to(item, bucket=None):
+              if bucket is ...:
+                  bucket = ...
+              bucket.append(...)
+              return bucket
+    solution: "def append_to(item, bucket=None):\n    if bucket is None:\n        bucket = []\n    bucket.append(item)\n    return bucket\n"
+  - id: s_args_kwargs
+    type: section
+    title_vi: "*args, **kwargs và giải nén"
+    summary_vi: "Gom đối số dư thành tuple/dict; rải list/dict khi gọi hàm."
+    exercise_ref: b12
   - id: b07
     type: text
     md: |
@@ -148,6 +199,47 @@ blocks:
       - {id: c, text_md: "`total(**data)`"}
     answer: [b]
     explain_md: "`*data` rải list thành ba đối số `1, 2, 3`. `total(data)` truyền một đối số duy nhất là cả list nên `sum(([1, 2, 3],))` lỗi; `**data` đòi một dict."
+  - id: b12
+    type: code_exercise
+    md: "Viết `sum_of_squares(*nums)` nhận số lượng số tuỳ ý và trả tổng bình phương của chúng (không có số nào thì trả 0)."
+    entry: sum_of_squares
+    starter: |
+      def sum_of_squares(*nums):
+          # TODO: nums là một tuple các đối số; cộng bình phương từng số
+          pass
+    tests:
+      - {args: [], expected: 0}
+      - {args: [3], expected: 9}
+      - {args: [1, 2, 3], expected: 14}
+      - {args: [-2, 2], expected: 8}
+    guidance_md: |
+      - `nums` là một tuple chứa mọi đối số truyền vào (có thể rỗng).
+      - Chuẩn bị biến tổng bắt đầu từ 0.
+      - Duyệt từng số, cộng bình phương của nó vào tổng.
+      - Trả về tổng; không có số nào thì tổng vẫn là 0.
+    hints:
+      - level: nudge
+        md: "Khi không truyền số nào thì `nums` là gì? Kết quả mong muốn lúc đó là bao nhiêu?"
+      - level: approach
+        md: "Duyệt `nums` bằng `for`, cộng dồn `x * x` vào một biến tổng khởi tạo bằng 0."
+      - level: pseudocode
+        md: |
+          total = 0
+          với mỗi x trong nums:
+              total = total + x * x
+          trả về total
+      - level: near_solution
+        md: |
+          def sum_of_squares(*nums):
+              total = 0
+              for x in nums:
+                  total += ...  # bình phương của x
+              return total
+    solution: "def sum_of_squares(*nums):\n    total = 0\n    for x in nums:\n        total += x * x\n    return total\n"
+  - id: s_object_ref
+    type: section
+    title_vi: "Docstring và pass-by-object-reference"
+    summary_vi: "Hàm nhận tham chiếu tới đối tượng: sửa tại chỗ khác với gán lại tên."
   - id: b10
     type: text
     md: |
@@ -176,36 +268,6 @@ blocks:
       print(f(a, b), a, b)
     expected_output: "[0, 6] [1, 5] 5"
     explain_md: "`nums.append(n)` sửa chính list `a` nên `a` thành `[1, 5]`. `n += 1` chỉ đổi tên `n` cục bộ (`b` vẫn 5). `nums = [0]` gắn tên `nums` sang list mới nên hàm trả `[0, 6]` và không đụng tới `a` nữa."
-  - id: b12
-    type: code_exercise
-    md: "Viết `sum_of_squares(*nums)` nhận số lượng số tuỳ ý và trả tổng bình phương của chúng (không có số nào thì trả 0)."
-    entry: sum_of_squares
-    starter: |
-      def sum_of_squares(*nums):
-          # TODO: nums là một tuple các đối số; cộng bình phương từng số
-          pass
-    tests:
-      - {args: [], expected: 0}
-      - {args: [3], expected: 9}
-      - {args: [1, 2, 3], expected: 14}
-      - {args: [-2, 2], expected: 8}
-    hint_md: "`return sum(x * x for x in nums)`, hoặc dùng vòng `for` cộng dồn vào biến tổng."
-    solution: "def sum_of_squares(*nums):\n    total = 0\n    for x in nums:\n        total += x * x\n    return total\n"
-  - id: b13
-    type: code_exercise
-    md: "Viết `append_to(item, bucket=None)`: thêm `item` vào cuối `bucket` rồi trả về `bucket`. Nếu không truyền `bucket` thì bắt đầu từ một list rỗng **mới** ở mỗi lần gọi (tránh bẫy mặc định)."
-    entry: append_to
-    starter: |
-      def append_to(item, bucket=None):
-          # TODO: nếu bucket là None thì tạo list mới bên trong hàm
-          pass
-    tests:
-      - {args: ["a"], expected: ["a"]}
-      - {args: ["b", ["x"]], expected: ["x", "b"]}
-      - {args: ["c"], expected: ["c"]}
-      - {args: ["d", []], expected: ["d"]}
-    hint_md: "`if bucket is None: bucket = []`, sau đó `bucket.append(item)` và `return bucket`."
-    solution: "def append_to(item, bucket=None):\n    if bucket is None:\n        bucket = []\n    bucket.append(item)\n    return bucket\n"
   - id: b14
     type: problem_ref
     problem_id: create-target-array-in-the-given-order
