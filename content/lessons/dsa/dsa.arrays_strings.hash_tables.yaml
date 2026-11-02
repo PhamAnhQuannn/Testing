@@ -1,25 +1,235 @@
 id: dsa.arrays_strings.hash_tables
 version: 1
-status: draft
-title_vi: Hash table và hash set (hash table internals)
-est_minutes: 10
+status: published
+title_vi: "Hash table: dict và set để đếm, loại trùng, tra cứu (hash tables)"
+est_minutes: 13
 objectives_vi:
-- Giải thích cách hash map xử lý đụng độ và nới rộng.
-- Nêu độ phức tạp trung bình và xấu nhất.
-- Tự cài một HashMap đơn giản.
-blocks: []
-problems:
-  practice: []
-  extra: []
-mastery_check:
-  l1: []
-  l2: []
-  l3: []
-checkpoint:
-  pass_ratio: 0.7
-  min_items: 3
+  - "Dùng dict để đếm tần suất và set để loại trùng/kiểm tra tồn tại."
+  - "Nêu độ phức tạp trung bình O(1) của tra cứu và điều kiện key phải hashable."
+  - "Giải Two Sum bằng một lượt duyệt với dict lưu giá trị đã thấy."
+  - "Tìm ký tự không lặp đầu tiên bằng đếm tần suất rồi duyệt lại theo thứ tự."
+blocks:
+  - id: s_count
+    type: section
+    title_vi: "Đếm tần suất bằng dict, loại trùng bằng set"
+    summary_vi: "Tra cứu, thêm, xóa trung bình O(1) nên đếm cả chuỗi chỉ tốn O(n)."
+    exercise_ref: ex_count
+  - id: t01
+    type: text
+    md: |
+      **Hash table** ánh xạ key sang vị trí bằng hàm băm (hash), nên `in`, đọc và ghi trung bình **O(1)**
+      (xấu nhất O(n) khi nhiều key đụng độ). Trong Python:
+
+      - `dict`: cặp key-value, dùng để đếm: `cnt[c] = cnt.get(c, 0) + 1`.
+      - `set`: chỉ lưu key, dùng để loại trùng và kiểm tra "đã thấy chưa".
+
+      Key phải **hashable** (bất biến): `int`, `str`, `tuple` được; `list`, `dict`, `set` thì không.
+  - id: c01
+    type: callout
+    kind: tip
+    md: "`dict.get(key, 0)` tránh `KeyError` khi key chưa tồn tại. `collections.Counter` làm sẵn việc đếm, nhưng hãy tự viết được bản dùng dict."
+  - id: q01
+    type: predict_output
+    code: |
+      nums = [3, 1, 3, 2, 1]
+      print(sorted(set(nums)))
+      print(len(nums) - len(set(nums)))
+    expected_output: |
+      [1, 2, 3]
+      2
+    explain_md: "`set` loại phần tử trùng: {1, 2, 3}; có 5 phần tử và 3 giá trị khác nhau nên 2 phần tử là bản lặp."
+  - id: ex_count
+    type: code_exercise
+    md: |
+      Viết `count_chars(s)` trả về dict `{ký_tự: số_lần}` cho mọi ký tự trong chuỗi `s`.
+      Ví dụ `"banana"` cho `{"b": 1, "a": 3, "n": 2}`. Chuỗi rỗng cho `{}`.
+    entry: count_chars
+    starter: |
+      def count_chars(s):
+          cnt = {}
+          # TODO: với mỗi ký tự c, tăng cnt[c] lên 1
+          return cnt
+    guidance_md: |
+      - Duyệt từng ký tự `c` của `s`.
+      - Dùng `cnt.get(c, 0)` để lấy số lần hiện tại (0 nếu chưa có).
+      - Ghi lại `cnt[c]` bằng giá trị đó cộng 1.
+    hints:
+      - level: nudge
+        md: "Khi gặp ký tự lần đầu, nó chưa có trong dict. Làm sao lấy giá trị mà không bị `KeyError`?"
+      - level: approach
+        md: "Dùng `cnt.get(c, 0) + 1` làm giá trị mới của `cnt[c]`."
+      - level: pseudocode
+        md: |
+          với mỗi c trong s:
+              cnt[c] = (giá trị hiện tại của c, mặc định 0) + 1
+      - level: near_solution
+        md: |
+          for c in s:
+              cnt[c] = ... + 1   # get với mặc định 0
+          return cnt
+    tests:
+      - {args: ["banana"], expected: {a: 3, b: 1, n: 2}}
+      - {args: [""], expected: {}}
+      - {args: ["aab"], expected: {a: 2, b: 1}}
+      - {args: ["zzzz"], expected: {z: 4}}
+    solution: |
+      def count_chars(s):
+          cnt = {}
+          for c in s:
+              cnt[c] = cnt.get(c, 0) + 1
+          return cnt
+  - id: s_twosum
+    type: section
+    title_vi: "Two Sum bằng dict"
+    summary_vi: "Lưu giá trị đã thấy; với mỗi phần tử tra phần bù target - x."
+    exercise_ref: ex_twosum
+  - id: t02
+    type: text
+    md: |
+      **Two Sum**: tìm hai chỉ số khác nhau có tổng bằng `target`. Cách brute force hai vòng lặp O(n²).
+      Với dict, mỗi `x` cần **phần bù** `need = target - x`; nếu `need` đã thấy ở bước trước thì xong.
+
+      ```python
+      seen = {}                 # giá trị -> chỉ số
+      for i, x in enumerate(nums):
+          if target - x in seen:
+              return [seen[target - x], i]
+          seen[x] = i
+      ```
+
+      Tổng thời gian O(n), thêm O(n) bộ nhớ. **Tra cứu trước, ghi sau** để không dùng một phần tử hai lần.
+  - id: q02
+    type: quiz_mcq
+    prompt_md: "Vì sao không thể dùng `list` làm key của `dict` trong Python?"
+    options:
+      - {id: a, text_md: "List quá dài nên băm chậm"}
+      - {id: b, text_md: "List có thể thay đổi (mutable) nên không hashable"}
+      - {id: c, text_md: "Key chỉ được là số nguyên hoặc chuỗi"}
+    answer: [b]
+    explain_md: "Key phải hashable, tức giá trị băm không đổi theo thời gian; list mutable nên bị `TypeError`. Dùng `tuple` thay thế. Đáp án c sai vì tuple cũng làm key được."
+  - id: ex_twosum
+    type: code_exercise
+    md: |
+      `two_sum(nums, target)` phải trả `[i, j]` (với `i < j`) sao cho `nums[i] + nums[j] == target`,
+      hoặc `[]` nếu không có. Bản dưới đây ghi `x` vào dict trước khi tra cứu nên có thể dùng một phần tử
+      hai lần. Hãy sửa.
+    entry: two_sum
+    starter: |
+      def two_sum(nums, target):
+          seen = {}
+          for i, x in enumerate(nums):
+              seen[x] = i
+              if target - x in seen:
+                  return [seen[target - x], i]
+          return []
+    guidance_md: |
+      - Thử `nums = [3, 2, 4]`, `target = 6`: kết quả đang là gì và vì sao?
+      - Tìm thứ tự hai dòng (ghi vào dict, tra cứu) gây ra lỗi.
+      - Đổi thứ tự cho đúng.
+    hints:
+      - level: nudge
+        md: "Ở bước đầu `x = 3`, `target - x = 3`. Lúc tra cứu, `3` đã có trong dict chưa?"
+      - level: approach
+        md: "Phần bù phải đến từ phần tử ở **bước trước**, nên cần tra cứu trước khi thêm `x` vào dict."
+      - level: near_solution
+        md: "Đưa dòng `seen[x] = i` xuống sau khối `if ...: return ...`."
+    tests:
+      - {args: [[2, 7, 11, 15], 9], expected: [0, 1]}
+      - {args: [[3, 2, 4], 6], expected: [1, 2]}
+      - {args: [[3, 3], 6], expected: [0, 1]}
+      - {args: [[1, 2, 3], 7], expected: []}
+    solution: |
+      def two_sum(nums, target):
+          seen = {}
+          for i, x in enumerate(nums):
+              if target - x in seen:
+                  return [seen[target - x], i]
+              seen[x] = i
+          return []
+  - id: s_unique
+    type: section
+    title_vi: "Ký tự không lặp đầu tiên"
+    summary_vi: "Hai lượt: đếm tần suất, rồi duyệt lại theo thứ tự gốc."
+    exercise_ref: ex_unique
+  - id: t03
+    type: text
+    md: |
+      Bài **First Unique Character**: trả chỉ số của ký tự xuất hiện đúng một lần và đứng sớm nhất. Dict
+      đếm cho biết tần suất nhưng không đảm bảo bạn thấy thứ tự gốc, nên làm **hai lượt**:
+
+      1. Lượt 1: đếm tần suất của mọi ký tự.
+      2. Lượt 2: duyệt chuỗi theo thứ tự gốc, trả chỉ số đầu tiên có tần suất 1.
+
+      Tổng thời gian O(n), bộ nhớ O(k) với k là số ký tự khác nhau.
+  - id: c02
+    type: callout
+    kind: interview
+    md: "Khi nhà tuyển dụng hỏi độ phức tạp của hash map, hãy nói rõ: trung bình O(1), xấu nhất O(n) khi đụng độ nhiều."
+  - id: q03
+    type: quiz_fill
+    prompt_md: "Tra cứu `x in my_set` có độ phức tạp trung bình là ___."
+    blanks: [{accept: ["O(1)", "o(1)", "1", "hằng số"]}]
+    explain_md: "Set cài đặt bằng hash table nên kiểm tra tồn tại trung bình O(1); list thì O(n)."
+  - id: ex_unique
+    type: code_exercise
+    md: |
+      Viết `first_unique(s)` trả chỉ số của ký tự xuất hiện đúng một lần và đứng đầu tiên trong `s`;
+      trả `-1` nếu không có. Ví dụ `"loveleetcode"` cho `2`.
+    entry: first_unique
+    starter: |
+      def first_unique(s):
+          cnt = {}
+          # TODO: lượt 1 đếm tần suất
+          # TODO: lượt 2 trả chỉ số đầu tiên có cnt == 1
+          return -1
+    guidance_md: |
+      - Lượt 1: đếm mỗi ký tự bằng dict.
+      - Lượt 2: `for i, c in enumerate(s)` và kiểm tra `cnt[c] == 1`.
+      - Không có ký tự nào thỏa thì trả `-1`.
+    hints:
+      - level: nudge
+        md: "Chỉ nhìn một lần thì chưa biết ký tự có lặp ở phía sau không. Cần mấy lượt duyệt?"
+      - level: approach
+        md: "Lượt 1 đếm tần suất, lượt 2 duyệt theo thứ tự gốc để lấy chỉ số nhỏ nhất có tần suất 1."
+      - level: pseudocode
+        md: |
+          lượt 1: với mỗi c: cnt[c] += 1
+          lượt 2: với mỗi (i, c): nếu cnt[c] == 1 thì trả i
+          trả -1
+      - level: near_solution
+        md: |
+          for c in s:
+              cnt[c] = cnt.get(c, 0) + 1
+          for i, c in enumerate(s):
+              if ...:      # tần suất của c bằng 1
+                  return i
+          return -1
+    tests:
+      - {args: ["leetcode"], expected: 0}
+      - {args: ["loveleetcode"], expected: 2}
+      - {args: ["aabb"], expected: -1}
+      - {args: [""], expected: -1}
+    solution: |
+      def first_unique(s):
+          cnt = {}
+          for c in s:
+              cnt[c] = cnt.get(c, 0) + 1
+          for i, c in enumerate(s):
+              if cnt[c] == 1:
+                  return i
+          return -1
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "dict đếm tần suất (`cnt.get(c, 0) + 1`), set loại trùng; tra cứu trung bình O(1), xấu nhất O(n)."
+      - "Key phải hashable: dùng tuple/str/int, không dùng list."
+      - "Two Sum: tra phần bù `target - x` trong `seen` trước, rồi mới ghi `x`."
+      - "First unique: lượt 1 đếm, lượt 2 duyệt lại theo thứ tự gốc."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [Q053], l2: [Q054], l3: [Q055]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
 source:
   tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
-  authored_by: tools/gen_lesson_stubs.py
+  authored_by: "claude"
   reviewed_by: null
-  date: '2026-10-24'
+  date: "2026-11-02"

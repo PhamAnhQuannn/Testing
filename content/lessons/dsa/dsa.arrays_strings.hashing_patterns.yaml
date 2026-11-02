@@ -1,24 +1,258 @@
 id: dsa.arrays_strings.hashing_patterns
 version: 1
-status: draft
-title_vi: 'Pattern dùng hash: đếm tần suất, bù trừ, nhóm (hashing patterns)'
-est_minutes: 10
+status: published
+title_vi: "Pattern dùng hash: nhóm theo key, top-k, prefix + hash (hashing patterns)"
+est_minutes: 14
 objectives_vi:
-- Nhận ra bài O(n^2) có thể xuống O(n) bằng dict hoặc set.
-- Viết đúng Two Sum, Group Anagrams, Top K Frequent.
-blocks: []
-problems:
-  practice: []
-  extra: []
-mastery_check:
-  l1: []
-  l2: []
-  l3: []
-checkpoint:
-  pass_ratio: 0.7
-  min_items: 3
+  - "Nhóm phần tử theo một key chuẩn hóa (group-by-key), ví dụ Group Anagrams."
+  - "Chọn top-k phần tử xuất hiện nhiều nhất bằng đếm tần suất và sắp xếp có tie-break."
+  - "Kết hợp prefix sum và dict lưu chỉ số đầu tiên để tìm đoạn con dài nhất có tổng k."
+blocks:
+  - id: s_group
+    type: section
+    title_vi: "Nhóm theo key (group anagrams)"
+    summary_vi: "Chọn key chuẩn hóa giống nhau cho các phần tử cùng nhóm, rồi gom vào dict."
+    exercise_ref: ex_group
+  - id: t01
+    type: text
+    md: |
+      Pattern **group-by-key**: tìm một **key chuẩn hóa** sao cho các phần tử "cùng loại" có cùng key,
+      rồi gom vào `dict[key] -> list`.
+
+      Với anagram (cùng chữ cái, khác thứ tự), key là chuỗi đã sắp xếp: `"eat"`, `"tea"`, `"ate"` đều
+      cho `"aet"`.
+
+      ```python
+      groups = {}
+      for w in words:
+          key = "".join(sorted(w))
+          groups.setdefault(key, []).append(w)
+      ```
+
+      Thời gian O(n · L log L) với L là độ dài từ dài nhất. Key phải hashable nên dùng `str` hoặc `tuple`,
+      không dùng list.
+  - id: q01
+    type: predict_output
+    code: |
+      a = "".join(sorted("listen"))
+      b = "".join(sorted("silent"))
+      print(a)
+      print(a == b)
+    expected_output: |
+      eilnst
+      True
+    explain_md: "Cả hai từ có cùng bộ chữ cái nên sau khi sắp xếp đều thành `eilnst`, vậy chúng là anagram."
+  - id: ex_group
+    type: code_exercise
+    md: |
+      Viết `group_anagrams(words)` trả list các nhóm anagram. Để kết quả xác định: mỗi nhóm được sắp xếp
+      tăng dần, và danh sách nhóm cũng sắp xếp tăng dần (so sánh list như thường).
+      Ví dụ `["eat","tea","tan","ate","nat","bat"]` cho `[["ate","eat","tea"],["bat"],["nat","tan"]]`.
+    entry: group_anagrams
+    starter: |
+      def group_anagrams(words):
+          groups = {}
+          # TODO: gom từ vào groups theo key là chuỗi đã sắp xếp
+          result = [sorted(g) for g in groups.values()]
+          return sorted(result)
+    guidance_md: |
+      - Với mỗi từ `w`, tính `key = "".join(sorted(w))`.
+      - Thêm `w` vào danh sách của `key` trong `groups` (dùng `setdefault`).
+      - Phần sắp xếp kết quả đã có sẵn ở cuối hàm.
+    hints:
+      - level: nudge
+        md: "Hai anagram giống nhau ở điểm nào sau khi bạn sắp xếp các chữ cái của chúng?"
+      - level: approach
+        md: "Dùng chuỗi đã sắp xếp làm key của dict, value là list các từ có key đó."
+      - level: pseudocode
+        md: |
+          với mỗi w trong words:
+              key = các chữ cái của w đã sắp xếp, nối lại thành chuỗi
+              thêm w vào groups[key] (tạo list rỗng nếu chưa có)
+      - level: near_solution
+        md: |
+          for w in words:
+              key = "".join(sorted(w))
+              ...   # thêm w vào list của key, dùng setdefault
+    tests:
+      - {args: [["eat", "tea", "tan", "ate", "nat", "bat"]], expected: [["ate", "eat", "tea"], ["bat"], ["nat", "tan"]]}
+      - {args: [[""]], expected: [[""]]}
+      - {args: [[]], expected: []}
+      - {args: [["a", "b", "a"]], expected: [["a", "a"], ["b"]]}
+    solution: |
+      def group_anagrams(words):
+          groups = {}
+          for w in words:
+              key = "".join(sorted(w))
+              groups.setdefault(key, []).append(w)
+          result = [sorted(g) for g in groups.values()]
+          return sorted(result)
+  - id: s_topk
+    type: section
+    title_vi: "Top K phần tử xuất hiện nhiều nhất"
+    summary_vi: "Đếm tần suất rồi sắp xếp giảm dần theo số lần, hòa thì theo giá trị."
+    exercise_ref: ex_topk
+  - id: t02
+    type: text
+    md: |
+      **Top K Frequent**: đếm tần suất bằng dict (O(n)), rồi sắp xếp các giá trị khác nhau theo tần suất
+      **giảm dần**, lấy `k` phần tử đầu.
+
+      ```python
+      order = sorted(cnt, key=lambda x: (-cnt[x], x))
+      return order[:k]
+      ```
+
+      Key `(-cnt[x], x)` vừa đảo chiều tần suất vừa **tie-break** theo giá trị để kết quả xác định. Cách
+      này O(m log m) với m là số giá trị khác nhau; có thể giảm xuống O(n log k) bằng heap hoặc O(n) bằng
+      bucket sort.
+  - id: c01
+    type: callout
+    kind: warning
+    md: "`sorted(cnt, key=lambda x: cnt[x])` sắp xếp **tăng dần**, nên `[:k]` lấy ra các giá trị ít xuất hiện nhất."
+  - id: q02
+    type: quiz_mcq
+    prompt_md: "Khi sắp xếp để lấy top-k theo tần suất, `key=lambda x: (-cnt[x], x)` có tác dụng gì?"
+    options:
+      - {id: a, text_md: "Tần suất giảm dần, hòa thì giá trị nhỏ hơn đứng trước"}
+      - {id: b, text_md: "Tần suất tăng dần, hòa thì giá trị lớn hơn đứng trước"}
+      - {id: c, text_md: "Chỉ loại bỏ các giá trị trùng"}
+    answer: [a]
+    explain_md: "Dấu trừ đảo thứ tự nên tần suất lớn đứng trước; thành phần thứ hai `x` phá hòa theo giá trị tăng dần."
+  - id: ex_topk
+    type: code_exercise
+    md: |
+      `top_k(nums, k)` phải trả `k` giá trị xuất hiện nhiều nhất, theo tần suất giảm dần; hòa thì giá trị
+      nhỏ hơn đứng trước. Bản dưới đây trả các giá trị ít gặp nhất. Hãy sửa.
+    entry: top_k
+    starter: |
+      def top_k(nums, k):
+          cnt = {}
+          for x in nums:
+              cnt[x] = cnt.get(x, 0) + 1
+          order = sorted(cnt, key=lambda x: cnt[x])
+          return order[:k]
+    guidance_md: |
+      - Thử `[1, 1, 1, 2, 2, 3]` với `k = 2`: bạn nhận được gì?
+      - Tìm chiều sắp xếp trong `key`.
+      - Thêm giá trị làm tie-break thứ hai.
+    hints:
+      - level: nudge
+        md: "Với `[1, 1, 1, 2, 2, 3]`, thứ tự `order` hiện tại là gì? Phần tử nào đứng đầu?"
+      - level: approach
+        md: "Cần sắp xếp giảm dần theo tần suất, nên đảo dấu tần suất trong `key`; thêm giá trị để phá hòa."
+      - level: near_solution
+        md: "Đổi key thành `lambda x: (-cnt[x], x)`."
+    tests:
+      - {args: [[1, 1, 1, 2, 2, 3], 2], expected: [1, 2]}
+      - {args: [[1], 1], expected: [1]}
+      - {args: [[4, 4, 5, 5, 6], 2], expected: [4, 5]}
+      - {args: [[3, 1, 3, 1, 2], 1], expected: [1]}
+    solution: |
+      def top_k(nums, k):
+          cnt = {}
+          for x in nums:
+              cnt[x] = cnt.get(x, 0) + 1
+          order = sorted(cnt, key=lambda x: (-cnt[x], x))
+          return order[:k]
+  - id: s_longest
+    type: section
+    title_vi: "Prefix + hash: đoạn con dài nhất có tổng k"
+    summary_vi: "Lưu chỉ số đầu tiên của mỗi prefix để kéo dài đoạn nhất có thể."
+    exercise_ref: ex_longest
+  - id: t03
+    type: text
+    md: |
+      Kết hợp **prefix sum** với **hash**: đoạn kết thúc tại `i` có tổng `k` khi một prefix cũ bằng
+      `cur - k`. Để đoạn **dài nhất**, ta lưu **chỉ số đầu tiên** xuất hiện của mỗi prefix và không ghi
+      đè khi gặp lại.
+
+      ```python
+      first = {0: -1}          # prefix rỗng kết thúc ở chỉ số -1
+      cur = 0
+      for i, x in enumerate(nums):
+          cur += x
+          if cur - k in first:
+              best = max(best, i - first[cur - k])
+          first.setdefault(cur, i)
+      ```
+
+      Độ dài đoạn `(j, i]` là `i - j`. Toàn bộ O(n), dùng được với số âm.
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Vì sao khởi tạo `first = {0: -1}` trong bài tìm đoạn dài nhất có tổng k?"
+    options:
+      - {id: a, text_md: "Để xử lý đoạn bắt đầu từ chỉ số 0, vì prefix rỗng kết thúc ở chỉ số -1"}
+      - {id: b, text_md: "Để tránh `KeyError` khi dict rỗng"}
+      - {id: c, text_md: "Để loại các phần tử bằng 0"}
+    answer: [a]
+    explain_md: "Nếu `cur == k` ngay từ đầu mảng, ta cần prefix `0` để đoạn `[0..i]` có độ dài `i - (-1) = i + 1`."
+  - id: ex_longest
+    type: code_exercise
+    md: |
+      Viết `longest_sum_k(nums, k)` trả **độ dài** đoạn con liên tiếp dài nhất có tổng bằng `k`
+      (0 nếu không có). Mảng có thể chứa số âm. Ví dụ `[1, -1, 5, -2, 3]`, `k = 3` cho `4`.
+    entry: longest_sum_k
+    starter: |
+      def longest_sum_k(nums, k):
+          first = {0: -1}
+          cur = 0
+          best = 0
+          # TODO: cập nhật cur, kiểm tra cur - k trong first, rồi ghi chỉ số đầu của cur
+          return best
+    guidance_md: |
+      - Với mỗi `(i, x)`: cộng `x` vào `cur`.
+      - Nếu `cur - k` có trong `first`, cập nhật `best` với `i - first[cur - k]`.
+      - Chỉ ghi `first[cur] = i` nếu `cur` chưa có (giữ chỉ số đầu tiên).
+    hints:
+      - level: nudge
+        md: "Để đoạn dài nhất, bạn muốn prefix cũ nằm ở chỉ số nhỏ nhất hay lớn nhất?"
+      - level: approach
+        md: "Giữ chỉ số xuất hiện đầu tiên của mỗi prefix; không ghi đè khi gặp lại."
+      - level: pseudocode
+        md: |
+          với mỗi (i, x):
+              cur += x
+              nếu (cur - k) có trong first: best = max(best, i - first[cur - k])
+              nếu cur chưa có trong first: first[cur] = i
+      - level: near_solution
+        md: |
+          for i, x in enumerate(nums):
+              cur += x
+              if cur - k in first:
+                  best = max(best, ...)   # i trừ chỉ số đầu của (cur - k)
+              if cur not in first:
+                  first[cur] = i
+          return best
+    tests:
+      - {args: [[1, -1, 5, -2, 3], 3], expected: 4}
+      - {args: [[-2, -1, 2, 1], 1], expected: 2}
+      - {args: [[1, 2, 3], 10], expected: 0}
+      - {args: [[0, 0, 0], 0], expected: 3}
+      - {args: [[], 0], expected: 0}
+    solution: |
+      def longest_sum_k(nums, k):
+          first = {0: -1}
+          cur = 0
+          best = 0
+          for i, x in enumerate(nums):
+              cur += x
+              if cur - k in first:
+                  best = max(best, i - first[cur - k])
+              if cur not in first:
+                  first[cur] = i
+          return best
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Group-by-key: chọn key chuẩn hóa hashable (ví dụ chuỗi đã sắp xếp), gom vào `dict[key] -> list`."
+      - "Top-k: đếm tần suất rồi `sorted(cnt, key=lambda x: (-cnt[x], x))[:k]`."
+      - "Prefix + hash: dict lưu chỉ số đầu tiên của prefix, khởi tạo `{0: -1}`, tra `cur - k`."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [], l2: [Q056], l3: [Q057]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
 source:
   tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
-  authored_by: tools/gen_lesson_stubs.py
+  authored_by: "claude"
   reviewed_by: null
-  date: '2026-10-24'
+  date: "2026-11-02"

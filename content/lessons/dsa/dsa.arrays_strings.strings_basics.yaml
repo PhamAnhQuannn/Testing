@@ -1,24 +1,225 @@
 id: dsa.arrays_strings.strings_basics
 version: 1
-status: draft
-title_vi: Chuỗi cơ bản (string fundamentals)
-est_minutes: 10
+status: published
+title_vi: "Chuỗi cơ bản (string fundamentals)"
+est_minutes: 11
 objectives_vi:
-- Xử lý chuỗi hiệu quả (không nối chuỗi trong vòng lặp, đếm bằng list 26 ô).
-- Giải nhanh bài palindrome, anagram, subsequence.
-blocks: []
-problems:
-  practice: []
-  extra: []
-mastery_check:
-  l1: []
-  l2: []
-  l3: []
-checkpoint:
-  pass_ratio: 0.7
-  min_items: 3
+  - "Dùng chỉ số và slicing (cắt lát) để đọc, đảo, lấy đoạn của chuỗi."
+  - "Dùng các phương thức như lower, upper, split, join để chuẩn hóa chuỗi."
+  - "Hiểu chuỗi là bất biến (immutable) và vì sao không nên nối chuỗi trong vòng lặp."
+  - "Đếm ký tự bằng list 26 ô để kiểm tra anagram."
+blocks:
+  - id: s_slice
+    type: section
+    title_vi: "Chỉ số và slicing"
+    summary_vi: "s[i], s[-1], s[a:b], s[::-1]: nửa mở, không lỗi khi vượt biên."
+    exercise_ref: ex_swap_ends
+  - id: t01
+    type: text
+    md: |
+      **Chuỗi (string)** là dãy ký tự đánh chỉ số từ `0`. Chỉ số âm đếm từ cuối: `s[-1]` là ký tự cuối.
+
+      **Slicing** `s[a:b]` lấy từ chỉ số `a` đến **trước** `b` (nửa mở), và không báo lỗi khi vượt biên.
+      Có thêm bước nhảy: `s[a:b:k]`.
+
+      ```python
+      s = "python"
+      s[1:4]    # 'yth'
+      s[:2]     # 'py'
+      s[-3:]    # 'hon'
+      s[::-1]   # 'nohtyp' (đảo chuỗi)
+      ```
+
+      Slicing tạo chuỗi **mới** với chi phí O(k) cho k ký tự lấy ra.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Với `s = \"python\"`, biểu thức `s[1:4]` cho kết quả nào?"
+    options:
+      - {id: a, text_md: "`'pyth'`"}
+      - {id: b, text_md: "`'ytho'`"}
+      - {id: c, text_md: "`'yth'`"}
+    answer: [c]
+    explain_md: "Slicing nửa mở: lấy chỉ số 1, 2, 3 (`y`, `t`, `h`), không lấy chỉ số 4."
+  - id: ex_swap_ends
+    type: code_exercise
+    md: |
+      Viết `swap_ends(s)`: trả về chuỗi mới với ký tự đầu và ký tự cuối đổi chỗ. Chuỗi dài dưới 2
+      thì trả nguyên. Ví dụ `"hello"` cho `"oellh"`.
+    entry: swap_ends
+    starter: |
+      def swap_ends(s):
+          # TODO: dùng s[0], s[-1] và slicing phần giữa
+          return s
+    guidance_md: |
+      - Nếu `len(s) < 2` thì trả `s`.
+      - Phần giữa là `s[1:-1]`.
+      - Ghép: ký tự cuối + phần giữa + ký tự đầu.
+    hints:
+      - level: nudge
+        md: "Chuỗi bất biến nên bạn dựng một chuỗi mới. Phần giữa lấy bằng slicing thế nào?"
+      - level: approach
+        md: "Tách ba phần: `s[0]`, `s[1:-1]`, `s[-1]`, rồi ghép lại theo thứ tự mới."
+      - level: pseudocode
+        md: |
+          nếu len(s) < 2: trả s
+          trả s[-1] + giữa + s[0]   # giữa = s[1:-1]
+    tests:
+      - {args: ["hello"], expected: "oellh"}
+      - {args: ["ab"], expected: "ba"}
+      - {args: ["a"], expected: "a"}
+      - {args: [""], expected: ""}
+      - {args: ["abc"], expected: "cba"}
+    solution: |
+      def swap_ends(s):
+          if len(s) < 2:
+              return s
+          return s[-1] + s[1:-1] + s[0]
+  - id: s_methods
+    type: section
+    title_vi: "Phương thức: lower, split, join"
+    summary_vi: "Chuẩn hóa chuỗi bằng split() rồi join, và cạm bẫy của split(' ')."
+    exercise_ref: ex_normalize
+  - id: t02
+    type: text
+    md: |
+      Các phương thức hay dùng: `lower()`, `upper()`, `strip()`, `startswith()`, `find()`, `replace()`.
+      Hai phương thức đi cặp: `split` cắt chuỗi thành list, `join` ghép list thành chuỗi.
+
+      ```python
+      "a,b,c".split(",")        # ['a', 'b', 'c']
+      "-".join(["a", "b"])      # 'a-b'
+      "  a   b ".split()        # ['a', 'b']  (không đối số: bỏ mọi khoảng trắng thừa)
+      "  a   b ".split(" ")     # ['', '', 'a', '', '', 'b', '']
+      ```
+  - id: c01
+    type: callout
+    kind: warning
+    md: "`split()` (không đối số) và `split(\" \")` khác nhau: bản sau giữ lại chuỗi rỗng khi có nhiều khoảng trắng liền nhau."
+  - id: cs01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      words = "  Xin   chao  ".split()
+      print(words)
+      print("_".join(words).upper())
+    expected_output: |
+      ['Xin', 'chao']
+      XIN_CHAO
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Để tách `\"a  b\"` thành `['a', 'b']` (bỏ khoảng trắng thừa), gọi `s.___()` không đối số."
+    blanks: [{accept: ["split", "split()"]}]
+    explain_md: "`split()` không đối số tách theo mọi dãy khoảng trắng và bỏ phần rỗng."
+  - id: ex_normalize
+    type: code_exercise
+    md: |
+      `normalize(s)` phải đổi chuỗi về chữ thường và gộp mọi khoảng trắng thừa thành đúng một dấu cách
+      (bỏ khoảng trắng đầu/cuối). Bản dưới đây sai khi có nhiều khoảng trắng liền nhau. Hãy sửa.
+    entry: normalize
+    starter: |
+      def normalize(s):
+          words = s.lower().split(" ")
+          return " ".join(words)
+    guidance_md: |
+      - Thử `"a  b"`: kết quả hiện giữ hai dấu cách.
+      - Tìm cách `split` bỏ các phần rỗng.
+    hints:
+      - level: nudge
+        md: "Chạy thử `\"a  b\".split(\" \")` và nhìn list nhận được."
+      - level: approach
+        md: "Dùng dạng `split` không đối số để nó tự bỏ khoảng trắng thừa."
+      - level: near_solution
+        md: "Đổi `s.lower().split(\" \")` thành `s.lower().split()`."
+    tests:
+      - {args: ["  Hello   World "], expected: "hello world"}
+      - {args: ["A"], expected: "a"}
+      - {args: [""], expected: ""}
+      - {args: ["a  b"], expected: "a b"}
+    solution: |
+      def normalize(s):
+          words = s.lower().split()
+          return " ".join(words)
+  - id: s_immutable
+    type: section
+    title_vi: "Bất biến và đếm ký tự"
+    summary_vi: "Chuỗi không sửa được tại chỗ; đếm bằng list 26 ô cho anagram."
+    exercise_ref: ex_anagram
+  - id: t03
+    type: text
+    md: |
+      Chuỗi **bất biến (immutable)**: `s[0] = "X"` gây `TypeError`. Mọi phép "sửa" như `s + "x"` hay
+      `s.upper()` đều tạo chuỗi mới. Vì vậy nối chuỗi bằng `+=` trong vòng lặp có thể tốn O(n^2); hãy gom
+      vào list rồi `"".join(parts)` ở cuối (O(n)).
+
+      Để đếm chữ cái thường, dùng **list 26 ô**: ô `ord(c) - ord("a")` tăng 1 cho mỗi ký tự. Hai chuỗi là
+      **anagram** khi hai bảng đếm bằng nhau.
+  - id: c02
+    type: callout
+    kind: interview
+    md: "Khi phỏng vấn, hỏi rõ bảng chữ cái (chỉ a-z hay cả Unicode) rồi mới chọn list 26 ô hay `dict`/`Counter`."
+  - id: q03
+    type: predict_output
+    code: |
+      s = "hello"
+      t = s.upper()
+      u = t[1:4]
+      print(s, t, u)
+    expected_output: |
+      hello HELLO ELL
+    explain_md: "`upper()` trả chuỗi mới nên `s` vẫn là `hello`. `t[1:4]` của `HELLO` là `ELL`."
+  - id: ex_anagram
+    type: code_exercise
+    md: |
+      Viết `is_anagram(a, b)`: trả `True` nếu `b` là hoán vị các ký tự của `a` (chỉ gồm chữ thường a-z).
+      Dùng list 26 ô để đếm, không dùng `sorted`.
+    entry: is_anagram
+    starter: |
+      def is_anagram(a, b):
+          # TODO: đếm bằng list 26 ô
+          return False
+    guidance_md: |
+      - Khác độ dài thì chắc chắn không phải anagram.
+      - Tạo `counts = [0] * 26`; cộng cho ký tự của `a`, trừ cho ký tự của `b`.
+      - Anagram khi mọi ô bằng 0.
+    hints:
+      - level: nudge
+        md: "Hai chuỗi là anagram khi mỗi chữ cái xuất hiện cùng số lần. Cần cấu trúc nào để đếm?"
+      - level: approach
+        md: "Một list 26 ô: `+1` cho mỗi ký tự của `a`, `-1` cho mỗi ký tự của `b`; chỉ số là `ord(c) - ord('a')`."
+      - level: pseudocode
+        md: |
+          nếu len khác nhau: trả False
+          counts = [0]*26
+          với x, y trong zip(a, b): counts[idx(x)] += 1; counts[idx(y)] -= 1
+          trả True nếu mọi ô bằng 0
+    tests:
+      - {args: ["listen", "silent"], expected: true}
+      - {args: ["rat", "tar"], expected: true}
+      - {args: ["aab", "abb"], expected: false}
+      - {args: ["a", "b"], expected: false}
+      - {args: ["", ""], expected: true}
+    solution: |
+      def is_anagram(a, b):
+          if len(a) != len(b):
+              return False
+          counts = [0] * 26
+          for x, y in zip(a, b):
+              counts[ord(x) - ord("a")] += 1
+              counts[ord(y) - ord("a")] -= 1
+          return all(c == 0 for c in counts)
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Slicing `s[a:b]` nửa mở, không lỗi khi vượt biên; `s[::-1]` đảo chuỗi."
+      - "`split()` không đối số bỏ khoảng trắng thừa; `join` ghép list thành chuỗi."
+      - "Chuỗi bất biến: mỗi phép sửa tạo chuỗi mới, nên gom vào list rồi `join`."
+      - "Đếm chữ cái bằng list 26 ô; anagram là hai bảng đếm bằng nhau."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [Q058], l2: [Q059], l3: []}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
 source:
   tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
-  authored_by: tools/gen_lesson_stubs.py
+  authored_by: "claude"
   reviewed_by: null
-  date: '2026-10-24'
+  date: "2026-11-02"

@@ -1,24 +1,246 @@
 id: dsa.searching_sorting.sorting_applications
 version: 1
-status: draft
-title_vi: Ứng dụng sort và quickselect (sorting applications)
-est_minutes: 10
+status: published
+title_vi: "Ứng dụng sort (sorting applications)"
+est_minutes: 13
 objectives_vi:
-- Dùng sort nhiều khoá, so sánh tuỳ biến và quickselect để giải Kth Largest.
-- Largest Number, Sort by Frequency và nêu ưu nhược mỗi cách.
-blocks: []
-problems:
-  practice: []
-  extra: []
-mastery_check:
-  l1: []
-  l2: []
-  l3: []
-checkpoint:
-  pass_ratio: 0.7
-  min_items: 3
+  - "Nhận ra bài toán 'sắp xếp trước rồi quét một lượt' (sort then scan) như tìm khoảng cách nhỏ nhất, khử trùng."
+  - "Viết sort nhiều khoá bằng key tuple, ví dụ điểm giảm dần rồi tên tăng dần."
+  - "Gộp các đoạn chồng nhau (merge intervals) sau khi sắp theo điểm đầu."
+blocks:
+  - id: s_scan
+    type: section
+    title_vi: "Sắp xếp rồi quét một lượt"
+    summary_vi: "Sort đưa các phần tử cần so sánh về nằm cạnh nhau."
+    exercise_ref: ex_gap
+  - id: b01
+    type: text
+    md: |
+      Nhiều bài nhìn như phải so sánh mọi cặp (O(n^2)) nhưng chỉ cần **sắp xếp trước**, vì sau khi sắp
+      các phần tử liên quan đã **nằm cạnh nhau**. Khi đó chỉ cần một lượt quét các cặp liền kề:
+
+      - **Khử trùng / tìm phần tử lặp**: các giá trị bằng nhau nằm liền nhau.
+      - **Khoảng cách nhỏ nhất** giữa hai số: cặp gần nhất luôn là cặp liền kề sau khi sắp.
+      - **Top-k**: sort giảm dần rồi lấy k phần tử đầu.
+
+      Tổng chi phí là O(n log n) cho bước sort cộng O(n) cho bước quét, thường tốt hơn O(n^2) rất nhiều.
+      Nếu cần giữ mảng gốc, dùng `sorted(...)` thay vì `list.sort()`.
+  - id: b02
+    type: quiz_mcq
+    prompt_md: "Tìm hiệu nhỏ nhất giữa hai số bất kỳ trong mảng. Vì sao chỉ cần so các cặp liền kề sau khi sắp?"
+    options:
+      - {id: a, text_md: "Vì sort làm mọi hiệu bằng nhau"}
+      - {id: b, text_md: "Vì sort cho phép dùng binary search"}
+      - {id: c, text_md: "Vì giữa hai số không liền kề luôn còn số khác nằm giữa, nên hiệu của chúng không nhỏ hơn hiệu của cặp liền kề"}
+    answer: [c]
+    explain_md: "Với a <= b <= c thì c - a >= b - a và c - a >= c - b, nên cặp xa không thể tốt hơn cặp gần."
+  - id: ex_gap
+    type: code_exercise
+    md: |
+      Viết `min_gap(nums)` trả về hiệu **nhỏ nhất** giữa hai phần tử bất kỳ (ở hai vị trí khác nhau)
+      của `nums`. Nếu có ít hơn 2 phần tử, trả `-1`. Ví dụ `min_gap([8, 1, 5, 4])` là `1`
+      (cặp 4 và 5). Yêu cầu O(n log n).
+    entry: min_gap
+    starter: |
+      def min_gap(nums):
+          # TODO: sắp xếp rồi quét các cặp liền kề
+          pass
+    guidance_md: |
+      - Xử lý trường hợp ít hơn 2 phần tử trước.
+      - Sắp xếp một bản sao tăng dần.
+      - Quét các cặp liền kề, ghi nhận hiệu nhỏ nhất.
+    hints:
+      - level: nudge
+        md: "Nếu mảng đã sắp, hai số gần nhau nhất nằm ở đâu?"
+      - level: approach
+        md: "Sắp tăng dần, rồi với mỗi `i` tính `s[i] - s[i - 1]` và lấy min."
+      - level: pseudocode
+        md: |
+          nếu len < 2: trả -1
+          s = sorted(nums)
+          trả min của (s[i] - s[i-1]) với i từ 1 đến len-1
+      - level: near_solution
+        md: |
+          def min_gap(nums):
+              if len(nums) < 2:
+                  return -1
+              s = sorted(nums)
+              return min(... for i in range(1, len(s)))
+    tests:
+      - {args: [[8, 1, 5, 4]], expected: 1}
+      - {args: [[10, 3]], expected: 7}
+      - {args: [[4, 4, 9]], expected: 0}
+      - {args: [[7]], expected: -1}
+      - {args: [[]], expected: -1}
+    solution: |
+      def min_gap(nums):
+          if len(nums) < 2:
+              return -1
+          s = sorted(nums)
+          return min(s[i] - s[i - 1] for i in range(1, len(s)))
+  - id: s_key
+    type: section
+    title_vi: "Sort nhiều khoá với key"
+    summary_vi: "Key là tuple: tiêu chí chính trước, tiêu chí phụ sau; đảo dấu số để giảm dần."
+    exercise_ref: ex_rank
+  - id: b03
+    type: text
+    md: |
+      Khi cần sắp theo nhiều tiêu chí, trả về **tuple** từ hàm `key`; Python so sánh tuple từng phần tử
+      từ trái sang phải. Muốn một tiêu chí **giảm dần**, với số ta đảo dấu:
+
+      ```python
+      students = [("an", 8), ("bo", 9), ("cy", 8)]
+      sorted(students, key=lambda s: (-s[1], s[0]))
+      # điểm giảm dần, cùng điểm thì tên tăng dần
+      ```
+
+      Với chuỗi không đảo dấu được; khi đó dùng hai lần sort (nhờ stable, sắp tiêu chí phụ trước rồi
+      tiêu chí chính sau) hoặc `functools.cmp_to_key` cho so sánh tuỳ biến (như bài Largest Number).
+  - id: b04
+    type: predict_output
+    code: |
+      items = [("b", 2), ("a", 2), ("c", 3), ("d", 1)]
+      print(sorted(items, key=lambda t: (-t[1], t[0])))
+    expected_output: |
+      [('c', 3), ('a', 2), ('b', 2), ('d', 1)]
+    explain_md: "Khoá là (-số, tên): c có -3 nhỏ nhất nên đứng đầu; a và b cùng -2 nên so tên, a trước b; d có -1 cuối cùng."
+  - id: b05
+    type: quiz_fill
+    prompt_md: "Điền vào chỗ trống để sắp theo điểm giảm dần, cùng điểm thì tên tăng dần: `key=lambda s: (___s[1], s[0])`"
+    blanks: [{accept: ["-"]}]
+    explain_md: "Đảo dấu điểm bằng `-` để sắp tăng dần theo `-điểm` tương đương giảm dần theo điểm."
+  - id: ex_rank
+    type: code_exercise
+    md: |
+      Viết `rank_students(students)`: `students` là list các cặp `[tên, điểm]`. Trả về list **tên**
+      sắp theo điểm **giảm dần**, cùng điểm thì theo tên **tăng dần** (thứ tự từ điển). Ví dụ
+      `rank_students([["an", 8], ["bo", 9], ["cy", 8]])` là `["bo", "an", "cy"]`.
+    entry: rank_students
+    starter: |
+      def rank_students(students):
+          # TODO: sort bằng key là tuple
+          pass
+    guidance_md: |
+      - Xác định tiêu chí chính và tiêu chí phụ.
+      - Tạo key tuple, đảo dấu tiêu chí cần giảm dần.
+      - Lấy ra phần tên sau khi sắp.
+    hints:
+      - level: nudge
+        md: "Một lần `sorted` với key trả về tuple có thể xử lý cả hai tiêu chí cùng lúc."
+      - level: approach
+        md: "Key là `(-điểm, tên)`: điểm đảo dấu để giảm dần, tên giữ nguyên để tăng dần."
+      - level: pseudocode
+        md: |
+          ranked = sắp students theo khoá (-điểm, tên)
+          trả list tên của ranked
+      - level: near_solution
+        md: |
+          def rank_students(students):
+              ranked = sorted(students, key=lambda s: (..., ...))
+              return [s[0] for s in ranked]
+    tests:
+      - {args: [[["an", 8], ["bo", 9], ["cy", 8]]], expected: ["bo", "an", "cy"]}
+      - {args: [[["zed", 5], ["amy", 5], ["kim", 5]]], expected: ["amy", "kim", "zed"]}
+      - {args: [[["b", 1], ["a", 2]]], expected: ["a", "b"]}
+      - {args: [[]], expected: []}
+    solution: |
+      def rank_students(students):
+          ranked = sorted(students, key=lambda s: (-s[1], s[0]))
+          return [s[0] for s in ranked]
+  - id: s_intervals
+    type: section
+    title_vi: "Gộp đoạn chồng nhau (merge intervals)"
+    summary_vi: "Sắp theo điểm đầu rồi gộp đoạn mới vào đoạn cuối nếu chồng nhau."
+    exercise_ref: ex_merge
+  - id: b06
+    type: text
+    md: |
+      **Merge intervals**: gộp các đoạn `[start, end]` chồng nhau. Sau khi **sắp theo `start`**, một
+      đoạn chỉ có thể chồng với đoạn gộp ngay trước nó:
+
+      ```python
+      merged = []
+      for s, e in sorted(intervals):
+          if merged and s <= merged[-1][1]:       # chồng (hoặc chạm) đoạn cuối
+              merged[-1][1] = max(merged[-1][1], e)
+          else:
+              merged.append([s, e])
+      ```
+
+      Chú ý `max`: đoạn mới có thể nằm **gọn trong** đoạn cuối (`[1, 10]` và `[2, 3]`), khi đó điểm
+      cuối không được thu nhỏ lại. Độ phức tạp O(n log n) do sort.
+  - id: b07
+    type: callout
+    kind: warning
+    md: |
+      Quên sắp xếp, hoặc gán thẳng `merged[-1][1] = e` thay vì lấy `max`, là hai lỗi phổ biến nhất của
+      bài này. Hãy tự thử với đầu vào `[[1, 10], [2, 3]]`.
+  - id: b08
+    type: quiz_mcq
+    prompt_md: "Gộp `[[1, 3], [2, 6], [8, 10], [6, 7]]` (coi hai đoạn chạm đầu mút là chồng nhau, điều kiện `s <= end`). Kết quả là gì?"
+    options:
+      - {id: a, text_md: "[[1, 6], [6, 7], [8, 10]]"}
+      - {id: b, text_md: "[[1, 3], [2, 6], [6, 7], [8, 10]]"}
+      - {id: c, text_md: "[[1, 10]]"}
+      - {id: d, text_md: "[[1, 7], [8, 10]]"}
+    answer: [d]
+    explain_md: "Sau khi sắp: [1,3],[2,6],[6,7],[8,10]. [2,6] chồng [1,3] thành [1,6]; [6,7] chạm 6 thành [1,7]; [8,10] tách riêng."
+  - id: ex_merge
+    type: code_exercise
+    md: |
+      `merge_intervals(intervals)` phải gộp mọi đoạn chồng nhau hoặc chạm nhau (`s <= end` của đoạn
+      cuối) và trả list đoạn đã gộp, sắp theo điểm đầu. Ví dụ
+      `merge_intervals([[1, 3], [2, 6], [8, 10]])` là `[[1, 6], [8, 10]]`. Code dưới đây **sai** ở
+      một số đầu vào: hãy tìm và sửa.
+    entry: merge_intervals
+    starter: |
+      def merge_intervals(intervals):
+          merged = []
+          for s, e in sorted(intervals):
+              if merged and s <= merged[-1][1]:
+                  merged[-1][1] = e
+              else:
+                  merged.append([s, e])
+          return merged
+    guidance_md: |
+      - Thử với `[[1, 10], [2, 3]]`: kết quả của code là gì, đáng lẽ là gì?
+      - Khi một đoạn nằm gọn trong đoạn đã gộp, điểm cuối của đoạn gộp nên thế nào?
+      - Chỉ sửa dòng cập nhật điểm cuối.
+    hints:
+      - level: nudge
+        md: "Thử đầu vào có một đoạn nằm hoàn toàn bên trong đoạn trước nó."
+      - level: approach
+        md: "Điểm cuối đoạn gộp chỉ được mở rộng, không bao giờ thu nhỏ: so điểm cuối cũ với `e`."
+      - level: near_solution
+        md: "Đổi `merged[-1][1] = e` thành gán bằng `max(merged[-1][1], e)`. Phần còn lại giữ nguyên."
+    tests:
+      - {args: [[[1, 3], [2, 6], [8, 10]]], expected: [[1, 6], [8, 10]]}
+      - {args: [[[1, 10], [2, 3]]], expected: [[1, 10]]}
+      - {args: [[[5, 6], [1, 2], [2, 4]]], expected: [[1, 4], [5, 6]]}
+      - {args: [[[1, 4], [4, 5]]], expected: [[1, 5]]}
+      - {args: [[]], expected: []}
+    solution: |
+      def merge_intervals(intervals):
+          merged = []
+          for s, e in sorted(intervals):
+              if merged and s <= merged[-1][1]:
+                  merged[-1][1] = max(merged[-1][1], e)
+              else:
+                  merged.append([s, e])
+          return merged
+  - id: b09
+    type: summary
+    bullets_vi:
+      - "Sort then scan: sắp xong, các phần tử liên quan nằm cạnh nhau nên một lượt quét O(n) là đủ; tổng O(n log n)."
+      - "Sort nhiều khoá: `key=lambda x: (-x[1], x[0])`; số giảm dần bằng cách đảo dấu, sort ổn định cho phép sort nhiều lần."
+      - "Merge intervals: sắp theo start, gộp nếu `s <= end` đoạn cuối và cập nhật end bằng `max`."
+      - "Dùng `sorted()` khi cần giữ mảng gốc; custom comparator (Largest Number) dùng `cmp_to_key`."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [], l2: [Q102], l3: [Q103]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
 source:
   tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
-  authored_by: tools/gen_lesson_stubs.py
+  authored_by: "claude"
   reviewed_by: null
-  date: '2026-10-24'
+  date: "2026-11-02"

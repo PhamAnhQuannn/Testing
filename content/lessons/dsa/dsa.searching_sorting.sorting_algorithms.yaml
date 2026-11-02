@@ -1,25 +1,271 @@
 id: dsa.searching_sorting.sorting_algorithms
 version: 1
-status: draft
-title_vi: Thuật toán sắp xếp (sorting algorithms)
-est_minutes: 10
+status: published
+title_vi: "Thuật toán sắp xếp (sorting algorithms)"
+est_minutes: 13
 objectives_vi:
-- Tự cài merge sort và quick sort.
-- So sánh các thuật toán sắp xếp về độ phức tạp.
-- Tính ổn định, tại chỗ, và biết Python dùng thuật toán nào.
-blocks: []
-problems:
-  practice: []
-  extra: []
-mastery_check:
-  l1: []
-  l2: []
-  l3: []
-checkpoint:
-  pass_ratio: 0.7
-  min_items: 3
+  - "Dùng sorted() với key và reverse, hiểu tính ổn định (stability) của sắp xếp."
+  - "Mô phỏng một lượt bubble sort / selection sort và biết chúng O(n^2)."
+  - "Viết bước trộn (merge) của merge sort và so sánh merge/quick/heap sort về time, space, stability."
+blocks:
+  - id: s_sorted
+    type: section
+    title_vi: "sorted(), key, reverse và tính ổn định"
+    summary_vi: "Python có sẵn Timsort: nhanh, O(n log n) và ổn định."
+    exercise_ref: ex_rank
+  - id: b01
+    type: text
+    md: |
+      Trong Python, `sorted(iterable, key=..., reverse=...)` trả về **list mới** đã sắp; `list.sort()`
+      sắp **tại chỗ (in-place)**. Hàm `key` biến mỗi phần tử thành giá trị dùng để so sánh.
+
+      ```python
+      words = ["pear", "fig", "apple"]
+      sorted(words)                 # theo thứ tự từ điển
+      sorted(words, key=len)        # theo độ dài
+      sorted(words, reverse=True)   # giảm dần
+      ```
+
+      Thuật toán bên dưới là **Timsort**: O(n log n) và **ổn định (stable)**, nghĩa là hai phần tử
+      có cùng khoá giữ nguyên thứ tự ban đầu. Nhờ vậy ta có thể sắp theo nhiều tiêu chí bằng cách
+      sắp lần lượt từ tiêu chí phụ đến tiêu chí chính.
+  - id: b02
+    type: predict_output
+    code: |
+      words = ["pear", "fig", "apple", "kiwi", "plum"]
+      print(sorted(words, key=len))
+    expected_output: |
+      ['fig', 'pear', 'kiwi', 'plum', 'apple']
+    explain_md: "Khoá là độ dài: fig(3) đứng đầu, apple(5) cuối. Ba từ độ dài 4 (pear, kiwi, plum) giữ nguyên thứ tự ban đầu vì sorted ổn định."
+  - id: b03
+    type: quiz_mcq
+    prompt_md: "Sắp ổn định (stable) nghĩa là gì?"
+    options:
+      - {id: a, text_md: "Luôn chạy trong O(n log n) cho mọi đầu vào"}
+      - {id: b, text_md: "Hai phần tử có cùng khoá giữ nguyên thứ tự tương đối ban đầu"}
+      - {id: c, text_md: "Không dùng thêm bộ nhớ phụ"}
+    answer: [b]
+    explain_md: "Stable nói về thứ tự của các phần tử bằng khoá. Còn 'không dùng bộ nhớ phụ' là in-place, hai khái niệm khác nhau."
+  - id: ex_rank
+    type: code_exercise
+    md: |
+      Viết `rank_players(players)`: `players` là list các cặp `[tên, điểm]`. Trả về list **tên** sắp
+      theo điểm **giảm dần**; hai người cùng điểm giữ thứ tự xuất hiện ban đầu. Ví dụ
+      `rank_players([["an", 5], ["bo", 7], ["cy", 5]])` là `["bo", "an", "cy"]`.
+    entry: rank_players
+    starter: |
+      def rank_players(players):
+          # TODO: sắp theo điểm giảm dần, rồi lấy tên
+          pass
+    guidance_md: |
+      - Chọn khoá so sánh là điểm của mỗi người.
+      - Muốn giảm dần: dùng `reverse` hoặc đảo dấu khoá. Cân nhắc điều này ảnh hưởng thế nào đến các phần tử bằng nhau.
+      - Sau khi sắp, chỉ giữ lại phần tên.
+    hints:
+      - level: nudge
+        md: "sorted ổn định, nên chỉ cần chọn đúng `key`. Hãy thử với hai người cùng điểm để kiểm tra thứ tự."
+      - level: approach
+        md: "Dùng `key=lambda p: -p[1]` (hoặc `reverse=True`, vì reverse trong Python vẫn giữ tính ổn định), rồi lấy phần tử `[0]` của mỗi cặp."
+      - level: pseudocode
+        md: |
+          ranked = sắp players theo khoá (-điểm)
+          trả về list tên của từng cặp trong ranked
+      - level: near_solution
+        md: |
+          def rank_players(players):
+              ranked = sorted(players, key=lambda p: ...)
+              return [p[0] for p in ranked]
+    tests:
+      - {args: [[["an", 5], ["bo", 7], ["cy", 5]]], expected: ["bo", "an", "cy"]}
+      - {args: [[["a", 1], ["b", 1], ["c", 1]]], expected: ["a", "b", "c"]}
+      - {args: [[["x", 2], ["y", 9], ["z", 4], ["w", 9]]], expected: ["y", "w", "z", "x"]}
+      - {args: [[]], expected: []}
+    solution: |
+      def rank_players(players):
+          ranked = sorted(players, key=lambda p: -p[1])
+          return [p[0] for p in ranked]
+  - id: s_slow
+    type: section
+    title_vi: "Sắp xếp chậm O(n^2): bubble và selection"
+    summary_vi: "So từng cặp và đổi chỗ; một lượt đưa một phần tử về đúng vị trí."
+    exercise_ref: ex_bubble
+  - id: b04
+    type: text
+    md: |
+      Hai thuật toán đơn giản nhất, đều **O(n^2)** thời gian và O(1) bộ nhớ phụ:
+
+      - **Bubble sort**: mỗi lượt duyệt các cặp liền kề `(a[i], a[i+1])`, nếu sai thứ tự thì đổi chỗ.
+        Sau lượt đầu, phần tử **lớn nhất** nổi lên cuối mảng. Cần tối đa `n - 1` lượt.
+      - **Selection sort**: mỗi lượt tìm phần tử **nhỏ nhất** trong phần chưa sắp rồi đổi chỗ nó về
+        đầu phần chưa sắp.
+
+      ```python
+      for i in range(len(a) - 1):          # một lượt bubble
+          if a[i] > a[i + 1]:
+              a[i], a[i + 1] = a[i + 1], a[i]
+      ```
+
+      Chú ý chỉ số: so `a[i]` với `a[i + 1]` nên `i` chỉ chạy tới `len(a) - 2`.
+  - id: b05
+    type: predict_output
+    code: |
+      a = [4, 2, 5, 1]
+      for i in range(len(a) - 1):
+          if a[i] > a[i + 1]:
+              a[i], a[i + 1] = a[i + 1], a[i]
+      print(a)
+    expected_output: |
+      [2, 4, 1, 5]
+    explain_md: "4>2 đổi thành [2,4,5,1]; 4<5 giữ; 5>1 đổi thành [2,4,1,5]. Một lượt chưa sắp xong nhưng phần tử lớn nhất (5) đã về cuối."
+  - id: ex_bubble
+    type: code_exercise
+    md: |
+      `bubble_pass(a)` phải thực hiện **đúng một lượt** bubble sort và trả về list mới (không sửa list
+      gốc). Ví dụ `bubble_pass([4, 2, 5, 1])` là `[2, 4, 1, 5]`. Code dưới đây bị **lỗi chỉ số**:
+      hãy tìm và sửa.
+    entry: bubble_pass
+    starter: |
+      def bubble_pass(a):
+          b = list(a)
+          for i in range(len(b)):
+              if b[i] > b[i + 1]:
+                  b[i], b[i + 1] = b[i + 1], b[i]
+          return b
+    guidance_md: |
+      - Chạy thử với `[4, 2, 5, 1]` và xem lỗi báo ở dòng nào.
+      - Ở vòng cuối, `i` bằng bao nhiêu và `b[i + 1]` có tồn tại không?
+      - Mỗi lượt có bao nhiêu cặp liền kề?
+    hints:
+      - level: nudge
+        md: "Với n phần tử chỉ có n - 1 cặp liền kề. Vòng `for` hiện tại đang duyệt bao nhiêu giá trị của `i`?"
+      - level: approach
+        md: "Dòng `range(len(b))` làm `i + 1` vượt biên ở vòng cuối. Giới hạn `i` sao cho `i + 1` luôn là chỉ số hợp lệ."
+      - level: near_solution
+        md: "Đổi đúng một chỗ: `range(len(b))` thành `range(len(b) - 1)`. Phần còn lại giữ nguyên."
+    tests:
+      - {args: [[4, 2, 5, 1]], expected: [2, 4, 1, 5]}
+      - {args: [[1, 2, 3]], expected: [1, 2, 3]}
+      - {args: [[3, 2, 1]], expected: [2, 1, 3]}
+      - {args: [[7]], expected: [7]}
+      - {args: [[]], expected: []}
+    solution: |
+      def bubble_pass(a):
+          b = list(a)
+          for i in range(len(b) - 1):
+              if b[i] > b[i + 1]:
+                  b[i], b[i + 1] = b[i + 1], b[i]
+          return b
+  - id: s_fast
+    type: section
+    title_vi: "Chia để trị: merge sort và quick sort"
+    summary_vi: "O(n log n): chia đôi, sắp từng nửa, rồi trộn (merge) hai nửa đã sắp."
+    exercise_ref: ex_merge
+  - id: b06
+    type: text
+    md: |
+      **Merge sort**: chia đôi mảng, sắp từng nửa bằng đệ quy, rồi **trộn (merge)** hai nửa đã sắp bằng
+      hai con trỏ. Có `log n` tầng, mỗi tầng trộn O(n) nên tổng O(n log n) cho **mọi** trường hợp.
+
+      **Quick sort**: chọn một pivot, chia (partition) thành nhỏ hơn / lớn hơn pivot rồi đệ quy mỗi bên.
+
+      | Thuật toán | Trung bình | Xấu nhất | Bộ nhớ phụ | Stable |
+      |---|---|---|---|---|
+      | Merge sort | O(n log n) | O(n log n) | O(n) | Có |
+      | Quick sort | O(n log n) | O(n^2) | O(log n) | Không |
+      | Heap sort | O(n log n) | O(n log n) | O(1) | Không |
+
+      Mọi **comparison sort** (sắp bằng cách so sánh) đều cần ít nhất khoảng `n log n` phép so sánh
+      trong trường hợp xấu nhất. `sorted()` của Python dùng **Timsort**, kết hợp merge và insertion sort.
+  - id: b07
+    type: callout
+    kind: interview
+    md: |
+      Câu hỏi phỏng vấn kinh điển: *"Khi nào quick sort chậm?"* Khi pivot luôn là phần tử nhỏ nhất hoặc
+      lớn nhất (ví dụ chọn pivot đầu mảng trên mảng đã sắp), mỗi lần chia chỉ bớt một phần tử nên
+      thành O(n^2). Chọn pivot **ngẫu nhiên** làm khả năng này rất nhỏ.
+  - id: b08
+    type: quiz_mcq
+    prompt_md: "Thuật toán nào dưới đây vừa luôn O(n log n) vừa stable?"
+    options:
+      - {id: a, text_md: "Quick sort"}
+      - {id: b, text_md: "Heap sort"}
+      - {id: c, text_md: "Merge sort"}
+    answer: [c]
+    explain_md: "Merge sort luôn O(n log n) và stable (đổi lại tốn O(n) bộ nhớ phụ). Quick sort có trường hợp xấu O(n^2); heap sort không stable."
+  - id: b09
+    type: quiz_fill
+    prompt_md: "Điền vào chỗ trống: sắp theo điểm giảm dần bằng `sorted(scores, ___=True)`."
+    blanks: [{accept: ["reverse"]}]
+    explain_md: "Tham số `reverse=True` đảo thứ tự kết quả thành giảm dần."
+  - id: ex_merge
+    type: code_exercise
+    md: |
+      Viết `merge(left, right)` trộn hai list **đã sắp tăng** thành một list mới đã sắp tăng, trong
+      O(len(left) + len(right)). Khi hai phần tử bằng nhau, lấy phần tử của `left` trước (giữ stable).
+      Ví dụ `merge([1, 4], [2, 3])` là `[1, 2, 3, 4]`. Đây chính là bước trộn của merge sort.
+    entry: merge
+    starter: |
+      def merge(left, right):
+          # TODO: dùng hai con trỏ i, j
+          pass
+    guidance_md: |
+      - Dùng hai con trỏ, mỗi con trỏ chỉ vào phần tử nhỏ nhất chưa lấy của một list.
+      - Mỗi bước thêm phần tử nhỏ hơn vào kết quả (bằng nhau thì lấy bên trái) và tiến con trỏ tương ứng.
+      - Khi một bên hết, phần còn lại của bên kia đã sắp sẵn nên nối thẳng vào.
+    hints:
+      - level: nudge
+        md: "Hai list đã sắp, nên phần tử nhỏ nhất chưa lấy luôn là một trong hai phần tử đầu. So sánh hai phần tử đó."
+      - level: approach
+        md: "Vòng `while i < len(left) and j < len(right)`: lấy `left[i]` nếu `left[i] <= right[j]`, ngược lại lấy `right[j]`. Sau vòng lặp nối phần dư."
+      - level: pseudocode
+        md: |
+          i, j = 0, 0; out = []
+          trong khi cả hai còn phần tử:
+              nếu left[i] <= right[j]: thêm left[i], i += 1
+              ngược lại: thêm right[j], j += 1
+          thêm phần dư của left từ i, và của right từ j
+          trả out
+      - level: near_solution
+        md: |
+          def merge(left, right):
+              i = j = 0
+              out = []
+              while i < len(left) and j < len(right):
+                  if left[i] <= right[j]:
+                      ...
+                  else:
+                      ...
+              return out + left[i:] + right[j:]
+    tests:
+      - {args: [[1, 4], [2, 3]], expected: [1, 2, 3, 4]}
+      - {args: [[], [1, 2]], expected: [1, 2]}
+      - {args: [[1, 2], []], expected: [1, 2]}
+      - {args: [[1, 1, 5], [1, 2]], expected: [1, 1, 1, 2, 5]}
+      - {args: [[5, 6], [1, 2]], expected: [1, 2, 5, 6]}
+    solution: |
+      def merge(left, right):
+          i = j = 0
+          out = []
+          while i < len(left) and j < len(right):
+              if left[i] <= right[j]:
+                  out.append(left[i])
+                  i += 1
+              else:
+                  out.append(right[j])
+                  j += 1
+          return out + left[i:] + right[j:]
+  - id: b10
+    type: summary
+    bullets_vi:
+      - "`sorted(key=, reverse=)` trả list mới, Timsort O(n log n) và stable; `list.sort()` sắp tại chỗ."
+      - "Stable: phần tử cùng khoá giữ thứ tự cũ, cho phép sắp nhiều tiêu chí bằng nhiều lần sort."
+      - "Bubble/selection sort O(n^2); một lượt bubble đưa phần tử lớn nhất về cuối, chú ý biên `i + 1`."
+      - "Merge sort luôn O(n log n), O(n) bộ nhớ, stable; quick sort trung bình O(n log n), xấu nhất O(n^2), không stable."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [Q100], l2: [Q101], l3: []}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
 source:
   tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
-  authored_by: tools/gen_lesson_stubs.py
+  authored_by: "claude"
   reviewed_by: null
-  date: '2026-10-24'
+  date: "2026-11-02"
