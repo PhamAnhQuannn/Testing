@@ -1,5 +1,5 @@
 id: ml.llm.decoding_sampling
-version: 1
+version: 2
 status: published
 title_vi: "Decoding và sampling: greedy, temperature, top-k và top-p (decoding)"
 est_minutes: 12
@@ -9,6 +9,10 @@ objectives_vi:
   - "Chọn tham số decoding phù hợp cho từng tác vụ (trích xuất & code dùng thấp, sáng tạo dùng cao)."
   - "Giải thích vì sao **temperature 0** gần như tất định nhưng vẫn không giống hệt từng bit."
 blocks:
+  - id: s_decoding_temp
+    type: section
+    title_vi: "Decoding, greedy và temperature"
+    summary_vi: "Decoding là luật chọn một token từ bảng xác suất softmax mà không cần train lại; greedy lấy argmax (ổn định, dễ lặp), còn temperature chia logit cho T để làm phân phối nhọn (T thấp) hoặc phẳng (T cao) mà không thêm thông tin mới."
   - id: b01
     type: text
     md: |
@@ -49,6 +53,10 @@ blocks:
       - {id: c, text_md: "Không đổi hình phân phối, chỉ đổi số lượng token được xét như top-k."}
     answer: [a]
     explain_md: "Chia logit cho T < 1 kéo các logit xa nhau nên softmax nhọn hơn, dồn khối lượng vào token đầu → ổn định hơn. (b) là tác dụng của T > 1 (phẳng hơn). (c) sai — temperature đổi *hình* phân phối, còn việc cắt tập token là top-k/top-p."
+  - id: s_top_k_top_p
+    type: section
+    title_vi: "Top-k và top-p (nucleus)"
+    summary_vi: "Top-k giữ k token cao nhất, top-p giữ nhóm nhỏ nhất có xác suất cộng dồn >= p và tự co giãn theo độ chắc chắn nên thường được ưa hơn; cả hai cắt đuôi xác suất thấp sau temperature rồi chuẩn hoá lại."
   - id: b05
     type: text
     md: |
@@ -75,6 +83,10 @@ blocks:
       - {id: c, text_md: "Cả 5 token `{A, B, C, D, E}`, vì top-p luôn giữ toàn bộ rồi mới chuẩn hoá."}
     answer: [b]
     explain_md: "Top-p giữ nhóm nhỏ nhất có xác suất cộng dồn ≥ p. Cộng từ cao xuống: 0,50 → 0,70 (<0,8) → 0,85 (≥0,8), dừng ở C. Vậy nucleus = {A, B, C}; D và E bị loại rồi xác suất được chuẩn hoá lại trên {A,B,C}. (a) là greedy, không phải top-p; (c) sai vì top-p chính là để cắt phần đuôi."
+  - id: s_chon_tham_so
+    type: section
+    title_vi: "Chọn tham số theo tác vụ"
+    summary_vi: "Trích xuất, code, tool cần đúng và lặp lại được nên dùng temperature thấp hoặc greedy; sáng tạo dùng temperature cao kèm top-p ~0,9; chỉ chỉnh một núm mỗi lần để dễ suy luận."
   - id: b07
     type: text
     md: |
@@ -99,6 +111,10 @@ blocks:
       - {id: c, text_md: "temperature cao và tắt mọi top-k/top-p để không bỏ sót token nào."}
     answer: [a]
     explain_md: "Trích xuất cần đúng và lặp lại được, không cần đa dạng → temperature thấp/0 hoặc greedy. (b) nhiệt độ cao làm đầu ra dao động, dễ sai cấu trúc JSON. (c) càng làm đầu ra ngẫu nhiên và dễ bốc trúng token rác hơn."
+  - id: s_tat_dinh
+    type: section
+    title_vi: "Temperature 0 có tất định không?"
+    summary_vi: "T = 0 gần như tất định nhưng không bit-for-bit, vì floating point không kết hợp được và batching/thứ tự reduction trên GPU làm logit lệch ở chữ số cuối, đủ lật argmax khi hai token sát nhau."
   - id: b09
     type: text
     md: |

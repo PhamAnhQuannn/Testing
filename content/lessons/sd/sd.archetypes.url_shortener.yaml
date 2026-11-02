@@ -1,5 +1,5 @@
 id: sd.archetypes.url_shortener
-version: 1
+version: 2
 status: published
 title_vi: "Thiết kế dịch vụ rút gọn URL (URL shortener) và pastebin"
 est_minutes: 13
@@ -8,6 +8,10 @@ objectives_vi:
   - "Vẽ được luồng ghi (tạo mã) và luồng đọc (chuyển hướng), gọi tên đúng các thành phần đã học (cache, key-value store, CDN)."
   - "Phân tích 2-3 quyết định đặc trưng: sinh mã ngắn không trùng, chọn redirect 301 hay 302, và vì sao hệ đọc nhiều (read-heavy) phải đặt cache phía trước."
 blocks:
+  - id: s_requirements
+    type: section
+    title_vi: "Yêu cầu, ước lượng, API và dữ liệu"
+    summary_vi: "Rút gọn URL là bài đọc nặng: ~40 ghi/giây nhưng ~4.000 đọc/giây (100:1) và ~3 TB trong 5 năm; chỉ cần POST /shorten và GET /{short_code}, tra theo khóa chính nên hợp một key-value store."
   - id: b01
     type: text
     md: |
@@ -41,6 +45,10 @@ blocks:
       hầu như chỉ **tra cứu theo khóa chính** `short_code` (không cần join, không truy vấn phức tạp),
       đây đúng là chỗ cho một **key-value store** (đã học ở SQL vs NoSQL) — hãy hình dung như một `dict`
       của Python nhưng phân mảnh (sharding) trên nhiều máy, khóa là `short_code`.
+  - id: s_flows
+    type: section
+    title_vi: "Luồng ghi, luồng đọc và cache"
+    summary_vi: "Luồng ghi sinh short_code rồi ghi vào key-value store; luồng đọc tra cache-aside trước DB (có thể thêm CDN/edge) vì đọc nặng 100:1 nên phần lớn redirect phải dừng ở cache."
   - id: b04
     type: text
     md: |
@@ -51,6 +59,24 @@ blocks:
         ở mẫu caching); trúng thì trả redirect ngay, trượt thì đọc DB, nạp lại vào cache rồi trả. Vì
         đọc nặng 100:1, phần lớn request nên dừng ở cache; có thể đặt thêm **CDN / edge** để chuyển
         hướng ngay gần người dùng mà không chạm tới DB.
+  - id: b09
+    type: quiz_fill
+    graded: true
+    prompt_md: |
+      Điền thuật ngữ (tiếng Anh) còn thiếu:
+
+      Hệ này __(1)__ gấp khoảng 100 lần so với ghi, nên ta đặt một lớp __(2)__ phía trước cơ sở dữ liệu
+      theo mẫu đọc-trúng-thì-trả / trượt-thì-nạp, và vì chỉ tra theo khóa `short_code` nên kho dữ liệu
+      hợp lý là một __(3)__ store.
+    blanks:
+      - {accept: ["read-heavy", "read heavy", "đọc nhiều", "reads more", "read-heavier"]}
+      - {accept: ["cache", "caching"]}
+      - {accept: ["key-value", "key value", "kv", "key-value store"]}
+    explain_md: "Đọc nặng (read-heavy) ~100:1 ⇒ đặt cache (cache-aside) trước DB để phần lớn lượt chuyển hướng không chạm DB; truy cập chỉ theo khóa chính nên một key-value store là lựa chọn tự nhiên."
+  - id: s_code_gen
+    type: section
+    title_vi: "Sinh mã ngắn không trùng"
+    summary_vi: "Counter + base62 luôn duy nhất nhưng bộ đếm là điểm nghẽn và mã đoán được (khắc phục bằng dải số hoặc key-generation service); hash dễ va chạm nên phải kiểm tra lại; 7 ký tự base62 ≈ 3,5e12 mã là thừa cho 6 tỷ link."
   - id: b05
     type: text
     md: |
@@ -75,6 +101,10 @@ blocks:
       - {id: c, text_md: "Vì bộ đếm tự động kiểm tra va chạm sau mỗi lần sinh, còn hàm băm thì không."}
     answer: [b]
     explain_md: "Bộ đếm cấp số nguyên tăng dần, duy nhất; base62 chỉ đổi cách biểu diễn số nên vẫn duy nhất 1-1. Băm nén không gian link lớn vào một mã ngắn nên nhiều link có thể ra cùng mã (collision), buộc phải kiểm tra rồi băm lại. (a) sai vì 62^7 là hữu hạn; (c) sai — bản thân bộ đếm không cần kiểm va chạm, chính nhờ tính duy nhất của số đếm."
+  - id: s_redirect
+    type: section
+    title_vi: "Redirect 301 hay 302 và cách trình bày"
+    summary_vi: "301 được trình duyệt cache nên nhẹ server nhưng mất click và quyền kiểm soát; 302 giữ server trong mỗi lần mở nên đếm được click (đẩy qua queue async); trong phỏng vấn tự nêu các đánh đổi này thay vì giải thích lại cache hay sharding."
   - id: b07
     type: text
     md: |
@@ -96,20 +126,6 @@ blocks:
       - {id: c, text_md: "Không quan trọng, vì việc đếm click do trình duyệt lo chứ không phải server."}
     answer: [b]
     explain_md: "301 khiến trình duyệt đi thẳng tới đích mà không hỏi lại, nên server không thấy các lần mở sau → không đếm được. 302 giữ server trong mỗi lần mở nên đếm được (thường đẩy sự kiện qua queue xử lý async để không chậm). (a) tự mâu thuẫn; (c) sai — client không tự báo cáo click cho ta."
-  - id: b09
-    type: quiz_fill
-    graded: true
-    prompt_md: |
-      Điền thuật ngữ (tiếng Anh) còn thiếu:
-
-      Hệ này __(1)__ gấp khoảng 100 lần so với ghi, nên ta đặt một lớp __(2)__ phía trước cơ sở dữ liệu
-      theo mẫu đọc-trúng-thì-trả / trượt-thì-nạp, và vì chỉ tra theo khóa `short_code` nên kho dữ liệu
-      hợp lý là một __(3)__ store.
-    blanks:
-      - {accept: ["read-heavy", "read heavy", "đọc nhiều", "reads more", "read-heavier"]}
-      - {accept: ["cache", "caching"]}
-      - {accept: ["key-value", "key value", "kv", "key-value store"]}
-    explain_md: "Đọc nặng (read-heavy) ~100:1 ⇒ đặt cache (cache-aside) trước DB để phần lớn lượt chuyển hướng không chạm DB; truy cập chỉ theo khóa chính nên một key-value store là lựa chọn tự nhiên."
   - id: b10
     type: callout
     kind: interview
