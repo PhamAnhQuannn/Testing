@@ -1,24 +1,309 @@
 id: dsa.arrays_strings.array_techniques
 version: 1
-status: draft
-title_vi: Kỹ thuật xử lý mảng tại chỗ (in-place array techniques)
-est_minutes: 10
+status: published
+title_vi: "Kỹ thuật xử lý mảng tại chỗ (in-place array techniques)"
+est_minutes: 15
 objectives_vi:
-- Tự viết Kadane, Boyer-Moore, xoay mảng và cờ Hà Lan sửa tại chỗ.
-- Giải thích vì sao chúng đúng.
-blocks: []
-problems:
-  practice: []
-  extra: []
-mastery_check:
-  l1: []
-  l2: []
-  l3: []
-checkpoint:
-  pass_ratio: 0.7
-  min_items: 3
+  - "Viết Kadane để tìm tổng đoạn con liên tiếp lớn nhất trong một lượt."
+  - "Viết Boyer-Moore voting để tìm phần tử chiếm đa số với bộ nhớ O(1)."
+  - "Xoay mảng tại chỗ bằng ba lần đảo (reverse)."
+  - "Sắp xếp mảng 0/1/2 bằng cờ Hà Lan (Dutch national flag) với ba con trỏ."
+blocks:
+  - id: s_kadane
+    type: section
+    title_vi: "Kadane: đoạn con có tổng lớn nhất"
+    summary_vi: "Tại mỗi vị trí, hoặc nối tiếp đoạn trước, hoặc bắt đầu đoạn mới."
+    exercise_ref: ex_kadane
+  - id: t01
+    type: text
+    md: |
+      **Kadane** giải bài *maximum subarray* trong một lượt, O(n) thời gian, O(1) bộ nhớ. Gọi `cur` là tổng
+      lớn nhất của đoạn **kết thúc tại** vị trí hiện tại. Với phần tử `x`:
+
+      ```python
+      cur = max(x, cur + x)     # nối tiếp đoạn trước, hoặc bắt đầu lại từ x
+      best = max(best, cur)
+      ```
+
+      Nếu `cur` đang âm thì mang nó theo chỉ làm đoạn nhỏ đi, nên bắt đầu lại. Khởi tạo bằng phần tử
+      đầu tiên (không phải `0`) để mảng toàn số âm vẫn đúng.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Trong Kadane, cập nhật nào cho `cur` là đúng khi gặp phần tử `x`?"
+    options:
+      - {id: a, text_md: "`cur = max(x, cur + x)`"}
+      - {id: b, text_md: "`cur = max(0, cur) + abs(x)`"}
+      - {id: c, text_md: "`cur = min(x, cur + x)`"}
+    answer: [a]
+    explain_md: "`cur` là tổng tốt nhất của đoạn kết thúc tại `x`: hoặc chỉ `x`, hoặc `x` nối vào đoạn tốt nhất trước đó."
+  - id: ex_kadane
+    type: code_exercise
+    md: |
+      Viết `max_subarray(nums)`: trả tổng lớn nhất của một đoạn con liên tiếp **không rỗng** (`nums` không
+      rỗng). Ví dụ `[-2, 1, -3, 4, -1, 2, 1, -5, 4]` cho `6`.
+    entry: max_subarray
+    starter: |
+      def max_subarray(nums):
+          # TODO: Kadane, một lượt
+          return max(nums)
+    guidance_md: |
+      - Khởi tạo `cur = best = nums[0]`.
+      - Với mỗi phần tử còn lại, cập nhật `cur` rồi `best`.
+      - Trả `best`.
+    hints:
+      - level: nudge
+        md: "Nếu tổng đang cộng dồn là số âm, nó có giúp đoạn tiếp theo lớn hơn không?"
+      - level: approach
+        md: "Giữ `cur` là tổng tốt nhất của đoạn kết thúc tại vị trí hiện tại và `best` là tốt nhất từ trước tới nay."
+      - level: pseudocode
+        md: |
+          cur = best = nums[0]
+          với x trong nums[1:]:
+              cur = max(x, cur + x)
+              best = max(best, cur)
+          trả best
+    tests:
+      - {args: [[-2, 1, -3, 4, -1, 2, 1, -5, 4]], expected: 6}
+      - {args: [[1]], expected: 1}
+      - {args: [[-3, -1, -2]], expected: -1}
+      - {args: [[5, 4, -1, 7, 8]], expected: 23}
+    solution: |
+      def max_subarray(nums):
+          cur = best = nums[0]
+          for x in nums[1:]:
+              cur = max(x, cur + x)
+              best = max(best, cur)
+          return best
+  - id: s_vote
+    type: section
+    title_vi: "Boyer-Moore: phần tử đa số"
+    summary_vi: "Bỏ phiếu bù trừ: các cặp khác nhau triệt tiêu nhau."
+    exercise_ref: ex_majority
+  - id: t02
+    type: text
+    md: |
+      **Boyer-Moore voting** tìm phần tử xuất hiện **nhiều hơn n/2 lần** (nếu đề đảm bảo có) trong O(n) thời gian,
+      O(1) bộ nhớ. Giữ một ứng viên `cand` và bộ đếm `count`:
+
+      - `count == 0`: chọn phần tử hiện tại làm ứng viên mới.
+      - bằng ứng viên: `count += 1`; khác: `count -= 1`.
+
+      Vì sao đúng: mỗi lần giảm là một cặp (phần tử đa số, phần tử khác) triệt tiêu nhau. Phần tử chiếm hơn
+      một nửa không thể bị triệt tiêu hết nên sống sót đến cuối.
+  - id: c01
+    type: callout
+    kind: warning
+    md: "Nếu đề **không** đảm bảo có phần tử đa số, ứng viên cuối cùng cần một lượt đếm lại để xác nhận."
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Boyer-Moore voting chỉ dùng hai biến, nên bộ nhớ phụ là O(___)."
+    blanks: [{accept: ["1"]}]
+    explain_md: "Chỉ có `cand` và `count`: bộ nhớ phụ O(1), khác với cách dùng dict đếm tốn O(n)."
+  - id: ex_majority
+    type: code_exercise
+    md: |
+      Hàm `majority(nums)` phải trả phần tử xuất hiện nhiều hơn một nửa (luôn tồn tại, `nums` không rỗng).
+      Bản dưới đây dùng ý tưởng của Boyer-Moore nhưng trừ phiếu sai. Hãy sửa.
+    entry: majority
+    starter: |
+      def majority(nums):
+          cand, count = None, 0
+          for x in nums:
+              if count == 0:
+                  cand = x
+              if x == cand:
+                  count += 1
+              else:
+                  count -= 2
+          return cand
+    guidance_md: |
+      - Thử `[1, 1, 2, 3, 1]` và theo dõi `cand`, `count` từng bước.
+      - Mỗi phần tử khác ứng viên chỉ triệt tiêu đúng một phiếu của ứng viên.
+    hints:
+      - level: nudge
+        md: "Một cặp (ứng viên, phần tử khác) triệt tiêu nhau. Mỗi phần tử khác nên làm `count` giảm bao nhiêu?"
+      - level: approach
+        md: "Phần chọn ứng viên đã đúng. Hãy xem lại bước giảm `count` khi `x` khác ứng viên."
+      - level: near_solution
+        md: "Trong nhánh `else`, đổi `count -= 2` thành giảm đúng 1 đơn vị."
+    tests:
+      - {args: [[3, 2, 3]], expected: 3}
+      - {args: [[2, 2, 1, 1, 1, 2, 2]], expected: 2}
+      - {args: [[1, 2, 2]], expected: 2}
+      - {args: [[5]], expected: 5}
+      - {args: [[1, 1, 2, 3, 1]], expected: 1}
+    solution: |
+      def majority(nums):
+          cand, count = None, 0
+          for x in nums:
+              if count == 0:
+                  cand = x
+              if x == cand:
+                  count += 1
+              else:
+                  count -= 1
+          return cand
+  - id: s_rotate
+    type: section
+    title_vi: "Xoay mảng tại chỗ"
+    summary_vi: "Ba lần đảo: cả mảng, k phần tử đầu, phần còn lại."
+    exercise_ref: ex_rotate
+  - id: t03
+    type: text
+    md: |
+      **Xoay phải `k` bước** (`[1,2,3,4,5,6,7]`, `k = 3` thành `[5,6,7,1,2,3,4]`) mà không dùng mảng phụ:
+
+      1. Đảo cả mảng: `[7,6,5,4,3,2,1]`.
+      2. Đảo `k` phần tử đầu: `[5,6,7,4,3,2,1]`.
+      3. Đảo phần còn lại: `[5,6,7,1,2,3,4]`.
+
+      Thời gian O(n), bộ nhớ O(1). Nhớ `k %= n` (xoay `n` bước bằng không xoay) và xử lý mảng rỗng.
+      Với Python, `nums[:] = nums[-k:] + nums[:-k]` đơn giản hơn nhưng dùng O(n) bộ nhớ phụ.
+  - id: q03
+    type: predict_output
+    code: |
+      a = [1, 2, 3, 4, 5]
+      k = 2
+      a[:] = a[-k:] + a[:-k]
+      print(a)
+    expected_output: |
+      [4, 5, 1, 2, 3]
+    explain_md: "`a[-2:]` là `[4, 5]`, `a[:-2]` là `[1, 2, 3]`; nối lại cho `[4, 5, 1, 2, 3]`."
+  - id: ex_rotate
+    type: code_exercise
+    md: |
+      `rotate(nums, k)` phải xoay `nums` sang phải `k` bước **tại chỗ** rồi trả chính `nums`. Bản dưới đây dùng
+      ba lần đảo nhưng sập hoặc sai với `k` lớn hơn độ dài và với mảng rỗng. Hãy sửa.
+    entry: rotate
+    starter: |
+      def rotate(nums, k):
+          def reverse(i, j):
+              while i < j:
+                  nums[i], nums[j] = nums[j], nums[i]
+                  i += 1
+                  j -= 1
+
+          n = len(nums)
+          reverse(0, n - 1)
+          reverse(0, k - 1)
+          reverse(k, n - 1)
+          return nums
+    guidance_md: |
+      - Thử `rotate([1, 2], 5)` và `rotate([], 3)`.
+      - Chuẩn hóa `k` trước khi đảo.
+      - Mảng rỗng cần trả về ngay.
+    hints:
+      - level: nudge
+        md: "Xoay `n` bước cho kết quả giống xoay bao nhiêu bước? Và `n = 0` thì phép chia dư ra sao?"
+      - level: approach
+        md: "Thêm hai dòng ở đầu hàm: trả ngay nếu `n == 0`, rồi đặt `k` bằng phần dư khi chia cho `n`."
+      - level: near_solution
+        md: |
+          n = len(nums)
+          if n == 0:
+              return nums
+          k %= n
+          ...   # ba lần reverse như cũ
+    tests:
+      - {args: [[1, 2, 3, 4, 5, 6, 7], 3], expected: [5, 6, 7, 1, 2, 3, 4]}
+      - {args: [[1, 2], 5], expected: [2, 1]}
+      - {args: [[], 3], expected: []}
+      - {args: [[1], 0], expected: [1]}
+      - {args: [[1, 2, 3], 3], expected: [1, 2, 3]}
+    solution: |
+      def rotate(nums, k):
+          def reverse(i, j):
+              while i < j:
+                  nums[i], nums[j] = nums[j], nums[i]
+                  i += 1
+                  j -= 1
+
+          n = len(nums)
+          if n == 0:
+              return nums
+          k %= n
+          reverse(0, n - 1)
+          reverse(0, k - 1)
+          reverse(k, n - 1)
+          return nums
+  - id: s_flag
+    type: section
+    title_vi: "Cờ Hà Lan: sắp xếp 0/1/2"
+    summary_vi: "Ba con trỏ low, mid, high phân vùng mảng trong một lượt."
+    exercise_ref: ex_flag
+  - id: t04
+    type: text
+    md: |
+      **Dutch national flag** sắp mảng chỉ gồm `0`, `1`, `2` trong một lượt, O(n) thời gian, O(1) bộ nhớ, với
+      ba con trỏ chia mảng thành bốn vùng: `[0..low)` toàn 0, `[low..mid)` toàn 1, `[mid..high]` chưa xét,
+      `(high..]` toàn 2.
+
+      - `nums[mid] == 0`: đổi chỗ với `nums[low]`, tăng cả `low` và `mid`.
+      - `nums[mid] == 1`: chỉ tăng `mid`.
+      - `nums[mid] == 2`: đổi chỗ với `nums[high]`, giảm `high` (**không** tăng `mid`, vì phần tử mới
+        đổi về chưa được xét).
+  - id: c02
+    type: callout
+    kind: interview
+    md: "Câu hỏi quen thuộc: vì sao khi gặp `2` không tăng `mid`? Vì giá trị vừa hoán đổi từ `high` chưa được kiểm tra."
+  - id: ex_flag
+    type: code_exercise
+    md: |
+      Viết `sort_colors(nums)`: sắp xếp `nums` (chỉ gồm 0, 1, 2) tăng dần **tại chỗ** bằng một lượt, không dùng
+      `sort`, rồi trả chính `nums`.
+    entry: sort_colors
+    starter: |
+      def sort_colors(nums):
+          # TODO: ba con trỏ low, mid, high
+          return nums
+    guidance_md: |
+      - Khởi tạo `low = mid = 0`, `high = len(nums) - 1`.
+      - Lặp khi `mid <= high`, xử lý ba trường hợp 0, 1, 2.
+      - Gặp 2 thì không tăng `mid`.
+    hints:
+      - level: nudge
+        md: "Mảng có thể chia thành các vùng nào nếu duyệt bằng một con trỏ `mid`?"
+      - level: approach
+        md: "Con trỏ `low` đánh dấu cuối vùng 0, `high` đánh dấu đầu vùng 2; `mid` quét vùng chưa xét."
+      - level: pseudocode
+        md: |
+          low = mid = 0; high = n-1
+          trong khi mid <= high:
+              nếu nums[mid] == 0: đổi(low, mid); low++; mid++
+              nếu nums[mid] == 1: mid++
+              nếu nums[mid] == 2: đổi(mid, high); high--
+    tests:
+      - {args: [[2, 0, 2, 1, 1, 0]], expected: [0, 0, 1, 1, 2, 2]}
+      - {args: [[]], expected: []}
+      - {args: [[1]], expected: [1]}
+      - {args: [[2, 1, 0]], expected: [0, 1, 2]}
+      - {args: [[0, 0, 1]], expected: [0, 0, 1]}
+    solution: |
+      def sort_colors(nums):
+          low, mid, high = 0, 0, len(nums) - 1
+          while mid <= high:
+              if nums[mid] == 0:
+                  nums[low], nums[mid] = nums[mid], nums[low]
+                  low += 1
+                  mid += 1
+              elif nums[mid] == 1:
+                  mid += 1
+              else:
+                  nums[mid], nums[high] = nums[high], nums[mid]
+                  high -= 1
+          return nums
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Kadane: `cur = max(x, cur + x)`, `best = max(best, cur)`; khởi tạo bằng phần tử đầu."
+      - "Boyer-Moore: chọn ứng viên khi `count == 0`, cặp khác nhau triệt tiêu; O(n) thời gian, O(1) bộ nhớ."
+      - "Xoay mảng: `k %= n`, đảo cả mảng, đảo k phần tử đầu, đảo phần còn lại."
+      - "Cờ Hà Lan: ba con trỏ; gặp 2 thì đổi với `high` và không tăng `mid`."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [Q066], l2: [Q067], l3: [Q068]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
 source:
   tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
-  authored_by: tools/gen_lesson_stubs.py
+  authored_by: "claude"
   reviewed_by: null
-  date: '2026-10-24'
+  date: "2026-11-02"

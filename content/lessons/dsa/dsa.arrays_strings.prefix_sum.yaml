@@ -1,24 +1,244 @@
 id: dsa.arrays_strings.prefix_sum
 version: 1
-status: draft
-title_vi: Prefix sum và difference array (prefix sums)
-est_minutes: 10
+status: published
+title_vi: "Prefix sum và truy vấn tổng đoạn (prefix sums)"
+est_minutes: 12
 objectives_vi:
-- Dựng prefix sum đúng chỉ số.
-- Đếm số đoạn con có tổng k trong O(n) bằng prefix kết hợp dict.
-blocks: []
-problems:
-  practice: []
-  extra: []
-mastery_check:
-  l1: []
-  l2: []
-  l3: []
-checkpoint:
-  pass_ratio: 0.7
-  min_items: 3
+  - "Dựng mảng prefix sum có độ dài n+1 với prefix[0] = 0 và đúng chỉ số."
+  - "Trả lời truy vấn tổng đoạn [l, r] trong O(1) bằng prefix[r+1] - prefix[l]."
+  - "Đếm số đoạn con có tổng k trong O(n) bằng prefix kết hợp dict."
+blocks:
+  - id: s_build
+    type: section
+    title_vi: "Dựng mảng prefix sum"
+    summary_vi: "prefix[i] là tổng của i phần tử đầu tiên, nên prefix có n+1 phần tử."
+    exercise_ref: ex_build
+  - id: t01
+    type: text
+    md: |
+      **Prefix sum** là mảng cộng dồn: `prefix[i]` = tổng của `i` phần tử đầu tiên của `nums`.
+      Quy ước `prefix[0] = 0` (tổng của 0 phần tử), nên mảng có độ dài **n + 1**.
+
+      ```python
+      prefix = [0]
+      for x in nums:
+          prefix.append(prefix[-1] + x)
+      ```
+
+      Dựng một lần tốn **O(n)**; sau đó mỗi truy vấn tổng đoạn chỉ cần O(1).
+  - id: c01
+    type: callout
+    kind: beginner
+    md: "Phần tử `0` ở đầu mảng giúp đoạn bắt đầu từ chỉ số 0 không cần xử lý riêng (không phải viết `if l == 0`)."
+  - id: q01
+    type: quiz_fill
+    prompt_md: "Với `nums` có n phần tử, mảng prefix sum (có `prefix[0] = 0`) có độ dài ___."
+    blanks: [{accept: ["n+1", "n + 1"]}]
+    explain_md: "Có n phần tử cộng dồn cộng thêm phần tử `0` ban đầu, nên độ dài là n + 1."
+  - id: ex_build
+    type: code_exercise
+    md: |
+      Viết `build_prefix(nums)` trả về list prefix sum độ dài `len(nums) + 1`, bắt đầu bằng `0`.
+      Ví dụ `[1, 2, 3, 4]` cho `[0, 1, 3, 6, 10]`.
+    entry: build_prefix
+    starter: |
+      def build_prefix(nums):
+          prefix = [0]
+          # TODO: với mỗi x, thêm (tổng trước đó + x)
+          return prefix
+    guidance_md: |
+      - Bắt đầu với `prefix = [0]`.
+      - Mỗi phần tử `x` của `nums`: tổng mới = `prefix[-1] + x`.
+      - Thêm tổng mới vào cuối `prefix`.
+    hints:
+      - level: nudge
+        md: "Tổng cộng dồn tại một vị trí liên quan thế nào đến tổng cộng dồn ngay trước nó?"
+      - level: approach
+        md: "Duyệt `nums` một lần; mỗi bước dùng phần tử cuối của `prefix` cộng với `x`."
+      - level: pseudocode
+        md: |
+          prefix = [0]
+          với mỗi x trong nums:
+              thêm (phần tử cuối của prefix + x) vào prefix
+      - level: near_solution
+        md: |
+          for x in nums:
+              prefix.append(...)   # phần tử cuối + x
+          return prefix
+    tests:
+      - {args: [[]], expected: [0]}
+      - {args: [[5]], expected: [0, 5]}
+      - {args: [[1, 2, 3, 4]], expected: [0, 1, 3, 6, 10]}
+      - {args: [[2, -1, 3]], expected: [0, 2, 1, 4]}
+    solution: |
+      def build_prefix(nums):
+          prefix = [0]
+          for x in nums:
+              prefix.append(prefix[-1] + x)
+          return prefix
+  - id: s_range
+    type: section
+    title_vi: "Truy vấn tổng đoạn"
+    summary_vi: "Tổng đoạn [l, r] bao gồm cả hai đầu là prefix[r+1] - prefix[l]."
+    exercise_ref: ex_range
+  - id: t02
+    type: text
+    md: |
+      Tổng các phần tử từ chỉ số `l` đến `r` (**bao gồm cả hai đầu**):
+
+      ```
+      sum(nums[l..r]) = prefix[r + 1] - prefix[l]
+      ```
+
+      Vì `prefix[r + 1]` là tổng `r + 1` phần tử đầu, trừ đi `prefix[l]` là tổng `l` phần tử đầu thì còn
+      đúng các phần tử `l..r`. Với q truy vấn, tổng chi phí là **O(n + q)** thay vì O(n·q).
+  - id: c02
+    type: callout
+    kind: warning
+    md: "Lỗi off-by-one hay gặp: dùng `prefix[r] - prefix[l]` sẽ bỏ sót phần tử `nums[r]`."
+  - id: q02
+    type: quiz_mcq
+    prompt_md: "Với `prefix` đã dựng như trên, tổng `nums[l..r]` (gồm cả `r`) bằng biểu thức nào?"
+    options:
+      - {id: a, text_md: "`prefix[r] - prefix[l]`"}
+      - {id: b, text_md: "`prefix[r] - prefix[l - 1]`"}
+      - {id: c, text_md: "`prefix[r + 1] - prefix[l]`"}
+    answer: [c]
+    explain_md: "`prefix[r + 1]` gồm cả `nums[r]`; trừ `prefix[l]` loại các phần tử trước `l`. Đáp án a bỏ sót `nums[r]`; b sai chỉ số và lỗi khi `l = 0`."
+  - id: ex_range
+    type: code_exercise
+    md: |
+      `range_sums(nums, queries)` phải trả list các tổng `nums[l..r]` (gồm cả hai đầu) cho mỗi
+      truy vấn `[l, r]`. Bản dưới đây bị off-by-one. Hãy sửa.
+    entry: range_sums
+    starter: |
+      def range_sums(nums, queries):
+          prefix = [0]
+          for x in nums:
+              prefix.append(prefix[-1] + x)
+          return [prefix[r] - prefix[l] for l, r in queries]
+    guidance_md: |
+      - Thử `nums = [7]`, truy vấn `[0, 0]`: kết quả đang là bao nhiêu?
+      - Tính tay `prefix` và xem `prefix[r]` đã gồm `nums[r]` chưa.
+      - Sửa chỉ số của số hạng đầu.
+    hints:
+      - level: nudge
+        md: "`prefix[i]` cộng bao nhiêu phần tử đầu? Vậy `prefix[r]` đã gồm `nums[r]` chưa?"
+      - level: approach
+        md: "Để gồm cả `nums[r]` cần tổng của `r + 1` phần tử đầu."
+      - level: near_solution
+        md: "Đổi biểu thức trong list comprehension thành `prefix[r + 1] - prefix[l]`."
+    tests:
+      - {args: [[1, 2, 3, 4, 5], [[0, 2], [1, 3], [4, 4]]], expected: [6, 9, 5]}
+      - {args: [[-2, 0, 3, -5, 2, -1], [[0, 2], [2, 5], [0, 5]]], expected: [1, -1, -3]}
+      - {args: [[7], [[0, 0]]], expected: [7]}
+      - {args: [[4, 4], []], expected: []}
+    solution: |
+      def range_sums(nums, queries):
+          prefix = [0]
+          for x in nums:
+              prefix.append(prefix[-1] + x)
+          return [prefix[r + 1] - prefix[l] for l, r in queries]
+  - id: s_count
+    type: section
+    title_vi: "Đếm đoạn con có tổng k"
+    summary_vi: "Prefix hiện tại trừ k đã từng xuất hiện bao nhiêu lần thì có bấy nhiêu đoạn kết thúc tại đây."
+    exercise_ref: ex_count
+  - id: t03
+    type: text
+    md: |
+      Đoạn con kết thúc tại `i` có tổng `k` khi tồn tại prefix cũ bằng `cur - k`, với `cur` là prefix
+      hiện tại. Dùng dict `seen` đếm số lần mỗi giá trị prefix đã xuất hiện:
+
+      ```python
+      seen = {0: 1}          # prefix rỗng
+      cur = 0
+      for x in nums:
+          cur += x
+          count += seen.get(cur - k, 0)
+          seen[cur] = seen.get(cur, 0) + 1
+      ```
+
+      Thứ tự quan trọng: **tra cứu `cur - k` trước, rồi mới ghi `cur`**. Tổng thời gian O(n), vì mỗi
+      tra cứu dict trung bình O(1). Cách này đúng cả khi mảng có số âm (two pointers thì không).
+  - id: c03
+    type: callout
+    kind: interview
+    md: "Bài \"Subarray Sum Equals K\" là câu hỏi kinh điển. Nhớ khởi tạo `{0: 1}` để đếm các đoạn bắt đầu từ chỉ số 0."
+  - id: q03
+    type: predict_output
+    code: |
+      nums = [3, 1, 4, 1, 5]
+      prefix = [0]
+      for x in nums:
+          prefix.append(prefix[-1] + x)
+      print(prefix[4] - prefix[1])
+    expected_output: |
+      6
+    explain_md: "`prefix = [0, 3, 4, 8, 9, 14]`; `prefix[4] - prefix[1] = 9 - 3 = 6`, tức `1 + 4 + 1`."
+  - id: ex_count
+    type: code_exercise
+    md: |
+      Viết `count_subarrays(nums, k)` trả số đoạn con liên tiếp (không rỗng) có tổng bằng `k`, trong
+      O(n). Mảng có thể chứa số âm. Ví dụ `[1, 1, 1]`, `k = 2` cho `2`.
+    entry: count_subarrays
+    starter: |
+      def count_subarrays(nums, k):
+          seen = {0: 1}
+          cur = 0
+          count = 0
+          # TODO: cập nhật cur, cộng seen.get(cur - k, 0), rồi ghi cur vào seen
+          return count
+    guidance_md: |
+      - Với mỗi `x`: cộng vào `cur`.
+      - Cộng vào `count` số lần `cur - k` đã xuất hiện (dùng `get` với mặc định 0).
+      - Sau đó tăng đếm của `cur` trong `seen`.
+    hints:
+      - level: nudge
+        md: "Một đoạn kết thúc tại vị trí hiện tại có tổng k nghĩa là hai prefix chênh nhau bao nhiêu?"
+      - level: approach
+        md: "Cần biết có bao nhiêu prefix trước đó bằng `cur - k`; lưu số lần xuất hiện của mỗi prefix trong dict."
+      - level: pseudocode
+        md: |
+          seen = {0: 1}; cur = 0; count = 0
+          với mỗi x:
+              cur += x
+              count += số lần (cur - k) trong seen
+              tăng số lần của cur trong seen
+      - level: near_solution
+        md: |
+          for x in nums:
+              cur += x
+              count += seen.get(cur - k, 0)
+              seen[cur] = ...   # tăng thêm 1
+          return count
+    tests:
+      - {args: [[1, 1, 1], 2], expected: 2}
+      - {args: [[1, 2, 3], 3], expected: 2}
+      - {args: [[1, -1, 0], 0], expected: 3}
+      - {args: [[3, 4, 7, 2, -3, 1, 4, 2], 7], expected: 4}
+      - {args: [[], 0], expected: 0}
+    solution: |
+      def count_subarrays(nums, k):
+          seen = {0: 1}
+          cur = 0
+          count = 0
+          for x in nums:
+              cur += x
+              count += seen.get(cur - k, 0)
+              seen[cur] = seen.get(cur, 0) + 1
+          return count
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Prefix sum có độ dài n+1, `prefix[0] = 0`, dựng trong O(n)."
+      - "Tổng đoạn `[l, r]` (gồm hai đầu) là `prefix[r + 1] - prefix[l]`, mỗi truy vấn O(1)."
+      - "Đếm đoạn có tổng k: dict đếm prefix, tra `cur - k` trước rồi mới ghi `cur`; khởi tạo `{0: 1}`."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [Q060], l2: [Q061], l3: [Q062]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
 source:
   tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
-  authored_by: tools/gen_lesson_stubs.py
+  authored_by: "claude"
   reviewed_by: null
-  date: '2026-10-24'
+  date: "2026-11-02"

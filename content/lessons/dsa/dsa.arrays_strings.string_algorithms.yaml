@@ -1,24 +1,259 @@
 id: dsa.arrays_strings.string_algorithms
 version: 1
-status: draft
-title_vi: 'Thuật toán chuỗi: so khớp mẫu và palindrome (string algorithms)'
-est_minutes: 10
+status: published
+title_vi: "Thuật toán chuỗi: so khớp mẫu và palindrome (string algorithms)"
+est_minutes: 14
 objectives_vi:
-- Giải Longest Palindromic Substring bằng mở rộng từ tâm.
-- Kể được ý tưởng của KMP và rolling hash và nêu độ phức tạp từng cách.
-blocks: []
-problems:
-  practice: []
-  extra: []
-mastery_check:
-  l1: []
-  l2: []
-  l3: []
-checkpoint:
-  pass_ratio: 0.7
-  min_items: 3
+  - "Kiểm tra palindrome bằng hai con trỏ, bỏ qua ký tự không phải chữ/số."
+  - "Tìm palindrome dài nhất bằng mở rộng từ tâm (expand around center) trong O(n^2)."
+  - "Tìm mọi vị trí xuất hiện của mẫu bằng cách so khớp thô (naive) và nêu độ phức tạp."
+  - "Kể được ý tưởng của KMP và rolling hash."
+blocks:
+  - id: s_pal
+    type: section
+    title_vi: "Palindrome bằng hai con trỏ"
+    summary_vi: "So hai đầu chuỗi và tiến vào giữa, bỏ qua ký tự thừa."
+    exercise_ref: ex_pal
+  - id: t01
+    type: text
+    md: |
+      **Palindrome** là chuỗi đọc xuôi ngược như nhau (`racecar`). Cách chuẩn: hai con trỏ `i = 0`,
+      `j = len(s) - 1`, so `s[i]` với `s[j]` rồi tiến vào giữa. Thời gian O(n), bộ nhớ O(1).
+
+      Khi đề yêu cầu bỏ qua dấu câu và phân biệt hoa thường, bỏ qua ký tự không phải chữ/số bằng
+      `str.isalnum()` và so sánh bằng `lower()`.
+
+      ```python
+      def is_pal(s):
+          i, j = 0, len(s) - 1
+          while i < j:
+              if s[i] != s[j]:
+                  return False
+              i += 1
+              j -= 1
+          return True
+      ```
+
+      **Anagram** khác palindrome: hai chuỗi khác nhau có cùng bảng đếm ký tự (`sorted(a) == sorted(b)`
+      cho O(n log n), hoặc đếm bằng list/`Counter` cho O(n)).
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Chuỗi nào sau đây là palindrome (theo nghĩa so sánh từng ký tự, không bỏ qua gì)?"
+    options:
+      - {id: a, text_md: "`\"abca\"`"}
+      - {id: b, text_md: "`\"abcba\"`"}
+      - {id: c, text_md: "`\"abcb\"`"}
+    answer: [b]
+    explain_md: "`abcba` đọc ngược vẫn là `abcba`. `abca` và `abcb` có đầu và cuối khác nhau."
+  - id: ex_pal
+    type: code_exercise
+    md: |
+      Viết `is_palindrome(s)`: trả `True` nếu `s` là palindrome khi chỉ xét chữ và số, bỏ qua hoa thường.
+      Chuỗi không có ký tự nào cũng là palindrome. Ví dụ `"A man, a plan, a canal: Panama"` cho `True`.
+    entry: is_palindrome
+    starter: |
+      def is_palindrome(s):
+          # TODO: hai con trỏ i, j; bỏ qua ký tự không phải chữ/số
+          return False
+    guidance_md: |
+      - Đặt `i = 0`, `j = len(s) - 1`.
+      - Dịch `i` sang phải và `j` sang trái khi gặp ký tự không `isalnum()`.
+      - So `s[i].lower()` với `s[j].lower()`; khác nhau thì trả `False`.
+    hints:
+      - level: nudge
+        md: "Làm sao so hai đầu mà không phải tạo chuỗi mới? Và ký tự như dấu phẩy xử lý ra sao?"
+      - level: approach
+        md: "Vòng `while i < j`: bỏ qua ký tự rác ở mỗi đầu trước, rồi mới so sánh."
+      - level: pseudocode
+        md: |
+          i, j = 0, len(s)-1
+          trong khi i < j:
+              trong khi i < j và s[i] không alnum: i += 1
+              trong khi i < j và s[j] không alnum: j -= 1
+              nếu s[i].lower() != s[j].lower(): trả False
+              i += 1; j -= 1
+          trả True
+    tests:
+      - {args: ["A man, a plan, a canal: Panama"], expected: true}
+      - {args: ["race a car"], expected: false}
+      - {args: [""], expected: true}
+      - {args: ["0P"], expected: false}
+      - {args: [".,"], expected: true}
+    solution: |
+      def is_palindrome(s):
+          i, j = 0, len(s) - 1
+          while i < j:
+              while i < j and not s[i].isalnum():
+                  i += 1
+              while i < j and not s[j].isalnum():
+                  j -= 1
+              if s[i].lower() != s[j].lower():
+                  return False
+              i += 1
+              j -= 1
+          return True
+  - id: s_center
+    type: section
+    title_vi: "Palindrome dài nhất: mở rộng từ tâm"
+    summary_vi: "2n - 1 tâm, mỗi tâm mở rộng tối đa O(n): tổng O(n^2)."
+    exercise_ref: ex_center
+  - id: t02
+    type: text
+    md: |
+      Để tìm **đoạn con palindrome dài nhất**, mỗi palindrome có một **tâm**: một ký tự (độ dài lẻ) hoặc
+      khoảng giữa hai ký tự (độ dài chẵn). Có `2n - 1` tâm. Từ mỗi tâm, mở rộng ra hai phía khi hai ký tự
+      còn bằng nhau.
+
+      ```python
+      def expand(s, l, r):
+          while l >= 0 and r < len(s) and s[l] == s[r]:
+              l -= 1
+              r += 1
+          return s[l + 1:r]
+      ```
+
+      Gọi `expand(s, i, i)` cho tâm lẻ và `expand(s, i, i + 1)` cho tâm chẵn. Thời gian O(n^2), bộ nhớ O(1)
+      (không tính chuỗi kết quả).
+  - id: c01
+    type: callout
+    kind: tip
+    md: "Quên tâm chẵn là lỗi phổ biến: `\"cbbd\"` có đáp án `\"bb\"` mà tâm lẻ không tìm ra."
+  - id: q02
+    type: predict_output
+    code: |
+      def expand(s, l, r):
+          while l >= 0 and r < len(s) and s[l] == s[r]:
+              l -= 1
+              r += 1
+          return s[l + 1:r]
+
+      print(expand("babad", 1, 1), expand("cbbd", 1, 2), repr(expand("abc", 0, 1)))
+    expected_output: |
+      bab bb ''
+    explain_md: "Tâm lẻ ở chỉ số 1 của `babad` mở ra `bab`; tâm chẵn giữa hai `b` của `cbbd` cho `bb`; `a` khác `b` nên đoạn rỗng."
+  - id: ex_center
+    type: code_exercise
+    md: |
+      Viết `longest_palindrome(s)`: trả đoạn con palindrome dài nhất của `s`. Nếu có nhiều đáp án cùng
+      độ dài, trả đáp án xuất hiện sớm nhất. Chuỗi rỗng trả `""`. Ví dụ `"babad"` cho `"bab"`.
+    entry: longest_palindrome
+    starter: |
+      def longest_palindrome(s):
+          # TODO: với mỗi tâm lẻ và chẵn, mở rộng và giữ đoạn dài nhất
+          return s[:1]
+    guidance_md: |
+      - Viết hàm con `expand(l, r)` trả đoạn palindrome lớn nhất quanh tâm.
+      - Với mỗi `i`, thử `expand(i, i)` và `expand(i, i + 1)`.
+      - Chỉ cập nhật kết quả khi đoạn **dài hơn hẳn** để giữ đáp án sớm nhất.
+    hints:
+      - level: nudge
+        md: "Mỗi palindrome đối xứng quanh một tâm. Có mấy loại tâm?"
+      - level: approach
+        md: "Hai loại tâm (một ký tự và giữa hai ký tự). Dùng so sánh `>` chứ không phải `>=` khi cập nhật."
+      - level: pseudocode
+        md: |
+          best = ""
+          với i từ 0 tới len(s)-1:
+              với (l, r) trong [(i, i), (i, i+1)]:
+                  cand = expand(l, r)
+                  nếu len(cand) > len(best): best = cand
+          trả best
+    tests:
+      - {args: ["babad"], expected: "bab"}
+      - {args: ["cbbd"], expected: "bb"}
+      - {args: ["a"], expected: "a"}
+      - {args: ["forgeeksskeegfor"], expected: "geeksskeeg"}
+      - {args: [""], expected: ""}
+    solution: |
+      def longest_palindrome(s):
+          def expand(l, r):
+              while l >= 0 and r < len(s) and s[l] == s[r]:
+                  l -= 1
+                  r += 1
+              return s[l + 1:r]
+
+          best = ""
+          for i in range(len(s)):
+              for l, r in ((i, i), (i, i + 1)):
+                  cand = expand(l, r)
+                  if len(cand) > len(best):
+                      best = cand
+          return best
+  - id: s_pattern
+    type: section
+    title_vi: "So khớp mẫu: naive, KMP, rolling hash"
+    summary_vi: "Naive O(n*m), KMP và Rabin-Karp cho O(n + m) (kỳ vọng với Rabin-Karp)."
+    exercise_ref: ex_find_all
+  - id: t03
+    type: text
+    md: |
+      Tìm mẫu `pat` (độ dài `m`) trong văn bản `text` (độ dài `n`):
+
+      - **Naive**: thử mọi vị trí bắt đầu `0..n-m`, so từng ký tự. Tệ nhất **O(n * m)**.
+      - **KMP**: tính trước **prefix function** (độ dài tiền tố dài nhất cũng là hậu tố) để khi lệch không
+        phải lùi con trỏ trong `text`. Thời gian **O(n + m)**.
+      - **Rabin-Karp (rolling hash)**: tính hash cửa sổ độ dài `m` và trượt bằng cách bỏ ký tự đầu, thêm ký tự
+        cuối trong O(1). Kỳ vọng O(n + m), nhưng khi hash trùng vẫn phải so lại để loại va chạm.
+
+      Trong Python, `text.find(pat, start)` đã làm việc này sẵn, nhưng phỏng vấn thường muốn bạn giải thích ý tưởng.
+  - id: q03
+    type: quiz_fill
+    prompt_md: "KMP tìm một mẫu độ dài m trong văn bản độ dài n với thời gian O(n + ___)."
+    blanks: [{accept: ["m", "M"]}]
+    explain_md: "Prefix function mất O(m) để dựng, quét văn bản mất O(n): tổng O(n + m)."
+  - id: ex_find_all
+    type: code_exercise
+    md: |
+      `find_all(text, pat)` phải trả list mọi vị trí bắt đầu của `pat` trong `text` (cho phép chồng lấn), theo
+      thứ tự tăng dần. Mẫu rỗng trả `[]`. Bản dưới đây bỏ sót vị trí cuối cùng. Hãy sửa.
+    entry: find_all
+    starter: |
+      def find_all(text, pat):
+          if not pat:
+              return []
+          out = []
+          for i in range(len(text) - len(pat)):
+              if text[i:i + len(pat)] == pat:
+                  out.append(i)
+          return out
+    guidance_md: |
+      - Thử `find_all("abc", "abc")`: kết quả mong đợi là `[0]`.
+      - Vị trí bắt đầu hợp lệ cuối cùng là `len(text) - len(pat)`.
+      - Nhớ `range` không lấy cận trên.
+    hints:
+      - level: nudge
+        md: "Với `text = \"abc\"`, `pat = \"abc\"`, vòng `for` chạy bao nhiêu lần?"
+      - level: approach
+        md: "Chỉ số bắt đầu lớn nhất là `n - m`, nên cận trên của `range` phải là `n - m + 1`."
+      - level: near_solution
+        md: "Đổi `range(len(text) - len(pat))` thành `range(len(text) - len(pat) + 1)`."
+    tests:
+      - {args: ["abcabc", "abc"], expected: [0, 3]}
+      - {args: ["aaaa", "aa"], expected: [0, 1, 2]}
+      - {args: ["abc", "abc"], expected: [0]}
+      - {args: ["abc", "d"], expected: []}
+      - {args: ["ab", "abc"], expected: []}
+    solution: |
+      def find_all(text, pat):
+          if not pat:
+              return []
+          out = []
+          for i in range(len(text) - len(pat) + 1):
+              if text[i:i + len(pat)] == pat:
+                  out.append(i)
+          return out
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Palindrome: hai con trỏ từ hai đầu, O(n) thời gian, O(1) bộ nhớ."
+      - "Palindrome dài nhất: 2n - 1 tâm (lẻ và chẵn), mỗi tâm mở rộng; O(n^2)."
+      - "Naive tìm mẫu O(n * m); KMP O(n + m) nhờ prefix function; Rabin-Karp dùng rolling hash."
+      - "Vị trí bắt đầu cuối cùng của mẫu là `n - m`: dễ sai một đơn vị khi dùng `range`."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [Q063], l2: [Q064], l3: [Q065]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
 source:
   tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
-  authored_by: tools/gen_lesson_stubs.py
+  authored_by: "claude"
   reviewed_by: null
-  date: '2026-10-24'
+  date: "2026-11-02"
