@@ -1,24 +1,312 @@
 id: dsa.stack_queue.parsing_strings
 version: 1
-status: draft
-title_vi: Phân tích chuỗi và tính biểu thức (string parsing)
-est_minutes: 10
+status: published
+title_vi: "Phân tích chuỗi và tính biểu thức (string parsing)"
+est_minutes: 15
 objectives_vi:
-- Viết parser sạch cho chuỗi có cấu trúc (máy tính bỏ túi, decode string, atoi, đường dẫn) đúng dấu.
-- Khoảng trắng và chuỗi rỗng.
-blocks: []
-problems:
-  practice: []
-  extra: []
-mastery_check:
-  l1: []
-  l2: []
-  l3: []
-checkpoint:
-  pass_ratio: 0.7
-  min_items: 3
+  - "Viết vòng lặp quét từng ký tự, nhận ra số (nhiều chữ số), dấu và ngoặc."
+  - "Tính biểu thức hậu tố (RPN) bằng stack, chia nguyên cắt về 0."
+  - "Tính biểu thức + - * / có độ ưu tiên bằng stack, xử lý ký tự cuối và khoảng trắng."
+  - "Giải mã chuỗi lồng nhau như 3[a2[c]] bằng stack lưu trạng thái dang dở."
+blocks:
+  - id: s_rpn
+    type: section
+    title_vi: "Quét ký tự và biểu thức hậu tố (RPN)"
+    summary_vi: "Gặp số thì push, gặp dấu thì pop hai toán hạng, tính rồi push kết quả."
+    exercise_ref: ex_rpn
+  - id: b01
+    type: text
+    md: |
+      Bài parsing có chung một khung: **đi từng ký tự (hoặc token)**, quyết định "đang gặp số, dấu hay
+      ngoặc", và dùng **stack** nhớ phần đang dang dở.
+
+      **Biểu thức hậu tố (RPN)** viết dấu *sau* hai toán hạng: `3 4 +` là 7, `2 1 + 3 *` là 9. Không cần
+      ngoặc hay độ ưu tiên. Cách tính: duyệt token; **số** thì push; **dấu** thì pop hai số, tính, push
+      kết quả. Chú ý thứ tự: số pop **trước** là toán hạng **phải** (`b`), pop sau là toán hạng trái
+      (`a`), và kết quả là `a - b`, `a / b` (không đảo).
+
+      Phép chia ở đây cắt về 0, nên dùng `int(a / b)`, **không** dùng `//` vì `//` làm tròn xuống với số
+      âm (`-7 // 2` là `-4`, trong khi cần `-3`).
+  - id: q01
+    type: predict_output
+    code: |
+      st = []
+      for t in ["2", "3", "+", "4", "*"]:
+          if t.isdigit():
+              st.append(int(t))
+          else:
+              b = st.pop()
+              a = st.pop()
+              st.append(a + b if t == "+" else a * b)
+          print(st)
+    expected_output: |
+      [2]
+      [2, 3]
+      [5]
+      [5, 4]
+      [20]
+    explain_md: "Số thì push (2, rồi 3). Gặp `+`: pop 3 và 2, push 5. Push 4. Gặp `*`: pop 4 và 5, push 20. Đây là biểu thức `(2 + 3) * 4`."
+  - id: ex_rpn
+    type: code_exercise
+    md: |
+      Viết `eval_rpn(tokens)` tính biểu thức RPN, `tokens` là list chuỗi như `["2", "1", "+", "3", "*"]`.
+      Hỗ trợ `+ - * /`; phép chia cắt về 0. Số có thể âm (như `"-4"`). Đề bảo đảm biểu thức hợp lệ.
+    entry: eval_rpn
+    starter: |
+      def eval_rpn(tokens):
+          # TODO: duyệt token, dùng stack
+          pass
+    guidance_md: |
+      - Tạo stack rỗng.
+      - Với mỗi token, kiểm tra nó có phải một trong bốn dấu hay không (chú ý `"-4"` là số).
+      - Nếu là số thì đổi sang `int` rồi push.
+      - Nếu là dấu thì pop `b` trước, `a` sau, tính `a op b` (chia thì `int(a / b)`) rồi push.
+      - Cuối cùng stack còn đúng một phần tử: kết quả.
+    hints:
+      - level: nudge
+        md: "Với `3 - 4`, số nào pop ra trước, và nó là toán hạng trái hay phải?"
+      - level: approach
+        md: "Phân biệt dấu với số bằng `t in (\"+\", \"-\", \"*\", \"/\")` (so khớp cả token, nên `\"-4\"` vẫn là số). Pop `b` rồi `a`."
+      - level: pseudocode
+        md: |
+          for t in tokens:
+              if t là một trong 4 dấu:
+                  b = pop; a = pop
+                  push (a op b), chia dùng int(a / b)
+              else:
+                  push int(t)
+          return phần tử còn lại
+    tests:
+      - {args: [["2", "1", "+", "3", "*"]], expected: 9}
+      - {args: [["4", "13", "5", "/", "+"]], expected: 6}
+      - {args: [["7"]], expected: 7}
+      - {args: [["3", "-4", "/"]], expected: 0}
+      - {args: [["10", "6", "9", "3", "+", "-11", "*", "/", "*", "17", "+", "5", "+"]], expected: 22}
+    solution: |
+      def eval_rpn(tokens):
+          st = []
+          for t in tokens:
+              if t in ("+", "-", "*", "/"):
+                  b = st.pop()
+                  a = st.pop()
+                  if t == "+":
+                      st.append(a + b)
+                  elif t == "-":
+                      st.append(a - b)
+                  elif t == "*":
+                      st.append(a * b)
+                  else:
+                      st.append(int(a / b))
+              else:
+                  st.append(int(t))
+          return st[0]
+  - id: s_calc
+    type: section
+    title_vi: "Máy tính bỏ túi: độ ưu tiên bằng stack"
+    summary_vi: "Cộng dồn số nhiều chữ số, nhớ dấu trước đó, xử lý * và / ngay trên đỉnh stack."
+    exercise_ref: ex_calc
+  - id: b02
+    type: text
+    md: |
+      Biểu thức thường như `"12-3*4+5"` (không ngoặc, chỉ `+ - * /`, số nguyên không âm). Ý tưởng:
+      **mỗi số được xử lý khi ta gặp dấu *kế tiếp*** (lúc đó số đã đọc đủ chữ số), dựa vào **dấu đứng
+      trước** nó (`op`):
+
+      - `op == "+"`: push `num`; `op == "-"`: push `-num`.
+      - `op == "*"` hoặc `"/"`: pop đỉnh, tính với `num` rồi push lại (độ ưu tiên cao được giải quyết ngay).
+      - Cuối cùng cộng tất cả phần tử trong stack.
+
+      Số nhiều chữ số: `num = num * 10 + int(ch)`. Khoảng trắng bỏ qua. Để số **cuối cùng** cũng được
+      xử lý, duyệt `s + "+"`: thêm một dấu giả ở cuối chuỗi.
+  - id: q02
+    type: quiz_mcq
+    prompt_md: "Trong `\"12-3*4+5\"`, khi xử lý số `4` (gặp dấu `+` kế tiếp), dấu đứng trước nó là `*`. Stack lúc đó là `[12, -3]`. Hành động đúng là gì?"
+    options:
+      - {id: a, text_md: "Push `4`, stack thành `[12, -3, 4]`"}
+      - {id: b, text_md: "Pop `-3`, nhân với 4, push `-12`, stack thành `[12, -12]`"}
+      - {id: c, text_md: "Pop `12`, nhân với 4, push `48`"}
+    answer: [b]
+    explain_md: "Dấu `*` có độ ưu tiên cao nên kết hợp ngay với đỉnh stack (`-3`) thành `-12`. Cuối cùng cộng: `12 - 12 + 5 = 5`."
+  - id: ex_calc
+    type: code_exercise
+    md: |
+      Hàm `calculate(s)` tính biểu thức gồm số nguyên không âm, `+ - * /` và khoảng trắng (chia nguyên cắt
+      về 0). Ví dụ `"3+2*2"` là 7. Code đang có **lỗi**: kết quả sai vì số cuối cùng không được tính.
+      Hãy sửa.
+    entry: calculate
+    starter: |
+      def calculate(s):
+          st = []
+          num = 0
+          op = "+"
+          for ch in s:
+              if ch.isdigit():
+                  num = num * 10 + int(ch)
+              elif ch != " ":
+                  if op == "+":
+                      st.append(num)
+                  elif op == "-":
+                      st.append(-num)
+                  elif op == "*":
+                      st.append(st.pop() * num)
+                  else:
+                      st.append(int(st.pop() / num))
+                  op = ch
+                  num = 0
+          return sum(st)
+    guidance_md: |
+      - Chạy tay với `"7"`: có dấu nào được gặp không? Số 7 có được push không?
+      - Số chỉ được xử lý khi gặp một dấu kế tiếp.
+      - Cần một cách để số cuối cùng cũng "gặp" một dấu kết thúc.
+      - Thêm một dấu giả vào cuối chuỗi khi duyệt.
+    hints:
+      - level: nudge
+        md: "Thử `calculate(\"7\")`. Số 7 được push vào stack lúc nào?"
+      - level: approach
+        md: "Số chỉ được đẩy khi gặp dấu kế tiếp, mà số cuối cùng không có dấu nào theo sau. Hãy giả lập một dấu ở cuối chuỗi."
+      - level: near_solution
+        md: |
+          Đổi dòng duyệt thành:
+          for ch in s + ...:   # thêm một dấu giả (không ảnh hưởng kết quả)
+    tests:
+      - {args: ["3+2*2"], expected: 7}
+      - {args: [" 3/2 "], expected: 1}
+      - {args: ["12-3*4+5"], expected: 5}
+      - {args: ["7"], expected: 7}
+      - {args: ["10-2-3"], expected: 5}
+    solution: |
+      def calculate(s):
+          st = []
+          num = 0
+          op = "+"
+          for ch in s + "+":
+              if ch.isdigit():
+                  num = num * 10 + int(ch)
+              elif ch != " ":
+                  if op == "+":
+                      st.append(num)
+                  elif op == "-":
+                      st.append(-num)
+                  elif op == "*":
+                      st.append(st.pop() * num)
+                  else:
+                      st.append(int(st.pop() / num))
+                  op = ch
+                  num = 0
+          return sum(st)
+  - id: s_decode
+    type: section
+    title_vi: "Decode string với ngoặc lồng nhau"
+    summary_vi: "Khi gặp [ thì cất trạng thái đang dở (chuỗi và số lặp) lên stack; gặp ] thì lấy ra ghép."
+    exercise_ref: ex_decode
+  - id: b03
+    type: text
+    md: |
+      **Decode string**: `"3[a2[c]]"` nghĩa là lặp `a2[c]` ba lần; `a2[c]` là `a` + `cc`; kết quả
+      `"accaccacc"`. Ngoặc lồng nhau nên dùng stack.
+
+      Giữ hai biến: `cur` (chuỗi đang xây ở mức hiện tại) và `k` (số lặp đang đọc).
+
+      - Chữ số: `k = k * 10 + int(ch)` (số có thể nhiều chữ số, như `10[x]`).
+      - `[`: **push** `(cur, k)` lên stack (cất phần đang dở), rồi đặt `cur = ""`, `k = 0`.
+      - `]`: pop `(prev, n)`, ghép `cur = prev + cur * n`.
+      - Chữ cái: `cur += ch`.
+
+      Cuối cùng `cur` là đáp án.
+  - id: b04
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      def decode(s):
+          st = []
+          cur, k = "", 0
+          for ch in s:
+              if ch.isdigit():
+                  k = k * 10 + int(ch)
+              elif ch == "[":
+                  st.append((cur, k))
+                  cur, k = "", 0
+              elif ch == "]":
+                  prev, n = st.pop()
+                  cur = prev + cur * n
+              else:
+                  cur += ch
+          return cur
+
+      print(decode("2[ab]c"))
+      print(decode("a2[b3[c]]d"))
+    expected_output: |
+      ababc
+      abcccbcccd
+  - id: q03
+    type: quiz_fill
+    prompt_md: "Điền vào chỗ trống: khi gặp `]`, sau `prev, n = st.pop()` ta ghép `cur = prev + cur * ___`"
+    blanks: [{accept: ["n"]}]
+    explain_md: "`n` là số lần lặp đã cất cùng `prev` lúc gặp `[`. Chuỗi trong ngoặc (`cur`) được lặp `n` lần rồi nối sau phần `prev` đã có."
+  - id: ex_decode
+    type: code_exercise
+    md: |
+      Viết `decode(s)` giải mã chuỗi dạng `k[encoded]` (lặp `encoded` đúng `k` lần), cho phép lồng nhau và số
+      nhiều chữ số. Ví dụ `"3[a2[c]]"` cho `"accaccacc"`. Chuỗi đầu vào luôn hợp lệ.
+    entry: decode
+    starter: |
+      def decode(s):
+          # TODO: dùng stack lưu (chuỗi dở, số lặp) khi gặp "["
+          pass
+    guidance_md: |
+      - Chuẩn bị stack rỗng, chuỗi hiện tại rỗng và số lặp bằng 0.
+      - Chữ số thì cập nhật số lặp (hỗ trợ nhiều chữ số).
+      - Gặp `[` thì cất cặp (chuỗi hiện tại, số lặp) lên stack rồi làm mới cả hai.
+      - Gặp `]` thì lấy cặp ra và ghép chuỗi cũ với chuỗi hiện tại lặp lại.
+      - Chữ cái thì nối vào chuỗi hiện tại; cuối cùng trả về chuỗi hiện tại.
+    hints:
+      - level: nudge
+        md: "Khi gặp `[`, phần đã đọc và số lặp sắp dùng sẽ bị 'đóng băng' cho đến khi gặp `]` tương ứng. Làm sao lưu chúng?"
+      - level: approach
+        md: "Push cặp `(cur, k)` khi gặp `[`; khi gặp `]` pop ra và tính `prev + cur * n`."
+      - level: pseudocode
+        md: |
+          for ch in s:
+              chữ số: k = k*10 + số
+              "[": push (cur, k); cur = ""; k = 0
+              "]": (prev, n) = pop; cur = prev + cur * n
+              khác: cur += ch
+          return cur
+    tests:
+      - {args: [""], expected: ""}
+      - {args: ["abc"], expected: "abc"}
+      - {args: ["3[a2[c]]"], expected: "accaccacc"}
+      - {args: ["10[x]"], expected: "xxxxxxxxxx"}
+      - {args: ["2[a]2[b]"], expected: "aabb"}
+    solution: |
+      def decode(s):
+          st = []
+          cur, k = "", 0
+          for ch in s:
+              if ch.isdigit():
+                  k = k * 10 + int(ch)
+              elif ch == "[":
+                  st.append((cur, k))
+                  cur, k = "", 0
+              elif ch == "]":
+                  prev, n = st.pop()
+                  cur = prev + cur * n
+              else:
+                  cur += ch
+          return cur
+  - id: b05
+    type: summary
+    bullets_vi:
+      - "Khung parser: quét từng ký tự/token, phân loại số, dấu, ngoặc; stack giữ phần đang dang dở."
+      - "RPN: số push; dấu pop `b` rồi `a`, tính `a op b`; chia cắt về 0 dùng `int(a / b)`, không dùng `//`."
+      - "Máy tính: `num = num * 10 + int(ch)`; xử lý số khi gặp dấu kế tiếp theo `op` trước đó; `*` `/` kết hợp với đỉnh stack; thêm dấu giả ở cuối."
+      - "Decode string: `[` push `(cur, k)`, `]` pop và ghép `prev + cur * n`; nhớ số nhiều chữ số."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [], l2: [Q086], l3: [Q087]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
 source:
   tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
-  authored_by: tools/gen_lesson_stubs.py
+  authored_by: "claude"
   reviewed_by: null
-  date: '2026-10-24'
+  date: "2026-11-02"
