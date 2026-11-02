@@ -1,24 +1,140 @@
 id: dsa.foundations.memory_model
 version: 1
-status: draft
-title_vi: 'Mô hình bộ nhớ: mảng, tham chiếu, stack và heap (memory model)'
-est_minutes: 10
+status: published
+title_vi: "Mô hình đối tượng và tham chiếu trong Python (memory model)"
+est_minutes: 12
 objectives_vi:
-- Giải thích vì sao lấy phần tử list theo chỉ số là O(1).
-- Tự tìm ra lỗi khi hai tên cùng trỏ một list hoặc khi sao chép nông.
-blocks: []
-problems:
-  practice: []
-  extra: []
-mastery_check:
-  l1: []
-  l2: []
-  l3: []
-checkpoint:
-  pass_ratio: 0.7
-  min_items: 3
+  - "Giải thích tên (name) chỉ gắn vào đối tượng (object); gán không sao chép."
+  - "Phân biệt mutable và immutable, `is` và `==`."
+  - "Nhận ra lỗi aliasing, sao chép nông (shallow copy) và truyền tham số kiểu object reference."
+blocks:
+  - id: s_names
+    type: section
+    title_vi: "Tên, đối tượng và aliasing"
+    summary_vi: "Gán chỉ gắn thêm một tên; mutable và immutable khác nhau khi sửa."
+  - id: m01
+    type: text
+    md: |
+      Trong Python, biến không là "cái hộp chứa giá trị" mà là **tên (name) trỏ tới một đối tượng
+      (object)**. `b = a` **không sao chép**: nó gắn thêm tên `b` cho cùng đối tượng đó (**aliasing**).
+
+      - Đối tượng **mutable** (list, dict, set) có thể sửa tại chỗ: mọi tên cùng thấy thay đổi.
+      - Đối tượng **immutable** (int, str, tuple) không sửa được; các phép như `+=` tạo đối tượng **mới**
+        rồi gắn tên vào đó, tên còn lại vẫn trỏ đối tượng cũ.
+      - `==` so sánh **giá trị**, `is` hỏi **cùng một đối tượng** hay không.
+  - id: m02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      a = [1, 2]
+      b = a
+      b.append(3)
+      print(a, a is b)
+      x = "hi"
+      y = x
+      y += "!"
+      print(x, y)
+    expected_output: |
+      [1, 2, 3] True
+      hi hi!
+  - id: m03
+    type: callout
+    kind: interview
+    md: "Câu hỏi cổ điển: `a is b` khác `a == b` thế nào? Trả lời: `==` so giá trị, `is` so danh tính (cùng đối tượng). Hai list bằng nhau về giá trị vẫn có thể là hai đối tượng khác nhau."
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Sau `a = [1, 2]; b = a; b.append(3)`, giá trị của `a` là gì?"
+    options:
+      - {id: a, text_md: "`[1, 2]`, vì `b` là bản sao"}
+      - {id: b, text_md: "`[1, 2, 3]`, vì `a` và `b` cùng một list"}
+      - {id: c, text_md: "Báo lỗi vì list không sửa được"}
+    answer: [b]
+    explain_md: "`b = a` chỉ gắn thêm tên; `append` sửa chính đối tượng chung nên `a` cũng thấy 3."
+  - id: p01
+    type: predict_output
+    code: |
+      a = [1, 2, 3]
+      b = [1, 2, 3]
+      print(a == b, a is b)
+      def f(l):
+          l.append(0)
+          l = [9]
+          return l
+      r = f(a)
+      print(a, r)
+    expected_output: |
+      True False
+      [1, 2, 3, 0] [9]
+    explain_md: "Hai list bằng giá trị nhưng là hai đối tượng. Trong `f`, `append` sửa list chung nên `a` đổi; `l = [9]` chỉ gắn tên cục bộ `l` sang list mới, không ảnh hưởng `a`. Đây là truyền tham chiếu đối tượng (pass by object reference)."
+  - id: s_copy
+    type: section
+    title_vi: "Sao chép nông và sâu"
+    summary_vi: "Slice/copy chỉ sao chép lớp ngoài; list lồng nhau vẫn dùng chung."
+  - id: m04
+    type: text
+    md: |
+      **Shallow copy** (`a[:]`, `a.copy()`, `list(a)`) tạo list ngoài mới nhưng các phần tử bên trong
+      vẫn là **cùng đối tượng**. Với list lồng nhau (ma trận), sửa phần tử con qua bản sao sẽ lộ ở bản gốc.
+      **Deep copy** (`copy.deepcopy`) sao chép đệ quy toàn bộ.
+
+      Một bẫy kinh điển khi tạo ma trận: `[[0] * n] * m` lặp lại **cùng một** hàng `m` lần. Hãy viết
+      `[[0] * n for _ in range(m)]` để mỗi hàng là một list riêng.
+  - id: m05
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      import copy
+      g = [[0, 0], [0, 0]]
+      s = g[:]
+      s[0][0] = 9
+      print(g, s[0] is g[0])
+      d = copy.deepcopy(g)
+      d[1][1] = 7
+      print(g, d)
+    expected_output: |
+      [[9, 0], [0, 0]] True
+      [[9, 0], [0, 0]] [[9, 0], [0, 7]]
+  - id: m06
+    type: callout
+    kind: warning
+    md: "Tham số mặc định mutable như `def f(x, acc=[])` được tạo **một lần** lúc định nghĩa hàm và dùng chung cho mọi lần gọi. Dùng `acc=None` rồi tạo list mới bên trong."
+  - id: p02
+    type: predict_output
+    code: |
+      rows = [[0] * 2] * 2
+      rows[0][0] = 5
+      print(rows)
+    expected_output: |
+      [[5, 0], [5, 0]]
+    explain_md: "`[[0] * 2] * 2` chứa hai tham chiếu tới cùng một hàng, nên sửa `rows[0][0]` cũng đổi `rows[1][0]`."
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Để sao chép hoàn toàn một list lồng nhau (kể cả các list con), dùng hàm `copy.___` (điền tên hàm)."
+    blanks: [{accept: ["deepcopy", "deepcopy()"]}]
+    explain_md: "`copy.deepcopy` sao chép đệ quy; `copy.copy`/slice chỉ sao chép lớp ngoài."
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Cách nào tạo ma trận 3 hàng 4 cột toàn 0 mà các hàng **độc lập**?"
+    options:
+      - {id: a, text_md: "`[[0] * 4] * 3`"}
+      - {id: b, text_md: "`[[0] * 4 for _ in range(3)]`"}
+      - {id: c, text_md: "`[0] * 12`"}
+    answer: [b]
+    explain_md: "Comprehension chạy `[0] * 4` ba lần, tạo ba list riêng. Cách (a) lặp cùng một hàng; cách (c) là một list phẳng."
+  - id: m07
+    type: summary
+    bullets_vi:
+      - "Biến là tên trỏ tới đối tượng; `b = a` chỉ thêm tên (aliasing), không sao chép."
+      - "Mutable (list, dict, set) sửa tại chỗ lộ cho mọi tên; immutable (int, str, tuple) khi 'sửa' thì tạo đối tượng mới."
+      - "`==` so giá trị, `is` so danh tính; hàm nhận tham chiếu đối tượng: sửa tại chỗ thấy bên ngoài, gán lại tên thì không."
+      - "Slice/copy là shallow; dùng `copy.deepcopy` cho cấu trúc lồng; tạo ma trận bằng comprehension."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [Q044], l2: [Q045], l3: []}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
 source:
   tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
-  authored_by: tools/gen_lesson_stubs.py
+  authored_by: "claude"
   reviewed_by: null
-  date: '2026-10-24'
+  date: "2026-11-02"

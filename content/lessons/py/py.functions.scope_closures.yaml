@@ -1,24 +1,186 @@
 id: py.functions.scope_closures
 version: 1
-status: draft
-title_vi: Scope, LEGB và closure
-est_minutes: 10
+status: published
+title_vi: "Scope, LEGB và closure"
+est_minutes: 12
 objectives_vi:
-- Giải thích biến cục bộ và toàn cục.
-- Viết closure giữ trạng thái bằng nonlocal và dự đoán kết quả mà không cần chạy thử.
-blocks: []
-problems:
-  practice: []
-  extra: []
-mastery_check:
-  l1: []
-  l2: []
-  l3: []
-checkpoint:
-  pass_ratio: 0.7
-  min_items: 3
+  - "Giải thích biến cục bộ (local) và toàn cục (global), và quy tắc tìm tên LEGB."
+  - "Dùng global và nonlocal đúng chỗ, hiểu vì sao gán vào biến ngoài hàm gây UnboundLocalError."
+  - "Viết closure giữ trạng thái và dự đoán kết quả của lỗi late binding trong vòng lặp."
+blocks:
+  - id: s_legb
+    type: section
+    title_vi: "Phạm vi (scope) và quy tắc LEGB"
+    summary_vi: "Biến tạo trong hàm chỉ sống trong hàm; Python tìm tên theo thứ tự Local, Enclosing, Global, Built-in."
+  - id: b01
+    type: text
+    md: |
+      **Phạm vi (scope)** quyết định tên biến dùng được ở đâu. Biến được gán bên trong hàm là **biến
+      cục bộ (local)**: chỉ tồn tại trong lần gọi hàm đó. Biến gán ngoài mọi hàm là **biến toàn cục
+      (global)** của module.
+
+      Khi gặp một tên, Python tìm theo thứ tự **LEGB**:
+
+      1. **L**ocal: trong hàm hiện tại.
+      2. **E**nclosing: trong các hàm bao bên ngoài (nếu hàm được viết lồng).
+      3. **G**lobal: cấp module.
+      4. **B**uilt-in: tên có sẵn như `len`, `print`.
+
+      Gán `x = ...` trong hàm **tạo một biến local mới** chứ không sửa biến `x` bên ngoài, kể cả khi
+      hai biến trùng tên.
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      x = "global"
+
+      def f():
+          x = "local"
+          return x
+
+      print(f(), x)
+
+      counter = 0
+
+      def bump():
+          global counter
+          counter += 1
+
+      bump()
+      bump()
+      print(counter)
+    expected_output: |
+      local global
+      2
+  - id: c01
+    type: callout
+    kind: warning
+    md: "Chỉ cần có phép gán `x = ...` hoặc `x += 1` ở đâu đó trong thân hàm, `x` được coi là local trong **toàn bộ** hàm. Đọc `x` trước khi gán sẽ báo `UnboundLocalError`. Muốn sửa biến toàn cục thì khai báo `global x`; tốt hơn là truyền tham số và trả về giá trị."
+  - id: q01
+    type: quiz_mcq
+    prompt_md: |
+      Đoạn code sau xảy ra điều gì?
+
+      ```python
+      x = 0
+      def f():
+          x += 1
+      f()
+      ```
+    options:
+      - {id: a, text_md: "`x` toàn cục tăng lên 1"}
+      - {id: b, text_md: "`UnboundLocalError`, vì `x += 1` biến `x` thành local nhưng chưa có giá trị"}
+      - {id: c, text_md: "`NameError`, vì `x` chưa được định nghĩa ở đâu cả"}
+    answer: [b]
+    explain_md: "`x += 1` là phép gán nên Python coi `x` là local của `f`; đọc nó trước khi có giá trị gây `UnboundLocalError`. Sửa bằng `global x` hoặc truyền tham số."
+  - id: s_closure
+    type: section
+    title_vi: "Closure và nonlocal"
+    summary_vi: "Hàm lồng nhớ biến của hàm ngoài; nonlocal cho phép gán lại biến đó."
+  - id: b03
+    type: text
+    md: |
+      **Closure** là hàm viết bên trong hàm khác và "nhớ" các biến của hàm ngoài, kể cả khi hàm ngoài
+      đã chạy xong. Hàm trong tìm biến ở tầng **E** (Enclosing) của LEGB.
+
+      Đọc biến của hàm ngoài thì không cần khai báo gì. Nhưng muốn **gán lại** biến đó thì phải khai
+      báo **`nonlocal`**, nếu không phép gán sẽ tạo một local mới. Mỗi lần gọi hàm ngoài tạo ra một
+      closure **độc lập** với trạng thái riêng.
+  - id: b04
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      def make_counter():
+          dem = 0
+          def tang():
+              nonlocal dem
+              dem += 1
+              return dem
+          return tang
+
+      c = make_counter()
+      print(c(), c(), c())
+      d = make_counter()
+      print(d())
+    expected_output: |
+      1 2 3
+      1
+  - id: q02
+    type: predict_output
+    code: |
+      def nhan(k):
+          def inner(x):
+              return x * k
+          return inner
+
+      tam = nhan(3)
+      print(tam(5))
+
+      x = 10
+      def show():
+          return x
+      x = 20
+      print(show())
+    expected_output: |
+      15
+      20
+    explain_md: "`inner` nhớ `k = 3` của lần gọi `nhan(3)` nên `tam(5)` là 15. `show` tìm `x` ở tầng Global **tại lúc gọi**, khi đó `x` đã là 20."
+  - id: q03
+    type: quiz_fill
+    prompt_md: "Để hàm lồng nhau gán lại được biến của hàm bao ngoài (không phải biến global), ta khai báo từ khóa ___ trong hàm trong."
+    blanks: [{accept: ["nonlocal"]}]
+    explain_md: "`nonlocal` trỏ tên tới biến ở tầng Enclosing; `global` thì trỏ tới biến cấp module."
+  - id: s_late
+    type: section
+    title_vi: "Late binding trong vòng lặp"
+    summary_vi: "Closure giữ biến, không giữ giá trị: bẫy kinh điển với lambda trong vòng lặp."
+  - id: b05
+    type: text
+    md: |
+      Closure ghi nhớ **biến** chứ không chụp lại **giá trị** tại lúc tạo. Giá trị chỉ được tra khi
+      hàm được **gọi** (gọi là *late binding*). Vì vậy nhiều hàm tạo trong một vòng lặp đều dùng
+      chung một biến `i`, và khi bạn gọi chúng thì vòng lặp đã xong, `i` giữ giá trị cuối.
+
+      Cách sửa quen thuộc: gắn giá trị vào **tham số mặc định** (được tính ngay lúc định nghĩa), ví dụ
+      `lambda i=i: i`.
+  - id: q04
+    type: predict_output
+    code: |
+      fs = [lambda: i for i in range(3)]
+      print([f() for f in fs])
+      gs = [lambda i=i: i for i in range(3)]
+      print([g() for g in gs])
+    expected_output: |
+      [2, 2, 2]
+      [0, 1, 2]
+    explain_md: "Ba lambda đầu cùng nhìn vào một biến `i`; khi gọi, `i` đã là 2 nên ra `[2, 2, 2]`. Ở dòng sau, `i=i` ép lấy giá trị hiện tại làm mặc định cho mỗi lambda nên ra `[0, 1, 2]`."
+  - id: c02
+    type: callout
+    kind: interview
+    md: "Câu phỏng vấn kinh điển: `[lambda: i for i in range(3)]` cho kết quả gì và sửa thế nào? Trả lời: `[2, 2, 2]` do late binding; sửa bằng tham số mặc định `lambda i=i: i` hoặc dùng hàm bao ngoài (factory)."
+  - id: q05
+    type: quiz_mcq
+    prompt_md: "Vì sao closure `lambda: i` tạo trong vòng lặp `for i in range(3)` đều trả cùng một giá trị?"
+    options:
+      - {id: a, text_md: "Vì `range` chỉ sinh ra một số"}
+      - {id: b, text_md: "Vì mỗi lambda chụp sẵn giá trị đầu tiên của `i`"}
+      - {id: c, text_md: "Vì các lambda cùng dùng một biến `i` và chỉ tra giá trị khi được gọi"}
+    answer: [c]
+    explain_md: "Closure giữ tham chiếu tới biến, không giữ giá trị. Lúc gọi, `i` đã là giá trị cuối của vòng lặp."
+  - id: b99
+    type: summary
+    bullets_vi:
+      - "Biến gán trong hàm là local; Python tìm tên theo LEGB: Local, Enclosing, Global, Built-in."
+      - "Có phép gán `x` trong hàm thì `x` là local cả hàm; đọc trước khi gán gây `UnboundLocalError`. Dùng `global x` để sửa biến module (hạn chế)."
+      - "Closure là hàm lồng nhớ biến của hàm ngoài; muốn gán lại biến đó thì dùng `nonlocal`. Mỗi lần gọi hàm ngoài cho một closure độc lập."
+      - "Late binding: closure tra giá trị biến lúc gọi, nên `[lambda: i for i in range(3)]` cho `[2, 2, 2]`; sửa bằng `lambda i=i: i`."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [Q039], l2: [Q040], l3: []}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
 source:
   tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
-  authored_by: tools/gen_lesson_stubs.py
+  authored_by: "claude"
   reviewed_by: null
-  date: '2026-10-24'
+  date: "2026-11-02"

@@ -28,6 +28,7 @@ from jsonschema.exceptions import best_match
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "apps/api"))
 
 from app.services.concepts import PRACTICES, registry_of, registry_problems  # noqa: E402
+from app.services.content_loader import CONCEPT_SUBTOPICS  # noqa: E402
 from common import CONTENT, ROOT, load_json, load_yaml, read_jsonl
 from gen_hidden import generate_hidden, load_generator
 from run_problem import engine_limit_ms, load_tests, run_native, run_pyodide
@@ -64,10 +65,6 @@ NEEDS_L2_WRITE_CODE = {
     "py.datastructs.tuple_namedtuple",
     "py.datastructs.copying_mutability",
     "py.functions.lambda_hof",
-    "cs.complexity.big_o",
-    "dsa.foundations.memory_model",
-    "py.functions.scope_closures",
-    "dsa.foundations.interview_method",
 }
 
 
@@ -235,7 +232,12 @@ class Validator:
         # for ml, because a few ml subtopics sit under a module whose name differs from their id
         # prefix (e.g. ml.fundamentals.reinforcement_learning_basics lives in module ml.llm); every
         # shipped ml subtopic is part of a concept track by the sync_tree selection.
-        concept_track = section in EXTRA_SECTIONS or section == "ml" or module in EXTRA_MODULES
+        concept_track = (
+            section in EXTRA_SECTIONS
+            or section == "ml"
+            or module in EXTRA_MODULES
+            or lesson["id"] in CONCEPT_SUBTOPICS
+        )
         has_wc2 = any(i["difficulty"] == 2 and i["type"] == "write_code" for i in items.values())
         if concept_track and not has_wc2:
             # A concept subtopic (System Design + the AI-engineer LLM track, no code) is gated by a

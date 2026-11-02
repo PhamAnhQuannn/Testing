@@ -1,24 +1,145 @@
 id: cs.complexity.big_o
 version: 1
-status: draft
-title_vi: Ký hiệu tiệm cận Big-O, Theta, Omega (asymptotic notation)
-est_minutes: 10
+status: published
+title_vi: "Ký hiệu tiệm cận Big-O, Theta, Omega (asymptotic notation)"
+est_minutes: 12
 objectives_vi:
-- Xếp hạng các mức độ phức tạp, phân biệt trường hợp tốt và xấu nhất.
-- Đọc ra Big-O từ một đoạn code ngắn.
-blocks: []
-problems:
-  practice: []
-  extra: []
-mastery_check:
-  l1: []
-  l2: []
-  l3: []
-checkpoint:
-  pass_ratio: 0.7
-  min_items: 3
+  - "Phân biệt Big-O (chặn trên), Omega (chặn dưới) và Theta (chặt), và xếp hạng các mức phức tạp thường gặp."
+  - "Đọc ra Big-O từ một đoạn code: đếm vòng lặp, bỏ hằng số và số hạng nhỏ."
+  - "Phân biệt time và space, và ước lượng một giải pháp có kịp giới hạn thời gian hay không."
+blocks:
+  - id: s_notation
+    type: section
+    title_vi: "Big-O, Omega, Theta và các mức phức tạp"
+    summary_vi: "Mô tả tốc độ tăng của số bước khi n lớn, bỏ qua hằng số và số hạng nhỏ."
+  - id: b01
+    type: text
+    md: |
+      Ta không đo thời gian bằng giây (phụ thuộc máy) mà đếm **số bước** như một hàm của kích thước
+      đầu vào `n`, rồi chỉ giữ lại **tốc độ tăng** khi `n` lớn.
+
+      - **Big-O**, `O(f(n))`: chặn **trên**, "không chậm hơn cỡ `f(n)`". Hay dùng cho trường hợp xấu nhất.
+      - **Omega**, `Ω(f(n))`: chặn **dưới**, "không nhanh hơn cỡ `f(n)`".
+      - **Theta**, `Θ(f(n))`: chặn **chặt** cả hai phía, tức tốc độ tăng chính xác cỡ `f(n)`.
+
+      Hai quy tắc rút gọn: **bỏ hằng số** (`3n` và `n` cùng là `O(n)`) và **bỏ số hạng bậc thấp**
+      (`n^2 + 100n + 5` là `O(n^2)`). Thứ tự từ nhanh đến chậm:
+
+      `O(1) < O(log n) < O(n) < O(n log n) < O(n^2) < O(2^n)`
+  - id: c01
+    type: callout
+    kind: beginner
+    md: "Trong phỏng vấn, người ta nói \"O(n)\" nhưng thường ý là Theta, tức mức tăng chính xác. Big-O đúng nghĩa chỉ là chặn trên: một thuật toán `O(n)` cũng đúng là `O(n^2)`, chỉ là lỏng lẻo."
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Hàm `T(n) = 5n^2 + 40n + 7` có độ phức tạp nào (dạng chặt nhất)?"
+    options:
+      - {id: a, text_md: "`O(n)`"}
+      - {id: b, text_md: "`O(n^2)`"}
+      - {id: c, text_md: "`O(n^3)`"}
+    answer: [b]
+    explain_md: "Bỏ số hạng bậc thấp (`40n`, `7`) và hằng số `5`, còn `n^2`. `O(n^3)` vẫn đúng nhưng lỏng, `O(n)` thì sai vì `T` tăng nhanh hơn."
+  - id: s_loops
+    type: section
+    title_vi: "Phân loại vòng lặp"
+    summary_vi: "Đếm số lần thân vòng lặp chạy: O(n), O(n^2), O(log n)."
+  - id: b02
+    type: text
+    md: |
+      Cách đọc Big-O từ code là **đếm số lần câu lệnh trong cùng chạy**:
+
+      - Một vòng lặp chạy `n` lần: `O(n)`. Hai vòng lặp **nối tiếp** (không lồng): `O(n) + O(n) = O(n)`.
+      - Hai vòng lặp **lồng nhau** đều chạy `n` lần: `n * n`, tức `O(n^2)`.
+      - Vòng lặp trong chạy `i` lần với `i` từ 0 đến `n-1`: tổng `0+1+...+(n-1) = n(n-1)/2`, vẫn `O(n^2)`.
+      - Biến chạy bị **chia đôi** (hoặc nhân đôi) mỗi lần: `O(log n)`.
+      - Vài phép gán/so sánh không phụ thuộc `n`: `O(1)`.
+
+      Mẹo để tự kiểm tra: gắn một biến đếm vào thân vòng lặp rồi in ra.
+  - id: q02
+    type: predict_output
+    code: |
+      dem = 0
+      for i in range(4):
+          for j in range(4):
+              dem += 1
+      print(dem)
+
+      cnt = 0
+      for i in range(6):
+          for j in range(i):
+              cnt += 1
+      print(cnt)
+    expected_output: |
+      16
+      15
+    explain_md: "Vòng lồng đầy đủ chạy 4 * 4 = 16 lần (dạng n^2). Vòng thứ hai chạy 0+1+2+3+4+5 = 15 = 6*5/2 lần, cũng tăng theo n^2."
+  - id: q03
+    type: predict_output
+    code: |
+      n = 64
+      buoc = 0
+      while n > 1:
+          n //= 2
+          buoc += 1
+      print(buoc)
+
+      cnt = 0
+      for i in range(10):
+          cnt += 1
+      for j in range(10):
+          cnt += 1
+      print(cnt)
+    expected_output: |
+      6
+      20
+    explain_md: "Chia đôi 64 liên tục: 32, 16, 8, 4, 2, 1 là 6 bước, đúng `log2(64)`, nên là `O(log n)`. Hai vòng nối tiếp chạy 10 + 10 = 20 lần, tức `O(n)` chứ không phải `O(n^2)`."
+  - id: s_time_space
+    type: section
+    title_vi: "Time, space và ước lượng thực tế"
+    summary_vi: "Phân biệt thời gian và bộ nhớ; dùng n để đoán có kịp giới hạn thời gian không."
+  - id: b03
+    type: text
+    md: |
+      **Time complexity** đếm số bước; **space complexity** đếm bộ nhớ **phụ** thuộc vào `n`. Hai
+      thứ này thường đánh đổi nhau (ví dụ dùng `set` thêm `O(n)` bộ nhớ để tra cứu `O(1)` trung bình).
+      Đệ quy sâu `n` tầng tốn `O(n)` bộ nhớ stack, và Python mặc định giới hạn khoảng 1000 tầng.
+
+      Quy tắc ước lượng: Python làm được cỡ `10^7` phép đơn giản mỗi giây. Với `n = 10^5`:
+      `O(n)` (10^5) và `O(n log n)` (khoảng 1,7 * 10^6) kịp, còn `O(n^2)` (10^10) thì không.
+
+      Một vài mức quen thuộc của cấu trúc có sẵn: `x in list` là `O(n)`, `x in set` là `O(1)` trung
+      bình, `list.pop(0)` là `O(n)` còn `deque.popleft()` là `O(1)`, `sorted` là `O(n log n)`,
+      `heapq.heappush` là `O(log n)`.
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Duyệt tìm một phần tử bằng `x in some_list` (list không sắp xếp) tốn O(___) trong trường hợp xấu nhất (điền `n`, `log n` hoặc `1`)."
+    blanks: [{accept: ["n", "O(n)"]}]
+    explain_md: "Phải so sánh lần lượt từng phần tử nên xấu nhất là `n` phép. Với `set` mới là `O(1)` trung bình."
+  - id: c02
+    type: callout
+    kind: tip
+    md: "Trước khi code, hãy nhìn giới hạn `n` của đề: `n` cỡ 10^5 trở lên thì thường cần `O(n)` hoặc `O(n log n)`; `n` cỡ vài nghìn mới chịu được `O(n^2)`."
+  - id: q05
+    type: quiz_mcq
+    prompt_md: "Bài cho `n = 10^5`, giới hạn khoảng 1 giây trong Python. Giải pháp nào **không** kịp?"
+    options:
+      - {id: a, text_md: "Giải pháp `O(n^2)`"}
+      - {id: b, text_md: "Giải pháp `O(n log n)`"}
+      - {id: c, text_md: "Giải pháp `O(n)`"}
+    answer: [a]
+    explain_md: "`n^2 = 10^10` phép, vượt xa mức khoảng 10^7 phép mỗi giây của Python. `O(n log n)` (khoảng 1,7 * 10^6) và `O(n)` đều kịp."
+  - id: b99
+    type: summary
+    bullets_vi:
+      - "Big-O là chặn trên, Omega là chặn dưới, Theta là chặn chặt; chỉ giữ tốc độ tăng, bỏ hằng số và số hạng bậc thấp."
+      - "Thứ tự: O(1) < O(log n) < O(n) < O(n log n) < O(n^2) < O(2^n)."
+      - "Đọc từ code: vòng nối tiếp cộng lại, vòng lồng nhân lại, biến bị chia đôi mỗi lần là O(log n); tổng 0+1+...+(n-1) vẫn là O(n^2)."
+      - "Phân biệt time và space; ước lượng với giới hạn n: n = 10^5 thì O(n^2) không kịp, O(n log n) kịp."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [Q041], l2: [Q042], l3: [Q043]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
 source:
   tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
-  authored_by: tools/gen_lesson_stubs.py
+  authored_by: "claude"
   reviewed_by: null
-  date: '2026-10-24'
+  date: "2026-11-02"

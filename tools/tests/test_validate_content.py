@@ -122,7 +122,10 @@ def test_published_lesson_needs_graded_blocks(content):
 
 
 def test_non_draft_lesson_cannot_be_empty(content):
-    edit(content / "lessons/cs/cs.complexity.big_o.yaml", "status: draft", "status: validated")
+    path = content / DICT_LESSON  # a published lesson; emptying its blocks must fail the schema
+    data = load_yaml(path)
+    data["blocks"] = []
+    path.write_text(dump_yaml(data), encoding="utf-8")
     assert any("blocks" in e for e in lesson_errors(content))
 
 

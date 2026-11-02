@@ -134,3 +134,15 @@ def test_real_content_loads(tmp_path):
         assert len(c.get("/api/map").json()["subtopics"]) == 165
         assert c.get("/api/lessons/py.datastructs.dict").status_code == 200
         assert c.get("/api/problems/ransom-note").json()["id"] == "ransom-note"
+
+
+def test_concept_subtopic_override():
+    store = ContentStore.load(REPO_ROOT / "content", serve_drafts=True)
+    for sid in (
+        "dsa.foundations.memory_model",
+        "dsa.foundations.interview_method",
+        "py.functions.scope_closures",
+        "cs.complexity.big_o",
+    ):
+        assert store.spec_for(sid).is_concept is True, sid
+    assert store.spec_for("dsa.foundations.lib_toolkit").is_concept is False
