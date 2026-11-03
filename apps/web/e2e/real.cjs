@@ -234,7 +234,9 @@ async function main() {
     const stillDisabled = await page.locator("#block-b04 fieldset").evaluate((e) => e.disabled);
     check("reload: answered quiz stays answered (server progress)", stillDisabled && stateText.includes("Đúng"));
     await gotoItem(page, "b12");
-    check("reload: wrong answer b12 remembered as wrong",(await page.locator("#block-b12 fieldset").innerText()).includes("Chưa đúng"));
+    await page.locator("#block-b12 fieldset [role=status]").waitFor({ timeout: 5000 }).catch(() => undefined);
+    const b12txt = await page.locator("#block-b12 fieldset").innerText();
+    check("reload: wrong answer b12 remembered as wrong", b12txt.includes("Chưa đúng"), b12txt.replace(/\s+/g, " ").slice(0, 140));
     check("reload: quiz tally 4/5", (await page.locator(".crumbs").innerText()).includes("Quiz 4/5"), (await page.locator(".crumbs").innerText()).replace(/\n/g, " "));
 
     // ---- complete the lesson: quiz passed (4/5), no problem solved yet -> score 1
