@@ -26,6 +26,7 @@ import { BlockView, type BlockContext } from "../lesson/Blocks";
 import { SectionPane } from "../lesson/SectionPane";
 import { SectionRail } from "../lesson/SectionRail";
 import {
+  allLessonExercises,
   canAdvance,
   deriveSections,
   sectionIndexOfBlock,
@@ -235,6 +236,20 @@ function LessonView({ lesson }: { lesson: Lesson }) {
   const exercisesInSection = section.blocks.filter((b) => b.type === "code_exercise");
   const exercise =
     exercisesInSection.find((b) => b.id === active && b.type === "code_exercise") ?? section.exercise;
+  const exIndex = exercise ? exercisesInSection.findIndex((b) => b.id === exercise.id) : -1;
+  const allExercises = useMemo(() => allLessonExercises(sections), [sections]);
+  const goExerciseInSection = (i: number) => {
+    const target = exercisesInSection[i];
+    if (target) {
+      setActive(target.id);
+      setPane("right");
+    }
+  };
+  const jumpToExercise = (targetSectionIdx: number, exerciseId: string) => {
+    goTo(targetSectionIdx, false);
+    setActive(exerciseId);
+    setPane("right");
+  };
   const status = (s: Section) => sectionStatus(s, { visited: viewed, done, results, skipped });
   const sectionDone = (s: Section) => status(s) === "done";
   const curStatus = status(section);
@@ -517,6 +532,14 @@ function LessonView({ lesson }: { lesson: Lesson }) {
       canEdit={ctx.canEdit}
       results={results}
       practice={lesson.problems.practice}
+      extra={lesson.problems.extra}
+      exercises={exercisesInSection}
+      exIndex={exIndex}
+      allExercises={allExercises}
+      doneExercises={done}
+      onPrevExercise={() => goExerciseInSection(exIndex - 1)}
+      onNextExercise={() => goExerciseInSection(exIndex + 1)}
+      onJump={jumpToExercise}
       onPassed={onPassed}
       onNext={() => goTo(sectionIdx + 1)}
       isLast={isLast}
