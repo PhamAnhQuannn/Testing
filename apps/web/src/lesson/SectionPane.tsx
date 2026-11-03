@@ -15,6 +15,8 @@ export function SectionPane({
   onPassed,
   onNext,
   isLast,
+  canNext = true,
+  nextHint = "",
 }: {
   subtopicId: string;
   section: Section;
@@ -26,6 +28,8 @@ export function SectionPane({
   onPassed: (blockId: string) => void;
   onNext: () => void;
   isLast: boolean;
+  canNext?: boolean;
+  nextHint?: string;
 }) {
   if (exercise) {
     if (!canEdit) {
@@ -53,10 +57,11 @@ export function SectionPane({
           Trả lời các câu hỏi ở khung bên trái: {answered}/{graded.length} câu đã có kết quả.
         </p>
         {!isLast && (
-          <button className="btn sm" onClick={onNext}>
+          <button className="btn sm" onClick={onNext} disabled={!canNext}>
             Phần sau ►
           </button>
         )}
+        {!isLast && !canNext && nextHint && <p className="muted">{nextHint}</p>}
       </div>
     );
   }
@@ -74,10 +79,11 @@ export function SectionPane({
         <p className="muted">Đọc xong phần này thì tiếp tục.</p>
       )}
       {!isLast && (
-        <button className="btn sm primary" onClick={onNext}>
+        <button className="btn sm primary" onClick={onNext} disabled={!canNext}>
           Tiếp tục ►
         </button>
       )}
+      {!isLast && !canNext && nextHint && <p className="muted">{nextHint}</p>}
       {practice.length > 0 && (
         <p>
           Bài luyện chính:{" "}

@@ -56,6 +56,37 @@ export function deriveSections(blocks: LessonBlock[]): Section[] {
   return sections;
 }
 
+export type SecStatus = "done" | "ready" | "todo";
+
+/**
+ * Pure: how far along a section is. "done" = finished; "ready" = may advance without finishing
+ * (code section the user chose to skip); "todo" = still needs the user's action.
+ */
+export function sectionStatus(
+  s: Section,
+  p: {
+    visited: Set<string>;
+    done: Set<string>;
+    results: Record<string, boolean>;
+    skipped: Set<string>;
+  },
+): SecStatus {
+  if (s.kind === "code") {
+    if (s.exercise && p.done.has(s.exercise.id)) return "done";
+    return p.skipped.has(s.id) ? "ready" : "todo";
+  }
+  if (s.kind === "quiz") {
+    const graded = s.blocks.filter(isGraded);
+    return graded.length > 0 && graded.every((b) => b.id in p.results) ? "done" : "todo";
+  }
+  return p.visited.has(s.id) ? "done" : "todo";
+}
+
+/** Pure: whether the "next section" button may unlock for a status. */
+export function canAdvance(status: SecStatus): boolean {
+  return status !== "todo";
+}
+
 /** Index of the section containing a block id (or whose own id it is); -1 if none. */
 export function sectionIndexOfBlock(sections: Section[], blockId: string | undefined): number {
   if (!blockId) return -1;

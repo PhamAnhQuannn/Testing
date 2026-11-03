@@ -23,7 +23,13 @@ import { ResumeReporter } from "../lib/resumeReporter";
 import { BlockView, type BlockContext } from "../lesson/Blocks";
 import { SectionPane } from "../lesson/SectionPane";
 import { SectionRail } from "../lesson/SectionRail";
-import { deriveSections, sectionIndexOfBlock, type Section } from "../lesson/sections";
+import {
+  canAdvance,
+  deriveSections,
+  sectionIndexOfBlock,
+  sectionStatus,
+  type Section,
+} from "../lesson/sections";
 
 export default function LessonPage() {
   const { subtopicId } = useParams();
@@ -95,6 +101,20 @@ function LessonView({ lesson }: { lesson: Lesson }) {
   const sections = useMemo(() => deriveSections(lesson.blocks), [lesson.blocks]);
   const [sectionIdx, setSectionIdx] = useState(0);
   const [viewed, setViewed] = useState<Set<string>>(() => readViewed(lesson.id));
+  const [skipped, setSkipped] = useState<Set<string>>(new Set());
+  const [tocOpen, setTocOpen] = useState<boolean>(() => {
+    try {
+      const v = lsGet("prep:toc:open");
+      return v === null ? layout === "split" : v === "1";
+    } catch {
+      return true;
+    }
+  });
+  const toggleToc = () => {
+    const next = !tocOpen;
+    setTocOpen(next);
+    lsSet("prep:toc:open", next ? "1" : "0");
+  };
   const [runNo, setRunNo] = useState(lesson.run_no);
   const [results, setResults] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(Object.entries(lesson.answers).map(([id, a]) => [id, a.correct])),
@@ -125,6 +145,12 @@ function LessonView({ lesson }: { lesson: Lesson }) {
     },
     [lesson.id],
   );
+
+  // arriving on a section counts as visiting it (so the last section counts too)
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- persists to localStorage; idempotent
+    markViewed(sections[Math.min(sectionIdx, sections.length - 1)].id);
+  }, [sectionIdx, sections, markViewed]);
 
   const goTo = useCallback(
     (index: number, scroll = true) => {
@@ -200,9 +226,23 @@ function LessonView({ lesson }: { lesson: Lesson }) {
   const exercisesInSection = section.blocks.filter((b) => b.type === "code_exercise");
   const exercise =
     exercisesInSection.find((b) => b.id === active && b.type === "code_exercise") ?? section.exercise;
-  const sectionDone = (s: Section) => (s.exercise ? done.has(s.exercise.id) : viewed.has(s.id));
-  const exercisePassed = section.exercise ? done.has(section.exercise.id) : false;
-  const doneCount = sections.filter(sectionDone).length;
+  const status = (s: Section) => sectionStatus(s, { visited: viewed, done, results, skipped });
+  const sectionDone = (s: Section) => status(s) === "done";
+  const curStatus = status(section);
+  const doneCount = sections.filter((s) => status(s) === "done").length;
+  const visitedCount = sections.filter((s) => viewed.has(s.id)).length;
+  const nextHint =
+    curStatus !== "todo" || isLast
+      ? ""
+      : section.kind === "quiz"
+        ? "Trả lời hết câu hỏi để mở phần sau"
+        : section.kind === "code"
+          ? "Giải bài tập (hoặc Bỏ qua) để tiếp"
+          : "";
+  const skipAndNext = () => {
+    setSkipped((prev) => new Set(prev).add(section.id));
+    goTo(sectionIdx + 1);
+  };
   const ctx: BlockContext = {
     subtopicId: lesson.id,
     runNo,
@@ -309,7 +349,16 @@ function LessonView({ lesson }: { lesson: Lesson }) {
             </ul>
           )}
           {sections.length > 1 && (
-            <SectionRail sections={sections} idx={sectionIdx} done={sectionDone} viewed={viewed} onSelect={goTo} />
+            <SectionRail
+              sections={sections}
+              idx={sectionIdx}
+              done={sectionDone}
+              viewed={viewed}
+              onSelect={goTo}
+              open={tocOpen}
+              onToggle={toggleToc}
+              doneCount={doneCount}
+            />
           )}
           <fieldset className="preview-fieldset" disabled={preview}>
           {section.title && <h2>{section.title}</h2>}
@@ -361,6 +410,27 @@ function LessonView({ lesson }: { lesson: Lesson }) {
               </div>
             )}
             {completed && !outcome && <p className="muted">Bạn đã hoàn thành bài học này.</p>}
+            {sections.length > 1 &&
+              (visitedCount < sections.length ? (
+                <p className="muted">
+                  Xem hết {sections.length} phần để mở Kiểm tra (còn {sections.length - visitedCount} phần). Làm
+                  Kiểm tra để lên Điểm mục 2/3.
+                </p>
+              ) : (
+                <div style={{ marginTop: 12 }}>
+                  <button className="btn primary" onClick={() => navigate(`/check/${lesson.id}`)}>
+                    Kiểm tra để lên điểm 2/3 ►
+                  </button>
+                  <p className="muted">
+                    Điểm 1 = đọc bài + quiz ≥70%. Điểm 2 = làm Kiểm tra/giải bài sạch. Điểm 3 = nâng cao + ôn giữ
+                    ≥7 ngày.
+                  </p>
+                  <p>
+                    <Link to={`/check/${lesson.id}?ctx=test_out`}>Test out</Link> ·{" "}
+                    <Link to="/">◄ Chọn mục khác</Link>
+                  </p>
+                </div>
+              ))}
           </section>
           )}
           </fieldset>
@@ -373,18 +443,20 @@ function LessonView({ lesson }: { lesson: Lesson }) {
                 <span aria-live="polite">
                   Phần {sectionIdx + 1}/{sections.length} · xong {doneCount}/{sections.length}
                 </span>
-                {section.exercise && !exercisePassed && !isLast && (
-                  <button className="btn sm ghost" onClick={() => goTo(sectionIdx + 1)} title="Bỏ qua bài tập, sang phần sau">
+                {section.exercise && curStatus !== "done" && !isLast && (
+                  <button className="btn sm ghost" onClick={skipAndNext} title="Bỏ qua bài tập, sang phần sau">
                     Bỏ qua
                   </button>
                 )}
                 <button
-                  className={`btn sm${exercisePassed ? " primary" : ""}`}
+                  className={`btn sm${curStatus === "done" ? " primary" : ""}`}
                   onClick={() => goTo(sectionIdx + 1)}
-                  disabled={isLast}
+                  disabled={isLast || !canAdvance(curStatus)}
+                  title={nextHint || undefined}
                 >
                   Phần sau ►
                 </button>
+                {nextHint && <span className="muted">{nextHint}</span>}
               </div>
               <div className="progress" aria-hidden="true">
                 <div style={{ width: `${(doneCount / Math.max(1, sections.length)) * 100}%` }} />
@@ -407,6 +479,8 @@ function LessonView({ lesson }: { lesson: Lesson }) {
       onPassed={onPassed}
       onNext={() => goTo(sectionIdx + 1)}
       isLast={isLast}
+      canNext={canAdvance(curStatus)}
+      nextHint={nextHint}
     />
   );
 
