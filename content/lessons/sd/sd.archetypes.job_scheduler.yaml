@@ -1,5 +1,5 @@
 id: sd.archetypes.job_scheduler
-version: 1
+version: 2
 status: published
 title_vi: "Thiết kế bộ lập lịch job phân tán (distributed job scheduler)"
 est_minutes: 14
@@ -8,6 +8,10 @@ objectives_vi:
   - "Mô tả tầng scheduler quét job đến hạn rồi đẩy vào worker pool, và chống chạy trùng (duplicate execution) bằng leader election/khóa phân tán hoặc nhận job nguyên tử (atomic claim)."
   - "Lập luận vì sao kích hoạt chỉ đạt ít nhất một lần (at-least-once) nên job phải idempotent, và xử lý bỏ lỡ (missed executions), retry + DLQ, backpressure, trạng thái/visibility."
 blocks:
+  - id: s_storage_tier
+    type: section
+    title_vi: "Lưu job, tìm job đến hạn và tầng scheduler"
+    summary_vi: "Job có ba kiểu (chạy ngay, one-off, cron) và được lưu kèm run_at; chỉ mục trên run_at, time bucket, timing wheel hay delay queue giúp lấy đúng nhóm job đến hạn thay vì quét cả bảng. Tầng scheduler chỉ trả lời đã đến giờ chưa rồi đẩy job vào worker pool, nên hai tầng scale độc lập."
   - id: b01
     type: text
     md: |
@@ -52,6 +56,10 @@ blocks:
       - {id: c, text_md: "Vì không có chỉ mục thì không thể lưu được job lặp (recurring)."}
     answer: [a]
     explain_md: "Chỉ mục trên run_at (hay time bucket) biến việc tìm job đến hạn từ quét toàn bảng O(n) mỗi giây thành lấy đúng nhóm nhỏ. (b) sai — chỉ mục giúp *tìm* job, không làm việc của worker nhanh hơn; (c) sai — job lặp vẫn lưu được, chỉ là tìm chậm nếu không có chỉ mục."
+  - id: s_no_duplicate
+    type: section
+    title_vi: "Chống chạy trùng và at-least-once"
+    summary_vi: "Chạy nhiều scheduler để tránh điểm chết thì phải chống kích hoạt trùng bằng leader election/khóa phân tán hoặc atomic claim (UPDATE có điều kiện state = 'waiting'). Dù vậy chỉ đạt at-least-once do crash và lease hết hạn, nên job phải idempotent (dedupe theo run id), lỗi thì retry with backoff rồi vào DLQ."
   - id: b05
     type: text
     md: |
@@ -102,6 +110,10 @@ blocks:
       - accept: ["run id", "run_id", "mã lần chạy", "run id (mã lần chạy)"]
       - accept: ["DLQ", "dead-letter queue", "dead letter queue", "hàng lỗi"]
     explain_md: "At-least-once nghĩa là job có thể lặp lại, nên nó phải **idempotent**; khử trùng theo **run id** giúp hiệu ứng (gửi email, trừ tiền) chỉ xảy ra một lần dù job chạy lại. Job hỏng quá số lần thử lại rơi vào **DLQ (dead-letter queue)** để điều tra."
+  - id: s_ops
+    type: section
+    title_vi: "Bỏ lỡ, áp lực ngược và cách trình bày"
+    summary_vi: "Cần catch-up policy cho job bị bỏ lỡ khi scheduler chết, backpressure cùng priority/fairness khi worker không theo kịp, và state machine waiting → running → done/failed để giám sát. Khi phỏng vấn, nhận ra 'đúng một lần' gần như bất khả nên chuyển gánh nặng sang job idempotent."
   - id: b09
     type: text
     md: |

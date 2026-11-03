@@ -1,5 +1,5 @@
 id: sd.archetypes.workflow_engine
-version: 1
+version: 2
 status: published
 title_vi: "Workflow engine và thực thi bền (durable execution): lịch sử sự kiện và replay"
 est_minutes: 13
@@ -8,6 +8,10 @@ objectives_vi:
   - "Vẽ được ba thành phần lõi: lịch sử bền, hàng đợi việc (task queue) và bộ hẹn giờ (timer service), và vai trò từng cái."
   - "Nói được vì sao mỗi bước (activity) phải idempotent và vì sao code quy trình phải tất định (deterministic)."
 blocks:
+  - id: s_durable_replay
+    type: section
+    title_vi: "Thực thi bền và replay"
+    summary_vi: "Quy trình nhiều bước phải sống sót khi máy chết; tự viết saga cộng cột trạng thái dễ sai ở các ca hiếm. Engine ghi lịch sử sự kiện bền (đầu vào và kết quả mỗi bước) làm nguồn sự thật; worker khác replay lịch sử, bước đã có thì lấy kết quả cũ, chỉ chạy thật bước chưa có để tiếp tục từ chỗ dở."
   - id: b01
     type: text
     md: |
@@ -48,6 +52,10 @@ blocks:
       Replay trả kết quả đã ghi cho các bước có trong lịch sử (bước 1, 2) và chỉ chạy thật bước chưa
       có (bước 3), nên quy trình tiếp tục từ chỗ dở chứ không từ đầu. (a) sai vì sẽ lặp lại side
       effect; (c) sai vì lịch sử bền chính là cái cho engine biết đang ở đâu.
+  - id: s_queue_timer
+    type: section
+    title_vi: "Hàng đợi việc và bộ hẹn giờ"
+    summary_vi: "Engine đẩy activity vào task queue cho worker thực thi (giao at-least-once, thử lại khi lỗi) rồi ghi kết quả vào lịch sử. Bước chờ lâu chỉ là một dòng trong timer service (đến lúc T đánh thức quy trình X), nên hàng triệu quy trình chờ không tốn worker; timer cũng lo timeout và nhịp retry."
   - id: b05
     type: text
     md: |
@@ -73,6 +81,10 @@ blocks:
       Chờ lâu được hiện thực bằng timer service: một dòng dữ liệu ghi mốc đánh thức, không cần luồng
       hay worker ngồi chờ. (a) đúng nghĩa ngược — giữ một luồng cho mỗi quy trình chính là cái engine
       tránh; (c) nén lịch sử không liên quan đến chi phí của việc chờ.
+  - id: s_constraints
+    type: section
+    title_vi: "Idempotent, tất định và khi nào dùng engine"
+    summary_vi: "At-least-once cộng replay buộc mỗi activity phải idempotent (khoá như order_id + tên bước, đạt effectively-once) và code quy trình phải tất định: không đọc wall-clock/random trực tiếp mà dùng API engine, giá trị được ghi vào lịch sử. Quy trình 1-2 bước ngắn thì saga tự viết là đủ; engine đáng dùng khi quy trình dài, có chờ lâu và cần audit."
   - id: b07
     type: text
     md: |

@@ -1,5 +1,5 @@
 id: sd.archetypes.data_pipeline
-version: 1
+version: 2
 status: published
 title_vi: "Thiết kế pipeline dữ liệu: thu thập, xử lý, hai nhánh lưu"
 est_minutes: 14
@@ -8,6 +8,10 @@ objectives_vi:
   - "Phân biệt xử lý luồng và lô, và tranh luận lambda vs kappa; chọn đúng khi nào cần nhánh lô."
   - "Giải thích các mối lo xuyên suốt: ghi idempotent/exactly-once vào kho đích, quản lý schema (schema registry) và cách tính lại (replay/backfill) khi lỗi."
 blocks:
+  - id: s_ingestion
+    type: section
+    title_vi: "Khung ba tầng và thu thập"
+    summary_vi: "Mọi data pipeline có ba tầng: thu thập, xử lý, kho đích. SDK gom sự kiện gửi tới collector stateless rồi ghi vào Kafka (hoặc dùng CDC khi nguồn là DB). Kafka là bộ đệm bền tách nhịp nguồn khỏi đích, hấp thụ dồn ứ và giữ sự kiện để đọc lại. Partition key quyết định song song và skew; khoá nóng thì băm nhỏ (salting)."
   - id: b01
     type: text
     md: |
@@ -50,6 +54,10 @@ blocks:
       - {id: c, text_md: "Kafka thay thế luôn kho OLAP nên hệ không cần kho phục vụ truy vấn."}
     answer: [a]
     explain_md: "Kafka là lớp đệm bền + tách nhịp, chịu dồn ứ và cho phép đọc lại (b02). (b) sai — Kafka chỉ chứa log sự kiện, việc gộp số là của bộ xử lý; (c) sai — Kafka là log, không phục vụ truy vấn tổng hợp nhanh như kho OLAP."
+  - id: s_processing
+    type: section
+    title_vi: "Xử lý luồng, lô và lambda vs kappa"
+    summary_vi: "Xử lý luồng cho số liệu trễ thấp (vài giây) nhưng dễ sai khi có sự kiện muộn hay lỗi code; xử lý lô chậm hơn nhưng chính xác và dễ tính lại. Lambda chạy hai nhánh (luồng cộng lô) nên phải nuôi hai bộ code; kappa chỉ giữ một nhánh luồng và tính lại bằng replay dòng sự kiện cũ, đơn giản hơn miễn là nguồn còn lưu đủ."
   - id: b04
     type: text
     md: |
@@ -75,6 +83,10 @@ blocks:
       - {id: c, text_md: "Lambda dành cho dữ liệu nhỏ còn kappa cho dữ liệu lớn; khác nhau ở dung lượng chứ không ở cách xử lý."}
     answer: [a]
     explain_md: "Lambda = luồng + lô song song (phải nuôi hai bộ code); kappa = chỉ luồng, tính lại bằng replay dòng sự kiện (b04). (b) sai vì lambda có cả nhánh luồng và cả hai đều tính lại được; (c) sai — khác biệt là ở số nhánh và cách tính lại, không phải dung lượng."
+  - id: s_sinks
+    type: section
+    title_vi: "Hai nhánh lưu và ước lượng dung lượng"
+    summary_vi: "Cùng dòng Kafka ghi ra hai nơi: kho OLAP cho dashboard truy vấn dưới giây, và data lake (Parquet trên S3, chia theo ngày) rẻ, giữ toàn bộ dữ liệu thô làm nguồn sự thật để tính lại. Ước lượng: 100.000 sự kiện/giây x 1 KB là khoảng 8,6 TB/ngày thô, nén cột khoảng 5 lần còn gần 1,7 TB/ngày; Kafka giữ 7 ngày x 3 bản sao để biết cần bao nhiêu đĩa."
   - id: b06
     type: text
     md: |
@@ -102,6 +114,10 @@ blocks:
 
       Luôn quy ra "mỗi giây -> mỗi ngày" và nhân hệ số nén + bản sao: người phỏng vấn muốn thấy bạn
       ràng buộc được chi phí lưu trữ, không chỉ vẽ hộp.
+  - id: s_cross_cutting
+    type: section
+    title_vi: "Idempotent, schema, replay và giám sát"
+    summary_vi: "Giao at-least-once nên sự kiện có thể tới đích hai lần, nhất là khi replay; kho đích phải ghi idempotent (khử trùng theo event_id hoặc upsert theo khoá) để không đếm đúp. Schema registry kiểm tra tương thích: thêm cột thì ổn, đổi kiểu cột bị chặn. Replay/backfill đọc lại từ Kafka hoặc data lake để ghi đè số sai. Giám sát độ trễ và lag consumer, đẩy sự kiện sai schema vào DLQ thay vì chặn cả dòng chảy."
   - id: b08
     type: text
     md: |

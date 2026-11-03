@@ -1,5 +1,5 @@
 id: sd.archetypes.notification_system
-version: 1
+version: 2
 status: published
 title_vi: "Thiết kế hệ thống thông báo (notification system) và webhook delivery"
 est_minutes: 14
@@ -8,6 +8,10 @@ objectives_vi:
   - "Giải thích vì sao cần retry + backoff + DLQ, provider failover, và idempotency/dedup để gửi *đúng một lần theo cảm nhận người dùng* dù hệ ở dưới là at-least-once."
   - "Thiết kế reliable webhook delivery cho bên ngoài (payload có chữ ký, thử lại, receiver idempotent, DLQ, theo dõi trạng thái) và biết dùng rate limit/batching/digest để không spam."
 blocks:
+  - id: s_pipeline
+    type: section
+    title_vi: "Đường ống đa kênh và hàng đợi theo kênh"
+    summary_vi: "Producer chỉ đẩy sự kiện vào notification service rồi nhận 'đã nhận', không gọi provider đồng bộ. Service áp tuỳ chọn người dùng (opt-out, quiet hours, giới hạn N tin/ngày) và templating + localization, rồi bỏ việc vào queue riêng cho từng kênh (push/email/SMS) với worker riêng. Tách kênh để một kênh chậm hoặc sập không chặn kênh khác; priority queue giữ OTP/cảnh báo bảo mật đến trong vài giây."
   - id: b01
     type: text
     md: |
@@ -51,6 +55,10 @@ blocks:
       - {id: c, text_md: "Vì tách ra thì không còn cần idempotency hay dedup nữa."}
     answer: [a]
     explain_md: "Mỗi kênh có đặc tính riêng (SMS bị throttle mạnh, email dồn lô, push nhanh); hàng đợi riêng cô lập sự cố và cho tinh chỉnh độc lập. (b) sai — một queue chứa được nhiều loại; (c) sai — dedup vẫn cần dù tách kênh."
+  - id: s_reliability
+    type: section
+    title_vi: "Độ tin cậy: retry, failover và dedup"
+    summary_vi: "Gọi provider dễ hỏng nên worker cần retry với exponential backoff + jitter (chỉ cho lỗi tạm thời), provider failover kèm circuit breaker, và DLQ cho tin hỏng sau N lần. Do queue + retry chỉ bảo đảm at-least-once, mỗi thông báo mang khoá idempotency như (user_id, loại, event_id) kiểm tra trong kho dedup (Redis TTL): đã thấy thì bỏ qua, nhờ vậy người dùng cảm nhận đúng một lần."
   - id: b04
     type: text
     md: |
@@ -90,6 +98,10 @@ blocks:
       - {id: c, text_md: "Chỉ gửi mỗi thông báo đúng một lần và không bao giờ thử lại khi provider timeout."}
     answer: [b]
     explain_md: "Dedup theo khoá idempotency biến at-least-once thành 'người dùng thấy một lần' mà vẫn giữ được retry. (a) exactly-once end-to-end là ảo tưởng và tắt retry làm mất tin; (c) bỏ retry khiến lỗi tạm thời thành mất thông báo."
+  - id: s_spam_webhook
+    type: section
+    title_vi: "Chống spam và webhook delivery"
+    summary_vi: "Chống spam bằng rate limit mỗi người, batching/digest (gộp nhiều tin thành một bản tóm tắt) và chia lô khi gửi chiến dịch để tránh đột biến tải, trong khi OTP đi luồng ưu tiên. Webhook gửi tới URL khách không kiểm soát được nên cần payload ký HMAC kèm timestamp chống replay, retry + backoff + DLQ, event_id để receiver idempotent, cô lập theo khách và theo dõi trạng thái giao."
   - id: b07
     type: text
     md: |

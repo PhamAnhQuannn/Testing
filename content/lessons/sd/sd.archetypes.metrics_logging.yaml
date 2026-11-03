@@ -1,5 +1,5 @@
 id: sd.archetypes.metrics_logging
-version: 1
+version: 2
 status: published
 title_vi: "Thiết kế hệ metrics, logging và monitoring"
 est_minutes: 14
@@ -9,6 +9,10 @@ objectives_vi:
   - "Giải thích vấn đề nổ số chuỗi (cardinality), và vì sao gộp dữ liệu cũ (rollup/downsampling) kèm lưu theo tầng (tiered retention) là cần thiết."
   - "Đánh giá một cảnh báo (alert) tốt: báo theo triệu chứng và mức tiêu hao SLO (SLO burn), tránh mệt mỏi vì cảnh báo (alert fatigue)."
 blocks:
+  - id: s_pillars_pipeline
+    type: section
+    title_vi: "Ba trụ cột quan sát và đường thu thập"
+    summary_vi: "Observability có ba trụ cột: metrics (số đo chuỗi thời gian, rẻ, hợp dashboard và cảnh báo), logs (dòng chữ tìm kiếm được nhưng đắt, trả lời chuyện gì đã xảy ra) và traces (vết một request qua nhiều service). Đường thu thập: agent trên mỗi server (push hoặc pull) → đường ống đệm Kafka chịu đỉnh tải → tách nhánh metrics vào time-series DB, logs vào kho tìm kiếm có index."
   - id: b01
     type: text
     md: |
@@ -44,6 +48,10 @@ blocks:
       - {id: c, text_md: "Traces, vì trace theo được từng request nên hợp để vẽ biểu đồ tổng hợp."}
     answer: [b]
     explain_md: "Dashboard và cảnh báo chạy liên tục cần số đo tổng hợp rẻ và nhanh — đúng việc của metrics. Log đắt, để điều tra chi tiết *sau khi* metric đã báo; trace để tìm chặng chậm trong một request, không để vẽ biểu đồ tổng hợp số lượng lớn."
+  - id: s_cardinality_rollup
+    type: section
+    title_vi: "Cardinality, rollup và lưu theo tầng"
+    summary_vi: "Mỗi tổ hợp nhãn là một chuỗi riêng trong TSDB nên cardinality là tích số giá trị các nhãn; gắn nhãn nhiều giá trị như user_id sẽ nổ hàng triệu chuỗi, cạn RAM và chậm. Chỉ dùng nhãn hữu hạn (region, status), thông tin theo người để ở log. Dữ liệu cũ được gộp (rollup/downsampling: giây → phút → giờ) và lưu theo tầng nóng/ấm/lạnh rồi xoá khi hết hạn, để giữ xu hướng dài hạn với chi phí thấp."
   - id: b04
     type: text
     md: |
@@ -88,6 +96,10 @@ blocks:
       - accept: ["downsampling", "rollup", "hạ mẫu"]
       - accept: ["tầng", "tiered", "tiered retention"]
     explain_md: "Gộp điểm mịn thành điểm thô cho dữ liệu cũ là **downsampling** (hay rollup); giữ dữ liệu theo nhiều mức ổ cứng và xoá khi hết hạn là lưu theo **tầng** (tiered retention) — xem được xu hướng dài hạn mà không tốn tiền lưu từng giây cho cả năm."
+  - id: s_alerting
+    type: section
+    title_vi: "Cảnh báo tốt và khung phỏng vấn"
+    summary_vi: "Cảnh báo chạy trên metric theo ngưỡng hoặc tỉ lệ; hai bẫy là alert fatigue (báo theo mọi dao động nhỏ khiến kỹ sư bỏ qua tin thật) và tin trùng (cần dedup). Nguyên tắc: báo theo triệu chứng người dùng thấy, ưu tiên mức tiêu hao SLO (burn rate), chỉ page khi lỗi kéo dài và đủ nhanh, mỗi cảnh báo có hành động rõ. Khi phỏng vấn: hỏi quy mô, vẽ pipeline, nêu cardinality, rollup/tiering rồi chiến lược alert."
   - id: b08
     type: text
     md: |

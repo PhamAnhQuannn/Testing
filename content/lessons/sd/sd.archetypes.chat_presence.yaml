@@ -1,5 +1,5 @@
 id: sd.archetypes.chat_presence
-version: 1
+version: 2
 status: published
 title_vi: "Thiết kế hệ chat và trạng thái online (chat and presence)"
 est_minutes: 14
@@ -8,6 +8,10 @@ objectives_vi:
   - "Giải thích lưu trữ, đánh số thứ tự (ordering), biên nhận gửi/đã đọc (delivery/read receipt) và gửi bù khi offline."
   - "Thiết kế presence (online status) bằng heartbeat + khóa TTL, và so sánh fan-out 1:1 với nhóm (write-fanout vs read-fanout)."
 blocks:
+  - id: s_connection
+    type: section
+    title_vi: "Kết nối bền và sổ định tuyến"
+    summary_vi: "Chat cần tin đến tức thì, hai chiều và biết ai đang online. Mỗi client giữ một WebSocket tới gateway stateful, nên cần sổ định tuyến (thường Redis) ánh xạ user sang gateway và các kết nối để biết đẩy tin đi đâu. Một socket chỉ tồn tại ở một gateway, nên G1 không thể tự đẩy xuống người đang nối vào G2."
   - id: b01
     type: text
     md: |
@@ -42,6 +46,10 @@ blocks:
       chuyển tới **G2** — nơi đang giữ socket của Bob — rồi G2 mới đẩy xuống. Đây chính là lý do
       cần một **backbone** nối các gateway. (a) sai: WebSocket hai chiều, server đẩy xuống được;
       (c) lưu DB là để bền/đánh số, không phải điều kiện để chuyển tin.
+  - id: s_delivery
+    type: section
+    title_vi: "Chuyển tin, thứ tự và gửi bù offline"
+    summary_vi: "Các gateway nối qua pub/sub backbone (Redis hoặc Kafka): tra sổ rồi publish vào kênh người nhận, chỉ gateway đang giữ họ nhận và đẩy xuống. Tin được lưu bền, phân mảnh theo conversation_id, và gắn sequence number tăng dần theo từng hội thoại (không dùng timestamp vì lệch đồng hồ); receipts đi từ sent, delivered đến read. Người nhận offline thì nhận push notification, khi nối lại client báo seq X và server gửi bù mọi tin có seq lớn hơn."
   - id: b04
     type: text
     md: |
@@ -89,6 +97,10 @@ blocks:
       nối WebSocket, client nói "tôi đang ở seq X", server **gửi bù (sync)** mọi tin có seq > X.
       Đây là lý do seq theo từng hội thoại quý giá: nó biến việc "đồng bộ lại sau khi mất kết nối"
       thành một phép so sánh số đơn giản.
+  - id: s_presence
+    type: section
+    title_vi: "Presence bằng heartbeat và TTL"
+    summary_vi: "Presence dùng heartbeat cộng khóa TTL ngắn trong Redis (ví dụ online:U hết hạn sau 30 giây, được làm mới mỗi nhịp tim). Client sập hay mất mạng không kịp báo offline, nhưng vắng nhịp tim thì khóa tự hết hạn nên vẫn phát hiện đúng. Cạm bẫy là thundering herd khi fan-out presence cho friend list lớn; giảm bằng cách chỉ đẩy cho người đang mở chat, batch và throttle."
   - id: b08
     type: text
     md: |
@@ -113,6 +125,10 @@ blocks:
       Điểm cốt lõi của presence là xử lý **mất kết nối đột ngột** — đúng lúc client không thể gửi
       gì. Heartbeat + TTL suy ra offline từ việc *vắng* nhịp tim, không phụ thuộc client báo. (a)
       sai: presence trễ cỡ TTL, không tức thì; (c) sai: sổ định tuyến vẫn cần để chuyển tin.
+  - id: s_group_fanout
+    type: section
+    title_vi: "Fan-out nhóm và khung phỏng vấn"
+    summary_vi: "Write-fanout ghi sẵn một bản vào hộp thư từng thành viên nên đọc nhanh nhưng chi phí ghi tỉ lệ số thành viên; read-fanout lưu một bản và fan-out lúc đọc, hợp nhóm lớn đọc thưa. Thực tế dùng lai: 1:1 và nhóm nhỏ write-fanout, nhóm rất lớn read-fanout. Khi lên hàng triệu kết nối, thêm gateway và phân mảnh sổ định tuyến cùng backbone vì chúng thành điểm nóng."
   - id: b10
     type: quiz_mcq
     graded: true

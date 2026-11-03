@@ -1,5 +1,5 @@
 id: sd.archetypes.collab_editing
-version: 1
+version: 2
 status: published
 title_vi: "Archetype: Soạn thảo cộng tác (collaborative editing) kiểu Google Docs"
 est_minutes: 14
@@ -8,6 +8,10 @@ objectives_vi:
   - "Dùng một ví dụ cụ thể nói được vì sao hai thao tác đồng thời phải được **biến đổi (transform)** để mọi máy hội tụ; so sánh **OT (operational transformation)** với **CRDT**."
   - "Vẽ được kiến trúc **máy chủ theo tài liệu (per-document server)**: một máy sở hữu tài liệu, đánh số thứ tự thao tác, phát qua WebSocket; kèm con trỏ/hiện diện (presence) và lưu bền (op log + snapshot)."
 blocks:
+  - id: s_operations
+    type: section
+    title_vi: "Thao tác và biến đổi (transform)"
+    summary_vi: "Last write wins trên cả tài liệu làm bản lưu sau ghi đè bản trước và mất chữ; lời giải là gửi thao tác (operation) chèn/xoá theo vị trí để các thay đổi cộng dồn. Nhưng vị trí được tính trên bản người gửi thấy, nên sửa đồng thời phải được biến đổi: với ab, An chèn X và Bình chèn Y cùng tại vị trí 1, thao tác Bình dịch từ 1 thành 2 để mọi máy hội tụ về aXYb."
   - id: b01
     type: text
     md: |
@@ -67,6 +71,10 @@ blocks:
       tự tuỳ máy sẽ diverge. OT biến đổi vị trí của thao tác sau (ví dụ dịch 1 thành 2) để mọi máy hội
       tụ. (a) không phải vấn đề ở đây. (c) sai — last write wins làm **mất** chữ của một người; mục
       tiêu là giữ cả hai thao tác.
+  - id: s_ot_crdt
+    type: section
+    title_vi: "OT hay CRDT"
+    summary_vi: "OT dùng vị trí số cộng bộ biến đổi chỉnh chỉ số, thường cần server chốt thứ tự; thao tác gọn nhưng bộ biến đổi khó viết đúng. CRDT gắn mỗi ký tự một ID bất biến có thứ tự, nên áp thao tác theo thứ tự nào cũng ra cùng kết quả, không cần trung tâm và hợp offline hoặc ngang hàng, nhưng tốn bộ nhớ hơn vì metadata. Cả hai đều hội tụ; server trung tâm như Google Docs hay chọn OT."
   - id: b05
     type: text
     md: |
@@ -101,6 +109,10 @@ blocks:
       tự và không cần bộ biến đổi trung tâm — tiện cho offline/ngang hàng. OT dùng vị trí số + bộ biến
       đổi, thường cần server chốt thứ tự. (b) sai — **cả hai** đều hội tụ; OT không cố tình bỏ chữ.
       (c) ngược — CRDT **tốn hơn** vì mỗi ký tự kèm metadata ID.
+  - id: s_per_doc_server
+    type: section
+    title_vi: "Máy chủ theo tài liệu"
+    summary_vi: "Đơn vị của hệ là tài liệu: mỗi tài liệu do một máy sở hữu, mọi collaborator mở WebSocket tới máy đó. Máy nối tiếp thao tác thành một dòng, gán sequence number tăng dần làm thứ tự chuẩn, biến đổi (với OT) rồi phát cho mọi người, giữ trạng thái trong bộ nhớ. Các tài liệu độc lập nên scale ngang bằng cách shard theo document_id."
   - id: b07
     type: text
     md: |
@@ -135,6 +147,10 @@ blocks:
       Một máy sở hữu tài liệu nên nó đánh **số thứ tự (sequence number)** cho mọi thao tác — thứ tự
       chuẩn để OT biến đổi và để client biết đã bắt kịp tới đâu — rồi **phát qua WebSocket** (kết nối
       hai chiều đã học ở realtime_protocols) cho các collaborator.
+  - id: s_presence_persist
+    type: section
+    title_vi: "Presence, lưu bền và khung phỏng vấn"
+    summary_vi: "Con trỏ và hiện diện là dữ liệu phù du, phát qua cùng WebSocket và bỏ đi khi người đó rời, không ghi vào op log. Lưu bền bằng op log (nguồn sự thật cho lịch sử, undo, khôi phục) cộng snapshot định kỳ để mở lại chỉ cần nạp snapshot gần nhất rồi phát lại các thao tác sau nó; máy chủ chết thì máy mới khôi phục từ snapshot cộng log còn lại."
   - id: b09
     type: text
     md: |

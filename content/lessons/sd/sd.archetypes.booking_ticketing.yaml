@@ -1,5 +1,5 @@
 id: sd.archetypes.booking_ticketing
-version: 1
+version: 2
 status: published
 title_vi: "Đặt chỗ: vé, khách sạn (booking and ticketing) — không bán trùng"
 est_minutes: 14
@@ -8,6 +8,10 @@ objectives_vi:
   - "So sánh ba cách chống bán trùng — khoá bi quan (pessimistic lock), khoá lạc quan (optimistic / compare-and-set), ràng buộc duy nhất của DB (unique constraint) — bằng ví dụ hai người cùng chọn một ghế."
   - "Giải thích giữ chỗ tạm có hạn (hold with TTL), xác nhận idempotent (idempotent confirm), và phòng chờ ảo (virtual waiting room) khi tải tăng đột biến."
 blocks:
+  - id: s_core_problem
+    type: section
+    title_vi: "Yêu cầu lõi và vòng đời ghế"
+    summary_vi: "Yêu cầu lõi là không bán trùng: một ghế hoặc phòng-theo-ngày chỉ bán cho đúng một người dù nhiều người cùng bấm (tranh chấp tồn kho). Vòng đời ghế là trống, giữ, đã bán; giữ chỗ có TTL để tự nhả khi người dùng bỏ ngang, còn xác nhận thanh toán phải idempotent (idempotency key) để bấm lại hay webhook gửi lại cũng chỉ ra một vé."
   - id: b01
     type: text
     md: |
@@ -33,6 +37,10 @@ blocks:
 
       Chính bước `trống -> giữ` là nơi An và Bình tranh nhau; ba cách dưới đây đều là cách thắng cuộc
       tranh ở đúng bước đó.
+  - id: s_no_double_book
+    type: section
+    title_vi: "Ba cách chống bán trùng"
+    summary_vi: "Khoá bi quan (SELECT ... FOR UPDATE) khoá dòng nên người sau phải chờ: chắc chắn nhưng giảm thông lượng và dễ deadlock. Khoá lạc quan/compare-and-set (UPDATE ... WHERE trang_thai='trong' hoặc theo version) không khoá, chỉ một lệnh sửa được 1 dòng, người thua retry: nhanh khi ít đụng. Unique constraint trên (su_kien, ghe) khiến DB là trọng tài cuối; thực tế kết hợp cách nhanh với unique làm lưới an toàn."
   - id: b03
     type: text
     md: |
@@ -110,6 +118,10 @@ blocks:
       **Unique constraint (ràng buộc duy nhất)** trên `(su_kien, ghe)` khiến dòng đặt chỗ thứ hai cho cùng một ghế
       vi phạm ràng buộc và bị từ chối (duplicate key). Đây là lưới an toàn cuối cùng, đúng kể cả khi ứng dụng chạy
       song song trên nhiều máy hay logic có lỗi.
+  - id: s_surge
+    type: section
+    title_vi: "Tải đột biến và phòng chờ ảo"
+    summary_vi: "Khi concert mở bán, cả triệu người tranh vài nghìn ghế gây bão tranh chấp và quá tải DB dù cách chống bán trùng vẫn đúng. Phòng chờ ảo (virtual waiting room) chắn tải ở cổng, thả từng nhóm nhỏ vào luồng đặt chỗ và phục vụ công bằng theo thứ tự đến. Nên tách đường tìm (đọc cache, trễ được) khỏi đường đặt (đọc DB gốc để chốt sự thật)."
   - id: b08
     type: text
     md: |

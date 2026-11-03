@@ -1,5 +1,5 @@
 id: sd.archetypes.video_streaming
-version: 1
+version: 2
 status: published
 title_vi: "Streaming video và media: từ upload đến phát mượt cho hàng triệu người"
 est_minutes: 14
@@ -8,6 +8,10 @@ objectives_vi:
   - "Giải thích **đoạn (segment)**, **manifest (playlist)** và **nhiều chất lượng (renditions)** phục vụ việc phát qua HTTP thế nào."
   - "Giải thích **tự đổi chất lượng (adaptive bitrate, ABR)** ở phía player và **vai trò của CDN** trong việc phát gần người xem."
 blocks:
+  - id: s_pipeline_upload
+    type: section
+    title_vi: "Pipeline bốn bước và upload"
+    summary_vi: "Không phát thẳng file gốc: video đi qua pipeline upload -> chuyển mã -> cắt đoạn -> phát. Upload dùng chunked upload với presigned URL (đứt mạng thì tiếp tục từ mảnh dở) và đáp xuống kho đối tượng rẻ, bền, gần như vô hạn."
   - id: b01
     type: text
     md: |
@@ -30,6 +34,10 @@ blocks:
       upload)** bằng **URL có chữ ký (presigned URL)**: đứt mạng thì tiếp tục từ mảnh dở, không phải
       làm lại từ đầu. File gốc đáp xuống **kho đối tượng (object storage)** — rẻ, bền, dung lượng gần
       như vô hạn, hợp để giữ file nhị phân lớn. Lúc này chưa ai xem được; ta mới chỉ **cất** file thô.
+  - id: s_transcode
+    type: section
+    title_vi: "Chuyển mã thành nhiều rendition"
+    summary_vi: "Từ một file gốc sinh nhiều rendition (360p đến 1080p, bitrate khác nhau) để mạng yếu xem bản nhẹ, mạng khỏe xem bản nét. Chuyển mã nặng và chậm nên chạy bất đồng bộ: message vào queue, worker pool xử lý rồi ghi lại kho đối tượng, scale bằng cách thêm worker."
   - id: b03
     type: text
     md: |
@@ -52,6 +60,10 @@ blocks:
       - {id: c, text_md: "Vì chỉ worker mới đọc được file từ kho đối tượng, còn request thì không."}
     answer: [b]
     explain_md: "Chuyển mã tốn nhiều CPU/GPU và chậm; không nên khoá request upload chờ nó. Đẩy vào queue cho worker pool xử lý nền, và scale bằng cách thêm worker. (a) sai — queue không liên quan chất lượng hình; (c) sai — cả request lẫn worker đều có thể đọc kho đối tượng, đó không phải lý do."
+  - id: s_segment_manifest
+    type: section
+    title_vi: "Cắt đoạn và manifest"
+    summary_vi: "Mỗi rendition được cắt thành đoạn 2-10 giây, kèm manifest (playlist) liệt kê đoạn và rendition; HLS và DASH là hai chuẩn phát qua HTTP. Player đọc manifest rồi tải từng đoạn theo thứ tự; mỗi đoạn là file tĩnh nên cache được và hợp với CDN."
   - id: b05
     type: text
     md: |
@@ -76,6 +88,10 @@ blocks:
       - {accept: ["manifest", "Manifest"]}
       - {accept: ["rendition", "Rendition", "rendition (chất lượng)"]}
     explain_md: "Player đọc **manifest/playlist** để biết có những **rendition** nào và mỗi rendition gồm những **đoạn (segment)** nào, rồi mới tải từng đoạn. Đây là bộ ba khái niệm trụ cột của HLS/DASH."
+  - id: s_deliver_abr
+    type: section
+    title_vi: "Phát qua CDN, ABR và livestream"
+    summary_vi: "CDN phục vụ đoạn và manifest từ biên gần người xem (pull cho long-tail, push cho video hot) nên giảm độ trễ và tải gốc. ABR là quyết định ở player: đo băng thông/buffer rồi chọn rendition cho từng đoạn kế tiếp, hạ chất lượng còn hơn đứng hình. Live khác VOD ở yêu cầu độ trễ thấp."
   - id: b07
     type: text
     md: |

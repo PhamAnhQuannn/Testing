@@ -1,5 +1,5 @@
 id: sd.archetypes.typeahead
-version: 1
+version: 2
 status: published
 title_vi: "Thiết kế gợi ý khi gõ (typeahead / autocomplete)"
 est_minutes: 13
@@ -8,6 +8,10 @@ objectives_vi:
   - "Mô tả kiến trúc đầy đủ: trie (prefix tree) hoặc bảng tiền tố, cập nhật offline từ log, cache ở biên, chia tải (sharding) và debounce ở client."
   - "Trả lời được vì sao độ trễ chỉ vài chục ms mỗi lần gõ là ràng buộc chi phối toàn bộ thiết kế."
 blocks:
+  - id: s_precompute
+    type: section
+    title_vi: "Ràng buộc và top-k dựng sẵn"
+    summary_vi: "Mỗi phím gõ là một request nên phần tra cứu chỉ có vài chục ms, và hệ read-heavy với gợi ý chỉ cần tươi theo giờ/ngày. Vì vậy dựng sẵn top-k cho mỗi tiền tố (trie giữ top-k tại mỗi nút), biến mỗi phím thành tra cứu O(độ dài tiền tố) thay vì xếp hạng tại chỗ."
   - id: b01
     type: text
     md: |
@@ -42,6 +46,10 @@ blocks:
       - {id: c, text_md: "Vì xếp hạng tại chỗ cho kết quả tươi hơn, mà typeahead bắt buộc phải tươi theo từng giây."}
     answer: [a]
     explain_md: "Mỗi phím là một request với ngân sách vài chục ms; quét và xếp hạng tại chỗ không kịp. Dựng sẵn đẩy công việc nặng ra ngoài đường đọc, còn lúc đọc chỉ là tra cứu O(độ dài tiền tố). (b) sai — dựng sẵn top-k tốn thêm bộ nhớ, đó là cái giá ta chấp nhận; (c) sai — typeahead chỉ cần tươi theo giờ/ngày, không cần từng giây."
+  - id: s_structure_ranking
+    type: section
+    title_vi: "Hiện thực, sharding và xếp hạng"
+    summary_vi: "Hiện thực bằng trie trong RAM (tiết kiệm nhờ dùng chung tiền tố) hoặc bảng KV tiền tố -> gợi ý (dễ phân tán/cache nhưng lặp dữ liệu). Shard theo tiền tố nhưng chia theo tải thực vì phân bố lệch; xếp hạng mặc định theo độ phổ biến, personalisation chỉ là lớp thêm."
   - id: b04
     type: text
     md: |
@@ -63,6 +71,10 @@ blocks:
       trộn thêm lịch sử của chính người dùng hoặc theo vùng/ngôn ngữ. Trong phỏng vấn, hãy nêu
       popularity làm cơ sở rồi *đề cập* personalisation như một lớp xếp hạng thêm — đừng sa đà, vì nó
       làm phức tạp việc dựng sẵn (không thể precompute một bảng chung cho mọi người).
+  - id: s_update
+    type: section
+    title_vi: "Cập nhật chỉ mục theo lô"
+    summary_vi: "Job định kỳ đọc log truy vấn, đếm tần suất, dựng lại trie/bảng rồi swap bản mới vào dịch vụ; không cập nhật từng truy vấn vì tốn kém và near-real-time không bắt buộc. Với chủ đề bỗng hot, chỉ trộn thêm danh sách trending nhỏ thay vì dựng lại cả bảng."
   - id: b06
     type: text
     md: |
@@ -84,6 +96,10 @@ blocks:
       - {id: c, text_md: "Không bao giờ cập nhật; dựng một lần lúc khởi tạo rồi giữ cố định."}
     answer: [b]
     explain_md: "Typeahead read-heavy và chỉ cần tươi theo giờ/ngày, nên dựng lại theo lô ngoại tuyến từ log rồi swap là đúng mức. (a) tốn kém và không cần — cập nhật mỗi truy vấn đè nặng lên đường ghi mà không đổi lại lợi ích tương xứng; (c) khiến gợi ý lỗi thời, mất tính phổ biến hiện tại."
+  - id: s_serving
+    type: section
+    title_vi: "Phục vụ, cache ở biên và debounce"
+    summary_vi: "Trie/bảng giữ in-memory, nhiều bản sao sau load balancer, và cache ở biên (CDN) cho các tiền tố ngắn bị hỏi cực nhiều mà kết quả gần như không đổi. Ở client, debounce 100-200 ms và huỷ request cũ giúp giảm mạnh request vô ích."
   - id: b08
     type: text
     md: |

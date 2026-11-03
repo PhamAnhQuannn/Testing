@@ -1,5 +1,5 @@
 id: sd.archetypes.news_feed
-version: 1
+version: 2
 status: published
 title_vi: "Thiết kế news feed và timeline: fan-out khi ghi, khi đọc, và cách lai"
 est_minutes: 14
@@ -8,6 +8,10 @@ objectives_vi:
   - "So sánh fan-out khi ghi (push) và fan-out khi đọc (pull) bằng con số, và nói rõ mỗi bên trả giá ở đâu."
   - "Giải thích bài toán người nổi tiếng (celebrity problem) và vì sao cách lai (hybrid) gỡ được nó."
 blocks:
+  - id: s_fanout_models
+    type: section
+    title_vi: "Hai mô hình fan-out: push và pull"
+    summary_vi: "News feed đọc nhiều hơn ghi rất nhiều và phải hiện dưới ~500 ms; câu hỏi cốt lõi là ghép feed lúc ghi hay lúc đọc. Fan-out khi ghi (push) chép post id vào hộp tin của từng follower: đọc cực nhanh nhưng một bài thành N lượt ghi. Fan-out khi đọc (pull) chỉ lưu bài, gom và trộn lúc mở app: ghi rẻ nhưng đọc đắt. Chuyển pull sang push là dời chi phí từ đọc sang ghi."
   - id: b01
     type: text
     md: |
@@ -68,6 +72,10 @@ blocks:
       follower, nên ghi đắt hơn; bù lại đọc chỉ là một lần đọc cache dựng sẵn nên rẻ và nhanh. (c) mô
       tả đúng pull chứ không phải push. (b) sai — push *dùng* feed cache và làm ghi đắt hơn, không có
       bữa trưa miễn phí.
+  - id: s_cost_celebrity
+    type: section
+    title_vi: "Con số và bài toán người nổi tiếng"
+    summary_vi: "Với F follower, push tốn F lượt ghi và 1 lượt đọc; pull tốn 1 lượt ghi và ~K lượt đọc cộng một lần trộn. Người dùng thường (vài trăm follower) thì push thắng. Celebrity problem: tài khoản 10 triệu follower đăng 1 bài sinh 10 triệu lượt ghi, nghẽn hàng đợi và trễ cập nhật nên push thuần không khả thi; pull thuần lại làm đọc của người thường đắt."
   - id: b05
     type: text
     md: |
@@ -98,6 +106,10 @@ blocks:
       ghi** cho một lần đăng. Đây đúng là celebrity problem: khối lượng ghi bùng nổ, worker và hàng
       đợi quá tải, bài tới người xem trễ. (a) mô tả pull. (c) sai — push ghi cho **mọi** follower,
       không phụ thuộc ai đang online.
+  - id: s_hybrid_details
+    type: section
+    title_vi: "Cách lai (hybrid) và chi tiết triển khai"
+    summary_vi: "Hybrid chia theo ngưỡng follower: người thường dùng push, người nổi tiếng dùng pull; lúc mở app lấy hộp tin dựng sẵn rồi trộn thêm bài mới của vài ngôi sao đang theo dõi, nên tránh được bùng nổ ghi mà đọc vẫn nhanh. Chi tiết: feed cache chỉ giữ ~200 post id, media ở CDN, phân trang bằng cursor, xếp hạng theo thời gian hoặc theo độ hợp, chấp nhận eventual consistency vài giây."
   - id: b07
     type: text
     md: |

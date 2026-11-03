@@ -1,5 +1,5 @@
 id: sd.archetypes.productivity_apps
-version: 1
+version: 2
 status: published
 title_vi: "Thiết kế ứng dụng lịch và email (calendar and email)"
 est_minutes: 14
@@ -8,6 +8,10 @@ objectives_vi:
   - "Tìm **giờ trống chung (free/busy)** của nhiều người bằng cách gộp các khoảng bận (merge busy intervals) rồi lấy khe trống, và hẹn **nhắc việc (reminder)** bằng một job đến hạn ở thời điểm giờ-sự-kiện trừ lead (dùng lại job_scheduler)."
   - "Mô tả thiết kế email: kho hộp thư (mailbox storage), **mục lục ngược (inverted index)** để tìm thư, luồng/nhãn (threading/labels), và gửi thư qua SMTP + hàng đợi có thử lại; nêu bẫy múi giờ và giờ mùa hè (time zone + DST)."
 blocks:
+  - id: s_recurring
+    type: section
+    title_vi: "Sự kiện lặp: RRULE và ngoại lệ"
+    summary_vi: "Lịch và email chung ba nhu cầu: sự kiện lặp, giờ trống chung, nhắc việc. Sự kiện lặp lưu bằng một quy tắc RRULE thay vì bung sẵn từng dòng (tránh vô số bản ghi), rồi tính các lần lặp khi đọc, chỉ trong cửa sổ thời gian được hỏi. Sửa hoặc huỷ riêng một buổi lưu bằng bản ghi đè (exception) áp lên trên khi bung chuỗi, không đụng quy tắc gốc."
   - id: b01
     type: text
     md: |
@@ -48,6 +52,10 @@ blocks:
       - {id: c, text_md: "Vì tính lúc đọc thì không bao giờ cần xử lý ngoại lệ (sửa/huỷ một buổi riêng lẻ)."}
     answer: [a]
     explain_md: "RRULE nén cả chuỗi (kể cả vô hạn) thành một dòng; expand-on-read chỉ bung các buổi trong cửa sổ được hỏi nên rẻ. (b) sai — DB lưu được trùng tiêu đề, đó không phải lý do; (c) sai — vẫn phải xử lý ngoại lệ bằng bản ghi đè áp lên trên khi bung chuỗi."
+  - id: s_freebusy_reminder
+    type: section
+    title_vi: "Free/busy, nhắc việc và múi giờ"
+    summary_vi: "Tìm giờ trống chung là bài merge intervals: bung lịch mỗi người thành các khoảng bận, gộp và trộn khoảng chồng lấn, giờ trống chung là các gap đủ dài giữa các khối bận (chỉ cần bận/rảnh, không lộ chi tiết). Nhắc việc là job hẹn một lần tại event_time trừ lead, dùng lại job scheduler, khử trùng vì at-least-once và đặt lại khi dời giờ. Sự kiện lặp phải lưu múi giờ gốc để không lệch một giờ sau DST."
   - id: b05
     type: text
     md: |
@@ -99,6 +107,10 @@ blocks:
       - accept: ["múi giờ", "time zone", "timezone", "múi giờ (time zone)"]
       - accept: ["DST", "daylight saving time", "giờ mùa hè", "giờ mùa hè (DST)"]
     explain_md: "Reminder = job đến hạn tại event_time − **lead**. Sự kiện lặp phải gắn **múi giờ** gốc với quy tắc, vì '9h sáng' là giờ địa phương; nếu bỏ qua, đợt đổi **DST (giờ mùa hè)** sẽ làm buổi họp lệch một giờ."
+  - id: s_email
+    type: section
+    title_vi: "Thiết kế email và khung phỏng vấn"
+    summary_vi: "Email tái dùng khối đã học: hộp thư shard theo user_id (ghi một lần, đọc nhiều), tìm kiếm bằng inverted index giới hạn trong hộp thư người dùng, gom luồng (thread) qua header tham chiếu và nhãn (label) nhiều-nhiều, gửi qua SMTP bằng hàng đợi có retry backoff và bounce khi quá số lần. Khi phỏng vấn, điểm cộng là tái dùng job scheduler và inverted index thay vì phát minh lại."
   - id: b09
     type: text
     md: |

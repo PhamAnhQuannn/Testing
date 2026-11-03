@@ -1,5 +1,5 @@
 id: sd.archetypes.likes_comments
-version: 1
+version: 2
 status: published
 title_vi: "Thiết kế hệ thống thích và bình luận (likes and comments): bộ đếm nóng, chia nhỏ và gộp ghi"
 est_minutes: 14
@@ -8,6 +8,10 @@ objectives_vi:
   - "Giải thích bài toán **bộ đếm nóng** (hot counter) và hai cách gỡ: **bộ đếm chia nhỏ** (sharded counter) và **gộp ghi** (write coalescing / batching)."
   - "Chống **thích trùng** bằng khóa duy nhất (user_id + post_id) / tính **idempotent**, và biết vì sao **nhất quán cuối** (eventual consistency) của số hiển thị là chấp nhận được."
 blocks:
+  - id: s_storage_count
+    type: section
+    title_vi: "Yêu cầu và lưu trữ like, số đếm sẵn"
+    summary_vi: "Hệ đọc nhiều hơn ghi rất nhiều. Like là quan hệ (user_id, post_id), comment là kho ghi-thêm. Không COUNT(*) mỗi lượt xem mà lưu like_count sẵn, cập nhật khi ghi và đọc thẳng: dồn chi phí về đường ghi vốn nhẹ hơn."
   - id: b01
     type: text
     md: |
@@ -47,6 +51,10 @@ blocks:
       - {id: c, text_md: "Vì bảng `likes` không cho phép dùng câu lệnh tổng hợp như `COUNT`."}
     answer: [b]
     explain_md: "Đường đọc nóng hơn đường ghi rất nhiều, nên dồn chi phí về đường ghi (cập nhật sẵn số đếm) và đọc O(1) là đúng hướng. (a) sai: `COUNT` không vốn dĩ sai; (c) sai: `COUNT` chạy được, vấn đề là nó **đắt** khi lặp lại ở quy mô lớn."
+  - id: s_hot_counter
+    type: section
+    title_vi: "Bộ đếm nóng: chia nhỏ và gộp ghi"
+    summary_vi: "Mọi lượt thích dồn vào một dòng sẽ xếp hàng qua row lock, thành điểm nóng ghi dù tổng lượng ghi không lớn. Gỡ bằng sharded counter (cộng vào shard ngẫu nhiên, đọc thì SUM K shard), write coalescing (đệm INCR rồi xả định kỳ một lần xuống DB) và cache tổng số đếm; giá phải trả là số hiển thị trễ vài giây."
   - id: b04
     type: text
     md: |
@@ -98,6 +106,10 @@ blocks:
     blanks:
       - accept: ["coalescing", "write coalescing", "write-coalescing", "batching", "write batching", "aggregation", "write aggregation"]
     explain_md: "Gộp ghi = **write coalescing** (hoặc batching / aggregation): đệm các lượt tăng rồi xả một lần, nên DB thấy ít ghi hơn hàng nghìn lần. Đánh đổi là nếu tiến trình đệm chết trước khi xả thì có thể mất một ít lượt tăng chưa ghi — chấp nhận được với số đếm gần đúng."
+  - id: s_dedup
+    type: section
+    title_vi: "Chống thích trùng và nhất quán cuối"
+    summary_vi: "Chống đếm thừa bằng hai lớp: unique constraint trên (user_id, post_id) và API idempotent đặt trạng thái liked = true, chỉ đổi bộ đếm khi dòng like thực sự thêm/xóa. Số hiển thị chấp nhận eventual consistency (trễ vài giây, làm tròn), điều này mở khóa cache, sharded counter và gộp ghi."
   - id: b08
     type: text
     md: |
@@ -138,6 +150,10 @@ blocks:
       (2) nêu **bài toán bộ đếm nóng**; (3) gỡ bằng **sharded counter + gộp ghi + cache**; (4) **chống
       thích trùng** bằng unique key + idempotent. Người phỏng vấn chấm việc bạn **nhận ra điểm nóng
       ghi** và biết đâu là chỗ được phép xài nhất quán cuối, không chấm bạn kể tên công nghệ.
+  - id: s_comments
+    type: section
+    title_vi: "Thiết kế phần bình luận"
+    summary_vi: "Bình luận là kho ghi-thêm đọc theo trang: dùng cursor pagination thay OFFSET, xếp theo mới nhất hoặc top theo like (cùng kỹ thuật bộ đếm), tải cấp 1 trước rồi mới tải nhánh trả lời qua parent_id. Cần moderation, rate limit chống spam và có thể ghi qua hàng đợi với bài cực hot."
   - id: b11
     type: text
     md: |

@@ -1,5 +1,5 @@
 id: sd.archetypes.coordination_primitives
-version: 1
+version: 2
 status: published
 title_vi: "Thiết kế bộ sinh ID duy nhất phân tán (distributed unique ID generator) kiểu Snowflake"
 est_minutes: 13
@@ -8,6 +8,10 @@ objectives_vi:
   - "Ghép được bố cục Snowflake 64 bit (timestamp + machine id + sequence), tính dung lượng mỗi bit và xử lý đồng hồ lùi (clock rollback) cùng tràn bộ đếm trong một mili-giây."
   - "So sánh Snowflake với UUIDv4, UUIDv7, auto-increment của DB và ticket/range server để biện minh lựa chọn trong phỏng vấn."
 blocks:
+  - id: s_problem
+    type: section
+    title_vi: "Bài toán ID phân tán và k-sortable"
+    summary_vi: "Mỗi máy tự đếm thì trùng ID; hỏi một máy trung tâm cho từng ID thì chậm và là điểm chết duy nhất. Mục tiêu là ID duy nhất toàn cục, sinh cực nhanh không phối hợp cho từng ID và gần đúng thứ tự thời gian (k-sortable). ID lớn dần theo thời gian khiến bản ghi mới nằm gần nhau ở cuối chỉ mục B-tree, chèn nhanh, còn ID ngẫu nhiên rải khắp cây và làm chỉ mục kém hiệu quả."
   - id: b01
     type: text
     md: |
@@ -29,6 +33,10 @@ blocks:
       mỗi lần chèn đụng một trang khác nhau (index-unfriendly). "k-sortable" nghĩa là thứ tự **gần đúng**:
       hai ID sinh trong cùng một mili-giây ở hai máy khác nhau có thể đảo nhau, nhưng tính theo mốc
       mili-giây thì vẫn đúng chiều thời gian.
+  - id: s_snowflake_layout
+    type: section
+    title_vi: "Bố cục Snowflake 64 bit"
+    summary_vi: "Snowflake nhét ID vào 64 bit: 1 bit dấu, 41 bit timestamp mili-giây (khoảng 69 năm), 10 bit machine id (1024 máy) và 12 bit sequence (4096 ID mỗi ms mỗi máy). Timestamp ở bit cao nên ID sinh sau lớn hơn; machine id tránh trùng giữa các máy; sequence phân biệt ID cùng ms trên cùng máy. Không máy nào phải hỏi máy khác để sinh một ID."
   - id: b03
     type: text
     md: |
@@ -57,6 +65,10 @@ blocks:
       12 bit bộ đếm cho 2^12 = **4096** ID mỗi mili-giây trên mỗi máy (tức ~4,096,000 ID/giây/máy); 10 bit
       số máy cho 2^10 = **1024** máy. Nếu một máy cần hơn 4096 ID trong cùng một mili-giây thì phải **chờ
       sang mili-giây kế tiếp** (xem phần xử lý tràn bộ đếm bên dưới).
+  - id: s_edge_cases
+    type: section
+    title_vi: "Ca biên và cấp machine id"
+    summary_vi: "Tràn sequence: hết 4096 giá trị trong cùng ms thì busy-wait sang ms kế rồi reset bộ đếm. Đồng hồ lùi (NTP chỉnh): nhớ timestamp lớn nhất đã phát, nếu đồng hồ nhỏ hơn thì từ chối hoặc chờ, tuyệt đối không phát timestamp đã lùi vì sẽ trùng ID. Machine id lấy một lần lúc khởi động từ ZooKeeper hoặc etcd, nên đường sinh ID vẫn hoàn toàn cục bộ."
   - id: b05
     type: text
     md: |
@@ -92,6 +104,10 @@ blocks:
       timestamp lùi về một mili-giây **đã dùng** — vẫn trùng, nên (a) sai. (c) phá vỡ tính gần đúng thứ tự
       thời gian và bố cục bit. Cách đúng là nhớ timestamp lớn nhất đã phát rồi **từ chối hoặc chờ** khi
       đồng hồ lùi xuống dưới mốc đó.
+  - id: s_compare
+    type: section
+    title_vi: "So sánh các lựa chọn và khung phỏng vấn"
+    summary_vi: "UUIDv4 dài 128 bit, ngẫu nhiên nên xấu cho chỉ mục; UUIDv7 k-sortable nhưng vẫn 128 bit; auto-increment của DB là cổ chai và điểm chết duy nhất; ticket/range server cấp từng khối nên giảm vòng mạng nhưng số có thể không liên tục. Snowflake cân bằng gọn 64 bit, không phối hợp cho từng ID và k-sortable, đổi lại phải cấp machine id lúc khởi động và xử lý đồng hồ lùi. Khi phỏng vấn nêu trade-off, không chỉ nhớ bố cục bit."
   - id: b08
     type: text
     md: |

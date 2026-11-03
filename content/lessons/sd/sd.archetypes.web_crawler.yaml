@@ -1,5 +1,5 @@
 id: sd.archetypes.web_crawler
-version: 1
+version: 2
 status: published
 title_vi: "Thiết kế web crawler (web crawler): hàng đợi URL, lọc trùng và chính sách tải lại"
 est_minutes: 14
@@ -9,6 +9,10 @@ objectives_vi:
   - "Xử lý robots.txt, DNS caching, bẫy crawler (crawler trap), và lên lịch tải lại (re-crawl) theo tần suất thay đổi."
   - "Ước lượng được số fetcher cần từ mục tiêu trang/giây và độ trễ mỗi lần tải."
 blocks:
+  - id: s_frontier
+    type: section
+    title_vi: "URL frontier và politeness"
+    summary_vi: "Crawler là BFS trên Internet gần như vô hạn nên là bài hệ phân tán: frontier, đội fetcher, bộ lọc trùng và kho lưu. Frontier là hàng đợi bền, chia thành nhiều hàng con theo tên miền kèm giới hạn tốc độ theo domain (politeness) để không dội bom máy chủ người ta như một cuộc DoS."
   - id: b01
     type: text
     md: |
@@ -48,6 +52,10 @@ blocks:
       - {id: c, text_md: "Vì BFS bắt buộc mỗi tên miền phải có hàng đợi riêng về mặt thuật toán."}
     answer: [b]
     explain_md: "Hàng đợi theo tên miền cho phép áp giới hạn tốc độ riêng cho mỗi host, nên crawler rải tải đều và không làm sập máy chủ người ta. (a) không phải lý do chính; (c) sai — BFS không đòi hỏi điều đó, đây là yêu cầu vận hành (politeness), không phải ràng buộc thuật toán."
+  - id: s_fetch_dedup
+    type: section
+    title_vi: "Fetcher, DNS và lọc trùng URL"
+    summary_vi: "Fetcher stateless nên thêm máy là tăng thông lượng; DNS là nghẽn hay bị bỏ quên, gỡ bằng DNS caching theo TTL. Lọc trùng URL ở quy mô tỉ dùng Bloom filter: có thể dương tính giả (chỉ bỏ sót một trang) nhưng không bao giờ âm tính giả, nên không tải trùng; ghép thêm kho chính xác khi cần."
   - id: b04
     type: text
     md: |
@@ -86,6 +94,10 @@ blocks:
       - {id: c, text_md: "Crawler bị kẹt vòng lặp vô tận, vì false positive làm hỏng BFS."}
     answer: [b]
     explain_md: "Bloom filter báo dương tính giả nghĩa là nói 'đã thấy' nhầm, nên ta bỏ qua (không tải) một trang mới — chỉ mất một chút độ phủ, đổi lại giảm bộ nhớ rất lớn. Vì không có âm tính giả, cái gì nó nói 'chưa thấy' là thật sự mới, nên không gây tải trùng và không gây vòng lặp. (a) nhầm chiều lỗi; (c) sai."
+  - id: s_policies
+    type: section
+    title_vi: "robots.txt, trùng nội dung, bẫy và tải lại"
+    summary_vi: "Cache và tôn trọng robots.txt theo domain; lọc trùng nội dung bằng hash, trang gần giống bằng simhash. Chặn bẫy crawler bằng giới hạn độ sâu và số URL mỗi domain, và lên lịch tải lại theo tần suất thay đổi để cân giữa độ tươi và chi phí."
   - id: b07
     type: text
     md: |
@@ -115,6 +127,10 @@ blocks:
       - accept: ["Bloom filter", "bloom filter", "Bloom Filter", "bộ lọc Bloom"]
       - accept: ["âm tính", "âm tính giả", "false negative", "negative"]
     explain_md: "Bloom filter trả lời câu hỏi thành viên bằng vài bit; đặc tính 'có thể dương tính giả, không bao giờ âm tính giả' chính là lý do nó hợp cho seen-set của crawler."
+  - id: s_interview_estimate
+    type: section
+    title_vi: "Cách trình bày và ước lượng fetcher"
+    summary_vi: "Dựng khung theo thứ tự frontier + politeness, fetcher + DNS cache, dedup, robots/bẫy, tải lại, và tự nêu con số. Ước lượng theo Little's Law: 1.000 trang/giây x 0,2 giây mỗi lần tải ≈ 200 fetcher; thông lượng bị chặn bởi mức song song I/O chứ không phải CPU."
   - id: b09
     type: callout
     kind: interview
