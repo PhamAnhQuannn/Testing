@@ -2,9 +2,9 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import type { MapSubtopic } from "../lib/api";
 import { getMap } from "../lib/api";
-import { useAsync } from "../lib/hooks";
+import { lsGet, lsSet, useAsync } from "../lib/hooks";
 import { isLocked, lockSummary, reasonText, statusLabel } from "../lib/lock";
-import { groupByModule, ScoreBadge } from "./Home";
+import { groupByTrackSectionModule, ScoreBadge } from "./Home";
 
 /** Which section a subtopic belongs to (the id prefix: py.core.x -> "py"). */
 const sectionOf = (item: MapSubtopic) => item.id.split(".")[0];
@@ -60,9 +60,69 @@ export function MapNode({ item }: { item: MapSubtopic }) {
   );
 }
 
+const COLLAPSE_KEY = "prep:map:collapsed";
+const loadCollapsed = (): Set<string> => {
+  try {
+    const raw = lsGet(COLLAPSE_KEY);
+    return raw ? new Set<string>(JSON.parse(raw) as string[]) : new Set<string>();
+  } catch {
+    return new Set<string>();
+  }
+};
+
+/** A collapsible module group: heading with a toggle, then its subtopic nodes. */
+function ModuleGroup({
+  module_name,
+  items,
+  collapsed,
+  onToggle,
+}: {
+  module_name: string;
+  items: MapSubtopic[];
+  collapsed: boolean;
+  onToggle: () => void;
+}) {
+  const done = items.filter((i) => i.status === "done").length;
+  return (
+    <div className="map-module" aria-label={module_name}>
+      <button
+        type="button"
+        className="map-module-head"
+        aria-expanded={!collapsed}
+        onClick={onToggle}
+      >
+        <span className="map-caret" aria-hidden="true">
+          {collapsed ? "▸" : "▾"}
+        </span>
+        <h4>{module_name}</h4>
+        <span className="muted">
+          {done}/{items.length}
+        </span>
+      </button>
+      {!collapsed && (
+        <ul className="map-nodes">
+          {items.map((item) => (
+            <MapNode key={item.id} item={item} />
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export function MapView({ items }: { items: MapSubtopic[] }) {
   const done = items.filter((i) => i.status === "done").length;
   const due = items.reduce((sum, i) => sum + i.due_cards, 0);
+  const [collapsed, setCollapsed] = useState<Set<string>>(loadCollapsed);
+  const toggle = (key: string) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      lsSet(COLLAPSE_KEY, JSON.stringify([...next]));
+      return next;
+    });
+  const tracks = groupByTrackSectionModule(items);
   return (
     <>
       {due > 0 && (
@@ -75,14 +135,23 @@ export function MapView({ items }: { items: MapSubtopic[] }) {
       <p className="muted" role="status">
         {done}/{items.length} mục hoàn thành · điểm 0-3 (số trong vòng tròn)
       </p>
-      {groupByModule(items).map(([module, group]) => (
-        <section className="module" key={module} aria-label={module}>
-          <h2>{module}</h2>
-          <ul className="map-nodes">
-            {group.map((item) => (
-              <MapNode key={item.id} item={item} />
-            ))}
-          </ul>
+      {tracks.map((track) => (
+        <section className="map-track" key={track.track} aria-label={track.track_name}>
+          <h2>{track.track_name}</h2>
+          {track.sections.map((section) => (
+            <div className="map-section" key={section.section} aria-label={section.section_name}>
+              <h3>{section.section_name}</h3>
+              {section.modules.map((m) => (
+                <ModuleGroup
+                  key={m.module}
+                  module_name={m.module_name}
+                  items={m.items}
+                  collapsed={collapsed.has(m.module)}
+                  onToggle={() => toggle(m.module)}
+                />
+              ))}
+            </div>
+          ))}
         </section>
       ))}
     </>

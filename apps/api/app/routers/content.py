@@ -19,9 +19,14 @@ from ..services.content_loader import (
     LEGACY_LEVELS,
     LEVELS,
     ROLE_TRACKS,
+    SECTION_NAMES,
     TRACKS,
     ContentStore,
+    module_name,
+    track_of,
 )
+
+_TRACK_NAMES: dict[str, str] = {tr["key"]: tr["name_vi"] for tr in TRACKS}
 
 router = APIRouter(prefix="/api")
 
@@ -72,7 +77,11 @@ def _subtopic_item(
         "id": sid,
         "name_vi": info["name_vi"],
         "section": info["section"],
+        "section_name": SECTION_NAMES.get(info["section"], info["section"]),
         "module": info["module"],
+        "module_name": module_name(info["module"]),
+        "track": track_of(info["section"]),
+        "track_name": _TRACK_NAMES.get(track_of(info["section"]), "Khác"),
         "order": info.get("plan_order") or info.get("order"),
         "plan_day": plan_day if plan_day < 10_000 else None,
         "est_hours": info.get("est_hours"),
