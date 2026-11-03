@@ -94,6 +94,27 @@ def test_pragmas_on_every_connection(client):
         assert row("busy_timeout") == 5000
 
 
+def test_transactions_begin_immediate(client):
+    """Transactions open with BEGIN IMMEDIATE so a read-then-write request (e.g. opening a mastery
+    check) can't hit a stale-snapshot SQLITE_BUSY when another request commits concurrently."""
+    from sqlalchemy import event, select
+
+    engine = client.app.state.rt.engine
+    seen: list[str] = []
+
+    def record(conn, cursor, statement, *a):  # noqa: ANN001
+        seen.append(statement)
+
+    event.listen(engine, "after_cursor_execute", record)
+    try:
+        with engine.begin() as conn:
+            conn.execute(select(1))
+    finally:
+        event.remove(engine, "after_cursor_execute", record)
+    assert "BEGIN IMMEDIATE" in seen
+    assert "BEGIN" not in seen  # the plain deferred BEGIN must not be emitted
+
+
 def test_committed_data_survives_a_hard_stop(settings, clock):
     """A 2xx means committed: reopen the file with a fresh process-like connection."""
     rt = Runtime(settings, clock=clock)

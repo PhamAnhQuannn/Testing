@@ -38,8 +38,12 @@ def make_engine(db_path: Path) -> Engine:
     @event.listens_for(engine, "begin")
     def _on_begin(conn):  # noqa: ANN001
         # pysqlite's own transaction handling is disabled above (isolation_level=None), so emit
-        # BEGIN ourselves: every request is one real transaction.
-        conn.exec_driver_sql("BEGIN")
+        # BEGIN ourselves: every request is one real transaction. Use IMMEDIATE so the write lock
+        # is taken up front: a request that reads then writes (e.g. checks.begin_session) can
+        # otherwise hit SQLITE_BUSY the instant another request commits between its first read and
+        # its write (a stale snapshot, which busy_timeout does not retry). IMMEDIATE makes
+        # concurrent writers wait on the lock (busy_timeout) instead of failing.
+        conn.exec_driver_sql("BEGIN IMMEDIATE")
 
     return engine
 
