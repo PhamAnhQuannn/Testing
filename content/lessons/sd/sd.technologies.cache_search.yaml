@@ -1,5 +1,5 @@
 id: sd.technologies.cache_search
-version: 1
+version: 2
 status: published
 title_vi: "Chọn công nghệ cache và search: Redis và Elasticsearch"
 est_minutes: 13
@@ -8,6 +8,10 @@ objectives_vi:
   - "Nói đúng Elasticsearch/OpenSearch là gì (search/analytics engine dựa trên inverted index) và việc nó hợp: tìm kiếm văn bản, lọc, tổng hợp (aggregation)."
   - "Chọn đúng Redis hay Elasticsearch theo yêu cầu và nêu được một giới hạn của mỗi cái (Redis: bộ nhớ/dễ mất dữ liệu; Elasticsearch: độ tươi của index/không phải nguồn gốc)."
 blocks:
+  - id: s_overview
+    type: section
+    title_vi: "Hai công cụ khác nhau hoàn toàn"
+    summary_vi: "Redis và Elasticsearch giải hai bài toán khác nhau: Redis tra theo khóa đã biết trong RAM (dưới mili-giây), Elasticsearch tìm văn bản và lọc khi chưa biết khóa chính xác (inverted index); chọn sai trong phỏng vấn là trừ điểm."
   - id: b01
     type: text
     md: |
@@ -21,6 +25,10 @@ blocks:
         cho **tìm văn bản (full-text), lọc và tổng hợp** khi ta *chưa biết trước* khóa chính xác.
       Trong phỏng vấn, chọn sai chỗ (ví dụ nhét tìm kiếm văn bản vào Redis, hay dùng Elasticsearch
       làm kho chính) là tín hiệu trừ điểm. Mục tiêu bài: chọn đúng và nêu được giới hạn.
+  - id: s_redis
+    type: section
+    title_vi: "Redis: in-memory, truy cập theo khóa, dữ liệu tạm"
+    summary_vi: "Redis giữ mọi dữ liệu trong RAM, hỗ trợ atomic increment và TTL tự hết hạn; hợp nhất cho cache, session, rate limit và leaderboard — nhưng bị chặn bởi bộ nhớ và không phải system of record vì có thể mất vài giây dữ liệu khi sập."
   - id: b02
     type: text
     md: |
@@ -56,6 +64,10 @@ blocks:
       - {id: c, text_md: "DB quan hệ gốc, vì mọi phép đếm đều phải nằm trong giao dịch (transaction) bền vững."}
     answer: [a]
     explain_md: "Rate limit cần truy cập theo khóa (người dùng), rất nhanh, atomic và tự hết hạn — đúng sở trường của Redis; mất số đếm không nghiêm trọng vì nó chỉ sống một phút. (b) Elasticsearch là near-real-time và nặng, không hợp bộ đếm độ trễ thấp. (c) DB gốc chịu tải ghi cao kém và chậm hơn cho việc đếm nóng như vậy."
+  - id: s_elasticsearch
+    type: section
+    title_vi: "Elasticsearch: inverted index, tìm văn bản, không phải kho gốc"
+    summary_vi: "Elasticsearch/OpenSearch dựa trên inverted index để tìm full-text, lọc nhiều điều kiện và tổng hợp khi chưa biết khóa; nhưng có độ trễ tươi ~1 giây và chỉ là bản phụ chép từ DB gốc qua CDC — mất index thì reindex lại được."
   - id: b05
     type: text
     md: |
@@ -109,6 +121,10 @@ blocks:
           - "the system of record"
           - "the source of truth"
     explain_md: "Elasticsearch là index phụ, dựng lại được từ DB gốc, nên nó không phải **system of record** (cũng gọi là **source of truth**). Mất index thì reindex từ DB gốc; vì vậy đừng để nó giữ dữ liệu không thể tái tạo."
+  - id: s_interview_cs
+    type: section
+    title_vi: "Khuôn trả lời phỏng vấn và những điều dễ nhầm"
+    summary_vi: "Khi chọn cache/search: nêu yêu cầu và kiểu truy cập trước, rồi chọn công nghệ kèm 1 giới hạn — Redis để tăng tốc (khóa đã biết, RAM, tạm thời), Elasticsearch để tìm kiếm (văn bản/lọc/aggregation), DB gốc vẫn giữ sự thật."
   - id: b09
     type: callout
     kind: interview

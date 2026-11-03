@@ -1,5 +1,5 @@
 id: sd.async.kafka_log
-version: 1
+version: 2
 status: published
 title_vi: "Distributed log (Kafka): log chỉ ghi thêm, partition, thứ tự và consumer lag"
 est_minutes: 13
@@ -8,6 +8,10 @@ objectives_vi:
   - "Giải thích Kafka giữ **thứ tự theo partition** và cách dùng **partition key** để các tin liên quan cùng một partition."
   - "Chọn **số partition** hợp lý và dùng **consumer lag** làm chỉ số sức khỏe để biết khi nào cần thêm consumer."
 blocks:
+  - id: s_commit_log
+    type: section
+    title_vi: "Kafka là commit log phân tán — khác queue cổ điển ở chỗ nào"
+    summary_vi: "Kafka là commit log append-only, partitioned và replicated; khác queue cổ điển (đọc xong là xóa) ở chỗ giữ tin theo retention và mỗi consumer tự nhớ offset — nhờ vậy nhiều nhóm đọc độc lập cùng một log và có thể replay lại từ đầu khi sửa lỗi hoặc thêm consumer mới."
   - id: b01
     type: text
     md: |
@@ -36,6 +40,10 @@ blocks:
       Đây là lý do người ta nói Kafka là một **log có thể phát lại** (replayable log), còn queue là
       "làm xong thì vứt". Quy tắc chọn: cần phát lại / nhiều người đọc / luồng dữ liệu lớn thì dùng
       log; chỉ cần một hàng việc nền, ack và xóa từng tin thì queue thường đủ và nhẹ hơn.
+  - id: s_partition_key
+    type: section
+    title_vi: "Partition key và đảm bảo thứ tự"
+    summary_vi: "Kafka chỉ đảm bảo thứ tự trong phạm vi một partition, không phải trên toàn topic; dùng partition key (ví dụ user_id) để băm tất cả tin cùng một thực thể vào cùng một partition và giữ đúng trình tự — thứ tự giữa các key khác nhau không cần bảo đảm."
   - id: b03
     type: text
     md: |
@@ -61,6 +69,10 @@ blocks:
       - {id: c, text_md: "Giảm topic xuống 1 partition là cách **duy nhất** có thể giữ đúng thứ tự cho từng tài khoản."}
     answer: [a]
     explain_md: "Thứ tự chỉ được đảm bảo trong một partition, nên muốn đúng trình tự cho từng tài khoản thì cho mọi tin của tài khoản đó vào cùng một partition bằng partition key. (b) sai: Kafka không sắp xếp lại giữa các partition. (c) sai: 1 partition giữ được thứ tự nhưng giết mất song song — không cần, vì partition key đã giữ thứ tự *per-key* mà vẫn dùng được cả 4 partition."
+  - id: s_consumer_group
+    type: section
+    title_vi: "Consumer group và trần song song"
+    summary_vi: "Trong một consumer group, mỗi partition gán cho đúng một consumer — trần song song hữu ích tối đa = số partition; consumer dư số partition chỉ ngồi dự phòng. Muốn thêm consumer chạy thực sự thì phải tăng số partition trước."
   - id: b05
     type: text
     md: |
@@ -85,6 +97,10 @@ blocks:
       - {id: c, text_md: "Kafka báo lỗi và từ chối khởi động group vì số consumer nhiều hơn số partition."}
     answer: [b]
     explain_md: "Mỗi partition chỉ gán cho một consumer trong group, nên tối đa 3 consumer làm việc; 2 consumer dư chỉ chờ dự phòng. Muốn 5 consumer cùng chạy thì cần ít nhất 5 partition. (a) sai vì một partition không bị chia nhỏ cho nhiều consumer; (c) sai vì có dư consumer là hợp lệ, không phải lỗi."
+  - id: s_partition_lag
+    type: section
+    title_vi: "Chọn số partition và consumer lag"
+    summary_vi: "Chọn số partition theo thông lượng mục tiêu ÷ sức một consumer, cộng biên; tăng dễ giảm khó và tăng có thể phá thứ tự theo key nên chọn dư từ đầu. Consumer lag = offset cuối − offset đã đọc; lag tăng = đọc chậm hơn ghi — giảm bằng cách thêm consumer (tới bằng số partition) rồi tăng partition hoặc xử lý nhanh hơn."
   - id: b07
     type: text
     md: |

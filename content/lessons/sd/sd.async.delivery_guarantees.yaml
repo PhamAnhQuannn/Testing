@@ -1,5 +1,5 @@
 id: sd.async.delivery_guarantees
-version: 1
+version: 2
 status: published
 title_vi: "Ngữ nghĩa giao nhận: at-most-once, at-least-once, exactly-once"
 est_minutes: 13
@@ -8,6 +8,10 @@ objectives_vi:
   - "Giải thích vì sao 'exactly-once' trong thực tế = at-least-once + idempotency/khử trùng (dedup) ở bên nhận."
   - "Vẽ được mẫu transactional outbox 2 bước để tránh bài toán ghi đôi (dual-write)."
 blocks:
+  - id: s_delivery_semantics
+    type: section
+    title_vi: "Ba ngữ nghĩa giao nhận và thứ tự ack"
+    summary_vi: "Qua mạng chỉ có hai lựa chọn thật: at-most-once (ack trước khi xử lý — có thể mất) và at-least-once (ack sau khi xử lý — có thể trùng); at-least-once là mặc định thực tế vì mất tin thường tệ hơn xử lý trùng, và trùng còn chữa được."
   - id: b01
     type: text
     md: |
@@ -45,6 +49,10 @@ blocks:
       - {id: c, text_md: "Exactly-once — broker tự bảo đảm mỗi tin xử lý đúng một lần."}
     answer: [b]
     explain_md: "Ack sau khi xử lý nghĩa là không mất tin, nhưng nếu chết trước khi ack thì tin được giao lại và xử lý lần hai — đó là at-least-once, hệ quả là có thể trùng. (a) at-most-once là ack *trước* khi xử lý (có thể mất); (c) broker thường không tự cho exactly-once, phải dựng thêm ở bên nhận."
+  - id: s_exactly_once
+    type: section
+    title_vi: "Exactly-once trong thực tế: at-least-once + dedup"
+    summary_vi: "Exactly-once thực chất = at-least-once (giao nhận) + idempotency/dedup ở bên nhận: mỗi tin mang một message id duy nhất; bên nhận lưu kho dedup, id đã thấy thì bỏ qua — tác dụng chỉ xảy ra một lần dù tin được giao nhiều lần (hiệu lực đúng một lần)."
   - id: b04
     type: text
     md: |
@@ -69,6 +77,10 @@ blocks:
       - {id: c, text_md: "Tin tưởng broker tự bảo đảm mỗi tin tới đúng một lần, không cần xử lý gì thêm ở consumer."}
     answer: [b]
     explain_md: "Exactly-once thực chất = at-least-once + idempotency/dedup ở bên nhận: chấp nhận giao trùng, nhưng khử trùng theo id nên tác dụng chỉ xảy ra một lần. (a) at-most-once có thể **mất** sự kiện thanh toán — không chấp nhận được; (c) đường truyền không tin cậy nên không thể phó mặc cho broker."
+  - id: s_outbox
+    type: section
+    title_vi: "Bài toán ghi đôi và transactional outbox"
+    summary_vi: "Bài toán ghi đôi (dual-write): không thể gói 'ghi DB' và 'publish ra broker' trong một giao dịch, nên dễ lệch. Outbox 2 bước giải quyết: bước 1 — một giao dịch DB ghi cả dòng nghiệp vụ lẫn dòng outbox (cùng commit/rollback); bước 2 — relay/CDC đọc outbox và publish at-least-once, bên nhận vẫn cần dedup."
   - id: b06
     type: text
     md: |

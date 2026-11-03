@@ -1,5 +1,5 @@
 id: sd.networking.realtime_protocols
-version: 1
+version: 2
 status: published
 title_vi: "Giao thức real-time: polling, SSE, WebSocket, gRPC streaming"
 est_minutes: 14
@@ -8,6 +8,10 @@ objectives_vi:
   - "Chọn đúng giao thức theo tình huống: news feed/thông báo, chat, live score, chatbot stream từng token."
   - "Mô tả cách scale hàng triệu kết nối đồng thời: gateway có state, pub/sub để fan-out, sticky routing, reconnect/backpressure, giới hạn kết nối mỗi node."
 blocks:
+  - id: s_polling_methods
+    type: section
+    title_vi: "Polling và các cách dùng HTTP thường để nhận tin"
+    summary_vi: "Short polling đơn giản nhưng lãng phí (phần lớn câu trả lời là 'chưa có gì'); long polling giữ request đến khi có tin nên giảm request rỗng và tin gần như tức thì, nhưng server phải ôm nhiều kết nối đang chờ."
   - id: b01
     type: text
     md: |
@@ -28,6 +32,10 @@ blocks:
         khi *có* tin mới mới trả lời (hoặc hết thời gian chờ); client nhận xong gọi lại ngay. Đỡ tốn
         hơn polling và tin tới gần như tức thì, nhưng mỗi tin vẫn là một vòng request mới, và server
         phải ôm nhiều kết nối đang chờ.
+  - id: s_persistent_conn
+    type: section
+    title_vi: "SSE, WebSocket và gRPC streaming: kết nối giữ lâu"
+    summary_vi: "SSE đẩy một chiều (server→client) trên HTTP, tự nối lại và gửi Last-Event-ID; WebSocket mở kênh full-duplex sau handshake — hợp cho chat/tương tác hai chiều nhưng cần heartbeat và logic nối lại tự viết; gRPC streaming (HTTP/2, typed) là cho service-to-service, không phải trình duyệt."
   - id: b03
     type: text
     md: |
@@ -84,6 +92,10 @@ blocks:
       - {id: c, text_md: "gRPC bidirectional streaming trực tiếp từ trình duyệt tới model."}
     answer: [b]
     explain_md: "Luồng token là **một chiều** server→client, hợp đúng với SSE: đơn giản, qua proxy dễ, tự nối lại. (a) polling trễ và lãng phí. (c) gRPC streaming là cho service-to-service, không phải kênh trực tiếp từ trình duyệt; đây cũng không cần hai chiều liên tục."
+  - id: s_scale_realtime
+    type: section
+    title_vi: "Scale hàng triệu kết nối đồng thời"
+    summary_vi: "Tách tầng gateway stateful (giữ connection map) khỏi logic nghiệp vụ; pub/sub (Redis/Kafka) để fan-out tin tới đúng gateway đang giữ người nhận; LB dùng L4 + least-connections để sticky routing; client reconnect có backoff + last-event-id; đặt trần kết nối/node và dùng APNs/FCM khi app đóng."
   - id: b08
     type: text
     md: |

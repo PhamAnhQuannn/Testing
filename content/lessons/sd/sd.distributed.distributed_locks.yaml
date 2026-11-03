@@ -1,5 +1,5 @@
 id: sd.distributed.distributed_locks
-version: 1
+version: 2
 status: published
 title_vi: "Khóa phân tán và lease (distributed locks): fencing token và khi nào nên bỏ khóa"
 est_minutes: 13
@@ -8,6 +8,10 @@ objectives_vi:
   - "Mô tả lease (khóa có hạn TTL) và dùng fencing token (số chặn) để chặn máy giữ khóa cũ ghi đè."
   - "Nói được khi nào nên thay khóa bằng ghi có điều kiện / compare-and-set (CAS) cho cập nhật một khóa."
 blocks:
+  - id: s_lock_lease
+    type: section
+    title_vi: "Tại sao khóa phân tán khó và giải pháp lease"
+    summary_vi: "Khóa phân tán khó không ở lúc lấy khóa mà ở lúc máy giữ khóa treo hoặc chết; lease (TTL) giải quyết bằng cách tự nhả khi hết hạn, nhưng ca máy bị GC pause quá hạn rồi tỉnh dậy ghi đè vẫn xảy ra vì máy không biết mình đã mất khóa."
   - id: b01
     type: text
     md: |
@@ -43,6 +47,10 @@ blocks:
 
       Chỉ TTL thôi **không cứu** được ca này, vì A không hề biết nó đã treo quá hạn. Mấu chốt: không máy
       nào tin được đồng hồ hay "cảm giác còn giữ khóa" của chính nó.
+  - id: s_fencing_token
+    type: section
+    title_vi: "Fencing token và kho khóa dựa trên consensus"
+    summary_vi: "Fencing token (số monotonic tăng dần cấp kèm khóa) buộc tài nguyên đích từ chối mọi ghi có token nhỏ hơn token lớn nhất đã thấy — an toàn không phụ thuộc đồng hồ; kho khóa nên dựa trên consensus (ZooKeeper/etcd) thay vì Redis đơn lẻ hay Redlock vốn giả định đồng hồ đều."
   - id: b04
     type: text
     md: |
@@ -96,6 +104,10 @@ blocks:
       trong hệ phân tán. Kho khóa dựa trên consensus không dựa vào giả định đồng hồ đó để giữ an toàn, và
       fencing token vẫn là lớp chặn cuối ở tài nguyên đích. (a) sai: một Redis đơn lẻ kém an toàn hơn. (c)
       sai: TTL không chặn được ca máy treo quá hạn.
+  - id: s_cas_alternative
+    type: section
+    title_vi: "Khi nào bỏ khóa và dùng CAS thay thế"
+    summary_vi: "Khi thao tác chỉ cập nhật một khóa đơn, compare-and-set (CAS) / ghi có điều kiện đơn giản và an toàn hơn: không lease để gia hạn, không rủi ro máy treo giữ khóa, không cần fencing token; CAS thất bại thì đọc lại và thử lại."
   - id: b08
     type: text
     md: |

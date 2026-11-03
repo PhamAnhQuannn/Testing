@@ -1,5 +1,5 @@
 id: sd.api.idempotency
-version: 1
+version: 2
 status: published
 title_vi: "Idempotency và retry an toàn giữa các service"
 est_minutes: 12
@@ -8,6 +8,10 @@ objectives_vi:
   - "Thiết kế mẫu **idempotency key** (client gửi mã duy nhất; server lưu mã kèm kết quả; gửi lại cùng mã trả về kết quả cũ)."
   - "Xử lý đúng ca **timeout không rõ kết quả** và tranh chấp khi hai request cùng mã đến đồng thời."
 blocks:
+  - id: s_idempotency_basics
+    type: section
+    title_vi: "Idempotency là gì và HTTP methods nào an toàn"
+    summary_vi: "Idempotent = làm một lần hay nhiều lần đều cùng kết quả; cần vì mạng có thể timeout và client phải retry; GET/PUT/DELETE idempotent tự nhiên; POST thì không — mà các endpoint quan trọng nhất (thanh toán, đặt hàng) đều là POST."
   - id: b01
     type: text
     md: |
@@ -43,6 +47,10 @@ blocks:
       - {id: c, text_md: "POST /charges để trừ tiền một thẻ (tạo một giao dịch mới)."}
     answer: [c]
     explain_md: "GET chỉ đọc; PUT ghi đè về một trạng thái cố định nên lặp lại vẫn ra kết quả đó — cả hai idempotent tự nhiên. POST trừ tiền tạo một hành động mới mỗi lần gọi, nên retry có thể trừ tiền hai lần: đây là thao tác cần mẫu idempotency key bảo vệ."
+  - id: s_idempotency_key
+    type: section
+    title_vi: "Mẫu idempotency key"
+    summary_vi: "Client sinh UUID cho mỗi ý định, gửi trong header Idempotency-Key; server đăng ký mã nguyên tử (unique constraint hoặc lock) trước khi thực hiện, lưu mã kèm response; retry cùng mã nhận lại kết quả cũ; mã có TTL để bảng không phình mãi."
   - id: b04
     type: text
     md: |
@@ -63,6 +71,10 @@ blocks:
     blanks:
       - accept: ["idempotency key", "idempotency-key", "khóa idempotency", "khoá idempotency", "mã chống lặp"]
     explain_md: "Đó là idempotency key (mã chống lặp). Client sinh mã (thường là UUID), gửi trong header Idempotency-Key; server lưu mã -> kết quả để một retry cùng mã chỉ trả lại kết quả đã lưu, không trừ tiền hay tạo đơn lần hai."
+  - id: s_timeout_concurrent
+    type: section
+    title_vi: "Timeout không rõ kết quả và tranh chấp đồng thời"
+    summary_vi: "Timeout không biết đã landed chưa: cứ retry đúng mã cũ — đã landed thì trả kết quả cũ, chưa landed thì làm một lần; hai request cùng mã đồng thời phải đăng ký mã nguyên tử (unique constraint hoặc lock) để chỉ một cái thực hiện; lưu mã kèm response và đặt TTL."
   - id: b06
     type: text
     md: |

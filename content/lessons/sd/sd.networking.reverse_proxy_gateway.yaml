@@ -1,5 +1,5 @@
 id: sd.networking.reverse_proxy_gateway
-version: 1
+version: 2
 status: published
 title_vi: "Reverse proxy và API gateway: đặt auth, rate limit, routing ở đâu"
 est_minutes: 13
@@ -8,6 +8,10 @@ objectives_vi:
   - "Giải thích vì sao các mối quan tâm xuyên suốt (**auth, rate limiting, routing**) nên đặt ở rìa (edge) một lần, không lặp trong từng service."
   - "Nêu rủi ro **fat gateway** (nghẽn / SPOF / nút cổ chai triển khai) và cách scale gateway (stateless + ngang + giữ logic mỏng)."
 blocks:
+  - id: s_proxy_vs_gateway
+    type: section
+    title_vi: "Reverse proxy và API gateway: định nghĩa và điểm khác nhau"
+    summary_vi: "Reverse proxy giấu backend, kết thúc TLS, phục vụ cache/tĩnh; API gateway = reverse proxy cộng thêm chính sách tầng API (auth, rate limiting, routing/aggregation, versioning); một phần mềm như nginx/Envoy có thể đóng cả hai vai tuỳ cấu hình."
   - id: b01
     type: text
     md: |
@@ -47,6 +51,10 @@ blocks:
       - {id: c, text_md: "Reverse proxy đứng trước client, còn API gateway đứng trước server."}
     answer: [b]
     explain_md: "Gateway là reverse proxy chuyên cho API, gánh thêm chính sách tầng ứng dụng. (a) sai — gateway vẫn thường kết thúc TLS; (c) nhầm với forward proxy — cả reverse proxy lẫn gateway đều đứng trước server."
+  - id: s_edge_concerns
+    type: section
+    title_vi: "Đặt auth và rate limiting ở rìa, không lặp trong từng service"
+    summary_vi: "Auth, rate limiting, routing là cross-cutting concerns — đặt ở gateway (rìa) làm một lần: nhất quán, không lặp trong 20 service, và chặn request xấu sớm trước khi tốn tài nguyên backend; không nhét nghiệp vụ vào gateway."
   - id: b04
     type: text
     md: |
@@ -72,6 +80,10 @@ blocks:
       - {id: c, text_md: "Ở tầng database, vì mọi request cuối cùng đều chạm database."}
     answer: [b]
     explain_md: "Auth và rate limiting là cross-cutting concern — đặt ở gateway (edge) làm một lần cho nhất quán và chặn sớm. (a) lặp 20 chỗ dễ lệch và sót lỗ hổng; (c) quá muộn và sai tầng — request xấu đã đi hết đường mới bị chặn."
+  - id: s_fat_gateway
+    type: section
+    title_vi: "Fat gateway, rủi ro và cách scale"
+    summary_vi: "Gateway nằm trên đường đi mọi request nên nhồi nghiệp vụ biến nó thành nghẽn/SPOF/deployment chokepoint; giải pháp: giữ gateway stateless + thin (chỉ policy chung) rồi scale ngang nhiều bản sau load balancer; LB đứng trước gateway, không thay thế gateway."
   - id: b06
     type: text
     md: |

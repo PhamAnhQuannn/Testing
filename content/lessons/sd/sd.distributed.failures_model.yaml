@@ -1,5 +1,5 @@
 id: sd.distributed.failures_model
-version: 1
+version: 2
 status: published
 title_vi: "Mô hình lỗi và partial failure (failure models) trong hệ phân tán"
 est_minutes: 13
@@ -8,6 +8,10 @@ objectives_vi:
   - "Kể đúng các kiểu lỗi: crash-stop, crash-recovery, omission, network partition và Byzantine."
   - "Giải thích vì sao **timeout** và **heartbeat** không phải sự thật tuyệt đối, và cách **fencing token** chặn hậu quả của một quyết định sai."
 blocks:
+  - id: s_partial_failure_types
+    type: section
+    title_vi: "Partial failure và các kiểu lỗi trong hệ phân tán"
+    summary_vi: "Partial failure là đặc trưng khó của hệ phân tán: vài node/mạng hỏng trong khi phần còn lại vẫn chạy; 5 kiểu lỗi: crash-stop, crash-recovery (hay gặp nhất), omission (mất tin), network partition, Byzantine (tùy tiện/gian lận — thường ngoài phạm vi hệ nội bộ)."
   - id: b01
     type: text
     md: |
@@ -44,6 +48,10 @@ blocks:
       - {id: d, text_md: "Omission — tin nhắn bị rớt trên đường đi."}
     answer: [c]
     explain_md: "Lỗi **Byzantine** (tùy tiện/gian lận) tốn kém để chống và hiếm trong hệ nội bộ tin cậy lẫn nhau, nên thường bỏ qua; nó quan trọng ở blockchain hay hệ nhiều bên không tin nhau. Crash-recovery, network partition và omission đều là lỗi **bình thường phải xử lý** trong mọi hệ phân tán."
+  - id: s_timeout_heartbeat
+    type: section
+    title_vi: "Timeout và heartbeat — phỏng đoán không phải sự thật"
+    summary_vi: "Không thể phân biệt node chết với node chậm hay tin bị rớt trong mạng bất đồng bộ; timeout là phỏng đoán tự chọn; heartbeat cũng dựa trên timeout nên false-positive được — GC pause hay network blip đủ để báo nhầm node còn sống là đã chết."
   - id: b04
     type: text
     md: |
@@ -78,6 +86,10 @@ blocks:
       - {accept: ["timeout", "time-out", "time out"]}
       - {accept: ["heartbeat", "heartbeats", "heart-beat"]}
     explain_md: "**Timeout** là ngưỡng chờ ta tự chọn để kết luận node đã chết — một phỏng đoán, không phải sự thật. **Heartbeat** là nhịp tim định kỳ; vì nó cũng dựa trên timeout nên một GC pause hay network blip đủ để nó báo chết nhầm (false-positive)."
+  - id: s_split_brain_fencing
+    type: section
+    title_vi: "Split brain và fencing token chặn hậu quả"
+    summary_vi: "Phỏng đoán sai mà đem ra hành động gây split brain: cả A (token 33) lẫn B (token 34) đều tin mình là leader và ghi đồng thời; fencing token giải quyết bằng cách kho tài nguyên từ chối token 33 < 34 — không cần biết chắc A chết, chỉ cần chặn tay chơi cũ gây hại."
   - id: b07
     type: text
     md: |

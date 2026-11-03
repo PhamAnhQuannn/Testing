@@ -1,5 +1,5 @@
 id: sd.async.batch_processing
-version: 1
+version: 2
 status: published
 title_vi: "Xử lý lô (batch) và MapReduce: map, shuffle, reduce, data skew và job chạy lại được"
 est_minutes: 13
@@ -8,6 +8,10 @@ objectives_vi:
   - "Giải thích mô hình **MapReduce** qua ví dụ đếm từ (word count): map, shuffle, reduce — và vì sao shuffle là pha đắt nhất."
   - "Nhận ra **data skew** (một khóa nóng làm một reducer thành straggler) và nêu cách gỡ; làm một batch job **chạy lại được (idempotent)** để không hỏng hay đếm đúp dữ liệu."
 blocks:
+  - id: s_batch_intro
+    type: section
+    title_vi: "Batch là gì và khi nào dùng batch"
+    summary_vi: "Batch xử lý một khối dữ liệu hữu hạn trong một lượt (thường theo lịch đêm), chấp nhận độ trễ hàng phút đến hàng giờ; dùng khi không cần kết quả tức thời và rẻ hơn stream vì không phải giữ hệ chạy 24/7."
   - id: b01
     type: text
     md: |
@@ -20,6 +24,10 @@ blocks:
         batch **đủ dùng và thường rẻ hơn** stream vì không phải giữ hệ chạy 24/7 và xử lý từng sự kiện.
       - Điểm cốt lõi của bài này: khối dữ liệu quá lớn cho một máy, nên ta phải **chia việc ra nhiều
         máy chạy song song** — và đó là lý do có mô hình **MapReduce**.
+  - id: s_mapreduce
+    type: section
+    title_vi: "Mô hình MapReduce: map, shuffle, reduce"
+    summary_vi: "MapReduce chia phép tính lớn thành ba pha: map (mỗi máy phát (khóa, giá trị) từ phần dữ liệu của mình, song song hoàn toàn) → shuffle (gom cùng khóa về một máy qua mạng — pha đắt nhất) → reduce (cộng dồn từng khóa). Ví dụ đếm từ: 'a b a' → (a,1)(b,1)(a,1) → a=2, b=1."
   - id: b02
     type: text
     md: |
@@ -51,6 +59,10 @@ blocks:
       - {id: c, text_md: "Reduce, vì phép cộng dồn các giá trị là thao tác tốn CPU nhất."}
     answer: [b]
     explain_md: "Map chạy song song cục bộ trên phần dữ liệu của từng máy nên rẻ; reduce chỉ cộng dồn theo từng khóa. Shuffle phải di chuyển dữ liệu qua mạng để gom cùng khóa về một chỗ, nên là pha đắt nhất. (a) sai vì mỗi máy chỉ đọc phần của mình, không phải cả 1 TB; (c) sai vì cộng dồn rất nhẹ."
+  - id: s_data_skew
+    type: section
+    title_vi: "Data skew và cách gỡ straggler"
+    summary_vi: "Data skew xảy ra khi một khóa nóng (stop word 'the', id người nổi tiếng, khóa null) dồn phần lớn bản ghi vào một reducer làm nó thành straggler; gỡ bằng combiner/gộp trước tại máy map để giảm dữ liệu qua mạng, hoặc salting khóa nóng + gộp hai tầng để chia tải ra nhiều reducer."
   - id: b05
     type: text
     md: |
@@ -77,6 +89,10 @@ blocks:
       - {id: c, text_md: "Bỏ pha shuffle đi để khỏi phải gom khóa về một chỗ."}
     answer: [a]
     explain_md: "Salting chia khóa nóng cho nhiều reducer rồi gộp hai tầng, nên không còn một máy ôm hết — đúng gốc vấn đề. (b) chỉ vá tạm: một máy vẫn ôm cả khóa nóng và vẫn là straggler; (c) sai vì bỏ shuffle thì không gom được cùng khóa để đếm, phá luôn phép tính."
+  - id: s_idempotent
+    type: section
+    title_vi: "Job chạy lại được (idempotent) và atomic swap"
+    summary_vi: "Batch job hỏng giữa chừng là chuyện thường; cần thiết kế idempotent — cùng input cho cùng output dù chạy bao nhiêu lần. Kỹ thuật cốt lõi: ghi vào thư mục output mới rồi tráo đổi nguyên tử (atomic swap) khi hoàn tất, và output tất định (deterministic) để chạy lại là ghi đè chứ không cộng thêm."
   - id: b07
     type: text
     md: |
