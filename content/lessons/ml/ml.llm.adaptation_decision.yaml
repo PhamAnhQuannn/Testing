@@ -1,5 +1,5 @@
 id: ml.llm.adaptation_decision
-version: 1
+version: 2
 status: published
 title_vi: "Chọn hướng cho LLM: prompt, RAG, fine-tune, API hay self-host"
 est_minutes: 14
@@ -9,6 +9,10 @@ objectives_vi:
   - "Phân biệt trục triển khai: API có sẵn (hosted API) so với tự chạy model mở (self-host), và các trade-off chi phí, độ trễ, quyền riêng tư."
   - "Với một tình huống sản phẩm, chọn có căn cứ giữa prompt/RAG/fine-tune và API/self-host, nêu rõ lý do theo ràng buộc."
 blocks:
+  - id: s_chan_doan_thang_bac
+    type: section
+    title_vi: "Chẩn đoán lỗi và thang bậc chi phí"
+    summary_vi: "Trước khi chọn kỹ thuật phải hỏi LLM sai kiểu gì: thiếu kiến thức (missing knowledge), sai hành vi/giọng/độ dài (behavior) hay chỉ sai format. Chữa theo thang bậc tăng dần chi phí: prompt (rẻ nhất, luôn thử trước) -> RAG khi thiếu hoặc hay đổi kiến thức -> fine-tune khi sai hành vi và có dữ liệu gán nhãn tốt -> kết hợp RAG + model đã tuned. Mỗi bậc phải đo bằng eval set trước khi kết luận tốt hơn."
   - id: b01
     type: text
     md: |
@@ -52,6 +56,10 @@ blocks:
       - {id: c, text_md: "Không làm gì được: kiến thức sau ngày huấn luyện chỉ có thể sửa bằng cách huấn luyện lại model từ đầu."}
     answer: [a]
     explain_md: "Chính sách mới = kiến thức bị thiếu và hay đổi → RAG là đúng trọng tâm (rẻ, cập nhật tức thì, đổi tài liệu là xong). (b) sai: fine-tune hợp với *hành vi* chứ không bơm được kiến thức tươi, lại đắt và phải tune lại mỗi lần chính sách đổi. (c) sai: RAG chính là cách đưa kiến thức mới vào mà không cần huấn luyện lại."
+  - id: s_rag_vs_finetune
+    type: section
+    title_vi: "Khi nào RAG, khi nào fine-tune"
+    summary_vi: "RAG hợp khi gốc rễ là kiến thức: sự thật cụ thể, tài liệu riêng, dữ liệu hay đổi cần độ tươi; đổi tài liệu là cập nhật ngay và truy được nguồn. Fine-tune nhồi kiến thức vào trọng số vừa đắt vừa lỗi thời nhanh nên không dùng để dạy sự kiện. Fine-tune đáng làm khi lỗi là hành vi/giọng/định dạng/tính nhất quán, đã có hàng trăm đến hàng nghìn ví dụ gán nhãn tốt, và prompt (kể cả few-shot) chưa đạt hoặc quá dài và đắt mỗi lần gọi."
   - id: b04
     type: text
     md: |
@@ -87,6 +95,10 @@ blocks:
       - {id: c, text_md: "Bỏ qua, vì giọng điệu là thứ LLM không thể điều chỉnh được."}
     answer: [a]
     explain_md: "Sai *giọng/phong cách* dù biết đủ thông tin = lỗi **hành vi**; đã thử prompt chưa ổn và có ~800 ví dụ gán nhãn → fine-tune là đúng trọng tâm. (b) sai: RAG chữa thiếu *kiến thức*, không nắn được giọng, và không bắt buộc trước fine-tune. (c) sai: giọng/phong cách chính là thứ fine-tune làm tốt."
+  - id: s_api_vs_selfhost
+    type: section
+    title_vi: "Trục triển khai: API hay self-host"
+    summary_vi: "Đây là trục vuông góc với prompt/RAG/fine-tune: chạy model ở đâu. API có sẵn thì khởi động nhanh, không lo ops, trả theo token, nhưng dữ liệu rời khỏi ranh giới của bạn và dễ vendor lock-in. Self-host model mở thì giữ dữ liệu trong nhà, chi phí GPU cố định (tải lớn ổn định thì rẻ hơn theo token) và kiểm soát được, nhưng phải tự gánh vận hành. Hai trục độc lập nên tổ hợp nào cũng được; câu thần chú phỏng vấn: kiến thức mới -> RAG, hành vi mới -> fine-tune, luôn thử prompt trước."
   - id: b07
     type: text
     md: |
@@ -134,6 +146,10 @@ blocks:
       - {id: c, text_md: "Không dùng LLM nào cả, vì mọi LLM đều bắt buộc phải gửi dữ liệu ra ngoài."}
     answer: [a]
     explain_md: "Ràng buộc **quyền riêng tư / tuân thủ** (dữ liệu không được rời hệ thống) cộng tải lớn ổn định đẩy cân về **self-host model mở**: dữ liệu ở trong nhà, chi phí GPU cố định phân bổ tốt. (b) sai: API gửi dữ liệu ra ngoài — vi phạm ràng buộc; 'luôn rẻ/an toàn hơn' là sai. (c) sai: self-host chính là cách dùng LLM mà không gửi dữ liệu ra ngoài."
+  - id: s_theo_rang_buoc
+    type: section
+    title_vi: "Quyết định theo ràng buộc"
+    summary_vi: "Không có đáp án đúng mọi lúc: cân độ trễ, chi phí, quyền riêng tư/tuân thủ, dữ liệu gán nhãn có sẵn và năng lực ops của đội. Đội nhỏ cần ra nhanh, dữ liệu không nhạy cảm thì nghiêng về API + prompt/RAG; dữ liệu nhạy cảm, tải lớn, có đội ops thì nghiêng self-host. Ý nâng cao hay được hỏi: routing/cascade (model rẻ xử lý trước, ca khó mới lên model mạnh), distillation (model lớn dạy model nhỏ) và giảm vendor lock-in bằng lớp trừu tượng cùng eval chạy được trên nhiều model."
   - id: b11
     type: text
     md: |

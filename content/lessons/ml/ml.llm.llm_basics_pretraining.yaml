@@ -1,5 +1,5 @@
 id: ml.llm.llm_basics_pretraining
-version: 1
+version: 2
 status: published
 title_vi: "LLM được huấn luyện thế nào: pretraining, SFT, preference tuning"
 est_minutes: 12
@@ -8,6 +8,10 @@ objectives_vi:
   - "Phân biệt base model, instruct/chat model và reasoning model, và nói mỗi loại dùng cho việc gì."
   - "Giải thích context window là gì, giới hạn của nó, và nhớ rằng model có knowledge cutoff."
 blocks:
+  - id: s_next_token_pretraining
+    type: section
+    title_vi: "Next-token prediction và pretraining"
+    summary_vi: "LLM học bằng một trò chơi duy nhất là đoán token tiếp theo (token là mảnh chữ, cũng là đơn vị tính tiền và đo context window). Pretraining đọc hàng nghìn tỉ token từ web, sách, code và nén ngữ pháp, kiến thức, văn phong vào trọng số; kết quả là base model chỉ biết nối chữ cho mượt, có thể viết tiếp thành danh sách câu hỏi thay vì đáp Paris. Pretraining tốn kém nhất và cho phần lớn kiến thức."
   - id: b01
     type: text
     md: |
@@ -38,6 +42,10 @@ blocks:
       - {id: c, text_md: "Một **reasoning model** biết suy luận nhiều bước và tự kiểm tra lời giải."}
     answer: [b]
     explain_md: "Pretraining chỉ dạy next-token prediction trên văn bản thô, nên sản phẩm là **base model** — giỏi nối chữ nhưng chưa biết làm theo chỉ dẫn. Biết trả lời (instruct) hay suy luận nhiều bước (reasoning) là nhờ các giai đoạn huấn luyện **sau** pretraining."
+  - id: s_sft_preference_tuning
+    type: section
+    title_vi: "SFT và preference tuning"
+    summary_vi: "Post-training theo thứ tự: pretraining -> SFT -> preference tuning. SFT dạy bằng cặp (yêu cầu -> câu trả lời mẫu) để model gặp chỉ dẫn thì trả lời, ra instruct/chat model. Preference tuning cho người hoặc model chọn câu tốt hơn rồi điều chỉnh theo đó, bằng RLHF hoặc DPO (DPO đơn giản và rẻ hơn, nay rất thông dụng). Hai bước sau rẻ hơn nhiều và chủ yếu dạy hành vi, không bơm thêm nhiều kiến thức."
   - id: b04
     type: text
     md: |
@@ -69,6 +77,10 @@ blocks:
       - {accept: ["SFT", "supervised fine-tuning", "instruction tuning", "fine-tuning có giám sát"]}
       - {accept: ["preference tuning", "preference-tuning", "chỉnh theo sở thích", "RLHF/DPO", "alignment"]}
     explain_md: "Thứ tự đúng là **pretraining → SFT → preference tuning**. Pretraining cho kiến thức; SFT dạy làm theo chỉ dẫn (ra instruct model); preference tuning (RLHF/DPO) chỉnh hành vi theo lựa chọn con người."
+  - id: s_base_instruct_reasoning
+    type: section
+    title_vi: "Base, instruct và reasoning model"
+    summary_vi: "Base model chỉ qua pretraining, chỉ nối chữ, dùng để fine-tune tiếp hoặc nghiên cứu. Instruct/chat model qua pretraining + SFT (+ preference tuning), biết làm theo chỉ dẫn và là mặc định cho đa số sản phẩm. Reasoning model được luyện thêm (thường bằng RL thưởng khi ra đáp án đúng) để nghĩ nhiều bước, mạnh ở toán, code, logic khó nhưng chậm và tốn token hơn. Việc đơn giản dùng instruct; việc suy luận nhiều bước mới cân nhắc reasoning."
   - id: b06
     type: text
     md: |
@@ -95,6 +107,10 @@ blocks:
       - {id: c, text_md: "Base model đáp 'Paris', còn instruct model từ chối vì lý do an toàn."}
     answer: [b]
     explain_md: "Base model chỉ học nối chữ, nên dễ **viết tiếp** thành một chuỗi câu hỏi giống văn bản web, chứ chưa có thói quen 'gặp chỉ dẫn thì trả lời'. SFT mới dạy instruct model trả lời thẳng — đó là khác biệt cốt lõi giữa hai loại."
+  - id: s_context_window_cutoff
+    type: section
+    title_vi: "Context window và knowledge cutoff"
+    summary_vi: "Context window là số token tối đa model đọc được trong một lần gọi, tính cả prompt vào lẫn phần sinh ra; vượt trần thì lỗi hoặc bị cắt, nên phải chia nhỏ hoặc dùng RAG. Dài hơn thì chậm và đắt hơn, và thông tin ở khúc giữa dễ bị bỏ quên (lost in the middle). Knowledge cutoff là mốc cuối của dữ liệu train, khác context window: muốn model biết tin mới phải đưa vào prompt, mở rộng context không cập nhật kiến thức."
   - id: b08
     type: text
     md: |

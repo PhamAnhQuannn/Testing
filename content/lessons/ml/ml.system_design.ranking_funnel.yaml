@@ -1,5 +1,5 @@
 id: ml.system_design.ranking_funnel
-version: 1
+version: 2
 status: published
 title_vi: "Phễu retrieval-ranking: các tầng, ngân sách độ trễ và ba cái bẫy (position bias, cold start, vòng phản hồi)"
 est_minutes: 14
@@ -9,6 +9,10 @@ objectives_vi:
   - "Nhận ra và giải thích ba cái bẫy kinh điển: position bias, cold start, vòng phản hồi (feedback loop / exposure bias)."
   - "Nêu được cách chữa từng bẫy: IPS/feature vị trí, exploration (bandit/ε-greedy), randomization, content feature cho món mới."
 blocks:
+  - id: s_funnel_retrieval
+    type: section
+    title_vi: "Vì sao cần phễu và tầng retrieval"
+    summary_vi: "Chấm 100 triệu món bằng một model nặng là bất khả thi (0,1 ms mỗi món đã là khoảng 3 giờ trong khi người dùng chỉ chờ vài trăm ms), nên dùng phễu nhiều tầng, mỗi tầng có ngân sách độ trễ riêng. Tầng retrieval chạy trên cả kho nên phải rẻ (ANN trên embedding two-tower, co-occurrence, heuristic) và tối ưu recall: gom vài nghìn ứng viên, không cần đúng thứ hạng, vì tầng sau chỉ thấy những gì tầng 1 đưa lên."
   - id: b01
     type: text
     md: |
@@ -34,6 +38,10 @@ blocks:
       Thước đo của tầng này là **recall cao**: đừng bỏ sót món hay. Nó **không cần chính xác thứ hạng**
       — chỉ cần gom đủ ứng viên tốt vào rổ để tầng sau lọc. Bỏ sót ở đây thì mọi tầng sau cũng chịu,
       vì chúng chỉ thấy được những gì tầng 1 đưa lên.
+  - id: s_ranking_stages
+    type: section
+    title_vi: "Pre-ranking, heavy ranking và re-ranking"
+    summary_vi: "Pre-ranking là model nhỏ cắt vài nghìn xuống vài trăm; heavy ranking là model đắt, nhiều feature, multi-task (P(click), P(xem hết), P(like)) chấm vài trăm xuống vài chục và tối ưu precision ở đỉnh. Re-ranking áp đa dạng, dedup và luật kinh doanh để ra khoảng 10 món. Khung phỏng vấn: 1e8 xuống 1e3 xuống 1e1 kèm latency mỗi tầng (retrieval khoảng 10 ms, ranking khoảng 50 ms): tầng đầu tối ưu recall rẻ, tầng sau tối ưu precision đắt trên tập nhỏ."
   - id: b03
     type: text
     md: |
@@ -68,6 +76,10 @@ blocks:
       - {id: c, text_md: "Vì retrieval làm model nặng chạy nhanh hơn trên mỗi món; cả hai tầng đều tối ưu cùng một thước đo là độ chính xác thứ hạng cuối."}
     answer: [a]
     explain_md: "Nút thắt là latency: không thể chạy model đắt trên hàng triệu món. Tầng retrieval rẻ, tối ưu RECALL (gom đủ ứng viên tốt); tầng ranking đắt, tối ưu PRECISION trên tập nhỏ. (b) đảo vai trò; (c) sai vì hai tầng có thước đo khác nhau và retrieval không làm ranker nhanh hơn trên mỗi món."
+  - id: s_position_bias
+    type: section
+    title_vi: "Bẫy 1: position bias"
+    summary_vi: "Món đứng cao được click nhiều hơn chỉ nhờ vị trí, nên click thô là nhãn thiên lệch và ranker sẽ bắt chước thứ hạng cũ thay vì học độ liên quan thật. Hai cách chữa: đưa vị trí hiển thị vào làm feature lúc train rồi đặt về hằng số khi serving, hoặc IPS nhân mỗi mẫu với 1/P(được xem ở vị trí đó) để bù cho món ở vị trí thấp ít được nhìn."
   - id: b06
     type: text
     md: |
@@ -95,6 +107,10 @@ blocks:
       - {id: c, text_md: "Không có vấn đề gì: click là tín hiệu trực tiếp của người dùng nên luôn là nhãn liên quan không thiên lệch."}
     answer: [a]
     explain_md: "Position bias: vị trí cao hút click bất kể liên quan, nên click là nhãn thiên lệch và model sẽ tái lập thứ hạng cũ. Chữa: position feature (đặt về hằng số khi serving) hoặc IPS. (b) thêm dữ liệu cùng kiểu thiên lệch không sửa gốc; (c) sai vì click không phải nhãn không thiên lệch."
+  - id: s_cold_start_loop
+    type: section
+    title_vi: "Bẫy 2 và 3: cold start và vòng phản hồi"
+    summary_vi: "Cold start: người hoặc món mới chưa có lịch sử nên bị dìm. Feedback loop (exposure bias): train trên click do chính ranker ghi nên món hot càng hot, món chưa được hiển thị không bao giờ có dữ liệu. Gốc chung là thiếu quan sát, chữa bằng exploration (bandit, ε-greedy dành ε phần lượt hiển thị để thử), randomization để thu dữ liệu ít thiên lệch cho IPS và đánh giá, và content feature cho món mới. Mức 3: vẽ phễu kèm latency và nêu đủ ba bẫy với cách chữa."
   - id: b08
     type: text
     md: |

@@ -1,5 +1,5 @@
 id: ml.fundamentals.reinforcement_learning_basics
-version: 1
+version: 2
 status: published
 title_vi: "Cơ bản về học tăng cường (reinforcement learning): thử-và-sai, thưởng/phạt, và nền của alignment"
 est_minutes: 13
@@ -9,6 +9,10 @@ objectives_vi:
   - "Hiểu Q-value và ý tưởng cập nhật Bellman bằng lời, rồi tự tính tay 2 bước cập nhật Q trên một hành lang nhỏ."
   - "Nói được vì sao alignment (RLHF) mượn ý tưởng thưởng/phạt: reward model cho điểm thưởng, policy chính là LLM."
 blocks:
+  - id: s_vong_lap_rl
+    type: section
+    title_vi: "Vòng lặp RL và tổng thưởng chiết khấu"
+    summary_vi: "RL học bằng thử và sai qua thưởng/phạt. Vòng lặp gồm agent, environment, state, action, reward, policy: thấy state, chọn action theo policy, nhận reward và state mới. Mục tiêu là tối đa tổng thưởng có chiết khấu γ < 1 (ví dụ 0,9); ý Bellman: giá trị = thưởng ngay + γ × giá trị ô kế, ví dụ 1 + 0,9 × 10 = 10."
   - id: b01
     type: text
     md: |
@@ -40,6 +44,10 @@ blocks:
       Đây chính là **ý tưởng Bellman**: giá trị một ô bằng phần thưởng bước này cộng với giá trị
       của ô bạn bước tới (đã nhân γ). Ví dụ nếu ô kế có giá trị 10, thưởng bước này là 1, γ = 0,9
       thì giá trị ô hiện tại ≈ 1 + 0,9 × 10 = 10.
+  - id: s_kham_pha_khai_thac
+    type: section
+    title_vi: "Khám phá và khai thác"
+    summary_vi: "Chỉ khai thác thì tác tử kẹt ở lựa chọn tạm ổn và không thấy đường tốt hơn; chỉ khám phá thì thử lung tung, không tận dụng điều đã học. Cách đơn giản là ε-greedy: phần lớn chọn hành động tốt nhất đã biết, ε% số bước (ví dụ 10%) đi ngẫu nhiên. Hệ số γ không liên quan việc thử đường mới, nó chỉ chỉnh mức coi trọng tương lai."
   - id: b03
     type: text
     md: |
@@ -63,6 +71,10 @@ blocks:
       - {id: c, text_md: "Đây là lỗi chiết khấu (discount); đặt γ = 0 để chỉ quan tâm thưởng tức thời là xong."}
     answer: [a]
     explain_md: "Tác tử kẹt vì chỉ dùng cái đã biết (khai thác) và không chịu thử cái mới (khám phá). ε-greedy cho nó thỉnh thoảng đi ngẫu nhiên, nhờ đó có thể phát hiện tuyến ngắn hơn. (b) ngược vấn đề; (c) γ điều chỉnh coi trọng tương lai bao nhiêu, không liên quan đến việc thử đường mới."
+  - id: s_q_value_bellman
+    type: section
+    title_vi: "Q-value và cập nhật Bellman"
+    summary_vi: "Q(s, a) là kỳ vọng tổng thưởng tương lai khi chọn a tại s; có Q thì policy chọn hành động có Q lớn nhất. Cập nhật: Q(s, a) <- Q(s, a) + α·[r + γ·max Q(s', ·) - Q(s, a)], α là learning rate quyết định chỉnh mạnh bao nhiêu. Ví dụ hành lang 4 ô (α = 0,5, γ = 0,9): Q(2, phải) = 0,5 × 10 = 5, rồi Q(1, phải) = 0,5 × (-1 + 4,5) = 1,75, thưởng +10 lan ngược về các ô trước."
   - id: b05
     type: text
     md: |
@@ -119,6 +131,10 @@ blocks:
       - {id: c, text_md: "α là phần thưởng tức thời nhận được ở mỗi bước."}
     answer: [a]
     explain_md: "α (learning rate) là bước chỉnh: Q mới = Q cũ + α × sai số, nên α kiểm soát ta tiến về mục tiêu nhanh hay chậm. (b) là vai trò của γ (discount), không phải α; (c) phần thưởng tức thời là r, không phải α."
+  - id: s_rlhf_alignment
+    type: section
+    title_vi: "RLHF: thưởng/phạt trong alignment"
+    summary_vi: "LLM sau khi đoán từ tiếp theo chưa chắc nói theo ý người dùng; khó viết đáp án đúng cho mọi câu nhưng dễ nói câu nào tốt hơn. RLHF biến phản hồi đó thành thưởng: policy chính là LLM, hành động là sinh câu trả lời, reward model (học từ cặp người thích/không thích) đóng vai môi trường chấm điểm, thuật toán RL chỉnh LLM để tăng điểm thưởng. PPO/DPO học ở bài alignment sau."
   - id: b09
     type: text
     md: |

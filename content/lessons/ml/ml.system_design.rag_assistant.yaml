@@ -1,5 +1,5 @@
 id: ml.system_design.rag_assistant
-version: 1
+version: 2
 status: published
 title_vi: "Thiết kế trợ lý RAG doanh nghiệp: hạ tầng ingest chạy nền, phân quyền (ACL), trích dẫn, đánh giá và chi phí"
 est_minutes: 14
@@ -9,6 +9,10 @@ objectives_vi:
   - "Thiết kế trả lời có **trích dẫn (citation)** + grounding + fallback 'không biết', và **đánh giá** tách riêng chất lượng tìm và chất lượng sinh (golden set + phản hồi online)."
   - "Nêu các yếu tố **chi phí** (token embedding, token LLM, kho vector) và **SLA độ mới (freshness)**, và nói rõ đánh đổi của từng lựa chọn (mức 3)."
 blocks:
+  - id: s_two_flows_ingest
+    type: section
+    title_vi: "Hai luồng và hạ tầng ingest"
+    summary_vi: "Tách ingest (nền, async, có thể chậm vài giây đến vài phút) khỏi query (online, trả lời trong vài giây) để co giãn độc lập. Ingest gồm connector, đồng bộ tăng dần theo change token, parse, chunk, embed, upsert vào vector store và index từ khoá, qua queue và worker; tài liệu sửa thì thay vector cũ, tài liệu xoá thì xoá vector theo doc_id trong metadata, dedup bằng hash nội dung. Đánh đổi: đồng bộ thường xuyên thì tươi nhưng tốn token embedding và lượt gọi API."
   - id: b01
     type: text
     md: |
@@ -55,6 +59,10 @@ blocks:
       - {id: c, text_md: "Xoá sạch toàn bộ index rồi dựng lại từ đầu mỗi khi một tài liệu bị xoá."}
     answer: [a]
     explain_md: "Kho vector KHÔNG tự biết nguồn đã xoá tài liệu; phải xoá tăng dần theo `doc_id` lưu trong metadata — nếu không sẽ lộ hoặc trả lời từ tài liệu đã gỡ. (b) sai vì vector không đồng bộ ngược với nguồn. (c) lãng phí khủng khiếp: dựng lại cả index chỉ vì một tài liệu."
+  - id: s_acl_tenant
+    type: section
+    title_vi: "Phân quyền ACL và cô lập tenant"
+    summary_vi: "ACL lưu trong metadata của chunk lúc ingest và được lọc ngay lúc tìm theo danh tính, nhóm của người hỏi; không bao giờ tìm hết rồi trông chờ LLM tự giấu tài liệu cấm. Multi-tenant chọn giữa index/namespace riêng (cô lập mạnh nhất, tốn hạ tầng) và index chung với filter bắt buộc theo tenant_id (rẻ hơn nhưng một lỗi filter là rò rỉ chéo tenant). Khi quyền đổi phải cập nhật metadata ACL kịp thời."
   - id: b04
     type: text
     md: |
@@ -84,6 +92,10 @@ blocks:
       - {id: c, text_md: "Dựa vào bước rerank để đẩy các tài liệu bị cấm xuống cuối danh sách."}
     answer: [a]
     explain_md: "Chỉ việc **lọc lúc tìm** mới chặn thật sự. (b) phó mặc cho LLM 'nghe lời' — rủi ro rò rỉ + tốn token cho ngữ cảnh cấm. (c) chỉ xếp lại thứ tự, tài liệu cấm vẫn lọt vào ngữ cảnh và có thể bị dùng."
+  - id: s_citation_grounding
+    type: section
+    title_vi: "Trích dẫn, grounding và guardrail"
+    summary_vi: "Câu trả lời dẫn nguồn (link về đúng chunk) để tạo niềm tin và cho phép kiểm chứng. Grounding buộc model chỉ trả lời từ ngữ cảnh đã truy xuất và nói không đủ thông tin khi thiếu; guardrail kiểm trích dẫn có thật, từ chối yêu cầu ngoài phạm vi, ghi log kiểm toán. Đánh đổi: grounding chặt giảm trả lời sai nhưng tăng số lần không biết (coverage giảm). Thước đo cốt lõi là groundedness/faithfulness."
   - id: b06
     type: text
     md: |
@@ -107,6 +119,10 @@ blocks:
     blanks:
       - accept: ["groundedness", "faithfulness", "grounding", "tính bám nguồn", "độ trung thực", "bám nguồn"]
     explain_md: "Groundedness / faithfulness (tính bám nguồn, độ trung thực) = mức câu trả lời bám vào nguồn đã truy xuất chứ không bịa. Đây là thước đo cốt lõi của chất lượng **sinh** trong RAG, đo kèm với trích dẫn."
+  - id: s_eval_cost
+    type: section
+    title_vi: "Đánh giá, chi phí và độ mới"
+    summary_vi: "Đo tách hai lớp để khoanh vùng lỗi: retrieval bằng recall@k, hit rate, MRR trên golden set (gồm ca khó và ca phải trả lời không biết), generation bằng groundedness và độ đúng so với golden Q&A, thêm phản hồi online. Chi phí gồm token embedding, token LLM mỗi câu hỏi và kho vector (100.000 chunk x 768 chiều x 4 byte, khoảng 0,3 GB); SLA độ mới chọn theo loại tài liệu; cache khoá phải gồm phạm vi ACL để khỏi rò rỉ. Mức 3 là nêu đánh đổi cho từng lựa chọn."
   - id: b08
     type: text
     md: |

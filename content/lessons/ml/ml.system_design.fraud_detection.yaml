@@ -1,5 +1,5 @@
 id: ml.system_design.fraud_detection
-version: 1
+version: 2
 status: published
 title_vi: "Thiết kế hệ thống phát hiện gian lận, lạm dụng và nội dung độc hại"
 est_minutes: 14
@@ -9,6 +9,10 @@ objectives_vi:
   - "Đối phó concept drift và kẻ gian thích nghi (adversarial adaptation): retrain thường xuyên, feature online/velocity, giám sát trôi."
   - "Thiết kế pipeline nhiều tầng (rules/allowlist → model nhẹ → model nặng → người duyệt) chấm thời gian thực, có vòng lặp người duyệt (human-review loop) và giải thích được (explainability) cho kháng cáo."
 blocks:
+  - id: s_rare_class_metrics
+    type: section
+    title_vi: "Ca hiếm, metric và ngưỡng theo chi phí"
+    summary_vi: "Fraud/abuse/moderation là classifier với ba đặc thù: ca xấu cực hiếm (~0,1%), nhãn đến trễ và nhiễu, kẻ gian thích nghi. Vì luôn đoán 'không gian lận' đã đạt 99,9% accuracy mà bắt 0 ca, phải đo precision/recall tại ngưỡng, PR-AUC và precision@k theo sức duyệt, báo cáo riêng từng loại vi phạm, chọn ngưỡng tối thiểu hoá tổng chi phí (bỏ sót 100 USD so với chặn nhầm 5 USD lệch 20 lần nên ưu tiên recall) và lấy mẫu đánh giá giữ đúng tỉ lệ thật."
   - id: b01
     type: text
     md: |
@@ -66,6 +70,10 @@ blocks:
       - {id: c, text_md: "99,9% đã là bằng chứng tốt; chỉ cần thêm thời gian suy luận (latency) là đủ để báo cáo."}
     answer: [a]
     explain_md: "Mất cân bằng cực đoan làm accuracy vô nghĩa: baseline 'luôn đoán âm' đã 99,9%. Phải đo trên lớp hiếm — precision/recall tại ngưỡng, PR-AUC, precision@k. (b) sai hoàn toàn về nguyên nhân; (c) latency quan trọng nhưng không cứu được một metric vô nghĩa."
+  - id: s_delayed_labels
+    type: section
+    title_vi: "Nhãn đến trễ và nhiễu"
+    summary_vi: "Nhãn thật như chargeback về sau 30-60 ngày nên dữ liệu gần đây chưa chín nhãn; tính recall trên giao dịch hôm qua sẽ lạc quan giả. Dùng cửa sổ nhãn chín (ví dụ 60 ngày) cho đánh giá chính thức, dữ liệu mới chỉ theo dõi sơ bộ. Nhãn người duyệt đến sớm lấp khoảng trống nhưng thiên lệch vì chỉ ca model gắn cờ mới được duyệt, ca bỏ sót không có nhãn."
   - id: b05
     type: text
     md: |
@@ -91,6 +99,10 @@ blocks:
       - {id: c, text_md: "Vấn đề là tính quá ít; chỉ cần đo accuracy thay cho recall là xong vì accuracy ổn định hơn."}
     answer: [a]
     explain_md: "Nhãn trễ nghĩa là dữ liệu mới chưa có nhãn chín → mọi metric trên nó đều lạc quan giả. Phải dùng cửa sổ nhãn chín cho đánh giá chính thức. (b) sai vì nhãn KHÔNG tức thời; (c) accuracy vẫn vô dụng do mất cân bằng, và không giải quyết chuyện nhãn trễ."
+  - id: s_drift_layered
+    type: section
+    title_vi: "Kẻ gian thích nghi và pipeline nhiều tầng"
+    summary_vi: "Đối thủ là người nên phân bố trôi (concept drift) và model xuống cấp sau vài tuần: retrain thường xuyên, giám sát tỉ lệ gắn cờ và phân bố điểm, dùng feature online như velocity và graph, giữ tầng luật cập nhật ngay. Pipeline xếp tầng rẻ đến đắt trong vài chục ms: rules/allowlist/denylist → model nhẹ online → model nặng/graph cho ca mờ → hàng chờ người duyệt; moderation thêm pre-publish cho nội dung rủi ro cao, post-publish cho phần còn lại, và có thể dùng LLM safety classifier."
   - id: b07
     type: text
     md: |
@@ -121,6 +133,10 @@ blocks:
       duyệt) và **sau xuất bản (post-publish)** cho phần còn lại (cho đăng rồi quét sau) — đánh đổi
       giữa an toàn và trải nghiệm. Năm 2026, nhiều hệ dùng thêm **bộ phân loại an toàn bằng LLM (LLM
       safety classifier)** cho đầu vào/đầu ra khi ngôn ngữ vi phạm tinh vi, khó bắt bằng luật.
+  - id: s_human_loop_explain
+    type: section
+    title_vi: "Vòng lặp người duyệt và explainability"
+    summary_vi: "Model làm triage: chặn hoặc cho qua ca chắc chắn, đẩy vùng xám cho người duyệt, ưu tiên hàng chờ theo rủi ro × giá trị; nhãn người duyệt quay lại làm dữ liệu train và để đo precision, tạo vòng cải tiến. Explainability là bắt buộc để người duyệt quyết nhanh, xử lý kháng cáo (nêu lý do, có đường đảo ngược) và kiểm toán/tuân thủ; precision@k khớp ràng buộc sức duyệt k ca/ngày."
   - id: b09
     type: text
     md: |

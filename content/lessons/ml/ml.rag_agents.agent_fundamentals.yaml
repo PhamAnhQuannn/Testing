@@ -1,5 +1,5 @@
 id: ml.rag_agents.agent_fundamentals
-version: 1
+version: 2
 status: published
 title_vi: "Nền tảng agent, tool và MCP: LLM chạy trong vòng lặp, khi nào nên dùng agent"
 est_minutes: 13
@@ -9,6 +9,10 @@ objectives_vi:
   - "Giải thích **MCP (Model Context Protocol)** là chuẩn mở để cắm tool/dữ liệu vào model qua một giao diện đồng nhất, dùng lại được giữa nhiều app/client."
   - "Quyết định **khi nào nên dùng agent** (mở, nhiều bước, cần hành động ngoài) so với khi nào nên dùng **workflow/RAG cố định** (đoán trước được → rẻ và ổn định hơn)."
 blocks:
+  - id: s_agent_va_tool
+    type: section
+    title_vi: "Agent là LLM trong vòng lặp, và tool"
+    summary_vi: "Agent là một LLM đặt trong vòng lặp: quan sát -> chọn tool -> hành động -> đọc kết quả -> lặp tới khi xong, khác prompt one-shot chỉ sinh một lần. Tool là hàm có chữ ký JSON-schema (tái dùng function calling); model chỉ đề nghị gọi, chương trình mới thực thi. Thiết kế tool: tên rõ, mô tả khi nào dùng, ít tham số, lỗi hữu ích để model tự sửa."
   - id: b01
     type: text
     md: |
@@ -36,6 +40,10 @@ blocks:
       Mẹo thiết kế tool (sẽ gặp lại ở bài an toàn agent): tên rõ ràng, mô tả ngắn nói rõ *khi nào*
       dùng, ít tham số, và **thông báo lỗi hữu ích** (ví dụ "không thấy khách X, thử mã khác") để
       model tự sửa ở vòng sau thay vì kẹt.
+  - id: s_loop_memory_dung
+    type: section
+    title_vi: "Agent loop, memory và điều kiện dừng"
+    summary_vi: "ReAct lặp nghĩ -> hành động (gọi tool) -> quan sát. Memory ngắn hạn là context nối thêm qua từng vòng; dài hạn lưu ngoài (file, DB) vì context có hạn. Vì model tự quyết nên có thể lặp vô tận hoặc đi lạc: luôn đặt max_steps/thời gian/tiền và điều kiện dừng. Ba trụ cần nhớ: tool, loop, memory."
   - id: b03
     type: text
     md: |
@@ -69,6 +77,10 @@ blocks:
       ký JSON-schema (tái dùng function calling), (2) **agent loop** kiểu ReAct (nghĩ → hành động →
       quan sát), (3) **memory/context** mang qua các bước. Rồi thêm một câu "và phải có **điều kiện
       dừng + ngân sách bước** để không lặp vô tận". Ba trụ + giới hạn an toàn là đủ ghi điểm.
+  - id: s_mcp
+    type: section
+    title_vi: "MCP: chuẩn cắm tool"
+    summary_vi: "MCP (Model Context Protocol) là chuẩn mở 2024-25 để nối model với tool và dữ liệu qua một giao diện đồng nhất ('USB-C cho tool'). Một MCP server mô tả tool một lần, mọi client nói MCP đều dùng lại được, không phải viết lại tích hợp cho từng app. Nó đứng trên function calling: model vẫn chỉ đề nghị gọi tool."
   - id: b06
     type: text
     md: |
@@ -91,6 +103,10 @@ blocks:
       - {id: c, text_md: "Nó là một định dạng nén dữ liệu giúp nhồi nhiều token hơn vào context của model."}
     answer: [a]
     explain_md: "MCP là chuẩn mở cho cách model nối tới tool/dữ liệu qua giao diện chung, nên tool trở nên di động và dùng lại được giữa các app (ví dụ 'USB-C cho tool'). (b) sai: MCP không phải model, nó đứng trên ý tưởng function calling. (c) sai: MCP không phải thuật toán nén context."
+  - id: s_khi_nao_dung_agent
+    type: section
+    title_vi: "Khi nào nên dùng agent"
+    summary_vi: "Agent linh hoạt nhưng chậm hơn, tốn hơn, khó đoán hơn vì mỗi vòng là một lần gọi model. Dùng agent khi bài toán mở, nhiều bước, đường đi chưa biết và cần hành động ngoài; dùng workflow/RAG cố định khi các bước đoán trước được (rẻ, nhanh, ổn định, dễ test). Nguyên tắc: chọn thứ đơn giản nhất chạy được; luôn có step budget để chặn lặp vô tận."
   - id: b08
     type: text
     md: |

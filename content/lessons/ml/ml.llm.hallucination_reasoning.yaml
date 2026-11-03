@@ -1,5 +1,5 @@
 id: ml.llm.hallucination_reasoning
-version: 1
+version: 2
 status: published
 title_vi: "Hallucination và mô hình reasoning: vì sao LLM bịa, cách giảm có đo lường, và khi nào nên dùng reasoning model"
 est_minutes: 13
@@ -9,6 +9,10 @@ objectives_vi:
   - "Giải thích reasoning model (chain-of-thought, test-time compute) và tradeoff của nó (độ trễ, chi phí; không chữa được bịa)."
   - "Quyết định khi nào một reasoning model đáng dùng so với model thường, và khi nào nên dùng code/tool thay LLM."
 blocks:
+  - id: s_vi_sao_bia
+    type: section
+    title_vi: "Hallucination và vì sao LLM bịa"
+    summary_vi: "Hallucination là câu trả lời trôi chảy, tự tin nhưng sai hoặc không có căn cứ, và không trông giống lỗi. Gốc rễ là model đoán token nghe hợp lý, không có bước tra sự thật. Ba nguyên nhân: mục tiêu huấn luyện (token hợp lý chứ không phải đúng sự thật), kiến thức thiếu hoặc cũ (knowledge cutoff) và áp lực phải trả lời, cộng sampling ngẫu nhiên làm lệch dữ kiện. Reasoning model không chữa được bịa; cách chữa thật là grounding và kiểm chứng."
   - id: b01
     type: text
     md: |
@@ -51,6 +55,10 @@ blocks:
       - {id: c, text_md: "Vì model luôn tra Internet theo thời gian thực nên đôi khi lấy nhầm nguồn."}
     answer: [a]
     explain_md: "Bịa đến từ bản chất đoán token hợp lý + không có truth check, cộng với kiến thức thiếu/cũ và áp lực phải trả lời. (b) sai: không có 'cố ý nói dối'. (c) sai: một LLM thuần không tự tra Internet; nếu không được nối nguồn, nó chỉ dựa vào tham số đã học."
+  - id: s_giam_bia
+    type: section
+    title_vi: "Giảm bịa có đo lường"
+    summary_vi: "Nhóm 1 cho model căn cứ và đường thoát: grounding/RAG (chỉ trả lời từ tài liệu cho sẵn), trích dẫn nguồn và abstention (được phép trả 'Không đủ thông tin', cấm suy đoán). Nhóm 2 siết sinh và kiểm lại: temperature thấp cho việc dữ kiện, kiểm chứng bằng self-consistency hoặc bước kiểm riêng, giới hạn đầu ra theo schema rồi validate. Mọi biện pháp chỉ đáng tin khi đo được: dựng eval set và đo groundedness cùng tỉ lệ abstention đúng lúc trước/sau khi đổi."
   - id: b05
     type: text
     md: |
@@ -89,6 +97,10 @@ blocks:
       - {id: c, text_md: "Đổi sang một reasoning model lớn hơn để nó nghĩ kỹ, vì nghĩ kỹ thì không còn bịa."}
     answer: [a]
     explain_md: "Grounding + abstention + trích dẫn, kèm đo groundedness trên eval set, là cách giảm bịa thật và chứng minh được. (b) lời dặn suông không ràng buộc gì, còn tăng temperature làm dễ bịa hơn. (c) reasoning model KHÔNG chữa bịa — nếu dữ kiện gốc sai nó vẫn sai một cách tự tin."
+  - id: s_reasoning_model
+    type: section
+    title_vi: "Reasoning model và tradeoff"
+    summary_vi: "Reasoning model sinh chuỗi suy luận dài bên trong (chain-of-thought) và dùng thêm token lúc chạy (test-time compute), nên đúng hơn rõ rệt ở bài nhiều bước như toán, logic, code. Đổi lại token nghĩ tính tiền như output, trả lời chậm hơn, và vẫn có thể bịa hoặc sai tự tin (lời giải từng bước chưa chắc phản ánh cách nó ra đáp án). Đáng dùng khi bài khó và đúng-sai quan trọng hơn tốc độ; việc đơn giản dùng model thường; việc cần chính xác tất định (23 x 47, luật cố định, tra bảng) thì dùng code/tool."
   - id: b08
     type: text
     md: |

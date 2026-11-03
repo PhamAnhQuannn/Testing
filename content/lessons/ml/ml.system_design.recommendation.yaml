@@ -1,5 +1,5 @@
 id: ml.system_design.recommendation
-version: 1
+version: 2
 status: published
 title_vi: "Thiết kế hệ gợi ý và xếp hạng feed: hai tầng, đa mục tiêu, cold start và A/B có holdout dài hạn"
 est_minutes: 14
@@ -9,6 +9,10 @@ objectives_vi:
   - "Xử lý cold start cho người và món mới; nêu vai trò của exploration, diversity và creator fairness."
   - "Đánh giá đúng cách: hiểu offline (recall@k, NDCG) chỉ là proxy yếu, còn phép thử thật là A/B online có holdout dài hạn."
 blocks:
+  - id: s_two_stage
+    type: section
+    title_vi: "Bài toán, scale và kiến trúc hai tầng"
+    summary_vi: "Hỏi scale trước (số người, số món, QPS, ngân sách độ trễ) vì scale quyết định kiến trúc; nhãn đến từ tín hiệu ngầm (xem hết, watch time, skip, like, report) dồi dào nhưng nhiễu và thiên lệch. Kiến trúc hai tầng: candidate generation rẻ rút hàng triệu món về vài trăm đến vài nghìn (collaborative filtering, two-tower + ANN với negative sampling, co-engagement, nguồn fresh/popular chạy song song rồi gộp), sau đó ranker nặng chấm top-k trong vài chục ms."
   - id: b01
     type: text
     md: |
@@ -60,6 +64,10 @@ blocks:
       - {id: c, text_md: "Vì tầng ranking không cần đặc trưng gì, nên phải có tầng đầu tạo ra mọi đặc trưng cho nó."}
     answer: [a]
     explain_md: "Lý do cốt lõi là **scale + ngân sách độ trễ**: retrieval rẻ thu hẹp không gian, ranking nặng chỉ chấm vài trăm ứng viên. (b) sai: hai tầng không phải vì 'luôn chính xác hơn' mà vì chi phí; (c) sai: ranker tự dùng nhiều đặc trưng, tầng đầu chỉ để thu hẹp."
+  - id: s_ranking_value
+    type: section
+    title_vi: "Ranking đa tác vụ và value model đa mục tiêu"
+    summary_vi: "Ranker multi-task dự đoán đồng thời P(xem hết), P(like), P(chia sẻ), P(báo cáo) trên thân mạng chia sẻ, dùng feature người dùng, món, ngữ cảnh và tín hiệu real-time lẫn batch. Value model gộp thành một điểm có trọng số, ví dụ 0,5 x P(xem hết) + 0,3 x P(like) - 1,0 x P(báo cáo); trọng số là quyết định sản phẩm, cân thêm diversity, freshness, creator fairness. Tối ưu thẳng CTR đẩy lên clickbait và hại retention, nên cần tín hiệu giá trị dài hạn."
   - id: b05
     type: text
     md: |
@@ -99,6 +107,10 @@ blocks:
       - {id: c, text_md: "Thêm thật nhiều ứng viên ở tầng retrieval sẽ tự khắc làm retention tăng, không cần đụng tới hàm mục tiêu."}
     answer: [a]
     explain_md: "Đây đúng là cạm bẫy ngắn hạn-dài hạn: CTR là proxy dễ bị clickbait khai thác. Chữa bằng multi-objective hướng giá trị lâu dài. (b) sai: retention mới là mục tiêu kinh doanh dài hạn; (c) sai: thêm ứng viên không đổi việc *điểm* đang thưởng cho clickbait."
+  - id: s_cold_eval
+    type: section
+    title_vi: "Cold start, đánh giá và vòng phản hồi"
+    summary_vi: "Cold start: người mới dùng popularity, onboarding và content-based; món mới dùng content feature cộng exploration (hy sinh chút tương tác để thu dữ liệu). Đánh giá: offline recall@k và NDCG rẻ nhưng chỉ là proxy yếu vì log thiên lệch; A/B online là phép thử thật, còn long-term holdout theo dõi nhiều tuần để bắt tác hại dài hạn như clickbait làm tụt retention. Feedback loop tạo filter bubble nên cần exploration, diversity, creator fairness như ràng buộc chủ động."
   - id: b08
     type: callout
     kind: interview

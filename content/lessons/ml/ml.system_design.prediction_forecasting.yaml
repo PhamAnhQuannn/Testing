@@ -1,5 +1,5 @@
 id: ml.system_design.prediction_forecasting
-version: 1
+version: 2
 status: published
 title_vi: "Thiết kế hệ thống dự đoán và dự báo: nhãn không rò rỉ, backtest đúng thời gian, metric gắn chi phí"
 est_minutes: 14
@@ -9,6 +9,10 @@ objectives_vi:
   - "Đánh giá bằng backtest theo thứ tự thời gian (rolling/expanding split), KHÔNG xáo trộn ngẫu nhiên (random shuffle)."
   - "Chọn metric gắn với chi phí kinh doanh (MAE/MAPE/RMSE, loss bất đối xứng hoặc quantile loss, khoảng dự đoán)."
 blocks:
+  - id: s_label_leakage
+    type: section
+    title_vi: "Định nghĩa bài toán và chống rò rỉ nhãn"
+    summary_vi: "Chốt nhãn (có mốc thời gian, vd churn = không dùng app trong 30 ngày tới), cửa sổ quan sát và horizon quanh thời điểm dự đoán t: feature chỉ lấy từ trước t, nhãn từ sau t. Rò rỉ nhãn là lỗi số một: cột cập nhật về sau, trạng thái bị can thiệp sau t, hay thống kê tính trên cả tương lai khiến offline đẹp giả và sập ở production; cách chắc nhất là point-in-time snapshot hoặc point-in-time join."
   - id: b01
     type: text
     md: |
@@ -63,6 +67,10 @@ blocks:
       - {id: c, text_md: "\"Gói dịch vụ khách đang dùng tại thời điểm t\" — là trạng thái biết được ngay tại t nên hợp lệ."}
     answer: [b]
     explain_md: "(b) rò rỉ: cờ đóng tài khoản chỉ bật sau khi churn xảy ra, nên tại thời điểm dự đoán thật ta chưa có nó; dùng nó là mượn thông tin tương lai, offline đẹp giả tạo. (a) và (c) chỉ dùng thông tin có trước hoặc tại t (point-in-time correct), nên hợp lệ."
+  - id: s_backtest_metric
+    type: section
+    title_vi: "Backtest đúng thời gian và metric gắn chi phí"
+    summary_vi: "Không shuffle ngẫu nhiên vì nhét tương lai vào train làm metric phồng ảo; dùng backtest theo thứ tự thời gian (expanding hoặc rolling-origin, trung bình nhiều mốc) và chừa gap bằng horizon giữa train và test. Metric theo chi phí kinh doanh: MAE bền với outlier, RMSE phạt lệch lớn, MAPE nổ khi giá trị gần 0; khi thiếu hàng đắt hơn thừa hàng thì dùng loss bất đối xứng/quantile loss và trả khoảng dự đoán (p10, p50, p90)."
   - id: b05
     type: text
     md: |
@@ -119,6 +127,10 @@ blocks:
     blanks:
       - accept: ["bất đối xứng", "asymmetric", "asymmetric loss", "loss bất đối xứng", "bất đối xứng (asymmetric)"]
     explain_md: "Khi chi phí đoán-thừa khác đoán-thiếu, hàm mất mát bất đối xứng (asymmetric loss) — mà quantile loss là một dạng — cho phép phạt hai chiều lệch khác nhau, kéo dự báo về phía ít tốn kém; metric/loss phải khớp với chi phí kinh doanh thật."
+  - id: s_model_serving
+    type: section
+    title_vi: "Chọn model, phục vụ và vòng đời"
+    summary_vi: "Bắt đầu bằng baseline (bằng hôm qua, seasonal naive) rồi GBDT trên lag feature, rolling mean, feature lịch và biến ngoại sinh; deep model (DeepAR, TFT) để sau. Nhiều thực thể thì dùng một global model, cold start mượn nhóm tương tự. Chọn batch hay real-time theo yêu cầu độ trễ, giám sát drift và retrain định kỳ, và nhớ can thiệp dựa trên dự đoán làm lệch nhãn nên cần uplift modeling."
   - id: b09
     type: text
     md: |

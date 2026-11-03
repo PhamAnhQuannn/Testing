@@ -1,5 +1,5 @@
 id: ml.rag_agents.agent_reliability
-version: 1
+version: 2
 status: published
 title_vi: "Độ tin cậy, an toàn và đánh giá agent: chặn lỗi dồn, ràng buộc hành động, chấm cả quá trình"
 est_minutes: 14
@@ -9,6 +9,10 @@ objectives_vi:
   - "Nêu các biện pháp an toàn: quyền tối thiểu, sandbox, xác nhận cho hành động phá huỷ, và coi kết quả tool / tài liệu truy xuất là dữ liệu không tin cậy (prompt injection)."
   - "Thiết kế cách đánh giá agent: chấm cả trajectory (quá trình) lẫn kết quả cuối, tỉ lệ hoàn thành, chi phí / số bước, qua một harness chạy lại các kịch bản thử."
 blocks:
+  - id: s_vi_sao_agent_kho
+    type: section
+    title_vi: "Vì sao agent khó tin cậy"
+    summary_vi: "Lỗi dồn: độ tin cậy nhân lên qua các bước, mỗi bước đúng 95% thì 10 bước liên tiếp chỉ còn 0.95^10 ≈ 0.60 (~40% lượt hỏng). Bốn kiểu hỏng quen thuộc: chọn sai tool, sai tham số, lặp vô tận không dừng, tràn chi phí - độ trễ vì mỗi bước một lời gọi LLM."
   - id: b01
     type: text
     md: |
@@ -51,6 +55,10 @@ blocks:
       Các bước độc lập nối tiếp thì xác suất **nhân** lại: 0.95^10 ≈ 0.60. Đây chính là **lỗi dồn
       (compounding errors)** - sai ở một bước kéo lệch cả chuỗi. (b) sai: xác suất không giữ nguyên
       khi phải đúng ở mọi bước; (c) sai: không được cộng xác suất kiểu đó.
+  - id: s_ky_thuat_tin_cay
+    type: section
+    title_vi: "Kỹ thuật tăng độ tin cậy"
+    summary_vi: "Bọc agent bằng giới hạn cứng: max steps, ngân sách tiền/token, timeout cho tool và phiên để dập lặp vô tận và tràn chi phí. Validate đầu vào/đầu ra của tool để bắt sai tham số sớm; retry có hạn (vd tối đa 3 lần) rồi fallback; trả lỗi dễ hiểu để model tự đổi hướng; trace từng bước để gỡ lỗi. Hành động không hoàn tác cần human-in-the-loop và guardrail chạy ngoài model."
   - id: b04
     type: text
     md: |
@@ -91,6 +99,10 @@ blocks:
       - **Guardrails (hàng rào)**: luật cứng chạy **ngoài** model - vd chỉ cho gửi mail tới tên
         miền nội bộ, chặn đầu ra chứa dữ liệu nhạy cảm, chỉ cho tool tác dụng phụ chạy sau khi được
         duyệt. Guardrails không phụ thuộc việc model "ngoan", nên đáng tin hơn lời dặn trong prompt.
+  - id: s_an_toan_injection
+    type: section
+    title_vi: "An toàn và prompt injection"
+    summary_vi: "Kết quả tool và tài liệu truy xuất là dữ liệu không tin cậy, không phải lệnh: email/web có thể chứa prompt injection khiến agent có tool hành động làm việc nguy hiểm (vd hoàn tiền). Xếp chồng nhiều lớp (defense in depth): quyền tối thiểu cho từng tool, sandbox cho hành động có tác dụng phụ, xác nhận cho thao tác phá huỷ, guardrail và người duyệt chặn ngoài model."
   - id: b07
     type: callout
     kind: warning
@@ -130,6 +142,10 @@ blocks:
       là **tách quyền + quyền tối thiểu + người duyệt** cho hành động phá huỷ / không hoàn tác.
       (b) sai: email có thể do bất kỳ ai gửi tới; (c) một câu dặn trong prompt không phải ràng buộc
       đáng tin, phải có guardrail / người chặn ngoài model.
+  - id: s_danh_gia_agent
+    type: section
+    title_vi: "Đánh giá agent bằng harness"
+    summary_vi: "Không chỉ chấm câu trả lời cuối: hai agent cùng đúng đáp án nhưng một cái gọi 3 tool, cái kia mò 15 bước. Chấm trajectory (đúng tool, thứ tự, tham số; vd tool-selection accuracy), outcome (task success rate) và chi phí/số bước/token. Dựng eval harness gồm bộ kịch bản cố định, chạy lại sau mỗi thay đổi để 'tốt hơn' là số đo được."
   - id: b10
     type: text
     md: |

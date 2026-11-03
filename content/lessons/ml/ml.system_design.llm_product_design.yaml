@@ -1,5 +1,5 @@
 id: ml.system_design.llm_product_design
-version: 1
+version: 2
 status: published
 title_vi: "Thiết kế sản phẩm LLM (chat và agent): từ yêu cầu tới eval, an toàn, streaming và chi phí"
 est_minutes: 15
@@ -9,6 +9,10 @@ objectives_vi:
   - "Dựng eval harness (golden set offline + tín hiệu online + LLM-as-judge) và guardrails an toàn (injection, PII, lạm dụng, lethal trifecta)."
   - "Trình bày chi phí và độ trễ **bằng số**, nêu đánh đổi độ trễ ↔ GPU/chi phí ↔ chất lượng, cùng streaming, rollout và feedback loop."
 blocks:
+  - id: s_requirements_adaptation
+    type: section
+    title_vi: "Yêu cầu và cách thích nghi"
+    summary_vi: "Capstone đi trọn đường dây yêu cầu → kiến trúc → eval → an toàn → serving, mọi lựa chọn truy ngược về yêu cầu. Chốt người dùng làm gì, sai thì rủi ro gì, ưu tiên độ trễ/throughput/chất lượng, và thước đo bằng số (deflection rate ≥ 60%, TTFT p95 < 1s). Thích nghi đi từ rẻ tới đắt: prompt → RAG (kiến thức riêng, hay đổi, cập nhật index không train lại) → fine-tune (phong cách, kỹ năng hẹp); API mặc định, self-host khi có lý do cứng."
   - id: b01
     type: text
     md: |
@@ -75,6 +79,10 @@ blocks:
       train lại, và grounding vào đoạn trích giúp giảm bịa (quan trọng vì rủi ro pháp lý). (b) fine-tune
       lại hằng tuần vừa đắt vừa chậm và vẫn dễ lỗi thời; fine-tune dạy *cách làm*, không hợp để nạp
       *dữ kiện* hay đổi. (c) nhồi mọi chính sách vào prompt sẽ tràn context, tốn token và không co giãn.
+  - id: s_architecture_eval
+    type: section
+    title_vi: "Kiến trúc và eval harness"
+    summary_vi: "Kiến trúc chỉ thêm khối khi có yêu cầu: mô hình user → session → message, quản lý context bằng cắt hoặc tóm tắt, retrieval top-k kèm nguồn, workflow cố định (rẻ, dễ test) hay agent gọi tool (mạnh nhưng khó đoán, cần least privilege), gateway định tuyến/cache/fallback. Eval ba tầng: golden set offline 50-300 ca bắt regression, tín hiệu online, LLM-as-judge phải hiệu chỉnh với nhãn người; agent eval bằng replay trong sandbox."
   - id: b05
     type: text
     md: |
@@ -104,6 +112,10 @@ blocks:
 
       Với **agent**, eval bằng **replay**: chạy lại bộ tác vụ mẫu trong sandbox cách ly, chấm xem có
       đạt kết quả cuối (task success) và có gọi tool đúng/an toàn không.
+  - id: s_safety_guardrails
+    type: section
+    title_vi: "An toàn và guardrails"
+    summary_vi: "Guardrails xếp lớp, không lớp nào tuyệt đối: coi văn bản ngoài là dữ liệu chứ không phải lệnh (chống injection, nhất là injection gián tiếp qua tài liệu RAG hay email), redaction PII, moderation đầu vào/ra kèm chuyển cho người. Lethal trifecta là khi agent có đủ ba chân: nội dung không tin cậy + quyền đọc dữ liệu riêng + kênh gửi ra ngoài; phòng thủ cốt lõi là phá ít nhất một chân (người duyệt trước khi gửi, tách quyền)."
   - id: b07
     type: text
     md: |
@@ -137,6 +149,10 @@ blocks:
       ba thì injection gián tiếp có thể biến thành rò rỉ dữ liệu. Phòng thủ chắc nhất là **phá ít nhất
       một chân** (người duyệt trước khi gửi ra ngoài, hoặc tách quyền). (b) email có thể do người ngoài
       gửi tới — không tin cậy. (c) một câu dặn trong prompt không đáng tin một mình trước injection.
+  - id: s_serving_cost
+    type: section
+    title_vi: "Streaming, chi phí và rollout"
+    summary_vi: "Streaming qua SSE (một chiều, tự nối lại) không làm xong sớm hơn nhưng cắt độ trễ cảm nhận, đo bằng TTFT; WebSocket khi cần hai chiều. Chi phí tính theo token (ví dụ $5/$15 mỗi triệu token vào/ra, hội thoại 2k vào + 500 ra ≈ $0,018); số GPU ≈ throughput cần ÷ throughput mỗi GPU (10.000/2.000 ≈ 5). Đánh đổi độ trễ ↔ GPU/chi phí ↔ chất lượng giải bằng routing model nhỏ/lớn; rollout canary 1% → 10% → 100%, A/B, monitor, và bơm ca lỗi về golden set."
   - id: b09
     type: text
     md: |

@@ -1,5 +1,5 @@
 id: ml.rag_agents.chunking
-version: 1
+version: 2
 status: published
 title_vi: "Chunking và xử lý tài liệu: cắt tài liệu thành đoạn cho RAG"
 est_minutes: 13
@@ -9,6 +9,10 @@ objectives_vi:
   - "Giữ **metadata** (nguồn, tiêu đề, mục, trang) cho mỗi chunk để lọc và trích dẫn; nêu các bước **xử lý/tiền xử lý tài liệu** (PDF/HTML → text sạch, bảng, OCR)."
   - "Xử lý vấn đề **một sự thật nằm vắt qua hai chunk**: dùng chờm (overlap) hoặc **parent-document / small-to-big retrieval** (embedding đoạn nhỏ, trả về đoạn cha to hơn)."
 blocks:
+  - id: s_vi_sao_chunk_size
+    type: section
+    title_vi: "Vì sao cỡ chunk quan trọng"
+    summary_vi: "Ta tìm theo chunk chứ không theo cả tài liệu; mỗi chunk bị nén thành một vector. Chunk quá to làm embedding loãng, giảm precision và tốn context; chunk quá nhỏ mất ngữ cảnh và dễ cắt đôi một sự thật. Cỡ chunk là đánh đổi giữa độ trúng của tìm kiếm và độ đầy đủ của ngữ cảnh."
   - id: b01
     type: text
     md: |
@@ -47,6 +51,10 @@ blocks:
       - {id: c, text_md: "Một sự thật bị cắt đôi giữa hai chunk — đây là lỗi điển hình của chunk quá TO."}
     answer: [a]
     explain_md: "Chunk quá to làm embedding 'loãng' (một vector đại diện nhiều ý) nên precision giảm, đồng thời tốn context và thêm nhiễu. (b) sai: to hơn không chính xác hơn, ngược lại còn loãng. (c) sai: 'sự thật bị cắt đôi' là lỗi của chunk quá NHỎ, không phải quá to."
+  - id: s_chien_luoc_cat
+    type: section
+    title_vi: "Ba chiến lược cắt và cách chọn"
+    summary_vi: "Fixed-size theo token (300-500) kèm overlap 10-20% là mặc định đơn giản; recursive/structural cắt theo heading, đoạn, câu để mỗi chunk trọn nghĩa (hợp hợp đồng, Markdown); semantic cắt khi chủ đề đổi, sạch nhất nhưng tốn tính toán. Luôn kiểm tra token limit của embedding model để tránh cắt cụt âm thầm và đo bằng recall@k / MRR."
   - id: b04
     type: text
     md: |
@@ -85,6 +93,10 @@ blocks:
       - {id: c, text_md: "Gộp cả hợp đồng thành một chunk khổng lồ để chắc chắn không mất gì."}
     answer: [a]
     explain_md: "Hợp đồng có tiêu đề/điều khoản rõ → cắt theo cấu trúc giữ mỗi điều khoản trọn nghĩa, khớp đúng câu hỏi về một điều khoản. (b) 100 ký tự cắt đôi câu/điều khoản, mất ngữ cảnh. (c) một chunk khổng lồ làm embedding loãng và tốn context — giảm độ chính xác."
+  - id: s_metadata_parsing
+    type: section
+    title_vi: "Metadata và tiền xử lý tài liệu"
+    summary_vi: "Mỗi chunk nên mang metadata (nguồn, tiêu đề, mục, trang, ngày) để lọc trước khi tìm và để trích dẫn; thêm contextual header vào đầu chunk giúp embedding biết đoạn thuộc về đâu. Parsing là bước dễ ẩn lỗi: gỡ header/footer/menu, giữ cấu trúc bảng (Markdown/HTML hoặc từng dòng kèm tên cột), OCR cho scan. Rác vào thì rác ra."
   - id: b07
     type: text
     md: |
@@ -115,6 +127,10 @@ blocks:
         (multimodal) có thể cần mô tả ảnh/biểu đồ bằng chữ để embedding được.
 
       Nguyên tắc: "rác vào thì rác ra" — parsing ẩu thì mọi bước RAG phía sau đều gánh hậu quả.
+  - id: s_su_that_vat_chunk
+    type: section
+    title_vi: "Sự thật bị cắt đôi: overlap và parent-document"
+    summary_vi: "Một sự thật có thể bị xé giữa cuối chunk A và đầu chunk B nên không chunk nào đủ để trả lời. Hai cách xử lý: overlap 10-20% ở biên (rẻ, hiệu quả), hoặc parent-document / small-to-big: embedding đoạn nhỏ để tìm sắc nhưng trả về đoạn cha to hơn cho LLM. Giảm chunk xuống một câu chỉ làm tệ hơn; mọi thay đổi cần đo lại bằng recall@k / MRR."
   - id: b09
     type: text
     md: |

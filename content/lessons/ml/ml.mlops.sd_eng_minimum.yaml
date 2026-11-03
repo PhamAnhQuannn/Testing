@@ -1,5 +1,5 @@
 id: ml.mlops.sd_eng_minimum
-version: 1
+version: 2
 status: published
 title_vi: "Kiến thức kỹ thuật tối thiểu cho ML: QPS, p95, SLO, queue, Docker, CI/CD"
 est_minutes: 12
@@ -8,6 +8,10 @@ objectives_vi:
   - "Ước lượng QPS từ số lượt dùng mỗi ngày (chia 86.400 giây) và tính QPS đỉnh (peak) khi đỉnh gấp vài lần trung bình."
   - "Đọc được các khái niệm này ở những mục MLOps và thiết kế hệ thống ML phía sau mà không bị khựng."
 blocks:
+  - id: s_qps_uoc_luong
+    type: section
+    title_vi: "QPS và ước lượng tải"
+    summary_vi: "QPS là số request mỗi giây, thước đo tải; phải thiết kế cho QPS đỉnh (thường gấp vài lần trung bình) chứ không phải trung bình. Ước lượng: QPS trung bình ≈ request mỗi ngày ÷ 86.400. Ví dụ 1 triệu lượt/ngày ≈ 11,6 request/giây, đỉnh gấp 5 lần ≈ 58 request/giây; 4,32 triệu/ngày = 50 request/giây."
   - id: b01
     type: text
     md: |
@@ -44,6 +48,10 @@ blocks:
       - {id: c, text_md: "Khoảng 3.000 request/giây (= 4.320.000 ÷ 1.440 phút)."}
     answer: [a]
     explain_md: "QPS trung bình = số request mỗi ngày ÷ số giây trong ngày = 4.320.000 ÷ 86.400 = 50 request/giây. (b) nhầm 'mỗi ngày' thành 'mỗi giây'. (c) chia cho số phút (1.440) nên ra request mỗi phút, không phải mỗi giây."
+  - id: s_percentile_slo
+    type: section
+    title_vi: "Phân vị độ trễ và SLO/SLA"
+    summary_vi: "Trung bình bị vài request chậm kéo lệch nên đọc theo phân vị: p50 là trung vị, p95 nghĩa là 95% request nhanh hơn mức đó (chỉ 5% chậm hơn), p99 là đuôi chậm. Ví dụ 20 mẫu có hai giá trị 800 và 900 ms: trung bình ~203 ms nhưng p95 = 800 ms. SLO ví dụ p95 dưới 200 ms và 99,9% khả dụng (≈ dưới 43 phút hỏng mỗi tháng); SLA là lời hứa với khách, đặt lỏng hơn SLO."
   - id: b04
     type: text
     md: |
@@ -82,6 +90,10 @@ blocks:
       Nói gọn: **SLO là mục tiêu ta tự đặt, SLA là lời hứa ràng buộc với bên ngoài.** Trong phỏng
       vấn thiết kế hệ thống, nêu được một SLO cụ thể (p95 + availability) cho thấy bạn nghĩ tới chất
       lượng dịch vụ, không chỉ "cho nó chạy".
+  - id: s_queue_docker_cicd
+    type: section
+    title_vi: "Queue, Docker và CI/CD"
+    summary_vi: "Queue là vùng đệm giữa producer và worker: làm phẳng đỉnh tải (xếp hàng thay vì sập) và đẩy việc nặng sang xử lý nền, khách nhận job id rồi polling hoặc webhook. Docker đóng gói app cùng phụ thuộc để chạy giống hệt mọi nơi: Dockerfile là công thức, image là bản mẫu bất biến, container là image đang chạy. CI tự chạy test khi push; CD tự build image và deploy khi test qua."
   - id: b07
     type: text
     md: |
@@ -121,6 +133,10 @@ blocks:
 
       Ví dụ: bạn sửa prompt và mở pull request → CI chạy eval set và test → qua hết thì CD build
       image Docker rồi tung ra. Nhờ vậy việc ra bản mới trở nên nhanh, đều và ít sai sót thủ công.
+  - id: s_on_tap_tong_ket
+    type: section
+    title_vi: "Ôn tập: QPS, SLO/SLA và tổng kết"
+    summary_vi: "Một ngày có 24 × 3600 = 86.400 giây (≈ 10^5): QPS trung bình = request/ngày ÷ 86.400, QPS đỉnh = vài lần trung bình (1 triệu/ngày ≈ 11,6/giây, đỉnh ×5 ≈ 58/giây). SLO là mục tiêu nội bộ đo được, SLA là cam kết hợp đồng với khách thường lỏng hơn SLO. Cả sáu khái niệm (QPS, percentile, SLO/SLA, queue, Docker, CI/CD) đủ để đọc tiếp các mục MLOps và system design."
   - id: b10
     type: quiz_fill
     graded: true

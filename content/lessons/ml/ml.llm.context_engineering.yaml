@@ -1,5 +1,5 @@
 id: ml.llm.context_engineering
-version: 1
+version: 2
 status: published
 title_vi: "Quản lý context, long context và prompt caching (context engineering)"
 est_minutes: 13
@@ -9,6 +9,10 @@ objectives_vi:
   - "Giải thích **prompt caching** và cách sắp xếp prompt để tận dụng; nhận ra **lost-in-the-middle** / context-rot."
   - "Ước lượng **chi phí mỗi request theo token** (token cost)."
 blocks:
+  - id: s_context_va_chi_phi
+    type: section
+    title_vi: "Context window và chi phí token"
+    summary_vi: "Context window là ngân sách token hữu hạn chứa system prompt, lịch sử, tài liệu lấy về và định nghĩa/kết quả tool. API stateless nên code của bạn phải gửi lại lịch sử mỗi lần, và cắt lịch sử thì model quên (ví dụ quên tên ở lượt 2). Chi phí một request xấp xỉ input_tokens x giá_input + output_tokens x giá_output, giá output cao hơn vài lần, nhưng trong hội thoại dài input phình theo lịch sử mới là khoản tốn nhất."
   - id: b01
     type: text
     md: |
@@ -47,6 +51,10 @@ blocks:
       - {id: c, text_md: "Context window của model tự co lại sau mỗi lượt gọi."}
     answer: [b]
     explain_md: "API không nhớ gì giữa các lần gọi; mọi 'trí nhớ' là lịch sử mà code bạn gửi lại. Nếu bạn cắt lịch sử (truncation/cửa sổ trượt) thì phần bị cắt biến mất khỏi context. (a) sai — không phải lỗi model; (c) sai — context window là hằng số của model, không tự co."
+  - id: s_hoi_thoai_dai_rag
+    type: section
+    title_vi: "Hội thoại dài, RAG và long-context"
+    summary_vi: "Ba kỹ thuật cho hội thoại dài: cửa sổ trượt (rẻ nhưng mất thông tin cũ), tóm tắt/compaction (giữ ý chính, đổi lại mất chi tiết và tốn thêm một lần gọi) và memory ngoài cho sự kiện bền; vượt context thì bắt lỗi rồi cắt hoặc tóm tắt và gọi lại. Với tài liệu: long-context dán cả tài liệu (đơn giản nhưng tốn token mỗi lượt, dễ lost in the middle), RAG chỉ dán vài đoạn liên quan (rẻ, mở rộng được nhưng cần hạ tầng tìm kiếm)."
   - id: b04
     type: text
     md: |
@@ -83,6 +91,10 @@ blocks:
 
       Quy tắc ngón tay: tài liệu nhỏ, dùng một hai lần, cần toàn cảnh → long-context. Kho lớn, hỏi
       nhiều lần, nhạy chi phí → RAG. (Chi tiết RAG học ở `ml.llm.rag_agents`.)
+  - id: s_prompt_caching
+    type: section
+    title_vi: "Prompt caching"
+    summary_vi: "Prompt caching lưu phần tính toán cho tiền tố ổn định; nếu phần đầu khớp chính xác (exact-prefix) thì được đọc từ cache với giá rẻ hơn nhiều và nhanh hơn. Vì vậy phải đặt phần cố định lên đầu (system prompt, tài liệu dùng lại) và phần hay đổi (lịch sử, câu hỏi mới) xuống cuối; đặt câu hỏi lên đầu làm cache trượt sạch. Cache có TTL và ghi lần đầu thường đắt hơn một chút nên chỉ lời khi tiền tố được tái dùng đủ nhiều."
   - id: b07
     type: text
     md: |
@@ -106,6 +118,10 @@ blocks:
       - {id: c, text_md: "Trộn câu hỏi xen vào giữa tài liệu để model chú ý hơn."}
     answer: [b]
     explain_md: "Prompt caching khớp theo tiền tố chính xác, nên phần cố định (system prompt + tài liệu) phải nằm ở đầu để được tái dùng, còn phần đổi mỗi lần (câu hỏi) để cuối. (a) đặt câu hỏi lên đầu làm mọi token sau nó lệch tiền tố → cache trượt; (c) phá luôn tiền tố ổn định và không liên quan tới cache."
+  - id: s_lost_in_the_middle
+    type: section
+    title_vi: "Lost-in-the-middle và khung phỏng vấn"
+    summary_vi: "Nhồi nhiều vào context không miễn phí về chất lượng: model chú ý tốt phần đầu và cuối, kém phần giữa, và chất lượng giảm dần khi context gần đầy (context rot). Hãy đưa đúng và đủ thông tin, đặt phần quan trọng ở đầu hoặc cuối, ưu tiên ít mà trúng (RAG, tóm tắt, memory). Khung trả lời phỏng vấn: cái gì nằm trong context mỗi lượt, quản lý độ dài, RAG hay long-context, tối ưu chi phí bằng caching, và ước lượng token cost mỗi request."
   - id: b09
     type: text
     md: |

@@ -1,5 +1,5 @@
 id: ml.system_design.multimodal_retrieval
-version: 1
+version: 2
 status: published
 title_vi: "Thiết kế tìm kiếm đa phương thức (ảnh, video) bằng chữ và phát hiện trùng lặp ở quy mô lớn"
 est_minutes: 14
@@ -9,6 +9,10 @@ objectives_vi:
   - "Chọn index ANN ở quy mô tỉ vector (HNSW, IVF-PQ, sharding) và thiết kế phát hiện trùng lặp gần (near-duplicate) bằng perceptual hash và/hoặc ngưỡng tương đồng embedding."
   - "Đánh giá hệ thống bằng recall@k / precision@k trên tập có nhãn, người chấm (human eval), và lưu ý khoảng cách phương thức (modality gap) cùng nội dung an toàn."
 blocks:
+  - id: s_joint_embedding
+    type: section
+    title_vi: "Bài toán và không gian embedding chung"
+    summary_vi: "Hai yêu cầu cốt lõi: tìm ảnh/video bằng chữ và phát hiện trùng lặp ở quy mô tỉ mục. Dual encoder kiểu CLIP (một encoder ảnh, một encoder chữ) huấn luyện bằng contrastive loss, kéo cặp (ảnh, chú thích) đúng lại gần và đẩy cặp sai ra xa, nên câu chữ và ảnh cùng nội dung nằm gần nhau trong một không gian vector. Tìm ảnh bằng chữ thành embed truy vấn rồi tìm vector ảnh gần nhất (ANN), không cần ảnh có caption."
   - id: b01
     type: text
     md: |
@@ -47,6 +51,10 @@ blocks:
       - {id: c, text_md: "Vì mọi ảnh và câu chữ đều được băm (hash) ra cùng một mã, nên chỉ cần so hai mã có bằng nhau không."}
     answer: [a]
     explain_md: "Dual encoder kiểu CLIP đưa ảnh và chữ về chung một không gian embedding (contrastive loss kéo cặp đúng lại gần), nên so khớp là tìm gần nhất trong không gian đó. (b) sai: không cần sinh caption rồi khớp từ khoá — đó là cách cũ, yếu. (c) sai: embedding là vector liên tục đo bằng khoảng cách/cosine, không phải mã băm bằng-nhau."
+  - id: s_pipeline_ann
+    type: section
+    title_vi: "Pipeline hai pha và index ANN tỉ vector"
+    summary_vi: "Offline: encode cả kho media theo lô, nạp vào index ANN, cập nhật khi ingest; online: chỉ embed một câu truy vấn rồi tra k vector gần nhất, có thể re-rank top-k bằng model nặng hơn. Quét tuyến tính bất khả thi ở tỉ mục nên dùng ANN, đánh đổi chút recall lấy tốc độ: HNSW nhanh, recall cao nhưng tốn RAM; IVF-PQ chia cụm và nén bằng product quantization để tiết kiệm bộ nhớ. Sharding chia index ra nhiều máy, truy vấn fan-out rồi merge top-k; đánh đổi recall ↔ độ trễ ↔ bộ nhớ."
   - id: b04
     type: text
     md: |
@@ -86,6 +94,10 @@ blocks:
       - {id: c, text_md: "Giữ nguyên toàn bộ vector gốc và đồ thị HNSW đầy đủ trong RAM trên một máy duy nhất, vì HNSW luôn là lựa chọn tốt nhất bất kể bộ nhớ."}
     answer: [a]
     explain_md: "Ràng buộc là tỉ vector + không đủ RAM + cần nhanh, nên ANN có nén (IVF-PQ) cộng sharding là phù hợp: PQ nén vector nên chứa được nhiều, đánh đổi chút recall. (b) sai: brute-force ở tỉ vector không đạt độ trễ thấp. (c) sai: HNSW tốn RAM, một máy không chứa nổi tỉ vector — và không có index nào 'luôn tốt nhất', đây là bài đánh đổi."
+  - id: s_video_dedup
+    type: section
+    title_vi: "Video và phát hiện trùng lặp gần"
+    summary_vi: "Video: không encode mọi khung hình mà lấy mẫu (ví dụ mỗi 1 giây hoặc theo shot/segment), rồi mean pooling thành một vector cho cả video, hoặc lập chỉ mục từng đoạn để định vị chính xác (index lớn hơn). Near-duplicate: perceptual hash (so khoảng cách Hamming) rẻ, bắt tốt resize/re-encode nhưng yếu với crop mạnh; ngưỡng tương đồng embedding bắt crop, lật, chèn logo vì nắm ngữ nghĩa. Thực tế xếp lớp pHash lúc ingest rồi embedding + ngưỡng; hash mã hoá như SHA-256 vô dụng vì đổi 1 byte là khác hẳn."
   - id: b07
     type: text
     md: |
@@ -127,6 +139,10 @@ blocks:
       - {id: c, text_md: "Chỉ so khớp tên file và kích thước (bytes) của ảnh để quyết định trùng hay không."}
     answer: [a]
     explain_md: "pHash rẻ và bắt tốt bản gần y hệt nhưng yếu với crop/biến đổi mạnh; embedding + ngưỡng bắt near-dupe khó hơn vì nắm ngữ nghĩa — xếp lớp hai cách là hợp lý. (b) sai: cryptographic hash chỉ cần đổi 1 byte (nén lại) là ra mã hoàn toàn khác, vô dụng cho near-dupe. (c) sai: tên/kích thước file không phản ánh nội dung."
+  - id: s_evaluation
+    type: section
+    title_vi: "Đánh giá hệ thống"
+    summary_vi: "Offline trên tập (truy vấn, đáp án đúng): recall@k là phần đáp án đúng tìm thấy trong k kết quả đầu, precision@k là phần kết quả đúng trong k; khi chưa có nhãn thì dùng chú thích ảnh làm truy vấn và chính ảnh làm đáp án. Bổ sung human eval cho truy vấn thật và metric online như click-through. Lưu ý modality gap giữa chữ và ảnh cần hiệu chỉnh, recall còn giảm do ANN tìm gần đúng, và phải lọc nội dung an toàn."
   - id: b10
     type: text
     md: |

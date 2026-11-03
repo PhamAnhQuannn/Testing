@@ -1,5 +1,5 @@
 id: ml.llm_eval_serving.quantization_compression
-version: 1
+version: 2
 status: published
 title_vi: "Quantization và nén mô hình: cắt bộ nhớ, chọn độ chính xác theo phần cứng và đo suy giảm chất lượng"
 est_minutes: 13
@@ -9,6 +9,10 @@ objectives_vi:
   - "Phân biệt post-training quantization (PTQ: GPTQ, AWQ) với quantization-aware training (QAT), và weight-only với weight+activation / KV cache."
   - "Chọn độ chính xác + phương pháp theo ràng buộc phần cứng (VRAM) và luôn đo suy giảm chất lượng trên eval set sau khi nén."
 blocks:
+  - id: s_quant_basics
+    type: section
+    title_vi: "Quantization và phép tính bộ nhớ"
+    summary_vi: "Quantization lưu và tính trọng số ở độ chính xác thấp hơn (làm tròn về ít mức hơn) để cắt bộ nhớ và băng thông; vì decode là memory-bound nên thường nhanh hơn. Byte mỗi tham số: FP16/BF16 = 2, INT8 = 1, INT4 = 0,5, nên model 70B cần ~140 GB, ~70 GB và ~35 GB, nghĩa là chỉ INT4 vừa một GPU 48 GB (còn phải chừa chỗ cho KV cache)."
   - id: b01
     type: text
     md: |
@@ -65,6 +69,10 @@ blocks:
       70 × 10^9 × 0,5 byte = 35 × 10^9 byte ≈ 35 GB. Đây chính là mẹo so sánh nhanh: INT4 bằng một
       phần tư FP16 (140 GB), nên 70B ở INT4 ≈ 35 GB — vừa một GPU 48 GB, điều mà FP16 (140 GB) và
       INT8 (70 GB) không làm được.
+  - id: s_quant_methods_quality
+    type: section
+    title_vi: "Phương pháp và đo suy giảm chất lượng"
+    summary_vi: "PTQ (GPTQ, AWQ) nén model đã train bằng ít calibration data, rẻ và nhanh nên là mặc định; QAT giữ chất lượng tốt hơn ở bit rất thấp nhưng tốn kém vì huấn luyện lại. Weight-only đơn giản, weight+activation cắt thêm tính toán nhưng khó vì outlier. Nén không miễn phí: luôn chạy lại eval set và so với bản gốc, INT4 thường tụt nhỏ còn thấp hơn rủi ro tăng nhanh."
   - id: b05
     type: text
     md: |
@@ -125,6 +133,10 @@ blocks:
       bước bắt buộc là đo chất lượng sau nén. (b) sai: 140 GB không thể vừa 48 GB, model không "tự
       nén". (c) sai: 70 GB **không vừa** 48 GB, nên INT8 ở đây bất khả thi dù chất lượng nhỉnh hơn —
       ràng buộc phần cứng quyết định.
+  - id: s_other_compression
+    type: section
+    title_vi: "Kỹ thuật nén khác và khung phỏng vấn"
+    summary_vi: "Ngoài quantization còn knowledge distillation (model student nhỏ bắt chước teacher lớn) và pruning/sparsity (bỏ trọng số ít quan trọng, thường cần tinh chỉnh lại); quantization bằng PTQ INT4 vẫn là công cụ đầu tiên và dễ nhất. Khung phỏng vấn ba nhịp: tính bộ nhớ theo VRAM (70B: 140/70/35 GB), chọn độ chính xác và phương pháp theo ngân sách, rồi đo suy giảm chất lượng trên eval set."
   - id: b09
     type: text
     md: |

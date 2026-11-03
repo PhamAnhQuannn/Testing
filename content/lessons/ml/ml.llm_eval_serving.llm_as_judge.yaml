@@ -1,5 +1,5 @@
 id: ml.llm_eval_serving.llm_as_judge
-version: 1
+version: 2
 status: published
 title_vi: "LLM-as-judge và human eval: nhờ một LLM chấm điểm khi không có đáp án chuẩn"
 est_minutes: 13
@@ -9,6 +9,10 @@ objectives_vi:
   - "Kiểm chứng judge bằng nhãn người (human labels): đo độ đồng thuận bằng Cohen's kappa (kappa) thay vì tỉ lệ % thô, và đọc được ý nghĩa các khoảng giá trị."
   - "Nêu và giảm được ít nhất 3 thiên vị của judge (position, verbosity/length, self-preference), và biết khi nào vẫn cần human eval."
 blocks:
+  - id: s_judge_basics
+    type: section
+    title_vi: "LLM-as-judge và các chế độ chấm"
+    summary_vi: "Khi không có đáp án chuẩn, dùng một LLM mạnh làm giám khảo: rẻ, nhanh, mở rộng được so với chấm tay, nhưng cũng sai và thiên vị nên phải kiểm chứng bằng nhãn người. Pointwise chấm từng câu theo rubric (điểm tuyệt đối hay dao động), pairwise so A/B (so sánh tương đối đáng tin hơn, hợp để so hai phiên bản); reference-free là tình huống phổ biến nhất."
   - id: b01
     type: text
     md: |
@@ -48,6 +52,10 @@ blocks:
       - {id: c, text_md: "Vì pairwise không bao giờ có thiên vị, còn pointwise thì luôn luôn có."}
     answer: [a]
     explain_md: "Điểm tuyệt đối của LLM thường thiếu ổn định; hỏi 'cái nào hơn' là so sánh tương đối, đáng tin hơn và hợp để so hai phiên bản. (b) sai: pairwise không rẻ hơn một cách bản chất và vẫn phải đọc cả hai câu. (c) sai: pairwise vẫn dính thiên vị, điển hình là position bias (thích câu đứng trước)."
+  - id: s_judge_design
+    type: section
+    title_vi: "Thiết kế một judge tốt"
+    summary_vi: "Judge dùng được cần rubric mô tả cụ thể từng mức điểm, few-shot vài ví dụ đã chấm, bắt nêu lý do trước rồi mới chấm (CoT-then-verdict, vì điểm viết trước chỉ là bào chữa), đầu ra có khuôn như JSON hoặc A/B/tie để parse, và temperature 0 cho ổn định lặp lại được."
   - id: b04
     type: text
     md: |
@@ -80,6 +88,10 @@ blocks:
       - {id: c, text_md: "Bỏ rubric đi, chỉ hỏi 'câu này mấy điểm?' để judge tự do, rồi tự tay đọc từng câu trả lời của judge."}
     answer: [a]
     explain_md: "temperature 0 cho lặp lại được; rubric mô tả từng mức cho nhất quán; CoT-then-verdict cho chấm đúng hơn; constrained output cho parse được. (b) tăng temperature càng làm điểm dao động; (c) bỏ rubric làm điểm càng tùy hứng, và đọc tay thì mất luôn lợi thế tự động của judge."
+  - id: s_judge_validation
+    type: section
+    title_vi: "Kiểm chứng judge bằng Cohen kappa"
+    summary_vi: "Lấy mẫu 20-50 câu, so judge với nhãn người và đừng báo cáo % trùng thô vì nhãn lệch khiến trùng do ngẫu nhiên rất cao. Cohen kappa = (p_quan_sát - p_ngẫu_nhiên) / (1 - p_ngẫu_nhiên), ví dụ 0,8 và 0,5 cho kappa 0,6; 1 là trùng hoàn toàn, 0 là như đoán mò; dưới 0,2 rất yếu, trên 0,8 rất tốt. Chỉ khi kappa đủ cao mới để judge thay người ở quy mô lớn."
   - id: b07
     type: text
     md: |
@@ -107,6 +119,10 @@ blocks:
     blanks:
       - accept: ["Cohen's kappa", "cohen's kappa", "Cohen kappa", "cohen kappa", "kappa", "Kappa", "hệ số kappa"]
     explain_md: "Cohen's kappa (kappa) chỉnh lại tỉ lệ trùng bằng cách trừ đi phần có thể trùng chỉ do ngẫu nhiên, nên đáng tin hơn % thô — đặc biệt khi nhãn lệch (phần lớn cùng một loại). kappa cao mới chứng tỏ judge thật sự bám theo người."
+  - id: s_judge_bias_human
+    type: section
+    title_vi: "Thiên vị của judge và human eval"
+    summary_vi: "Các thiên vị chính: position bias (thích câu đứng trước, giảm bằng chấm cả hai thứ tự), verbosity bias (thích câu dài, giảm bằng rubric nói rõ độ dài không phải tiêu chí), self-preference (thích văn phong cùng họ model, giảm bằng judge khác dòng), cùng leniency và format bias. Vẫn cần human eval cho chốt chất lượng cuối, an toàn và hiệu chỉnh judge định kỳ."
   - id: b09
     type: text
     md: |

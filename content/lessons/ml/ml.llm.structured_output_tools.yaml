@@ -1,5 +1,5 @@
 id: ml.llm.structured_output_tools
-version: 1
+version: 2
 status: published
 title_vi: "Output có cấu trúc (structured output) và function/tool calling"
 est_minutes: 13
@@ -9,6 +9,10 @@ objectives_vi:
   - "Mô tả đúng vòng gọi tool (function/tool calling) đầy đủ và chỉ ra bước nào do model, bước nào do code của bạn."
   - "Xử lý gọn refusal, stop reason bất thường và lỗi tool trong vòng lặp."
 blocks:
+  - id: s_structured_output
+    type: section
+    title_vi: "Structured output và các mức ép khuôn"
+    summary_vi: "Khi nối LLM vào phần mềm, code cần dữ liệu đúng khuôn (JSON theo schema) thay vì văn bản tự do vá bằng regex. Ba mức ép khuôn: chỉ nhắc trong prompt (không bảo đảm gì), JSON mode (bảo đảm JSON hợp lệ, parse được nhưng có thể thiếu/thừa trường, sai kiểu) và structured outputs/schema-constrained decoding (chặn mọi token làm lệch schema bằng logit masking nên luôn đúng schema). Cốt lõi: JSON mode = hợp lệ, structured outputs = hợp lệ và đúng schema."
   - id: b01
     type: text
     md: |
@@ -46,6 +50,10 @@ blocks:
       - {id: c, text_md: "JSON mode ép đúng schema còn structured outputs chỉ xin model trả JSON trong prompt."}
     answer: [b]
     explain_md: "JSON mode chỉ hứa 'parse được'; nó vẫn có thể thiếu/thừa trường hay sai kiểu. Structured outputs dùng constrained decoding (logit masking) để mọi token đều giữ đầu ra bám đúng JSON Schema. (c) nói ngược; (a) sai vì khác nhau ở *bảo đảm*, không phải tốc độ."
+  - id: s_validate_retry
+    type: section
+    title_vi: "Validate và retry"
+    summary_vi: "Khi không có structured outputs, tự bảo vệ bằng vòng validate + retry: parse và kiểm bằng JSON Schema hoặc Pydantic; nếu sai thì gửi lại model kèm thông báo lỗi cụ thể (thiếu trường total, unit phải là C hoặc F) vì model sửa tốt hơn nhiều khi biết sai ở đâu; giới hạn 2-3 lần, hết lần thì báo lỗi hoặc degrade (fallback, chuyển cho người), không lặp vô hạn."
   - id: b04
     type: text
     md: |
@@ -81,6 +89,10 @@ blocks:
       - {accept: ["lỗi", "thông báo lỗi", "lỗi validate", "validation error", "error", "thông báo lỗi validate"]}
       - {accept: ["retry", "retry limit", "giới hạn retry", "số lần retry", "max retries", "số lần thử"]}
     explain_md: "Đưa **lỗi validate** về cho model giúp nó sửa đúng chỗ, thay vì đoán lại từ đầu; và luôn chặn bằng **giới hạn retry** để không lặp vô hạn, hết lần thì fallback."
+  - id: s_tool_calling
+    type: section
+    title_vi: "Function/tool calling"
+    summary_vi: "Model không tự chạy hàm, nó chỉ đề nghị gọi bằng một structured output. Vòng 4 bước: code gửi câu hỏi kèm danh sách tool (tên, mô tả, schema tham số); model trả tool call như get_weather với args; code thực sự chạy hàm và gửi kết quả về dưới dạng tool message; model đọc rồi trả lời cuối hoặc đề nghị gọi thêm. Nút điều khiển gồm tool_choice (auto, required, ép một tool) và parallel tool calls; thiết kế tool tốt có tên rõ, mô tả khi nào dùng, tham số enum và strict mode."
   - id: b06
     type: text
     md: |
@@ -112,6 +124,10 @@ blocks:
       - {id: c, text_md: "Nhà cung cấp API tự động chạy hàm trên server của họ và tính tiền theo lần chạy."}
     answer: [b]
     explain_md: "Model **không** chạy code; nó chỉ phát ra một structured output mô tả lời gọi. Việc chạy hàm, truy cập DB/API thật, và trả kết quả về là của **code bạn** — đó là lý do bạn kiểm soát được bảo mật và lỗi. (a) và (c) đều hiểu sai ai chạy tool."
+  - id: s_loi_phuc_hoi
+    type: section
+    title_vi: "Xử lý lỗi và khung phỏng vấn"
+    summary_vi: "Vòng lặp thật phải chịu lỗi: kiểm tra stop reason (max_tokens nghĩa là bị cắt cụt, JSON đứt giữa chừng nên tăng max_tokens hoặc chia nhỏ rồi retry), phát hiện refusal và xử lý riêng thay vì parse như JSON, và bắt tool error (exception, timeout, rỗng) rồi gửi về model dưới dạng tool message lỗi để nó thử tool khác hoặc xin lỗi. Luôn có timeout và giới hạn số vòng. Khung phỏng vấn: schema -> structured outputs -> validate + retry có giới hạn -> fallback, và tách đúng ai chạy tool."
   - id: b08
     type: text
     md: |

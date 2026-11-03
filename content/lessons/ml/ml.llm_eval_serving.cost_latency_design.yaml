@@ -1,5 +1,5 @@
 id: ml.llm_eval_serving.cost_latency_design
-version: 1
+version: 2
 status: published
 title_vi: "Thiết kế serving: chi phí, độ trễ, dung lượng (cost, latency, capacity)"
 est_minutes: 14
@@ -9,6 +9,10 @@ objectives_vi:
   - "Quy chi phí GPU-giờ ra chi phí mỗi 1 triệu token, so với giá mỗi token của API thuê, và lập luận điểm hoà vốn (break-even) self-host với con số."
   - "Liệt kê các đòn giảm chi phí (smaller/quantized model, prompt cache, cap token, routing, batch offline, cache câu trả lời, autoscale) kèm ước lượng tiết kiệm."
 blocks:
+  - id: s_capacity_planning
+    type: section
+    title_vi: "Định cỡ dung lượng theo token/s"
+    summary_vi: "Với LLM đếm token/s chứ không phải QPS: token/s cần = QPS x token đầu ra trung bình (1.000 người x 2 lượt/phút x 300 token = 10.000 token/s). Số GPU = token/s cần chia token/s mỗi GPU đo tại ngưỡng độ trễ chấp nhận được, cộng dự phòng (nhắm ~70% bận, 10.000 / 2.500 / 0,7 ra 6 GPU). Prefill compute-bound quyết định TTFT, decode memory-bound quyết định tốc độ mỗi token, context dài làm KV cache phình và tụt dung lượng."
   - id: b01
     type: text
     md: |
@@ -70,6 +74,10 @@ blocks:
       5.000 = **10**. (b) sai: batching cho nhiều request dùng chung một GPU, không phải 1 GPU/request.
       (c) sai: batching tăng throughput nhưng vẫn có trần token/s, vượt trần thì phải thêm GPU. Thực tế
       còn phải cộng dự phòng nên sẽ hơn 10 một chút.
+  - id: s_latency_tradeoff
+    type: section
+    title_vi: "Mục tiêu độ trễ và thế căng ba chiều"
+    summary_vi: "SLO độ trễ tách thành TTFT (prefill + hàng đợi) và độ trễ mỗi token (decode); streaming giữ cảm giác nhanh vì TTFT thấp quan trọng hơn tổng thời gian. Batch lớn làm throughput tổng tăng và chi phí mỗi token giảm nhưng mỗi request chờ lâu hơn, nên độ trễ, throughput và batch size luôn đánh đổi nhau."
   - id: b05
     type: text
     md: |
@@ -97,6 +105,10 @@ blocks:
       Batch lớn → GPU làm nhiều token mỗi lượt → throughput cao, rẻ hơn mỗi token; nhưng mỗi request
       chờ lâu hơn → độ trễ tăng. Đó là đánh đổi độ trễ ↔ throughput. (b) sai: không thể cùng cải thiện
       cả hai; (c) sai: batching không đổi nội dung đầu ra, nó tác động tới độ trễ/throughput.
+  - id: s_cost_breakeven
+    type: section
+    title_vi: "Chi phí mỗi triệu token và điểm hoà vốn"
+    summary_vi: "GPU 2 USD/giờ sinh 2.000 token/s tức 7,2 triệu token/giờ, ra ~0,28 USD mỗi triệu token ở 100% bận nhưng ~0,93 ở 30% bận vì tiền thuê cố định. So với API 0,60 USD/triệu token, hoà vốn khi 0,28 / u = 0,60 nên u ~ 47%: tải thấp hoặc thất thường thì API rẻ hơn, tải cao và đều thì self-host rẻ hơn."
   - id: b07
     type: text
     md: |
@@ -142,6 +154,10 @@ blocks:
       0,28 chỉ đạt được ở 100% bận; ở mức bận u, chi phí = 0,28 ÷ u. Chỉ khi u vượt ~47% (0,28/0,60)
       thì self-host mới dưới 0,60 của API. (b) sai: bỏ qua GPU rảnh — ở 30% bận là 0,93, đắt hơn API.
       (c) sai: khối lượng lớn và đều thì self-host rẻ hơn hẳn.
+  - id: s_cost_levers
+    type: section
+    title_vi: "Các đòn giảm chi phí"
+    summary_vi: "Token đầu ra đắt hơn token đầu vào nên cắt output mạnh nhất. Các đòn chính: model nhỏ hoặc quantize (~2-4x throughput), prompt cache (giảm ~50-90% chi phí input với prefix trùng), cap max token, routing/cascade (~30-70%), batch offline (~50% giá), cache câu trả lời, và autoscale về 0 để không trả tiền GPU rảnh."
   - id: b10
     type: text
     md: |

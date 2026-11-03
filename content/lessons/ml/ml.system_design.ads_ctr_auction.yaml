@@ -1,5 +1,5 @@
 id: ml.system_design.ads_ctr_auction
-version: 1
+version: 2
 status: published
 title_vi: "Thiết kế pipeline dự đoán CTR quảng cáo và nối vào đấu giá: vì sao calibration là trung tâm"
 est_minutes: 14
@@ -9,6 +9,10 @@ objectives_vi:
   - "Đo và sửa calibration: biểu đồ reliability + ECE; Platt scaling / isotonic regression; sửa thiên lệch do negative downsampling."
   - "Xử lý chuyển đổi đến trễ (delayed conversions / delayed feedback): cửa sổ quy kết (attribution window) và mô hình hoá độ trễ."
 blocks:
+  - id: s_pipeline_auction
+    type: section
+    title_vi: "Pipeline CTR và đấu giá eCPM"
+    summary_vi: "Đấu giá CPC xếp quảng cáo theo bid × pCTR (eCPM = bid × pCTR × 1000), nên pCTR nhân thẳng ra tiền. Pipeline gồm lấy ứng viên (vài trăm từ hàng triệu) → chấm pCTR bằng feature thưa dùng hashing/embedding → đấu giá; do quy mô hàng tỉ lượt/ngày và phân phối trôi nhanh nên thường học online để giữ pCTR tươi."
   - id: b01
     type: text
     md: |
@@ -42,6 +46,10 @@ blocks:
       ID học một vector dày đặc) rồi cho qua logistic regression hay mạng nơ-ron. Quy mô cực lớn
       (hàng tỉ lượt/ngày) và phân phối trôi nhanh (quảng cáo mới, xu hướng mới), nên thường **học
       online / cập nhật liên tục (online learning)** để giữ pCTR tươi thay vì train lại hằng tuần.
+  - id: s_calibration_why
+    type: section
+    title_vi: "Vì sao calibration quan trọng hơn AUC"
+    summary_vi: "Calibrated nghĩa là nhóm dự đoán 2% thì click thật xấp xỉ 2%. Đấu giá dùng giá trị tuyệt đối bid × pCTR nên pCTR thổi gấp đôi làm sai doanh thu kỳ vọng, pacing ngân sách, giá tính cho nhà quảng cáo và cả thứ hạng giữa các bid khác nhau (A: 3 × 0,02 = 0,06 thua B: 1 × 0,07 = 0,07, nhưng thắng oan nếu pCTR của A thành 0,04). AUC chỉ đo thứ tự, bất biến với phép bóp đơn điệu nên không thấy lỗi này."
   - id: b03
     type: text
     md: |
@@ -76,6 +84,10 @@ blocks:
       - {id: c, text_md: "Vì model X chạy chậm hơn nên không kịp ngân sách 100 ms của ad server."}
     answer: [a]
     explain_md: "AUC bất biến với phép bóp đơn điệu lên xác suất, nên không 'nhìn thấy' việc X thổi gấp đôi. Nhưng đấu giá nhân pCTR với bid để ra tiền và điều tiết ngân sách, nên xác suất lệch gây tính giá sai, pacing sai và lệch thứ hạng giữa các bid khác nhau. (b) AUC cao không đồng nghĩa overfit; (c) tốc độ không liên quan tới chuyện calibration."
+  - id: s_measure_fix_calibration
+    type: section
+    title_vi: "Đo và sửa calibration"
+    summary_vi: "Đo bằng biểu đồ reliability (so pCTR trung bình với tỉ lệ click thật theo nhóm, sát đường y = x là tốt) và gộp thành ECE. Sửa hậu xử lý bằng Platt scaling (logistic 1 chiều, ít tham số) hoặc isotonic regression (bậc thang không giảm, linh hoạt nhưng cần nhiều dữ liệu), fit trên tập held-out. Negative downsampling giữ tỉ lệ w mẫu âm làm pCTR bị thổi, sửa bằng p = p'·w / (p'·w + 1 − p'); ví dụ w = 0,1, p' = 0,2 cho p ≈ 0,024."
   - id: b06
     type: text
     md: |
@@ -117,6 +129,10 @@ blocks:
     blanks:
       - accept: ["ECE", "expected calibration error", "Expected Calibration Error"]
     explain_md: "ECE (Expected Calibration Error) gộp sai lệch của các nhóm trên biểu đồ reliability thành một con số; ECE càng gần 0 thì xác suất càng 'thật'. Nó bổ sung cho AUC: AUC đo thứ hạng, ECE đo độ đúng của xác suất tuyệt đối — thứ mà đấu giá cần."
+  - id: s_delayed_conversions
+    type: section
+    title_vi: "Chuyển đổi đến trễ (delayed feedback)"
+    summary_vi: "CTR có nhãn gần tức thì, nhưng CVR có thể đến sau click hàng giờ đến hàng ngày; chốt nhãn quá sớm biến mẫu sẽ-mua thành âm giả, dìm CVR và làm mất calibration. Xử lý bằng cửa sổ quy kết (chỉ tính chuyển đổi trong N ngày, ví dụ 7, cân bằng độ tươi và độ đầy đủ) và mô hình hoá độ trễ (học phân phối thời gian đến chuyển đổi, cập nhật khi nhãn muộn về); CVR cũng phải calibrated như CTR."
   - id: b09
     type: text
     md: |
