@@ -13,6 +13,8 @@ export function SplitLayout(props: {
   onTabChange?: (tab: "left" | "right") => void;
   /** Extra element above the tabs (breadcrumb etc.) is not needed: pane content carries its own. */
   narrowNotice?: ReactNode;
+  /** Right-aligned controls in the tabs-layout tab row (e.g. Kiểm tra / Test out links). */
+  tabbarExtra?: ReactNode;
 }) {
   const layout = useLayout();
   const [ratio, setRatio] = useState(() => {
@@ -90,6 +92,7 @@ export function SplitLayout(props: {
         <button role="tab" aria-selected={tab === "right"} onClick={() => select("right")}>
           {props.rightTab}
         </button>
+        {props.tabbarExtra && <span className="tabbar-extra">{props.tabbarExtra}</span>}
       </div>
       <div className={tab === "left" ? "pane left" : "pane right"}>
         {tab === "left" ? props.left : props.right}

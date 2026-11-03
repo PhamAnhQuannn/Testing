@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { LessonBlock } from "../lib/api";
 import {
-  allLessonExercises,
+  allLessonInteractive,
   canAdvance,
   deriveSections,
+  isInteractive,
   sectionIndexOfBlock,
   sectionStatus,
 } from "./sections";
@@ -62,26 +63,52 @@ describe("deriveSections", () => {
   });
 });
 
-describe("allLessonExercises", () => {
-  it("lists every code_exercise in order, tagged with its section index and title", () => {
+describe("theory / interactive partition", () => {
+  it("every block lands in exactly one of theory/interactive, union = blocks", () => {
+    for (const blocks of [
+      [text("a"), quiz("q")], // mixed
+      [text("a"), text("b")], // theory only
+      [quiz("q1"), ex("e1")], // interactive only
+      [], // empty
+    ] as LessonBlock[][]) {
+      const [s] = deriveSections(blocks.length ? blocks : [text("x")]);
+      const union = [...s.theory, ...s.interactive].map((b) => b.id).sort();
+      expect(union).toEqual(s.blocks.map((b) => b.id).sort());
+      expect(s.theory.every((b) => !isInteractive(b))).toBe(true);
+      expect(s.interactive.every((b) => isInteractive(b))).toBe(true);
+    }
+  });
+
+  it("isInteractive covers quiz/predict/code but not text/callout", () => {
+    expect(isInteractive(quiz("q"))).toBe(true);
+    expect(isInteractive(ex("e"))).toBe(true);
+    expect(isInteractive({ id: "p", type: "predict_output", code: "", expected_output: "" } as LessonBlock)).toBe(true);
+    expect(isInteractive(text("t"))).toBe(false);
+  });
+});
+
+describe("allLessonInteractive", () => {
+  it("lists every interactive block (quiz + code) in order, with section + ordinal", () => {
     const sections = deriveSections([
       text("i"),
       sec("s1"),
+      quiz("q1"),
       ex("e1"),
-      ex("e2"),
       sec("s2"),
       text("x"),
-      ex("e3"),
+      ex("e2"),
     ]);
-    const list = allLessonExercises(sections);
-    expect(list.map((e) => e.exercise.id)).toEqual(["e1", "e2", "e3"]);
+    const list = allLessonInteractive(sections);
+    expect(list.map((e) => e.block.id)).toEqual(["q1", "e1", "e2"]);
     expect(list.map((e) => e.sectionIdx)).toEqual([1, 1, 2]);
+    expect(list.map((e) => e.ordinal)).toEqual([1, 2, 3]);
     expect(list[0].sectionTitle).toBe("T-s1");
     expect(list[2].sectionTitle).toBe("T-s2");
   });
 
-  it("empty when the lesson has no exercises", () => {
-    expect(allLessonExercises(deriveSections([text("a"), quiz("q")]))).toEqual([]);
+  it("empty when the lesson has no interactive blocks", () => {
+    expect(allLessonInteractive(deriveSections([text("a"), { ...quiz("q"), graded: false } as LessonBlock]))).toHaveLength(1);
+    expect(allLessonInteractive(deriveSections([text("a"), text("b")]))).toEqual([]);
   });
 });
 

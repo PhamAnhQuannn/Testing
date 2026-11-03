@@ -13,15 +13,17 @@ import { normalizeOutput } from "../lib/grade";
 export interface BlockContext {
   subtopicId: string;
   runNo: number;
-  /** Server-known answers for the current run (reload keeps them). */
+  /** Known answers for the current run: server reload snapshot merged with this session's answers. */
   known: Record<string, KnownAnswer>;
+  /** Scoring: called ONLY for the first answer per block per run (feeds `results`). */
   onAnswered: (blockId: string, correct: boolean) => void;
-  activeExercise: string | null;
+  /** UI persistence: called on EVERY graded answer so feedback survives a remount (feeds sessionKnown). */
+  onLocalAnswer?: (
+    blockId: string,
+    info: { correct: boolean; answer: unknown; explain?: string; correctAnswer?: unknown },
+  ) => void;
   doneExercises: Set<string>;
-  onOpenExercise: (blockId: string) => void;
   canEdit: boolean;
-  /** Show an explicit "open in editor" button (tabs layout / several exercises in one section). */
-  showOpen?: boolean;
 }
 
 type Of<T extends LessonBlock["type"]> = Extract<LessonBlock, { type: T }>;
@@ -220,7 +222,9 @@ function useQuizSubmit(ctx: BlockContext, blockId: string, clear: () => void) {
   const [busy, setBusy] = useState(false);
   const [answered, setAnswered] = useState<Answered | null>(() => {
     const known = ctx.known[blockId];
-    return known ? { correct: known.correct, known: true } : null;
+    return known
+      ? { correct: known.correct, explain: known.explain, correctAnswer: known.correctAnswer, known: true }
+      : null;
   });
   const submit = async (answer: unknown) => {
     setBusy(true);
@@ -237,8 +241,15 @@ function useQuizSubmit(ctx: BlockContext, blockId: string, clear: () => void) {
         correctAnswer: result.correct_answer,
       });
       clear();
-      // only the first answer per block per run counts toward quiz_best
+      // only the first answer per block per run counts toward quiz_best (scoring)
       if (result.first_attempt !== false) ctx.onAnswered(blockId, result.correct);
+      // every answer updates the session cache so feedback survives a right-pane remount
+      ctx.onLocalAnswer?.(blockId, {
+        correct: result.correct,
+        answer,
+        explain: result.explain_md,
+        correctAnswer: result.correct_answer,
+      });
     } catch (error) {
       notify(`Chưa chấm được (cần server): ${(error as Error).message}`, { kind: "error" });
     } finally {
@@ -374,28 +385,21 @@ function PredictOutput({ block, ctx }: { block: Of<"predict_output">; ctx: Block
 
 // ------------------------------------------------------------------ code_exercise (card in the lesson)
 
+// Rendered only inline on narrow screens (desktop shows the editor in the right pane). The editor
+// needs a wide screen, so here we show the prompt plus a hint to open on a computer.
 function ExerciseCard({ block, ctx }: { block: Of<"code_exercise">; ctx: BlockContext }) {
   const done = ctx.doneExercises.has(block.id);
-  const active = ctx.activeExercise === block.id;
   return (
     <div className="block-card">
-      <strong>
-        Bài tập nhỏ {done && <span className="chip ok">✔ Xong</span>}
-      </strong>
       <Markdown md={block.md} />
-      {ctx.showOpen ? (
-        <button
-          className="btn sm primary"
-          onClick={() => ctx.onOpenExercise(block.id)}
-          disabled={!ctx.canEdit}
-          title={ctx.canEdit ? undefined : "Mở trên máy tính để viết code"}
-        >
-          {active ? "Đang làm ở editor →" : "Làm bài này"}
-        </button>
+      {done ? (
+        <span className="chip ok">✔ Xong</span>
       ) : (
-        <p className="muted" style={{ margin: 0 }}>
-          Bài tập → khung bên phải
-        </p>
+        !ctx.canEdit && (
+          <p className="muted" style={{ margin: 0 }}>
+            Mở trên máy tính để viết code.
+          </p>
+        )
       )}
     </div>
   );
