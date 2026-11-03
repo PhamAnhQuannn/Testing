@@ -236,7 +236,8 @@ async function main() {
     await gotoItem(page, "b12");
     await page.locator("#block-b12 fieldset [role=status]").waitFor({ timeout: 5000 }).catch(() => undefined);
     const b12txt = await page.locator("#block-b12 fieldset").innerText();
-    check("reload: wrong answer b12 remembered as wrong", b12txt.includes("Chưa đúng"), b12txt.replace(/\s+/g, " ").slice(0, 140));
+    const srvB12 = JSON.stringify((await api("GET", `/lessons/${dictId}`)).json?.progress?.answers?.b12 ?? null);
+    check("reload: wrong answer b12 remembered as wrong", b12txt.includes("Chưa đúng"), `ui="${b12txt.replace(/\s+/g, " ").slice(0, 60)}" srv=${srvB12}`);
     check("reload: quiz tally 4/5", (await page.locator(".crumbs").innerText()).includes("Quiz 4/5"), (await page.locator(".crumbs").innerText()).replace(/\n/g, " "));
 
     // ---- complete the lesson: quiz passed (4/5), no problem solved yet -> score 1
