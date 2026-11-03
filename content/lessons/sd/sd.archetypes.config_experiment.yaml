@@ -1,5 +1,5 @@
 id: sd.archetypes.config_experiment
-version: 1
+version: 2
 status: published
 title_vi: "Feature flag, cấu hình và A/B testing: thiết kế nền tảng flag và thử nghiệm"
 est_minutes: 14
@@ -8,6 +8,10 @@ objectives_vi:
   - "Biện minh vì sao SDK đánh giá flag **cục bộ** (local evaluation) thay vì gọi mạng mỗi lần kiểm tra flag."
   - "Mô tả cách gán nhóm **ổn định** bằng hash(user_id + experiment_id) mod 100 và vai trò của chỉ số bảo vệ (guardrail metrics)."
 blocks:
+  - id: s_platform
+    type: section
+    title_vi: "Flag, A/B testing và kiến trúc nền tảng"
+    summary_vi: "Feature flag/remote config là công tắc hoặc giá trị đặt tập trung, đổi hành vi app không cần redeploy; kill switch tắt tính năng lỗi trong vài giây. A/B testing dùng cùng cơ chế nhưng chia người dùng thành variant, nên gộp thành một nền tảng gồm kho luật (targeting, % rollout), phân phối qua CDN (pull hoặc stream), SDK trong app và đường analytics ghi exposure log."
   - id: b01
     type: text
     md: |
@@ -37,6 +41,10 @@ blocks:
       - **SDK trong app:** thư viện nhúng, nhận gói luật và **tự quyết** giá trị cho mỗi người dùng.
       - **Đường phân tích (analytics):** ghi lại ai thật sự thấy variant nào (exposure log) để tính kết
         quả thử nghiệm.
+  - id: s_local_eval
+    type: section
+    title_vi: "SDK đánh giá cục bộ"
+    summary_vi: "SDK tải toàn bộ định nghĩa flag vào bộ nhớ tiến trình, cập nhật nền bằng stream hoặc poll, rồi giải luật targeting ngay trong máy thay vì gọi mạng mỗi lần kiểm tra. Lợi ích: độ trễ gần 0 (một phép tính trong RAM), fail-open nên dịch vụ cấu hình chết app vẫn chạy bằng gói luật gần nhất, và số lần check gần như vô hạn; server chỉ chịu tải phân phối gói luật, cache được qua CDN."
   - id: b04
     type: text
     md: |
@@ -61,6 +69,10 @@ blocks:
       - {id: c, text_md: "Vì đánh giá cục bộ giúp các variant luôn được gán ngẫu nhiên lại sau mỗi lần mở app."}
     answer: [a]
     explain_md: "Local evaluation biến mỗi lần kiểm tra flag thành một phép tính trong RAM: không thêm round-trip vào request, và nếu dịch vụ cấu hình chết thì app dùng gói luật đã nạp (fail-open). (b) sai — SDK chỉ tải luật flag, không tải database người dùng; (c) sai — mục tiêu của gán nhóm là **ổn định**, không phải ngẫu nhiên lại."
+  - id: s_bucketing
+    type: section
+    title_vi: "Gán nhóm ổn định bằng hash"
+    summary_vi: "Không bốc số ngẫu nhiên mỗi lần vì user sẽ nhảy giữa các variant và số liệu vô nghĩa. Dùng bucket = hash(user_id + experiment_id) mod 100 rồi so với ngưỡng phần trăm (ví dụ nhỏ hơn 10 là nhóm 10%). Cách này tất định và sticky (cùng user luôn cùng variant, không cần lưu bảng gán), chia đều, và độc lập giữa các thử nghiệm nhờ experiment_id."
   - id: b06
     type: text
     md: |
@@ -103,6 +115,10 @@ blocks:
       - {id: c, text_md: "Vì random không thể chia người dùng theo tỷ lệ phần trăm, còn hash thì có thể."}
     answer: [b]
     explain_md: "Mấu chốt là tính ổn định (sticky): một user phải luôn thấy cùng variant để trải nghiệm không nhảy và để quy kết số liệu đúng; thêm experiment_id giữ các thử nghiệm độc lập. (a) sai — tốc độ không phải lý do; (c) sai — random cũng chia tỷ lệ được, vấn đề là nó **không ổn định**."
+  - id: s_safe_ops
+    type: section
+    title_vi: "Vận hành an toàn và guardrail"
+    summary_vi: "Rollout tăng dần (1% rồi 5%, 25%, 100%) bằng cách nâng ngưỡng để lỗi chỉ ảnh hưởng số ít, kèm kill switch. Exposure logging ghi người dùng thật sự thấy variant nào để phân tích không lệch. Guardrail metrics (tỷ lệ lỗi, độ trễ, crash) là chỉ số không được xấu đi: nếu variant làm chúng xấu thì dừng hoặc tắt thử nghiệm dù chỉ số mục tiêu đang đẹp."
   - id: b09
     type: text
     md: |

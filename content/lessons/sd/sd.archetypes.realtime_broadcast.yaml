@@ -1,5 +1,5 @@
 id: sd.archetypes.realtime_broadcast
-version: 1
+version: 2
 status: published
 title_vi: "Phát tin thời gian thực (real-time broadcast): một nguồn tới hàng triệu người xem"
 est_minutes: 13
@@ -8,6 +8,10 @@ objectives_vi:
   - "Thiết kế phát theo tầng (fan-out tiers) qua các máy biên (edge servers) và một trục pub/sub để không máy nào phải ôm cả triệu kết nối."
   - "Giải thích gộp cập nhật (conflation/batching) và nối lại bằng ảnh chụp cộng delta (snapshot plus deltas) có số thứ tự."
 blocks:
+  - id: s_fanout
+    type: section
+    title_vi: "Bài toán phát tin và phát theo tầng"
+    summary_vi: "Broadcast là một nguồn tới hàng triệu người xem chỉ-đọc cùng một luồng, khác chat nhiều-tới-nhiều. Không máy nào giữ nổi cả triệu kết nối, nên phát theo cây: nguồn -> trục pub/sub theo chủ đề -> nhiều máy biên, mỗi máy ôm hàng chục nghìn kết nối và tự nhân tin ra (như CDN cho tin trực tiếp)."
   - id: b01
     type: text
     md: |
@@ -49,6 +53,10 @@ blocks:
       - {id: c, text_md: "Vì fan-out tiers loại bỏ hoàn toàn nhu cầu dùng pub/sub giữa nguồn và máy biên."}
     answer: [a]
     explain_md: "Giới hạn là bộ nhớ/kết nối và băng thông của một máy; chia tải ra nhiều máy biên, mỗi máy ôm một phần kết nối và tự nhân tin ra. (b) sai — đây là luồng chỉ-đọc, không tối ưu cho việc người xem gửi lên; (c) sai — trục pub/sub chính là thứ nối nguồn với các máy biên."
+  - id: s_conflation
+    type: section
+    title_vi: "Gộp cập nhật (conflation)"
+    summary_vi: "Với trạng thái kiểu giá trị mới nhất, máy biên gom cập nhật trong cửa sổ ~100-500 ms và chỉ gửi giá trị mới nhất hoặc một lô gộp, cắt mạnh số lần ghi socket và băng thông. Người mạng chậm được throttling riêng (gói to, thưa hơn) để không làm nghẽn cả máy biên."
   - id: b05
     type: text
     md: |
@@ -70,6 +78,10 @@ blocks:
       - {id: c, text_md: "Gửi toàn bộ lịch sử tỷ số từ đầu trận mỗi lần có thay đổi."}
     answer: [b]
     explain_md: "Với trạng thái kiểu 'giá trị mới nhất', gộp lại và gửi thưa (vài trăm ms) cắt mạnh tải mà người xem vẫn thấy đúng số hiện tại. (a) gửi 20 lần/giây × 5 triệu người là lãng phí khổng lồ cho dữ liệu sẽ bị ghi đè ngay; (c) gửi lại toàn bộ lịch sử là thừa và càng nặng."
+  - id: s_reconnect
+    type: section
+    title_vi: "Vào mới và nối lại bằng snapshot + delta"
+    summary_vi: "Client mới vào hoặc nối lại nhận một snapshot trạng thái hiện tại kèm số thứ tự K, rồi chỉ nhận các delta K+1, K+2... Số thứ tự liên tục giúp phát hiện nhảy số (mất tin) để xin lại hoặc tải lại snapshot, tránh phát lại toàn bộ lịch sử."
   - id: b07
     type: text
     md: |
@@ -93,6 +105,10 @@ blocks:
       - {accept: ["ảnh chụp", "snapshot", "ảnh chụp (snapshot)", "anh chup"]}
       - {accept: ["số thứ tự", "sequence number", "số thứ tự (sequence number)", "so thu tu", "sequence"]}
     explain_md: "Nối lại = snapshot (ảnh chụp trạng thái hiện tại) + deltas về sau; số thứ tự (sequence number) liên tục cho phép phát hiện nhảy số, tức là đã mất tin, để xin lại hoặc tải lại snapshot. Đây là cách tránh phải phát lại toàn bộ lịch sử."
+  - id: s_sse_hot
+    type: section
+    title_vi: "SSE hay WebSocket và chủ đề nóng"
+    summary_vi: "Luồng một chiều thì SSE thường đủ: chạy trên HTTP thường, tự nối lại, có Last-Event-ID hợp với snapshot + delta; WebSocket chỉ khi cần hai chiều độ trễ thấp. Hành động của người xem gửi lên qua API riêng, và chủ đề nóng (hot topic skew) phải được rải ra nhiều máy biên."
   - id: b09
     type: text
     md: |

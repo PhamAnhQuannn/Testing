@@ -1,5 +1,5 @@
 id: sd.archetypes.message_queue
-version: 1
+version: 2
 status: published
 title_vi: "Thiết kế hàng đợi message phân tán (distributed message queue): dựng broker từ một file log"
 est_minutes: 14
@@ -8,6 +8,10 @@ objectives_vi:
   - "Giải thích **sao chép (replication)** leader + follower, các mức **acks** và **ISR (in-sync replicas)**, và vì sao một bản ghi chỉ được coi là 'đã chốt (committed)' khi đã chép tới ISR."
   - "So sánh hai kiểu broker: **queue xoá tin sau khi xác nhận** (SQS/RabbitMQ) với **log giữ tin** theo cửa sổ lưu (Kafka), và biết khi nào chọn kiểu nào."
 blocks:
+  - id: s_log_partition
+    type: section
+    title_vi: "File log append-only và partition"
+    summary_vi: "Lõi broker là file log chỉ ghi nối đuôi, cắt thành các đoạn (segment): ghi tuần tự nên nhanh, xoá tin cũ bằng cách bỏ cả file đoạn, mỗi tin có offset tăng dần. Để vượt giới hạn một máy, chia topic thành nhiều partition (mỗi partition một log, trên nhiều máy); thứ tự chỉ được bảo đảm trong từng partition nên gom tin cùng key về một partition, và số partition là trần song song của consumer group."
   - id: b01
     type: text
     md: |
@@ -57,6 +61,10 @@ blocks:
       (ví dụ băm `user_id`): mọi tin cùng khoá về cùng một partition và giữ đúng thứ tự với nhau. Số
       partition cũng là trần song song của một **consumer group**: tối đa mỗi partition cho một
       consumer đọc, thừa consumer sẽ ngồi không.
+  - id: s_replication_acks
+    type: section
+    title_vi: "Sao chép, ISR và acks"
+    summary_vi: "Mỗi partition có nhiều bản sao (thường 3): leader nhận đọc/ghi, follower chép theo; leader chết thì một follower đủ mới lên thay. ISR là tập replica đang theo kịp; tin chỉ 'đã chốt' khi ghi vào mọi bản ISR. acks=0 bắn rồi quên, acks=1 chờ leader (có thể mất tin), acks=all chờ ISR (bền nhất nhưng chậm hơn); tin quan trọng dùng acks=all."
   - id: b05
     type: text
     md: |
@@ -95,6 +103,10 @@ blocks:
       - {id: c, text_md: "Vì acks = all tắt sao chép đi để leader không phải chờ follower, nhờ vậy ghi không bao giờ hỏng."}
     answer: [b]
     explain_md: "acks = all buộc chờ tin được ghi vào toàn bộ ISR (in-sync replicas) trước khi báo thành công; vì mọi bản ISR đều có tin, chọn bất kỳ bản ISR nào làm leader mới cũng không mất tin đã chốt. (a) sai — độ bền nằm ở phía broker qua replication, không phải ở client; (c) ngược hẳn — acks = all *dựa vào* sao chép, nó chờ ISR chứ không tắt sao chép."
+  - id: s_consumer_kinds
+    type: section
+    title_vi: "Consumer, retention và hai kiểu broker"
+    summary_vi: "Với broker kiểu log, đọc không xoá tin: consumer tự commit offset, có thể tua lại để replay, và nhiều consumer group đọc độc lập; tin bị bỏ theo cửa sổ retention. Queue xoá sau ack (SQS/RabbitMQ) giao một tin cho một worker, ack thì xoá, hết visibility timeout thì hiện lại, quá N lần vào DLQ, hợp chia việc. Cần nhiều bên đọc một dòng sự kiện và replay thì chọn log giữ tin."
   - id: b08
     type: text
     md: |

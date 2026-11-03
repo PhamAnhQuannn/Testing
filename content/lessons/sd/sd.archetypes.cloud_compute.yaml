@@ -1,5 +1,5 @@
 id: sd.archetypes.cloud_compute
-version: 1
+version: 2
 status: published
 title_vi: "Nền tảng chạy code lạ: online IDE, code judge, serverless (cloud compute)"
 est_minutes: 14
@@ -8,6 +8,10 @@ objectives_vi:
   - "Giải thích vì sao **một container trần không phải là ranh giới bảo mật đủ mạnh** cho code thù địch, và kể các mức cách ly mạnh hơn (gVisor, microVM/Firecracker)."
   - "Giải thích vì sao **hồ chứa hộp sẵn (warm pool)** cùng giới hạn tài nguyên giúp chạy nhanh mà không bị vét sạch máy."
 blocks:
+  - id: s_untrusted
+    type: section
+    title_vi: "Code lạ và giới hạn của container"
+    summary_vi: "Nền tảng chạy code lạ (code judge, IDE online, serverless) là một job scheduler mà việc được giao là code thù địch, nên phải coi code có thể xoá file, đọc trộm, fork bomb hay đào coin. Container trần không phải ranh giới bảo mật mạnh vì dùng chung nhân host: một kernel exploit có thể gây container escape. Cách ly mạnh hơn là gVisor (nhân user-space) hoặc microVM Firecracker (nhân riêng bằng ảo hoá phần cứng nhẹ, khởi động mili-giây)."
   - id: b01
     type: text
     md: |
@@ -52,6 +56,10 @@ blocks:
         virtualization)** nhẹ để mỗi lần chạy có **nhân riêng**, cách ly ở mức máy ảo nhưng khởi động
         chỉ trong mili-giây. Đây là cách các nền tảng **serverless** (ví dụ AWS Lambda) chạy code của
         hàng triệu người lạ cạnh nhau. An toàn hơn container, mà vẫn đủ nhanh.
+  - id: s_defense_limits
+    type: section
+    title_vi: "Phòng thủ nhiều tầng và giới hạn tài nguyên"
+    summary_vi: "Không dựa vào một hàng rào: kết hợp seccomp, AppArmor/SELinux, bỏ bớt capabilities, hệ thống tệp chỉ đọc và tắt mạng (defense-in-depth). Mỗi lần chạy còn có resource limits qua cgroups: CPU, trần RAM (vượt thì bị OOM kill), giới hạn số tiến trình pids chặn fork bomb, và timeout wall-clock chặn vòng lặp vô tận, ví dụ 2 giây và 256 MB."
   - id: b05
     type: text
     md: |
@@ -91,6 +99,10 @@ blocks:
       - {id: c, text_md: "Dùng microVM thay cho container, vì nhân riêng khiến vòng lặp tự dừng."}
     answer: [b]
     explain_md: "Vòng lặp vô tận bị chặn bởi **timeout (wall-clock)**; fork bomb bị chặn bởi **giới hạn pids** (và RAM/CPU) trong cgroups. (a) warm pool chỉ lo tốc độ khởi động, không phải an toàn tài nguyên; (c) microVM lo *cách ly*, nhưng nhân riêng không tự làm vòng lặp dừng — vẫn cần timeout và resource limits."
+  - id: s_warm_arch
+    type: section
+    title_vi: "Warm pool và kiến trúc tổng thể"
+    summary_vi: "Tạo sandbox mới tốn vài trăm ms đến vài giây (cold start), nên giữ warm pool các hộp đã bật sẵn, lấy ra chạy gần như tức thì rồi reset hoặc vứt đi để không còn dấu vết người trước. Kiến trúc: API đẩy run request vào queue, scheduler giao cho sandbox worker, lo công bằng theo quota từng người và autoscale, kết quả và log được stream về trình duyệt. Khi phỏng vấn nêu ba nhịp: luồng, bảo mật là trọng tâm, tốc độ và công bằng."
   - id: b09
     type: text
     md: |

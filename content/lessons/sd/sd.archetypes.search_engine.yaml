@@ -1,5 +1,5 @@
 id: sd.archetypes.search_engine
-version: 1
+version: 2
 status: published
 title_vi: "Thiết kế công cụ tìm kiếm (search engine): mục lục ngược chia phần và scatter-gather"
 est_minutes: 14
@@ -8,6 +8,10 @@ objectives_vi:
   - "Giải thích đường truy vấn scatter-gather: phát câu hỏi tới mọi shard, mỗi shard trả top-k, rồi một coordinator gộp và xếp hạng lại."
   - "So sánh hai cách chia mục lục: chia theo tài liệu (document-partitioning) với chia theo từ (term-partitioning), và nói được khi nào chọn cái nào."
 blocks:
+  - id: s_inverted_index
+    type: section
+    title_vi: "Ràng buộc và mục lục ngược"
+    summary_vi: "Tìm kiếm là bài read-heavy, độ trễ thấp trên tập cực lớn, chấp nhận trễ tươi vài giây. Ta dựng mục lục ngược (từ -> posting list) như một hệ riêng, cập nhật từ DB gốc qua CDC và pipeline lập chỉ mục không đồng bộ, nên mục lục chỉ tươi gần tức thời (eventual)."
   - id: b01
     type: text
     md: |
@@ -60,6 +64,10 @@ blocks:
       tra cứu nhanh, nhưng vì cập nhật qua CDC không đồng bộ nên tươi gần tức thời (near-real-time), trễ
       nhất quán cuối vài giây. (b) sai — ngược lại, mục lục trễ hơn DB gốc, không mạnh hơn; (c) sai —
       mục lục còn thường tốn thêm chỗ, đó không phải lý do dựng nó.
+  - id: s_scatter_gather
+    type: section
+    title_vi: "Chia phần và truy vấn scatter-gather"
+    summary_vi: "Mục lục được chia thành nhiều shard; coordinator phát câu hỏi tới mọi shard, mỗi shard trả top-k cục bộ, coordinator gộp và xếp hạng lại. Độ trễ do shard chậm nhất chi phối (tail latency), nên cần timeout và có thể trả kết quả thiếu một shard."
   - id: b04
     type: text
     md: |
@@ -102,6 +110,10 @@ blocks:
       kiệm băng thông, rồi coordinator trộn các top-k và xếp hạng lại để có thứ tự đúng trên toàn tập.
       (b) sai — các shard chia nhau dữ liệu, không ai giữ bản đầy đủ; (c) sai — coordinator chính là nơi
       gộp và re-rank, không phải chỉ chuyển tiếp.
+  - id: s_partitioning
+    type: section
+    title_vi: "Chia theo tài liệu hay chia theo từ"
+    summary_vi: "Document-partitioning (mỗi shard giữ mọi từ cho một nhóm tài liệu) đơn giản khi ghi, tải đều, nhưng mỗi truy vấn hỏi mọi shard; là lựa chọn mặc định. Term-partitioning hỏi ít shard hơn nhưng gánh từ nóng lệch tải và khó lập chỉ mục/rebuild vì một tài liệu ghi vào nhiều shard."
   - id: b06
     type: text
     md: |
@@ -151,6 +163,10 @@ blocks:
       mỗi truy vấn hỏi mọi shard — vốn đã là scatter-gather nên chấp nhận được. (b) sai — chính
       doc-partitioning mới phải hỏi mọi shard; term-partitioning mới hỏi ít shard hơn; (c) sai — cả hai
       đều xếp hạng được, và doc-partitioning xếp hạng cục bộ ở từng shard rồi mới gộp.
+  - id: s_scale_ranking
+    type: section
+    title_vi: "Replica, xếp hạng và cách trình bày"
+    summary_vi: "Sharding chia dữ liệu còn replica cho mỗi shard mới tăng thông lượng đọc và chịu lỗi. Xếp hạng dùng BM25 (tần suất từ và độ hiếm toàn tập) cộng tín hiệu như độ mới, lượt click, cùng công thức ở mọi shard để top-k so sánh được khi gộp."
   - id: b09
     type: text
     md: |

@@ -1,5 +1,5 @@
 id: sd.archetypes.kv_store
-version: 1
+version: 2
 status: published
 title_vi: "Thiết kế kho key-value và cache phân tán (distributed key-value store, Dynamo-style)"
 est_minutes: 14
@@ -8,6 +8,10 @@ objectives_vi:
   - "Giải thích vì sao **R + W > N** đảm bảo mỗi lần đọc gặp ít nhất một bản mới nhất, và chọn R, W cho yêu cầu nghiêng nhất quán (consistency) hay nghiêng sẵn sàng (availability)."
   - "Xử lý xung đột ghi (conflict resolution) và máy tạm chết (hinted handoff, read repair) theo kiểu leaderless Dynamo."
 blocks:
+  - id: s_shard_replicate
+    type: section
+    title_vi: "Từ một dict đến chia mảnh và sao chép"
+    summary_vi: "Dict trong RAM một máy bị giới hạn dung lượng và mất tất khi máy chết. Vòng băm nhất quán với nút ảo chia mảnh dữ liệu mà chỉ dời ít khoá khi đổi cụm; sao chép ra N máy kế tiếp (thường N = 3) để chịu lỗi và giữ availability, nhưng đẻ ra câu hỏi đọc bản nào là mới nhất."
   - id: b01
     type: text
     md: |
@@ -45,6 +49,10 @@ blocks:
       - {id: c, text_md: "Để khỏi cần vòng băm nhất quán nữa, vì sao chép đã tự chia mảnh dữ liệu."}
     answer: [b]
     explain_md: "Vòng băm nhất quán lo **chia mảnh** (mỗi khoá thuộc một máy), nhưng một bản thì một máy chết là mất. Sao chép ra N máy để còn bản khác khi có máy chết — đó là mục đích chính (b). (a) sai: sao chép *tốn thêm* chỗ (N lần), không tăng dung lượng. (c) sai: sao chép và chia mảnh là hai việc khác nhau, vẫn cần vòng băm để biết N máy nào giữ khoá."
+  - id: s_quorum
+    type: section
+    title_vi: "Quorum R + W > N và chỉnh R, W"
+    summary_vi: "Kiểu Dynamo leaderless: ghi thành công khi W bản xác nhận, đọc khi R bản trả lời, và chọn R + W > N để tập đọc luôn giao tập ghi nên thấy bản mới nhất (N = 3 thì R = W = 2). R, W là nút vặn: R = 1/W = 3 cho tải đọc nhiều, W = R = 1 nghiêng availability và chấp nhận eventual consistency."
   - id: b05
     type: text
     md: |
@@ -94,6 +102,10 @@ blocks:
       - {id: c, text_md: "W = 3, R = 3 — ghi và đọc đều hỏi cả ba máy để tuyệt đối chắc chắn."}
     answer: [b]
     explain_md: "Yêu cầu là **luôn ghi được** và **chịu được đọc cũ** — đó là nghiêng sẵn sàng, nới quorum xuống W = 1, R = 1 (b). (a) đúng về nhất quán nhưng W = 2 làm ghi hỏng khi mất 2 máy, không tối đa sẵn sàng. (c) W = 3 nghĩa là chỉ một máy chết là **không ghi được** — trái hẳn yêu cầu luôn ghi được. Cái giá của (b) là xung đột/đọc cũ, xử lý bằng vector clock và read repair."
+  - id: s_conflict_repair
+    type: section
+    title_vi: "Xung đột ghi, chữa lệch và cách trình bày"
+    summary_vi: "Leaderless có thể nhận ghi song song: LWW đơn giản nhưng có thể mất ghi, vector clock giữ cả hai để ứng dụng hợp nhất. Máy tạm chết được hinted handoff giữ hộ, bản cũ được sửa bằng read repair; engine đĩa thường là LSM tree. Khi phỏng vấn hãy dựng dần từng bước và bảo vệ R, W bằng con số."
   - id: b09
     type: callout
     kind: interview

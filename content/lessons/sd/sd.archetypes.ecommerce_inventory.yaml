@@ -1,5 +1,5 @@
 id: sd.archetypes.ecommerce_inventory
-version: 1
+version: 2
 status: published
 title_vi: "Thiết kế thương mại điện tử: giỏ hàng, tồn kho và đơn hàng không bán quá"
 est_minutes: 14
@@ -8,6 +8,10 @@ objectives_vi:
   - "Viết được câu lệnh trừ kho có điều kiện (conditional/atomic decrement) và giải thích vì sao nó chặn oversell còn read-then-write thì không."
   - "Vẽ luồng đặt hàng dạng saga với trạng thái giữ hàng (reserve) → xác nhận (confirm) và bước hoàn lại (compensation) khi thanh toán hỏng; đặt hàng idempotent để chống bấm hai lần."
 blocks:
+  - id: s_consistency_tiers
+    type: section
+    title_vi: "Các khối hệ thống và vấn đề oversell"
+    summary_vi: "Catalog đọc nhiều nên cache và search index, giỏ hàng là best-effort (Redis/KV), còn tồn kho và đơn hàng là source of truth. Oversell sinh ra từ race đọc-rồi-ghi (check-then-act): hai người cùng đọc stock = 1 rồi cùng ghi 0, bán ra 2 cái."
   - id: b01
     type: text
     md: |
@@ -36,6 +40,10 @@ blocks:
       Cả hai cùng đọc thấy còn 1, cả hai cùng kết luận "mua được", rồi cùng ghi 0 — bán ra **2** cái trong khi
       chỉ có **1**. Khoảng trống giữa lúc đọc và lúc ghi (check-then-act) là chỗ hai luồng chen vào nhau. Đây
       chính là lý do cần mức cô lập (isolation) đủ mạnh hoặc một phép ghi **nguyên tử** (atomic).
+  - id: s_atomic_decrement
+    type: section
+    title_vi: "Trừ kho nguyên tử có điều kiện"
+    summary_vi: "Gộp điều kiện vào lệnh ghi: UPDATE items SET stock = stock - :q WHERE id = :id AND stock >= :q, rồi kiểm tra rows-affected (1 là thành công, 0 là hết hàng và không đổi gì). Điều kiện được kiểm tra dưới khóa dòng nên không còn khoảng trống cho race, chặn oversell."
   - id: b03
     type: text
     md: |
@@ -61,6 +69,10 @@ blocks:
       - {id: c, text_md: "Vì sau khi UPDATE, cache sẽ tự đồng bộ lại số tồn kho cho mọi người dùng."}
     answer: [b]
     explain_md: "Oversell sinh ra từ khoảng trống check-then-act của đọc-rồi-ghi. Gộp điều kiện vào trong lệnh ghi (atomic) dưới khóa dòng xóa khoảng trống đó; rows-affected = 1 là thành công, = 0 là không đủ hàng và không đổi gì. (a) sai — nhanh hơn chỉ làm race hiếm hơn chứ không hết; (c) cache không liên quan đến tính đúng của việc trừ kho."
+  - id: s_reserve_saga
+    type: section
+    title_vi: "Giữ hàng và saga đặt hàng"
+    summary_vi: "Reserve → confirm tốt hơn trừ ngay: giữ hàng có điều kiện kèm TTL, thanh toán xong thì confirm, hỏng hoặc hết hạn thì release về kho. Đơn là saga/state machine (placed → paid → shipping → delivered) đi tới bằng compensation (restock, refund) chứ không rollback ACID xuyên service."
   - id: b05
     type: text
     md: |
@@ -99,6 +111,10 @@ blocks:
 
       Ý quan trọng khi phỏng vấn: saga **không rollback xuyên service** như một giao dịch ACID đơn khối; nó **đi
       tới bằng cách bù trừ** — mỗi hành động có một hành động nghịch để đưa hệ về trạng thái nhất quán.
+  - id: s_idempotent_hot
+    type: section
+    title_vi: "Idempotency và hàng bán chạy"
+    summary_vi: "Đặt hàng phải idempotent: client gắn Idempotency-Key, server lưu khóa cùng kết quả đơn đầu và trả lại đơn cũ khi gửi lại, tránh đơn trùng và trừ kho hai lần. Với hot SKU (flash sale) dùng sharded counter hoặc queue/phòng chờ ảo, nhưng điều kiện không-bán-quá vẫn phải giữ."
   - id: b08
     type: callout
     kind: interview

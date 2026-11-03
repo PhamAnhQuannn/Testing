@@ -1,5 +1,5 @@
 id: sd.archetypes.ride_hailing
-version: 1
+version: 2
 status: published
 title_vi: "Thiết kế hệ gọi xe (ride-hailing) và tìm theo vị trí (proximity)"
 est_minutes: 14
@@ -8,6 +8,10 @@ objectives_vi:
   - "Giải thích vì sao vị trí tài xế được giữ trong bộ nhớ theo ô bản đồ (geohash/quadtree/S2) thay vì ghi từng cái vào database, và tìm tài xế gần là tra ô của khách cộng các ô kề."
   - "Giải thích cách tránh gán đôi một tài xế bằng khoá/claim nguyên tử (atomic claim) và trừ tiền đúng một lần (exactly-once) bằng mã chống lặp (idempotency key)."
 blocks:
+  - id: s_location
+    type: section
+    title_vi: "Vị trí tài xế và chỉ mục địa lý"
+    summary_vi: "Ping vị trí là tải ghi khổng lồ (100.000 tài xế mỗi 4 giây = 25.000 ghi/giây) nên giữ vị trí mới nhất trong RAM/Redis, không ghi từng ping xuống DB. Chỉ mục ô (geohash/quadtree/S2) giúp tìm gần bằng cách quét ô của khách cộng các ô kề."
   - id: b01
     type: text
     md: |
@@ -48,6 +52,10 @@ blocks:
       - {id: c, text_md: "Vì Redis bảo đảm bền vững (durable) tốt hơn mọi database nên không bao giờ mất dữ liệu."}
     answer: [b]
     explain_md: "Ping vị trí là tải ghi khổng lồ và chỉ cần giá trị hiện tại (mới nhất thắng), nên RAM/Redis là nơi hợp lý; muốn lịch sử thì batch/sample xuống kho lạnh. (a) sai, DB lưu toạ độ được; (c) sai — Redis không bền vững hơn, ta chấp nhận đánh đổi độ bền vì đây là dữ liệu tạm, đổi liên tục."
+  - id: s_matching
+    type: section
+    title_vi: "Ghép xe và tránh gán đôi"
+    summary_vi: "Matching: truy vấn ô, xếp hạng theo khoảng cách/ETA, gửi offer có hạn trả lời rồi sang người kế tiếp nếu quá hạn. Để không gán đôi một tài xế, dùng claim/khoá nguyên tử có TTL bằng thời gian chờ offer; khi quét ranh giới phải gộp cả các ô kề."
   - id: b05
     type: text
     md: |
@@ -79,6 +87,10 @@ blocks:
       - {id: c, text_md: "Duyệt toàn bộ tài xế trong thành phố cho chắc chắn, bỏ hẳn chỉ mục ô."}
     answer: [b]
     explain_md: "Một tài xế ở ô kề có thể gần hơn tài xế cùng ô khi khách đứng sát ranh giới, nên phải gộp ô chứa khách cộng các ô kề rồi lọc theo khoảng cách thật. (a) bỏ sót ứng viên sát ranh giới; (c) đúng kết quả nhưng vứt bỏ lợi ích của chỉ mục, quá chậm ở quy mô lớn."
+  - id: s_trip
+    type: section
+    title_vi: "Theo dõi chuyến và trừ tiền exactly-once"
+    summary_vi: "Vị trí tài xế đẩy xuống khách bằng WebSocket thay vì poll. Chuyến là máy trạng thái requested -> matched -> enroute -> ongoing -> completed với chuyển trạng thái đáng tin cậy; trừ tiền cuối chuyến đúng một lần nhờ idempotency key."
   - id: b08
     type: text
     md: |
@@ -103,6 +115,10 @@ blocks:
       - {accept: ["khoá", "khóa", "lock", "claim", "khoá/claim", "atomic claim"]}
       - {accept: ["idempotency key", "mã chống lặp", "idempotency-key", "idempotency", "khoá idempotency"]}
     explain_md: "(1) Khoá/claim nguyên tử với TTL = thời gian chờ offer bảo đảm chỉ một luồng giữ được tài xế và tự nhả khi hết hạn. (2) Idempotency key khiến bản sao thứ hai của cùng yêu cầu tính tiền không trừ thêm — đó là exactly-once charging."
+  - id: s_interview_extend
+    type: section
+    title_vi: "Cách trình bày và điểm mở rộng"
+    summary_vi: "Trình bày theo chuỗi: vị trí (tải ghi -> RAM) -> chỉ mục ô -> matching -> khoá không gán đôi -> WebSocket -> máy trạng thái + exactly-once, nói rõ con số tải. Mở rộng: surge pricing tính theo cầu/cung trong từng ô, geo-sharding mỗi thành phố một shard, ETA tách sang dịch vụ bản đồ."
   - id: b10
     type: callout
     kind: interview

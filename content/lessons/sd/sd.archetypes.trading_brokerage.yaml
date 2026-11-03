@@ -1,5 +1,5 @@
 id: sd.archetypes.trading_brokerage
-version: 1
+version: 2
 status: published
 title_vi: "Môi giới và sàn chứng khoán (brokerage & exchange): sổ lệnh, khớp lệnh và sequencer một luồng"
 est_minutes: 14
@@ -8,6 +8,10 @@ objectives_vi:
   - "Mô tả **đường đi của một lệnh (order path)**: app -> kiểm tra rủi ro -> **sequencer một luồng** -> **matching engine**."
   - "Giải thích vì sao sequencer chạy **một luồng, trong bộ nhớ (single-threaded, in-memory)**, và cách **dựng lại sổ lệnh** bằng chạy lại nhật ký lệnh (event sourcing / replay)."
 blocks:
+  - id: s_orderbook
+    type: section
+    title_vi: "Môi giới, sàn và sổ lệnh"
+    summary_vi: "Người dùng qua broker, sàn mới ghép lệnh mua với lệnh bán. Sổ lệnh có bids (giá cao xuống thấp) và asks (giá thấp lên cao); cùng giá thì đến trước khớp trước (ưu tiên giá-thời gian), khoảng cách giữa hai phía là spread."
   - id: b01
     type: text
     md: |
@@ -28,6 +32,10 @@ blocks:
       (price-time priority)**. Một nguyên tắc quan trọng: **giá khớp là giá của lệnh đã nằm sẵn
       trong sổ**, không phải giá của lệnh vừa tới. Chừng nào giá bán thấp nhất vẫn **cao hơn** giá
       mua cao nhất thì chưa có gì khớp — khoảng cách đó gọi là **spread**.
+  - id: s_matching
+    type: section
+    title_vi: "Khớp lệnh và khớp một phần"
+    summary_vi: "Matching engine khớp khi giá mua >= giá bán, ở giá của lệnh đã nằm sẵn trong sổ, không phải giá lệnh vừa tới. Lệnh lớn ăn dần nhiều lệnh đối diện; phần dư nằm lại sổ là khớp một phần (partial fill), và vòng đời lệnh là một state machine nhỏ."
   - id: b03
     type: text
     md: |
@@ -66,6 +74,10 @@ blocks:
       Giá khớp là **giá của lệnh nằm sẵn**, nên 50 cp khớp ở 51 và 30 cp khớp ở 52, không phải cả
       100 cp ở 52 — (a) sai. Khớp xảy ra khi mua >= bán, **không** cần trùng giá — (c) sai. 20 cp dư
       rest lại ở 52: đó là khớp một phần.
+  - id: s_order_path
+    type: section
+    title_vi: "Đường đi của lệnh và sequencer"
+    summary_vi: "Lệnh đi app -> kiểm tra rủi ro trước giao dịch (loại lệnh quá hạn) -> sequencer -> matching engine, rồi fills được đẩy real-time và thanh toán qua ledger. Sequencer chạy một luồng trong RAM để đạt độ trễ micro-giây và thứ tự tổng xác định."
   - id: b06
     type: text
     md: |
@@ -93,6 +105,10 @@ blocks:
         nhật ký đó để **dựng lại sổ lệnh** đúng như cũ. Bản dự phòng (standby) nhận **cùng log** nên
         luôn sẵn sàng thay thế. Đây chính là **event sourcing**: log là sự thật, sổ lệnh chỉ là
         trạng thái tính ra từ log.
+  - id: s_replay
+    type: section
+    title_vi: "Dựng lại sổ lệnh bằng event sourcing"
+    summary_vi: "Mọi lệnh được ghi vào event log có đánh số trước khi khớp, nên mất RAM thì replay log để dựng lại sổ lệnh đúng như cũ; standby nhận cùng log. Log là nguồn sự thật, sổ lệnh chỉ là trạng thái dẫn xuất; scale bằng sharding theo mã vì lệnh hai mã không khớp nhau."
   - id: b08
     type: quiz_fill
     graded: true

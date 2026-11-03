@@ -1,5 +1,5 @@
 id: sd.archetypes.file_sync
-version: 1
+version: 2
 status: published
 title_vi: "Lưu trữ và đồng bộ file (file storage and sync): chunk, dedup, delta sync và xung đột"
 est_minutes: 13
@@ -8,6 +8,10 @@ objectives_vi:
   - "Mô tả **khử trùng theo mã băm nội dung (content-hash dedup)** và **đồng bộ phần thay đổi (delta sync)**: chỉ tải mảnh đã đổi."
   - "Vẽ kiến trúc tách **metadata service** khỏi **kho đối tượng (object storage)**, kênh báo thay đổi, và cách giữ **bản xung đột (conflicted copy)** thay vì ghi đè mất dữ liệu."
 blocks:
+  - id: s_chunk_dedup
+    type: section
+    title_vi: "Chia mảnh, băm nội dung và khử trùng"
+    summary_vi: "Mục tiêu là chỉ truyền phần đã đổi, nên file được cắt thành mảnh vài MB (upload resumable). Cắt cố định bị lệch toàn bộ ranh giới khi chèn byte, còn content-defined chunking neo ranh giới vào nội dung; mỗi mảnh có content hash (SHA-256) để dedup, kho chỉ lưu mỗi mã băm một lần."
   - id: b01
     type: text
     md: |
@@ -52,6 +56,10 @@ blocks:
       - {id: c, text_md: "Vì cắt theo nội dung không cần tính mã băm cho từng mảnh nên rẻ hơn."}
     answer: [b]
     explain_md: "Mục tiêu là tối đa hoá số mảnh *không đổi* sau một lần sửa. Cắt cố định làm lệch toàn bộ ranh giới khi chèn byte; cắt theo nội dung neo ranh giới vào nội dung nên chỉ vài mảnh quanh chỗ sửa thay đổi. (a) không phải mục đích; (c) sai — vẫn phải băm từng mảnh để dedup và delta sync."
+  - id: s_delta_arch
+    type: section
+    title_vi: "Delta sync và kiến trúc metadata + kho đối tượng"
+    summary_vi: "Delta sync: cắt lại, so mã băm với bản cũ, chỉ tải mảnh mới rồi gửi danh sách mã băm có thứ tự mô tả phiên bản mới. Kiến trúc tách metadata service (database: file → danh sách hash, phiên bản, quyền) khỏi object storage (mảnh lớn bất biến, content-addressed); versioning chỉ tốn thêm vài dòng metadata."
   - id: b05
     type: text
     md: |
@@ -86,6 +94,10 @@ blocks:
       - {id: c, text_md: "Vì tách ra giúp mỗi mảnh được lưu nhiều bản trùng nhau để an toàn hơn."}
     answer: [b]
     explain_md: "Đây là mẫu metadata-trỏ-tới-blob: database giữ phần nhỏ, có cấu trúc, cần nhất quán; object storage giữ khối lớn bất biến. (a) nói quá — database *có thể* lưu blob nhưng kém hiệu quả; (c) ngược với mục tiêu dedup (chỉ giữ một bản mỗi mã băm)."
+  - id: s_notify_conflict
+    type: section
+    title_vi: "Báo thay đổi và xử lý xung đột"
+    summary_vi: "Server đẩy tín hiệu nhẹ 'thư mục có thay đổi' qua WebSocket/long-poll (hoặc polling), thiết bị kia tự kéo metadata và các mảnh còn thiếu. Khi hai thiết bị offline cùng sửa từ một bản gốc thì không ghi đè mà giữ conflicted copy, thà phiền một chút còn hơn mất dữ liệu âm thầm."
   - id: b08
     type: text
     md: |

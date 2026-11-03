@@ -1,5 +1,5 @@
 id: sd.archetypes.leaderboard
-version: 1
+version: 2
 status: published
 title_vi: "Thiết kế bảng xếp hạng (leaderboard): Redis sorted set, chia bảng và hạng của một người"
 est_minutes: 14
@@ -8,6 +8,10 @@ objectives_vi:
   - "Giải thích vì sao Redis sorted set (ZSET) là câu trả lời gốc — O(log n) cho cả cập nhật điểm và hỏi hạng — và vì sao SQL ORDER BY ... LIMIT + COUNT quá chậm ở quy mô lớn."
   - "Xử lý được bài toán quy mô: chia bảng (sharded leaderboard), hạng gần đúng (approximate rank) cho đuôi dài, lưu bền (persistence) và bảng theo thời gian (time window)."
 blocks:
+  - id: s_zset_core
+    type: section
+    title_vi: "Yêu cầu lõi và Redis sorted set"
+    summary_vi: "Ba yêu cầu lõi là top-N, hạng của chính một người và cập nhật real-time; riêng hạng cá nhân loại bỏ giải pháp ngây thơ. Redis ZSET luôn sắp sẵn theo điểm: ZADD, ZREVRANGE, ZREVRANK đều ~O(log n), còn SQL COUNT(*) WHERE score > x để lấy hạng là O(n) mỗi lần hỏi nên sập ở quy mô lớn."
   - id: b01
     type: text
     md: |
@@ -52,6 +56,10 @@ blocks:
       - {id: c, text_md: "Vì Redis lưu dữ liệu xuống đĩa nhanh hơn SQL."}
     answer: [b]
     explain_md: "Top-N trên SQL có index còn chấp nhận được; chỗ nghẽn là hỏi hạng: `COUNT(*) WHERE score > x` quét O(n) mỗi lần, mà điểm đổi liên tục nên không cache lâu được. ZSET giữ cây sắp sẵn nên ZREVRANK là O(log n). (a) sai — SQL sắp được; (c) sai — vấn đề là chi phí truy vấn hạng, không phải tốc độ ghi đĩa."
+  - id: s_scale_persist
+    type: section
+    title_vi: "Quy mô, chia bảng và lưu bền"
+    summary_vi: "Một ZSET đủ cho đa số hệ; khi vượt RAM thì chia bảng sang nhiều Redis, top-N phải lấy top-N từng shard rồi merge, còn người ở đuôi dài chỉ cần hạng gần đúng (percentile/bucket). Redis không phải source of truth: dùng snapshot RDB/AOF và ghi score_events vào DB để rebuild ZSET khi mất."
   - id: b05
     type: text
     md: |
@@ -86,6 +94,10 @@ blocks:
         Redis mất sạch, **dựng lại (rebuild)** ZSET từ DB. Redis chỉ là bản chiếu nhanh để phục vụ truy vấn.
 
       Trong phỏng vấn, nói rõ "Redis phục vụ đọc/ghi nóng, DB giữ sự thật để phục hồi" là một điểm cộng.
+  - id: s_variants
+    type: section
+    title_vi: "Hòa điểm, bảng theo kỳ và cách trình bày"
+    summary_vi: "Hòa điểm mặc định xếp theo thứ tự từ điển của thành viên; muốn ai đạt trước xếp trên thì nhét thời gian vào phần lẻ của điểm. Bảng ngày/tuần dùng khóa ZSET riêng theo kỳ kèm TTL (snapshot sang DB nếu cần lịch sử). Khi phỏng vấn đi theo mạch yêu cầu, ZSET, quy mô, bền và biến thể."
   - id: b08
     type: text
     md: |

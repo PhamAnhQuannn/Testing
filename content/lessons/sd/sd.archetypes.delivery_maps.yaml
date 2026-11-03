@@ -1,5 +1,5 @@
 id: sd.archetypes.delivery_maps
-version: 1
+version: 2
 status: published
 title_vi: "Giao hàng và theo dõi đơn (delivery): vòng đời đơn, gán shipper và vị trí trực tiếp"
 est_minutes: 13
@@ -8,6 +8,10 @@ objectives_vi:
   - "So sánh gán shipper gần nhất (nearest-available, mỗi chuyến một đơn) với gom đơn (batching, một shipper nhiều đơn) và chỉ ra đánh đổi tốc độ với hiệu quả/chi phí."
   - "Giải thích cách đẩy vị trí shipper trực tiếp (live location) xuống app khách, tái dùng cách của bài gọi xe (ride_hailing)."
 blocks:
+  - id: s_lifecycle
+    type: section
+    title_vi: "Bối cảnh và vòng đời đơn"
+    summary_vi: "Delivery xây trên gọi xe, geo-index và realtime, nhưng thêm vòng đời đơn nhiều bước. Đơn là một state machine placed → assigned → picked_up → en_route → delivered; chỉ cho phép chuyển hợp lệ, mỗi chuyển là sự kiện ghi bền và idempotent để thử lại/huỷ an toàn và đối soát."
   - id: b01
     type: text
     md: |
@@ -48,6 +52,10 @@ blocks:
       - {id: c, text_md: "Vì state machine giúp tìm quán gần trong bán kính 10 km hiệu quả hơn."}
     answer: [a]
     explain_md: "State machine ràng buộc chuyển hợp lệ (không 'delivered' trước 'picked_up'), cho phép xử lý sự cố (quán treo thì huỷ/gán lại), và mỗi chuyển là sự kiện bền dùng cho thông báo + đối soát. (b) sai về bản chất; (c) lạc đề — tìm quán gần là việc của chỉ mục địa lý, không liên quan vòng đời đơn."
+  - id: s_assign
+    type: section
+    title_vi: "Gán shipper: gần nhất hay gom đơn"
+    summary_vi: "Gần nhất mỗi chuyến một đơn thì đơn giản và nhanh cho từng khách nhưng tốn shipper và chạy không tải; gom 2-3 đơn cùng tuyến rẻ hơn nhưng có khách bị giao chậm và bài toán chọn tổ hợp phức tạp hơn. Phải tính cả prep time của quán, thường gán song song lúc quán đang nấu."
   - id: b04
     type: text
     md: |
@@ -75,6 +83,10 @@ blocks:
       - {id: c, text_md: "Gần nhất cần WebSocket còn gom đơn thì không, nên khác nhau ở giao thức mạng."}
     answer: [a]
     explain_md: "Đây là đánh đổi tốc độ (nhanh cho từng khách) với hiệu quả/chi phí (ít shipper, chia sẻ quãng đường) kèm độ phức tạp tối ưu tổ hợp. (b) sai: gom đơn đổi lấy độ trễ cao hơn cho một số khách; (c) sai: đẩy vị trí dùng chung giao thức bất kể chiến lược gán."
+  - id: s_live
+    type: section
+    title_vi: "Theo dõi vị trí trực tiếp"
+    summary_vi: "Shipper gửi GPS vài giây một lần; vị trí mới nhất giữ in-memory (Redis) rồi server push xuống đúng khách qua WebSocket/SSE thay vì polling. Mấu chốt là tách vị trí sống (đổi liên tục, trong RAM) khỏi trạng thái đơn (ít chuyển, ghi bền), tái dùng cách của ride_hailing."
   - id: b06
     type: text
     md: |
@@ -103,6 +115,10 @@ blocks:
       - {accept: ["push", "đẩy", "đẩy xuống"]}
       - {accept: ["WebSocket", "websocket", "WebSocket/SSE", "SSE"]}
     explain_md: "Vị trí sống được giữ in-memory (Redis) vì chỉ cần giá trị gần nhất và tần suất ghi rất cao; server push qua WebSocket (hoặc SSE) để tránh polling tốn kém — đúng cách đã học ở ride_hailing và realtime protocols."
+  - id: s_eta
+    type: section
+    title_vi: "ETA và cách trình bày phỏng vấn"
+    summary_vi: "ETA gồm thời gian quán chuẩn bị, shipper tới quán và giao tới khách (dựa vào dịch vụ bản đồ/giao thông); nó động nên được cập nhật khi trạng thái đổi và đẩy cùng kênh vị trí. Khi phỏng vấn trả lời theo ba trụ: vòng đời đơn, gán shipper (nearest vs batching) và live tracking, phân biệt state bền với state sống."
   - id: b08
     type: text
     md: |

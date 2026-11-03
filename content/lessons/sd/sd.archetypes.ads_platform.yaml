@@ -1,5 +1,5 @@
 id: sd.archetypes.ads_platform
-version: 1
+version: 2
 status: published
 title_vi: "Thiết kế ads platform: chọn quảng cáo (auction), chia nhịp ngân sách (budget pacing) và giới hạn lần xem (frequency cap)"
 est_minutes: 14
@@ -8,6 +8,10 @@ objectives_vi:
   - "Giải thích **budget pacing** (chia đều ngân sách ngày thay vì đốt hết trong một giờ) và **frequency cap** (chặn hiển thị lặp quá N lần cho một người, như một bộ đếm per-user kiểu rate limiter)."
   - "Chỉ ra vì sao pipeline đếm impression/click (stream processing) có độ trễ khiến ngân sách bị **vượt nhẹ (overspend)**, và vì sao chấp nhận vượt nhẹ thay vì ép hard cap."
 blocks:
+  - id: s_selection
+    type: section
+    title_vi: "Chọn quảng cáo và đấu giá eCPM"
+    summary_vi: "Mỗi ad slot có latency budget ~100 ms nên luồng chọn gồm lọc ứng viên theo targeting (tra chỉ mục dựng sẵn trong cache), xếp hạng, chọn người thắng. Thước đo là eCPM = bid × pCTR (doanh thu kỳ vọng mỗi lượt hiển thị), nên bid cao nhưng pCTR thấp có thể thua; người thắng trả theo ý tưởng second-price, vừa đủ hơn người đứng nhì."
   - id: b01
     type: text
     md: |
@@ -61,6 +65,10 @@ blocks:
       eCPM(A) = 0.09, eCPM(B) = 0.08, eCPM(C) = 6.0 × 0.01 = 0.06. A cao nhất nên A thắng. (c) sai vì
       đấu giá xếp theo **bid × pCTR**, không theo bid trần: C chào giá cao nhất nhưng khả năng bấm quá
       thấp nên doanh thu kỳ vọng của nó thấp nhất.
+  - id: s_pacing
+    type: section
+    title_vi: "Chia nhịp ngân sách (budget pacing)"
+    summary_vi: "Nếu để quảng cáo eCPM cao thắng vô tội vạ, ngân sách ngày có thể cháy trong một giờ cao điểm. Pacing controller chia đều chi tiêu theo thời gian (ví dụ 240 $/ngày ≈ 10 $/giờ) và giảm tỉ lệ tham gia đấu giá khi tiêu quá nhanh. Nhiều ad server dùng sliced quota (xin từng lô nhỏ) thay vì cùng hỏi một bộ đếm trung tâm, giống token bucket phân tán."
   - id: b05
     type: text
     md: |
@@ -87,6 +95,10 @@ blocks:
       Pacing giữ ngân sách trải đều cả ngày (đến đúng đối tượng ở nhiều khung giờ, không đốt sạch lúc
       cao điểm). (b) sai — pacing không liên quan huấn luyện mô hình; (c) sai — vẫn phải đấu giá theo
       eCPM, pacing chỉ điều chỉnh **tỉ lệ tham gia** của mỗi quảng cáo.
+  - id: s_freq_cap
+    type: section
+    title_vi: "Giới hạn lần xem (frequency cap)"
+    summary_vi: "Frequency cap chặn một người xem cùng quảng cáo quá N lần trong một cửa sổ (ví dụ 3 lần/24 giờ). Về bản chất là bộ đếm per-user sliding window như rate limiter; cài bằng Redis sorted set (ZADD khi hiện, ZREMRANGEBYSCORE xoá mục cũ, ZCARD đếm). Vì chạy trong luồng chọn nên phải là đếm trong bộ nhớ, cực nhanh."
   - id: b07
     type: text
     md: |
@@ -109,6 +121,10 @@ blocks:
       **Frequency cap** (frequency capping): đếm số lần một người đã xem một quảng cáo trong cửa sổ
       thời gian; chạm trần thì không hiện nữa. Cài đặt điển hình là một bộ đếm per-user trong Redis,
       cùng tư tưởng sliding window của rate limiter.
+  - id: s_tracking_tradeoff
+    type: section
+    title_vi: "Đếm để tính tiền và đánh đổi vượt nhẹ"
+    summary_vi: "Impression/click đi qua pipeline stream processing có độ trễ nên ad server quyết định trên số chi tiêu hơi cũ (eventually consistent), dẫn đến vượt ngân sách nhẹ. Ép hard cap đồng bộ cho mỗi lượt sẽ phá latency budget và thông lượng, nên hệ chấp nhận overshoot nhỏ và đối soát bù sau: đánh đổi nhất quán với độ trễ."
   - id: b09
     type: text
     md: |

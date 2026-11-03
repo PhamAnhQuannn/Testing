@@ -1,5 +1,5 @@
 id: sd.archetypes.identity_auth
-version: 1
+version: 2
 status: published
 title_vi: "Thiết kế danh tính, SSO và phân quyền (identity and auth): đăng nhập, JWT vs phiên, thu hồi và cache quyền"
 est_minutes: 14
@@ -9,6 +9,10 @@ objectives_vi:
   - "Chọn cách thu hồi quyền kịp thời (vé sống ngắn + refresh token + denylist) và nói rõ vì sao cần nó."
   - "Thiết kế phân quyền (RBAC vs ABAC) và cache kết quả kiểm tra quyền, kèm cách vô hiệu cache khi đổi vai trò."
 blocks:
+  - id: s_authn_sso
+    type: section
+    title_vi: "Xác thực, phân quyền và SSO"
+    summary_vi: "Xác thực trả lời bạn là ai (một lần mỗi phiên), phân quyền trả lời bạn được làm gì (gần như mọi yêu cầu); chênh lệch tần suất này định hình thiết kế. SSO dùng một IdP trung tâm (OAuth2/OIDC) phát token có chữ ký, ứng dụng chỉ kiểm tra chữ ký và không thấy mật khẩu."
   - id: b01
     type: text
     md: |
@@ -43,6 +47,10 @@ blocks:
         text_md: "Xác thực quyết định bạn được làm gì, còn phân quyền xác minh danh tính của bạn."
     answer: [a]
     explain_md: "Xác thực = *bạn là ai* (đăng nhập, cấp vé), chạy một lần mỗi phiên; phân quyền = *bạn được làm gì*, chạy ở gần như mọi yêu cầu. (c) đảo ngược hai khái niệm; (b) sai vì phân quyền lặp lại liên tục, không phải một lần."
+  - id: s_jwt_revoke
+    type: section
+    title_vi: "JWT và phiên, thu hồi quyền"
+    summary_vi: "Phiên phía server thu hồi tức thì nhưng tốn một lần tra cứu mỗi yêu cầu; JWT stateless mở rộng tốt nhưng token còn hạn vẫn hợp lệ nên khó thu hồi. Dung hoà bằng access token sống ngắn, refresh token thu hồi mềm ở IdP và denylist nhỏ (cache được) cho trường hợp khẩn."
   - id: b04
     type: text
     md: |
@@ -96,6 +104,10 @@ blocks:
       - accept: ["refresh", "refresh token"]
       - accept: ["denylist", "danh sách thu hồi", "revocation list", "blocklist", "danh sách đen"]
     explain_md: "(1) access token **sống ngắn (short-lived)** giới hạn cửa sổ thiệt hại; (2) **refresh token** đổi lấy access token mới và thu hồi được ở IdP; (3) **denylist / danh sách thu hồi** chặn ngay token bị lộ mà không chờ hết hạn."
+  - id: s_authz_cache
+    type: section
+    title_vi: "RBAC, ABAC và cache quyền"
+    summary_vi: "RBAC gán quyền theo vai trò, đơn giản và dễ audit nên là mặc định; ABAC quyết định theo thuộc tính và ngữ cảnh, linh hoạt nhưng khó kiểm thử. Kiểm tra quyền chạy ở mọi yêu cầu nên cache kết quả, đổi tính tươi mới lấy tốc độ; đổi vai trò chỉ có hiệu lực sau TTL trừ khi chủ động invalidate."
   - id: b08
     type: text
     md: |

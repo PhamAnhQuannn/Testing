@@ -1,5 +1,5 @@
 id: sd.archetypes.rate_limiter
-version: 1
+version: 2
 status: published
 title_vi: "Thiết kế bộ giới hạn tần suất (rate limiter): thuật toán đếm và bộ đếm phân tán"
 est_minutes: 14
@@ -8,6 +8,10 @@ objectives_vi:
   - "Giải thích bài toán **phân tán**: vì sao cần bộ đếm dùng chung và **thao tác nguyên tử** (atomic) khi nhiều server cùng đếm."
   - "Thiết kế đầy đủ một rate limiter chạy trên nhiều server: chọn thuật toán, chọn cách đếm (Redis), và chọn fail-open hay fail-closed khi bộ đếm chết."
 blocks:
+  - id: s_scope_bucket
+    type: section
+    title_vi: "Yêu cầu và thuật toán xô"
+    summary_vi: "Rate limiter đếm theo khoá (user/IP/API key/endpoint), đặt sớm ở API gateway hoặc middleware. Token bucket nạp token đều và cho phép burst bằng dung lượng xô; leaky bucket xếp hàng và xả ở tốc độ cố định nên làm mượt, không burst."
   - id: b01
     type: text
     md: |
@@ -45,6 +49,10 @@ blocks:
       - {id: c, text_md: "**Fixed window**, vì nó luôn cho qua đúng N yêu cầu mỗi cửa sổ không lệch."}
     answer: [b]
     explain_md: "Token bucket cho phép burst đến bằng dung lượng xô (token tích sẵn), sau đó về tốc độ nạp R — đúng yêu cầu. (a) leaky bucket *làm mượt* và triệt tiêu burst, ngược yêu cầu; (c) fixed window không nhằm cho phép burst và còn hở ở ranh giới cửa sổ (xem dưới)."
+  - id: s_window
+    type: section
+    title_vi: "Thuật toán cửa sổ"
+    summary_vi: "Fixed window đơn giản (một bộ đếm) nhưng hở ranh giới: 100 cuối phút + 100 đầu phút sau = 200 trong vài giây. Sliding window log chính xác nhưng tốn RAM vì lưu mọi dấu thời gian; sliding window counter ước lượng từ hai cửa sổ, nhẹ và là lựa chọn cân bằng phổ biến."
   - id: b04
     type: text
     md: |
@@ -69,6 +77,10 @@ blocks:
       - {id: c, text_md: "Vì fixed window cần thao tác nguyên tử mà Redis không hỗ trợ."}
     answer: [a]
     explain_md: "Lỗi **boundary burst**: ví dụ 100 yêu cầu lúc 00:59 và 100 lúc 01:00 là 200 trong ~1 giây, dù mức 100/phút. Sliding window khắc phục điều này. (b) mô tả sliding window *log*, không phải fixed window; (c) sai — Redis hỗ trợ thao tác nguyên tử tốt."
+  - id: s_distributed
+    type: section
+    title_vi: "Bộ đếm phân tán và tính nguyên tử"
+    summary_vi: "Nhiều server tự đếm trong RAM sẽ nhân mức lên theo số server, nên cần bộ đếm dùng chung (Redis INCR + EXPIRE). Bước đọc-kiểm tra-ghi phải nguyên tử (INCR hoặc script Lua) để tránh race condition; đếm cục bộ rồi đồng bộ async nhanh hơn nhưng mức có thể vượt một chút."
   - id: b06
     type: text
     md: |
@@ -101,6 +113,10 @@ blocks:
       Thao tác **nguyên tử (atomic)** bảo đảm bước đọc–kiểm tra–ghi không bị chen giữa; thiếu nó
       sinh **race condition**. Trên bộ đếm dùng chung (Redis) ta đạt nguyên tử bằng INCR hoặc
       script Lua.
+  - id: s_response_failure
+    type: section
+    title_vi: "Phản hồi 429 và khi bộ đếm chết"
+    summary_vi: "Từ chối bằng HTTP 429 kèm Retry-After và rate-limit header để client tự điều tiết; có thể giới hạn nhiều tầng (tenant + user). Khi Redis chết, fail-open giữ dịch vụ chạy nhưng mất bảo vệ (hợp fair-use), fail-closed an toàn hơn nhưng có thể làm sập trải nghiệm (hợp chống lạm dụng/DDoS)."
   - id: b08
     type: text
     md: |

@@ -1,5 +1,5 @@
 id: sd.archetypes.lock_service
-version: 1
+version: 2
 status: published
 title_vi: "Thiết kế dịch vụ khoá phân tán và bầu leader (lock service) kiểu Chubby/ZooKeeper"
 est_minutes: 13
@@ -8,6 +8,10 @@ objectives_vi:
   - "Thiết kế cụm máy: số lẻ 3 hoặc 5 node chạy đồng thuận (consensus Raft/Paxos), ghi qua leader + đa số (quorum), và tính cỡ cụm với quorum = ⌊n/2⌋+1."
   - "Nói đúng client phải làm gì khi mất kết nối tới dịch vụ, và vì sao số chặn (fencing token) giúp tài nguyên loại được người giữ khoá cũ."
 blocks:
+  - id: s_role_api
+    type: section
+    title_vi: "Vai trò và API của dịch vụ khoá"
+    summary_vi: "Dịch vụ khoá là dịch vụ điều phối nhỏ, nhất quán mạnh: cấp khoá phân tán, bầu leader, giữ ít config. API gồm acquire(tên, lease_ttl) trả số chặn (fencing token) tăng đơn điệu, renew/heartbeat (khi còn ~1/3 hạn) và release. Lease không renew kịp thì tự hết, nên client chết không giữ khoá vĩnh viễn; fencing token giúp tài nguyên từ chối ghi của người giữ khoá cũ."
   - id: b01
     type: text
     md: |
@@ -46,6 +50,10 @@ blocks:
       - {id: c, text_md: "Để mã hoá nội dung khoá nhằm chống nghe lén trên đường truyền."}
     answer: [b]
     explain_md: "Token tăng dần nên mỗi lần cấp khoá mới sinh một số lớn hơn. Tài nguyên (ví dụ storage) chỉ nhận ghi kèm token **lớn hơn hoặc bằng** token lớn nhất đã thấy; client cũ (bị GC pause/treo) tỉnh dậy mang token cũ nhỏ hơn nên ghi bị loại — đây là cách sửa đúng của khoá phân tán. (a)/(c) không phải việc của fencing token."
+  - id: s_cluster
+    type: section
+    title_vi: "Cụm đồng thuận 3–5 node"
+    summary_vi: "Trạng thái khoá phải đúng tuyệt đối nên không đặt trên máy đơn mà trên cụm số lẻ 3 hoặc 5 node chạy đồng thuận (Raft/Paxos). Mọi ghi đi qua leader và chỉ xong khi đa số (quorum) ghi nhận; cụm 3 chịu 1 node chết, cụm 5 chịu 2. Số lẻ tránh chia đôi 2-2; đổi lại ghi qua quorum chậm hơn máy đơn nhưng an toàn (không cấp trùng khoá)."
   - id: b04
     type: text
     md: |
@@ -68,6 +76,10 @@ blocks:
       - {id: c, text_md: "Vì cụm nhiều node tự động làm client khỏi phải gia hạn lease."}
     answer: [b]
     explain_md: "Đồng thuận cho **an toàn (safety: không hai chủ cùng lúc) + sống sót qua lỗi thiểu số**, đó mới là điều khoá cần. Thực ra ghi qua quorum **chậm hơn** một máy đơn (a sai); và lease vẫn phải renew (c sai)."
+  - id: s_client_disconnect
+    type: section
+    title_vi: "Khi client mất kết nối và phép tính quorum"
+    summary_vi: "Client mất liên lạc với dịch vụ không biết lease còn hay hết, nên phải giả định xấu nhất là đã mất khoá và dừng ngay thao tác lên tài nguyên; fencing token ở phía tài nguyên là lớp bảo hiểm cuối loại ghi muộn. Quorum = ⌊n/2⌋+1: n=5 thì quorum 3, chịu tối đa 2 node chết; tổng quát n node chịu ⌊(n-1)/2⌋."
   - id: b06
     type: text
     md: |
@@ -90,6 +102,10 @@ blocks:
       - {accept: ["3", "ba"]}
       - {accept: ["2", "hai"]}
     explain_md: "n=5 ⇒ quorum = ⌊5/2⌋+1 = 2+1 = **3**. Mất 2 node vẫn còn 3 ≥ quorum nên cụm sống; mất 3 thì chỉ còn 2 < 3, cụm ngừng ghi để giữ an toàn. Vậy cụm 5 **chịu được 2** máy chết (tổng quát: n node chịu ⌊(n-1)/2⌋)."
+  - id: s_sizing_election
+    type: section
+    title_vi: "Tính cỡ cụm, bầu leader và khung phỏng vấn"
+    summary_vi: "Mỗi ghi phải qua đa số nên thông lượng ghi chỉ vài nghìn đến vài chục nghìn/giây và không scale bằng thêm node; ước lượng tải từ renew (1 triệu khoá renew mỗi 10 giây ≈ 100.000/giây) rồi chia khoá ra nhiều cụm hoặc tăng lease_ttl. RAM nhẹ (~100 MB). Bầu leader dùng cùng API: ai giữ khoá 'leader-của-X' là leader, chết thì lease hết và bản khác nhận token lớn hơn."
   - id: b08
     type: text
     md: |

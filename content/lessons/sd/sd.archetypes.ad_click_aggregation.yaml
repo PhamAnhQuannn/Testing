@@ -1,5 +1,5 @@
 id: sd.archetypes.ad_click_aggregation
-version: 1
+version: 2
 status: published
 title_vi: "Đếm click và top-K real-time: luồng nhanh (xấp xỉ) và lô đúng để tính tiền"
 est_minutes: 14
@@ -8,6 +8,10 @@ objectives_vi:
   - "Xử lý được **khoá nóng (hot key)** (một quảng cáo viral dồn vào một partition) bằng chia khoá (salting / pre-aggregate), và loại **click trùng (dedup)** bằng seen-set theo mã duy nhất."
   - "Giải thích vì sao số cuối ngày của nhánh lô — chứ không phải số live của luồng — mới là con số dùng để tính tiền (billing)."
 blocks:
+  - id: s_stream_path
+    type: section
+    title_vi: "Bài toán và nhánh luồng nhanh"
+    summary_vi: "Hai yêu cầu ngược nhau (dashboard nhanh vs hoá đơn chính xác) nên chạy hai nhánh. Click được ghi vào Kafka rồi mới 302 redirect; nhánh luồng gộp cửa sổ 1 phút theo event time + watermark, upsert vào OLAP, cho số nhanh nhưng xấp xỉ (bỏ sự kiện muộn, at-least-once có thể đếm trùng). Top-K khi quá nhiều khoá dùng Count-Min Sketch + min-heap cỡ K."
   - id: b01
     type: text
     md: |
@@ -58,6 +62,10 @@ blocks:
       - {id: c, text_md: "Vì kho OLAP không cho truy vấn dưới một giây nên dashboard không kịp cập nhật."}
     answer: [b]
     explain_md: "Nhánh luồng đánh đổi độ chính xác lấy độ trễ thấp: watermark cắt sự kiện tới muộn, và at-least-once có thể double-count — ổn cho xem nhanh, không ổn cho hoá đơn. (a) sai, nó vẫn đọc Kafka; (c) sai, OLAP chính là để truy vấn nhanh."
+  - id: s_batch_path
+    type: section
+    title_vi: "Nhánh lô và số tính tiền"
+    summary_vi: "Log click thô được giữ trong object store; cuối ngày job lô (Spark) đếm lại từ đầu trên dữ liệu đã nằm yên và dedup triệt để theo impression id, ra số đúng có thẩm quyền dùng để tính tiền. Hệ đối soát số lô với số luồng và cảnh báo khi lệch. Đây là kiến trúc lambda: một nhánh nhanh/xấp xỉ, một nhánh chậm/chính xác."
   - id: b06
     type: text
     md: |
@@ -80,6 +88,10 @@ blocks:
       - {id: c, text_md: "Vì nhà quảng cáo không được phép xem dashboard real-time nên phải chờ đến cuối ngày."}
     answer: [b]
     explain_md: "Tính tiền cần đúng tuyệt đối. Nhánh lô reprocess log thô trọn vẹn và dedup triệt để nên là nguồn sự thật; nhánh luồng đổi chính xác lấy tốc độ nên chỉ để xem nhanh. (a) sai — lô chậm hơn; (c) sai — real-time vẫn hiện, chỉ không phải số để lập hoá đơn."
+  - id: s_hotkey_dedup
+    type: section
+    title_vi: "Khoá nóng và loại click trùng"
+    summary_vi: "Phân vùng theo ad_id làm quảng cáo viral dồn vào một partition; thêm partition không giúp vì khoá không đổi, nên dùng salting (ad_id#0..9) rồi cộng lại khi truy vấn. Click trùng (retry, restart) bị loại bằng impression id ký HMAC cộng seen-set (Redis SET NX kèm TTL); nhánh lô dedup theo cùng mã nên số tính tiền luôn sạch."
   - id: b08
     type: text
     md: |
@@ -121,6 +133,10 @@ blocks:
       - {accept: ["salting", "key salting", "salt"]}
       - {accept: ["seen-set", "seen set", "dedup set", "dedup", "deduplication set"]}
     explain_md: "Salting chia khoá nóng thành ad_id#0..9 để chống hotspot; seen-set (một idempotency key store, ví dụ Redis SET NX + TTL) nhớ impression id đã xử lý để click lặp không bị tính lần nữa."
+  - id: s_interview_wrap
+    type: section
+    title_vi: "Khung trả lời phỏng vấn và tổng kết"
+    summary_vi: "Vẽ pipeline hai nhánh và nêu bốn điểm: nhánh luồng (Kafka, cửa sổ event time, OLAP, Count-Min Sketch + heap cho top-K), nhánh lô cuối ngày có đối soát, salting cho khoá nóng, dedup bằng impression id ký HMAC + seen-set. Câu chốt: số cuối ngày của nhánh lô mới dùng để tính tiền, số luồng chỉ để xem nhanh."
   - id: b12
     type: callout
     kind: interview

@@ -1,5 +1,5 @@
 id: sd.archetypes.object_store
-version: 1
+version: 2
 status: published
 title_vi: "Thiết kế kho đối tượng phân tán (object store): metadata, máy dữ liệu và độ bền"
 est_minutes: 14
@@ -8,6 +8,10 @@ objectives_vi:
   - "Vẽ được đường ghi (write path) của một object: chia khối (chunk), chép bản (replication), rồi chốt metadata qua đồng thuận (consensus)."
   - "So sánh chép 3 bản (3-way replication) với mã sửa lỗi (erasure coding) bằng con số: dung lượng và số máy chịu mất được."
 blocks:
+  - id: s_metadata_data
+    type: section
+    title_vi: "Tách metadata và máy dữ liệu"
+    summary_vi: "Object store tách làm hai phần: dịch vụ metadata nhỏ nhưng phải nhất quán, không mất (object key → danh sách khối, kích thước, checksum, version; thường đặt trên kho có đồng thuận) và các máy dữ liệu chỉ cất byte thật trong khối lớn bất biến (ví dụ 64 MB), thêm máy là thêm dung lượng. Quên vị trí object coi như mất file dù byte còn trên đĩa."
   - id: b01
     type: text
     md: |
@@ -45,6 +49,10 @@ blocks:
       - {id: c, text_md: "Vì tách ra thì không cần chép dữ liệu nhiều bản nữa, tiết kiệm dung lượng."}
     answer: [a]
     explain_md: "Metadata (object key → khối nào, kích thước, checksum, version) nhỏ mà tối quan trọng nên đặt trên kho có đồng thuận; dữ liệu lớn và dễ nhân bản nên scale ngang bằng cách cắm thêm máy. (b) sai — máy dữ liệu mới giữ byte thật; (c) sai — tách ra không bỏ được việc chép bản để bền."
+  - id: s_write_read
+    type: section
+    title_vi: "Đường ghi và đường đọc một object"
+    summary_vi: "Đường ghi: client hỏi metadata → chia object thành khối → ghi mỗi khối và chép bản (hoặc erasure coding) ở các rack khác nhau → chờ đủ bản bền → chốt metadata qua đồng thuận; chỉ khi chốt metadata thì object mới chính thức tồn tại. Đường đọc: hỏi metadata lấy danh sách khối rồi lấy trực tiếp từ máy dữ liệu và đối chiếu checksum; metadata chỉ chỉ đường nên nhỏ vẫn phục vụ băng thông lớn."
   - id: b04
     type: text
     md: |
@@ -79,6 +87,10 @@ blocks:
       - {id: c, text_md: "Khi metadata chọn xong các máy dữ liệu đích, trước khi byte được ghi."}
     answer: [b]
     explain_md: "Byte phải thực sự nằm bền ở đủ số bản, rồi metadata mới chốt 'object X ở những khối/máy này'; chính lần chốt metadata (qua consensus) đánh dấu object tồn tại. (a)/(c) đều quá sớm: nếu máy chết lúc đó thì object chưa an toàn hoặc metadata chưa biết nó ở đâu."
+  - id: s_durability
+    type: section
+    title_vi: "Độ bền: replication, erasure coding và tự chữa lành"
+    summary_vi: "Chép 3 bản tốn 3x dung lượng, chịu mất 2 bản, đọc nhanh nhưng đắt; erasure coding k+m tốn (k+m)/k và chịu mất m mảnh (10+4 là 1,4x, chịu mất 4) nhưng tốn CPU/mạng khi ghi và sửa nên hợp dữ liệu lạnh. Độ bền thật đến từ tự sửa khi máy chết (re-replication), scrubbing kiểm checksum bắt bit rot, và khối bất biến + versioning (xoá đánh dấu rồi garbage collection)."
   - id: b07
     type: text
     md: |

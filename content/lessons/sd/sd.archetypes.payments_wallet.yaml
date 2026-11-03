@@ -1,5 +1,5 @@
 id: sd.archetypes.payments_wallet
-version: 1
+version: 2
 status: published
 title_vi: "Thiết kế hệ thống thanh toán và ví điện tử (payments and wallet)"
 est_minutes: 14
@@ -8,6 +8,10 @@ objectives_vi:
   - "Dùng **mã chống lặp (idempotency key)** và **ghi nợ có điều kiện (conditional debit)** để không trừ tiền hai lần và không chi vượt số dư (double-spend)."
   - "Chuyển tiền xuyên dịch vụ bằng **saga + bước bù (compensating action)** (hoặc 2PC khi chung một DB), tích hợp **cổng thanh toán (payment gateway/PSP)** qua webhook, và xử lý **timeout không rõ kết quả** + **đối soát (reconciliation)**."
 blocks:
+  - id: s_ledger
+    type: section
+    title_vi: "Đúng tiền trước và sổ cái kép"
+    summary_vi: "Thanh toán ưu tiên đúng tiền hơn quy mô: không mất tiền, không trừ hai lần, không tạo tiền từ hư không, chọn nhất quán mạnh cho số dư và hiệu ứng đúng một lần. Nguồn sự thật là sổ cái kép append-only: mỗi biến động là cặp dòng nợ/có tổng bằng 0, số dư = tổng các dòng, không sửa tại chỗ, nên có audit trail bất biến và kiểm được bất biến tổng toàn hệ = 0."
   - id: b01
     type: text
     md: |
@@ -37,6 +41,10 @@ blocks:
       - {id: c, text_md: "Vì sửa trực tiếp số dư là bất khả thi trên mọi cơ sở dữ liệu quan hệ."}
     answer: [b]
     explain_md: "Append-only cho audit trail và khả năng chứng minh không tiền nào tự sinh/mất; số dư là **tổng (sum)** các dòng. (a) không phải lý do chính (và không luôn đúng); (c) sai — sửa ô là làm được về kỹ thuật, ta **chủ động không làm** vì mất lịch sử và khó đối soát."
+  - id: s_exactly_once
+    type: section
+    title_vi: "Idempotency key, double-spend và timeout"
+    summary_vi: "Idempotency key (UUID cho mỗi ý định trả tiền) khiến server trả lại kết quả cũ thay vì trừ lần nữa. Chống chi vượt số dư bằng ghi nợ có điều kiện/nguyên tử trong một transaction hoặc khoá dòng tài khoản, vì quyết định 'đủ tiền' và 'ghi dòng trừ' không được tách rời. Timeout là kết quả không rõ, không phải thất bại: hỏi trạng thái trước hoặc retry với cùng idempotency key, không tạo lệnh mới."
   - id: b04
     type: text
     md: |
@@ -66,6 +74,10 @@ blocks:
       - {id: c, text_md: "**Hỏi cổng trạng thái** lệnh cũ trước khi làm gì, hoặc gửi lại với **chính mã chống lặp cũ** để cổng trả kết quả cũ thay vì trừ lần hai."}
     answer: [c]
     explain_md: "Timeout là **kết quả không rõ (unknown outcome)**, không phải thất bại. (a) gửi mã mới có thể trừ tiền **hai lần**; (b) ép khách tạo lệnh khác cũng có thể trừ hai lần. (c) query-before-retry hoặc dùng lại cùng idempotency key là cách an toàn giữ hiệu ứng đúng một lần."
+  - id: s_distributed_transfer
+    type: section
+    title_vi: "Chuyển tiền xuyên dịch vụ bằng saga"
+    summary_vi: "Cùng một DB thì dùng giao dịch ACID (hoặc 2PC với vài tài nguyên); nhiều dịch vụ thì dùng saga: chuỗi bước cục bộ, mỗi bước có bước bù (compensating action) để hoàn lại khi bước sau hỏng. Mỗi bước và mỗi bước bù phải idempotent vì có thể bị thử lại nhiều lần, và giao tiếp dùng at-least-once + khử trùng lặp để không mất hay nhân đôi lệnh tiền."
   - id: b07
     type: text
     md: |
@@ -89,6 +101,10 @@ blocks:
       - {id: c, text_md: "Vì saga cấm dùng mã chống lặp nên bước bù phải tự khác đi mỗi lần chạy."}
     answer: [b]
     explain_md: "Phối hợp phân tán luôn phải giả định **thử lại**; bù không idempotent sẽ nhân đôi hiệu ứng (ví dụ cộng trả A hai lần). (a) không liên quan; (c) sai — saga vẫn dùng idempotency key/khử trùng lặp, chính là cách làm bù idempotent."
+  - id: s_gateway_reconcile
+    type: section
+    title_vi: "Cổng thanh toán, webhook và đối soát"
+    summary_vi: "Cổng thanh toán (PSP) trừ thẻ thật: gọi kèm idempotency key, nhận kết quả qua webhook có thể trùng hoặc sai thứ tự nên bộ nhận phải idempotent, xác thực chữ ký và cập nhật vòng đời authorize → capture → settle → refund theo chiều chỉ tiến. Vì vẫn có drift (webhook mất, lỗi phần mềm), job đối soát định kỳ so sổ cái với báo cáo của cổng/ngân hàng để bắt lệch và chứng minh mọi đồng tiền đã đi đâu."
   - id: b09
     type: text
     md: |
