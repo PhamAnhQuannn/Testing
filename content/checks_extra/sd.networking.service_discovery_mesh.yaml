@@ -61,3 +61,49 @@ items:
       sidecar người gọi, vào sidecar người nhận), cộng dồn trên chuỗi gọi dài, cộng chi phí
       RAM/CPU một sidecar mỗi instance và vận hành control plane.
     rubric_md: "Đạt (mức phỏng vấn) khi làm đủ 3 việc theo mastery bar: (1) so sánh client-side vs server-side (ai chọn instance, số hop, gánh nặng client); (2) đặt đúng sidecar cạnh mỗi service và mô tả đường đi A→sidecar A→sidecar B→B; (3) nêu mesh đáng khi nhiều service/polyglot (và overkill khi nhỏ) VÀ chỉ ra độ trễ đến từ hai chặng proxy mỗi lời gọi. Đúng, trong time-box, tự giải thích rõ: bằng chứng điểm 3. Sót việc vẽ sidecar, hoặc không nói được chỗ mesh thêm độ trễ, hoặc không nêu điều kiện mesh đáng giá: chưa đạt mức 3."
+  - id: X300
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Phỏng vấn: **DNS** là gì và nó làm gì khi user gõ `example.com`? Nêu **round-robin DNS**,
+      **GeoDNS**, và vai trò của **TTL** (đánh đổi giữa caching và độ trễ cập nhật).
+    answer_md: |
+      - **DNS** (Domain Name System) là "danh bạ" của Internet: **phân giải tên miền → địa chỉ IP**
+        (bản ghi A/AAAA; CNAME là bí danh). Resolver hỏi lần lượt root → TLD → authoritative NS, rồi
+        **cache** kết quả.
+      - **Round-robin DNS**: một tên trả về **nhiều IP** xoay vòng, phân tải thô (không biết server
+        sống hay chết, không theo tải thực).
+      - **GeoDNS**: trả IP khác nhau theo **vị trí địa lý** của client (gửi tới region/POP gần nhất),
+        giảm độ trễ.
+      - **TTL** (time-to-live): thời gian bản ghi được cache. **TTL cao** → ít truy vấn, nhanh, nhưng
+        thay đổi IP **lan chậm** (client cũ vẫn dùng IP cũ). **TTL thấp** → đổi/failover nhanh nhưng
+        nhiều truy vấn hơn, tải NS và độ trễ tra cứu tăng.
+    rubric_md: "Đạt khi nêu: DNS phân giải tên→IP (có cache theo tầng); round-robin = nhiều IP xoay vòng; GeoDNS = trả IP theo vị trí; TTL cao = cache tốt nhưng cập nhật chậm, TTL thấp = cập nhật nhanh nhưng tốn truy vấn. Đủ 4 ý: bằng chứng điểm 1; thiếu đánh đổi TTL: tối đa điểm 0."
+  - id: X301
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      DNS thường là **single point of failure** ẩn của hệ thống. (1) Nêu ít nhất 3 **nhược điểm / điểm
+      lỗi** của DNS trong việc định tuyến lưu lượng và failover. (2) Cách **giảm** từng rủi ro (TTL thấp
+      khi failover, nhiều NS, anycast...)? (3) Đánh đổi của các giải pháp đó là gì?
+    answer_md: |
+      **(1) Nhược điểm**
+      - **Cache/TTL**: resolver và client cache lâu, đôi khi **phớt lờ TTL**, nên failover bằng DNS
+        không tức thời (độ trễ lan truyền có thể phút tới giờ).
+      - **Không biết sức khỏe** server: round-robin vẫn trả IP chết nếu không gắn health check.
+      - **Điểm lỗi tập trung**: nhà cung cấp authoritative NS chết hoặc bị **DDoS** (như vụ Dyn 2016)
+        thì cả tên miền không phân giải được.
+      - Điều khiển thô: không theo tải thực, dễ bị lệch do cache ở ISP.
+
+      **(2) Giảm rủi ro**
+      - Hạ **TTL** (vd 30-60s) **trước** khi di chuyển/failover, kèm **health check** tự gỡ IP chết.
+      - **Nhiều NS**, tốt nhất ở **nhiều nhà cung cấp** độc lập (multi-provider DNS).
+      - **Anycast**: nhiều node cùng quảng bá một IP, truy vấn đi tới node gần/còn sống, chịu DDoS tốt.
+      - Đặt load balancer/CDN phía sau một IP ổn định để failover cấp L4/L7 thay vì dựa DNS.
+
+      **(3) Đánh đổi**: TTL thấp → **nhiều truy vấn hơn**, tăng tải NS và độ trễ tra cứu, chi phí cao;
+      multi-provider → vận hành/đồng bộ bản ghi phức tạp hơn, tốn tiền; anycast → phụ thuộc nhà cung
+      cấp, khó debug; không loại bỏ hoàn toàn độ trễ do cache của client.
+    rubric_md: "Đạt khi nêu đủ: (1) ít nhất 3 nhược điểm trong {cache/TTL không tức thời, không health check, SPOF/DDoS NS, điều khiển thô}; (2) giải pháp tương ứng gồm TTL thấp + health check, nhiều NS, anycast; (3) đánh đổi cụ thể (tải truy vấn/chi phí/độ phức tạp). Đủ và rõ trong time-box: bằng chứng điểm 2. Thiếu đánh đổi hoặc chỉ nêu giải pháp không nêu rủi ro: tối đa điểm 1."

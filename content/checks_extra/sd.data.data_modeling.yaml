@@ -78,3 +78,26 @@ items:
       `UNIQUE (post_id, user_id)`. DB từ chối dòng thứ hai nên không like trùng kể cả khi hai request
       tới cùng lúc.
     rubric_md: "Đạt (mức phỏng vấn, đúng mastery bar) khi: (1) dựng đúng bảng cho cả 3 truy vấn gồm bảng nối nhiều-nhiều cho 'theo dõi' và cho 'like' với khóa hai cột; (2) chọn index đúng cho (a) là `(user_id, created_at)` và giải thích thứ tự cột, và nhận ra (c) đã được khóa `likes(post_id, ...)` phục vụ; (3) chỉ đúng một chỗ phi chuẩn hóa cho (b) (ví dụ bộ đếm `like_count`) kèm đánh đổi (ghi khuếch đại/khó giữ nhất quán); (4) dùng UNIQUE hoặc khóa chính hai cột để chặn like trùng và giải thích vì sao an toàn khi ghi đồng thời. Đúng, trong time-box, tự giải thích rõ ràng: bằng chứng điểm 3. Thiếu bảng nối, sai thứ tự cột index, hoặc không nêu đánh đổi của phi chuẩn hóa, hoặc không dùng UNIQUE: chưa đạt mức 3."
+  - id: X305
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      (1) **Denormalization** là gì, vì sao dùng, đánh đổi gì? (2) Nêu các bước **SQL tuning** cơ bản
+      khi một truy vấn chậm (index, query cache, v.v.).
+    answer_md: |
+      **(1) Denormalization**: cố ý **nhân bản/gộp dữ liệu** (vd lưu sẵn `author_name` trong `posts`,
+      hay cột tổng hợp) để **tránh JOIN** tốn kém, tăng tốc **đọc**. Hợp với hệ **đọc nhiều hơn ghi**
+      nhiều (read-heavy) hoặc khi join không khả thi (đã shard/federation). Đánh đổi: **ghi chậm và
+      phức tạp hơn** (phải cập nhật nhiều nơi), nguy cơ **bất nhất** (dữ liệu trùng lệch nhau, cần
+      trigger/job đồng bộ), tốn thêm dung lượng.
+
+      **(2) SQL tuning cơ bản**:
+      - Đo trước: `EXPLAIN` / slow query log để thấy full scan, không tối ưu mò.
+      - **Index** đúng cột lọc/join/sắp xếp; composite index đúng thứ tự cột (cột so sánh bằng đứng
+        trước); tránh index thừa vì mỗi index làm **ghi chậm** hơn.
+      - Tránh `SELECT *`, hàm bọc cột được index (làm mất index), N+1; dùng `LIMIT`/phân trang.
+      - Chọn kiểu dữ liệu chặt, chuẩn hóa/denormalize đúng chỗ.
+      - **Query cache** / cache kết quả nóng (Redis, Memcached hoặc buffer pool): giảm đọc DB, nhưng
+        phải lo **invalidation** (dữ liệu cũ).
+    rubric_md: "Đạt khi nêu: denormalization = nhân bản dữ liệu để bớt JOIN/tăng tốc đọc, đánh đổi ghi chậm/phức tạp + nguy cơ bất nhất + tốn chỗ; SQL tuning gồm đo bằng EXPLAIN, index đúng (chi phí ghi), và query cache/caching (kèm vấn đề invalidation). Đủ cả hai phần trong time-box: bằng chứng điểm 2. Thiếu đánh đổi của denormalization hoặc chỉ nói thêm index chung chung: tối đa điểm 1."

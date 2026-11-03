@@ -98,3 +98,69 @@ items:
     đúng retry budget 10% → ×1,1/tầng → ~1,33× (~1.330 req/s) và vai trò bổ sung của backoff+jitter và
     circuit breaker. Số đúng, trong time-box, tự giải thích rõ ràng: bằng chứng điểm 3. Sai phép nhân
     27× hoặc không giải thích được retry budget chặn storm thế nào: chưa đạt mức 3.'
+- id: X302
+  difficulty: 1
+  type: concept
+  minutes: 3
+  prompt_md: 'Giải thích **active-passive** và **active-active** failover: khác nhau thế nào và đánh đổi
+    gì?
+
+    '
+  answer_md: "- **Active-passive** (master-slave / hot standby): chỉ **một** node phục vụ; node dự phòng\
+    \ chờ và\n  giám sát (heartbeat). Khi active chết, passive **tiếp quản** (có thể lấy lại IP ảo). Đơn\
+    \ giản,\n  dễ nhất quán; nhưng **lãng phí** tài nguyên nhàn rỗi, và có **thời gian failover** (có\
+    \ thể mất\n  dữ liệu chưa replicate nếu replicate bất đồng bộ). Standby \"lạnh\" còn chậm hơn.\n-\
+    \ **Active-active** (master-master): **cả hai** cùng nhận traffic qua load balancer; một node chết\n\
+    \  thì node còn lại gánh. Dùng tài nguyên hiệu quả, failover gần như tức thì; nhưng **phức tạp**\n\
+    \  hơn: phải đồng bộ dữ liệu hai chiều, xử lý **xung đột ghi**, và mỗi node phải có dư công suất\n\
+    \  (headroom) để gánh phần của node kia.\n"
+  rubric_md: 'Đạt khi nêu: active-passive = một node phục vụ, standby tiếp quản khi lỗi (đơn giản nhưng
+    lãng phí/có độ trễ failover); active-active = cả hai cùng phục vụ (tận dụng tốt, failover nhanh nhưng
+    phức tạp đồng bộ/xung đột ghi). Có đánh đổi cho cả hai: bằng chứng điểm 1; sai hoặc thiếu một kiểu:
+    tối đa điểm 0.'
+- id: X303
+  difficulty: 2
+  type: concept
+  minutes: 8
+  prompt_md: 'Tính toán **availability** theo "số 9". (1) 99.9% và 99.99% tương ứng bao nhiêu downtime
+    mỗi năm?
+
+    (2) Hai thành phần availability 99.9% **nối tiếp** (mọi request phải qua cả hai) cho availability
+
+    tổng bao nhiêu? (3) Hai bản sao 99% đặt **song song** (dự phòng) thì sao? Công thức tổng quát và
+
+    bài học thiết kế?
+
+    '
+  answer_md: '**(1) Downtime/năm** (1 năm ≈ 365 × 24 = **8760 giờ**):
+
+    - 99.9% → downtime = 0,1% × 8760 = **8,76 giờ/năm** (~43,8 phút/tháng).
+
+    - 99.99% → 0,01% × 8760 = 0,876 giờ ≈ **52,6 phút/năm** (~4,4 phút/tháng).
+
+    Mỗi thêm một chữ số 9 giảm downtime **10 lần**.
+
+
+    **(2) Nối tiếp**: availability nhân nhau, A = a1 × a2. Ví dụ 0,999 × 0,999 = **0,998001 ≈ 99,8%**
+
+    — **thấp hơn** từng thành phần (n thành phần: a^n). Chuỗi càng dài, càng yếu hơn mắt xích yếu nhất.
+
+
+    **(3) Song song**: hệ thống chỉ hỏng khi **tất cả** bản sao hỏng:
+
+    A = 1 − (1 − a)^n. Hai bản 99%: 1 − (0,01)² = 1 − 0,0001 = **99,99%** — **cao hơn** từng bản.
+
+    Ba bản 99%: 1 − 0,01³ = 99,9999%.
+
+
+    **Bài học**: bớt thành phần nối tiếp bắt buộc trên đường đi (giảm phụ thuộc đồng bộ), thêm dự
+
+    phòng song song ở điểm đơn (SPOF). Lưu ý giả định lỗi **độc lập**; lỗi tương quan (cùng AZ, cùng
+
+    deploy) làm con số thực tế thấp hơn, và bản thân failover cũng có thể lỗi.
+
+    '
+  rubric_md: 'Đạt khi đúng số học: 99.9% ≈ 8,76 giờ/năm, 99.99% ≈ 52,6 phút/năm; nối tiếp nhân (0,999×0,999≈99,8%,
+    thấp hơn); song song 1−(1−a)^n (2×99% = 99,99%, cao hơn); nêu bài học (giảm phụ thuộc nối tiếp, thêm
+    dự phòng song song, giả định lỗi độc lập). Đủ và đúng số: bằng chứng điểm 2. Sai số học (vd nhầm đơn
+    vị giờ/phút) hoặc đảo công thức nối tiếp/song song: tối đa điểm 1.'
