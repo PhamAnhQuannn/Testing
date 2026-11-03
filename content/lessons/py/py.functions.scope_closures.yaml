@@ -1,5 +1,5 @@
 id: py.functions.scope_closures
-version: 1
+version: 2
 status: published
 title_vi: "Scope, LEGB và closure"
 est_minutes: 12
@@ -12,6 +12,7 @@ blocks:
     type: section
     title_vi: "Phạm vi (scope) và quy tắc LEGB"
     summary_vi: "Biến tạo trong hàm chỉ sống trong hàm; Python tìm tên theo thứ tự Local, Enclosing, Global, Built-in."
+    exercise_ref: ex_count_up
   - id: b01
     type: text
     md: |
@@ -74,10 +75,60 @@ blocks:
       - {id: c, text_md: "`NameError`, vì `x` chưa được định nghĩa ở đâu cả"}
     answer: [b]
     explain_md: "`x += 1` là phép gán nên Python coi `x` là local của `f`; đọc nó trước khi có giá trị gây `UnboundLocalError`. Sửa bằng `global x` hoặc truyền tham số."
+  - id: ex_count_up
+    type: code_exercise
+    md: |
+      Viết `count_up(n)` trả về list `[1, 2, ..., n]` bằng cách dùng **một biến đếm cục bộ** cập nhật
+      trong vòng lặp (không dùng `global`, không dùng `range` để tạo thẳng kết quả). Với `n <= 0` trả
+      về list rỗng. Mục tiêu: luyện biến local sống trong một lần gọi hàm.
+    entry: count_up
+    starter: |
+      def count_up(n):
+          # TODO: dùng một biến đếm cục bộ, tăng dần trong vòng lặp
+          return []
+    guidance_md: |
+      - Tạo một biến cục bộ, ví dụ `dem = 0`, và một list kết quả rỗng.
+      - Lặp đúng `n` lần: mỗi lần tăng `dem` lên 1 rồi thêm vào kết quả.
+      - `n <= 0` thì vòng lặp không chạy, trả về list rỗng.
+    hints:
+      - level: nudge
+        md: "Biến gán trong hàm là local — bạn cần một biến đếm riêng và một list để gom kết quả."
+      - level: approach
+        md: "Khởi tạo `dem = 0` và `out = []`; lặp `n` lần, mỗi lần `dem += 1` rồi `out.append(dem)`."
+      - level: pseudocode
+        md: |
+          dem = 0
+          out = []
+          lặp n lần:
+              dem = dem + 1
+              thêm dem vào out
+          trả về out
+      - level: near_solution
+        md: |
+          def count_up(n):
+              dem = 0
+              out = []
+              for _ in range(n):
+                  ...  # tăng dem lên 1 rồi thêm dem vào out
+              return out
+    tests:
+      - {args: [0], expected: []}
+      - {args: [1], expected: [1]}
+      - {args: [3], expected: [1, 2, 3]}
+      - {args: [5], expected: [1, 2, 3, 4, 5]}
+    solution: |
+      def count_up(n):
+          dem = 0
+          out = []
+          for _ in range(n):
+              dem += 1
+              out.append(dem)
+          return out
   - id: s_closure
     type: section
     title_vi: "Closure và nonlocal"
     summary_vi: "Hàm lồng nhớ biến của hàm ngoài; nonlocal cho phép gán lại biến đó."
+    exercise_ref: ex_counter_values
   - id: b03
     type: text
     md: |
@@ -132,10 +183,64 @@ blocks:
     prompt_md: "Để hàm lồng nhau gán lại được biến của hàm bao ngoài (không phải biến global), ta khai báo từ khóa ___ trong hàm trong."
     blanks: [{accept: ["nonlocal"]}]
     explain_md: "`nonlocal` trỏ tên tới biến ở tầng Enclosing; `global` thì trỏ tới biến cấp module."
+  - id: ex_counter_values
+    type: code_exercise
+    md: |
+      Dùng **closure** để làm bài này. Viết `counter_values(n)`: bên trong tạo một bộ đếm bằng hàm
+      lồng + `nonlocal` (giống `make_counter` ở trên), **gọi nó `n` lần** và trả về list các giá trị nó
+      sinh ra theo thứ tự. Ví dụ `counter_values(3)` cho `[1, 2, 3]`. `n <= 0` trả về list rỗng.
+    entry: counter_values
+    starter: |
+      def counter_values(n):
+          # TODO: tạo closure đếm (hàm lồng + nonlocal), gọi n lần, gom kết quả
+          return []
+    guidance_md: |
+      - Bên trong `counter_values`, định nghĩa `make_counter()` trả về một hàm `tang` dùng `nonlocal`.
+      - Tạo một bộ đếm: `c = make_counter()`.
+      - Gọi `c()` đúng `n` lần, mỗi lần thêm giá trị trả về vào list kết quả.
+    hints:
+      - level: nudge
+        md: "Nhớ lại `make_counter` ở phần lý thuyết: hàm ngoài giữ `dem`, hàm trong dùng `nonlocal dem`."
+      - level: approach
+        md: "Dựng closure đếm, lấy `c = make_counter()`, rồi lặp `n` lần gọi `c()` và gom kết quả vào list."
+      - level: pseudocode
+        md: |
+          định nghĩa make_counter() trả về hàm tăng dem (nonlocal)
+          c = make_counter()
+          out = []
+          lặp n lần: out.append(c())
+          trả về out
+      - level: near_solution
+        md: |
+          def counter_values(n):
+              def make_counter():
+                  dem = 0
+                  def tang():
+                      ...  # nonlocal dem; tăng 1; trả về dem
+                  return tang
+              c = make_counter()
+              return [...]  # gọi c() đúng n lần, gom lại thành list
+    tests:
+      - {args: [0], expected: []}
+      - {args: [1], expected: [1]}
+      - {args: [3], expected: [1, 2, 3]}
+      - {args: [5], expected: [1, 2, 3, 4, 5]}
+    solution: |
+      def counter_values(n):
+          def make_counter():
+              dem = 0
+              def tang():
+                  nonlocal dem
+                  dem += 1
+                  return dem
+              return tang
+          c = make_counter()
+          return [c() for _ in range(n)]
   - id: s_late
     type: section
     title_vi: "Late binding trong vòng lặp"
     summary_vi: "Closure giữ biến, không giữ giá trị: bẫy kinh điển với lambda trong vòng lặp."
+    exercise_ref: ex_late_fixed
   - id: b05
     type: text
     md: |
@@ -169,6 +274,44 @@ blocks:
       - {id: c, text_md: "Vì các lambda cùng dùng một biến `i` và chỉ tra giá trị khi được gọi"}
     answer: [c]
     explain_md: "Closure giữ tham chiếu tới biến, không giữ giá trị. Lúc gọi, `i` đã là giá trị cuối của vòng lặp."
+  - id: ex_late_fixed
+    type: code_exercise
+    md: |
+      Tránh bẫy **late binding**. Viết `late_fixed(n)`: tạo `n` hàm trong một vòng lặp sao cho hàm thứ
+      `i` khi gọi trả về đúng `i` (chứ không phải cùng một giá trị cuối), rồi trả về list kết quả gọi tất
+      cả chúng. Ví dụ `late_fixed(3)` cho `[0, 1, 2]`. `n <= 0` trả về list rỗng.
+    entry: late_fixed
+    starter: |
+      def late_fixed(n):
+          # TODO: tạo n hàm, mỗi hàm "khoá" giá trị i của nó, rồi gọi hết
+          return []
+    guidance_md: |
+      - Nếu viết `lambda: i` thì mọi hàm cùng nhìn một biến `i` → sai (late binding).
+      - Khoá giá trị hiện tại bằng tham số mặc định: `lambda i=i: i` (mặc định tính ngay lúc định nghĩa).
+      - Tạo list các hàm, sau đó gọi từng hàm và gom kết quả.
+    hints:
+      - level: nudge
+        md: "Bẫy ở chỗ các hàm chia sẻ cùng biến `i`. Làm sao mỗi hàm giữ riêng giá trị của nó?"
+      - level: approach
+        md: "Dùng tham số mặc định `lambda i=i: i` để mỗi hàm chụp giá trị `i` tại lúc tạo; rồi gọi hết."
+      - level: pseudocode
+        md: |
+          fs = [lambda i=i: i  với i trong range(n)]
+          trả về [f() với f trong fs]
+      - level: near_solution
+        md: |
+          def late_fixed(n):
+              fs = [lambda i=i: i for i in range(n)]
+              return [...]  # gọi từng hàm trong fs, gom kết quả thành list
+    tests:
+      - {args: [0], expected: []}
+      - {args: [1], expected: [0]}
+      - {args: [3], expected: [0, 1, 2]}
+      - {args: [4], expected: [0, 1, 2, 3]}
+    solution: |
+      def late_fixed(n):
+          fs = [lambda i=i: i for i in range(n)]
+          return [f() for f in fs]
   - id: b99
     type: summary
     bullets_vi:
