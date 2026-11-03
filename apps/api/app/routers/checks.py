@@ -8,6 +8,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
 from ..deps import DB, Content, IdemKey, Now, User
+from ..retry import write_tx
 from ..services import checks
 
 router = APIRouter(prefix="/api")
@@ -27,12 +28,15 @@ def start_check(
     key: IdemKey,
     body: StartIn | None = None,
 ):
-    sess, resumed = checks.start(
-        db, content, user.id, subtopic_id, (body or StartIn()).context, now, key=key
-    )
-    out = checks.session_view(content, sess, resumed=resumed)
-    db.commit()
-    return out
+    def run():
+        sess, resumed = checks.start(
+            db, content, user.id, subtopic_id, (body or StartIn()).context, now, key=key
+        )
+        out = checks.session_view(content, sess, resumed=resumed)
+        db.commit()
+        return out
+
+    return write_tx(db, run)
 
 
 class AnswerIn(BaseModel):
@@ -64,9 +68,12 @@ def answer_check(
     now: Now,
     key: IdemKey,
 ):
-    out = checks.answer(db, content, user.id, subtopic_id, body, now, key=key)
-    db.commit()
-    return out
+    def run():
+        out = checks.answer(db, content, user.id, subtopic_id, body, now, key=key)
+        db.commit()
+        return out
+
+    return write_tx(db, run)
 
 
 class HeartbeatIn(BaseModel):
