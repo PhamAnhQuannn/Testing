@@ -274,7 +274,10 @@ export function SectionPane({
           </div>
         )}
         <fieldset className="preview-fieldset" disabled={preview}>
+          {/* keyed by item id: switching items must remount, else a quiz would inherit the
+              previous quiz's answered state (QuizMcq is keyed only by runNo, stable across items) */}
           <CurrentItem
+            key={current.id}
             block={current}
             subtopicId={subtopicId}
             canEdit={canEdit}
