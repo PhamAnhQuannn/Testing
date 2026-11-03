@@ -1,5 +1,5 @@
 id: py.functions.lambda_hof
-version: 2
+version: 3
 status: published
 title_vi: "lambda và hàm bậc cao (higher-order functions)"
 est_minutes: 14
@@ -216,6 +216,120 @@ blocks:
           def product(nums):
               return reduce(lambda acc, x: ..., nums, ...)
     solution: "from functools import reduce\n\n\ndef product(nums):\n    return reduce(lambda acc, x: acc * x, nums, 1)\n"
+  - id: s_decorators
+    type: section
+    title_vi: "decorator"
+    summary_vi: "Hàm nhận hàm và trả về hàm bọc (wrapper); cú pháp @decorator."
+    exercise_ref: ex_decorator
+  - id: b_deco
+    type: text
+    md: |
+      **Decorator** là một hàm nhận **một hàm** và trả về **một hàm mới** (thường là hàm bọc
+      `wrapper` thêm việc trước/sau khi gọi hàm gốc). Cú pháp **`@decorator`** đặt ngay trên dòng
+      `def` chỉ là cách viết gọn của `f = decorator(f)`: sau khi định nghĩa, tên `f` trỏ tới
+      wrapper. Wrapper nên nhận `*args, **kwargs` để bọc được hàm bất kỳ và `return` kết quả của
+      hàm gốc.
+
+      Có thể **chồng nhiều decorator**: `@a` rồi `@b` trên cùng một hàm tương đương
+      `f = a(b(f))`, tức là áp dụng **từ dưới lên trên** (`b` bọc trước, `a` bọc sau; khi gọi thì
+      wrapper của `a` chạy ngoài cùng).
+  - id: b_deco_code
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      def shout(f):
+          def wrapper(*args, **kwargs):
+              return f(*args, **kwargs).upper()
+
+          return wrapper
+
+
+      def exclaim(f):
+          def wrapper(*args, **kwargs):
+              return f(*args, **kwargs) + "!"
+
+          return wrapper
+
+
+      @shout
+      def hello(name):
+          return "hello " + name
+
+
+      print(hello("an"))
+
+
+      @shout
+      @exclaim
+      def bye(name):
+          return "bye " + name
+
+
+      print(bye("an"))
+    expected_output: |
+      HELLO AN
+      BYE AN!
+  - id: ex_decorator
+    type: code_exercise
+    md: |
+      Định nghĩa decorator `double_result` nhân đôi kết quả của hàm được bọc. Áp nó lên hàm
+      `add(a, b)` (trả `a + b`), rồi `double_result_demo(a, b)` trả về kết quả của `add(a, b)` sau
+      khi đã decorate. Ví dụ `double_result_demo(2, 3)` là `10`.
+    entry: double_result_demo
+    starter: |
+      def double_result(f):
+          # TODO: trả về hàm wrapper gọi f rồi nhân đôi kết quả
+          return f
+
+
+      @double_result
+      def add(a, b):
+          return a + b
+
+
+      def double_result_demo(a, b):
+          return add(a, b)
+    guidance_md: |
+      - Bên trong `double_result`, định nghĩa hàm con `wrapper(*args, **kwargs)`.
+      - Wrapper gọi `f(*args, **kwargs)` và trả về kết quả nhân 2.
+      - `double_result` trả về chính `wrapper` (không gọi nó).
+    hints:
+      - level: nudge
+        md: "Decorator phải trả về một hàm mới thay cho `f`. Hàm mới đó cần làm gì với kết quả của `f`?"
+      - level: approach
+        md: "Định nghĩa `wrapper(*args, **kwargs)` trong `double_result`: gọi `f`, nhân đôi kết quả, trả về; cuối cùng `return wrapper`."
+      - level: pseudocode
+        md: |
+          double_result(f):
+              wrapper(các đối số): lấy kết quả của f(các đối số), trả về gấp đôi
+              trả về wrapper
+      - level: near_solution
+        md: |
+          def double_result(f):
+              def wrapper(*args, **kwargs):
+                  ...
+              return ...
+    tests:
+      - {args: [2, 3], expected: 10}
+      - {args: [0, 0], expected: 0}
+      - {args: [-4, 1], expected: -6}
+      - {args: [10, 5], expected: 30}
+    solution: |
+      def double_result(f):
+          def wrapper(*args, **kwargs):
+              return f(*args, **kwargs) * 2
+
+          return wrapper
+
+
+      @double_result
+      def add(a, b):
+          return a + b
+
+
+      def double_result_demo(a, b):
+          return add(a, b)
   - id: b12
     type: problem_ref
     problem_id: height-checker
@@ -226,6 +340,7 @@ blocks:
       - "`map(f, ds)` và `filter(f, ds)` trả iterator, duyệt được một lần: bọc `list(...)`; `filter(None, ds)` giữ phần tử truthy."
       - "`reduce(f, ds, đầu)` gộp dãy thành một giá trị (luôn cho `đầu` nếu dãy có thể rỗng); `partial` cố định trước đối số; `operator.add/mul/neg/itemgetter` thay lambda đơn giản."
       - "Có thể trả hàm con từ một hàm (closure sẽ học ở bài scope)."
+      - "Decorator là hàm nhận hàm và trả về wrapper; `@deco` trên `def f` = `f = deco(f)`; nhiều decorator áp dụng từ dưới lên trên."
       - "Ưu tiên comprehension khi phải viết lambda dài; dùng lambda cho hàm ngắn một biểu thức (như `key=`), còn lại dùng `def`."
 problems: {practice: [height-checker], extra: []}
 mastery_check: {l1: [Q035], l2: [X008], l3: []}
