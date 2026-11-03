@@ -92,3 +92,28 @@ export function sectionIndexOfBlock(sections: Section[], blockId: string | undef
   if (!blockId) return -1;
   return sections.findIndex((s) => s.id === blockId || s.blocks.some((b) => b.id === blockId));
 }
+
+/** One entry in the whole-lesson exercise list (used by the right-pane exercise switcher). */
+export interface LessonExerciseEntry {
+  /** Index of the section the exercise lives in. */
+  sectionIdx: number;
+  /** The section's title ("" for the implicit intro). */
+  sectionTitle: string;
+  exercise: CodeExerciseBlock;
+}
+
+/**
+ * Pure: every `code_exercise` across the whole lesson, in document order, tagged with its section.
+ * Feeds the "danh sách bài tập" rail so the learner can jump to any exercise from the right pane.
+ */
+export function allLessonExercises(sections: Section[]): LessonExerciseEntry[] {
+  const out: LessonExerciseEntry[] = [];
+  sections.forEach((s, sectionIdx) => {
+    for (const b of s.blocks) {
+      if (b.type === "code_exercise") {
+        out.push({ sectionIdx, sectionTitle: s.title, exercise: b });
+      }
+    }
+  });
+  return out;
+}

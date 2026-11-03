@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { LessonBlock } from "../lib/api";
-import { canAdvance, deriveSections, sectionIndexOfBlock, sectionStatus } from "./sections";
+import {
+  allLessonExercises,
+  canAdvance,
+  deriveSections,
+  sectionIndexOfBlock,
+  sectionStatus,
+} from "./sections";
 
 const text = (id: string): LessonBlock => ({ id, type: "text", md: id });
 const ex = (id: string): LessonBlock => ({ id, type: "code_exercise", md: "", entry: "f", starter: "", tests: [] });
@@ -53,6 +59,29 @@ describe("deriveSections", () => {
     expect(sectionIndexOfBlock(s, "s2")).toBe(2);
     expect(sectionIndexOfBlock(s, "i")).toBe(0);
     expect(sectionIndexOfBlock(s, "zzz")).toBe(-1);
+  });
+});
+
+describe("allLessonExercises", () => {
+  it("lists every code_exercise in order, tagged with its section index and title", () => {
+    const sections = deriveSections([
+      text("i"),
+      sec("s1"),
+      ex("e1"),
+      ex("e2"),
+      sec("s2"),
+      text("x"),
+      ex("e3"),
+    ]);
+    const list = allLessonExercises(sections);
+    expect(list.map((e) => e.exercise.id)).toEqual(["e1", "e2", "e3"]);
+    expect(list.map((e) => e.sectionIdx)).toEqual([1, 1, 2]);
+    expect(list[0].sectionTitle).toBe("T-s1");
+    expect(list[2].sectionTitle).toBe("T-s2");
+  });
+
+  it("empty when the lesson has no exercises", () => {
+    expect(allLessonExercises(deriveSections([text("a"), quiz("q")]))).toEqual([]);
   });
 });
 
