@@ -1,5 +1,5 @@
 id: py.oop.classes_basics
-version: 2
+version: 3
 status: published
 title_vi: Class, object, self và property (classes)
 est_minutes: 10
@@ -316,9 +316,200 @@ blocks:
       - {args: [[3]], expected: [3]}
       - {args: [[10, 0, -2, 10, 11]], expected: [10, 0, 0, 10, 10]}
     solution: "class Student:\n    def __init__(self):\n        self._score = 0\n\n    @property\n    def score(self):\n        return self._score\n\n    @score.setter\n    def score(self, v):\n        if not 0 <= v <= 10:\n            raise ValueError(\"bad\")\n        self._score = v\n\n\ndef try_scores(vals):\n    st = Student()\n    out = []\n    for v in vals:\n        try:\n            st.score = v\n        except ValueError:\n            pass\n        out.append(st.score)\n    return out\n"
+  - id: s_inherit
+    type: section
+    title_vi: "Kế thừa, super() và ghi đè method"
+    summary_vi: "class Con(Cha) dùng lại code của cha; super() gọi bản của cha; method cùng tên ở con ghi đè."
+    exercise_ref: ex_inherit_people
+  - id: t5
+    type: text
+    md: |
+      **Kế thừa (inheritance)**: `class Student(Person)` tạo class con `Student` nhận sẵn mọi
+      thuộc tính và method của class cha `Person`; con chỉ viết thêm phần khác biệt.
+
+      Nếu con có `__init__` riêng thì phải gọi `super().__init__(...)` để chạy `__init__` của cha
+      (gán các thuộc tính chung), rồi gán thêm thuộc tính của con. **`super()`** là cách truy cập
+      các method của class cha từ class con.
+
+      **Ghi đè (override)**: con định nghĩa method **cùng tên** với cha thì object của con dùng bản
+      của con. Bản của con vẫn có thể gọi lại bản của cha qua `super().tên_method()`. Hàm
+      `isinstance(obj, Person)` là `True` cho cả object `Person` lẫn `Student`.
+  - id: c5
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class Person:
+          def __init__(self, name):
+              self.name = name
+
+          def intro(self):
+              return f"I am {self.name}"
+
+
+      class Student(Person):
+          def __init__(self, name, school):
+              super().__init__(name)
+              self.school = school
+
+          def intro(self):
+              return super().intro() + f" from {self.school}"
+
+
+      s = Student("An", "HUST")
+      print(s.name, s.school)
+      print(s.intro())
+      print(isinstance(s, Person), Person("Binh").intro())
+    expected_output: |
+      An HUST
+      I am An from HUST
+      True I am Binh
+  - id: ex_inherit_people
+    type: code_exercise
+    md: |
+      `Student` kế thừa `Person`. Hoàn thiện `Student.__init__(self, name, school)` (gọi
+      `super().__init__`, lưu thêm `school`) và ghi đè `intro` để trả `"<bản của cha> from <school>"`.
+      `describe_people(name, school)` trả list `[Person(name).intro(), Student(name, school).intro()]`.
+      Ví dụ `describe_people("An", "HUST")` là `["I am An", "I am An from HUST"]`.
+    entry: describe_people
+    starter: |
+      class Person:
+          def __init__(self, name):
+              self.name = name
+
+          def intro(self):
+              return f"I am {self.name}"
+
+
+      class Student(Person):
+          # TODO: __init__(self, name, school) dùng super().__init__ và lưu school
+          # TODO: ghi đè intro, gọi super().intro() rồi thêm " from <school>"
+          pass
+
+
+      def describe_people(name, school):
+          return [Person(name).intro(), Student(name, school).intro()]
+    guidance_md: |
+      - Trong `Student.__init__`, gọi `super().__init__(name)` trước để cha lưu `name`.
+      - Sau đó gán `self.school = school`.
+      - Định nghĩa `intro(self)` trong `Student` (cùng tên với cha) để ghi đè.
+      - Dùng `super().intro()` để lấy chuỗi của cha rồi nối thêm phần trường.
+    hints:
+      - level: nudge
+        md: "Hiện `Student(name, school)` lỗi vì `Person.__init__` chỉ nhận `name`. Student cần `__init__` riêng; làm sao vẫn tận dụng được `__init__` của cha?"
+      - level: approach
+        md: "Viết `__init__` của Student gọi `super().__init__(name)` rồi lưu `school`. Viết `intro` ghi đè: lấy `super().intro()` và nối thêm phần ` from ...`."
+      - level: pseudocode
+        md: |
+          Student.__init__(name, school):
+              gọi __init__ của cha với name
+              self.school <- school
+          Student.intro():
+              trả về (intro của cha) + " from " + school
+      - level: near_solution
+        md: |
+          class Student(Person):
+              def __init__(self, name, school):
+                  ...
+                  self.school = school
+
+              def intro(self):
+                  return ... + f" from {...}"
+    tests:
+      - {args: ["An", "HUST"], expected: ["I am An", "I am An from HUST"]}
+      - {args: ["Binh", "NEU"], expected: ["I am Binh", "I am Binh from NEU"]}
+      - {args: ["", "X"], expected: ["I am ", "I am  from X"]}
+    solution: |
+      class Person:
+          def __init__(self, name):
+              self.name = name
+
+          def intro(self):
+              return f"I am {self.name}"
+
+
+      class Student(Person):
+          def __init__(self, name, school):
+              super().__init__(name)
+              self.school = school
+
+          def intro(self):
+              return super().intro() + f" from {self.school}"
+
+
+      def describe_people(name, school):
+          return [Person(name).intro(), Student(name, school).intro()]
+  - id: ex_override_sounds
+    type: code_exercise
+    md: |
+      `Animal.speak()` trả `"..."`. Viết class `Dog(Animal)` ghi đè `speak` trả `"Woof"` và `Cat(Animal)`
+      ghi đè `speak` trả `"Meow"`. `sounds(kinds)` nhận list tên loài (`"dog"`, `"cat"`, hoặc loài
+      khác) và trả list tiếng kêu; loài khác dùng thẳng `Animal`. Ví dụ `sounds(["dog", "cat", "cow"])`
+      là `["Woof", "Meow", "..."]`.
+    entry: sounds
+    starter: |
+      class Animal:
+          def speak(self):
+              return "..."
+
+
+      # TODO: class Dog(Animal) và class Cat(Animal) ghi đè speak
+
+
+      def sounds(kinds):
+          classes = {"dog": Dog, "cat": Cat}
+          return [classes.get(k, Animal)().speak() for k in kinds]
+    guidance_md: |
+      - Khai báo `class Dog(Animal):` với một method `speak(self)`.
+      - Method trả `"Woof"`; làm tương tự cho `Cat` với `"Meow"`.
+      - Không cần sửa `Animal` hay `sounds`.
+    hints:
+      - level: nudge
+        md: "Hiện `Dog` và `Cat` chưa tồn tại nên `sounds` lỗi. Class con cần định nghĩa gì để object của nó nói khác `Animal`?"
+      - level: approach
+        md: "Tạo hai class con của `Animal`, mỗi class định nghĩa lại `speak` (cùng tên) trả chuỗi riêng."
+      - level: pseudocode
+        md: |
+          class Dog kế thừa Animal:
+              speak trả về "Woof"
+          class Cat kế thừa Animal:
+              speak trả về "Meow"
+      - level: near_solution
+        md: |
+          class Dog(Animal):
+              def speak(self):
+                  ...
+
+          class Cat(...):
+              ...
+    tests:
+      - {args: [["dog", "cat", "cow"]], expected: ["Woof", "Meow", "..."]}
+      - {args: [[]], expected: []}
+      - {args: [["cat", "cat"]], expected: ["Meow", "Meow"]}
+      - {args: [["fish"]], expected: ["..."]}
+    solution: |
+      class Animal:
+          def speak(self):
+              return "..."
+
+
+      class Dog(Animal):
+          def speak(self):
+              return "Woof"
+
+
+      class Cat(Animal):
+          def speak(self):
+              return "Meow"
+
+
+      def sounds(kinds):
+          classes = {"dog": Dog, "cat": Cat}
+          return [classes.get(k, Animal)().speak() for k in kinds]
   - id: sum1
     type: summary
     bullets_vi:
+      - "`class Con(Cha)` kế thừa mọi thứ của cha; `super().__init__(...)` chạy khởi tạo của cha; method cùng tên ở con ghi đè bản của cha (vẫn gọi được cha qua `super().method()`)."
       - "Class là bản thiết kế, object là vật cụ thể; `__init__` gán thuộc tính ban đầu qua `self`."
       - "Method nhận `self` làm tham số đầu: đó là object đang gọi, nên mỗi object có dữ liệu riêng."
       - "Thuộc tính ở thân class được dùng chung; list/dict phải tạo trong `__init__` để tránh bẫy."
