@@ -227,7 +227,7 @@ async function main() {
     // ---- complete the lesson: quiz passed (4/5), no problem solved yet -> score 1
     await gotoBlockSection(page, lesson, "b16"); // complete card only shows on the last section
     await page.locator("button:has-text('Hoàn thành bài học')").click();
-    await page.waitForSelector("text=Đạt", { timeout: 5000 });
+    await page.waitForSelector("[aria-label='Hoàn thành bài học'] [role=status]", { timeout: 5000 });
     const outcome = await page.locator("[aria-label='Hoàn thành bài học']").innerText();
     const shown = /Điểm mục: (\d)\/3/.exec(outcome)?.[1];
     check("complete: 'Đạt' and score shown", Boolean(shown), outcome.replace(/\s+/g, " "));

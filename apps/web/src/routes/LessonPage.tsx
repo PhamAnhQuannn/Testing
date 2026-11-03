@@ -250,7 +250,7 @@ function LessonView({ lesson }: { lesson: Lesson }) {
           : "";
   const lastHint = currentDone
     ? "Chưa có mục tiếp theo để gợi ý — về Map để chọn"
-    : "Làm Kiểm tra đạt điểm 2 để mở mục sau";
+    : "Làm Kiểm tra lên điểm 2 để mở mục sau";
   const skipAndNext = () => {
     setSkipped((prev) => new Set(prev).add(section.id));
     goTo(sectionIdx + 1);
@@ -449,7 +449,7 @@ function LessonView({ lesson }: { lesson: Lesson }) {
                     ≥7 ngày.
                   </p>
                   {!currentDone && (
-                    <p className="muted">Cần đạt điểm 2 (làm Kiểm tra / giải bài code sạch) để mở mục sau.</p>
+                    <p className="muted">Cần lên điểm 2 (làm Kiểm tra / giải bài code sạch) để mở mục sau.</p>
                   )}
                   <p>
                     <Link to={`/check/${lesson.id}?ctx=test_out`}>Test out</Link> ·{" "}
