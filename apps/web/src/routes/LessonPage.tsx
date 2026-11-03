@@ -5,7 +5,9 @@ import { useToast } from "../components/Toast";
 import {
   completeLesson,
   getLesson,
+  getNext,
   getResume,
+  pickNextSubtopic,
   newLessonRun,
   putResume,
   newIdempotencyKey,
@@ -96,6 +98,13 @@ function LessonView({ lesson }: { lesson: Lesson }) {
   const layout = useLayout();
   const lock = useSubtopicLock(lesson.id);
   const preview = lock !== null && isLocked(lock);
+  const next = useAsync(getNext, []);
+  const upNext = next.data?.up_next ?? [];
+  // done <=> the server omits it from up_next; unknown while loading / on error.
+  // Guard on !preview: a locked subtopic is also omitted from up_next, so without this a
+  // preview-mode lesson would falsely read as done.
+  const currentDone = next.data && !preview ? !upNext.some((x) => x.id === lesson.id) : false;
+  const nextStudy = pickNextSubtopic(upNext, lesson.id);
   const [tab, setTab] = useState<"lesson" | "problems">("lesson");
   const [pane, setPane] = useState<"left" | "right">("left");
   const sections = useMemo(() => deriveSections(lesson.blocks), [lesson.blocks]);
@@ -239,6 +248,9 @@ function LessonView({ lesson }: { lesson: Lesson }) {
         : section.kind === "code"
           ? "Giải bài tập (hoặc Bỏ qua) để tiếp"
           : "";
+  const lastHint = currentDone
+    ? "Chưa có mục tiếp theo để gợi ý — về Map để chọn"
+    : "Làm Kiểm tra lên điểm 2 để mở mục sau";
   const skipAndNext = () => {
     setSkipped((prev) => new Set(prev).add(section.id));
     goTo(sectionIdx + 1);
@@ -418,13 +430,27 @@ function LessonView({ lesson }: { lesson: Lesson }) {
                 </p>
               ) : (
                 <div style={{ marginTop: 12 }}>
-                  <button className="btn primary" onClick={() => navigate(`/check/${lesson.id}`)}>
-                    Kiểm tra để lên điểm 2/3 ►
-                  </button>
+                  {currentDone && nextStudy ? (
+                    <>
+                      <button className="btn primary" onClick={() => navigate(`/s/${nextStudy.id}`)}>
+                        Học mục tiếp theo: {nextStudy.name_vi} →
+                      </button>{" "}
+                      <button className="btn" onClick={() => navigate(`/check/${lesson.id}`)}>
+                        Kiểm tra để lên điểm 2/3 ►
+                      </button>
+                    </>
+                  ) : (
+                    <button className="btn primary" onClick={() => navigate(`/check/${lesson.id}`)}>
+                      Kiểm tra để lên điểm 2/3 ►
+                    </button>
+                  )}
                   <p className="muted">
                     Điểm 1 = đọc bài + quiz ≥70%. Điểm 2 = làm Kiểm tra/giải bài sạch. Điểm 3 = nâng cao + ôn giữ
                     ≥7 ngày.
                   </p>
+                  {!currentDone && (
+                    <p className="muted">Cần lên điểm 2 (làm Kiểm tra / giải bài code sạch) để mở mục sau.</p>
+                  )}
                   <p>
                     <Link to={`/check/${lesson.id}?ctx=test_out`}>Test out</Link> ·{" "}
                     <Link to="/">◄ Chọn mục khác</Link>
@@ -448,14 +474,29 @@ function LessonView({ lesson }: { lesson: Lesson }) {
                     Bỏ qua
                   </button>
                 )}
-                <button
-                  className={`btn sm${curStatus === "done" ? " primary" : ""}`}
-                  onClick={() => goTo(sectionIdx + 1)}
-                  disabled={isLast || !canAdvance(curStatus)}
-                  title={nextHint || undefined}
-                >
-                  Phần sau ►
-                </button>
+                {isLast ? (
+                  currentDone && nextStudy ? (
+                    <button className="btn sm primary" onClick={() => navigate(`/s/${nextStudy.id}`)}>
+                      Mục tiếp theo ►
+                    </button>
+                  ) : (
+                    <>
+                      <button className="btn sm" disabled title={lastHint}>
+                        Mục tiếp theo ►
+                      </button>
+                      <span className="muted">{lastHint}</span>
+                    </>
+                  )
+                ) : (
+                  <button
+                    className={`btn sm${curStatus === "done" ? " primary" : ""}`}
+                    onClick={() => goTo(sectionIdx + 1)}
+                    disabled={!canAdvance(curStatus)}
+                    title={nextHint || undefined}
+                  >
+                    Phần sau ►
+                  </button>
+                )}
                 {nextHint && <span className="muted">{nextHint}</span>}
               </div>
               <div className="progress" aria-hidden="true">

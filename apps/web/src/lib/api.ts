@@ -1189,6 +1189,11 @@ export interface NextData {
   study: { today_s: number; week_s: number };
 }
 
+/** First recommended subtopic that is not the current one (the server already sorts up_next and omits done items). */
+export function pickNextSubtopic(upNext: NextItem[], currentId: string): NextItem | undefined {
+  return upNext.find((x) => x.id !== currentId);
+}
+
 const num = (v: unknown, d = 0) => (typeof v === "number" && Number.isFinite(v) ? v : d);
 const strOrNull = (v: unknown) => (typeof v === "string" ? v : null);
 
