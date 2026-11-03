@@ -1,5 +1,5 @@
 id: ml.llm.alignment_rlhf_dpo
-version: 1
+version: 2
 status: published
 title_vi: "Alignment: RLHF, DPO và GRPO — chỉnh model theo ý người bằng dữ liệu ưu tiên"
 est_minutes: 13
@@ -9,6 +9,10 @@ objectives_vi:
   - "So sánh **RLHF** với **DPO (direct preference optimization)**: DPO bỏ hẳn reward model riêng và vòng RL, học thẳng trên cặp ưu tiên — đơn giản, rẻ, ổn định hơn."
   - "Biết **GRPO** là biến thể RL mới (group-relative, không cần value model) cho reasoning model, và nắm góc nhìn của AI engineer: thường **dùng lại** model đã align hoặc làm DPO nhẹ."
 blocks:
+  - id: s_alignment_preference
+    type: section
+    title_vi: "Alignment và dữ liệu ưu tiên"
+    summary_vi: "Sau pretraining và SFT, model biết làm theo yêu cầu nhưng chưa chắc khớp ý người: cần có ích, an toàn, trung thực (HHH). Alignment dạy model nghiêng về câu được người chọn thay vì viết sẵn đáp án đúng. Nhiên liệu là preference data: mỗi mẫu gồm prompt, một câu chosen và một câu rejected; so sánh cặp dễ và đáng tin hơn chấm điểm tuyệt đối. Người chấm có thể là người (RLHF) hoặc AI (RLAIF, constitutional AI)."
   - id: b01
     type: text
     md: |
@@ -35,6 +39,10 @@ blocks:
       hoặc chính một model mạnh đóng vai giám khảo (**RLAIF** — AI feedback; **constitutional AI**
       dùng một bộ "hiến pháp" nguyên tắc để AI tự phê và chọn). Dù ai chấm, đầu ra vẫn là các cặp
       chosen/rejected để huấn luyện.
+  - id: s_rlhf_pipeline
+    type: section
+    title_vi: "Pipeline RLHF, KL và reward hacking"
+    summary_vi: "RLHF có 3 bước: thu cặp ưu tiên, huấn luyện reward model (nền Bradley-Terry) để biến sở thích thành một con số, rồi tối ưu policy bằng PPO theo từng bước nhỏ. Phạt KL so với reference model (bản SFT đóng băng) giữ policy không trôi xa. Nếu tối đa hoá điểm reward model quá đà sẽ xảy ra reward hacking: model nịnh giám khảo (viết dài vô ích, sycophancy) thay vì giỏi thật; ghìm bằng phạt KL, không optimize quá lâu và kiểm tra tay."
   - id: b03
     type: text
     md: |
@@ -71,6 +79,10 @@ blocks:
       - {id: c, text_md: "Để model học nhanh hơn bằng cách cho phép mỗi bước cập nhật đổi policy càng nhiều càng tốt."}
     answer: [a]
     explain_md: "Phạt KL buộc policy bám gần reference (bản SFT), nên model không trôi xa để tối đa hoá điểm RM một cách méo mó (reward hacking) và vẫn giữ ngôn ngữ tự nhiên. (b) sai: KL không đo sở thích người, reward model mới làm việc đó. (c) ngược hẳn — mục tiêu là đi từng bước NHỎ, không đổi càng nhiều càng tốt."
+  - id: s_dpo
+    type: section
+    title_vi: "DPO: bỏ reward model và vòng RL"
+    summary_vi: "RLHF-PPO phải giữ cùng lúc 4 model (policy, reference, reward model, critic) và vòng RL dễ bất ổn. DPO biến bài toán ưu tiên thành một loss đơn giản huấn luyện thẳng trên cặp chosen/rejected: tăng xác suất câu chosen, giảm câu rejected, có so với reference và hệ số beta điều tiết mức bám reference. Không có reward model tách rời, reward nằm ẩn trong loss, nên DPO đơn giản, rẻ, ổn định hơn và rất phổ biến."
   - id: b06
     type: text
     md: |
@@ -98,6 +110,10 @@ blocks:
       - {id: c, text_md: "RLHF không cần dữ liệu ưu tiên, còn DPO thì cần; đó là khác biệt duy nhất."}
     answer: [a]
     explain_md: "Đúng: DPO bỏ bước reward model tách rời VÀ bỏ vòng RL, tối ưu trực tiếp trên cặp ưu tiên bằng một loss đơn giản (reward ẩn). (b) sai — DPO cố ý KHÔNG dùng reward model/PPO. (c) sai — cả hai đều cần dữ liệu ưu tiên (chosen/rejected); đó không phải điểm phân biệt."
+  - id: s_grpo_goc_nhin
+    type: section
+    title_vi: "GRPO và góc nhìn AI engineer"
+    summary_vi: "GRPO là RL group-relative cho reasoning model: sinh một nhóm câu trả lời cho mỗi prompt và dùng điểm tương đối trong nhóm làm tín hiệu nên không cần critic/value model, thường đi cùng RLVR (thưởng tự kiểm chứng cho toán và code). So gọn: PPO cần critic + reward model, DPO không RL và không reward model riêng, GRPO có RL nhưng bỏ critic. Thực tế AI engineer thường dùng lại model đã align hoặc làm DPO nhẹ; cần nắm từ vựng và ý niệm reward hacking/KL."
   - id: b08
     type: text
     md: |

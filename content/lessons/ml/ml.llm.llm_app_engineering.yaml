@@ -1,5 +1,5 @@
 id: ml.llm.llm_app_engineering
-version: 1
+version: 2
 status: published
 title_vi: "Xây ứng dụng LLM: gọi API, streaming, chi phí theo token và độ tin cậy"
 est_minutes: 14
@@ -9,6 +9,10 @@ objectives_vi:
   - "Làm cho service LLM đáng tin: timeout, retry với exponential backoff + jitter khi gặp 429/5xx, fallback model/nhà cung cấp, và graceful degradation."
   - "Mức 3: thiết kế phần 'đường ống' API/streaming/chi phí/độ trễ/độ tin cậy cho một ứng dụng LLM."
 blocks:
+  - id: s_goi_api_streaming
+    type: section
+    title_vi: "Gọi API và streaming"
+    summary_vi: "Gọi LLM giống gọi API web: gửi messages (system/user/assistant) cùng tham số (model, temperature, max_tokens, tools) và nhận câu trả lời kèm usage (token vào/ra) dùng để tính tiền. Gọi đồng bộ phải chờ sinh xong cả cục; streaming qua SSE đẩy từng mảnh. Streaming hạ TTFT nên cải thiện độ trễ cảm nhận nhưng không làm model nhanh hơn: tổng thời gian vẫn tăng gần tuyến tính theo số token ra, nên cần bật streaming và cắt độ dài đầu ra."
   - id: b01
     type: text
     md: |
@@ -58,6 +62,10 @@ blocks:
       - {id: c, text_md: "Không giúp gì cho trải nghiệm; streaming chỉ là cách trả dữ liệu khác, người dùng vẫn phải chờ y như cũ."}
     answer: [a]
     explain_md: "Streaming đẩy token về ngay khi sinh ra nên TTFT thấp và app 'sống' sớm — cải thiện độ trễ *cảm nhận*. Nhưng model vẫn sinh đủ bằng ấy token, nên tổng thời gian và chi phí không đổi. (b) sai vì vẫn sinh đủ câu trả lời; (c) sai vì TTFT thấp là cải thiện trải nghiệm thật."
+  - id: s_chi_phi_token
+    type: section
+    title_vi: "Chi phí theo token"
+    summary_vi: "Tiền một request = token vào x giá vào + token ra x giá ra, và token ra thường đắt hơn vài lần. Ví dụ 1000 request mỗi ngày, mỗi request 500 vào + 300 ra, giá 1 USD và 5 USD mỗi triệu token: 0,5 + 1,5 = khoảng 2 USD/ngày, khoảng 60 USD/tháng. Reasoning token cũng tính là token ra. Đòn bẩy giảm chi phí: prompt caching, cắt ngữ cảnh, max_tokens, model nhỏ cho việc dễ (routing) và response cache (semantic cache có rủi ro trả nhầm)."
   - id: b05
     type: text
     md: |
@@ -103,6 +111,10 @@ blocks:
       - {id: c, text_md: "Chuyển mọi lời gọi sang model mạnh nhất, đắt nhất để khỏi phải tối ưu prompt."}
     answer: [a]
     explain_md: "Phân loại là việc dễ: model nhỏ thường thừa sức, rẻ hơn nhiều; `max_tokens` thấp chặn đầu ra (phần đắt nhất); prompt caching cắt tiền cho phần hướng dẫn cố định lặp lại. (b) sai — `temperature` chỉnh độ ngẫu nhiên, không quyết định độ dài; (c) làm chi phí tăng chứ không giảm."
+  - id: s_do_tin_cay
+    type: section
+    title_vi: "Độ tin cậy: retry, fallback, rate limit"
+    summary_vi: "Lỗi hay gặp là 429 (vượt rate limit/quota) và 5xx (quá tải tạm thời). Bộ công cụ: timeout, retry exponential backoff + jitter (1s, 2s, 4s..., giới hạn số lần) chỉ cho lỗi tạm thời và không retry lỗi vĩnh viễn như 400/401, fallback sang model hoặc nhà cung cấp dự phòng, rồi graceful degradation (cache, thông báo lịch sự, đường không-AI). Phải tôn trọng RPM/TPM và Retry-After; job hàng loạt dùng song song có kiểm soát (semaphore) hoặc Batch API rẻ hơn nhưng không gấp."
   - id: b08
     type: text
     md: |
@@ -158,6 +170,10 @@ blocks:
     blanks:
       - accept: ["TTFT", "time to first token", "time-to-first-token", "thời gian tới token đầu", "thời gian tới token đầu tiên"]
     explain_md: "TTFT (time-to-first-token) là thời gian tới token đầu tiên. Streaming hạ TTFT (chữ hiện sớm) nên người dùng thấy app phản hồi ngay, dù model vẫn mất đủ thời gian để sinh xong (tổng thời gian không đổi)."
+  - id: s_observability
+    type: section
+    title_vi: "Observability và thiết kế đường ống"
+    summary_vi: "Với mỗi lời gọi cần log prompt/model, token vào-ra từ usage, chi phí ước tính, TTFT và tổng độ trễ, mã lỗi, số lần retry, và trace request qua các bước (truy xuất ngữ cảnh, gọi model, hậu xử lý) để phát hiện request đắt bất thường và đặt cảnh báo. Thiết kế đường ống mức 3 là trả lời đủ năm câu: API (messages + params + usage), streaming (SSE, hạ TTFT), chi phí (token vào/ra, caching, model nhỏ), độ trễ (TTFT vs tổng) và độ tin cậy (timeout, backoff, fallback, degrade)."
   - id: b12
     type: text
     md: |

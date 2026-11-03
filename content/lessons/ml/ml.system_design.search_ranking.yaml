@@ -1,5 +1,5 @@
 id: ml.system_design.search_ranking
-version: 1
+version: 2
 status: published
 title_vi: "Thiết kế hệ xếp hạng tìm kiếm: từ hiểu truy vấn tới nhãn từ click và cách đánh giá"
 est_minutes: 14
@@ -9,6 +9,10 @@ objectives_vi:
   - "Tạo nhãn liên quan (relevance label) từ log click và **hiệu chỉnh position bias** (click model / IPW, dùng dwell/long-click), rồi huấn luyện LTR pointwise/pairwise/listwise."
   - "Đánh giá hệ thống: offline NDCG/MRR trên nhãn, online A/B test + interleaving, và một bộ nhãn vàng do rater chấm."
 blocks:
+  - id: s_pipeline_query
+    type: section
+    title_vi: "Pipeline tìm kiếm và hiểu truy vấn"
+    summary_vi: "Search ranker là phễu 4 tầng, rộng và rẻ ở đầu, hẹp và tinh ở cuối, trả kết quả trong vài chục ms trên hàng triệu tài liệu: hiểu truy vấn, hybrid retrieval, xếp hạng LTR, rerank. Tầng hiểu truy vấn làm sạch và làm giàu câu hỏi ngắn, sai chính tả, đa nghĩa bằng sửa chính tả, mở rộng đồng nghĩa và nhận ý định (mua hay tìm thông tin) để chọn nguồn ứng viên và tiêu chí xếp hạng. Phần ML khó nhất là lấy nhãn ở đâu."
   - id: b01
     type: text
     md: |
@@ -44,6 +48,10 @@ blocks:
         tiêu chí nào (ví dụ ý định mua thì ưu tiên hàng còn kho, đánh giá cao).
 
       Đầu ra của tầng này là một truy vấn đã chuẩn hoá + tín hiệu ý định, truyền xuống tầng truy hồi.
+  - id: s_hybrid_index
+    type: section
+    title_vi: "Truy hồi lai và chọn chỉ mục"
+    summary_vi: "Lexical (BM25 trên inverted index) khớp chính xác mã sản phẩm, tên riêng, từ hiếm nhưng yếu khi khác chữ cùng nghĩa; semantic (vector trên ANN như HNSW, IVF-PQ) khớp theo nghĩa nhưng yếu với mã hay ký hiệu chính xác. Vì mỗi bên mạnh ở chỗ bên kia yếu, chạy cả hai rồi hợp nhất hai danh sách (ví dụ reciprocal rank fusion), nên chỉ mục là lai: inverted index cộng ANN index."
   - id: b03
     type: text
     md: |
@@ -72,6 +80,10 @@ blocks:
       - {id: c, text_md: "Vì hybrid bỏ hẳn chỉ mục đảo để tiết kiệm bộ nhớ, chỉ giữ chỉ mục vector."}
     answer: [a]
     explain_md: "Lexical/BM25 giỏi khớp chính xác mã và từ hiếm; vector giỏi khớp theo nghĩa khi khác chữ. Hybrid chạy cả hai và hợp nhất để phủ cả hai loại truy vấn. (b) sai: vector yếu đúng ở khớp chính xác mã/ký hiệu; (c) sai: hybrid giữ CẢ hai chỉ mục, không bỏ inverted index."
+  - id: s_ltr_labels
+    type: section
+    title_vi: "Learning to rank, rerank và nhãn từ click"
+    summary_vi: "LTR chấm (truy vấn, tài liệu) từ feature như BM25, độ tương đồng vector, độ mới, độ phổ biến, cá nhân hoá; pointwise coi mỗi kết quả độc lập, pairwise học cặp A trên B (hợp nhãn từ click), listwise tối ưu cả danh sách như xấp xỉ NDCG. Rerank bằng cross-encoder chỉ trên vài chục kết quả đầu. Nhãn lấy từ log click nhưng dính position bias, nên hiệu chỉnh bằng skip-click, click model hoặc IPW, dwell/long-click (pogo-sticking là không liên quan) và pha nhãn vàng do rater chấm."
   - id: b05
     type: text
     md: |
@@ -132,6 +144,10 @@ blocks:
       - {id: c, text_md: "Bỏ cả ba vì chỉ có một click; không thể rút ra nhãn nào từ một phiên tìm kiếm."}
     answer: [a]
     explain_md: "Bỏ qua R1, R2 (đã nhìn) rồi long-click R3 là bằng chứng R3 > R1, R2 — nhãn pairwise hợp với click, và long-click là tín hiệu hài lòng mạnh. (b) sai: lấy thứ tự hiển thị làm nhãn chính là rơi vào position bias, model không khá lên. (c) sai: click skip CÓ cho tín hiệu thứ tự; gộp nhiều phiên lại thành tập nhãn lớn."
+  - id: s_evaluation
+    type: section
+    title_vi: "Đánh giá offline, online và độ mới"
+    summary_vi: "Offline: NDCG thưởng kết quả đúng đứng cao và chuẩn hoá 0-1, MRR nhìn vị trí kết quả đúng đầu tiên, tính trên nhãn vàng hoặc nhãn click đã debias, kèm recall@k của tầng truy hồi. Online A/B test so metric thật (long-click, chuyển đổi, thời gian tìm thấy) là bằng chứng cuối cùng vì offline tốt không đảm bảo online tốt; interleaving trộn kết quả hai ranker trong cùng danh sách, nhạy hơn và cần ít lưu lượng hơn. Độ mới giữ bằng cập nhật index tăng dần."
   - id: b09
     type: text
     md: |

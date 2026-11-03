@@ -1,5 +1,5 @@
 id: ml.rag_agents.vector_indexes
-version: 1
+version: 2
 status: published
 title_vi: "Vector search và chỉ mục ANN: tìm vector gần nhất trong kho hàng triệu vector"
 est_minutes: 14
@@ -9,6 +9,10 @@ objectives_vi:
   - "Hiểu đánh đổi recall - độ trễ (latency) - bộ nhớ (memory) và các nút chỉnh (efSearch, nprobe); biết filtered search và một vài vector DB phổ biến."
   - "Mức 3: chọn và biện minh một loại chỉ mục ANN, rồi chỉnh nút recall - latency theo một yêu cầu cụ thể."
 blocks:
+  - id: s_flat_metric_ann
+    type: section
+    title_vi: "Flat search, thước đo và ý tưởng ANN"
+    summary_vi: "Flat/exact search so query với từng vector, chi phí khoảng O(N·d) (10 triệu vector 768 chiều ≈ 7-8 tỉ phép nhân-cộng mỗi truy vấn) nên quá chậm. Metric: dot product, cosine, L2; vector đã chuẩn hóa thì cosine = dot product, và phải khớp metric lúc huấn luyện embedding. ANN chấp nhận bỏ sót để nhanh hơn hàng chục đến hàng trăm lần; recall@10 = 0,95 nghĩa là lấy đúng 9,5/10 láng giềng thật, 0,95-0,99 thường quá đủ cho RAG."
   - id: b01
     type: text
     md: |
@@ -58,6 +62,10 @@ blocks:
       - {id: c, text_md: "Flat search chậm vì nó phải huấn luyện lại mô hình embedding ở mỗi truy vấn; ANN bỏ bước huấn luyện đó nên nhanh."}
     answer: [a]
     explain_md: "Flat so với từng vector, chi phí ~O(N · d), không kịp ở quy mô triệu vector. ANN đổi một chút recall lấy tốc độ - đó chính là nghĩa của 'approximate'. (b) sai: ANN KHÔNG bảo đảm đúng y hệt flat, đó mới là bản chất xấp xỉ. (c) sai: search không hề huấn luyện embedding; embedding đã được tính sẵn trước đó."
+  - id: s_hnsw_ivf_pq
+    type: section
+    title_vi: "Các loại chỉ mục: HNSW, IVF, PQ"
+    summary_vi: "HNSW là đồ thị nhiều tầng (tầng trên thưa, tầng dưới dày), recall/latency tốt nhất nhưng tốn RAM; nút efSearch lớn thì recall cao hơn nhưng chậm hơn (còn M, efConstruction khi dựng). IVF gom kho thành cụm bằng k-means và chỉ lục nprobe cụm gần nhất. PQ cắt vector thành đoạn mã hóa bằng codebook, nén còn vài chục byte nhưng giảm recall; 10 triệu vector 768 chiều float32 ≈ 30 GB, IVF-PQ phục vụ cỡ tỉ vector."
   - id: b05
     type: text
     md: |
@@ -107,6 +115,10 @@ blocks:
       - {id: c, text_md: "HNSW tiết kiệm bộ nhớ nhất trong ba loại vì nó không lưu vector gốc, còn nprobe là nút chỉnh của HNSW chứ không phải IVF."}
     answer: [a]
     explain_md: "(a) đúng toàn bộ: HNSW = đồ thị nhiều tầng, recall/latency tốt nhưng ngốn RAM; IVF = cụm + nprobe; PQ = nén, giảm recall. (b) sai: PQ làm *giảm* recall (làm tròn vector), và IVF không luôn thắng HNSW. (c) sai: HNSW tốn thêm bộ nhớ cho đồ thị, và nprobe là nút của IVF, không phải HNSW (HNSW dùng efSearch)."
+  - id: s_danh_doi_chon_index
+    type: section
+    title_vi: "Đánh đổi, filtered search và vector DB"
+    summary_vi: "Ba trục recall - latency - memory không tối ưu cùng lúc: xuất phát từ yêu cầu rồi chọn index. Recall cao, RAM dư thì HNSW và tăng efSearch; RAM chật hoặc cỡ tỉ vector thì IVF-PQ và chỉnh nprobe; đo recall@k và độ trễ trên tập truy vấn có đáp án flat. Filtered search: pre-filter chính xác hơn nhưng chậm, post-filter nhanh nhưng dễ thiếu kết quả. pgvector cho vài triệu vector, FAISS là thư viện, Milvus/Qdrant/Weaviate/Pinecone cho quy mô lớn."
   - id: b09
     type: text
     md: |

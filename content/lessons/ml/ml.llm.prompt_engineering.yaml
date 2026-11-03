@@ -1,5 +1,5 @@
 id: ml.llm.prompt_engineering
-version: 1
+version: 2
 status: published
 title_vi: "Prompt engineering: viết prompt rõ ràng và cải thiện có hệ thống bằng eval set"
 est_minutes: 13
@@ -9,6 +9,10 @@ objectives_vi:
   - "Nhận biết prompt injection (tiêm lệnh) và nêu được các cách phòng cơ bản."
   - "Cải thiện một prompt **có hệ thống**: đo trên một eval set (bộ câu hỏi thử) thay vì 'cảm thấy ổn'."
 blocks:
+  - id: s_vai_tro_viet_ro
+    type: section
+    title_vi: "Vai trò và viết prompt rõ ràng"
+    summary_vi: "Prompt chia ba vai trò: system (luật bền, được ưu tiên theo instruction hierarchy), user và assistant, nên luật an toàn và định dạng đặt ở system. Viết rõ gồm nêu vai trò và việc cần làm, ngăn dữ liệu bằng delimiter (như thẻ article) và chốt định dạng đầu ra (JSON) để code parse được. Zero-shot chỉ nêu yêu cầu; few-shot kèm 2-5 ví dụ để model bắt chước định dạng và xử lý ca mơ hồ, đổi lại tốn thêm token và không đổi trọng số."
   - id: b01
     type: text
     md: |
@@ -45,6 +49,10 @@ blocks:
       - {id: c, text_md: "Few-shot luôn rẻ hơn vì gửi ít token hơn zero-shot."}
     answer: [a]
     explain_md: "Few-shot = thêm ví dụ mẫu trong prompt để model noi theo (in-context), giúp bám định dạng và các ca mơ hồ. (b) sai: few-shot KHÔNG đổi trọng số, chỉ là ví dụ trong ngữ cảnh. (c) sai: thêm ví dụ tốn THÊM token."
+  - id: s_cot_grounding
+    type: section
+    title_vi: "Chain-of-thought và grounding"
+    summary_vi: "Chain-of-thought bảo model nghĩ từng bước rồi mới chốt đáp án, tăng độ đúng ở toán và logic nhiều bước; nên yêu cầu lập luận rồi mới đưa đáp án cuối ở một trường để parse. Reasoning model đã tự suy luận bên trong nên thường không cần ép CoT. Grounding giảm bịa mạnh nhất: bắt model chỉ trả lời dựa trên ngữ cảnh cho sẵn, cho phép trả 'Không đủ thông tin' và yêu cầu trích dẫn; đây là nền của RAG."
   - id: b04
     type: text
     md: |
@@ -77,6 +85,10 @@ blocks:
       - {id: c, text_md: "Bỏ hết ngữ cảnh để model tự do dùng kiến thức nền của nó cho phong phú."}
     answer: [a]
     explain_md: "Grounding = ràng buộc model vào ngữ cảnh cho sẵn và cho đường thoát 'không biết' — đó là cách giảm bịa thật sự. (b) chỉ là lời khuyên suông, không ràng buộc gì; (c) càng dễ bịa hơn vì không có nguồn để bám."
+  - id: s_prompt_injection
+    type: section
+    title_vi: "Prompt injection"
+    summary_vi: "Prompt injection là khi dữ liệu model đọc chứa lệnh cướp quyền điều khiển; trực tiếp là người dùng tự nhập, gián tiếp là lệnh giấu trong email hoặc trang web app nạp vào và nguy hiểm hơn vì người dùng không biết. Không có phòng thủ tuyệt đối nên xếp lớp: luật ở system và coi văn bản ngoài là dữ liệu bọc trong delimiter, tách quyền và quyền tối thiểu để model đọc nội dung không tin cậy không tự gửi mail hay xoá dữ liệu, validate đầu ra. Một câu dặn đừng bị injection là không đủ."
   - id: b07
     type: text
     md: |
@@ -103,6 +115,10 @@ blocks:
       - {id: c, text_md: "Tin tưởng email vì nó nằm trong hộp thư của chính người dùng nên chắc chắn an toàn."}
     answer: [a]
     explain_md: "Injection gián tiếp giấu lệnh trong dữ liệu model nạp vào; phòng thủ cốt lõi là coi dữ liệu ngoài không phải lệnh VÀ tách quyền (least privilege) để model không tự thực hiện hành động nguy hiểm. (b) một câu dặn không đáng tin một mình; (c) email có thể do người khác gửi tới, không an toàn."
+  - id: s_eval_set
+    type: section
+    title_vi: "Cải thiện prompt bằng eval set"
+    summary_vi: "Cải thiện prompt có hệ thống thay vì cảm tính: dựng eval set 20-100 ca thật kèm đáp án chuẩn (gồm ca khó, mơ hồ), chọn metric như accuracy, đo baseline, đổi một thứ rồi chạy lại cùng eval set để so. Giữ phiên bản prompt trong git và chạy lại eval mỗi lần đổi như regression test để không làm tụt các ca đã đúng. Nhờ vậy 'prompt mới tốt hơn' thành con số chứng minh được, ví dụ 72% lên 86% trên cùng 50 câu."
   - id: b09
     type: text
     md: |

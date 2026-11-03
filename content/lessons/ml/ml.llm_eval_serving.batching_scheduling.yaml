@@ -1,5 +1,5 @@
 id: ml.llm_eval_serving.batching_scheduling
-version: 1
+version: 2
 status: published
 title_vi: "Batching, scheduling và paged attention: ép GPU phục vụ nhiều request cùng lúc"
 est_minutes: 14
@@ -9,6 +9,10 @@ objectives_vi:
   - "Nêu vai trò của PagedAttention (quản KV cache theo trang) và prefix caching (dùng lại KV của phần prompt chung) trong việc tăng batch size và giảm tính lại."
   - "Thiết kế một dịch vụ inference: chọn knob cân bằng latency/throughput và chọn tín hiệu autoscaling đúng (độ sâu hàng đợi / GPU utilization / pending token, không phải CPU)."
 blocks:
+  - id: s_batching_why
+    type: section
+    title_vi: "Vì sao gom batch và static batching"
+    summary_vi: "Decode là memory-bound: mỗi bước phải nạp toàn bộ trọng số cho rất ít phép tính, nên gom N request vào một batch chia đều (amortize) chi phí nạp và đẩy throughput (token/s) lên gần tuyến tính cho tới khi GPU chuyển sang nghẽn compute, đổi lại mỗi request chờ lâu hơn. Static batching chạy tới khi request dài nhất xong nên các slot đã rảnh bị giữ không dùng, phí GPU."
   - id: b01
     type: text
     md: |
@@ -44,6 +48,10 @@ blocks:
       - {id: c, text_md: "Batching nén trọng số của model xuống ít bit hơn nên GPU tải nhanh hơn."}
     answer: [a]
     explain_md: "Decode nghẽn băng thông bộ nhớ: nạp trọng số là phần đắt nhất. Gom batch chia sẻ (amortize) chi phí nạp đó cho nhiều request nên throughput tăng. (b) sai: số bước mỗi request không đổi, batching thậm chí thêm chút latency; (c) đó là quantization, một kỹ thuật khác."
+  - id: s_continuous_batching
+    type: section
+    title_vi: "Continuous (in-flight) batching"
+    summary_vi: "Continuous batching (vLLM, TGI) lập lịch ở mức từng bước sinh token: request nào xong thì rời batch ngay và slot được lấp bằng request đang chờ, nên GPU gần như luôn chạy batch đầy. Đây là cú tăng throughput lớn nhất của engine serving hiện đại và thường giảm cả độ trễ trung bình vì request mới không phải chờ cả batch cũ."
   - id: b04
     type: text
     md: |
@@ -66,6 +74,10 @@ blocks:
       - {id: c, text_md: "Continuous batching bỏ qua các request dài để toàn bộ batch cùng kết thúc một lúc."}
     answer: [a]
     explain_md: "Continuous batching lập lịch ở mức từng vòng lặp (iteration-level): finished slot được tái sử dụng tức thì cho request mới, nên GPU luôn đầy việc. (b) sai: nó chạy nhiều request song song trong một batch; (c) sai: không request nào bị bỏ, request dài vẫn chạy tới khi xong."
+  - id: s_paged_prefix
+    type: section
+    title_vi: "PagedAttention và prefix caching"
+    summary_vi: "Cấp KV cache liền khối theo độ dài tối đa gây phân mảnh và giới hạn số request. PagedAttention chia KV cache thành các trang nhỏ cấp dần như bộ nhớ ảo của OS nên gần hết phân mảnh, nhét được batch lớn hơn và chia sẻ trang giữa request. Prefix caching dùng lại KV của phần prompt chung (system prompt, few-shot) để bỏ prefill lặp và giảm TTFT."
   - id: b06
     type: text
     md: |
@@ -100,6 +112,10 @@ blocks:
     blanks:
       - accept: ["prefix caching", "prefix cache", "đệm tiền tố", "prefix-caching", "caching prefix"]
     explain_md: "Prefix caching dùng lại KV cache của phần prompt chung (system prompt, few-shot, tài liệu nền) giữa các request, bỏ qua việc tính lại prefill cho đoạn đó — nhờ vậy giảm TTFT và tiết kiệm compute. PagedAttention (quản KV theo trang) giúp chia sẻ các trang tiền tố này."
+  - id: s_service_design
+    type: section
+    title_vi: "Thiết kế dịch vụ inference"
+    summary_vi: "Hai knob cân bằng latency/throughput là max batch size và ngân sách token mỗi bước: đặt lớn thì throughput cao nhưng latency tăng và có head-of-line blocking (chữa bằng chunked prefill), đặt nhỏ thì nhanh mỗi request nhưng phí GPU. Autoscale theo queue depth, pending tokens hoặc GPU utilization, không theo CPU vì CPU rảnh khi GPU đã nghẽn."
   - id: b09
     type: callout
     kind: interview

@@ -1,5 +1,5 @@
 id: ml.llm_eval_serving.inference_fundamentals
-version: 1
+version: 2
 status: published
 title_vi: "Inference LLM: prefill, decode và KV cache — ước lượng bộ nhớ và độ trễ khi phục vụ"
 est_minutes: 14
@@ -9,6 +9,10 @@ objectives_vi:
   - "Ước lượng ngân sách bộ nhớ = **trọng số (weights)** + **KV cache** bằng số học đúng (fp16 = 2 byte/tham số → 7B ≈ 14 GB)."
   - "Giải thích **TTFT** và **throughput** từ cơ chế prefill/decode, và vì sao decode nghẽn băng thông lại mở đường cho batching."
 blocks:
+  - id: s_prefill_decode
+    type: section
+    title_vi: "Hai pha prefill và decode"
+    summary_vi: "Sinh chữ có hai pha: prefill xử lý cả prompt song song, compute-bound, quyết định TTFT (prompt càng dài càng lâu); decode sinh từng token tự hồi quy, mỗi bước đọc lại toàn bộ trọng số từ VRAM cho rất ít phép tính nên memory-bandwidth-bound, quyết định TPOT/ITL và throughput."
   - id: b01
     type: text
     md: |
@@ -60,6 +64,10 @@ blocks:
       - {id: c, text_md: "Prefill phải đọc lại trọng số mỗi token còn decode thì không, nên prefill mới là pha nghẽn bộ nhớ."}
     answer: [a]
     explain_md: "Decode: mỗi bước kéo lại toàn bộ trọng số (vd 14 GB cho model 7B) để sinh đúng 1 token — ít phép tính, nhiều dữ liệu → nghẽn băng thông. Prefill: cả prompt vào một lượt, rất nhiều phép nhân ma trận → nghẽn sức tính. (c) nói ngược; (b) sai bản chất, không liên quan số GPU."
+  - id: s_kv_cache
+    type: section
+    title_vi: "KV cache"
+    summary_vi: "KV cache lưu K/V của token cũ nên mỗi bước decode chỉ tính K/V cho một token mới, O(1) thay vì tính lại O(n) (tổng O(n^2) nếu không cache). Đổi lại cache chiếm bộ nhớ và phình theo batch x độ dài chuỗi; ở ngữ cảnh dài và batch lớn nó có thể vượt cả trọng số, trở thành giới hạn thật sự của số người dùng một GPU gánh được."
   - id: b05
     type: text
     md: |
@@ -80,6 +88,10 @@ blocks:
       cầu chạy song song). Ở **ngữ cảnh dài (long context)** và batch lớn, KV cache có thể **vượt cả
       trọng số model** và trở thành thứ chiếm bộ nhớ nhiều nhất → nó là giới hạn thật sự của "bao
       nhiêu người dùng / ngữ cảnh bao dài" mà một GPU gánh được.
+  - id: s_memory_math
+    type: section
+    title_vi: "Ước lượng bộ nhớ GPU"
+    summary_vi: "Bộ nhớ = trọng số + KV cache + activations. Trọng số = tham số x byte mỗi tham số (fp16 = 2 byte nên 7B ~ 14 GB, 13B ~ 26 GB; int8 ~ 7 GB, int4 ~ 3,5 GB). KV bytes mỗi token = 2 x layers x kv_head x head_dim x byte; ví dụ 32 lớp, 8 kv_head, head_dim 128, fp16 ~ 0,13 MB/token nên 4000 token ~ 0,5 GB, còn 32 kv_head thì gấp 4 lần, cho thấy GQA/MQA cắt cache mạnh."
   - id: b07
     type: text
     md: |
@@ -119,6 +131,10 @@ blocks:
     blanks:
       - accept: ["14", "14 GB", "14GB", "~14", "khoảng 14"]
     explain_md: "7 tỉ × 2 byte = 14 tỉ byte = 14 GB. Mẹo nhớ: ở fp16 (2 byte/tham số), số GB của riêng trọng số ≈ 2 × số tỉ tham số. KV cache và activations cộng thêm trên con số này."
+  - id: s_batching_interview
+    type: section
+    title_vi: "Batching và cách trả lời phỏng vấn"
+    summary_vi: "Vì decode thừa sức tính còn nghẽn băng thông, batching cho nhiều chuỗi dùng chung một lần đọc trọng số và tăng token/s, đổi lại tốn thêm KV cache và có thể tăng độ trễ từng request. Mẫu trả lời phỏng vấn: tách trọng số (X tỉ x 2 byte) và KV cache (công thức theo N token và batch), rồi nối prefill với TTFT, decode với TPOT/throughput."
   - id: b10
     type: quiz_mcq
     graded: true

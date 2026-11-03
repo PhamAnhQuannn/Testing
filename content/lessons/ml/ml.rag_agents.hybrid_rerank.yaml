@@ -1,5 +1,5 @@
 id: ml.rag_agents.hybrid_rerank
-version: 1
+version: 2
 status: published
 title_vi: "Hybrid search và reranking: trộn tìm theo nghĩa với tìm theo từ khóa rồi xếp lại cho chuẩn"
 est_minutes: 13
@@ -9,6 +9,10 @@ objectives_vi:
   - "Thiết kế pipeline hai tầng retrieve-then-rerank với cross-encoder; nêu khi nào nên thêm reranker."
   - "Biện luận đánh đổi độ chính xác với độ trễ/chi phí bằng số liệu (recall@k, latency)."
 blocks:
+  - id: s_dense_vs_lexical
+    type: section
+    title_vi: "Tìm theo nghĩa và tìm theo từ khóa"
+    summary_vi: "Dense (vector) bắt nghĩa và từ đồng nghĩa nhưng nhòe các từ chính xác như tên riêng, mã lỗi E1234, mã sản phẩm. Lexical/BM25 dựa trên inverted index, chấm theo mức trùng từ nên chắc mặt chữ nhưng mù paraphrase. Kho thật có cả hai kiểu câu hỏi nên chỉ dùng một bên là bỏ một nửa."
   - id: b01
     type: text
     md: |
@@ -44,6 +48,10 @@ blocks:
       - {id: c, text_md: "Cả hai như nhau, vì mã lỗi là một chuỗi ký tự nên cách nào cũng khớp giống hệt."}
     answer: [a]
     explain_md: "Mã lỗi hiếm, chính xác là địa hạt của lexical/BM25 (khớp đúng token). Dense retrieval nén chuỗi thành vector nên dễ nhòe mã hiếm và trả về đoạn chỉ 'na ná'. Đây chính là lý do thực tế phải trộn cả hai (hybrid)."
+  - id: s_hybrid_rrf
+    type: section
+    title_vi: "Hybrid search và hợp nhất RRF"
+    summary_vi: "Hybrid chạy cả dense và lexical rồi hợp nhất. Cộng điểm có trọng số a*dense + b*lexical phải chuẩn hóa vì thang khác nhau (cosine 0..1 so với BM25 không chặn trên). RRF chỉ dùng thứ hạng: mỗi danh sách cộng 1/(k + hạng) với k thường 60, nên không cần quy đổi thang điểm, đơn giản và bền."
   - id: b04
     type: text
     md: |
@@ -68,6 +76,10 @@ blocks:
     blanks:
       - accept: ["RRF", "reciprocal rank fusion", "reciprocal rank fusion (RRF)", "rrf"]
     explain_md: "RRF (reciprocal rank fusion) hợp nhất theo hạng, không theo điểm thô, nên tránh được rắc rối quy đổi thang điểm khác nhau của hai bên; mỗi tài liệu được cộng 1/(k + hạng) từ mỗi danh sách rồi xếp lại."
+  - id: s_retrieve_then_rerank
+    type: section
+    title_vi: "Hai tầng retrieve rồi rerank"
+    summary_vi: "Tầng 1 dùng bi-encoder/hybrid (embed đoạn sẵn, rẻ, nhanh) lấy ứng viên rộng như top-100; tầng 2 cross-encoder đọc cặp (câu hỏi, đoạn) cùng lúc nên chính xác hơn hẳn nhưng chậm, chỉ xếp lại tập nhỏ rồi lấy top 3-5 đưa vào prompt. Thêm reranker khi độ chính xác top-k quan trọng, context budget hẹp, recall tốt nhưng thứ tự lộn xộn; không chạy trên cả kho."
   - id: b06
     type: text
     md: |
@@ -105,6 +117,10 @@ blocks:
       - {id: c, text_md: "Tăng số đoạn nhét vào prompt lên top-50 để không bỏ sót, không cần rerank gì thêm."}
     answer: [a]
     explain_md: "Đoạn đúng đã nằm trong ứng viên (recall tốt) nhưng thứ tự chưa chuẩn — đúng việc của reranker. Cross-encoder chính xác nhưng đắt theo từng cặp, nên chỉ xếp lại tập nhỏ (top-50). (b) chạy cả kho là bất khả thi về độ trễ/chi phí; (c) nhồi 50 đoạn làm loãng ngữ cảnh, tốn token và dễ khiến model lạc."
+  - id: s_danh_doi_so_lieu
+    type: section
+    title_vi: "Đo lường và biện luận đánh đổi"
+    summary_vi: "recall@k đo có bỏ sót đoạn đúng không; MRR/NDCG thưởng khi đoạn đúng đứng cao nên đo chất lượng thứ tự, đúng thứ reranker cải thiện. Ví dụ: lexical recall@5 = 0,62, hybrid 0,78, thêm rerank 0,88 nhưng p95 tăng từ 40 ms lên 180 ms và thêm chi phí GPU. Chọn theo ràng buộc sản phẩm (dưới 50 ms thì dừng ở hybrid), luôn quy về số so sánh được."
   - id: b09
     type: text
     md: |

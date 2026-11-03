@@ -1,5 +1,5 @@
 id: ml.system_design.ml_inference_platform
-version: 1
+version: 2
 status: published
 title_vi: "Thiết kế nền tảng inference GPU đa model (multi-model GPU inference platform): registry, hàng đợi, batching, autoscaling, SLO và ước lượng capacity/chi phí"
 est_minutes: 15
@@ -9,6 +9,10 @@ objectives_vi:
   - "Đảm bảo multi-tenancy: cô lập (isolation), công bằng (fairness) + quota, SLO theo tier (p99 latency, availability), backpressure và routing theo tier; observability (latency/throughput/GPU-util/chi phí theo từng model) và reliability (health check, retry, fallback, fleet-wide backoff)."
   - "Ước lượng capacity và chi phí **theo số liệu**: từ QPS × token suy ra token/s → số GPU (kèm dự phòng), quy ra chi phí mỗi request, và nêu các đòn giảm chi phí."
 blocks:
+  - id: s_api_registry
+    type: section
+    title_vi: "API, registry và tung version an toàn"
+    summary_vi: "API sync cho việc nhanh; async trả job_id, đẩy vào hàng đợi, khách polling hoặc nhận webhook, metadata DB giữ trạng thái job. Registry giữ nhiều version kèm metadata, trọng số nằm ở artifact store + cache gần GPU. Tung version bằng con trỏ production (promote/rollback tức thì), canary một phần nhỏ traffic, A/B so metric online, hoặc shadow traffic gửi bản sao request mà không trả kết quả cho khách (an toàn nhất, tốn thêm GPU)."
   - id: b01
     type: text
     md: |
@@ -54,6 +58,10 @@ blocks:
       - {id: c, text_md: "Promote thẳng version mới làm production, nếu tệ thì rollback sau."}
     answer: [a]
     explain_md: "Shadow traffic = bản sao request, kết quả bị bỏ, nên **không chạm** người dùng; đúng với yêu cầu 'traffic thật nhưng không ảnh hưởng ai'. (b) canary vẫn trả kết quả thật cho 10% người → có ảnh hưởng; (c) promote thẳng ảnh hưởng tất cả. Canary/A-B dùng khi đã chấp nhận ảnh hưởng một phần nhỏ."
+  - id: s_batching_autoscale
+    type: section
+    title_vi: "Batching, backpressure, autoscaling và cold start"
+    summary_vi: "Scheduler đẩy request vào worker gom batch: dynamic batching có trần ms cho model thường, continuous batching + KV cache + streaming + cancel cho LLM. Quá tải thì backpressure/429 theo tier, không để hàng đợi phình vô hạn. Autoscale theo queue depth hoặc GPU utilization (không theo CPU). Scale-to-zero tiết kiệm nhưng gây cold start do nạp trọng số (có thể hàng chục giây), xử lý bằng warm pool, model caching và ghi độ trễ cold start vào SLO."
   - id: b04
     type: text
     md: |
@@ -94,6 +102,10 @@ blocks:
       - {id: c, text_md: "Do batching chờ quá lâu; tắt batching đi là hết chậm."}
     answer: [a]
     explain_md: "40 giây lần đầu dù GPU rảnh là dấu hiệu kinh điển của **cold start = thời gian nạp trọng số**. GPU mạnh hơn (b) hay tắt batching (c) không chạm vào nguyên nhân. Fix: **warm pool / model caching** cho model nhạy latency; chỉ chấp nhận scale-to-zero cho model chịu được độ trễ lần đầu."
+  - id: s_tenancy_capacity
+    type: section
+    title_vi: "Multi-tenancy, SLO và ước lượng capacity"
+    summary_vi: "Dùng chung GPU cần cô lập + quota + fairness (round-robin/weighted) để đội nhỏ không chết đói, SLO theo tier (p99 latency, availability như 99,9%) và ưu tiên tier cao, hạ cấp tier thấp trước. Capacity đếm theo token/s: 20 req/s × 500 token = 10.000 token/s ÷ 200 token/s/GPU = 50 GPU ở 100% bận, nhắm ~70% bận thì ≈ 72 GPU cộng dự phòng; ~2 USD/GPU-giờ ≈ 144 USD/giờ ≈ 0,002 USD/request, tải trung bình 30% đỉnh làm chi phí mỗi request tăng ~3 lần nên cần autoscale; cắt token đầu ra là đòn mạnh nhất."
   - id: b07
     type: text
     md: |
@@ -135,6 +147,10 @@ blocks:
     blanks:
       - accept: ["50", "50 GPU", "= 50"]
     explain_md: "10.000 ÷ 200 = **50**. Đó là mức sàn ở 100% bận; thực tế phải chia thêm cho hệ số bận (~70%) → ~72 GPU và cộng dự phòng hỏng hóc. Luôn đếm theo token/s chứ không phải QPS."
+  - id: s_observability_reliability
+    type: section
+    title_vi: "Quan sát và độ tin cậy"
+    summary_vi: "Đo theo từng model/tenant: latency p50/p95/p99 (tách TTFT và thời gian mỗi token), throughput token/s, GPU utilization, độ sâu hàng đợi, tỉ lệ lỗi và chi phí mỗi request để tính tiền theo đội. Độ tin cậy gồm health check bỏ worker hỏng, retry có giới hạn, fallback (model nhỏ hơn hoặc xin lỗi) và fleet-wide backoff với jitter để nhiều worker không cùng thử lại sau 429. Khi quá tải, ưu tiên tier interactive, backpressure tier batch và autoscale theo queue depth."
   - id: b10
     type: text
     md: |

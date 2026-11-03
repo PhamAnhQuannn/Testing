@@ -1,5 +1,5 @@
 id: ml.llm_eval_serving.online_eval_monitoring
-version: 1
+version: 2
 status: published
 title_vi: "Đánh giá khi chạy thật và giám sát app LLM: tín hiệu, vòng phản hồi và kiểm chứng suy giảm chất lượng"
 est_minutes: 13
@@ -9,6 +9,10 @@ objectives_vi:
   - "Thiết kế vòng phản hồi (feedback loop): log lượt + tín hiệu → lấy mẫu & gán nhãn → đẩy ca khó về eval set → chạy lại (đóng vòng)."
   - "Phát hiện và kiểm chứng suy giảm chất lượng (quality regression) bằng số liệu: baseline + cảnh báo, A/B test, drift; xác minh bằng con số chứ không bằng giai thoại."
 blocks:
+  - id: s_online_signals
+    type: section
+    title_vi: "Tín hiệu online khi chạy thật"
+    summary_vi: "Online không có đáp án chuẩn cho từng lượt, nên eval offline cần nhưng chưa đủ vì phân bố câu hỏi thật khác bộ thử, hành vi đổi theo thời gian và nhà cung cấp có thể cập nhật ngầm. Tín hiệu gồm explicit feedback (thumbs, rating: thưa và thiên lệch), implicit (tạo lại, sửa/chấp nhận, bỏ dở, task completion), độ trễ/chi phí/tỉ lệ lỗi, và LLM-as-judge chấm mẫu 1-5% lượt; nền tảng là tracing mọi lượt."
   - id: b01
     type: text
     md: |
@@ -69,6 +73,10 @@ blocks:
       - {id: c, text_md: "Bỏ đo online, chỉ cần điểm trên eval set offline là đủ đại diện cho người dùng thật."}
     answer: [a]
     explain_md: "Phản hồi trực tiếp thường thưa và thiên lệch, nên ta suy chất lượng từ hành vi (implicit signals) và chấm mẫu bằng LLM-as-judge. (b) ép bấm làm hỏng trải nghiệm và vẫn thiên lệch; (c) eval offline không đại diện cho phân bố câu hỏi thật — chính là lý do phải đo online."
+  - id: s_feedback_loop
+    type: section
+    title_vi: "Vòng phản hồi"
+    summary_vi: "Vòng phản hồi biến giám sát thành cải thiện: log mọi lượt cùng tín hiệu, lấy mẫu và gán nhãn (ưu tiên lượt có tín hiệu xấu), đẩy ca khó thật về eval set để đóng vòng, rồi chạy lại eval (regression test) mỗi lần đổi prompt, model hay retrieval. Một eval set sống được nạp ca thật liên tục đáng giá hơn bộ dựng một lần."
   - id: b05
     type: text
     md: |
@@ -96,6 +104,10 @@ blocks:
     blanks:
       - accept: ["eval set", "bộ đánh giá", "bộ câu hỏi thử", "evaluation set", "eval"]
     explain_md: "Đẩy ca khó thật về **eval set** chính là 'đóng vòng': bộ thử lớn dần và giống thực tế hơn, nên các lần đo sau phản ánh đúng chất lượng người dùng gặp phải."
+  - id: s_regression_detection
+    type: section
+    title_vi: "Phát hiện và kiểm chứng suy giảm chất lượng"
+    summary_vi: "Bắt regression bằng baseline kèm cảnh báo, A/B test chia ngẫu nhiên người dùng để so bản cũ và mới cùng thời điểm, và canh drift (đầu vào đổi hoặc model bị cập nhật ngầm) bằng pinned eval cố định. Kiểm chứng báo cáo model tệ đi bằng số: so baseline window, cắt lát theo phân khúc, kiểm tra ý nghĩa thống kê, dùng pinned eval để tách nguyên nhân, không chốt bằng giai thoại."
   - id: b07
     type: text
     md: |

@@ -1,5 +1,5 @@
 id: ml.llm_eval_serving.eval_sets_metrics
-version: 1
+version: 2
 status: published
 title_vi: "Đánh giá ứng dụng LLM: eval set và chọn metric theo tác vụ"
 est_minutes: 13
@@ -9,6 +9,10 @@ objectives_vi:
   - "Chọn metric theo tác vụ (exact-match/F1, recall@k cho RAG, pass@k cho code, LLM-as-judge cho sinh mở) và phân biệt offline vs online."
   - "Nêu giới hạn của từng metric và vì sao phải cắt lát (slice) theo nhóm thay vì chỉ nhìn một con số."
 blocks:
+  - id: s_why_eval_set
+    type: section
+    title_vi: "Vì sao cần eval set cố định"
+    summary_vi: "Vibe check không phải đánh giá: vài câu tự nghĩ không đại diện, một thay đổi có thể sửa ca này nhưng hỏng ca khác, và LLM trôi chảy vẫn có thể sai. Eval set (golden set) là tập đầu vào đại diện kèm đáp án hoặc tiêu chí chuẩn, lấy từ dữ liệu production thật và ca lỗi (không bịa), cố định và đánh version, bắt đầu nhỏ 20-50 ca cũng hữu ích."
   - id: b01
     type: text
     md: |
@@ -52,6 +56,10 @@ blocks:
       - {id: c, text_md: "Không cần tập cố định; mỗi lần sửa prompt cứ thử vài câu ngẫu nhiên khác nhau cho nhanh."}
     answer: [a]
     explain_md: "Eval set tốt phải **đại diện** (từ traffic thật) và gồm **ca lỗi** đã gặp, có đáp án/tiêu chí chuẩn và được cố định. (b) ví dụ bịa quá dễ, không lộ chỗ model gãy; (c) không có tập cố định thì không so được trước/sau, lại quay về vibe check."
+  - id: s_metrics_by_task
+    type: section
+    title_vi: "Chọn metric theo tác vụ"
+    summary_vi: "Không có metric cho mọi bài: phân loại dùng accuracy/F1, trích xuất dùng exact-match hoặc F1, RAG retrieval dùng recall@k và precision@k, sinh code dùng pass@k, có tham chiếu thì BLEU/ROUGE (proxy yếu), sinh mở dùng LLM-as-judge hoặc người chấm. Mỗi metric có giới hạn: exact-match quá khắt khe với văn bản tự do, BLEU/ROUGE bỏ sót nghĩa, judge thiên lệch và tốn tiền."
   - id: b04
     type: text
     md: |
@@ -104,6 +112,10 @@ blocks:
         diễn đạt đúng. (BERTScore so nghĩa bằng embedding, đỡ hơn nhưng vẫn không hoàn hảo.)
       - **LLM-as-judge có thiên lệch** (thích câu dài, thích văn phong của chính nó) và tốn tiền — phải
         hiệu chỉnh với nhãn người và chấm ở temperature 0.
+  - id: s_slice_offline_online
+    type: section
+    title_vi: "Cắt lát, offline và online"
+    summary_vi: "Một con số tổng (accuracy 85%) che chỗ hỏng: model có thể đúng 95% câu dễ nhưng chỉ 40% ở nhóm quan trọng, nên phải cắt lát theo nhóm và làm error analysis. Offline eval chạy trên eval set trước khi tung (nhanh, rẻ, làm regression suite trong CI), online đo trên người dùng thật; offline tốt không bảo đảm online tốt nhưng là lớp phòng thủ đầu tiên."
   - id: b08
     type: text
     md: |
@@ -134,6 +146,10 @@ blocks:
     blanks:
       - accept: ["recall@k", "recall@5", "recall at k", "recall", "Recall@k"]
     explain_md: "recall@k đo trong k đoạn lấy về có đoạn đúng không — metric cho **bước tìm (retrieval)** của RAG. (precision@k đo ngược lại: trong k đoạn, bao nhiêu đoạn thật sự liên quan.)"
+  - id: s_eval_interview
+    type: section
+    title_vi: "Khung trả lời phỏng vấn"
+    summary_vi: "Khung bốn bước khi hỏi đánh giá tính năng LLM: dựng eval set từ dữ liệu thật và ca lỗi có version, chọn metric theo tác vụ, nêu giới hạn metric và cách bù (thêm judge, cắt lát), rồi đánh giá offline trước khi tung và online khi chạy thật. Người phỏng vấn coi trọng việc biết metric yếu ở đâu hơn là chỉ nêu tên metric."
   - id: b11
     type: callout
     kind: interview

@@ -1,5 +1,5 @@
 id: ml.rag_agents.multi_step_workflows
-version: 1
+version: 2
 status: published
 title_vi: "Workflow nhiều bước và multi-agent: chọn đúng mẫu và biết khi nào KHÔNG cần nhiều agent"
 est_minutes: 13
@@ -9,6 +9,10 @@ objectives_vi:
   - "Giải thích chi phí của hệ nhiều agent (multi-agent): coordination overhead, error propagation, và khi nào một agent/workflow đơn còn tốt hơn."
   - "Thiết kế luồng nhiều bước có state/checkpoint, retry và bước người duyệt (human-in-the-loop) cho tác vụ chạy lâu."
 blocks:
+  - id: s_workflow_vs_agent
+    type: section
+    title_vi: "Workflow cố định, agent tự do và ba mẫu nền tảng"
+    summary_vi: "Workflow cố định: code quyết định thứ tự bước, LLM lo từng bước nhỏ, nên dễ đoán, rẻ, dễ test; agent tự do chỉ khi bài toán mở. Mặc định chọn giải pháp đơn giản nhất chạy được. Ba mẫu nền tảng: prompt chaining (đầu ra bước trước là đầu vào bước sau, có gate), routing (phân loại rồi rẽ nhánh chuyên biệt), parallelization (toả song song rồi gộp: sectioning hoặc voting)."
   - id: b01
     type: text
     md: |
@@ -58,6 +62,10 @@ blocks:
         text_md: "Một prompt khổng lồ duy nhất bắt model vừa phân loại vừa soạn mọi loại thư trong một lần gọi, không tách bước."
     answer: [a]
     explain_md: "Việc đã biết các bước → ưu tiên **workflow cố định**: routing để chọn nhánh, chaining để soạn thư theo nhánh. (b) agent tự do thừa sự tự do, khó đoán và tốn hơn cho việc đã rõ. (c) prompt 'biết tuốt' khó tối ưu từng loại và khó test; tách nhánh (routing) tốt hơn."
+  - id: s_orchestrator_evaluator
+    type: section
+    title_vi: "Orchestrator-workers và evaluator-optimizer"
+    summary_vi: "Orchestrator-workers: một LLM điều phối chia việc động thành số việc con không cố định, giao cho worker (có thể song song) rồi tổng hợp. Evaluator-optimizer: tạo bản nháp, chấm/phê bình theo tiêu chí, sửa và lặp. Cả hai cần điều kiện dừng (đạt chuẩn hoặc giới hạn số vòng/ngân sách token) để không chạy mãi."
   - id: b05
     type: text
     md: |
@@ -86,6 +94,10 @@ blocks:
         text_md: "**Routing**: phân loại đoạn văn thành 'đạt' hoặc 'không đạt' một lần rồi dừng."
     answer: [a]
     explain_md: "Có tiêu chí rõ + phê bình giúp cải thiện → **evaluator-optimizer** (làm/chấm/sửa có vòng lặp và điều kiện dừng) là đúng mẫu. (b) chạy song song không có bước chấm nên không bảo đảm đạt tiêu chí; (c) routing chỉ phân nhánh, không có cơ chế sửa để nâng chất lượng."
+  - id: s_multi_agent_chi_phi
+    type: section
+    title_vi: "Multi-agent và chi phí phối hợp"
+    summary_vi: "Multi-agent có context isolation nhưng kèm coordination overhead (truyền ngữ cảnh tốn token, nhiều lượt gọi, đắt và chậm) và error propagation (một agent hiểu sai làm hỏng cả chuỗi, khó debug). Một agent đơn hoặc workflow cố định thường thắng; chỉ tách agent khi việc con song song, độc lập, ngốn nhiều ngữ cảnh."
   - id: b07
     type: text
     md: |
@@ -115,6 +127,10 @@ blocks:
         text_md: "Nên tách vì nhiều agent luôn rẻ hơn do mỗi agent xử lý ít việc hơn."
     answer: [a]
     explain_md: "Việc cố định, tuần tự thì multi-agent chỉ thêm phí phối hợp và điểm hỏng, chứ không thêm giá trị → giữ workflow đơn. (b)/(c) sai: nhiều agent KHÔNG mặc nhiên chính xác hơn hay rẻ hơn — truyền ngữ cảnh qua lại thường tốn token và chậm hơn."
+  - id: s_luong_chay_lau
+    type: section
+    title_vi: "Luồng chạy lâu: state, retry, người duyệt"
+    summary_vi: "Luồng chạy lâu phải không mất việc khi có sự cố: lưu state sau mỗi bước (checkpoint) để chạy tiếp từ điểm gần nhất, đó là durable execution; queue giúp chạy lại và trải tải. Retry có backoff chỉ ở bước idempotent và có giới hạn. Chèn human-in-the-loop trước hành động không hoàn tác (hoàn tiền, gửi mail, xoá). Khung trả lời thiết kế: workflow hay agent, chọn pattern, đặt checkpoint/retry/duyệt, cân nhắc multi-agent."
   - id: b09
     type: text
     md: |

@@ -1,5 +1,5 @@
 id: ml.llm_eval_serving.guardrails_safety
-version: 1
+version: 2
 status: published
 title_vi: "Guardrail và an toàn LLM: mối đe dọa, phòng thủ nhiều lớp và lethal trifecta"
 est_minutes: 14
@@ -8,6 +8,10 @@ objectives_vi:
   - "Đề xuất phòng thủ nhiều lớp (defense in depth): lọc đầu vào/đầu ra, che PII, guardrail model/validator, quyền tối thiểu + allowlist + người duyệt, và coi mọi nội dung lấy về là không tin cậy."
   - "Giải thích đúng 'lethal trifecta' (ba chân: dữ liệu riêng + nội dung không tin cậy + khả năng gửi ra ngoài) và vì sao bỏ một chân là cắt được rủi ro."
 blocks:
+  - id: s_llm_threats
+    type: section
+    title_vi: "Bề mặt tấn công và các mối đe dọa"
+    summary_vi: "App LLM có tool và dữ liệu riêng là bề mặt tấn công thật, nguyên tắc nền là mọi văn bản không do bạn viết (người dùng, tài liệu lấy về, kết quả tool) là dữ liệu không tin cậy, không phải lệnh. Các mối đe dọa: prompt injection trực tiếp và gián tiếp (nguy hiểm hơn vì giấu trong dữ liệu), jailbreak, rò rỉ hoặc tuồn dữ liệu, đầu ra có hại, và lạm dụng công cụ."
   - id: b01
     type: text
     md: |
@@ -49,6 +53,10 @@ blocks:
       - {id: c, text_md: "Không phải đe dọa — email nằm trong hộp thư của người dùng nên mặc nhiên đáng tin."}
     answer: [a]
     explain_md: "Lệnh nằm trong nội dung lấy về (email của người lạ), app nạp vào ngữ cảnh và model có thể làm theo — đó đúng là **injection gián tiếp**. (b) sai: chính người dùng không hề ra lệnh đó. (c) sai: nội dung từ bên ngoài luôn phải coi là untrusted, kể cả khi nằm trong hộp thư của người dùng."
+  - id: s_defense_in_depth
+    type: section
+    title_vi: "Phòng thủ nhiều lớp"
+    summary_vi: "Không lớp nào hoàn hảo nên xếp chồng: lọc đầu vào, kiểm duyệt đầu ra và che PII, guardrail model hoặc validator tách rời, đầu ra có cấu trúc, quyền tối thiểu cho tool kèm allowlist và người duyệt cho hành động rủi ro, sandbox và rate limit. Một câu dặn trong prompt là lớp yếu nhất; cần cân bằng refusal với over-refusal và kiểm bằng red teaming."
   - id: b04
     type: text
     md: |
@@ -89,6 +97,10 @@ blocks:
       - {id: c, text_md: "Vì một câu dặn trong system prompt là đủ, các lớp kia chỉ để trang trí."}
     answer: [a]
     explain_md: "Defense in depth = chấp nhận mỗi lớp đều có thể bị vượt, nên xếp chồng để giảm xác suất thủng toàn bộ. (b) sai: thêm lớp thường *tốn* thêm độ trễ/chi phí, đổi lấy an toàn. (c) sai: một câu dặn là lớp yếu nhất, không thay được các lớp kiểm tra thật."
+  - id: s_lethal_trifecta
+    type: section
+    title_vi: "Lethal trifecta"
+    summary_vi: "Lethal trifecta (Simon Willison) gồm ba chân: truy cập dữ liệu riêng, tiếp xúc nội dung không tin cậy, và khả năng gửi ra ngoài. Đủ cả ba thì kẻ tấn công giấu lệnh trong nội dung không tin cậy để model đọc dữ liệu riêng rồi tuồn ra ngoài. Bỏ bất kỳ một chân nào là cắt được chuỗi tấn công, đây là biện pháp kiến trúc chắc chắn hơn mọi lời dặn trong prompt."
   - id: b07
     type: text
     md: |

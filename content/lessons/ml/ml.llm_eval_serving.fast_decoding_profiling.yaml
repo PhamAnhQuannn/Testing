@@ -1,5 +1,5 @@
 id: ml.llm_eval_serving.fast_decoding_profiling
-version: 1
+version: 2
 status: published
 title_vi: "Decoding nhanh và tìm nút thắt: speculative decoding và profiling memory-bound vs compute-bound"
 est_minutes: 13
@@ -8,6 +8,10 @@ objectives_vi:
   - "Nói được vì sao speculative decoding **không đổi phân phối đầu ra** (output distribution unchanged) — đây là tăng tốc thuần, không đánh đổi chất lượng."
   - "Dùng ý tưởng roofline / arithmetic intensity và số liệu GPU utilization + băng thông bộ nhớ để phân loại workload là **memory-bound** hay **compute-bound**, rồi chọn cách tối ưu đúng."
 blocks:
+  - id: s_speculative_decoding
+    type: section
+    title_vi: "Speculative decoding và tính lossless"
+    summary_vi: "Decode batch nhỏ bị nghẽn băng thông vì mỗi token đọc lại toàn bộ trọng số. Speculative decoding cho model nháp nhỏ đề xuất k token, model chính kiểm cả cụm trong một lượt song song và nhận prefix đúng dài nhất, nên một lượt ra nhiều token và nhanh khoảng 2-3 lần. Nó lossless vì token bị loại được lấy mẫu lại từ phân phối hiệu chỉnh của model chính, nên phân phối đầu ra không đổi."
   - id: b01
     type: text
     md: |
@@ -65,6 +69,10 @@ blocks:
       - {id: c, text_md: "Chỉ đúng y hệt khi acceptance rate đạt 100%; nếu không thì phân phối đầu ra sẽ lệch dần."}
     answer: [a]
     explain_md: "Mấu chốt: token bị loại được lấy mẫu lại từ phân phối hiệu chỉnh của model chính, nên chuỗi ra có cùng phân phối với khi chỉ dùng model chính — lossless. (b) sai: đầu ra không phải của model nháp. (c) sai: tính lossless không phụ thuộc acceptance rate; tỉ lệ chấp nhận chỉ đổi tốc độ, không đổi phân phối."
+  - id: s_acceptance_variants
+    type: section
+    title_vi: "Acceptance rate và các biến thể"
+    summary_vi: "Acceptance rate là phần trăm token nháp được model chính nhận, quyết định mức tăng tốc: nháp càng gần model chính càng nhanh, trả giá bằng tính toán thừa khi bị loại nhưng không ảnh hưởng chất lượng. Các biến thể cùng nguyên lý verify: Medusa/EAGLE (draft heads gắn vào model chính), n-gram/prompt lookup (tra lại ngữ cảnh), lookahead decoding."
   - id: b05
     type: text
     md: |
@@ -92,6 +100,10 @@ blocks:
     blanks:
       - accept: ["acceptance rate", "tỉ lệ chấp nhận", "ti le chap nhan", "acceptance", "tỷ lệ chấp nhận"]
     explain_md: "Acceptance rate (tỉ lệ chấp nhận) đo mức độ model nháp đoán khớp model chính. Nó chỉ ảnh hưởng **tốc độ** (nhận nhiều token/lượt → nhanh hơn), không ảnh hưởng tính lossless của đầu ra."
+  - id: s_bound_diagnosis
+    type: section
+    title_vi: "Phân loại memory-bound và compute-bound"
+    summary_vi: "Memory-bound (decode batch nhỏ) có GPU utilization thấp nhưng băng thông bộ nhớ gần đỉnh; compute-bound (prefill, batch lớn) có utilization gần đỉnh FLOPs. Khung roofline so arithmetic intensity (phép tính trên mỗi byte đọc) với tỉ số đỉnh FLOPs / đỉnh băng thông của GPU: thấp thì nghẽn băng thông, cao thì nghẽn tính toán."
   - id: b07
     type: text
     md: |
@@ -138,6 +150,10 @@ blocks:
       - {id: c, text_md: "Không kết luận được gì từ hai số này; phải đổi GPU rồi đo lại."}
     answer: [a]
     explain_md: "GPU utilization thấp + băng thông bộ nhớ gần đỉnh = cổ chai ở việc **chuyển dữ liệu**, không ở tính toán → memory-bound (đúng kiểu decode batch nhỏ). Cách đúng là giảm byte đọc / khấu hao lượt đọc: batch lớn hơn, quantize, speculative decoding. (b) đọc sai số liệu. (c) sai: hai số này đủ để phân loại."
+  - id: s_optimize_by_bottleneck
+    type: section
+    title_vi: "Tối ưu đúng theo nút thắt"
+    summary_vi: "Memory-bound thì đọc ít byte hơn hoặc khấu hao mỗi lượt đọc: tăng batch, quantize, speculative decoding. Compute-bound thì tính hiệu quả hơn: fused kernel, CUDA graphs, torch.compile/TensorRT-LLM, thêm FLOPs. Quantize workload compute-bound hay mua FLOPs cho workload memory-bound là tối ưu nhầm chỗ, nên chẩn đoán bằng số rồi mới kê đơn."
   - id: b10
     type: quiz_mcq
     graded: true

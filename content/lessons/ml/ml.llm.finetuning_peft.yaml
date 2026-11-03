@@ -1,5 +1,5 @@
 id: ml.llm.finetuning_peft
-version: 1
+version: 2
 status: published
 title_vi: "Fine-tuning: SFT, LoRA, QLoRA — khi nào dạy thêm cho model và dạy sao cho rẻ"
 est_minutes: 14
@@ -9,6 +9,10 @@ objectives_vi:
   - "Quyết định đúng: khi nào fine-tune giúp, khi nào nên dùng RAG (thiếu kiến thức) hay chỉ prompt (việc một lần)."
   - "Đánh giá trước và sau khi fine-tune trên một tập hold-out để chứng minh có tiến bộ và không quên việc cũ (catastrophic forgetting)."
 blocks:
+  - id: s_sft_khi_nao
+    type: section
+    title_vi: "SFT và khi nào nên fine-tune"
+    summary_vi: "SFT dạy thêm model có sẵn bằng cặp (đầu vào -> đầu ra mong muốn) để đổi hành vi, giọng điệu hay định dạng; nó không phải cách tốt để nhồi kiến thức mới (việc đó để RAG). Thứ tự thử đi từ rẻ tới đắt: prompt trước, RAG khi thiếu kiến thức, fine-tune khi cần hành vi ổn định lặp hàng triệu lần hoặc muốn model nhỏ, rẻ làm tốt một việc hẹp; mỗi bước đo bằng eval set."
   - id: b01
     type: text
     md: |
@@ -43,6 +47,10 @@ blocks:
       - {id: c, text_md: "QLoRA, vì nó rẻ nên cứ fine-tune cho mọi nhu cầu kể cả thêm kiến thức."}
     answer: [a]
     explain_md: "Đây là bài toán *kiến thức* (fact mới, hay đổi) nên RAG là đúng hướng: tra tài liệu rồi đưa vào ngữ cảnh, cập nhật chỉ cần sửa tài liệu. (b) sai vì fine-tune dạy *hành vi*, không phải kho sự kiện, và mỗi lần chính sách đổi lại phải train lại. (c) QLoRA chỉ làm việc fine-tune rẻ hơn, không đổi bản chất là fine-tune vẫn không hợp để thêm kiến thức."
+  - id: s_du_lieu_va_full_ft
+    type: section
+    title_vi: "Dữ liệu SFT và vì sao full fine-tune đắt"
+    summary_vi: "Dữ liệu SFT thường là JSONL, mỗi dòng gồm prompt và câu trả lời mẫu; vài trăm đến vài nghìn ví dụ sạch, nhất quán tốt hơn hàng chục nghìn ví dụ lẫn lộn. Loss masking chỉ tính loss trên phần câu trả lời để model học cách trả lời chứ không học thuộc câu hỏi. Full fine-tune phải giữ trọng số, gradient và optimizer state (Adam thêm 2 số mỗi tham số), tốn bộ nhớ gấp nhiều lần model và dễ catastrophic forgetting; PEFT đóng băng gần hết model để tránh điều đó."
   - id: b04
     type: text
     md: |
@@ -69,6 +77,10 @@ blocks:
       **PEFT (parameter-efficient fine-tuning)** đi lối khác: **đóng băng** gần như toàn bộ model gốc
       và chỉ huấn luyện **một phần rất nhỏ** tham số thêm vào. Vì chỉ phần nhỏ đó cần gradient và
       optimizer state, bộ nhớ train tụt xuống mạnh. **LoRA** là kỹ thuật PEFT phổ biến nhất.
+  - id: s_lora_qlora
+    type: section
+    title_vi: "LoRA và QLoRA"
+    summary_vi: "LoRA giữ nguyên ma trận W đóng băng và học hai ma trận mỏng B và A; khi chạy dùng W cộng tích B.A, rank r thường 8 hoặc 16. Với W 4096x4096 (16.777.216 số) và r=8, adapter chỉ 65.536 số, khoảng 0,4%, nên gradient và optimizer state rất nhỏ và adapter hoán đổi được. QLoRA nén model gốc đóng băng xuống 4-bit (7B từ khoảng 14 GB còn cỡ 3,5 GB) rồi gắn LoRA, giúp fine-tune trên một GPU tầm trung."
   - id: b06
     type: text
     md: |
@@ -112,6 +124,10 @@ blocks:
       - accept: ["4", "4-bit", "bốn", "4 bit"]
       - accept: ["LoRA", "lora", "low-rank adaptation"]
     explain_md: "QLoRA = model gốc nén xuống **4-bit** (giảm bộ nhớ chứa model) **cộng LoRA** (chỉ train adapter nhỏ). Nhờ cả hai, một model cỡ 7B fine-tune được trên một GPU tầm trung. Chú ý: phần gốc vẫn bị đóng băng, chỉ adapter LoRA được train."
+  - id: s_danh_gia_holdout
+    type: section
+    title_vi: "Đánh giá trước/sau và catastrophic forgetting"
+    summary_vi: "Luôn đo trên tập hold-out (giữ riêng, không dùng để train): chạy model gốc để có baseline, fine-tune xong chạy lại và so để biết có tiến bộ thật. Cho vào hold-out cả vài việc cũ để bắt catastrophic forgetting; nếu điểm việc cũ tụt mạnh thì giảm cường độ train hoặc trộn thêm dữ liệu đa dạng. Dữ liệu ít mà sạch cộng eval trung thực đánh bại dữ liệu nhiều mà lẫn lộn."
   - id: b10
     type: callout
     kind: warning
