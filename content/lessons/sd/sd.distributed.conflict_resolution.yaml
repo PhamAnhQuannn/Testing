@@ -1,5 +1,5 @@
 id: sd.distributed.conflict_resolution
-version: 1
+version: 2
 status: published
 title_vi: "Giải quyết xung đột: LWW, OT và CRDT (conflict resolution)"
 est_minutes: 13
@@ -8,6 +8,10 @@ objectives_vi:
   - "So sánh **LWW** (last-write-wins), **OT** (operational transformation) và **CRDT** (conflict-free replicated data type) qua ví dụ văn bản 'ab' và G-counter."
   - "Dùng **vector clock** để nhận ra hai bản là song song (xung đột) hay một bản con cháu của bản kia, và nêu chi phí của **tombstone** khi xóa."
 blocks:
+  - id: s_why_conflict
+    type: section
+    title_vi: "Vì sao xung đột xảy ra và LWW xử lý thế nào"
+    summary_vi: "Ghi đồng thời trên nhiều replica (offline / multi-master) tạo xung đột khi hai người sửa cùng dữ liệu mà không thấy nhau; LWW chọn bản có timestamp muộn hơn — đơn giản nhưng âm thầm mất một edit và phụ thuộc đồng hồ máy."
   - id: b01
     type: text
     md: |
@@ -37,6 +41,10 @@ blocks:
       - {id: c, text_md: "Giỏ rỗng, vì hai ghi đồng thời nên LWW hủy cả hai."}
     answer: [b]
     explain_md: "LWW chỉ giữ một bản theo timestamp muộn hơn, nên edit kia mất âm thầm — đây đúng là điểm yếu của LWW với dữ liệu cần gộp. Muốn giữ cả hai phải đổi cách ghép (ví dụ coi giỏ như một tập hợp và hợp hai bản, tức tư duy CRDT). (a) sai vì LWW không hợp; (c) sai vì LWW chọn một bản chứ không hủy cả hai."
+  - id: s_vector_clock
+    type: section
+    title_vi: "Vector clock — phát hiện xung đột hay con cháu"
+    summary_vi: "Vector clock so sánh từng chỉ số: bộ này ≥ bộ kia ở mọi chỗ thì là con cháu (thay thẳng); mỗi bên có một chỗ lớn hơn thì hai bản sửa song song — xung đột, cần ghép."
   - id: b04
     type: text
     md: |
@@ -60,6 +68,10 @@ blocks:
       - {id: c, text_md: "{A:3, B:3} và {A:3, B:3} — hai bộ giống hệt nhau."}
     answer: [b]
     explain_md: "Song song (xung đột) khi không bộ nào lớn hơn hoặc bằng bộ kia ở MỌI chỉ số: ở (b), A có 2>1 còn B có 0<1, nên không bên nào bao trùm → hai nhánh song song. (a) bộ đầu bao trùm bộ sau → nó là bản mới hơn, chỉ cần thay. (c) hai bộ bằng nhau → cùng một phiên bản, không có xung đột."
+  - id: s_ot_crdt
+    type: section
+    title_vi: "OT và CRDT — hai cách ghép không mất dữ liệu"
+    summary_vi: "OT biến đổi thao tác đồng thời để mọi máy hội tụ (nền Google Docs) nhưng cần server trung tâm sắp thứ tự; CRDT thiết kế phép ghép giao hoán/kết hợp/lũy đẳng nên không cần phối hợp — G-counter lấy max từng máy rồi cộng, trả giá bằng metadata phình to và tombstone khi xóa."
   - id: b06
     type: text
     md: |
@@ -94,6 +106,10 @@ blocks:
     blanks:
       - accept: ["7", "bảy"]
     explain_md: "Ghép = max từng máy: max(3,2)=3 cho A, max(0,4)=4 cho B → {A:3, B:4}. Giá trị = tổng các bộ đếm = 3 + 4 = 7. Lưu ý KHÔNG cộng dọc kiểu 3+0+2+4; ghép là lấy max per-node trước rồi mới cộng, nên nhận lại cùng một cập nhật không làm số bị phồng."
+  - id: s_interview_cr
+    type: section
+    title_vi: "Chọn cơ chế nào và mẹo phỏng vấn"
+    summary_vi: "Trả lời theo trục mất dữ liệu / độ phức tạp / cần server: LWW cho giá trị đơn lẻ, OT cho soạn thảo chung cần server trung tâm, CRDT cho offline/P2P chấp nhận metadata lớn; luôn nêu vector clock để phân biệt 'phát hiện' với 'giải quyết' xung đột."
   - id: b09
     type: callout
     kind: interview

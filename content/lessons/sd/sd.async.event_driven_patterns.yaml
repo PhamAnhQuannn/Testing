@@ -1,5 +1,5 @@
 id: sd.async.event_driven_patterns
-version: 1
+version: 2
 status: published
 title_vi: "Event sourcing, CQRS, saga, outbox: bốn mẫu hướng sự kiện"
 est_minutes: 14
@@ -8,6 +8,10 @@ objectives_vi:
   - "Vẽ được luồng của saga cho ví dụ đặt hàng (order) đến thanh toán (payment), gồm bước bù (compensating action)."
   - "Nói được khi nào KHÔNG nên dùng mỗi mẫu: chúng thêm độ phức tạp, một app CRUD đơn giản không cần."
 blocks:
+  - id: s_eventsourcing_cqrs
+    type: section
+    title_vi: "Event sourcing và CQRS"
+    summary_vi: "Event sourcing lưu nhật ký sự kiện bất biến (append-only) làm nguồn sự thật thay vì trạng thái hiện tại; lợi là audit/time-travel, giá là chi phí replay và schema evolution khó. CQRS tách mô hình ghi khỏi mô hình đọc để scale đọc độc lập; giá là nhất quán cuối cùng và nhiều bộ phận hơn."
   - id: b01
     type: text
     md: |
@@ -52,6 +56,10 @@ blocks:
       - {id: c, text_md: "Bảng đọc làm sẵn là nguồn sự thật; cái giá là nhất quán cuối cùng."}
     answer: [b]
     explain_md: "Event sourcing lưu nhật ký sự kiện bất biến làm nguồn sự thật và dựng lại trạng thái bằng replay; giá phải trả là chi phí replay (nên cần snapshot) và schema evolution khó vì sự kiện cũ lưu vĩnh viễn. (a) là mô hình lưu trạng thái thông thường; (c) nhầm sang read model của CQRS."
+  - id: s_saga
+    type: section
+    title_vi: "Saga: giao dịch phân tán qua bước bù"
+    summary_vi: "Saga biến một thao tác trải nhiều service thành chuỗi giao dịch cục bộ, mỗi bước commit riêng; khi một bước hỏng thì chạy bước bù (compensating action) ngược lại thay vì giữ khóa 2PC toàn cục. Luồng đặt hàng: giữ hàng → trừ tiền → giao vận; nếu giao vận lỗi thì hoàn tiền rồi nhả hàng."
   - id: b05
     type: text
     md: |
@@ -78,6 +86,10 @@ blocks:
       - {id: c, text_md: "Thử lại bước giao vận vô hạn cho đến khi thành công, không đụng vào tiền hay hàng."}
     answer: [b]
     explain_md: "Saga không giữ khóa toàn cục như 2PC; mỗi bước đã commit cục bộ, nên khi một bước sau hỏng phải chạy bước bù để hoàn tác các bước trước (hoàn tiền, nhả hàng). (a) chính là thứ saga né tránh; (c) thử lại vô hạn bỏ rơi tiền đã trừ và hàng đã giữ."
+  - id: s_outbox_when_not
+    type: section
+    title_vi: "Outbox và khi nào không nên dùng các mẫu"
+    summary_vi: "Outbox ghi sự kiện vào bảng nằm trong cùng giao dịch DB với dữ liệu nghiệp vụ (nguyên tử), rồi relay/CDC đẩy ra queue at-least-once — bên nhận vẫn phải idempotent. Cả bốn mẫu đều thêm độ phức tạp; app CRUD một DB thường không cần mẫu nào."
   - id: b07
     type: text
     md: |

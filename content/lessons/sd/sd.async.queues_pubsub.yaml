@@ -1,5 +1,5 @@
 id: sd.async.queues_pubsub
-version: 1
+version: 2
 status: published
 title_vi: "Message queue và pub/sub: tách rời, chịu đột biến và giao tin tin cậy"
 est_minutes: 13
@@ -8,6 +8,10 @@ objectives_vi:
   - "Phân biệt **message queue** (điểm-tới-điểm, một tin cho một consumer) và **pub/sub** (phát tán, một tin cho nhiều subscriber), và chọn đúng cho từng tình huống."
   - "Mô tả cơ chế lõi: acknowledgement (ack), visibility timeout, retry có backoff và dead-letter queue (DLQ)."
 blocks:
+  - id: s_async_why
+    type: section
+    title_vi: "Vì sao dùng nhắn tin bất đồng bộ"
+    summary_vi: "Async messaging tách việc chậm ra khỏi đường request: producer bỏ tin vào kênh trung gian rồi đi tiếp; consumer lấy ra làm sau. Ba lợi ích: tách rời (decouple — không cần online cùng lúc), hấp thụ đột biến (buffer khi cao điểm) và làm mượt tải (consumer rút theo tốc độ nó chịu được)."
   - id: b01
     type: text
     md: |
@@ -22,6 +26,10 @@ blocks:
         vì dội thẳng vào consumer. Kênh đóng vai trò **bộ đệm (buffer)** chịu tải.
       - **Làm mượt tải (smooth load):** consumer rút tin theo tốc độ nó chịu được, biến một đợt dồn
         dập thành dòng việc đều đặn — thay vì phải cấp đủ máy cho đỉnh tức thời.
+  - id: s_queue_vs_pubsub
+    type: section
+    title_vi: "Queue điểm-tới-điểm so với pub/sub fan-out"
+    summary_vi: "Queue = một tin cho đúng một consumer (competing consumers — chia việc, mỗi việc làm một lần); pub/sub = một tin cho mọi subscriber (fan-out — sự kiện nhiều hệ cùng cần biết). Câu hỏi chọn: 'việc này một nơi làm hay nhiều nơi cùng cần biết?'"
   - id: b02
     type: text
     md: |
@@ -49,6 +57,10 @@ blocks:
       - {id: c, text_md: "Một queue duy nhất và cả ba hệ cùng rút competing-consumers từ đó."}
     answer: [b]
     explain_md: "Đây là một **sự kiện** mà nhiều hệ cùng cần biết, nên cần **fan-out** của pub/sub: mỗi subscriber nhận một bản sao. (a) sai vì queue chỉ giao tin cho một consumer. (c) sai vì competing consumers nghĩa là mỗi tin chỉ một worker lấy được, hai hệ kia sẽ không thấy đơn đó."
+  - id: s_ack_retry_dlq
+    type: section
+    title_vi: "Ack, visibility timeout, retry và DLQ"
+    summary_vi: "Tin không bị xóa khi rút mà chỉ bị ẩn trong visibility timeout; consumer gửi ack khi xong — nếu chết trước ack thì tin hiện lại cho worker khác. Lỗi tạm thời dùng retry có exponential backoff + jitter; poison message vượt max attempts thì vào DLQ để không nghẽn dòng chính."
   - id: b04
     type: text
     md: |
@@ -93,6 +105,10 @@ blocks:
       - accept: ["dead-letter queue", "dead letter queue", "DLQ", "dead-letter queue (DLQ)"]
         regex: '(?i)^\s*(dead[- ]?letter[- ]?queue|dlq)\s*$'
     explain_md: "**Dead-letter queue (DLQ)** là nơi chứa các tin không xử lý được sau số lần thử tối đa, tách chúng khỏi dòng việc chính để không gây nghẽn và để điều tra sau."
+  - id: s_atleastonce
+    type: section
+    title_vi: "At-least-once và consumer idempotent"
+    summary_vi: "Vì tin được giao lại khi thiếu ack, mặc định của hầu hết queue là at-least-once — một tin có thể tới consumer nhiều hơn một lần; hệ quả: consumer nên idempotent (xử lý cùng một tin hai lần cho ra cùng kết quả), thường bằng cách gắn ID tin và bỏ qua tin đã thấy."
   - id: b08
     type: text
     md: |

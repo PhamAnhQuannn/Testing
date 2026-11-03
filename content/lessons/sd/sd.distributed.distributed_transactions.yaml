@@ -1,5 +1,5 @@
 id: sd.distributed.distributed_transactions
-version: 1
+version: 2
 status: published
 title_vi: "Giao dịch phân tán (distributed transactions): 2PC, saga, TCC"
 est_minutes: 14
@@ -8,6 +8,10 @@ objectives_vi:
   - "Mô tả saga là chuỗi giao dịch cục bộ có **bước bù** (compensating action), phân biệt choreography với orchestration, và vì sao bước bù phải **idempotent**."
   - "Nêu TCC (try-confirm-cancel) như một saga có bước giữ chỗ tường minh, và chọn được 2PC hay saga cho một luồng thanh toán/đặt chỗ."
 blocks:
+  - id: s_2pc
+    type: section
+    title_vi: "2PC: atomic nhưng blocking và điểm chết đơn"
+    summary_vi: "2PC dùng coordinator chạy prepare rồi commit để đảm bảo atomicity thật sự; nhược điểm: giữ khóa cả hai pha (blocking) và coordinator chết sau prepare khiến các bên kẹt mãi giữ khóa — đây là điểm chết đơn làm availability kém, hiếm dùng xuyên microservice."
   - id: b01
     type: text
     md: |
@@ -45,6 +49,10 @@ blocks:
       - {id: c, text_md: "Vì mỗi bên tự quyết commit riêng, dẫn tới dữ liệu không nhất quán giữa các service."}
     answer: [b]
     explain_md: "Sau prepare, các participant đã khóa dữ liệu và chờ lệnh pha 2; coordinator chết thì không ai được quyền tự quyết, nên họ **blocking** và giữ khóa — đó là điểm chết đơn của 2PC. (a) sai vì không có lệnh nào tới nên không tự abort được; (c) sai vì 2PC không cho bên nào tự quyết."
+  - id: s_saga
+    type: section
+    title_vi: "Saga: chuỗi giao dịch cục bộ và bước bù idempotent"
+    summary_vi: "Saga là chuỗi giao dịch cục bộ, mỗi bước có compensating action để hoàn tác; choreography (theo event) hoặc orchestration (có orchestrator điều khiển); đổi availability lấy eventual consistency và no isolation — bước bù phải idempotent vì retry có thể gọi lại."
   - id: b04
     type: text
     md: |
@@ -75,6 +83,10 @@ blocks:
       - {id: c, text_md: "Saga bảo đảm nguyên tử tức thời như 2PC mà không cần bước bù."}
     answer: [b]
     explain_md: "Saga commit từng bước cục bộ nên không khóa chéo (availability tốt) nhưng giữa chừng lộ trạng thái dở dang (no isolation) và chỉ hội tụ về đúng sau khi chạy xong/chạy bù (eventual). (a) sai — saga không giữ khóa chéo; (c) sai — chính vì không nguyên tử tức thời nên mới cần bước bù."
+  - id: s_tcc_choice
+    type: section
+    title_vi: "TCC và cách chọn giữa 2PC và saga"
+    summary_vi: "TCC là saga có giữ chỗ tường minh — Try đặt trước tài nguyên, Confirm biến thành chính thức, Cancel nhả lại; Confirm/Cancel phải idempotent; quy tắc chọn: ít DB cần atomic tức thời dùng 2PC, nhiều service giao dịch dài dùng saga/TCC kèm đối soát định kỳ."
   - id: b06
     type: text
     md: |

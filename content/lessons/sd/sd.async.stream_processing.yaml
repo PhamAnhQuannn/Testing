@@ -1,5 +1,5 @@
 id: sd.async.stream_processing
-version: 1
+version: 2
 status: published
 title_vi: "Xử lý luồng và xử lý lô (stream và batch processing): window, watermark, checkpoint"
 est_minutes: 14
@@ -8,6 +8,10 @@ objectives_vi:
   - "Tổng hợp theo cửa sổ (windowing: tumbling/sliding/session) tính theo event time, và xử lý sự kiện muộn (late events) bằng watermark."
   - "Khôi phục bằng checkpoint và ghi idempotent ra sink để chạy lại (replay) không đếm đúp."
 blocks:
+  - id: s_stream_vs_batch
+    type: section
+    title_vi: "Stream và batch: độ trễ, thông lượng và event time"
+    summary_vi: "Stream xử lý sự kiện liên tục với độ trễ thấp (giây); batch chạy một khối dữ liệu hữu hạn theo lịch với thông lượng cao nhưng kết quả trễ. Tính theo event time (lúc việc xảy ra) chứ không theo processing time để đếm đúng — sự kiện tới sau event time đã qua gọi là late event."
   - id: b01
     type: text
     md: |
@@ -27,6 +31,10 @@ blocks:
       theo **event time**: một click lúc 10:00:59 nhưng tới server lúc 10:01:03 vẫn thuộc phút 10:00.
       Sự kiện tới sau khi event time của nó đã "quá hạn" so với tiến độ xử lý gọi là **sự kiện muộn
       (late event)** — đây là vấn đề trung tâm của xử lý luồng.
+  - id: s_windowing
+    type: section
+    title_vi: "Ba loại cửa sổ (windowing)"
+    summary_vi: "Ba loại window cắt luồng vô tận thành khung tổng hợp: tumbling (cố định không chồng — mỗi sự kiện rơi vào đúng một khung, hợp với 'đếm mỗi phút'); sliding (trượt theo bước nhỏ hơn độ dài — một sự kiện có thể nằm nhiều khung, hợp với 'N giờ gần nhất cập nhật mỗi phút'); session (theo khoảng nghỉ hành vi — độ dài không cố định)."
   - id: b03
     type: text
     md: |
@@ -53,6 +61,10 @@ blocks:
       Yêu cầu là "1 giờ gần nhất" và "cập nhật mỗi phút" nên cần khung dài 1 giờ trượt bước 1 phút
       (sliding). Tumbling 1 giờ chỉ ra kết quả vào mỗi đầu giờ, không cập nhật mỗi phút; session
       window gom theo khoảng nghỉ của người dùng, không phải một khoảng thời gian cố định.
+  - id: s_watermark
+    type: section
+    title_vi: "Watermark và xử lý sự kiện muộn"
+    summary_vi: "Watermark = tín hiệu 'mọi sự kiện có event time trước T coi như đã tới'; khi watermark vượt qua cuối một cửa sổ thì cửa sổ được chốt và phát kết quả. Biên trễ lớn = chính xác hơn nhưng kết quả trễ hơn; biên nhỏ = nhanh nhưng dễ bỏ sót late events."
   - id: b05
     type: text
     md: |
@@ -77,6 +89,10 @@ blocks:
       Watermark là mốc "mọi sự kiện có event time trước T coi như đã tới"; khi nó qua cuối một cửa sổ
       thì cửa sổ được chốt. Biên trễ lớn thì chính xác hơn nhưng trễ hơn. (a) sai vì ta đếm theo event
       time chứ không sắp theo processing time; (c) là việc của checkpoint, không phải watermark.
+  - id: s_checkpoint_sink
+    type: section
+    title_vi: "Checkpoint, ghi idempotent và khi nào batch là đủ"
+    summary_vi: "Checkpoint lưu ảnh chụp trạng thái + offset để khôi phục không tính lại từ đầu; kết hợp ghi idempotent ra sink (upsert theo khóa [cửa sổ, id]) để replay sau khôi phục không đếm đúp — hai thứ cùng nhau cho kết quả exactly-once ở sink. Dùng batch khi không cần độ trễ thấp hoặc cần tính lại lịch sử lớn."
   - id: b07
     type: text
     md: |

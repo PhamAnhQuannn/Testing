@@ -1,5 +1,5 @@
 id: sd.api.async_apis
-version: 1
+version: 2
 status: published
 title_vi: "API bất đồng bộ (async APIs): job dài, webhook và stream token"
 est_minutes: 14
@@ -8,6 +8,10 @@ objectives_vi:
   - "Nêu đủ các điều kiện để **webhook** đáng tin cậy: retry có backoff, ký payload bằng HMAC, receiver idempotent, dead-letter queue, chống phát lại (replay)."
   - "Giải thích vì sao API cho ứng dụng LLM nên **stream token** qua SSE, và vẽ được luồng đó."
 blocks:
+  - id: s_async_pattern
+    type: section
+    title_vi: "Mẫu async request-reply cho job dài"
+    summary_vi: "Việc mất lâu không nên đồng bộ (timeout, client treo, dễ chạy trùng khi retry); mẫu async: trả 202 Accepted + job id + status URL ngay, chạy ở nền; client poll GET /jobs/{id} (kèm Retry-After) hoặc đăng ký webhook để nhận callback khi xong."
   - id: b01
     type: text
     md: |
@@ -43,6 +47,10 @@ blocks:
       - {id: c, text_md: "**204 No Content** và không trả thông tin gì, vì việc sẽ tự xong ở nền."}
     answer: [b]
     explain_md: "Việc 2 phút không nên giữ kết nối đồng bộ (dễ timeout, client treo, dễ chạy trùng khi retry). Trả **202 Accepted** + job id + status URL để client poll hoặc nhận callback. (a) giữ kết nối 2 phút là đúng cái ta tránh; (c) không có job id thì client không biết hỏi ở đâu."
+  - id: s_webhook
+    type: section
+    title_vi: "Webhook đáng tin cậy: ký, retry, idempotent"
+    summary_vi: "Bên gửi: retry có exponential backoff, ký payload bằng HMAC (shared secret) để xác minh nguồn, kèm timestamp chống replay, và dead-letter queue khi retry hết lần; bên nhận: xác minh chữ ký, từ chối tin quá cũ, và idempotent theo event id vì webhook giao at-least-once."
   - id: b04
     type: text
     md: |
@@ -81,6 +89,10 @@ blocks:
       - {id: c, text_md: "Vì nếu không idempotent thì server gửi sẽ không thể ký được payload."}
     answer: [a]
     explain_md: "Retry + backoff bảo đảm giao được nhưng kéo theo khả năng trùng (at-least-once), nên bên nhận phải khử trùng bằng event id. (b) sai: HMAC chỉ để xác minh nguồn/toàn vẹn, không liên quan số lần gửi; (c) sai: ký payload độc lập với tính idempotent của bên nhận."
+  - id: s_llm_streaming
+    type: section
+    title_vi: "Stream token cho ứng dụng LLM qua SSE"
+    summary_vi: "Câu trả lời LLM có thể mất nhiều giây; stream từng token qua SSE (text/event-stream, một chiều) để chữ hiện dần ngay khi sinh ra — giảm thời gian tới chữ đầu, trải nghiệm tự nhiên, và cho phép client hủy giữa chừng; nhẹ hơn WebSocket vì chỉ cần một chiều."
   - id: b07
     type: text
     md: |

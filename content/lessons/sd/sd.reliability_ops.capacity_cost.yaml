@@ -1,5 +1,5 @@
 id: sd.reliability_ops.capacity_cost
-version: 1
+version: 2
 status: published
 title_vi: "Dự phòng công suất và chi phí (capacity và cost)"
 est_minutes: 13
@@ -8,6 +8,10 @@ objectives_vi:
   - "Chọn đúng **tín hiệu autoscaling** (CPU, QPS/RPS, độ dài hàng đợi, p99 latency) và phân biệt scale phản ứng (reactive) với scale theo lịch/dự báo (scheduled/predictive), kèm vì sao cold-start quan trọng."
   - "Nêu được **3 cách cụ thể** để giảm chi phí lưu trữ (storage) hoặc băng thông (bandwidth)."
 blocks:
+  - id: s_sizing
+    type: section
+    title_vi: "Size theo peak, headroom và dự phòng N+1"
+    summary_vi: "Lập kế hoạch công suất theo giờ cao điểm không theo trung bình; chừa headroom ~60-70% để hấp thụ đột biến và khi máy chết; công thức: tải đỉnh ÷ công suất mỗi máy ÷ mức sử dụng mục tiêu → làm tròn lên → cộng N+1/N+2."
   - id: b01
     type: text
     md: |
@@ -65,6 +69,10 @@ blocks:
       Công suất hữu dụng = 500 × 0,80 = 400 QPS/máy. Số máy đỡ đỉnh = 20.000 ÷ 400 = 50 (chia hết, không
       cần làm tròn). Cộng N+1 → 51 máy. (a) bỏ cả headroom lẫn dự phòng nên thiếu; (c) đúng tới bước
       headroom nhưng quên 1 máy dự phòng.
+  - id: s_autoscaling
+    type: section
+    title_vi: "Autoscaling: tín hiệu đúng và cold-start"
+    summary_vi: "Chọn tín hiệu gần nút thắt thật: QPS/CPU cho web API, queue depth/consumer lag cho worker nền, p99 latency cho trải nghiệm; reactive chạy sau tải một nhịp nên cần headroom — scheduled/predictive + pre-warm đi trước khi tải tăng biết trước."
   - id: b05
     type: text
     md: |
@@ -112,6 +120,10 @@ blocks:
       nhất. (b) p99 web không phản ánh tải của worker nền. (c) đợi đến lúc đầy mới phản ứng là reactive
       cực đoan: cold-start khiến worker mới chưa kịp phục vụ thì việc đã dồn ứ — cần headroom và đôi khi
       pre-warm.
+  - id: s_cost
+    type: section
+    title_vi: "Giảm chi phí storage và bandwidth"
+    summary_vi: "Chi phí lớn nằm ở compute, storage và egress; 5 cách cụ thể: phân tầng + lifecycle (dữ liệu cũ sang kho lạnh), nén (gzip/zstd), CDN để cắt egress, reserved/spot instances, và TTL/retention để không giữ dữ liệu không cần thiết."
   - id: b08
     type: text
     md: |

@@ -1,5 +1,5 @@
 id: sd.distributed.time_ordering
-version: 1
+version: 2
 status: published
 title_vi: "Thời gian, thứ tự và đồng hồ logic (logical clocks)"
 est_minutes: 13
@@ -8,6 +8,10 @@ objectives_vi:
   - "Mô tả đúng đồng hồ Lamport (Lamport clock) và quy tắc cập nhật khi nhận tin, và biết nó không chứng minh được nhân quả."
   - "Chọn đúng công cụ sắp thứ tự cho một tình huống: số thứ tự (sequence number), Lamport clock hay vector clock."
 blocks:
+  - id: s_wall_clock_problem
+    type: section
+    title_vi: "Vì sao không thể tin đồng hồ thật để sắp thứ tự"
+    summary_vi: "Clock skew, NTP nhảy/lùi giờ và đồng hồ chạy ngược khiến last-write-wins theo timestamp đè mất dữ liệu âm thầm; số thứ tự tăng dần đơn điệu từ một nguồn duy nhất (offset Kafka, sequence DB) là công cụ đơn giản nhất nhưng cần mọi việc đi qua một chỗ."
   - id: b01
     type: text
     md: |
@@ -43,6 +47,10 @@ blocks:
       - {id: c, text_md: "Vì NTP làm mọi đồng hồ khớp tuyệt đối nên timestamp luôn bằng nhau và không phân định được."}
     answer: [b]
     explain_md: "Giờ máy không đáng tin: clock skew, NTP nhảy giờ và đồng hồ chạy ngược khiến timestamp không phản ánh đúng thứ tự thật, nên bản mới có thể thua bản cũ và mất dữ liệu. (a) sai trọng tâm; (c) sai vì NTP giảm lệch chứ không làm khớp tuyệt đối."
+  - id: s_lamport_clock
+    type: section
+    title_vi: "Lamport clock — thứ tự toàn phần nhất quán với nhân quả"
+    summary_vi: "Lamport clock: khi nhận tin đặt local = max(local, received) + 1; cho thứ tự toàn phần nhất quán với nhân quả (A gây B thì số A < số B), nhưng số nhỏ hơn KHÔNG chứng minh nhân quả — không phát hiện được hai việc đồng thời."
   - id: b04
     type: text
     md: |
@@ -66,6 +74,10 @@ blocks:
     blanks:
       - accept: ["10"]
     explain_md: "max(5, 9) + 1 = 10. Nhận tin thì lấy giá trị lớn hơn giữa bộ đếm của mình và số nhận được, rồi cộng 1 — nhờ vậy số của sự kiện nhận luôn lớn hơn số của sự kiện gửi."
+  - id: s_vector_clock_truetime
+    type: section
+    title_vi: "Vector clock phát hiện đồng thời và TrueTime dùng giờ thật an toàn"
+    summary_vi: "Vector clock giữ một bộ đếm cho mỗi máy: bộ này ≥ bộ kia ở mọi vị trí thì so sánh được (nhân quả), mỗi bên có một vị trí lớn hơn thì đồng thời/xung đột; TrueTime (Spanner) dùng giờ thật an toàn bằng khoảng bất định có chặn và commit-wait qua sai số."
   - id: b06
     type: text
     md: |

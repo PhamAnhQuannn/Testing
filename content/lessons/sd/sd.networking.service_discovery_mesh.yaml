@@ -1,5 +1,5 @@
 id: sd.networking.service_discovery_mesh
-version: 1
+version: 2
 status: published
 title_vi: "Service discovery và service mesh: tìm nhau và gọi nhau an toàn"
 est_minutes: 14
@@ -8,6 +8,10 @@ objectives_vi:
   - "Phân biệt **client-side discovery** và **server-side discovery** cùng tradeoff của mỗi bên."
   - "Mô tả **service mesh** với **sidecar proxy**: nó làm hộ gì, khi nào đáng chi phí, và thêm độ trễ ở đâu."
 blocks:
+  - id: s_discovery_basics
+    type: section
+    title_vi: "Service discovery và service registry"
+    summary_vi: "Hạ tầng động (autoscaling, container) làm IP:port thay đổi liên tục nên không thể ghi cứng; service registry (Consul/etcd, Kubernetes DNS) là danh bạ tự cập nhật — instance tự đăng ký, gửi heartbeat, hết TTL bị xóa; discovery kiểu DNS dễ dính bẫy cache TTL giữ địa chỉ cũ."
   - id: b01
     type: text
     md: |
@@ -40,6 +44,10 @@ blocks:
       - {id: c, text_md: "Vì discovery giúp mã hóa toàn bộ lưu lượng giữa các service."}
     answer: [b]
     explain_md: "Trong hạ tầng động, instance đến và đi liên tục nên địa chỉ không ổn định — đó là lý do cần một danh bạ tự cập nhật. (a) sai, discovery không phải để tăng tốc tính toán; (c) mã hóa là việc của mTLS trong service mesh, không phải bản thân discovery."
+  - id: s_client_server_discovery
+    type: section
+    title_vi: "Client-side và server-side discovery: ai chọn instance"
+    summary_vi: "Client-side: client tự hỏi registry và tự load-balance — bớt một hop nhưng logic nằm trong client, khó cho đội polyglot; server-side: client gọi một LB/gateway cố định, LB tra registry — client đơn giản nhưng thêm một hop; Kubernetes đi kiểu server-side."
   - id: b04
     type: text
     md: |
@@ -64,6 +72,10 @@ blocks:
       - {id: c, text_md: "Client-side không cần registry, còn server-side thì cần."}
     answer: [a]
     explain_md: "Khác biệt cốt lõi là ai chọn instance và cái giá kèm theo: client-side đổi sự đơn giản của client lấy việc bớt một hop; server-side đổi một hop LB lấy client gọn nhẹ, hợp đội polyglot. (b) sai: server-side vẫn phải tra registry (do LB làm) và thêm một hop; (c) sai: cả hai đều dựa trên registry."
+  - id: s_service_mesh
+    type: section
+    title_vi: "Service mesh và sidecar proxy: khi nào đáng chi phí"
+    summary_vi: "Service mesh đặt sidecar (Envoy) cạnh mỗi service, làm hộ mTLS, retry, timeout, circuit breaking, traffic-splitting và observability — kéo networking ra khỏi code; đáng khi hệ có hàng chục service đa ngôn ngữ; quá mức khi 5 service một ngôn ngữ (dùng thư viện chung); mỗi lời gọi thêm độ trễ vì qua hai chặng proxy."
   - id: b06
     type: text
     md: |

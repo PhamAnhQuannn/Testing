@@ -1,5 +1,5 @@
 id: sd.technologies.stream_coord
-version: 1
+version: 2
 status: published
 title_vi: "Chọn công nghệ stream và điều phối: Kafka, Flink/Spark, ZooKeeper/etcd"
 est_minutes: 14
@@ -8,6 +8,10 @@ objectives_vi:
   - "Phân biệt Flink (xử lý luồng thật, theo giờ sự kiện) với Spark (xử lý lô và vi-lô) để chọn theo yêu cầu độ trễ/thông lượng."
   - "Nói đúng vai trò của ZooKeeper/etcd (điều phối: config, bầu leader, service discovery, khóa) và vì sao không chứa dữ liệu lớn ở đó."
 blocks:
+  - id: s_kafka
+    type: section
+    title_vi: "Kafka: log sự kiện bền, không phải task queue"
+    summary_vi: "Kafka là log chia partition, bền, đọc lại được cho event streaming — nhiều consumer group đọc độc lập bằng offset riêng; nhưng không có ack/visibility-timeout/xóa từng tin nên không phải task queue — dùng SQS/RabbitMQ khi cần ngữ nghĩa đó."
   - id: b01
     type: text
     md: |
@@ -57,6 +61,10 @@ blocks:
       Đây là bài **hàng đợi việc**: cần ack/xóa/hoãn/thử lại *từng tin*. SQS/RabbitMQ cho đúng ngữ
       nghĩa đó. (a) sai vì Kafka **không** có ack/visibility-timeout/xóa từng tin — tiến độ chỉ là
       offset tuyến tính; (c) sai vì Spark là công cụ xử lý lô, không phải cơ chế phân phát việc.
+  - id: s_stream_proc
+    type: section
+    title_vi: "Flink vs Spark: độ trễ thấp hay thông lượng cao"
+    summary_vi: "Flink xử lý luồng thật độ trễ dưới giây, có trạng thái (stateful) và tính theo event-time với window/watermark — chọn khi cần cảnh báo trong vài giây; Spark mạnh ở lô và vi-lô, thông lượng cao, hợp tính lại lịch sử/ETL/báo cáo."
   - id: b05
     type: text
     md: |
@@ -86,6 +94,10 @@ blocks:
       Yêu cầu là **độ trễ vài giây + trạng thái theo từng thẻ + theo giờ sự kiện** → đúng sở trường
       **Flink**. (a) sai vì batch đêm trễ hàng giờ, bắt gian lận quá muộn; (c) sai vì Kafka chỉ *vận
       chuyển/lưu* sự kiện, việc tính cửa sổ có trạng thái là của bộ xử lý như Flink.
+  - id: s_coordination
+    type: section
+    title_vi: "ZooKeeper/etcd: điều phối metadata nhỏ, nhất quán mạnh"
+    summary_vi: "ZooKeeper/etcd dựa trên đồng thuận (ZAB/Raft) để giữ ít KB metadata nhất quán mạnh: config, bầu leader, service discovery, khóa phân tán — không chứa dữ liệu lớn vì mỗi lần ghi phải nhân bản qua đa số node."
   - id: b07
     type: text
     md: |
@@ -135,6 +147,10 @@ blocks:
       **điều phối** metadata nhỏ, nhất quán mạnh. (b) sai vì không thứ nào là kho dữ liệu lớn vạn
       năng; (c) sai vì coordination service không phải (và không nên làm) hàng đợi việc — việc đó
       dành cho SQS/RabbitMQ.
+  - id: s_interview_sc
+    type: section
+    title_vi: "Khuôn trả lời phỏng vấn và câu ăn điểm"
+    summary_vi: "Trả lời: nêu yêu cầu (độ trễ/thông lượng/cần đọc lại/nhất quán) → chọn Kafka/SQS, Flink/Spark, etcd đúng chỗ → nêu 1 giới hạn; hai câu ăn điểm: 'Kafka không phải task queue' và 'đừng nhét dữ liệu lớn vào etcd/ZooKeeper'."
   - id: b11
     type: callout
     kind: interview

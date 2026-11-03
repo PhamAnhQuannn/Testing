@@ -1,5 +1,5 @@
 id: sd.distributed.gossip_quorum
-version: 1
+version: 2
 status: published
 title_vi: "Gossip, membership và quorum kiểu Dynamo"
 est_minutes: 14
@@ -8,6 +8,10 @@ objectives_vi:
   - "Dùng bất đẳng thức **W + R > N** để chọn N, R, W cho một yêu cầu cho trước và nêu trade-off khi chỉnh (tunable consistency)."
   - "Nêu vai trò của read repair, hinted handoff và cách gossip phát hiện thành viên (membership / failure detection)."
 blocks:
+  - id: s_leaderless_quorum
+    type: section
+    title_vi: "Kho leaderless kiểu Dynamo và quy tắc W + R > N"
+    summary_vi: "Kho leaderless (Cassandra/Dynamo) ghi và đọc tới nhiều bản sao cùng lúc; W + R > N đảm bảo tập ghi và tập đọc giao nhau ít nhất một máy nên đọc luôn thấy bản mới nhất; ví dụ N=3, W=2, R=2 vì 2+2=4>3."
   - id: b01
     type: text
     md: |
@@ -47,6 +51,10 @@ blocks:
       Điều kiện là **W + R > N**. Với N = 3: (b) 2 + 2 = 4 > 3 nên hai tập giao nhau, đọc gặp bản mới.
       (a) 1 + 1 = 2 < 3 — nhanh nhưng có thể đọc cũ. (c) 1 + 2 = 3, **không** lớn hơn 3 (phải *lớn hơn*,
       không phải *bằng*), nên vẫn có thể hai tập rời nhau và đọc trúng bản cũ.
+  - id: s_tunable_consistency
+    type: section
+    title_vi: "Tunable consistency — đánh đổi R và W theo yêu cầu"
+    summary_vi: "W lớn = ghi bền nhưng chậm; W=1 = rất nhanh nhưng yếu; đọc nhiều thì R=1, W=N; cân bằng R=W=⌈(N+1)/2⌉ (N=3 → R=W=2); luôn giữ W+R>N để đảm bảo read-your-writes qua quorum."
   - id: b04
     type: text
     md: |
@@ -73,6 +81,10 @@ blocks:
       Cần W + R > N, tức 3 + R > 5, nên R > 2, suy ra R nhỏ nhất là **R = 3**. Khi đó tập ghi (3 máy)
       và tập đọc (3 máy) trong N = 5 buộc phải giao nhau ít nhất một máy, nên đọc thấy bản vừa ghi.
       R = 2 cho 3 + 2 = 5, không lớn hơn 5, nên không đảm bảo.
+  - id: s_convergence_gossip
+    type: section
+    title_vi: "Hội tụ bản sao và gossip lo membership"
+    summary_vi: "Read repair sửa bản cũ ngay khi đọc; hinted handoff cho máy khác giữ hộ ghi rồi phát lại khi máy gốc sống lại; gossip lan trạng thái cụm qua hỏi thăm ngẫu nhiên (số máy biết tin gần gấp đôi mỗi vòng) — không cần sổ đăng ký trung tâm nên mở rộng tốt."
   - id: b06
     type: text
     md: |

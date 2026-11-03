@@ -1,5 +1,5 @@
 id: sd.technologies.stores
-version: 1
+version: 2
 status: published
 title_vi: "Chọn kho dữ liệu: PostgreSQL, DynamoDB/Cassandra, S3"
 est_minutes: 13
@@ -8,6 +8,10 @@ objectives_vi:
   - "Nêu đúng điểm mạnh cùng **một giới hạn** của mỗi loại, bám theo yêu cầu (requirement) chứ không theo thương hiệu."
   - "Với mỗi thực thể (entity) trong một thiết kế, chọn được một kho cụ thể kèm 1-2 lý do theo yêu cầu và 1 giới hạn."
 blocks:
+  - id: s_intro_stores
+    type: section
+    title_vi: "Ba câu hỏi chọn kho dữ liệu"
+    summary_vi: "Chọn kho không theo thương hiệu mà theo ba câu hỏi: cần giao dịch/join không? ghi bao nhiêu mỗi giây? truy vấn theo khóa hay tổng hợp? — ba câu đó dẫn tới PostgreSQL, DynamoDB/Cassandra hoặc S3."
   - id: b01
     type: text
     md: |
@@ -16,6 +20,10 @@ blocks:
       muốn thấy bạn nối **lựa chọn với yêu cầu** (requirement): dữ liệu này cần giao dịch
       (transaction) và join không? ghi (write) bao nhiêu mỗi giây? truy vấn theo khóa hay tổng hợp?
       Ba câu hỏi đó dẫn tới ba kho chủ lực dưới đây.
+  - id: s_postgres
+    type: section
+    title_vi: "PostgreSQL: mặc định cho dữ liệu giao dịch có quan hệ"
+    summary_vi: "PostgreSQL/relational cho ACID, join và secondary index tùy ý — nhưng mọi lệnh ghi dồn về một primary nên có trần ghi của một máy; muốn chia tải ghi phải sharding, mất join/transaction xuyên shard."
   - id: b02
     type: text
     md: |
@@ -28,6 +36,10 @@ blocks:
         (write ceiling) của một máy. Đọc có thể giảm tải bằng read replica, nhưng để chia tải *ghi*
         thì phải sharding — mà sharding trên Postgres phức tạp và làm mất join/giao dịch xuyên shard
         dễ dàng.
+  - id: s_dynamo_s3
+    type: section
+    title_vi: "DynamoDB/Cassandra và S3: ghi cao và blob"
+    summary_vi: "DynamoDB/Cassandra scale ghi ngang theo partition key với thông lượng gần như không trần — nhưng không join và truy vấn ad-hoc rất hạn chế; S3 lưu blob rẻ và bền nhưng không phải DB, metadata vẫn phải để ở Postgres."
   - id: b03
     type: text
     md: |
@@ -78,6 +90,10 @@ blocks:
     blanks:
       - accept: ["partition key", "khóa phân vùng", "partition-key", "khoa phan vung"]
     explain_md: "Partition key (khóa phân vùng) quyết định dữ liệu nằm ở máy nào; chọn sai khóa thì dữ liệu lệch (hot partition) và truy vấn không theo khóa sẽ rất đắt."
+  - id: s_interview_stores
+    type: section
+    title_vi: "Polyglot persistence và khuôn trả lời phỏng vấn"
+    summary_vi: "Thực tế dùng nhiều kho cùng lúc (polyglot persistence): Postgres cho lõi giao dịch, wide-column cho luồng ghi lớn, S3 cho file; duyệt từng thực thể và nêu lý do theo yêu cầu + 1 giới hạn — không nói 'em dùng MongoDB cho tất cả'."
   - id: b08
     type: callout
     kind: interview

@@ -1,5 +1,5 @@
 id: sd.distributed.consensus
-version: 1
+version: 2
 status: published
 title_vi: "Consensus và bầu leader (consensus, leader election): Paxos, Raft, ZooKeeper/etcd"
 est_minutes: 14
@@ -8,6 +8,10 @@ objectives_vi:
   - "Giải thích Raft ở mức phỏng vấn: **nhiệm kỳ (term)**, **bầu leader (leader election)**, **chép log (log replication)** và vì sao hai quorum luôn chồng nhau nên chỉ có một sự thật."
   - "Biết khi nào dùng **etcd / ZooKeeper** làm sẵn (config, bầu leader, service discovery, distributed lock) thay vì tự viết consensus."
 blocks:
+  - id: s_consensus_quorum
+    type: section
+    title_vi: "Consensus là gì và tại sao cần quorum đa số"
+    summary_vi: "Consensus = nhiều máy đồng ý một giá trị/thứ tự log dù có máy chết; quorum đa số = ⌊n/2⌋+1 vì hai nhóm đa số luôn chồng nhau ít nhất một máy, đảm bảo một sự thật duy nhất và chống split brain; cụm lẻ 2f+1 chịu f lỗi."
   - id: b01
     type: text
     md: |
@@ -46,6 +50,10 @@ blocks:
       - {id: c, text_md: "Cần cả 5 máy đồng ý; chịu được 0 máy chết."}
     answer: [b]
     explain_md: "Đa số của 5 là ⌊5/2⌋ + 1 = 3. Còn sống 3 máy vẫn tạo được đa số, nên chịu được 5 − 3 = 2 máy chết (đúng công thức 2f + 1 với f = 2). (a) 2 máy không phải đa số của 5; (c) đòi đủ 5 máy thì mất một máy là cả cụm dừng — như vậy không còn chịu lỗi."
+  - id: s_raft_mechanism
+    type: section
+    title_vi: "Raft: term, bầu leader và chép log"
+    summary_vi: "Raft chia thời gian thành term (mỗi term tối đa một leader); leader do đa số bầu qua request votes; lệnh commit khi đa số máy ack — hai quorum chồng nhau đảm bảo lệnh đã commit không bao giờ mất dù leader chết ngay sau đó."
   - id: b04
     type: text
     md: |
@@ -92,6 +100,10 @@ blocks:
       - {accept: ["4", "bốn"]}
       - {accept: ["3", "ba"]}
     explain_md: "Đa số của 7 là ⌊7/2⌋ + 1 = 4. Còn sống 4 máy vẫn là đa số, nên chịu được 7 − 4 = 3 máy chết (khớp 2f + 1 với f = 3). Đây là lý do cụm thường có số lẻ: 7 máy chịu 3 lỗi, trong khi 8 máy cũng chỉ chịu 3 mà lại cần tới 5 phiếu mỗi quyết định."
+  - id: s_etcd_usage
+    type: section
+    title_vi: "Dùng etcd/ZooKeeper — đừng tự viết consensus"
+    summary_vi: "etcd và ZooKeeper cung cấp ephemeral node và watch để xây config, bầu leader, service discovery và distributed lock; mỗi lần ghi đợi quorum nên chỉ giữ vài KB — không phải kho dữ liệu chính, mua tính nhất quán trả bằng độ trễ và thông lượng ghi."
   - id: b08
     type: callout
     kind: interview

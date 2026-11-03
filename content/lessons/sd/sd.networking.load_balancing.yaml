@@ -1,5 +1,5 @@
 id: sd.networking.load_balancing
-version: 1
+version: 2
 status: published
 title_vi: "Cân bằng tải (load balancing): L4/L7, thuật toán, health check"
 est_minutes: 13
@@ -8,6 +8,10 @@ objectives_vi:
   - "Chọn đúng **thuật toán** chia tải cho API thường so với kết nối giữ lâu, và giải thích health check (active/passive) để loại server chết."
   - "Giải thích vì sao **chính load balancer** cũng là điểm chết (SPOF) và cách làm nó dự phòng."
 blocks:
+  - id: s_l4_l7
+    type: section
+    title_vi: "L4 và L7: chia tải ở tầng nào"
+    summary_vi: "L4 chia theo kết nối TCP/UDP mà không đọc nội dung — rất nhanh nhưng 'mù'; L7 đọc được HTTP (URL, header, cookie) nên định tuyến theo path và kết thúc TLS được, đổi lại tốn CPU hơn."
   - id: b01
     type: text
     md: |
@@ -48,6 +52,10 @@ blocks:
       - {id: c, text_md: "Tầng nào cũng được, vì L4 và L7 chỉ khác nhau ở tốc độ chứ không khác khả năng."}
     answer: [b]
     explain_md: "Chia theo `/api` vs `/static` là định tuyến theo **nội dung HTTP**, và TLS termination cũng là việc ở tầng ứng dụng — chỉ **L7** làm được. (a) sai vì L4 không đọc URL; (c) sai vì chúng khác nhau về khả năng, không chỉ tốc độ."
+  - id: s_algorithms
+    type: section
+    title_vi: "Thuật toán chia tải"
+    summary_vi: "Round robin hợp khi server đồng đều và request ngắn; least connections hợp khi kết nối sống lâu (WebSocket) vì đếm kết nối đang mở mới phản ánh đúng tải; IP hash/consistent hash tạo affinity nhưng sticky session gây lệch tải và mất phiên khi máy chết."
   - id: b04
     type: text
     md: |
@@ -77,6 +85,10 @@ blocks:
       - {id: c, text_md: "IP hash, vì mục tiêu chính ở đây là giữ mỗi khách vào đúng một máy cố định."}
     answer: [b]
     explain_md: "Với kết nối giữ lâu, số kết nối **đang mở** mới là tải thật, nên **least connections** cân bằng tốt nhất. Round robin chỉ đếm 'lượt phát' chứ không biết kết nối cũ vẫn còn sống, nên theo thời gian một số máy phình kết nối. (a) sai vì round robin chỉ đều khi tải mỗi lượt gần nhau; (c) sai vì affinity không phải mục tiêu ở đây."
+  - id: s_health_ha
+    type: section
+    title_vi: "Health check và dự phòng load balancer"
+    summary_vi: "Active health check (LB tự gọi /health) phát hiện sớm; passive (quan sát lỗi traffic thật) không tốn request thăm dò nhưng biết sau; dùng kết hợp. Chính LB là SPOF nên cần active–passive (floating IP/VRRP) hoặc active–active (anycast/DNS) để LB không là điểm chết duy nhất."
   - id: b06
     type: text
     md: |

@@ -1,5 +1,5 @@
 id: sd.async.task_workers
-version: 1
+version: 2
 status: published
 title_vi: "Background job, retry và worker: làm việc nền an toàn khi chạy trùng"
 est_minutes: 13
@@ -8,6 +8,10 @@ objectives_vi:
   - "Thiết kế **retry** đúng: exponential backoff + jitter, giới hạn số lần, và DLQ; và vì sao job phải **idempotent** khi delivery là at-least-once."
   - "Thêm **điều tốc/đồng thời** (rate control, concurrency, per-tenant fairness) và **theo dõi trạng thái job** để hệ worker an toàn và quan sát được."
 blocks:
+  - id: s_background_job
+    type: section
+    title_vi: "Tại sao cần background job"
+    summary_vi: "Việc chậm (gửi email, tạo thumbnail, xuất báo cáo) không nên làm đồng bộ trong request vì giữ luồng web và dễ sập. Giải pháp chuẩn: request chỉ bỏ việc vào queue rồi trả lời ngay; một worker pool lấy ra làm nền — tách việc chậm khỏi đường request."
   - id: b01
     type: text
     md: |
@@ -19,6 +23,10 @@ blocks:
       **Sidekiq** (Ruby), hay nói chung **queue + worker**. Đây là phần tiếp của queue/pub-sub đã học
       (**sd.async.queues_pubsub**): giờ ta tập trung vào *con worker* lấy việc ra làm sao cho **đáng
       tin cậy**.
+  - id: s_retry_dlq
+    type: section
+    title_vi: "Retry đúng cách: exponential backoff, jitter và DLQ"
+    summary_vi: "Retry ngay lập tức dồn dập làm hỏng thứ đang yếu; dùng exponential backoff (1s→2s→4s…) để dependency kịp hồi và jitter (nhiễu ngẫu nhiên) để tránh thundering herd khi nhiều job cùng hỏng. Sau max attempts mà vẫn hỏng thì chuyển vào DLQ — poison job không chặn hàng, người vận hành xem lại sau."
   - id: b02
     type: text
     md: |
@@ -44,6 +52,10 @@ blocks:
       - {id: c, text_md: "Vì nếu không có jitter thì job sẽ bị đưa vào DLQ ngay lần hỏng đầu tiên."}
     answer: [b]
     explain_md: "Backoff giãn khoảng cách giữa các lần thử để dependency đang yếu kịp hồi; jitter phá vỡ sự đồng bộ nên các lần retry rải ra thay vì dồn thành một đợt đập. (a) jitter thêm chờ chứ không bỏ chờ; (c) DLQ xảy ra sau khi vượt max attempts, không liên quan tới có jitter hay không."
+  - id: s_idempotency
+    type: section
+    title_vi: "At-least-once delivery và job idempotent"
+    summary_vi: "Queue đảm bảo at-least-once: worker chết trước khi ack hoặc hết visibility timeout khiến job chạy lần hai. Cách thực dụng: gắn mỗi job một khóa idempotency (order_id) và ghi dấu đã-làm; lần chạy sau thấy đã làm thì bỏ qua — đây là ý quan trọng nhất: at-least-once buộc job phải idempotent."
   - id: b04
     type: text
     md: |
@@ -69,6 +81,10 @@ blocks:
       - {id: c, text_md: "Tăng visibility timeout lên thật lớn để worker không bao giờ bị giao lại việc."}
     answer: [b]
     explain_md: "At-least-once nghĩa là chạy trùng sẽ xảy ra (worker chết trước khi ack, timeout...), nên phải thiết kế job chịu được điều đó: ghi dấu theo khóa idempotency và bỏ qua nếu đã làm. (a) tắt retry làm mất độ tin cậy, job hỏng sẽ không bao giờ hoàn thành; (c) timeout lớn không loại bỏ được việc worker chết, và còn làm việc kẹt lâu khi worker thật sự chết."
+  - id: s_rate_observability
+    type: section
+    title_vi: "Điều tốc, fairness và theo dõi trạng thái job"
+    summary_vi: "Giới hạn số worker đồng thời tránh cạn connection pool; rate-limit downstream theo tốc độ API ngoài cho phép; per-tenant fairness (queue riêng/ưu tiên) ngăn một tenant chặn hàng. Lưu máy trạng thái job (pending/running/succeeded/failed) + tiến độ + kết quả để client polling và để autoscale theo độ sâu queue."
   - id: b06
     type: text
     md: |
