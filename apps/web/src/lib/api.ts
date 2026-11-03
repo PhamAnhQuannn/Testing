@@ -81,7 +81,12 @@ export const nowIso = () => new Date().toISOString();
 export interface MapSubtopic {
   id: string;
   name_vi: string;
+  section: string;
+  section_name: string;
   module: string;
+  module_name: string;
+  track: string;
+  track_name: string;
   status: string;
   score: number;
   unlocked: boolean;
@@ -129,10 +134,17 @@ function lockText(raw: Loose): string | null {
 export function normalizeMap(data: unknown): MapSubtopic[] {
   return asArray(data, ["subtopics", "items", "nodes"]).map((raw) => {
     const id = String(raw.id ?? raw.subtopic_id);
+    const section = String(raw.section ?? id.split(".")[0]);
+    const module = String(raw.module ?? id.split(".").slice(0, 2).join("."));
     return {
       id,
       name_vi: String(raw.name_vi ?? raw.title_vi ?? raw.name ?? id),
-      module: String(raw.module ?? id.split(".").slice(0, 2).join(".")),
+      section,
+      section_name: String(raw.section_name ?? section),
+      module,
+      module_name: String(raw.module_name ?? module.split(".").slice(-1)[0]),
+      track: String(raw.track ?? "other"),
+      track_name: String(raw.track_name ?? "Khác"),
       status: String(raw.status ?? "new"),
       score: Number(raw.score ?? 0),
       unlocked: raw.unlocked !== false,

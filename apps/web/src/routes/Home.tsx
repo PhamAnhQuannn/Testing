@@ -29,6 +29,52 @@ export function groupByModule(items: MapSubtopic[]): [string, MapSubtopic[]][] {
   return [...groups.entries()];
 }
 
+/** One module group inside a section. */
+export interface MapModuleGroup {
+  module: string;
+  module_name: string;
+  items: MapSubtopic[];
+}
+/** One section group inside a track. */
+export interface MapSectionGroup {
+  section: string;
+  section_name: string;
+  modules: MapModuleGroup[];
+}
+/** One track group (top level of the map tree). */
+export interface MapTrackGroup {
+  track: string;
+  track_name: string;
+  sections: MapSectionGroup[];
+}
+
+/**
+ * Nest the flat map into Track -> Section -> Module, preserving the input order at every level
+ * (items arrive in plan order from the API). Labels are the Vietnamese names the API attaches.
+ */
+export function groupByTrackSectionModule(items: MapSubtopic[]): MapTrackGroup[] {
+  const tracks: MapTrackGroup[] = [];
+  for (const item of items) {
+    let track = tracks.find((t) => t.track === item.track);
+    if (!track) {
+      track = { track: item.track, track_name: item.track_name, sections: [] };
+      tracks.push(track);
+    }
+    let section = track.sections.find((s) => s.section === item.section);
+    if (!section) {
+      section = { section: item.section, section_name: item.section_name, modules: [] };
+      track.sections.push(section);
+    }
+    let module = section.modules.find((m) => m.module === item.module);
+    if (!module) {
+      module = { module: item.module, module_name: item.module_name, items: [] };
+      section.modules.push(module);
+    }
+    module.items.push(item);
+  }
+  return tracks;
+}
+
 /** "1h20" / "25 phút" / "0 phút": neutral study time, view only (no goal). */
 export function formatStudy(seconds: number): string {
   const minutes = Math.floor(seconds / 60);
