@@ -446,6 +446,9 @@ export type LessonBlock =
 export interface KnownAnswer {
   correct: boolean;
   answer?: unknown;
+  /** Carried only for same-session hydration (not from the server reload snapshot). */
+  explain?: string;
+  correctAnswer?: unknown;
 }
 
 export interface Lesson {

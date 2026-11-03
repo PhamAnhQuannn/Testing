@@ -47,6 +47,18 @@ async function gotoBlockSection(page, lessonArg, blockId) {
   if ((await btn.getAttribute("aria-current")) !== "step") await btn.click();
   if (lessonArg.blocks.find((b) => b.id === blockId).type !== "section") await page.locator(`#block-${blockId}`).waitFor({ state: "visible", timeout: 15000 });
 }
+const INTERACTIVE = ["quiz_mcq", "quiz_fill", "predict_output", "code_exercise"];
+const isInteractiveType = (t) => INTERACTIVE.includes(t);
+// Interactive items (quiz/predict/code) live in the RIGHT pane, one at a time. Open the whole-lesson
+// list and click the item to jump to it (this navigates sections too), then wait for it to render.
+async function gotoItem(page, blockId) {
+  const listBtn = page.locator("button:has-text('Danh sách bài tập')").first();
+  await listBtn.waitFor({ timeout: 15000 });
+  await listBtn.click();
+  await page.locator(`.exnav-item[data-block-id="${blockId}"]`).click();
+  if (block(blockId).type === "code_exercise") await page.locator(".pane.right .cm-content").waitFor({ timeout: 15000 });
+  else await page.locator(`#block-${blockId}`).waitFor({ state: "visible", timeout: 15000 });
+}
 
 const log = [];
 let failed = false;
@@ -158,10 +170,13 @@ async function main() {
     await chip.click();
     await page.waitForSelector(".lesson .block");
     // sectioned lesson: only the current (first) section renders, never all blocks at once
-    const firstSection = lesson.blocks.filter((b) => b.type !== "section" && sectionIndexOf(b.id) === 0);
+    // left pane shows only THEORY blocks of the current section (interactive moved to the right pane)
+    const firstSectionTheory = lesson.blocks.filter(
+      (b) => b.type !== "section" && sectionIndexOf(b.id) === 0 && !isInteractiveType(b.type),
+    );
     const nSections = lesson.blocks.filter((b) => b.type === "section").length + (lesson.blocks[0].type !== "section" ? 1 : 0);
     const blocks = await page.locator(".lesson .block").count();
-    check(`lesson renders its first section (${firstSection.length} of ${lesson.blocks.length} blocks)`, blocks === firstSection.length && blocks >= 1, String(blocks));
+    check(`lesson left pane renders the first section's theory (${firstSectionTheory.length} blocks)`, blocks === firstSectionTheory.length && blocks >= 1, String(blocks));
     check(`section rail lists ${nSections} sections`, (await page.locator("nav.section-rail ol li").count()) === nSections);
 
     // ---- read: runnable sample, then quizzes (b12 answered wrong on purpose: quiz_best 0.8)
@@ -170,7 +185,7 @@ async function main() {
     await page.waitForFunction(() => document.body.innerText.includes("Khớp output mong đợi"), null, { timeout: 60000 });
     check("code_sample runs in Pyodide and matches expected_output", true);
     const mcq = async (id, optionText) => {
-      await gotoBlockSection(page, lesson, id);
+      await gotoItem(page, id);
       const f = page.locator(`#block-${id} fieldset`);
       await f.locator("label", { hasText: optionText }).click();
       await f.locator("button:has-text('Kiểm tra')").click();
@@ -178,14 +193,14 @@ async function main() {
       return f.locator("[role=status]").innerText();
     };
     check("b04 quiz_mcq correct (graded by server)", (await mcq("b04", "KeyError")).includes("Đúng"));
-    await gotoBlockSection(page, lesson, "b06");
+    await gotoItem(page, "b06");
     let f = page.locator("#block-b06 fieldset");
     await f.locator("input.text-input").fill("get");
     await f.locator("button:has-text('Kiểm tra')").click();
     await f.locator("[role=status]").waitFor({ timeout: 5000 });
     check("b06 quiz_fill correct", (await f.locator("[role=status]").innerText()).includes("Đúng"));
     const predict = async (id, text) => {
-      await gotoBlockSection(page, lesson, id);
+      await gotoItem(page, id);
       const p = page.locator(`#block-${id} fieldset`);
       await p.locator("textarea").fill(text);
       await p.locator("button:has-text('Kiểm tra')").click();
@@ -197,14 +212,12 @@ async function main() {
     check("b12 wrong answer shows 'Chưa đúng' + explanation", wrong.includes("Chưa đúng") && wrong.length > 20);
     check("b13 predict_output correct", (await predict("b13", block("b13").expected_output.trim())).includes("Đúng"));
 
-    // ---- code_exercise in the lesson
-    // split width: the section's exercise is auto-paired in the right pane (no open click)
-    await gotoBlockSection(page, lesson, "b14");
-    await page.waitForSelector(".pane.right .cm-content");
+    // ---- code_exercise in the lesson (right pane, selected from the exercise list)
+    await gotoItem(page, "b14");
     await setCode(page, block("b14").solution, ".pane.right .cm-content");
     await page.keyboard.press("Control+Enter");
     await waitVerdict(page, "test qua", 30000);
-    check("code_exercise passes in the lesson editor", (await page.locator("#block-b14").innerText()).includes("Xong"));
+    check("code_exercise passes in the lesson editor", (await page.locator(".pane.right").innerText()).includes("test qua"));
 
     // ---- resume position: reported per section (flat lesson = one section, id = first block); wait for the 3 s debounce
     await page.waitForTimeout(3500);
@@ -214,13 +227,13 @@ async function main() {
     // ---- reload keeps quiz progress and resume position
     await page.reload();
     await page.waitForSelector(".lesson .block");
-    await gotoBlockSection(page, lesson, "b14"); // the exercise's section (resume may or may not have restored it)
-    check("reload: right pane editor auto-paired", await page.waitForSelector(".pane.right .cm-content", { timeout: 15000 }).then(() => true, () => false));
-    await gotoBlockSection(page, lesson, "b04");
+    await gotoItem(page, "b14");
+    check("reload: right pane editor for the code exercise", await page.waitForSelector(".pane.right .cm-content", { timeout: 15000 }).then(() => true, () => false));
+    await gotoItem(page, "b04");
     const stateText = await page.locator("#block-b04 fieldset").innerText();
     const stillDisabled = await page.locator("#block-b04 fieldset").evaluate((e) => e.disabled);
     check("reload: answered quiz stays answered (server progress)", stillDisabled && stateText.includes("Đúng"));
-    await gotoBlockSection(page, lesson, "b12");
+    await gotoItem(page, "b12");
     check("reload: wrong answer b12 remembered as wrong",(await page.locator("#block-b12 fieldset").innerText()).includes("Chưa đúng"));
     check("reload: quiz tally 4/5", (await page.locator(".crumbs").innerText()).includes("Quiz 4/5"), (await page.locator(".crumbs").innerText()).replace(/\n/g, " "));
 

@@ -1,46 +1,61 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Markdown } from "../components/Markdown";
-import { isGraded } from "../lib/grade";
+import { BlockView, type BlockContext } from "./Blocks";
 import { ExercisePane } from "./ExercisePane";
-import type { CodeExerciseBlock, LessonExerciseEntry, Section } from "./sections";
+import type { InteractiveBlock, LessonInteractiveEntry, Section } from "./sections";
 
-/** Label for one exercise in the jump list. */
-function exLabel(ex: CodeExerciseBlock): string {
-  return ex.entry ? `${ex.entry}()` : ex.id;
+const TYPE_LABEL: Record<InteractiveBlock["type"], string> = {
+  code_exercise: "Code",
+  quiz_mcq: "Trắc nghiệm",
+  quiz_fill: "Điền chỗ trống",
+  predict_output: "Đoán output",
+};
+
+/** Short label for one item in the jump list: the entry for code, else the item type. */
+function itemLabel(block: InteractiveBlock): string {
+  if (block.type === "code_exercise") return block.entry ? `${block.entry}()` : "Bài code";
+  return TYPE_LABEL[block.type];
+}
+
+/** Whether an interactive item is "done" (code passed, or a quiz/predict answered). */
+function itemDone(block: InteractiveBlock, done: Set<string>, results: Record<string, boolean>): boolean {
+  return block.type === "code_exercise" ? done.has(block.id) : block.id in results;
 }
 
 /**
- * Right-pane navigation above the editor: ◄ "Bài i/N" ► over the CURRENT section's exercises, plus a
- * toggle that opens the whole-lesson exercise list to jump to any exercise or practice problem.
- * Rendered outside the keyed ExercisePane so switching does not lose the open/closed list state.
+ * Right-pane navigation above the active item: ◄ "Câu i/N" ► over the CURRENT section's interactive
+ * items, plus a toggle that opens the whole-lesson list to jump to any item or practice problem.
+ * Rendered outside the keyed item so switching never loses the open/closed list state.
  */
 function ExerciseNav({
-  exercises,
+  interactive,
   index,
   onPrev,
   onNext,
-  allExercises,
+  allInteractive,
   currentId,
   practice,
   extra,
   onJump,
-  doneExercises,
+  done,
+  results,
 }: {
-  exercises: CodeExerciseBlock[];
+  interactive: InteractiveBlock[];
   index: number;
   onPrev: () => void;
   onNext: () => void;
-  allExercises: LessonExerciseEntry[];
+  allInteractive: LessonInteractiveEntry[];
   currentId?: string;
   practice: string[];
   extra: string[];
-  onJump: (sectionIdx: number, exerciseId: string) => void;
-  doneExercises: Set<string>;
+  onJump: (sectionIdx: number, blockId: string) => void;
+  done: Set<string>;
+  results: Record<string, boolean>;
 }) {
   const [open, setOpen] = useState(false);
-  const total = exercises.length;
-  const hasMany = allExercises.length > 1 || practice.length + extra.length > 0;
+  const total = interactive.length;
+  const hasMany = allInteractive.length > 1 || practice.length + extra.length > 0;
   return (
     <div className="exnav">
       <div className="exnav-bar">
@@ -48,20 +63,20 @@ function ExerciseNav({
           className="btn sm"
           onClick={onPrev}
           disabled={index <= 0}
-          aria-label="Bài tập trước"
-          title="Bài tập trước"
+          aria-label="Câu trước"
+          title="Câu trước"
         >
           ◄
         </button>
         <span className="exnav-count" aria-live="polite">
-          Bài {total > 0 ? Math.min(index + 1, total) : 0}/{total}
+          Câu {total > 0 ? Math.min(index + 1, total) : 0}/{total}
         </span>
         <button
           className="btn sm"
           onClick={onNext}
           disabled={index < 0 || index >= total - 1}
-          aria-label="Bài tập sau"
-          title="Bài tập sau"
+          aria-label="Câu sau"
+          title="Câu sau"
         >
           ►
         </button>
@@ -78,23 +93,25 @@ function ExerciseNav({
       </div>
       {open && (
         <div className="exnav-list card">
-          {allExercises.length > 0 && (
+          {allInteractive.length > 0 && (
             <ol className="exnav-exercises">
-              {allExercises.map((e) => {
-                const isCurrent = e.exercise.id === currentId;
-                const isDone = doneExercises.has(e.exercise.id);
+              {allInteractive.map((e) => {
+                const isCurrent = e.block.id === currentId;
+                const isDone = itemDone(e.block, done, results);
                 return (
-                  <li key={e.exercise.id}>
+                  <li key={e.block.id}>
                     <button
                       className={`exnav-item${isCurrent ? " current" : ""}`}
+                      data-block-id={e.block.id}
                       aria-current={isCurrent || undefined}
                       onClick={() => {
-                        onJump(e.sectionIdx, e.exercise.id);
+                        onJump(e.sectionIdx, e.block.id);
                         setOpen(false);
                       }}
                     >
                       <span aria-hidden="true">{isDone ? "✔ " : isCurrent ? "▶ " : ""}</span>
-                      {exLabel(e.exercise)}
+                      <span className="muted">{e.ordinal}.</span> {itemLabel(e.block)}
+                      <span className="chip neutral">{TYPE_LABEL[e.block.type]}</span>
                       {e.sectionTitle && <span className="muted"> · {e.sectionTitle}</span>}
                     </button>
                   </li>
@@ -125,107 +142,152 @@ function ExerciseNav({
   );
 }
 
-/** Right pane, switched on section.kind. Never blank. */
+/** Render the active interactive item: the keyed editor for code, else the quiz/predict block. */
+function CurrentItem({
+  block,
+  subtopicId,
+  canEdit,
+  onPassed,
+  ctx,
+}: {
+  block: InteractiveBlock;
+  subtopicId: string;
+  canEdit: boolean;
+  onPassed: (blockId: string) => void;
+  ctx: BlockContext;
+}) {
+  if (block.type === "code_exercise") {
+    if (!canEdit) {
+      return (
+        <div>
+          <div className="toolbar">
+            <strong>Bài tập: {block.entry}()</strong>
+          </div>
+          <Markdown md={block.md} />
+          <div className="card muted">Mở trên máy tính (và mở khoá mục này) để viết code.</div>
+        </div>
+      );
+    }
+    // keyed: exactly one editor is mounted, and it unmounts on item change
+    return <ExercisePane key={block.id} subtopicId={subtopicId} block={block} onPassed={onPassed} />;
+  }
+  return (
+    <div id={`block-${block.id}`} className="block">
+      <BlockView block={block} ctx={ctx} />
+    </div>
+  );
+}
+
+/** Next-section footer, shared by every pane kind. */
+function NextFooter({
+  isLast,
+  canNext,
+  nextHint,
+  onNext,
+  label = "Phần sau ►",
+}: {
+  isLast: boolean;
+  canNext: boolean;
+  nextHint: string;
+  onNext: () => void;
+  label?: string;
+}) {
+  if (isLast) return null;
+  return (
+    <div className="exnav-footer">
+      <button className="btn sm primary" onClick={onNext} disabled={!canNext}>
+        {label}
+      </button>
+      {!canNext && nextHint && <p className="muted">{nextHint}</p>}
+    </div>
+  );
+}
+
+/** Right pane. Shows the section's interactive items (quiz/predict/code); never blank. */
 export function SectionPane({
   subtopicId,
   section,
-  exercise,
+  current,
+  ctx,
+  preview,
   canEdit,
   results,
+  done,
   practice,
   extra = [],
-  exercises = [],
-  exIndex = -1,
-  allExercises = [],
-  doneExercises,
-  onPrevExercise,
-  onNextExercise,
+  interactive = [],
+  index = -1,
+  allInteractive = [],
+  onPrev,
+  onNext,
   onJump,
   onPassed,
-  onNext,
+  onNextSection,
   isLast,
   canNext = true,
   nextHint = "",
 }: {
   subtopicId: string;
   section: Section;
-  /** The exercise paired with this section (override by explicit open, else section.exercise). */
-  exercise?: CodeExerciseBlock;
+  /** The active interactive item (explicit selection, else section default). */
+  current?: InteractiveBlock;
+  ctx: BlockContext;
+  preview: boolean;
   canEdit: boolean;
   results: Record<string, boolean>;
+  done: Set<string>;
   practice: string[];
   extra?: string[];
-  /** The current section's exercises, in order (for the ◄ i/N ► counter). */
-  exercises?: CodeExerciseBlock[];
-  exIndex?: number;
-  /** Every exercise in the whole lesson (for the jump list). */
-  allExercises?: LessonExerciseEntry[];
-  doneExercises?: Set<string>;
-  onPrevExercise?: () => void;
-  onNextExercise?: () => void;
-  onJump?: (sectionIdx: number, exerciseId: string) => void;
-  onPassed: (blockId: string) => void;
+  /** The current section's interactive items, in order (for the ◄ i/N ► counter). */
+  interactive?: InteractiveBlock[];
+  index?: number;
+  /** Every interactive item in the whole lesson (for the jump list). */
+  allInteractive?: LessonInteractiveEntry[];
+  onPrev: () => void;
   onNext: () => void;
+  onJump: (sectionIdx: number, blockId: string) => void;
+  onPassed: (blockId: string) => void;
+  onNextSection: () => void;
   isLast: boolean;
   canNext?: boolean;
   nextHint?: string;
 }) {
-  if (exercise) {
-    const nav =
-      onPrevExercise && onNextExercise && onJump ? (
+  if (current) {
+    return (
+      <div>
         <ExerciseNav
-          exercises={exercises}
-          index={exIndex}
-          onPrev={onPrevExercise}
-          onNext={onNextExercise}
-          allExercises={allExercises}
-          currentId={exercise.id}
+          interactive={interactive}
+          index={index}
+          onPrev={onPrev}
+          onNext={onNext}
+          allInteractive={allInteractive}
+          currentId={current.id}
           practice={practice}
           extra={extra}
           onJump={onJump}
-          doneExercises={doneExercises ?? new Set()}
+          done={done}
+          results={results}
         />
-      ) : null;
-    if (!canEdit) {
-      return (
-        <div>
-          {nav}
-          <div className="toolbar">
-            <strong>Bài tập: {exercise.entry}()</strong>
+        {preview && (
+          <div className="card muted" role="note">
+            Mục đang khoá — xem trước, chưa làm được. Đạt điểm 2 ở các mục tiên quyết để mở.
           </div>
-          <Markdown md={exercise.md} />
-          <div className="card muted">Mở trên máy tính (và mở khoá mục này) để viết code.</div>
-        </div>
-      );
-    }
-    // keyed: exactly one editor is mounted, and it unmounts on exercise change
-    return (
-      <div>
-        {nav}
-        <ExercisePane key={exercise.id} subtopicId={subtopicId} block={exercise} onPassed={onPassed} />
-      </div>
-    );
-  }
-
-  if (section.kind === "quiz") {
-    const graded = section.blocks.filter(isGraded);
-    const answered = graded.filter((b) => b.id in results).length;
-    return (
-      <div className="card">
-        <strong>Câu hỏi của phần này</strong>
-        <p>
-          Trả lời các câu hỏi ở khung bên trái: {answered}/{graded.length} câu đã có kết quả.
-        </p>
-        {!isLast && (
-          <button className="btn sm" onClick={onNext} disabled={!canNext}>
-            Phần sau ►
-          </button>
         )}
-        {!isLast && !canNext && nextHint && <p className="muted">{nextHint}</p>}
+        <fieldset className="preview-fieldset" disabled={preview}>
+          <CurrentItem
+            block={current}
+            subtopicId={subtopicId}
+            canEdit={canEdit}
+            onPassed={onPassed}
+            ctx={ctx}
+          />
+        </fieldset>
+        <NextFooter isLast={isLast} canNext={canNext} nextHint={nextHint} onNext={onNextSection} />
       </div>
     );
   }
 
+  // No interactive item in this section: a "remember" card.
   const callouts = section.blocks.filter((b) => b.type === "callout");
   const last = callouts[callouts.length - 1];
   return (
@@ -238,12 +300,13 @@ export function SectionPane({
       ) : (
         <p className="muted">Đọc xong phần này thì tiếp tục.</p>
       )}
-      {!isLast && (
-        <button className="btn sm primary" onClick={onNext} disabled={!canNext}>
-          Tiếp tục ►
-        </button>
-      )}
-      {!isLast && !canNext && nextHint && <p className="muted">{nextHint}</p>}
+      <NextFooter
+        isLast={isLast}
+        canNext={canNext}
+        nextHint={nextHint}
+        onNext={onNextSection}
+        label="Tiếp tục ►"
+      />
       {practice.length > 0 && (
         <p>
           Bài luyện chính:{" "}

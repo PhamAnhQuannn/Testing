@@ -12,6 +12,7 @@ import {
   putResume,
   newIdempotencyKey,
   nowIso,
+  type KnownAnswer,
   type Lesson,
   type LessonCompleteResult,
   type ResumeState,
@@ -26,11 +27,12 @@ import { BlockView, type BlockContext } from "../lesson/Blocks";
 import { SectionPane } from "../lesson/SectionPane";
 import { SectionRail } from "../lesson/SectionRail";
 import {
-  allLessonExercises,
+  allLessonInteractive,
   canAdvance,
   deriveSections,
   sectionIndexOfBlock,
   sectionStatus,
+  type InteractiveBlock,
   type Section,
 } from "../lesson/sections";
 
@@ -106,7 +108,6 @@ function LessonView({ lesson }: { lesson: Lesson }) {
   // preview-mode lesson would falsely read as done.
   const currentDone = next.data && !preview ? !upNext.some((x) => x.id === lesson.id) : false;
   const nextStudy = pickNextSubtopic(upNext, lesson.id);
-  const [tab, setTab] = useState<"lesson" | "problems">("lesson");
   const [pane, setPane] = useState<"left" | "right">("left");
   const sections = useMemo(() => deriveSections(lesson.blocks), [lesson.blocks]);
   const [sectionIdx, setSectionIdx] = useState(0);
@@ -130,6 +131,8 @@ function LessonView({ lesson }: { lesson: Lesson }) {
     Object.fromEntries(Object.entries(lesson.answers).map(([id, a]) => [id, a.correct])),
   );
   const [active, setActive] = useState<string | null>(null);
+  // This session's quiz answers, so right-pane feedback survives a remount (◄►, tab flip).
+  const [sessionKnown, setSessionKnown] = useState<Record<string, KnownAnswer>>({});
   const [done, setDone] = useState<Set<string>>(() => readDone(lesson.id));
   const [completing, setCompleting] = useState(false);
   const [outcome, setOutcome] = useState<LessonCompleteResult | null>(null);
@@ -198,9 +201,9 @@ function LessonView({ lesson }: { lesson: Lesson }) {
     reporter.report({
       mode: "lesson",
       route: `/s/${lesson.id}`,
-      ref: { subtopic_id: lesson.id, block_id: section.id, tab },
+      ref: { subtopic_id: lesson.id, block_id: section.id, tab: "lesson" },
     });
-  }, [reporter, lesson.id, section.id, tab]);
+  }, [reporter, lesson.id, section.id]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -221,6 +224,24 @@ function LessonView({ lesson }: { lesson: Lesson }) {
     setResults((r) => ({ ...r, [blockId]: correct }));
   }, []);
 
+  const onLocalAnswer = useCallback(
+    (
+      blockId: string,
+      info: { correct: boolean; answer: unknown; explain?: string; correctAnswer?: unknown },
+    ) => {
+      setSessionKnown((prev) => ({
+        ...prev,
+        [blockId]: {
+          correct: info.correct,
+          answer: info.answer,
+          explain: info.explain,
+          correctAnswer: info.correctAnswer,
+        },
+      }));
+    },
+    [],
+  );
+
   const onPassed = useCallback(
     (blockId: string) => {
       setDone((previous) => {
@@ -233,21 +254,21 @@ function LessonView({ lesson }: { lesson: Lesson }) {
     [lesson.id],
   );
 
-  const exercisesInSection = section.blocks.filter((b) => b.type === "code_exercise");
-  const exercise =
-    exercisesInSection.find((b) => b.id === active && b.type === "code_exercise") ?? section.exercise;
-  const exIndex = exercise ? exercisesInSection.findIndex((b) => b.id === exercise.id) : -1;
-  const allExercises = useMemo(() => allLessonExercises(sections), [sections]);
-  const goExerciseInSection = (i: number) => {
-    const target = exercisesInSection[i];
+  const interactive = section.interactive;
+  const current: InteractiveBlock | undefined =
+    interactive.find((b) => b.id === active) ?? section.exercise ?? interactive[0];
+  const index = current ? interactive.findIndex((b) => b.id === current.id) : -1;
+  const allInteractive = useMemo(() => allLessonInteractive(sections), [sections]);
+  const goInteractiveInSection = (i: number) => {
+    const target = interactive[i];
     if (target) {
       setActive(target.id);
       setPane("right");
     }
   };
-  const jumpToExercise = (targetSectionIdx: number, exerciseId: string) => {
+  const jumpToInteractive = (targetSectionIdx: number, blockId: string) => {
     goTo(targetSectionIdx, false);
-    setActive(exerciseId);
+    setActive(blockId);
     setPane("right");
   };
   const status = (s: Section) => sectionStatus(s, { visited: viewed, done, results, skipped });
@@ -273,16 +294,11 @@ function LessonView({ lesson }: { lesson: Lesson }) {
   const ctx: BlockContext = {
     subtopicId: lesson.id,
     runNo,
-    known: runNo === lesson.run_no ? lesson.answers : {},
+    known: { ...(runNo === lesson.run_no ? lesson.answers : {}), ...sessionKnown },
     onAnswered,
-    activeExercise: exercise?.id ?? null,
+    onLocalAnswer,
     doneExercises: done,
-    onOpenExercise: (id) => {
-      setActive(id);
-      setPane("right");
-    },
     canEdit: layout !== "narrow" && !preview,
-    showOpen: layout === "tabs" || exercisesInSection.length > 1,
   };
 
   const stats = tally(lesson.blocks, results);
@@ -313,6 +329,7 @@ function LessonView({ lesson }: { lesson: Lesson }) {
       const { run_no } = await newLessonRun(lesson.id);
       setRunNo(run_no);
       setResults({});
+      setSessionKnown({});
       setOutcome(null);
       setCompleted(false);
       completeKey.current = newIdempotencyKey();
@@ -329,9 +346,30 @@ function LessonView({ lesson }: { lesson: Lesson }) {
     const i = sectionIndexOfBlock(sections, id);
     if (i >= 0) {
       goTo(i, false);
+      // wrong blocks are graded quizzes — now in the right pane; activate and reveal them there
+      setActive(id);
+      setPane("right");
       setTimeout(() => document.getElementById(`block-${id}`)?.scrollIntoView?.({ block: "start" }), 0);
     }
   };
+
+  // Kiểm tra / Test out are navigation (they leave the lesson), rendered as links not tabs.
+  const checkLinks = (
+    <span className="check-links">
+      <button className="btn sm" onClick={() => navigate(`/check/${lesson.id}`)}>
+        Kiểm tra
+      </button>
+      <Link
+        className="btn sm ghost"
+        to={`/check/${lesson.id}?ctx=test_out`}
+        title="Đã biết rồi? Làm bài kiểm tra để bỏ qua mục này"
+      >
+        Test out
+      </Link>
+    </span>
+  );
+  // Left pane shows only theory (except on narrow, where interactive is inlined so mobile can practise).
+  const leftBlocks = layout === "narrow" ? section.blocks : section.theory;
 
   const left = (
     <>
@@ -343,28 +381,14 @@ function LessonView({ lesson }: { lesson: Lesson }) {
           · ~{lesson.est_minutes} phút · Quiz {stats.correct}/{stats.graded}
         </span>
       </div>
-      <div className="tabbar" role="tablist" style={{ padding: 0, marginBottom: 12 }}>
-        <button role="tab" aria-selected={tab === "lesson"} onClick={() => setTab("lesson")}>
+      <div className="pane-tabs" role="tablist" style={{ padding: 0, marginBottom: 12 }}>
+        <span className="pane-tab active" role="tab" aria-selected>
           Bài học
-        </button>
-        <button role="tab" aria-selected={tab === "problems"} onClick={() => setTab("problems")}>
-          Bài tập
-        </button>
-        <button role="tab" aria-selected={false} onClick={() => navigate(`/check/${lesson.id}`)}>
-          Kiểm tra
-        </button>
-        <Link
-          className="btn sm ghost"
-          to={`/check/${lesson.id}?ctx=test_out`}
-          title="Đã biết rồi? Làm bài kiểm tra để bỏ qua mục này"
-        >
-          Test out
-        </Link>
+        </span>
+        {layout === "narrow" && checkLinks}
       </div>
       {preview && lock && <PreviewBanner item={lock} />}
-      {tab === "problems" ? (
-        <ProblemList lesson={lesson} />
-      ) : (
+      {
         <div className="lesson">
           <div ref={topRef} />
           <h1>{lesson.title_vi}</h1>
@@ -390,7 +414,7 @@ function LessonView({ lesson }: { lesson: Lesson }) {
           <fieldset className="preview-fieldset" disabled={preview}>
           {section.title && <h2>{section.title}</h2>}
           {section.title && section.summary && <p className="muted">{section.summary}</p>}
-          {section.blocks.map((b) => (
+          {leftBlocks.map((b) => (
             <div key={b.id} id={`block-${b.id}`} className="block">
               <BlockView block={b} ctx={ctx} />
             </div>
@@ -520,61 +544,55 @@ function LessonView({ lesson }: { lesson: Lesson }) {
             </>
           )}
         </div>
-      )}
+      }
     </>
   );
 
   const right = (
-    <SectionPane
-      subtopicId={lesson.id}
-      section={section}
-      exercise={exercise}
-      canEdit={ctx.canEdit}
-      results={results}
-      practice={lesson.problems.practice}
-      extra={lesson.problems.extra}
-      exercises={exercisesInSection}
-      exIndex={exIndex}
-      allExercises={allExercises}
-      doneExercises={done}
-      onPrevExercise={() => goExerciseInSection(exIndex - 1)}
-      onNextExercise={() => goExerciseInSection(exIndex + 1)}
-      onJump={jumpToExercise}
-      onPassed={onPassed}
-      onNext={() => goTo(sectionIdx + 1)}
-      isLast={isLast}
-      canNext={canAdvance(curStatus)}
-      nextHint={nextHint}
-    />
+    <>
+      {layout === "split" && (
+        <div className="pane-tabs" role="tablist" style={{ marginBottom: 8 }}>
+          <span className="pane-tab active" role="tab" aria-selected>
+            Bài tập
+          </span>
+          {checkLinks}
+        </div>
+      )}
+      <SectionPane
+        subtopicId={lesson.id}
+        section={section}
+        current={current}
+        ctx={ctx}
+        preview={preview}
+        canEdit={ctx.canEdit}
+        results={results}
+        done={done}
+        practice={lesson.problems.practice}
+        extra={lesson.problems.extra}
+        interactive={interactive}
+        index={index}
+        allInteractive={allInteractive}
+        onPrev={() => goInteractiveInSection(index - 1)}
+        onNext={() => goInteractiveInSection(index + 1)}
+        onJump={jumpToInteractive}
+        onPassed={onPassed}
+        onNextSection={() => goTo(sectionIdx + 1)}
+        isLast={isLast}
+        canNext={canAdvance(curStatus)}
+        nextHint={nextHint}
+      />
+    </>
   );
 
   return (
     <SplitLayout
       left={left}
       right={right}
-      leftTab="Lý thuyết"
+      leftTab="Bài học"
       rightTab="Bài tập"
       activeTab={pane}
       onTabChange={setPane}
+      tabbarExtra={checkLinks}
     />
-  );
-}
-
-function ProblemList({ lesson }: { lesson: Lesson }) {
-  const all = [...lesson.problems.practice, ...lesson.problems.extra];
-  if (all.length === 0) return <div className="empty">Mục này chưa có bài tập.</div>;
-  return (
-    <ul>
-      {lesson.problems.practice.map((id) => (
-        <li key={id}>
-          <Link to={`/p/${id}`}>{id}</Link> <span className="chip neutral">chính</span>
-        </li>
-      ))}
-      {lesson.problems.extra.map((id) => (
-        <li key={id}>
-          <Link to={`/p/${id}`}>{id}</Link>
-        </li>
-      ))}
-    </ul>
   );
 }

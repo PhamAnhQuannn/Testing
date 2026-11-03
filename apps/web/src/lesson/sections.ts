@@ -4,6 +4,24 @@ import { isGraded } from "../lib/grade";
 export type CodeExerciseBlock = Extract<LessonBlock, { type: "code_exercise" }>;
 export type SectionBlock = Extract<LessonBlock, { type: "section" }>;
 export type ContentBlock = Exclude<LessonBlock, SectionBlock>;
+/** Any block the learner acts on; these all render in the right pane (desktop). */
+export type InteractiveBlock = Extract<
+  LessonBlock,
+  { type: "quiz_mcq" | "quiz_fill" | "predict_output" | "code_exercise" }
+>;
+
+/**
+ * Pure: is this a block the learner does (right pane), vs reads (left pane)? NOT the same as
+ * `isGraded`: code_exercise is interactive but not graded, and an ungraded quiz is still interactive.
+ */
+export function isInteractive(b: LessonBlock): b is InteractiveBlock {
+  return (
+    b.type === "quiz_mcq" ||
+    b.type === "quiz_fill" ||
+    b.type === "predict_output" ||
+    b.type === "code_exercise"
+  );
+}
 
 export interface Section {
   /** The `section` block's id; the implicit intro uses its first block's id (or a sentinel). */
@@ -13,6 +31,10 @@ export interface Section {
   summary?: string;
   /** The section's non-section blocks, in order. */
   blocks: ContentBlock[];
+  /** Reading blocks (left pane): everything that is not interactive. Document order. */
+  theory: ContentBlock[];
+  /** Doing blocks (right pane): quizzes, predict_output, code_exercise. Document order. */
+  interactive: InteractiveBlock[];
   exercise?: CodeExerciseBlock;
   kind: "code" | "quiz" | "theory";
 }
@@ -29,7 +51,9 @@ function build(
   const exercises = blocks.filter((b): b is CodeExerciseBlock => b.type === "code_exercise");
   const exercise = (ref ? exercises.find((e) => e.id === ref) : undefined) ?? exercises[0];
   const kind: Section["kind"] = exercise ? "code" : blocks.some(isGraded) ? "quiz" : "theory";
-  return { id, title, summary, blocks, exercise, kind };
+  const theory = blocks.filter((b) => !isInteractive(b));
+  const interactive = blocks.filter(isInteractive);
+  return { id, title, summary, blocks, theory, interactive, exercise, kind };
 }
 
 /**
@@ -93,26 +117,26 @@ export function sectionIndexOfBlock(sections: Section[], blockId: string | undef
   return sections.findIndex((s) => s.id === blockId || s.blocks.some((b) => b.id === blockId));
 }
 
-/** One entry in the whole-lesson exercise list (used by the right-pane exercise switcher). */
-export interface LessonExerciseEntry {
-  /** Index of the section the exercise lives in. */
+/** One entry in the whole-lesson interactive list (used by the right-pane switcher / jump list). */
+export interface LessonInteractiveEntry {
+  /** Index of the section the block lives in. */
   sectionIdx: number;
   /** The section's title ("" for the implicit intro). */
   sectionTitle: string;
-  exercise: CodeExerciseBlock;
+  block: InteractiveBlock;
+  /** 1-based position among ALL interactive blocks of the lesson (for "Câu N" labels). */
+  ordinal: number;
 }
 
 /**
- * Pure: every `code_exercise` across the whole lesson, in document order, tagged with its section.
- * Feeds the "danh sách bài tập" rail so the learner can jump to any exercise from the right pane.
+ * Pure: every interactive block across the whole lesson, in document order, tagged with its section.
+ * Feeds the "danh sách bài tập" rail so the learner can jump to any item from the right pane.
  */
-export function allLessonExercises(sections: Section[]): LessonExerciseEntry[] {
-  const out: LessonExerciseEntry[] = [];
+export function allLessonInteractive(sections: Section[]): LessonInteractiveEntry[] {
+  const out: LessonInteractiveEntry[] = [];
   sections.forEach((s, sectionIdx) => {
-    for (const b of s.blocks) {
-      if (b.type === "code_exercise") {
-        out.push({ sectionIdx, sectionTitle: s.title, exercise: b });
-      }
+    for (const b of s.interactive) {
+      out.push({ sectionIdx, sectionTitle: s.title, block: b, ordinal: out.length + 1 });
     }
   });
   return out;
