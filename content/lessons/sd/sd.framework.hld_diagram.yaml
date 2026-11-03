@@ -1,5 +1,5 @@
 id: sd.framework.hld_diagram
-version: 1
+version: 2
 status: published
 title_vi: "Thiết kế tổng thể (high-level design): vẽ các hộp, kể đường đọc/ghi, mở rộng dần"
 est_minutes: 13
@@ -8,6 +8,10 @@ objectives_vi:
   - "Kể được **đường ghi (write path)** và **đường đọc (read path)** đi qua các hộp, kể cả khi cache trượt (miss)."
   - "Biện minh mỗi hộp (thêm vào để giải quyết yêu cầu nào) và biết bắt đầu đơn giản rồi **mở rộng dần** theo lộ trình đã học ở scalability."
 blocks:
+  - id: s_principle_boxes
+    type: section
+    title_vi: "Nguyên tắc vẽ và bộ hộp chuẩn"
+    summary_vi: "Bắt đầu từ client → service → database chạy được, chỉ thêm hộp khi một yêu cầu cụ thể đòi hỏi; bộ hộp chuẩn xếp theo đường request: client, DNS/CDN, LB, service stateless, cache, DB + replica, queue + worker, blob store."
   - id: b01
     type: text
     md: |
@@ -53,6 +57,10 @@ blocks:
       - {id: c, text_md: "Bắt đầu từ sharding và đa vùng vì đó là phần khó nhất, các phần còn lại suy ra sau."}
     answer: [b]
     explain_md: "Thiết kế tốt bắt đầu đơn giản rồi **mở rộng dần** có lý do — giống lộ trình 5 bước ở bài scalability. (a) vẽ hết mọi hộp mà không gắn với yêu cầu là học vẹt; (c) nhảy thẳng vào sharding khi chưa có nghẽn là ngược quy trình."
+  - id: s_read_write
+    type: section
+    title_vi: "Đường ghi và đường đọc"
+    summary_vi: "Ghi luôn về primary (việc chậm đẩy qua queue chạy async, file lớn vào blob store); đọc hỏi cache trước, miss thì đọc read replica rồi nạp lại cache nên phần lớn lượt đọc không chạm primary."
   - id: b05
     type: text
     md: |
@@ -100,6 +108,10 @@ blocks:
       - {accept: ["primary", "primary database", "DB primary", "máy chính"]}
       - {accept: ["blob store", "object store", "blob/object store", "kho object"]}
     explain_md: "LB là cổng vào rải tải; ghi luôn về **primary** (replica chỉ phục vụ đọc); file lớn nằm ở **blob/object store**, DB chỉ giữ đường dẫn. Đây đúng là các hộp và quy ước trên đường đọc/ghi."
+  - id: s_justify
+    type: section
+    title_vi: "Biện minh từng hộp và thước đo mức 3"
+    summary_vi: "Mỗi hộp phải trả lời được thêm vào để giải quyết yêu cầu nào (LB để scale ngang, cache/replica giảm tải đọc, queue cho async, blob cho file lớn, CDN cho tĩnh), không có lý do thì bỏ; mức 3 = vẽ sạch + kể hai đường + biện minh hộp."
   - id: b09
     type: text
     md: |

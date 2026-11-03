@@ -1,5 +1,5 @@
 id: sd.data.object_blob_storage
-version: 1
+version: 2
 status: published
 title_vi: "Lưu trữ đối tượng (object/blob storage): presigned URL và độ bền dữ liệu"
 est_minutes: 14
@@ -9,6 +9,10 @@ objectives_vi:
   - "Thiết kế luồng tải file lớn bằng presigned URL (client tải thẳng lên kho, bỏ qua app server) kèm multipart upload."
   - "So sánh độ bền (durability): chép 3 bản (3-way replication) vs erasure coding (ví dụ 10+4) bằng con số (3x so với 1,4x dung lượng)."
 blocks:
+  - id: s_what
+    type: section
+    title_vi: "Object storage là gì và vì sao tách blob khỏi DB"
+    summary_vi: "Object storage là ánh xạ key phẳng sang object kèm metadata, API HTTP, ghi đè cả object, rẻ và cực bền; hợp file nhị phân lớn nên để blob ở kho và chỉ giữ URL/khóa trong DB."
   - id: b01
     type: text
     md: |
@@ -48,6 +52,10 @@ blocks:
       - {id: c, text_md: "Vì object storage cho phép sửa tại chỗ vài byte giữa file nhanh hơn database."}
     answer: [b]
     explain_md: "Tách blob ra kho rẻ/bền và giữ con trỏ trong DB giúp DB gọn, sao lưu nhanh, cache sạch, và tận dụng HTTP/CDN. (a) sai — DB *lưu được* nhị phân (BLOB), chỉ là không nên; (c) sai — object storage **không** sửa tại chỗ, muốn đổi phải ghi đè cả object."
+  - id: s_upload
+    type: section
+    title_vi: "Upload bằng presigned URL và multipart"
+    summary_vi: "Server ký URL tạm có hạn và giới hạn quyền để client PUT thẳng lên kho, bỏ qua app server (chỉ ký link và ghi metadata); multipart cắt file lớn thành các phần tải song song và resumable."
   - id: b04
     type: text
     md: |
@@ -84,6 +92,10 @@ blocks:
       - {id: c, text_md: "Lưu cả file vào database để làm bản sao dự phòng trước khi chuyển sang kho."}
     answer: [b]
     explain_md: "Presigned URL cho client PUT trực tiếp vào object storage; app server chỉ ký link và ghi metadata, nên không bị nghẽn băng thông/bộ nhớ. (a) chính là mô hình đi-vòng-qua-server mà presigned URL muốn tránh; (c) sai — ta không để file trong DB."
+  - id: s_durability
+    type: section
+    title_vi: "Độ bền: chép 3 bản và erasure coding"
+    summary_vi: "Chép 3 bản tốn 3x dung lượng và chịu 2 lỗi; erasure coding 10+4 chỉ tốn 1,4x mà chịu 4 lỗi, đổi lại tốn CPU và độ trễ đọc cao hơn nên hợp dữ liệu lớn, ít nóng."
   - id: b07
     type: text
     md: |
@@ -128,6 +140,10 @@ blocks:
       1,4x dung lượng, chịu 4 lỗi. Kết: EC rẻ hơn và bền hơn nhưng đọc/ghi tốn CPU, nên dùng cho dữ liệu
       lớn/ít nóng. Người phỏng vấn chấm việc bạn *đưa ra con số đúng* và *giải thích đánh đổi*, không chỉ
       kể tên công nghệ.
+  - id: s_cdn
+    type: section
+    title_vi: "CDN phía trước cho đọc nóng"
+    summary_vi: "Đặt CDN trước object storage để cache object ở biên gần người dùng, đọc nhanh hơn và giảm tải/chi phí băng thông cho kho gốc; metadata vẫn tra từ DB."
   - id: b10
     type: text
     md: |

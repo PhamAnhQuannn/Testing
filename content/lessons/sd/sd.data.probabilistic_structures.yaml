@@ -1,5 +1,5 @@
 id: sd.data.probabilistic_structures
-version: 1
+version: 2
 status: published
 title_vi: "Cấu trúc dữ liệu xác suất (probabilistic data structures): nhớ gần đúng để tiết kiệm bộ nhớ"
 est_minutes: 14
@@ -8,6 +8,10 @@ objectives_vi:
   - "Mô tả **Bloom filter** (không bỏ sót, chỉ báo nhầm — false positive) và **tính được cỡ**: ~9.6 bit/phần tử cho sai số 1%, ~14.4 bit cho 0.1%, cùng số hàm băm tối ưu."
   - "Chọn đúng cấu trúc cho ba câu hỏi — 'đã thấy chưa?' (Bloom), 'bao nhiêu cái khác nhau?' (HyperLogLog), 'cái nào xuất hiện nhiều nhất?' (Count-Min Sketch + heap) — và nêu mức sai số chấp nhận."
 blocks:
+  - id: s_idea
+    type: section
+    title_vi: "Ý tưởng nhớ gần đúng"
+    summary_vi: "Đổi một chút sai số biết trước lấy bộ nhớ nhỏ hơn hàng nghìn lần và gần như không phụ thuộc số phần tử; ba cấu trúc ứng với ba câu hỏi: đã thấy chưa, bao nhiêu cái khác nhau, cái nào nhiều nhất."
   - id: b01
     type: text
     md: |
@@ -21,6 +25,10 @@ blocks:
       - **Bloom filter** — "đã thấy phần tử này chưa?" (kiểm tra thành viên — set membership).
       - **HyperLogLog** — "có bao nhiêu phần tử **khác nhau**?" (đếm lực lượng — cardinality).
       - **Count-Min Sketch** — "mỗi phần tử xuất hiện mấy lần, cái nào nhiều nhất?" (tần suất / top-K).
+  - id: s_bloom
+    type: section
+    title_vi: "Bloom filter và cách tính cỡ"
+    summary_vi: "Bloom (mảng bit + k hàm băm) không bao giờ bỏ sót, chỉ báo nhầm với tỉ lệ p và không xóa được; m ≈ −n·ln(p)/(ln2)² cho ~9.6 bit/phần tử ở p=1% và ~14.4 bit ở 0.1%, k tối ưu = (m/n)·ln2."
   - id: b02
     type: text
     md: |
@@ -66,6 +74,10 @@ blocks:
       - {id: c, text_md: "Đây là **false negative**: Bloom đôi khi quên mất phần tử đã thêm."}
     answer: [a]
     explain_md: "Cả k ô của URL đó vô tình bị các phần tử khác bật nên nó bị báo 'có thể đã thấy' — đó là false positive, đúng theo thiết kế và tỉ lệ p. Bloom **không có false negative** (bit chỉ bật không tắt), nên (c) sai; (b) sai vì báo nhầm là hành vi bình thường, không phải hỏng."
+  - id: s_hll_cms
+    type: section
+    title_vi: "HyperLogLog và Count-Min Sketch"
+    summary_vi: "HyperLogLog đếm số phần tử khác nhau với sai số ~2% trong ~1.5 KB không đổi theo quy mô; Count-Min Sketch đếm tần suất, chỉ đếm dư không đếm thiếu (lấy min), kết hợp heap để ra top-K."
   - id: b05
     type: text
     md: |
@@ -118,6 +130,10 @@ blocks:
       - {id: c, text_md: "Nó luôn cho số đếm chính xác tuyệt đối miễn là có đủ hàng."}
     answer: [a]
     explain_md: "Va chạm chỉ khiến một ô bị cộng thêm bởi phần tử khác, nên mọi ô đều **≥ số thật** — CMS đếm dư, không đếm thiếu; lấy **min** là ước lượng sát nhất. (b) ngược dấu; (c) sai — đây là cấu trúc xác suất, chỉ chính xác khi không có va chạm."
+  - id: s_choose
+    type: section
+    title_vi: "Chọn cấu trúc và mức sai số chấp nhận"
+    summary_vi: "Đã-thấy-chưa dùng Bloom, đếm-duy-nhất dùng HLL, top-K dùng CMS+heap; luôn nêu sai số chấp nhận và không dùng làm nguồn sự thật cho số cần chính xác tuyệt đối như tính tiền."
   - id: b09
     type: text
     md: |

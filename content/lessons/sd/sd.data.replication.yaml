@@ -1,5 +1,5 @@
 id: sd.data.replication
-version: 1
+version: 2
 status: published
 title_vi: "Sao chép dữ liệu (replication): leader-follower, sync vs async, lag và failover"
 est_minutes: 14
@@ -8,6 +8,10 @@ objectives_vi:
   - "So sánh sao chép đồng bộ (synchronous) và bất đồng bộ (asynchronous) qua đánh đổi độ bền - độ trễ (durability vs latency)."
   - "Giải thích độ trễ chép (replication lag) gây đọc cũ, và cách chữa read-after-write; mô tả failover và split-brain, và vì sao quorum/fencing ngăn được split-brain."
 blocks:
+  - id: s_why_leader
+    type: section
+    title_vi: "Vì sao sao chép và mô hình leader-follower"
+    summary_vi: "Sao chép giữ cùng dữ liệu trên nhiều máy để chịu lỗi, bền dữ liệu và chia tải đọc (không thay backup); leader-follower: chỉ leader nhận ghi, follower chép lại và phục vụ đọc nên tải ghi không được chia."
   - id: b01
     type: text
     md: |
@@ -43,6 +47,10 @@ blocks:
       - {id: c, text_md: "Không giúp gì cho hiệu năng, chỉ để sao lưu."}
     answer: [b]
     explain_md: "Chỉ leader nhận ghi, follower chép lại và phục vụ đọc — nên read replica nhân được tải đọc nhưng **không** chia tải ghi (muốn chia ghi phải sharding). (a) sai vì follower không nhận ghi trực tiếp; (c) sai vì replica thực sự phục vụ đọc, ngoài ra còn tăng độ bền và khả năng chịu lỗi."
+  - id: s_sync_async
+    type: section
+    title_vi: "Đồng bộ vs bất đồng bộ: đánh đổi độ bền - độ trễ"
+    summary_vi: "Sync chờ follower xác nhận nên bền nhưng chậm và có thể kẹt; async báo xong ngay nên nhanh nhưng leader chết sớm thì mất ghi mới nhất; semi-sync chờ một follower là điểm giữa (PACELC ở mức cụ thể)."
   - id: b04
     type: text
     md: |
@@ -70,6 +78,10 @@ blocks:
       - {id: c, text_md: "Lệnh ghi tự động quay về và chạy lại trên leader mới mà không mất gì."}
     answer: [b]
     explain_md: "Với async, leader báo xong **trước** khi follower có bản sao, nên nếu leader chết và một follower lên thay, ghi chưa kịp chép sẽ biến mất — client tưởng đã lưu mà thực ra mất (đây đúng là cái giá độ bền của async). Sao chép **đồng bộ** mới tránh được điều này. (a)/(c) hiểu sai bản chất async."
+  - id: s_lag
+    type: section
+    title_vi: "Replication lag và đọc-sau-khi-ghi"
+    summary_vi: "Follower trễ leader vài ms đến vài giây nên đọc từ nó có thể thấy dữ liệu cũ; chữa read-after-write bằng đọc dữ liệu của chính người ghi từ leader (hoặc replica đã chép tới mốc ghi), monotonic reads bằng ghim replica."
   - id: b06
     type: text
     md: |
@@ -98,6 +110,10 @@ blocks:
       - {id: c, text_md: "Do thiếu sao lưu (backup); chữa bằng cách bật point-in-time recovery."}
     answer: [a]
     explain_md: "Ghi đi vào leader, đọc lại từ một follower đang lag nên ra bản cũ — đúng kịch bản read-your-writes. Chữa bằng cách đọc dữ liệu của chính người vừa ghi từ leader (hoặc từ replica đã chép tới mốc ghi). (b) không liên quan — hệ vẫn chạy; (c) backup là để khôi phục khi mất/hỏng dữ liệu, không giải quyết đọc cũ."
+  - id: s_failover
+    type: section
+    title_vi: "Failover, split-brain và chọn cấu hình"
+    summary_vi: "Failover bầu follower lên thay leader chết, rủi ro lớn nhất là split-brain (hai leader cùng nhận ghi) được ngăn bằng quorum quá nửa và fencing token; chọn sync cho tiền bạc, async cho feed/like."
   - id: b08
     type: text
     md: |

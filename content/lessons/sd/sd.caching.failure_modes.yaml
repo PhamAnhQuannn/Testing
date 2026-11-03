@@ -1,5 +1,5 @@
 id: sd.caching.failure_modes
-version: 1
+version: 2
 status: published
 title_vi: "Sự cố cache: stampede, penetration, avalanche, hot key"
 est_minutes: 13
@@ -8,6 +8,10 @@ objectives_vi:
   - "Nêu đúng cách chữa từng tai nạn và hiểu vì sao cách đó hiệu quả."
   - "Áp đúng các cách chữa vào một thiết kế đang bàn khi cache bắt đầu làm sập database."
 blocks:
+  - id: s_stampede
+    type: section
+    title_vi: "Bức tranh chung và cache stampede"
+    summary_vi: "Khi cache thủng, tải dồn xuống DB và gây sập dây chuyền; có 4 tai nạn khác nguyên nhân, trong đó stampede là một khóa nóng hết hạn khiến nhiều yêu cầu cùng tính lại, chữa bằng single-flight lock hoặc tính lại sớm."
   - id: b01
     type: text
     md: |
@@ -48,6 +52,10 @@ blocks:
       - {id: c, text_md: "Hot key; chữa bằng cách tăng TTL của khóa đó lên thật dài."}
     answer: [b]
     explain_md: "Nhiều yêu cầu cùng dồn vào **một** khóa vừa hết hạn chính là stampede/thundering herd; cách chữa là để chỉ một yêu cầu tính lại (single-flight) hoặc làm mới sớm. (a) penetration là hỏi khóa *không tồn tại*, khác nguyên nhân. (c) tăng TTL không ngăn cú đổ dồn tại thời điểm hết hạn, và hot key là vấn đề *lượng truy cập* chứ không phải hết hạn."
+  - id: s_penetration
+    type: section
+    title_vi: "Cache penetration: hỏi khóa không tồn tại"
+    summary_vi: "Khóa không tồn tại thì cache không bao giờ có nên mọi yêu cầu đều xuống DB; chữa bằng null caching (dấu rỗng với TTL ngắn) hoặc Bloom filter chặn trước (có thể báo nhầm có nhưng không bao giờ báo nhầm không có)."
   - id: b04
     type: text
     md: |
@@ -74,6 +82,10 @@ blocks:
       - {id: c, text_md: "Nguy hiểm vì nhiều khóa cùng hết hạn một lúc; null caching rải TTL ra để chúng hết hạn lệch nhau."}
     answer: [a]
     explain_md: "Khóa không tồn tại luôn trượt cache nên mọi lượt hỏi đều xuống DB (penetration); null caching lưu dấu 'rỗng' với TTL ngắn để chặn các lượt hỏi lặp lại. (b) sai về cơ chế. (c) là mô tả avalanche và TTL jitter, không phải penetration."
+  - id: s_avalanche
+    type: section
+    title_vi: "Cache avalanche: nhiều khóa cùng mất"
+    summary_vi: "Nhiều khóa cùng TTL hết hạn một lượt hoặc cả cụm cache chết làm DB nhận tải gấp nhiều lần; chữa theo ba lớp: TTL jitter, cache nhiều tầng (L1 in-process + L2), và bảo vệ DB bằng rate limit/circuit breaker cùng warm-up."
   - id: b06
     type: text
     md: |
@@ -98,6 +110,10 @@ blocks:
       - accept: ["avalanche"]
       - accept: ["ngẫu nhiên", "jitter", "ngau nhien", "random", "ngẫu nhiên (jitter)"]
     explain_md: "Nhiều khóa cùng hết hạn (hoặc cả cụm cache chết) là **avalanche**; thêm một lượng **ngẫu nhiên** vào TTL (TTL jitter) để chúng hết hạn rải ra, không dồn vào một thời điểm. Kèm theo là cache nhiều tầng và bảo vệ DB."
+  - id: s_hotkey
+    type: section
+    title_vi: "Hot key và cách chẩn đoán khi phỏng vấn"
+    summary_vi: "Hot key là một khóa bị hỏi quá nhiều dồn vào một node dù cache vẫn trúng, chữa bằng bản sao cục bộ TTL ngắn hoặc tách khóa key_1..key_N; khi phỏng vấn hãy chẩn đoán theo nguyên nhân rồi chọn thuốc, và luôn giữ đường lui khi cache chết."
   - id: b08
     type: text
     md: |

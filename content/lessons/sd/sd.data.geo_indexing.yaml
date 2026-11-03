@@ -1,5 +1,5 @@
 id: sd.data.geo_indexing
-version: 1
+version: 2
 status: published
 title_vi: "Chỉ mục không gian (geo-indexing): geohash, quadtree, S2"
 est_minutes: 14
@@ -8,6 +8,10 @@ objectives_vi:
   - "Phân biệt **geohash**, **quadtree** và **S2** — mỗi loại tốt cho việc gì."
   - "Xử lý **vấn đề ô biên** (boundary cell) và **tần suất cập nhật vị trí** của vật thể di chuyển (tài xế)."
 blocks:
+  - id: s_why_cells
+    type: section
+    title_vi: "Vì sao B-tree không đủ và ý tưởng chia ô"
+    summary_vi: "Vị trí là 2D còn B-tree chỉ sắp theo một chiều nên điểm cùng vĩ độ nhưng cách nửa Trái Đất vẫn kề nhau; giải pháp chung là chia không gian thành ô có tên rồi tra theo khóa ô."
   - id: b01
     type: text
     md: |
@@ -24,6 +28,10 @@ blocks:
       **Ý tưởng chung** của mọi chỉ mục không gian: **chia mặt phẳng/mặt cầu thành các ô (cell) có tên**,
       gán mỗi điểm vào ô chứa nó, rồi quy câu "tìm gần" về "lấy các điểm trong ô của tôi và vài ô quanh
       đó" — một phép tra theo **khóa ô**, thứ mà một chỉ mục một chiều làm rất nhanh.
+  - id: s_structures
+    type: section
+    title_vi: "Geohash, quadtree và S2"
+    summary_vi: "Geohash xen kẽ bit thành chuỗi (tiền tố chung = cùng ô, gần nhau) nhưng lưới cố định; quadtree chia tiếp ô đông nên thích nghi mật độ; S2/H3 phủ mặt cầu bằng id số 64-bit theo đường cong Hilbert."
   - id: b02
     type: text
     md: |
@@ -76,6 +84,10 @@ blocks:
       - {id: c, text_md: "Quadtree không cần biết tọa độ điểm, nó băm ID của điểm để chia nhóm."}
     answer: [a]
     explain_md: "Quadtree chia một ô thành 4 và chỉ chia tiếp ô nào vượt ngưỡng điểm ⇒ lưới co giãn theo mật độ (adaptive), giữ số điểm mỗi ô vừa phải. (b) là lưới cố định (geohash); (c) sai — chỉ mục không gian phải dựa trên tọa độ."
+  - id: s_boundary
+    type: section
+    title_vi: "Vấn đề ô biên"
+    summary_vi: "Hai điểm sát nhau có thể thuộc hai ô khác tên nên phải tra ô của mình cộng 8 ô kề (3x3) rồi lọc lại bằng khoảng cách thật; cỡ ô nên xấp xỉ bán kính tìm."
   - id: b06
     type: text
     md: |
@@ -101,6 +113,10 @@ blocks:
       - {id: c, text_md: "Vì các ô kề lưu bản sao dự phòng của ô trung tâm để chống mất dữ liệu."}
     answer: [a]
     explain_md: "Đây là **boundary cell problem**: điểm sát nhau có thể nằm hai ô khác tên. Tra ô-của-mình + 8 ô kề (3×3) rồi lọc bằng khoảng cách thật mới không sót. (b), (c) không phải lý do — ô kề không phải để bù dữ liệu hay sao lưu."
+  - id: s_moving
+    type: section
+    title_vi: "Vật thể di chuyển và mẹo phỏng vấn"
+    summary_vi: "1 triệu tài xế báo vị trí mỗi 4 giây là khoảng 250.000 ghi/giây nên phải giữ vị trí mới nhất trong RAM và ghi đè, không ghi lịch sử vào DB chính; lưới cố định rẻ khi cập nhật hơn quadtree."
   - id: b08
     type: text
     md: |

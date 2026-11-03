@@ -1,5 +1,5 @@
 id: sd.data.sharding
-version: 1
+version: 2
 status: published
 title_vi: "Phân vùng dữ liệu (partitioning và sharding): chọn shard key, hot shard và resharding"
 est_minutes: 14
@@ -8,6 +8,10 @@ objectives_vi:
   - "Chọn một **shard key** hợp lý theo ba tiêu chí: chia đều, khớp truy vấn hay gặp, tránh truy vấn xuyên shard."
   - "Nhận ra và chữa **hot shard**, giải thích nỗi đau **resharding/rebalancing**, và nêu đúng cái giá của truy vấn/join/giao dịch **xuyên shard**."
 blocks:
+  - id: s_partition_strategy
+    type: section
+    title_vi: "Phân vùng dọc/ngang và ba chiến lược chia"
+    summary_vi: "Sharding (cắt theo dòng) là cách duy nhất chia được tải ghi; chọn range (tốt cho range scan, dễ lệch), hash (rải đều, hỏng truy vấn dải) hoặc directory (linh hoạt nhưng thêm tầng tra phải nhân bản)."
   - id: b01
     type: text
     md: |
@@ -46,6 +50,10 @@ blocks:
       - {id: c, text_md: "Chia theo **bảng tra (directory)** — vì nó không bao giờ có hot shard."}
     answer: [b]
     explain_md: "Range khớp truy vấn theo dải nên chỉ chạm ít shard; cái giá là lệch/hot shard ở khoảng mới. (a) sai: hash phá vỡ tính liên tục nên truy vấn dải phải hỏi mọi shard. (c) sai: directory linh hoạt về định tuyến nhưng không tự loại bỏ hot shard — khóa nóng vẫn dồn về một máy."
+  - id: s_shard_key
+    type: section
+    title_vi: "Chọn shard key"
+    summary_vi: "Shard key tốt phải chia đều (cardinality cao), khớp truy vấn nóng để một truy vấn chỉ chạm một shard và tránh xuyên shard; ví dụ chat chọn conversation_id thay vì message_id hay country."
   - id: b04
     type: text
     md: |
@@ -73,6 +81,10 @@ blocks:
       - {id: c, text_md: "`country` của người gửi — để gom theo khu vực địa lý."}
     answer: [b]
     explain_md: "`conversation_id` khớp truy vấn hay gặp (đọc một cuộc trò chuyện → một shard) và thường cardinality đủ cao để chia tạm đều. (a) rải đều nhưng đọc một cuộc trò chuyện lại rải khắp shard → xuyên shard. (c) lệch nặng (nước đông dân phình to) và không khớp truy vấn."
+  - id: s_hot_reshard
+    type: section
+    title_vi: "Hot shard và resharding"
+    summary_vi: "Một khóa quá nóng làm lệch lưu lượng dù số dòng đều, chữa bằng tách khóa, cache hoặc split key; với hash % n, đổi n dời gần hết dữ liệu nên giảm đau bằng over-provision và consistent hashing."
   - id: b06
     type: text
     md: |
@@ -108,6 +120,10 @@ blocks:
       - {id: c, text_md: "Vì hash không cho phép truy vấn theo dải, mà resharding cần truy vấn theo dải."}
     answer: [b]
     explain_md: "`% n` gắn chặt vị trí khóa vào số shard; đổi `n` thì `hash(key) % n` đổi cho gần như mọi khóa → di chuyển dữ liệu khổng lồ. Đó chính là lý do dùng consistent hashing (chỉ dời một phần nhỏ). (a) tốc độ hash không phải vấn đề; (c) đúng là hash yếu với range nhưng không liên quan đến nỗi đau resharding."
+  - id: s_cross_shard
+    type: section
+    title_vi: "Cái giá của truy vấn xuyên shard"
+    summary_vi: "Aggregate xuyên shard phải scatter-gather (chậm bằng shard chậm nhất), join khác khóa phải gộp ở ứng dụng hoặc denormalize, giao dịch xuyên shard cần 2PC nên nên chọn shard key để thao tác nóng nằm trong một shard."
   - id: b09
     type: text
     md: |

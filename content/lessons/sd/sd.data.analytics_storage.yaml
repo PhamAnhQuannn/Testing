@@ -1,5 +1,5 @@
 id: sd.data.analytics_storage
-version: 1
+version: 2
 status: published
 title_vi: "Lưu trữ phân tích (analytics storage): OLAP, warehouse, lake, time-series"
 est_minutes: 14
@@ -8,6 +8,10 @@ objectives_vi:
   - "Chọn đúng kho phân tích: data warehouse vs data lake vs lakehouse, và time-series DB cho số đo (metrics)."
   - "Thiết kế rollup (gộp trước) + retention cho dữ liệu metric/click và giải thích vì sao cardinality cao làm time-series DB phình và chậm."
 blocks:
+  - id: s_oltp_olap
+    type: section
+    title_vi: "OLTP, OLAP và lưu theo cột"
+    summary_vi: "Truy vấn phân tích quét hàng tỉ dòng giành tài nguyên với OLTP nên tách kho riêng chép từ DB chính (ETL/CDC, luôn trễ); lưu theo cột chỉ đọc cột cần (SUM 1 trong 20 cột ≈ 1/20 dữ liệu), nén tốt hơn nhưng ghi dòng lẻ đắt."
   - id: b01
     type: text
     md: |
@@ -48,6 +52,10 @@ blocks:
       - {id: c, text_md: "Vì columnar luôn có nhiều index hơn nên không phải quét dữ liệu."}
     answer: [b]
     explain_md: "Columnar tách từng cột ra, nên truy vấn tổng hợp chỉ đọc đúng cột cần dùng và nén mạnh (giá trị cùng cột, cùng kiểu). (a) sai: không cần cả bảng trong RAM, lợi thế là đọc ít byte từ đĩa; (c) sai: lợi thế đến từ bố cục lưu trữ, không phải từ index."
+  - id: s_warehouse_lake
+    type: section
+    title_vi: "Warehouse, data lake và lakehouse"
+    summary_vi: "Warehouse là dữ liệu có cấu trúc schema-on-write cho SQL/BI; lake là file thô rẻ trên S3/GCS schema-on-read; lakehouse thêm lớp table format (Iceberg, Delta) để truy vấn có cấu trúc ngay trên file."
   - id: b04
     type: text
     md: |
@@ -74,6 +82,10 @@ blocks:
       - {id: c, text_md: "Chính DB OLTP của app, để khỏi phải chép dữ liệu đi nơi khác."}
     answer: [b]
     explain_md: "Dữ liệu thô, đa định dạng, chưa rõ cách dùng và cần rẻ là đúng kịch bản của data lake (schema-on-read, lưu file rẻ). (a) schema-on-write đòi khuôn cứng trước khi nạp, không hợp dữ liệu chưa định hình; (c) đổ phân tích vào DB OLTP sẽ giành tài nguyên với luồng phục vụ người dùng."
+  - id: s_timeseries
+    type: section
+    title_vi: "Time-series: rollup, retention và cardinality"
+    summary_vi: "TSDB nén theo thời gian; một chỉ số lấy mẫu mỗi giây là 86.400 dòng/ngày, rollup còn 1.440 theo phút và 24 theo giờ kèm retention theo tầng; nhãn như user_id làm số chuỗi nổ và sập RAM nên nhãn phải bị chặn."
   - id: b06
     type: text
     md: |
@@ -117,6 +129,10 @@ blocks:
       - {id: c, text_md: "Vì TSDB không cho phép có quá 3 nhãn trên một metric."}
     answer: [b]
     explain_md: "Cardinality = tích số giá trị các nhãn; user_id nhiều giá trị khiến số chuỗi nổ, mỗi chuỗi tốn chỉ mục bộ nhớ và làm chậm mọi thứ. (a) sai: nhãn vẫn là chuỗi văn bản, vấn đề là *số lượng* giá trị; (c) sai: không có giới hạn cứng 3 nhãn — vấn đề là cardinality của từng nhãn."
+  - id: s_ingest_answer
+    type: section
+    title_vi: "Nạp dữ liệu và khung trả lời"
+    summary_vi: "Batch rẻ, dễ chạy lại nhưng trễ; streaming (Kafka, Flink, ClickHouse/Druid/Pinot) cho độ tươi vài giây nhưng vận hành đắt; trả lời theo bốn câu: dạng dữ liệu, vì sao kho riêng, rollup + retention, cạm bẫy cardinality và freshness."
   - id: b09
     type: text
     md: |

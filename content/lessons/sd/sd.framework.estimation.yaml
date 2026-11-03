@@ -1,5 +1,5 @@
 id: sd.framework.estimation
-version: 1
+version: 2
 status: published
 title_vi: "Ước lượng nhanh (back-of-envelope estimation): từ người dùng ra QPS, dung lượng, băng thông"
 est_minutes: 12
@@ -8,6 +8,10 @@ objectives_vi:
   - "Đổi từ DAU và số thao tác ra **QPS** trung bình và đỉnh, từ số bản ghi x kích thước ra **dung lượng/năm**, và từ QPS x payload ra **băng thông**."
   - "Làm tròn mạnh tay và biến các con số thành **quyết định thiết kế**: cần cache, sharding hay CDN?"
 blocks:
+  - id: s_numbers
+    type: section
+    title_vi: "Số tròn cần thuộc"
+    summary_vi: "1 ngày ≈ 86.400 ≈ 10^5 giây, đơn vị bậc 1000 (KB=10^3 ... PB=10^15), dòng text ≈ 500 B, ảnh ≈ 1-2 MB; giữ một chữ số có nghĩa và tính bằng lũy thừa của 10, vì phỏng vấn chấm phương pháp chứ không chấm số chính xác."
   - id: b01
     type: text
     md: |
@@ -21,6 +25,10 @@ blocks:
         một ảnh ≈ 1-2 MB.
       Mẹo: chỉ giữ **một chữ số có nghĩa** (one significant figure) và làm việc bằng **lũy thừa của 10**
       (powers of ten) — cộng/trừ số mũ nhanh hơn nhân số dài.
+  - id: s_qps
+    type: section
+    title_vi: "Từ DAU ra QPS"
+    summary_vi: "QPS trung bình = tổng thao tác mỗi ngày chia 10^5 (10^7 ghi/ngày → 100 ghi/s), QPS đỉnh ≈ trung bình x 2-5 (mặc định x3); đọc gấp 100 lần ghi thì đọc đỉnh khoảng 30.000/s."
   - id: b02
     type: text
     md: |
@@ -42,6 +50,10 @@ blocks:
     blanks:
       - accept: ["200", "200/s", "200 ghi/s", "~200"]
     explain_md: "2 x 10^7 chia 10^5 = 2 x 10^2 = **200 ghi/s**. Đây là trung bình; muốn QPS đỉnh thì nhân thêm 2-5 lần (ví dụ x3 ≈ 600 ghi/s)."
+  - id: s_storage
+    type: section
+    title_vi: "Dung lượng và băng thông"
+    summary_vi: "Dung lượng = bản ghi/ngày x kích thước x số ngày giữ x số bản sao (10^7 x 500 B ≈ 5 GB/ngày ≈ 1,8 TB/năm); băng thông ≈ QPS x payload (30.000 x 500 B ≈ 15 MB/s, nhưng ảnh 2 MB thì lên GB/s)."
   - id: b04
     type: text
     md: |
@@ -77,6 +89,10 @@ blocks:
       1,5 x 10^7 B/s = **15 MB/s** (≈ 120 Mb/s nếu đổi ra bit, x8). Với payload nhỏ như vậy, 15 MB/s một
       cụm máy/CDN xử lý nhẹ nhàng. Nhưng nếu payload là ảnh 2 MB thì cùng QPS đó băng thông nhảy lên hàng
       **GB/s** — và đó là lúc **CDN** trở thành bắt buộc.
+  - id: s_decision
+    type: section
+    title_vi: "Biến con số thành quyết định"
+    summary_vi: "Nói to giả định rồi làm tròn mạnh tay, kết bằng quyết định: đọc >> ghi (quy tắc 80/20) thì cache, dung lượng hay tải ghi vượt một node (hàng trăm TB, chục nghìn ghi/s) thì shard, băng thông lớn hoặc đa vùng thì CDN."
   - id: b07
     type: callout
     kind: interview
