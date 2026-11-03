@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 
 from ..deps import DB, Content, IdemKey, Now, User
 from ..errors import ApiError
+from ..retry import write_tx
 from ..services import placement
 
 router = APIRouter(prefix="/api")
@@ -31,21 +32,25 @@ def start_placement(
     db: DB, user: User, content: Content, now: Now, key: IdemKey, body: StartIn | None = None
 ):
     b = body or StartIn()
-    ps, resumed = placement.start(
-        db,
-        content,
-        user.id,
-        now,
-        experience=b.experience,
-        restart=b.restart,
-        skip=b.skip,
-        kind=b.kind,
-        module=b.module,
-        key=key,
-    )
-    out = placement.view(db, content, ps, resumed=resumed, now=now)
-    db.commit()
-    return out
+
+    def run():
+        ps, resumed = placement.start(
+            db,
+            content,
+            user.id,
+            now,
+            experience=b.experience,
+            restart=b.restart,
+            skip=b.skip,
+            kind=b.kind,
+            module=b.module,
+            key=key,
+        )
+        out = placement.view(db, content, ps, resumed=resumed, now=now)
+        db.commit()
+        return out
+
+    return write_tx(db, run)
 
 
 @router.get("/placement/current")
@@ -88,9 +93,12 @@ def answer_placement(
     now: Now,
     key: IdemKey,
 ):
-    out = placement.answer(db, content, user.id, placement_id, body, now, key=key)
-    db.commit()
-    return out
+    def run():
+        out = placement.answer(db, content, user.id, placement_id, body, now, key=key)
+        db.commit()
+        return out
+
+    return write_tx(db, run)
 
 
 class SkipIn(BaseModel):
@@ -116,9 +124,13 @@ def skip_placement_item(
         session_elapsed_ms=body.session_elapsed_ms,
         gave_up=True,
     )
-    out = placement.answer(db, content, user.id, placement_id, full, now, key=key)
-    db.commit()
-    return out
+
+    def run():
+        out = placement.answer(db, content, user.id, placement_id, full, now, key=key)
+        db.commit()
+        return out
+
+    return write_tx(db, run)
 
 
 class HeartbeatIn(BaseModel):
