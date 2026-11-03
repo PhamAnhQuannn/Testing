@@ -1,5 +1,5 @@
 id: sd.caching.patterns
-version: 1
+version: 2
 status: published
 title_vi: "Các pattern caching (caching patterns): đọc, ghi và cách chọn"
 est_minutes: 13
@@ -8,6 +8,10 @@ objectives_vi:
   - "Chọn pattern theo **tỉ lệ đọc/ghi (read/write ratio)** và so được đánh đổi về nhất quán, độ trễ, rủi ro mất dữ liệu."
   - "Tính **hit ratio** cần đạt để cache gánh đủ tải, và nêu rủi ro mất dữ liệu của **write-back**."
 blocks:
+  - id: s_read
+    type: section
+    title_vi: "Pattern đọc: cache-aside và read-through"
+    summary_vi: "Hit ratio = hit/tổng lượt hỏi; cache-aside để app tự nạp lười và vẫn đọc DB khi cache chết (mặc định an toàn), còn read-through để cache tự nạp nhưng nằm trên đường đi bắt buộc."
   - id: b01
     type: text
     md: |
@@ -47,6 +51,10 @@ blocks:
       - {id: c, text_md: "Vì cache-aside ghi vào DB và cache cùng lúc nên luôn nhất quán tuyệt đối."}
     answer: [b]
     explain_md: "Cache-aside để app tự rẽ xuống DB khi cache miss hoặc cache chết, nên mất cache chỉ làm chậm chứ không sập. (a) sai — hit ratio phụ thuộc khối lượng truy cập, không phải pattern đọc; (c) sai — đó là chuyện của pattern *ghi* (write-through), không phải cache-aside."
+  - id: s_write
+    type: section
+    title_vi: "Pattern ghi: write-through, write-back, write-around"
+    summary_vi: "Write-through ghi đồng bộ cache và DB (nhất quán, ghi chậm), write-back ghi cache trước rồi flush sau (cực nhanh nhưng mất dữ liệu đã ack nếu cache chết), write-around ghi thẳng DB (hợp dữ liệu ít đọc lại ngay)."
   - id: b04
     type: text
     md: |
@@ -73,6 +81,10 @@ blocks:
       - {id: c, text_md: "Cache không bao giờ chứa dữ liệu mới nên đọc luôn trả về giá trị cũ."}
     answer: [b]
     explain_md: "Write-back báo 'xong' ngay sau khi ghi vào cache, nhưng DB chưa có dữ liệu đó; nếu cache sập trước lần flush, dữ liệu đã ack bị mất vĩnh viễn. (a) là đặc điểm của write-through (ghi chậm), không phải write-back; (c) sai — write-back cập nhật cache trước nên đọc lại thấy giá trị mới."
+  - id: s_choose
+    type: section
+    title_vi: "Chọn pattern và tính hit ratio cần đạt"
+    summary_vi: "Chọn theo tỉ lệ đọc/ghi: read-heavy dùng cache-aside, cần nhất quán dùng write-through, write-heavy chấp nhận mất dùng write-back; hit ≥ 1 − (sức DB / tổng tải), ví dụ 20.000 đọc/s với DB chịu 2.000/s cần hit ≥ 90%."
   - id: b06
     type: text
     md: |
@@ -100,6 +112,10 @@ blocks:
       - accept: ["95%", "95", "0.95", "95 %", "hit >= 95%", ">=95%"]
         regex: "^\\s*(>=\\s*)?0?\\.?95\\s*%?\\s*$"
     explain_md: "Miss cho phép ≤ 500/10.000 = 5% (đó là phần được xuống DB). Vậy hit ≥ 1 − 5% = **95%**. Công thức: hit ≥ 1 − (sức DB / tổng tải) = 1 − 500/10000 = 0,95."
+  - id: s_interview
+    type: section
+    title_vi: "Trả lời phỏng vấn: ba nhịp và đánh đổi"
+    summary_vi: "Trả lời theo 3 nhịp: nhìn tỉ lệ đọc/ghi để chọn pattern, tính hit ratio để chứng minh cache giảm tải, rồi nói rõ đánh đổi, nhất là rủi ro mất dữ liệu của write-back trong bài đếm lượt xem."
   - id: b08
     type: callout
     kind: interview

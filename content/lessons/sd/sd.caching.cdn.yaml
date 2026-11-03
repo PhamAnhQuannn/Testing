@@ -1,5 +1,5 @@
 id: sd.caching.cdn
-version: 1
+version: 2
 status: published
 title_vi: "CDN và edge caching: phục vụ nội dung tĩnh/media gần người dùng"
 est_minutes: 13
@@ -8,6 +8,10 @@ objectives_vi:
   - "Thiết kế cache key, TTL/Cache-Control và cách cập nhật file (URL có phiên bản/fingerprint, purge/invalidation) cho web asset và cho video."
   - "Ước tính chi phí egress (bytes phục vụ × giá/GB) và giải thích vì sao hit ratio cao cắt được egress từ origin."
 blocks:
+  - id: s_cdn_basics
+    type: section
+    title_vi: "CDN, edge và pull vs push"
+    summary_vi: "CDN giữ bản sao nội dung tĩnh/media ở edge/PoP gần người dùng (ví dụ ~30 ms thay vì ~200 ms từ origin) và giảm tải origin; miss thì kéo từ origin rồi giữ, hit thì trả ngay; mặc định chọn pull, push chỉ cho file quan trọng cần sẵn từ lần đầu."
   - id: b01
     type: text
     md: |
@@ -47,6 +51,10 @@ blocks:
       - {id: c, text_md: "Không cần CDN vì ảnh người dùng là dữ liệu riêng tư, luôn phải lấy từ origin."}
     answer: [b]
     explain_md: "Số file khổng lồ và không biết trước cái nào nóng → **pull** là hợp lý: chỉ những ảnh thực sự được xem mới chiếm chỗ trên edge. Push (a) buộc phải đẩy và dọn hàng triệu file, phí vô ích. (c) sai: ảnh công khai vẫn cache tốt; dữ liệu thực sự riêng tư thì dùng signed URL chứ không phải bỏ CDN."
+  - id: s_cache_key_ttl
+    type: section
+    title_vi: "Cache key và TTL"
+    summary_vi: "Cache key mặc định là URL (kèm query string có nghĩa, thêm header qua Vary), nên bỏ query vô nghĩa để giữ hit ratio; TTL là max-age trong Cache-Control, hết hạn thì revalidate bằng ETag và nhận 304 nếu chưa đổi."
   - id: b04
     type: text
     md: |
@@ -75,6 +83,10 @@ blocks:
       - {accept: ["TTL", "ttl", "time to live", "time-to-live"]}
       - {accept: ["cache key", "cache-key", "key", "cache key (URL)"]}
     explain_md: "(1) **TTL** (time to live) = thời gian sống của bản cache, đặt bằng `Cache-Control: max-age`. (2) **cache key** = định danh bản cache, mặc định là URL (thường gồm query string, có thể thêm header qua `Vary`)."
+  - id: s_update_assets
+    type: section
+    title_vi: "Cập nhật file và chiến lược cho asset/video"
+    summary_vi: "Cập nhật bình thường bằng URL fingerprint/versioned với TTL rất dài (bản bất biến), purge chỉ khi khẩn cấp vì chậm lan và tốn phí; video cắt segment HLS/DASH TTL dài, manifest live TTL ngắn."
   - id: b06
     type: text
     md: |
@@ -115,15 +127,10 @@ blocks:
       - {id: c, text_md: "Vì TTL ngắn làm file tải nhanh hơn cho người dùng."}
     answer: [b]
     explain_md: "URL có phiên bản tách biệt bản cũ/mới bằng chính cache key, nên vừa cập nhật tức thì vừa giữ TTL dài để hit ratio cao. (a) sai: purge chậm lan và thường mất phí/bị giới hạn. (c) sai: TTL ngắn làm phải revalidate/miss nhiều hơn, không làm tải nhanh hơn."
-  - id: b09
-    type: callout
-    kind: interview
-    md: |
-      **Mẹo phỏng vấn.** Khi được hỏi "thiết kế CDN cho ...", trả lời theo bộ khung: **(1) cache
-      key** (URL + có tính query string nào? có `Vary` header nào?), **(2) TTL** (bất biến → dài;
-      hay đổi → ngắn + revalidate), **(3) cách cập nhật file** (versioned URL cho bình thường, purge
-      cho khẩn cấp), rồi **(4) ước tính chi phí egress**. Nói rõ **hit ratio** mục tiêu vì nó quyết
-      định cả tốc độ lẫn tiền. Đừng quên phân biệt pull/push và nội dung riêng tư thì dùng signed URL.
+  - id: s_egress_cost
+    type: section
+    title_vi: "Chi phí egress và hit ratio"
+    summary_vi: "Chi phí egress xấp xỉ bytes phục vụ nhân giá/GB; với 100 TB và hit ratio 95%, origin chỉ phục vụ 5% nên egress origin giảm từ 9.000 $ còn 450 $."
   - id: b10
     type: text
     md: |
@@ -142,6 +149,15 @@ blocks:
       Ghi nhớ: giá egress của CDN và của origin **khác nhau**; hit ratio càng cao thì phần đắt
       (origin) càng nhỏ. Tối ưu hit ratio = TTL hợp lý + cache key gọn (bỏ query vô nghĩa) +
       fingerprint để TTL dài mà vẫn cập nhật được.
+  - id: b09
+    type: callout
+    kind: interview
+    md: |
+      **Mẹo phỏng vấn.** Khi được hỏi "thiết kế CDN cho ...", trả lời theo bộ khung: **(1) cache
+      key** (URL + có tính query string nào? có `Vary` header nào?), **(2) TTL** (bất biến → dài;
+      hay đổi → ngắn + revalidate), **(3) cách cập nhật file** (versioned URL cho bình thường, purge
+      cho khẩn cấp), rồi **(4) ước tính chi phí egress**. Nói rõ **hit ratio** mục tiêu vì nó quyết
+      định cả tốc độ lẫn tiền. Đừng quên phân biệt pull/push và nội dung riêng tư thì dùng signed URL.
   - id: b11
     type: summary
     bullets_vi:

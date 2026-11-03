@@ -1,5 +1,5 @@
 id: sd.data.consistent_hashing
-version: 1
+version: 2
 status: published
 title_vi: "Băm nhất quán (consistent hashing): vòng băm, dời ~1/N khóa và virtual node"
 est_minutes: 14
@@ -8,6 +8,10 @@ objectives_vi:
   - "Giải thích **vòng băm (hash ring)**: đặt máy và khóa lên vòng, khóa thuộc máy đầu tiên theo chiều kim đồng hồ; thêm/bớt một máy chỉ dời ~**K/N** (khoảng 1/N) khóa."
   - "Nói được **virtual node (vnode)** làm gì và vì sao cần, cùng nơi áp dụng (cache phân tán, kho key-value kiểu Dynamo)."
 blocks:
+  - id: s_mod_ring
+    type: section
+    title_vi: "Modulo hỏng và vòng băm"
+    summary_vi: "hash(key) % N đổi ánh xạ của gần mọi khóa khi N đổi (4 lên 5 máy dời ~80%) gây cache miss hàng loạt; vòng băm đặt máy và khóa lên cùng vòng, khóa thuộc máy đầu tiên theo chiều kim đồng hồ nên vị trí không phụ thuộc N."
   - id: b01
     type: text
     md: |
@@ -56,6 +60,10 @@ blocks:
       - {id: c, text_md: "A, vì A là máy có vị trí nhỏ nhất trên vòng."}
     answer: [b]
     explain_md: "Khóa thuộc máy **đầu tiên theo chiều kim đồng hồ**, không phải máy *gần nhất*. Từ 210 đi lên: 300 (C) đến trước 90 (A, phải vòng qua 360). Vậy 210 thuộc **C**. (a) nhầm sang 'gần nhất'; (c) chỉ đúng cho khóa nằm trong cung sau C (ví dụ 350)."
+  - id: s_move_little
+    type: section
+    title_vi: "Thêm hoặc bớt máy chỉ dời ~1/N khóa"
+    summary_vi: "Thêm máy chỉ làm một cung đổi chủ (D ở 270 lấy (200, 270] từ C), bớt máy thì khóa dồn sang máy kế theo chiều kim đồng hồ; số khóa dời khoảng K/N, so với ~100% của modulo."
   - id: b05
     type: text
     md: |
@@ -81,6 +89,10 @@ blocks:
       - accept: ["1/N", "1/n", "(1/N)", "1 / N"]
         regex: "^\\(?\\s*1\\s*/\\s*[nN]\\s*\\)?$"
     explain_md: "Máy mới là máy thứ N nên chiếm ~**1/N** của vòng, kéo theo ~**K/N** khóa (tức ~1/N tổng số) từ máy kế tiếp sang nó. Trái ngược với `hash(key) % N` làm gần **100%** khóa đổi chỗ. Dời càng ít khi hệ càng nhiều máy."
+  - id: s_vnode
+    type: section
+    title_vi: "Chia lệch và virtual node"
+    summary_vi: "Mỗi máy một điểm làm cung dài ngắn lệch và máy rời đi dồn hết tải vào một máy; mỗi máy 100-200 vnode chia đều hơn, rebalance mượt vào nhiều máy và cho phép trọng số bằng cách cấp nhiều vnode hơn."
   - id: b07
     type: text
     md: |
@@ -106,6 +118,10 @@ blocks:
       - {id: c, text_md: "Để khóa có thể thuộc nhiều máy cùng lúc nhằm sao lưu dữ liệu."}
     answer: [b]
     explain_md: "Vnode làm mỗi máy nắm nhiều cung nhỏ trải quanh vòng, nên tải cân hơn và khi một máy rời/đến thì phần dời được san cho nhiều máy. (a) sai — vnode không giảm số máy thật, chỉ là điểm ảo của cùng một máy; (c) replication (chép sang N máy kế) là cơ chế khác, không phải mục đích của vnode."
+  - id: s_usage_interview
+    type: section
+    title_vi: "Ứng dụng, replication và mẹo phỏng vấn"
+    summary_vi: "Dùng cho cache phân tán, kho kiểu Dynamo/Cassandra (chép sang N máy kế theo chiều kim đồng hồ) và một số LB; rendezvous hashing là phương án tốn O(số máy) mỗi lần tra; khi phỏng vấn vẽ vòng, tìm máy, nói ~1/N khóa dời, nêu vnode."
   - id: b09
     type: text
     md: |

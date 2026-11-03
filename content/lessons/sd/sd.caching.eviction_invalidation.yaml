@@ -1,5 +1,5 @@
 id: sd.caching.eviction_invalidation
-version: 1
+version: 2
 status: published
 title_vi: "Eviction và invalidation của cache: LRU, TTL và race ghi DB/xóa cache"
 est_minutes: 13
@@ -8,6 +8,10 @@ objectives_vi:
   - "Giải thích cơ chế **LRU** ở mức ý tưởng: hash map cho tra cứu O(1) và danh sách liên kết đôi (doubly linked list) cho dịch chuyển thứ tự mới-dùng O(1)."
   - "Mô tả **race** giữa ghi database và xóa/cập nhật cache bằng một timeline khiến cache giữ giá trị cũ, và nêu các cách giảm (xóa sau commit, delayed double delete, TTL ngắn, write-through)."
 blocks:
+  - id: s_evict_policies
+    type: section
+    title_vi: "Eviction và các chính sách bỏ bớt"
+    summary_vi: "Eviction là bỏ mục còn hợp lệ khi cache đầy (chuyện dung lượng), khác invalidation (chuyện tính đúng); LRU bỏ mục lâu nhất không dùng và là mặc định tốt khi có temporal locality, LFU/FIFO/random/TTL phù hợp tình huống khác."
   - id: b01
     type: text
     md: |
@@ -48,6 +52,10 @@ blocks:
       - {id: c, text_md: "Random, vì nó không cần theo dõi gì nên luôn nhanh hơn mọi chính sách khác."}
     answer: [b]
     explain_md: "Temporal locality nghĩa là mục mới dùng dễ được dùng lại, nên giữ lại chúng (bỏ mục lâu-nhất-không-dùng) cho tỉ lệ trúng (hit rate) cao — đó chính là LRU. (a) FIFO bỏ theo thứ tự vào, có thể bỏ nhầm mục đang nóng. (c) Random rẻ về sổ sách nhưng bỏ bừa, hit rate kém hơn khi có locality rõ."
+  - id: s_lru
+    type: section
+    title_vi: "Cơ chế LRU O(1)"
+    summary_vi: "LRU O(1) ghép hash map (tra khóa → nút O(1)) với danh sách liên kết đôi (gỡ/móc nút theo thứ tự mới-dùng O(1)); get/put đưa nút lên đầu, vượt sức chứa thì bỏ nút ở đuôi khỏi cả hai cấu trúc."
   - id: b04
     type: text
     md: |
@@ -77,6 +85,10 @@ blocks:
       - accept: ["hash map", "hashmap", "hash table", "bảng băm", "dictionary", "dict"]
       - accept: ["doubly linked list", "danh sách liên kết đôi", "danh sách liên kết hai chiều", "linked list đôi"]
     explain_md: "Hash map (bảng băm) cho tra cứu khóa → nút trong O(1); danh sách liên kết đôi cho phép gỡ một nút ở giữa và móc lại vào đầu trong O(1) nhờ mỗi nút biết cả nút trước lẫn nút sau. Hai cấu trúc phối hợp làm cả get lẫn put đạt O(1)."
+  - id: s_invalidation
+    type: section
+    title_vi: "Invalidation: giữ cache không trả bản cũ"
+    summary_vi: "Ba cách: TTL (đơn giản nhưng cũ tới khi hết hạn), xóa tường minh khi ghi (tươi nhưng dễ race), khóa có phiên bản như v2:user:5 (bản cũ tự bị bỏ qua, chờ eviction dọn)."
   - id: b06
     type: text
     md: |
@@ -92,6 +104,10 @@ blocks:
         liệu đổi, **tăng phiên bản** ⇒ khóa mới là một khóa khác, nên **bản cũ tự bị bỏ qua** (không
         ai đọc trúng nó nữa) và sẽ được eviction dọn dần. Tránh phải xóa đúng khóa cũ, đổi lại là có
         rác tồn tạm thời trong cache.
+  - id: s_race
+    type: section
+    title_vi: "Race giữa ghi DB và xóa cache"
+    summary_vi: "Luồng đọc chậm lấy V0 trước khi B ghi V1 rồi ghi cache sau lần xóa của B nên cache kẹt bản cũ tới hết TTL; giảm bằng xóa sau commit, delayed double delete, TTL ngắn làm lưới an toàn, hoặc write-through."
   - id: b07
     type: text
     md: |

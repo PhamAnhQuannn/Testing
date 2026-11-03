@@ -1,5 +1,5 @@
 id: sd.data.data_modeling
-version: 1
+version: 2
 status: published
 title_vi: "Mô hình dữ liệu theo access pattern: thiết kế bảng theo cách bạn sẽ đọc"
 est_minutes: 14
@@ -8,6 +8,10 @@ objectives_vi:
   - "Cân nhắc **chuẩn hóa (normalization)** và **phi chuẩn hóa (denormalization)**: bớt join đổi lấy ghi khuếch đại và dị thường cập nhật."
   - "Chọn **index** đúng cho truy vấn, và dùng ràng buộc **UNIQUE** để chặn ghi trùng (một ghế một vé)."
 blocks:
+  - id: s_access_rel
+    type: section
+    title_vi: "Thiết kế từ access pattern và quan hệ"
+    summary_vi: "Model theo câu truy vấn hay gặp chứ không theo sự thuần khiết lý thuyết; một-nhiều dùng khóa ngoại ở bên \"nhiều\", nhiều-nhiều cần bảng nối với khóa chính hai cột (ví dụ follows, likes)."
   - id: b01
     type: text
     md: |
@@ -44,6 +48,10 @@ blocks:
       - {id: c, text_md: "Lưu một cột text `followers` chứa danh sách id các người theo dõi, phân tách bằng dấu phẩy."}
     answer: [b]
     explain_md: "Theo dõi là quan hệ **nhiều-nhiều** nên cần bảng nối; khóa chính hai cột vừa định danh một quan hệ vừa chặn theo dõi trùng. (a) một cột khóa ngoại chỉ mô tả được một-nhiều. (c) nhồi danh sách vào một cột text phá vỡ khả năng index và join, không hỏi ngược được 'ai theo dõi X'."
+  - id: s_denorm
+    type: section
+    title_vi: "Chuẩn hóa và phi chuẩn hóa"
+    summary_vi: "Chuẩn hóa lưu mỗi sự thật một chỗ nhưng phải join khi đọc; phi chuẩn hóa lưu trùng để đọc nhanh, trả giá bằng ghi khuếch đại và dị thường cập nhật, nên chỉ dùng khi join là nút cổ chai."
   - id: b04
     type: text
     md: |
@@ -71,6 +79,10 @@ blocks:
       - {id: c, text_md: "Không còn cách nào lấy được tên tác giả cho một bài viết."}
     answer: [b]
     explain_md: "Phi chuẩn hóa đổi đọc-nhanh lấy ghi-khó: tên bị lưu nhiều nơi nên mỗi lần đổi phải cập nhật tất cả và dễ sót gây mâu thuẫn. (a) ngược lại — mục đích chính là đọc nhanh hơn nhờ bỏ join. (c) sai, tên vẫn lấy được; vấn đề là giữ cho các bản sao nhất quán."
+  - id: s_index
+    type: section
+    title_vi: "Index đúng cột và đúng thứ tự"
+    summary_vi: "Index phải khớp cột WHERE/ORDER BY theo đúng thứ tự, ví dụ (user_id, created_at) cho \"20 bài mới nhất của user\"; đảo thứ tự là mất tác dụng và mỗi index làm ghi chậm hơn."
   - id: b06
     type: text
     md: |
@@ -103,6 +115,10 @@ blocks:
       - {id: c, text_md: "Không cần index; cứ để DB quét cả bảng rồi sắp xếp cho đơn giản."}
     answer: [b]
     explain_md: "Index ghép `(user_id, created_at)` khớp đúng dạng 'lọc một cột rồi sắp theo cột kia' nên DB nhảy thẳng tới các bài của user và đọc theo thứ tự thời gian. (a) chỉ index `created_at` vẫn phải lọc `user_id` sau, kém hiệu quả. (c) quét cả bảng là đúng thứ ta muốn tránh khi bảng lớn."
+  - id: s_unique
+    type: section
+    title_vi: "UNIQUE chặn ghi trùng và mẹo phỏng vấn"
+    summary_vi: "UNIQUE (ví dụ (room_id, night)) để chính DB từ chối bản ghi trùng, an toàn hơn SELECT-rồi-INSERT ở tầng app vì không dính race condition; kèm trình tự 5 bước khi được hỏi thiết kế schema."
   - id: b08
     type: text
     md: |

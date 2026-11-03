@@ -1,5 +1,5 @@
 id: sd.framework.api_data_model
-version: 1
+version: 2
 status: published
 title_vi: "Bước định nghĩa API và data model: dịch yêu cầu thành cổng gọi và bảng dữ liệu"
 est_minutes: 12
@@ -8,6 +8,10 @@ objectives_vi:
   - "Suy ra data model (thực thể, khóa) từ **access pattern** — thiết kế bảng theo cách bạn **đọc** dữ liệu."
   - "Chọn đúng khóa chính (primary key), partition/shard key và index chính; nêu khi nào chọn quan hệ (relational) hay NoSQL ở mức tổng thể."
 blocks:
+  - id: s_api
+    type: section
+    title_vi: "Định nghĩa API từ yêu cầu"
+    summary_vi: "Mỗi endpoint nêu rõ resource (danh từ số nhiều), verb, tham số chính, pagination bằng cursor + limit và Idempotency-Key cho lệnh ghi để retry không tạo trùng; danh tính lấy từ token, chỉ cần 3-6 endpoint."
   - id: b01
     type: text
     md: |
@@ -30,6 +34,10 @@ blocks:
 
       Hai lưu ý: danh tính người gọi lấy từ **token đăng nhập**, không lấy từ body (tránh giả mạo);
       và chỉ cần **3-6 endpoint** cho một đề phỏng vấn, đừng liệt kê mọi CRUD.
+  - id: s_model
+    type: section
+    title_vi: "Data model suy từ access pattern"
+    summary_vi: "Cột và index suy từ cách đọc dữ liệu (query the way you read), không từ thực thể: '20 bài mới nhất của người tôi follow' đòi posts có user_id, created_at và index (user_id, created_at)."
   - id: b03
     type: text
     md: |
@@ -70,6 +78,10 @@ blocks:
       - {id: c, text_md: "Lưu toàn bộ feed đã dựng sẵn trong một cột JSON của bảng `users` để khỏi cần bảng `posts`."}
     answer: [b]
     explain_md: "Nguyên tắc 'query the way you read': access pattern (đọc theo `user_id` và sắp theo `created_at`) quyết định cột và index. (a) đảo ngược thứ tự — thiết kế bảng trước rồi mới lo truy vấn, dễ ra schema không chạy nhanh; (c) nhồi feed vào một cột JSON phá vỡ khả năng truy vấn/ghi từng bài và không mở rộng được."
+  - id: s_keys
+    type: section
+    title_vi: "Primary key, partition key và index chính"
+    summary_vi: "Primary key định danh duy nhất một dòng, partition/shard key quyết định dòng nằm ở máy nào (chọn theo access pattern, sai gây hot partition), index chính tăng tốc truy vấn nóng nhưng làm ghi chậm hơn."
   - id: b06
     type: text
     md: |
@@ -93,6 +105,10 @@ blocks:
       - {id: c, text_md: "Partition key dùng để tăng tốc đọc như index, còn primary key chỉ để hiển thị cho người dùng."}
     answer: [a]
     explain_md: "Primary key = định danh duy nhất một dòng; partition/shard key = cột quyết định dòng đi về phân mảnh nào, chọn theo access pattern để rải tải và tránh hot partition. (b) sai — partition key có thể trùng hoặc là một phần của primary key; (c) sai — tăng tốc đọc là việc của index, không phải primary key."
+  - id: s_store
+    type: section
+    title_vi: "Chọn kho dữ liệu và trình bày phỏng vấn"
+    summary_vi: "Mặc định relational khi cần quan hệ, transaction, join; chỉ chuyển NoSQL khi access pattern theo một khóa đòi quy mô lớn, và nói rõ đánh đổi; mức phỏng vấn là phác API + bảng + khóa trong khoảng 8 phút, mỗi quyết định gắn với một truy vấn."
   - id: b08
     type: text
     md: |

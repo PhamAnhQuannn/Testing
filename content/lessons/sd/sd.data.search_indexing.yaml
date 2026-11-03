@@ -1,5 +1,5 @@
 id: sd.data.search_indexing
-version: 1
+version: 2
 status: published
 title_vi: "Chỉ mục tìm kiếm: inverted index và Elasticsearch"
 est_minutes: 14
@@ -8,6 +8,10 @@ objectives_vi:
   - "Mô tả xếp hạng liên quan bằng **BM25** ở mức ý tưởng, và cách giữ index đồng bộ với DB gốc bằng **CDC** (độ trễ nhất quán cuối cùng)."
   - "Nói được cách **scale cụm tìm kiếm** bằng shard và replica (Elasticsearch/OpenSearch)."
 blocks:
+  - id: s_inverted
+    type: section
+    title_vi: "Vì sao cần inverted index và bước phân tích văn bản"
+    summary_vi: "B-tree chỉ nhanh với tiền tố, tìm từ giữa câu phải quét toàn bảng; inverted index lưu term -> posting list và giao các danh sách nên không phụ thuộc tổng số tài liệu; cùng một bộ phân tích phải dùng cho index và truy vấn, đổi thì phải reindex."
   - id: b01
     type: text
     md: |
@@ -61,6 +65,10 @@ blocks:
       - {id: c, text_md: "Vì inverted index giữ toàn bộ bảng trong RAM nên nhanh hơn, bản chất vẫn là quét bảng."}
     answer: [a]
     explain_md: "B-tree chỉ hữu ích cho tìm theo tiền tố (sắp xếp từ đầu chuỗi); từ ở giữa buộc quét toàn bảng. Inverted index đảo chiều dữ liệu thành term -> posting list nên tra trực tiếp. (b) sai — B-tree index được cả chuỗi nhưng chỉ cho tiền tố; (c) sai — inverted index tra danh sách, không quét bảng, và không bắt buộc nằm hết trong RAM."
+  - id: s_bm25
+    type: section
+    title_vi: "Xếp hạng liên quan bằng BM25"
+    summary_vi: "BM25 cho điểm cao khi từ khớp xuất hiện nhiều trong bài (tăng giảm dần) và hiếm trong cả kho, đồng thời chuẩn hóa độ dài để bài dài không thắng chỉ nhờ dài."
   - id: b05
     type: text
     md: |
@@ -88,6 +96,10 @@ blocks:
       - {id: c, text_md: "Từ truy vấn là một **stop word** rất phổ biến xuất hiện khắp nơi."}
     answer: [a]
     explain_md: "Từ càng hiếm trong kho (document frequency thấp) càng mang nhiều thông tin, nên khớp nó làm tăng điểm. (b) sai — BM25 chuẩn hóa theo độ dài để bài dài **không** thắng chỉ nhờ dài; (c) sai — từ quá phổ biến gần như không tăng điểm (và thường bị loại khi lập index)."
+  - id: s_cdc
+    type: section
+    title_vi: "Đồng bộ index với DB gốc bằng CDC"
+    summary_vi: "Index là bản phụ dựng lại được từ DB gốc; CDC nghe log thay đổi (WAL/binlog) và cập nhật index bất đồng bộ, tách rời DB nhưng khiến index trễ vài giây (eventual consistency)."
   - id: b07
     type: text
     md: |
@@ -115,6 +127,10 @@ blocks:
       - {id: c, text_md: "Vì CDC khóa DB gốc trong lúc cập nhật index nên mọi thứ luôn khớp tức thì."}
     answer: [a]
     explain_md: "CDC là đường ống bất đồng bộ nghe log thay đổi của DB gốc rồi mới cập nhật index, nên có độ trễ -> index tạm thời cũ hơn DB gốc, cuối cùng mới khớp. (b) sai — DB gốc là sự thật, ghi trước; (c) sai — CDC không khóa DB gốc, chính vì tách rời nên mới có độ trễ."
+  - id: s_scale_cluster
+    type: section
+    title_vi: "Scale cụm Elasticsearch/OpenSearch"
+    summary_vi: "Shard chia tài liệu ra nhiều node để chứa nhiều và chạy song song (scatter-gather); replica nhân bản shard để tăng throughput đọc và chịu lỗi; thêm dữ liệu thì thêm shard, thêm truy vấn thì thêm replica."
   - id: b09
     type: text
     md: |

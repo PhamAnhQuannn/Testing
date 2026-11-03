@@ -1,5 +1,5 @@
 id: sd.caching.distributed_cache
-version: 1
+version: 2
 status: published
 title_vi: "Cache phân tán (distributed cache): Redis và Memcached"
 est_minutes: 14
@@ -8,6 +8,10 @@ objectives_vi:
   - "Chọn đúng kiểu Redis cho ba bài toán kinh điển — bảng xếp hạng (leaderboard), giới hạn tần suất (rate limit), phiên đăng nhập (session) — và viết các lệnh chính với đúng tham số."
   - "Giải thích Redis Cluster chia khóa bằng 16384 hash slot và vì sao mô hình một luồng khiến một lệnh chậm chặn tất cả."
 blocks:
+  - id: s_why_dist
+    type: section
+    title_vi: "Vì sao cần cache phân tán: Memcached và Redis"
+    summary_vi: "Cache trong RAM từng app server bị lệch bản và mất khi restart, nên dùng một cụm cache dùng chung; Memcached là key-value đa luồng đơn giản, còn Redis giàu kiểu dữ liệu, chạy lệnh một luồng (atomic) và có persistence/replication."
   - id: b01
     type: text
     md: |
@@ -22,6 +26,10 @@ blocks:
         hash, list, set, sorted set...), **chạy lệnh một luồng (single-threaded command execution)**
         nên mỗi lệnh nguyên vẹn (atomic), có **lưu xuống đĩa (persistence)**, **bản sao (replication)**
         và **pub/sub**. Chính vì giàu kiểu dữ liệu, Redis giải được nhiều bài toán mà Memcached không.
+  - id: s_redis_types
+    type: section
+    title_vi: "Chọn kiểu dữ liệu Redis theo bài toán"
+    summary_vi: "Leaderboard dùng sorted set (ZADD/ZREVRANGE/ZREVRANK, cỡ O(log n)), rate limit dùng INCR + EXPIRE (EXPIRE chỉ đặt khi INCR == 1), session dùng hash/string kèm TTL gia hạn khi còn hoạt động."
   - id: b02
     type: text
     md: |
@@ -97,6 +105,10 @@ blocks:
       - {accept: ["INCR", "incr"]}
       - {accept: ["EXPIRE", "expire"]}
     explain_md: "`INCR rl:user7` tăng và trả số mới (atomic, nên đồng thời vẫn đếm đúng); `EXPIRE rl:user7 60` chỉ đặt một lần ở lần đầu (kết quả `INCR` == 1) để khóa sống đúng một cửa sổ 60 giây rồi tự biến mất."
+  - id: s_cluster
+    type: section
+    title_vi: "Redis Cluster và cái giá của một luồng"
+    summary_vi: "Cluster chia khóa bằng CRC16(key) mod 16384 hash slot, mỗi node giữ một dải slot nên lệnh đa khóa chỉ chạy khi cùng slot (dùng hash tag {..}); mô hình một luồng khiến một lệnh chậm như KEYS * chặn mọi client, nên dùng SCAN."
   - id: b07
     type: text
     md: |
@@ -128,6 +140,10 @@ blocks:
       - {id: c, text_md: "Vì cluster luôn băm lại toàn bộ khóa mỗi khi có lệnh đa khóa, làm chúng đổi node liên tục."}
     answer: [b]
     explain_md: "Khóa được băm `CRC16(key) mod 16384` ra một slot; node chỉ xử lý được lệnh khi mọi khóa nằm trên slot của chính nó. Hash tag `user:{7}:...` băm phần trong `{}` để nhóm khóa về cùng slot. (a) sai — giới hạn là cùng slot, không phải số lượng khóa. (c) sai — thêm node mới chỉ chuyển vài slot, không băm lại toàn bộ."
+  - id: s_maxmemory
+    type: section
+    title_vi: "Khi cache đầy RAM: maxmemory và eviction policy"
+    summary_vi: "Phải đặt maxmemory và chọn policy: allkeys-lru/lfu cho cache thuần, volatile-* khi trộn dữ liệu có TTL, noeviction khi không được mất dữ liệu (đổi lại ghi fail lúc đầy); chọn sai thì ghi fail hoặc mất dữ liệu im lặng."
   - id: b10
     type: text
     md: |
