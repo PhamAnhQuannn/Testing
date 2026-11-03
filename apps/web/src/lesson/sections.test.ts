@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { LessonBlock } from "../lib/api";
-import { deriveSections, sectionIndexOfBlock } from "./sections";
+import { canAdvance, deriveSections, sectionIndexOfBlock, sectionStatus } from "./sections";
 
 const text = (id: string): LessonBlock => ({ id, type: "text", md: id });
 const ex = (id: string): LessonBlock => ({ id, type: "code_exercise", md: "", entry: "f", starter: "", tests: [] });
@@ -53,5 +53,48 @@ describe("deriveSections", () => {
     expect(sectionIndexOfBlock(s, "s2")).toBe(2);
     expect(sectionIndexOfBlock(s, "i")).toBe(0);
     expect(sectionIndexOfBlock(s, "zzz")).toBe(-1);
+  });
+});
+
+describe("sectionStatus / canAdvance", () => {
+  const [theory, quizSec, codeSec] = deriveSections([
+    sec("t"),
+    text("a"),
+    sec("q"),
+    quiz("q1"),
+    quiz("q2"),
+    sec("c"),
+    ex("e1"),
+  ]);
+  const P = (o: Partial<Parameters<typeof sectionStatus>[1]> = {}) => ({
+    visited: new Set<string>(),
+    done: new Set<string>(),
+    results: {} as Record<string, boolean>,
+    skipped: new Set<string>(),
+    ...o,
+  });
+
+  it("theory: done when visited, else todo", () => {
+    expect(sectionStatus(theory, P())).toBe("todo");
+    expect(sectionStatus(theory, P({ visited: new Set(["t"]) }))).toBe("done");
+  });
+
+  it("quiz: done only when all graded answered", () => {
+    expect(sectionStatus(quizSec, P({ visited: new Set(["q"]) }))).toBe("todo");
+    expect(sectionStatus(quizSec, P({ results: { q1: true } }))).toBe("todo");
+    expect(sectionStatus(quizSec, P({ results: { q1: true, q2: false } }))).toBe("done");
+  });
+
+  it("code: done when passed, ready when skipped, else todo", () => {
+    expect(sectionStatus(codeSec, P())).toBe("todo");
+    expect(sectionStatus(codeSec, P({ skipped: new Set(["c"]) }))).toBe("ready");
+    expect(sectionStatus(codeSec, P({ done: new Set(["e1"]) }))).toBe("done");
+    expect(sectionStatus(codeSec, P({ done: new Set(["e1"]), skipped: new Set(["c"]) }))).toBe("done");
+  });
+
+  it("canAdvance", () => {
+    expect(canAdvance("done")).toBe(true);
+    expect(canAdvance("ready")).toBe(true);
+    expect(canAdvance("todo")).toBe(false);
   });
 });

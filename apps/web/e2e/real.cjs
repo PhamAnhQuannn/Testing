@@ -40,6 +40,8 @@ const sectionIdOf = (blockId) => {
 // Click the matching SectionRail button (unless already current), then wait for the block.
 async function gotoBlockSection(page, lessonArg, blockId) {
   const k = sectionIndexOf(blockId);
+  await page.locator("nav.section-rail .toc-toggle").waitFor({ timeout: 15000 });
+  if (!(await page.locator("nav.section-rail ol").isVisible().catch(() => false))) await page.locator("nav.section-rail .toc-toggle").click();
   const btn = page.locator(`nav.section-rail ol li:nth-child(${k + 1}) button`);
   await btn.waitFor({ timeout: 15000 });
   if ((await btn.getAttribute("aria-current")) !== "step") await btn.click();
