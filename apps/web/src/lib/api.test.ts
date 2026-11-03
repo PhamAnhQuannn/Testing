@@ -16,6 +16,8 @@ import {
   checkHeartbeat,
   getReviewQueue,
   normalizeCheckStep,
+  pickNextSubtopic,
+  type NextItem,
   postReviewResult,
 } from "./api";
 
@@ -294,5 +296,19 @@ describe("pingActivity", () => {
     expect(url).toBe("/api/activity/ping");
     expect(init.method).toBe("POST");
     expect((init.headers as Record<string, string>)["Idempotency-Key"]).toBeTruthy();
+  });
+});
+
+describe("pickNextSubtopic", () => {
+  const item = (id: string) => ({ id }) as unknown as NextItem;
+  it("skips the current id and returns the first other item", () => {
+    expect(pickNextSubtopic([item("a"), item("b"), item("c")], "a")?.id).toBe("b");
+  });
+  it("returns the first item when current is absent", () => {
+    expect(pickNextSubtopic([item("x"), item("y")], "a")?.id).toBe("x");
+  });
+  it("returns undefined on empty or only-current", () => {
+    expect(pickNextSubtopic([], "a")).toBeUndefined();
+    expect(pickNextSubtopic([item("a")], "a")).toBeUndefined();
   });
 });

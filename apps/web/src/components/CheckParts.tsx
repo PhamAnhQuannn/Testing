@@ -1,7 +1,9 @@
 // Presentational pieces of the mastery check (S8). No data fetching here; CheckPage owns the flow.
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { getNext, pickNextSubtopic } from "../lib/api";
 import type { CheckOutcome, CheckScore, CheckStep, CheckStepResult } from "../lib/api";
+import { useAsync } from "../lib/hooks";
 import { formatRetry, LEVEL_TEXT, outcomeView, stepResultView } from "../lib/checkFlow";
 import { Markdown } from "./Markdown";
 
@@ -172,6 +174,12 @@ export function OutcomeCard(props: {
   last?: CheckStepResult;
 }) {
   const view = outcomeView(props.outcome, props.score);
+  const unlockedId = props.outcome.newly_unlocked?.[0];
+  const needFetch = !unlockedId && props.outcome.tested_out;
+  const upNext = useAsync(() => (needFetch ? getNext() : Promise.resolve(null)), [needFetch ? 1 : 0]);
+  const nextId =
+    unlockedId ??
+    (needFetch && upNext.data ? pickNextSubtopic(upNext.data.up_next, props.subtopicId)?.id : undefined);
   return (
     <section className="card check-outcome" aria-label="Kết quả kiểm tra">
       {props.last && <ResultBanner result={props.last} />}
@@ -199,7 +207,12 @@ export function OutcomeCard(props: {
         </p>
       )}
       <div className="toolbar">
-        <Link className="btn primary" to={`/s/${props.subtopicId}`}>
+        {nextId && (
+          <Link className="btn primary" to={`/s/${nextId}`}>
+            Học mục tiếp theo →
+          </Link>
+        )}
+        <Link className={nextId ? "btn" : "btn primary"} to={`/s/${props.subtopicId}`}>
           {props.outcome.need_lesson || (!props.outcome.tested_out && view.retryAfter) ? "Về bài học" : "Xong"}
         </Link>
         <Link className="btn" to="/">
