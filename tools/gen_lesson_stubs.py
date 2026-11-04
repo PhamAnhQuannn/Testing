@@ -65,7 +65,15 @@ def objectives_from(mastery_bar: str) -> list[str]:
         if len(groups) >= 2:
             break
     else:
-        raise ValueError(f"cannot split into objectives: {mastery_bar!r}")
+        # Fallback for a bar that is one long clause with a short tail (e.g. matrix_traversal):
+        # regrouping collapses it to a single group, so split once at the first top-level separator.
+        for separator in (" và ", ", "):
+            parts = split_top_level(text, separator)
+            if len(parts) >= 2:
+                groups = [parts[0], separator.join(parts[1:])]
+                break
+        else:
+            raise ValueError(f"cannot split into objectives: {mastery_bar!r}")
     if len(groups) > MAX_OBJECTIVES:
         groups = [*groups[: MAX_OBJECTIVES - 1], ", ".join(groups[MAX_OBJECTIVES - 1 :])]
     cleaned = [re.sub(r"^và\s+", "", g.strip()) for g in groups]

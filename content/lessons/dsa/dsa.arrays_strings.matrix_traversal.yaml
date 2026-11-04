@@ -1,0 +1,259 @@
+id: dsa.arrays_strings.matrix_traversal
+version: 1
+status: published
+title_vi: "Thao tác ma trận và lưới 2D"
+est_minutes: 12
+objectives_vi:
+  - "Đọc và duyệt ma trận (list các hàng) theo thứ tự hàng trước (row-major), kiểm tra biên đúng cách."
+  - "Duyệt xoắn ốc (spiral) bằng bốn biên top/bottom/left/right thu hẹp dần."
+  - "Xoay ma trận vuông 90 độ theo chiều kim đồng hồ tại chỗ: chuyển vị (transpose) rồi đảo từng hàng."
+  - "Dùng vector hướng (direction vectors) để đi sang ô lân cận và biết ý tưởng đánh dấu hàng/cột bằng hàng đầu, cột đầu (set zeroes)."
+blocks:
+  - id: s_basics
+    type: section
+    title_vi: "Ma trận là list của các hàng"
+    summary_vi: "Chỉ số m[i][j], kích thước rows x cols, vector hướng và kiểm tra biên."
+  - id: b01
+    type: text
+    md: |
+      Trong Python, ma trận (lưới 2D) là **list của các list**: `m[i]` là hàng thứ `i`, `m[i][j]` là
+      ô ở hàng `i`, cột `j`. Cách lưu này gọi là **row-major**: các ô cùng hàng nằm liền nhau.
+
+      - Số hàng: `rows = len(m)`; số cột: `cols = len(m[0])` (nhớ kiểm tra `m` không rỗng).
+      - Duyệt mọi ô: hai vòng `for i in range(rows)` và `for j in range(cols)`, tổng O(rows * cols).
+      - Chỉ số hợp lệ khi `0 <= i < rows` và `0 <= j < cols`. Lỗi hay gặp nhất là truy cập ngoài biên
+        hoặc nhầm `rows` với `cols` trên ma trận không vuông.
+      - Hàng đảo ngược: `row[::-1]`. Chuyển vị (transpose) nhanh: `list(zip(*m))` (mỗi cột thành một tuple).
+
+      Để đi sang ô lân cận, dùng **vector hướng**: `(-1, 0)` lên, `(1, 0)` xuống, `(0, -1)` trái,
+      `(0, 1)` phải. Với mỗi hướng `(dr, dc)` thử ô `(r + dr, c + dc)` và **kiểm tra biên trước khi đọc**.
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      grid = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
+      rows, cols = len(grid), len(grid[0])
+      total = 0
+      for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+          r, c = 1 + dr, 1 + dc
+          if 0 <= r < rows and 0 <= c < cols:
+              total += grid[r][c]
+      print(total)
+    expected_output: |
+      20
+  - id: b03
+    type: quiz_mcq
+    prompt_md: "Ma trận `g = [[1, 2], [3, 4], [5, 6]]` có bao nhiêu hàng và bao nhiêu cột, và `g[2][1]` bằng gì?"
+    options:
+      - {id: a, text_md: "2 hàng, 3 cột, `g[2][1] = 5`"}
+      - {id: b, text_md: "3 hàng, 2 cột, `g[2][1] = 6`"}
+      - {id: c, text_md: "3 hàng, 2 cột, `g[2][1] = 5`"}
+    answer: [b]
+    explain_md: "`len(g) = 3` là số hàng, `len(g[0]) = 2` là số cột. `g[2]` là hàng cuối `[5, 6]`, phần tử chỉ số 1 của nó là 6."
+  - id: s_spiral
+    type: section
+    title_vi: "Duyệt xoắn ốc (spiral)"
+    summary_vi: "Bốn biên top, bottom, left, right: đi hết một lớp ngoài rồi thu hẹp biên."
+    exercise_ref: ex_spiral
+  - id: b04
+    type: text
+    md: |
+      Để liệt kê ma trận theo xoắn ốc, giữ bốn biên `top, bottom, left, right`. Mỗi vòng lặp đi hết
+      **một lớp** ngoài cùng theo bốn chặng rồi thu hẹp biên:
+
+      1. Hàng `top` từ `left` đến `right`, sau đó `top += 1`.
+      2. Cột `right` từ `top` đến `bottom`, sau đó `right -= 1`.
+      3. Hàng `bottom` từ `right` về `left` (đi ngược), sau đó `bottom -= 1`.
+      4. Cột `left` từ `bottom` lên `top` (đi ngược), sau đó `left += 1`.
+
+      Vòng lặp chạy khi `top <= bottom and left <= right`. Chặng 3 và 4 phải được **bảo vệ** bằng
+      `if top <= bottom` và `if left <= right`: khi ma trận chỉ còn một hàng hoặc một cột, nếu không
+      kiểm tra thì phần tử bị lấy hai lần. Tổng thời gian O(rows * cols), mỗi ô được thăm đúng một lần.
+  - id: b05
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      m = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
+      top, bottom, left, right = 0, 2, 0, 2
+      out = []
+      while top <= bottom and left <= right:
+          for j in range(left, right + 1):
+              out.append(m[top][j])
+          top += 1
+          for i in range(top, bottom + 1):
+              out.append(m[i][right])
+          right -= 1
+          if top <= bottom:
+              for j in range(right, left - 1, -1):
+                  out.append(m[bottom][j])
+              bottom -= 1
+          if left <= right:
+              for i in range(bottom, top - 1, -1):
+                  out.append(m[i][left])
+              left += 1
+          print(top, bottom, left, right, out)
+    expected_output: |
+      1 1 1 1 [1, 2, 3, 6, 9, 8, 7, 4]
+      2 1 1 0 [1, 2, 3, 6, 9, 8, 7, 4, 5]
+  - id: b06
+    type: quiz_mcq
+    prompt_md: "Ma trận chỉ còn **một hàng** (`top == bottom`). Nếu bỏ điều kiện `if top <= bottom` trước chặng hàng `bottom` đi ngược thì chuyện gì xảy ra?"
+    options:
+      - {id: a, text_md: "Không sao, kết quả vẫn đúng"}
+      - {id: b, text_md: "Hàng đó bị lấy hai lần (một lần đi xuôi, một lần đi ngược)"}
+      - {id: c, text_md: "Chương trình bỏ sót hàng đó"}
+    answer: [b]
+    explain_md: "Sau chặng 1, `top` đã tăng lên và vượt `bottom`, nghĩa là hàng đã được lấy rồi. Nếu vẫn chạy chặng 3 thì cùng hàng bị duyệt lại theo chiều ngược."
+  - id: ex_spiral
+    type: code_exercise
+    md: |
+      Viết `spiral(matrix)` trả về list mọi phần tử của `matrix` theo thứ tự xoắn ốc theo chiều kim
+      đồng hồ, từ ngoài vào trong. Ma trận có thể hình chữ nhật, hoặc rỗng (khi đó trả `[]`).
+      Ví dụ `spiral([[1, 2, 3], [4, 5, 6], [7, 8, 9]])` là `[1, 2, 3, 6, 9, 8, 7, 4, 5]`.
+    entry: spiral
+    starter: |
+      def spiral(matrix):
+          # TODO: bốn biên top, bottom, left, right
+          pass
+    guidance_md: |
+      - Xử lý ma trận rỗng trước (trả `[]`).
+      - Khởi tạo `top, bottom, left, right` theo kích thước ma trận.
+      - Trong vòng `while`, đi hàng trên, cột phải, rồi thu hẹp biên tương ứng.
+      - Với hàng dưới và cột trái, kiểm tra biên còn hợp lệ trước khi đi.
+    hints:
+      - level: nudge
+        md: "Hãy nghĩ ma trận như các lớp vỏ hành: lấy hết lớp ngoài rồi xử lý lớp trong. Cần theo dõi những gì để biết lớp ngoài kết thúc ở đâu?"
+      - level: approach
+        md: "Dùng bốn biến `top, bottom, left, right`. Mỗi vòng lặp: đi hàng `top` rồi `top += 1`; đi cột `right` rồi `right -= 1`; sau đó (nếu còn hàng) đi hàng `bottom` ngược rồi `bottom -= 1`; (nếu còn cột) đi cột `left` ngược rồi `left += 1`."
+      - level: near_solution
+        md: "Điều kiện vòng lặp `top <= bottom and left <= right`. Hai chặng đi ngược đều cần một câu `if` kiểm tra biên còn hợp lệ, và dùng `range(..., ..., -1)` với điểm dừng cẩn thận (`left - 1`, `top - 1`) để bao gồm đầu mút."
+    tests:
+      - {args: [[[1, 2, 3], [4, 5, 6], [7, 8, 9]]], expected: [1, 2, 3, 6, 9, 8, 7, 4, 5]}
+      - {args: [[[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12]]], expected: [1, 2, 3, 4, 8, 12, 11, 10, 9, 5, 6, 7]}
+      - {args: [[[1, 2, 3]]], expected: [1, 2, 3]}
+      - {args: [[[1], [2], [3]]], expected: [1, 2, 3]}
+      - {args: [[]], expected: []}
+    solution: |
+      def spiral(matrix):
+          if not matrix or not matrix[0]:
+              return []
+          out = []
+          top, bottom = 0, len(matrix) - 1
+          left, right = 0, len(matrix[0]) - 1
+          while top <= bottom and left <= right:
+              for j in range(left, right + 1):
+                  out.append(matrix[top][j])
+              top += 1
+              for i in range(top, bottom + 1):
+                  out.append(matrix[i][right])
+              right -= 1
+              if top <= bottom:
+                  for j in range(right, left - 1, -1):
+                      out.append(matrix[bottom][j])
+                  bottom -= 1
+              if left <= right:
+                  for i in range(bottom, top - 1, -1):
+                      out.append(matrix[i][left])
+                  left += 1
+          return out
+  - id: s_rotate
+    type: section
+    title_vi: "Xoay ảnh và đặt hàng/cột về 0"
+    summary_vi: "Xoay 90 độ = chuyển vị + đảo hàng; set zeroes tại chỗ bằng hàng đầu và cột đầu làm cờ."
+    exercise_ref: ex_rotate
+  - id: b07
+    type: text
+    md: |
+      **Xoay ma trận vuông 90 độ theo chiều kim đồng hồ** có thể tách thành hai bước đơn giản:
+
+      1. **Chuyển vị (transpose)**: hoán đổi `m[i][j]` với `m[j][i]` cho mọi `j > i` (chỉ nửa trên
+         đường chéo, nếu hoán đổi cả hai nửa thì ma trận trở lại như cũ).
+      2. **Đảo từng hàng**: `row.reverse()`.
+
+      Cả hai bước làm **tại chỗ**, O(n^2) thời gian, O(1) bộ nhớ phụ. Cách khác là hoán đổi bốn ô
+      một lần theo từng lớp (layer swap), cùng độ phức tạp. Xoay ngược chiều kim đồng hồ thì đảo
+      thứ tự: đảo hàng trước rồi chuyển vị, hoặc chuyển vị rồi đảo các cột.
+
+      **Set zeroes** (ô nào bằng 0 thì cả hàng và cột của nó về 0): nếu vừa duyệt vừa gán 0 thì số 0 mới
+      sinh ra sẽ lan ra thêm, sai kết quả. Cách an toàn: bước 1 ghi lại hàng và cột chứa số 0 gốc
+      (O(rows + cols) bộ nhớ); bước 2 gán 0. Muốn O(1) bộ nhớ phụ, dùng **hàng đầu và cột đầu làm mảng
+      đánh dấu** (kèm hai cờ riêng cho chính hàng đầu và cột đầu).
+  - id: b08
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      m = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
+      n = len(m)
+      for i in range(n):
+          for j in range(i + 1, n):
+              m[i][j], m[j][i] = m[j][i], m[i][j]
+      print(m)
+      for row in m:
+          row.reverse()
+      print(m)
+    expected_output: |
+      [[1, 4, 7], [2, 5, 8], [3, 6, 9]]
+      [[7, 4, 1], [8, 5, 2], [9, 6, 3]]
+  - id: b09
+    type: quiz_mcq
+    prompt_md: "Khi chuyển vị tại chỗ, vì sao vòng lặp trong chạy `for j in range(i + 1, n)` thay vì `range(n)`?"
+    options:
+      - {id: a, text_md: "Để tiết kiệm bộ nhớ"}
+      - {id: b, text_md: "Vì hoán đổi cả hai nửa của đường chéo sẽ đưa mỗi cặp về vị trí cũ, ma trận không đổi"}
+      - {id: c, text_md: "Vì `j = i` sẽ gây lỗi ngoài biên"}
+    answer: [b]
+    explain_md: "Mỗi cặp `(i, j)` và `(j, i)` chỉ cần hoán đổi đúng một lần. Nếu duyệt cả hai nửa, cặp bị hoán đổi hai lần và trở về như ban đầu."
+  - id: ex_rotate
+    type: code_exercise
+    md: |
+      Viết `rotate_image(m)` xoay ma trận vuông `m` đi 90 độ theo chiều kim đồng hồ **tại chỗ** (không
+      tạo ma trận mới) và trả về `m`. Ví dụ `rotate_image([[1, 2], [3, 4]])` là `[[3, 1], [4, 2]]`.
+    entry: rotate_image
+    starter: |
+      def rotate_image(m):
+          # TODO: chuyển vị rồi đảo từng hàng
+          pass
+    guidance_md: |
+      - Lấy `n = len(m)`.
+      - Chuyển vị: hoán đổi `m[i][j]` với `m[j][i]` khi `j > i`.
+      - Đảo ngược từng hàng.
+      - Trả về `m`.
+    hints:
+      - level: nudge
+        md: "Thử xoay tay `[[1, 2], [3, 4]]` và nhìn vị trí của từng số. Hàng đầu mới được tạo từ cột nào của ma trận cũ?"
+      - level: approach
+        md: "Chia thành hai phép: chuyển vị (hoán đổi qua đường chéo chính) rồi đảo ngược thứ tự phần tử trong mỗi hàng."
+      - level: near_solution
+        md: "Hai vòng `for` lồng nhau để chuyển vị với `j` chạy từ `i + 1`, rồi một vòng `for row in m` gọi `row.reverse()`. Cuối cùng `return m`."
+    tests:
+      - {args: [[[1, 2], [3, 4]]], expected: [[3, 1], [4, 2]]}
+      - {args: [[[1, 2, 3], [4, 5, 6], [7, 8, 9]]], expected: [[7, 4, 1], [8, 5, 2], [9, 6, 3]]}
+      - {args: [[[5]]], expected: [[5]]}
+      - {args: [[[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]]], expected: [[13, 9, 5, 1], [14, 10, 6, 2], [15, 11, 7, 3], [16, 12, 8, 4]]}
+    solution: |
+      def rotate_image(m):
+          n = len(m)
+          for i in range(n):
+              for j in range(i + 1, n):
+                  m[i][j], m[j][i] = m[j][i], m[i][j]
+          for row in m:
+              row.reverse()
+          return m
+  - id: b10
+    type: summary
+    bullets_vi:
+      - "Ma trận là list của các hàng: `m[i][j]`, `rows = len(m)`, `cols = len(m[0])`; luôn kiểm tra `0 <= i < rows` và `0 <= j < cols` trước khi đọc."
+      - "Vector hướng `(dr, dc)` giúp đi sang ô lân cận gọn gàng; duyệt toàn bộ ma trận là O(rows * cols)."
+      - "Spiral: bốn biên `top/bottom/left/right`, đi hết một lớp rồi thu hẹp; chặng đi ngược cần `if` bảo vệ để không lặp phần tử."
+      - "Xoay 90 độ chiều kim đồng hồ tại chỗ = chuyển vị (j > i) rồi đảo từng hàng; set zeroes: ghi lại số 0 gốc trước khi gán, hoặc dùng hàng đầu/cột đầu làm cờ."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [Q136], l2: [Q137], l3: [Q138]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-04"

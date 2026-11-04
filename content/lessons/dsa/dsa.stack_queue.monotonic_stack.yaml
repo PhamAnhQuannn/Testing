@@ -1,0 +1,238 @@
+id: dsa.stack_queue.monotonic_stack
+version: 1
+status: published
+title_vi: "Stack và deque đơn điệu (monotonic stack)"
+est_minutes: 14
+objectives_vi:
+  - "Nhận ra bài hỏi phần tử lớn hơn/nhỏ hơn gần nhất và chọn monotonic stack."
+  - "Chọn đúng chiều đơn điệu và điều kiện pop (`<` hay `<=`) cho từng bài."
+  - "Giải thích vì sao thuật toán là O(n) amortised dù có vòng while lồng nhau."
+  - "Dùng deque đơn điệu để lấy max của cửa sổ trượt trong O(n)."
+blocks:
+  - id: s_idea
+    type: section
+    title_vi: "Ý tưởng: stack luôn đơn điệu"
+    summary_vi: "Trước khi push phần tử mới, pop mọi phần tử vi phạm thứ tự; phần tử bị pop vừa tìm được đáp án."
+    exercise_ref: ex_prev_smaller
+  - id: b01
+    type: text
+    md: |
+      **Monotonic stack** là stack mà các giá trị luôn **tăng dần** hoặc **giảm dần** từ đáy lên đỉnh. Ta
+      giữ tính chất đó bằng cách: với phần tử mới `x`, **pop chừng nào** đỉnh stack vi phạm thứ tự so với
+      `x`, rồi mới push `x`.
+
+      Phần tử bị pop chính là phần tử vừa tìm được đáp án của nó (phần tử "lớn hơn kế tiếp" hoặc
+      "nhỏ hơn kế tiếp"). Phần tử còn lại trên stack là những phần tử vẫn đang chờ.
+
+      - Muốn tìm **next greater** (bên phải): giữ stack **giảm dần**, pop khi đỉnh `< x`.
+      - Muốn tìm **previous smaller** (bên trái): giữ stack **tăng dần**, pop khi đỉnh `>= x`; sau khi pop
+        xong, đỉnh stack (nếu còn) chính là đáp án.
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      nums = [4, 2, 5, 1]
+      st = []
+      for x in nums:
+          while st and st[-1] >= x:
+              st.pop()
+          print(x, "->", st[-1] if st else -1)
+          st.append(x)
+    expected_output: |
+      4 -> -1
+      2 -> -1
+      5 -> 2
+      1 -> -1
+  - id: b03
+    type: callout
+    kind: warning
+    md: |
+      **Hai lỗi hay gặp:** (1) dùng `if` thay vì `while` nên chỉ pop được một phần tử; (2) nhầm `<` với
+      `<=`: có phần tử bằng nhau thì phải quyết định "lớn hơn" là nghiêm ngặt hay không. Hãy thử với
+      `[2, 2, 3]` trước khi nộp.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Để tìm phần tử **nhỏ hơn gần nhất bên trái** của mỗi phần tử, ta giữ stack như thế nào?"
+    options:
+      - {id: a, text_md: "Tăng dần từ đáy lên đỉnh, pop khi đỉnh `>= x`"}
+      - {id: b, text_md: "Giảm dần từ đáy lên đỉnh, pop khi đỉnh `<= x`"}
+      - {id: c, text_md: "Không cần thứ tự, chỉ cần push"}
+      - {id: d, text_md: "Sắp xếp mảng trước rồi dùng stack"}
+    answer: [a]
+    explain_md: "Sau khi pop mọi phần tử `>= x`, đỉnh còn lại (nếu có) là phần tử đầu tiên bên trái nhỏ hơn `x`. Vì phải pop các phần tử lớn, stack còn lại tăng dần."
+  - id: ex_prev_smaller
+    type: code_exercise
+    md: |
+      Viết `prev_smaller(nums)` trả về, với mỗi vị trí, giá trị nhỏ hơn (nghiêm ngặt) gần nhất bên **trái**,
+      hoặc `-1` nếu không có. Ví dụ `[4, 2, 5, 1]` cho `[-1, -1, 2, -1]`.
+    entry: prev_smaller
+    starter: |
+      def prev_smaller(nums):
+          # TODO: giữ stack tăng dần
+          pass
+    guidance_md: |
+      - Tạo list kết quả và một stack rỗng chứa giá trị.
+      - Với mỗi `x`, pop khi đỉnh stack lớn hơn hoặc bằng `x`.
+      - Sau khi pop, đáp án là đỉnh stack nếu stack còn phần tử, ngược lại là `-1`.
+      - Push `x` rồi tiếp tục.
+    hints:
+      - level: nudge
+        md: "Phần tử nào trên stack chắc chắn không bao giờ là đáp án cho các số phía sau `x`?"
+      - level: approach
+        md: "Các phần tử `>= x` bị `x` che khuất (x đứng gần hơn và nhỏ hơn hoặc bằng), nên pop chúng. Đỉnh còn lại là đáp án."
+      - level: near_solution
+        md: "Duyệt từng `x`: `while` stack khác rỗng và đỉnh `>= x` thì `pop`; đáp án của `x` là đỉnh còn lại (hoặc `-1` nếu rỗng); rồi `append(x)`. Trả list kết quả."
+    tests:
+      - {args: [[]], expected: []}
+      - {args: [[4, 2, 5, 1]], expected: [-1, -1, 2, -1]}
+      - {args: [[1, 2, 3]], expected: [-1, 1, 2]}
+      - {args: [[3, 2, 1]], expected: [-1, -1, -1]}
+      - {args: [[2, 2, 3]], expected: [-1, -1, 2]}
+    solution: |
+      def prev_smaller(nums):
+          res, st = [], []
+          for x in nums:
+              while st and st[-1] >= x:
+                  st.pop()
+              res.append(st[-1] if st else -1)
+              st.append(x)
+          return res
+  - id: s_amortised
+    type: section
+    title_vi: "Vì sao O(n) và khi nào dùng"
+    summary_vi: "Mỗi phần tử push một lần, pop tối đa một lần: tổng công việc tuyến tính."
+    exercise_ref: ex_next_smaller
+  - id: b04
+    type: text
+    md: |
+      Vòng `while` nằm trong vòng `for` nhưng không làm thành O(n²). Mỗi phần tử được **push đúng một lần**
+      và **pop tối đa một lần**, nên tổng số lần pop trên toàn bộ thuật toán không quá `n`. Đó là phân tích
+      **amortised**: mỗi bước riêng lẻ có thể tốn nhiều, nhưng trung bình mỗi bước chỉ O(1).
+
+      Dấu hiệu nên nghĩ tới monotonic stack: "phần tử lớn hơn/nhỏ hơn **gần nhất** bên trái hoặc phải",
+      "số ngày phải chờ", "span", "hình chữ nhật lớn nhất trong histogram". Lưu **chỉ số** thay vì giá trị
+      khi đề cần khoảng cách hoặc vị trí.
+  - id: b05
+    type: predict_output
+    code: |
+      nums = [5, 3, 4, 1]
+      st = []
+      pops = 0
+      for x in nums:
+          while st and st[-1] < x:
+              st.pop()
+              pops += 1
+          st.append(x)
+      print(st, pops)
+    expected_output: |
+      [5, 4, 1] 1
+    explain_md: "5 và 3 được push; gặp 4 thì pop 3 (1 lần pop) rồi push 4; gặp 1 thì không pop. Stack cuối là `[5, 4, 1]`."
+  - id: q02
+    type: quiz_mcq
+    prompt_md: "Với `n` phần tử, tổng số lần pop trong thuật toán monotonic stack tối đa là bao nhiêu?"
+    options:
+      - {id: a, text_md: "`n`, vì mỗi phần tử chỉ bị pop tối đa một lần"}
+      - {id: b, text_md: "`n * n`"}
+      - {id: c, text_md: "`log n`"}
+      - {id: d, text_md: "Không giới hạn"}
+    answer: [a]
+    explain_md: "Mỗi phần tử được push một lần nên chỉ có thể bị pop tối đa một lần, tổng pop <= n. Vì vậy thuật toán là O(n)."
+  - id: ex_next_smaller
+    type: code_exercise
+    md: |
+      Hàm `next_smaller(nums)` cần trả về, với mỗi vị trí, giá trị nhỏ hơn đầu tiên bên **phải** (hoặc `-1`).
+      Code đang có **lỗi**: chỉ pop được một phần tử mỗi bước. Hãy sửa. Ví dụ `[2, 2, 1]` phải cho
+      `[1, 1, -1]`: khi gặp 1, CẢ HAI số 2 (chỉ số 0 và 1) đang chờ nên 1 là đáp án cho cả hai.
+    entry: next_smaller
+    starter: |
+      def next_smaller(nums):
+          res = [-1] * len(nums)
+          st = []
+          for i, x in enumerate(nums):
+              if st and nums[st[-1]] > x:
+                  res[st.pop()] = x
+              st.append(i)
+          return res
+    guidance_md: |
+      - Chạy tay với `[2, 2, 1]`: khi gặp 1, những chỉ số nào đang chờ?
+      - Hai số 2 (vị trí 0 và 1) đều chưa có đáp án; số 1 là đáp án cho cả hai cùng lúc.
+      - Chỗ kiểm tra điều kiện chỉ chạy một lần mỗi bước nên chỉ giải quyết được một.
+      - Đổi nó thành vòng lặp pop liên tục.
+    hints:
+      - level: nudge
+        md: "Thử `[2, 2, 1]`: khi tới 1, cả hai chỉ số của hai số 2 đang chờ. Code hiện tại giải quyết mấy cái?"
+      - level: approach
+        md: "Một số mới có thể là đáp án của nhiều chỉ số trên stack, nên điều kiện phải được lặp lại cho tới khi đỉnh không còn lớn hơn `x`."
+      - level: near_solution
+        md: |
+          for i, x in enumerate(nums):
+              while st and nums[st[-1]] > x:  # đổi if thành while
+                  res[st.pop()] = x
+              st.append(i)
+    tests:
+      - {args: [[]], expected: []}
+      - {args: [[3, 2, 1, 4]], expected: [2, 1, -1, -1]}
+      - {args: [[1, 2, 3]], expected: [-1, -1, -1]}
+      - {args: [[5, 4, 3, 2]], expected: [4, 3, 2, -1]}
+      - {args: [[2, 2, 1]], expected: [1, 1, -1]}
+    solution: |
+      def next_smaller(nums):
+          res = [-1] * len(nums)
+          st = []
+          for i, x in enumerate(nums):
+              while st and nums[st[-1]] > x:
+                  res[st.pop()] = x
+              st.append(i)
+          return res
+  - id: s_deque
+    type: section
+    title_vi: "Deque đơn điệu cho cửa sổ trượt"
+    summary_vi: "Giữ chỉ số có giá trị giảm dần trong deque; đầu deque luôn là max của cửa sổ."
+  - id: b06
+    type: text
+    md: |
+      Với **sliding window maximum** (max của mỗi cửa sổ độ dài `k`) ta cần thêm thao tác bỏ phần tử rời
+      cửa sổ ở **đầu** nên dùng `collections.deque` thay cho list. Deque chứa **chỉ số**, giá trị tương
+      ứng giảm dần:
+
+      ```python
+      from collections import deque
+      dq, res = deque(), []
+      for i, x in enumerate(nums):
+          while dq and nums[dq[-1]] <= x:
+              dq.pop()          # giá trị nhỏ hơn x không bao giờ là max nữa
+          dq.append(i)
+          if dq[0] <= i - k:
+              dq.popleft()      # đã rời cửa sổ
+          if i >= k - 1:
+              res.append(nums[dq[0]])
+      ```
+
+      Đầu deque luôn là chỉ số của giá trị lớn nhất trong cửa sổ hiện tại. Mỗi chỉ số vào và ra deque tối đa
+      một lần nên tổng là O(n), tốt hơn O(n·k) khi gọi `max` trên từng cửa sổ.
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Trong sliding window maximum, vì sao deque lưu **chỉ số** thay vì giá trị?"
+    options:
+      - {id: a, text_md: "Để biết khi nào phần tử đã rời cửa sổ (so `dq[0]` với `i - k`)"}
+      - {id: b, text_md: "Vì deque không lưu được số"}
+      - {id: c, text_md: "Để sắp xếp nhanh hơn"}
+      - {id: d, text_md: "Không có lý do, lưu giá trị cũng như nhau"}
+    answer: [a]
+    explain_md: "Chỉ có chỉ số mới cho biết phần tử đã nằm ngoài cửa sổ `[i-k+1, i]` hay chưa; từ chỉ số vẫn lấy được giá trị bằng `nums[idx]`."
+  - id: b07
+    type: summary
+    bullets_vi:
+      - "Monotonic stack: trước khi push `x`, `while` pop các phần tử vi phạm thứ tự; phần tử bị pop vừa có đáp án."
+      - "Next greater: stack giảm dần, pop khi đỉnh `< x`. Previous smaller: stack tăng dần, pop khi đỉnh `>= x`."
+      - "O(n) amortised vì mỗi phần tử push một lần và pop tối đa một lần; lưu chỉ số khi cần vị trí hoặc khoảng cách."
+      - "Sliding window max: deque chỉ số giá trị giảm dần, bỏ đầu khi rời cửa sổ, đầu deque là max."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X431], l2: [X432], l3: [X433]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-04"

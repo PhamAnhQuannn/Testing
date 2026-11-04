@@ -1,0 +1,242 @@
+id: dsa.two_pointers_window.sliding_window_variable
+version: 1
+status: published
+title_vi: "Cửa sổ trượt kích thước thay đổi"
+est_minutes: 14
+objectives_vi:
+  - "Nhận ra bài toán 'đoạn con liên tiếp dài nhất/ngắn nhất thoả điều kiện' và áp dụng mẫu: mở rộng r, thu hẹp l khi vi phạm."
+  - "Duy trì bất biến của cửa sổ bằng tổng hoặc bằng dict/counter đếm tần suất ký tự."
+  - "Phân biệt cửa sổ tìm đoạn dài nhất (thu hẹp khi vi phạm) với đoạn ngắn nhất (thu hẹp khi đã thoả) và chứng minh O(n)."
+blocks:
+  - id: s_pattern
+    type: section
+    title_vi: "Mẫu: mở rộng r, thu hẹp l"
+    summary_vi: "Cửa sổ [l, r] co giãn: r luôn tiến, l tiến khi bất biến bị vi phạm; theo dõi đáp án tốt nhất."
+    exercise_ref: ex_sum_limit
+  - id: b01
+    type: text
+    md: |
+      Ở cửa sổ **cố định**, độ dài `k` cho trước. Ở cửa sổ **kích thước thay đổi** (variable-size
+      window), độ dài là thứ ta phải tìm: đoạn con liên tiếp **dài nhất** (hoặc **ngắn nhất**) thoả
+      một điều kiện. Mẫu chung:
+
+      ```python
+      l = 0
+      for r in range(len(a)):
+          # 1. thêm a[r] vào cửa sổ
+          while cửa_sổ_vi_phạm:
+              # 2. bỏ a[l] khỏi cửa sổ
+              l += 1
+          best = max(best, r - l + 1)   # 3. cửa sổ đã hợp lệ
+      ```
+
+      - `r` quét một lần từ trái sang phải (**expand**).
+      - `l` chỉ tiến, không bao giờ lùi (**shrink**), nên mỗi phần tử vào và ra cửa sổ tối đa một lần:
+        tổng thời gian **O(n)** dù có vòng `while` lồng bên trong.
+      - Sau vòng `while`, cửa sổ `[l, r]` luôn hợp lệ, nên mới cập nhật `best`.
+
+      Điều kiện hợp lệ phải **đơn điệu**: thu hẹp cửa sổ không thể làm nó mất hợp lệ. Với số dương,
+      tổng chỉ giảm khi bỏ phần tử nên mẫu này dùng được; với số âm thì không.
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      nums = [3, 1, 2, 4, 1]
+      limit = 5
+      l = total = best = 0
+      for r, x in enumerate(nums):
+          total += x
+          while total > limit:
+              total -= nums[l]
+              l += 1
+          best = max(best, r - l + 1)
+          print(l, r, total, best)
+    expected_output: |
+      0 0 3 1
+      0 1 4 2
+      1 2 3 2
+      3 3 4 2
+      3 4 5 2
+  - id: b03
+    type: quiz_mcq
+    prompt_md: "Trong mẫu cửa sổ thay đổi, vì sao tổng thời gian vẫn là O(n) dù có `while` lồng trong `for`?"
+    options:
+      - {id: a, text_md: "Vì `while` luôn chạy đúng một lần mỗi vòng `for`"}
+      - {id: b, text_md: "Vì `l` chỉ tiến và không vượt `r`, nên tổng số lần `l += 1` không quá n"}
+      - {id: c, text_md: "Vì mảng đã được sắp xếp"}
+    answer: [b]
+    explain_md: "Mỗi lần chạy thân `while` thì `l` tăng 1 và `l` không bao giờ lùi, nên toàn bộ các vòng `while` cộng lại tối đa n lần. Cộng với n bước của `r` ta được O(n)."
+  - id: ex_sum_limit
+    type: code_exercise
+    md: |
+      Viết `longest_sum_at_most(nums, limit)` trả về **độ dài** đoạn con liên tiếp dài nhất có tổng
+      `<= limit` (mọi phần tử đều dương). Nếu không có đoạn nào thì trả `0`. Ví dụ
+      `longest_sum_at_most([1, 2, 3, 4, 5], 9)` là `3` (2 + 3 + 4 = 9).
+    entry: longest_sum_at_most
+    starter: |
+      def longest_sum_at_most(nums, limit):
+          # TODO: mở rộng r, thu hẹp l khi tổng vượt limit
+          pass
+    guidance_md: |
+      - Giữ `l`, `total` (tổng cửa sổ hiện tại) và `best`.
+      - Với mỗi `r`, cộng `nums[r]` vào `total`.
+      - Trong khi `total > limit`, trừ `nums[l]` và tăng `l`.
+      - Sau vòng `while`, cửa sổ hợp lệ: cập nhật `best` bằng độ dài `r - l + 1`.
+    hints:
+      - level: nudge
+        md: "Khi tổng vượt limit, bỏ phần tử bên trái hay bên phải cửa sổ thì hợp lý? Bỏ bao nhiêu cho đủ?"
+      - level: approach
+        md: "Dùng `for r, x in enumerate(nums)`: `total += x`; `while total > limit:` trừ `nums[l]` rồi `l += 1`; sau đó `best = max(best, r - l + 1)`."
+      - level: pseudocode
+        md: |
+          l = 0, total = 0, best = 0
+          với mỗi r:
+              total += nums[r]
+              trong khi total > limit:
+                  total -= nums[l]; l += 1
+              best = max(best, r - l + 1)
+          trả best
+      - level: near_solution
+        md: |
+          def longest_sum_at_most(nums, limit):
+              l = total = best = 0
+              for r, x in enumerate(nums):
+                  total += x
+                  while total > limit:
+                      ...
+                  best = ...
+              return best
+    tests:
+      - {args: [[1, 2, 3, 4, 5], 9], expected: 3}
+      - {args: [[5, 5], 4], expected: 0}
+      - {args: [[], 5], expected: 0}
+      - {args: [[2, 2, 2], 10], expected: 3}
+      - {args: [[4, 1, 1, 1, 6], 4], expected: 3}
+    solution: |
+      def longest_sum_at_most(nums, limit):
+          l = total = best = 0
+          for r, x in enumerate(nums):
+              total += x
+              while total > limit:
+                  total -= nums[l]
+                  l += 1
+              best = max(best, r - l + 1)
+          return best
+  - id: s_counter
+    type: section
+    title_vi: "Cửa sổ với dict đếm ký tự"
+    summary_vi: "Bất biến về ký tự (không lặp, tối đa k loại) được giữ bằng dict tần suất."
+    exercise_ref: ex_two_distinct
+  - id: b04
+    type: text
+    md: |
+      Với chuỗi, bất biến thường nói về **tần suất ký tự**, nên ta giữ một dict `cnt` ánh xạ ký tự
+      sang số lần xuất hiện trong cửa sổ:
+
+      - Thêm `s[r]`: `cnt[s[r]] = cnt.get(s[r], 0) + 1`.
+      - Bỏ `s[l]`: `cnt[s[l]] -= 1`, và nếu về 0 thì `del cnt[s[l]]` để `len(cnt)` đếm đúng số ký tự phân biệt.
+
+      Ví dụ "không có ký tự lặp": có thể dùng dict `last[ch]` lưu vị trí xuất hiện gần nhất. Khi gặp
+      `ch` đã có trong cửa sổ (`last[ch] >= l`) thì nhảy `l` tới `last[ch] + 1`, không cần thu hẹp từng bước.
+  - id: b05
+    type: callout
+    kind: warning
+    md: |
+      Khi nhảy `l = last[ch] + 1`, phải kiểm tra `last[ch] >= l`. Nếu bỏ điều kiện này, `l` có thể bị
+      kéo **lùi** về một vị trí cũ đã nằm ngoài cửa sổ (ví dụ `"abba"`), làm sai kết quả.
+  - id: b06
+    type: quiz_mcq
+    prompt_md: "Cửa sổ chứa `\"abc\"` (`l = 0`, `r = 2`), `last = {a: 0, b: 1, c: 2}`. Gặp tiếp `s[3] = \"b\"`. `l` mới là bao nhiêu?"
+    options:
+      - {id: a, text_md: "0 (giữ nguyên)"}
+      - {id: b, text_md: "1"}
+      - {id: c, text_md: "2"}
+    answer: [c]
+    explain_md: "`b` đã có trong cửa sổ ở chỉ số 1 (`last['b'] = 1 >= l`), nên bỏ mọi thứ đến hết chỉ số đó: `l = 1 + 1 = 2`. Cửa sổ mới là `\"cb\"`."
+  - id: ex_two_distinct
+    type: code_exercise
+    md: |
+      Viết `longest_two_distinct(s)` trả về độ dài chuỗi con liên tiếp dài nhất chứa **tối đa 2 ký tự
+      phân biệt**. Chuỗi rỗng cho `0`. Ví dụ `longest_two_distinct("eceba")` là `3` (`"ece"`).
+    entry: longest_two_distinct
+    starter: |
+      def longest_two_distinct(s):
+          # TODO: dict đếm ký tự trong cửa sổ
+          pass
+    guidance_md: |
+      - Dùng dict `cnt` đếm số lần mỗi ký tự trong cửa sổ `[l, r]`.
+      - Thêm `s[r]` vào `cnt`.
+      - Trong khi `len(cnt) > 2`, bỏ `s[l]`: giảm đếm, xoá khoá khi về 0, tăng `l`.
+      - Sau đó cập nhật `best`.
+    hints:
+      - level: nudge
+        md: "Làm sao biết cửa sổ đang có bao nhiêu ký tự phân biệt? Nhớ xoá khoá khi đếm về 0."
+      - level: approach
+        md: "`cnt[ch] = cnt.get(ch, 0) + 1` khi thêm. Khi `len(cnt) > 2`: `cnt[s[l]] -= 1`, nếu bằng 0 thì `del cnt[s[l]]`, rồi `l += 1`."
+      - level: near_solution
+        md: "Dùng dict đếm tần suất ký tự trong cửa sổ. Mở rộng `r`; khi `len(cnt) > 2` thì co `l`: giảm đếm ký tự trái, xoá khỏi dict khi về 0, `l += 1`. Sau mỗi bước cập nhật `best = max(best, r - l + 1)`."
+    tests:
+      - {args: ["eceba"], expected: 3}
+      - {args: [""], expected: 0}
+      - {args: ["aaaa"], expected: 4}
+      - {args: ["abaccc"], expected: 4}
+      - {args: ["abc"], expected: 2}
+    solution: |
+      def longest_two_distinct(s):
+          cnt = {}
+          l = best = 0
+          for r, ch in enumerate(s):
+              cnt[ch] = cnt.get(ch, 0) + 1
+              while len(cnt) > 2:
+                  left = s[l]
+                  cnt[left] -= 1
+                  if cnt[left] == 0:
+                      del cnt[left]
+                  l += 1
+              best = max(best, r - l + 1)
+          return best
+  - id: s_shortest
+    type: section
+    title_vi: "Đoạn ngắn nhất: thu hẹp khi đã thoả"
+    summary_vi: "Với đáp án nhỏ nhất, cập nhật best bên trong while rồi thu hẹp tiếp."
+  - id: b07
+    type: text
+    md: |
+      Khi tìm đoạn **ngắn nhất** có tổng `>= target` (số dương), vai trò đảo ngược: cửa sổ hợp lệ khi
+      đã **đủ** tổng, và ta muốn co nó càng nhỏ càng tốt. Vì vậy `best` được cập nhật **bên trong** vòng
+      `while`, trước mỗi lần thu hẹp:
+
+      ```python
+      while total >= target:
+          best = min(best, r - l + 1)
+          total -= nums[l]
+          l += 1
+      ```
+
+      Tóm tắt: đoạn **dài nhất** thì thu hẹp khi **vi phạm** và cập nhật sau `while`; đoạn **ngắn nhất**
+      thì thu hẹp khi **đã thoả** và cập nhật trong `while`.
+  - id: b08
+    type: quiz_mcq
+    prompt_md: "Tìm đoạn con ngắn nhất có tổng `>= target`. Ta cập nhật `best` ở đâu?"
+    options:
+      - {id: a, text_md: "Sau vòng `while`, khi cửa sổ vừa hết đủ tổng"}
+      - {id: b, text_md: "Trong vòng `while total >= target`, trước khi bỏ `nums[l]`"}
+      - {id: c, text_md: "Chỉ một lần ở cuối hàm"}
+    answer: [b]
+    explain_md: "Trong `while`, cửa sổ `[l, r]` đang thoả điều kiện nên độ dài `r - l + 1` là một ứng viên; ghi nhận nó trước khi thu hẹp. Sau `while` cửa sổ đã mất điều kiện nên không còn là ứng viên."
+  - id: b09
+    type: summary
+    bullets_vi:
+      - "Cửa sổ thay đổi: `r` mở rộng, `l` thu hẹp; cả hai chỉ tiến nên O(n) dù có `while` lồng."
+      - "Đoạn dài nhất: thu hẹp khi vi phạm, cập nhật `best` sau `while`. Đoạn ngắn nhất: thu hẹp khi đã thoả, cập nhật trong `while`."
+      - "Bất biến về ký tự dùng dict đếm tần suất; xoá khoá khi đếm về 0 để `len(cnt)` là số loại ký tự."
+      - "Dùng được khi điều kiện đơn điệu (số dương); với số âm, tổng không còn đơn điệu nên mẫu này không áp dụng."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X427], l2: [Q074], l3: [Q075]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-04"

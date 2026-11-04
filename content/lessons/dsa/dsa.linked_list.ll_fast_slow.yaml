@@ -1,0 +1,262 @@
+id: dsa.linked_list.ll_fast_slow
+version: 1
+status: published
+title_vi: "Con trỏ nhanh chậm (fast and slow pointers)"
+est_minutes: 12
+objectives_vi:
+  - "Giải thích vì sao con trỏ nhanh đi 2 bước, chậm đi 1 bước, và khi nào hai con trỏ gặp nhau."
+  - "Phát hiện chu trình (cycle) trong linked list bằng Floyd, O(n) thời gian và O(1) bộ nhớ."
+  - "Tìm node giữa bằng một lượt duyệt; tìm node thứ k tính từ cuối bằng hai con trỏ lệch nhau k bước."
+  - "Nắm cách tìm node bắt đầu chu trình sau khi hai con trỏ gặp nhau."
+blocks:
+  - id: s_cycle
+    type: section
+    title_vi: "Phát hiện chu trình (Floyd)"
+    summary_vi: "Chậm đi 1, nhanh đi 2: có chu trình thì nhanh chắc chắn bắt kịp chậm."
+    exercise_ref: ex_has_cycle
+  - id: t01
+    type: text
+    md: |
+      **Fast and slow pointers (còn gọi là thuật toán rùa và thỏ của Floyd)** dùng hai con trỏ cùng
+      xuất phát từ `head`: `slow` đi **1** bước mỗi lượt, `fast` đi **2** bước mỗi lượt.
+
+      Nếu list **không có chu trình**, `fast` sẽ chạm `None` trước. Nếu **có chu trình**, cả hai cùng
+      vào vòng và quay mãi; khi đã ở trong vòng, mỗi lượt khoảng cách `fast - slow` (tính theo chiều
+      đi) tăng đúng **1**, nên nó phải chạm bội của độ dài vòng và hai con trỏ **gặp nhau**. Vì sao
+      chọn 2 mà không phải 3? Chênh lệch 1 mỗi lượt đảm bảo `fast` không bao giờ "nhảy qua" `slow`;
+      với tốc độ khác, khoảng cách có thể bước qua điểm gặp nhau mà không trùng.
+
+      ```python
+      slow = fast = head
+      while fast and fast.next:     # kiểm tra cả fast lẫn fast.next
+          slow = slow.next
+          fast = fast.next.next
+          if slow is fast:
+              return True
+      return False
+      ```
+
+      Độ phức tạp **O(n)** thời gian, **O(1)** bộ nhớ, tốt hơn cách lưu node đã thăm vào set (O(n)
+      bộ nhớ). Điều kiện `while fast and fast.next` quan trọng: thiếu `fast.next` sẽ lỗi
+      `AttributeError` khi list có số node lẻ.
+  - id: t02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      a = [10, 20, 30, 40, 50, 60]
+      slow = fast = 0
+      while fast + 1 < len(a):
+          slow += 1
+          fast += 2
+      print(slow, a[slow], fast)
+    expected_output: |
+      3 40 6
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Vì sao điều kiện vòng lặp là `while fast and fast.next` chứ không chỉ `while fast`?"
+    options:
+      - {id: a, text_md: "Để vòng lặp chạy chậm hơn"}
+      - {id: b, text_md: "Vì `fast.next.next` sẽ lỗi nếu `fast.next` là `None`"}
+      - {id: c, text_md: "Vì `slow` cần kiểm tra trước `fast`"}
+    answer: [b]
+    explain_md: "Mỗi lượt `fast` đi hai bước qua `fast.next.next`. Nếu `fast.next` là `None` thì bước thứ hai gây lỗi, nên phải kiểm tra cả hai."
+  - id: ex_has_cycle
+    type: code_exercise
+    md: |
+      Viết `has_cycle(values, pos)`: dựng linked list từ `values`; nếu `pos >= 0` thì nối `next`
+      của node cuối tới node ở chỉ số `pos` (tạo chu trình), còn `pos = -1` là không có chu trình.
+      Trả `True` nếu list có chu trình. Đã có sẵn hàm `build` dựng list (kèm chu trình).
+    entry: has_cycle
+    starter: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+      def build(values, pos):
+          nodes = [Node(v) for v in values]
+          for i in range(len(nodes) - 1):
+              nodes[i].next = nodes[i + 1]
+          if nodes and pos >= 0:
+              nodes[-1].next = nodes[pos]
+          return nodes[0] if nodes else None
+
+      def has_cycle(values, pos):
+          head = build(values, pos)
+          # TODO: slow đi 1 bước, fast đi 2 bước
+          return False
+    guidance_md: |
+      - Cho `slow` và `fast` cùng bắt đầu ở `head`.
+      - Lặp trong khi `fast` và `fast.next` đều tồn tại.
+      - Mỗi lượt: `slow` đi 1, `fast` đi 2; nếu hai node là cùng một đối tượng (`is`) thì có chu trình.
+    hints:
+      - level: nudge
+        md: "Nếu không có chu trình, con trỏ nào sẽ chạm `None` trước?"
+      - level: approach
+        md: "Dùng `slow = fast = head`; trong vòng lặp `slow = slow.next`, `fast = fast.next.next`, rồi so sánh bằng `is`."
+      - level: pseudocode
+        md: |
+          slow = fast = head
+          trong khi fast và fast.next:
+              slow = slow.next
+              fast = fast.next.next
+              nếu slow là fast: trả True
+          trả False
+      - level: near_solution
+        md: |
+          slow = fast = head
+          while ...:          # cần kiểm tra những gì?
+              slow = ...
+              fast = ...
+              if slow is fast:
+                  return True
+          return False
+    tests:
+      - {args: [[3, 2, 0, -4], 1], expected: true}
+      - {args: [[1, 2, 3], -1], expected: false}
+      - {args: [[], -1], expected: false}
+      - {args: [[7], 0], expected: true}
+      - {args: [[1, 2], -1], expected: false}
+    solution: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+      def build(values, pos):
+          nodes = [Node(v) for v in values]
+          for i in range(len(nodes) - 1):
+              nodes[i].next = nodes[i + 1]
+          if nodes and pos >= 0:
+              nodes[-1].next = nodes[pos]
+          return nodes[0] if nodes else None
+
+      def has_cycle(values, pos):
+          head = build(values, pos)
+          slow = fast = head
+          while fast and fast.next:
+              slow = slow.next
+              fast = fast.next.next
+              if slow is fast:
+                  return True
+          return False
+  - id: s_middle
+    type: section
+    title_vi: "Node giữa và node thứ k từ cuối"
+    summary_vi: "Một lượt duyệt: fast chạm cuối thì slow ở giữa; lệch k bước thì tìm được node từ cuối."
+    exercise_ref: ex_middle
+  - id: t03
+    type: text
+    md: |
+      **Node giữa.** Vì `fast` đi nhanh gấp đôi `slow`, khi `fast` tới cuối list thì `slow` mới đi
+      được nửa đường, tức đúng ở giữa, mà **không cần biết trước độ dài**. Với list có số node chẵn
+      (ví dụ 6 node), vòng lặp `while fast and fast.next` dừng khi `fast` là `None` và `slow` nằm ở
+      node giữa **thứ hai** (chỉ số 3 trong `[10..60]`). Muốn node giữa thứ nhất, đổi điều kiện
+      thành `while fast.next and fast.next.next`.
+
+      **Node thứ k tính từ cuối.** Dùng hai con trỏ cùng tốc độ nhưng **lệch nhau k bước**: đi
+      `fast` trước k bước, rồi cả hai cùng đi từng bước một. Khi `fast` chạm cuối (`None`), `slow` ở
+      đúng node thứ k từ cuối. Một lượt duyệt, O(1) bộ nhớ, thay vì duyệt hai lượt (đếm độ dài rồi đi
+      `n - k` bước).
+
+      **Node bắt đầu chu trình.** Sau khi `slow` và `fast` gặp nhau trong vòng, đặt một con trỏ mới
+      về `head`, rồi cho nó và `slow` cùng đi **1 bước mỗi lượt**; chỗ chúng gặp nhau chính là node
+      mở đầu chu trình (chứng minh: khoảng cách từ head tới điểm vào vòng bằng khoảng cách từ điểm
+      gặp nhau tới điểm vào vòng, theo mod độ dài vòng).
+  - id: q02
+    type: quiz_mcq
+    prompt_md: "List có 5 node `[1,2,3,4,5]`. Dùng slow đi 1, fast đi 2 với `while fast and fast.next`, `slow` dừng ở giá trị nào?"
+    options:
+      - {id: a, text_md: "2"}
+      - {id: b, text_md: "3"}
+      - {id: c, text_md: "4"}
+    answer: [b]
+    explain_md: "slow: 1 -> 2 -> 3, fast: 1 -> 3 -> 5; tại 5 thì `fast.next` là None nên dừng. slow ở node 3, đúng giữa."
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Để lấy node thứ 2 từ cuối trong một lượt duyệt, hai con trỏ cần lệch nhau bao nhiêu bước?"
+    options:
+      - {id: a, text_md: "2 bước, cùng tốc độ"}
+      - {id: b, text_md: "1 bước, cùng tốc độ"}
+      - {id: c, text_md: "Không lệch, nhưng một con trỏ đi gấp đôi"}
+    answer: [a]
+    explain_md: "Đi `fast` trước 2 bước rồi cho cả hai đi cùng tốc độ; khi `fast` là None thì `slow` ở node thứ 2 từ cuối."
+  - id: ex_middle
+    type: code_exercise
+    md: |
+      Viết `middle_value(values)` trả **giá trị** của node giữa (nếu số node chẵn thì lấy node giữa
+      **thứ hai**). Dựng list bằng `build`, dùng `slow`/`fast`. Đảm bảo `values` không rỗng.
+      Ví dụ `[1, 2, 3, 4, 5]` cho 3; `[1, 2, 3, 4]` cho 3.
+    entry: middle_value
+    starter: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+      def build(values):
+          head = None
+          for v in reversed(values):
+              head = Node(v, head)
+          return head
+
+      def middle_value(values):
+          head = build(values)
+          # TODO: slow đi 1, fast đi 2; trả slow.val
+          return head.val
+    guidance_md: |
+      - Cho `slow` và `fast` cùng bắt đầu ở `head`.
+      - Lặp khi `fast` và `fast.next` đều còn tồn tại.
+      - Khi vòng lặp dừng, `slow` đang ở node giữa.
+    hints:
+      - level: nudge
+        md: "Nếu `fast` đi nhanh gấp đôi, khi `fast` tới cuối thì `slow` đã đi được bao nhiêu phần đường?"
+      - level: approach
+        md: "Dùng `slow = fast = head`; lặp `while fast and fast.next`, `slow = slow.next`, `fast = fast.next.next`."
+      - level: near_solution
+        md: |
+          slow = fast = head
+          while fast and fast.next:
+              slow = ...
+              fast = ...
+          return slow.val
+    tests:
+      - {args: [[1, 2, 3, 4, 5]], expected: 3}
+      - {args: [[1, 2, 3, 4]], expected: 3}
+      - {args: [[9]], expected: 9}
+      - {args: [[4, 8]], expected: 8}
+    solution: |
+      class Node:
+          def __init__(self, val, next=None):
+              self.val = val
+              self.next = next
+
+      def build(values):
+          head = None
+          for v in reversed(values):
+              head = Node(v, head)
+          return head
+
+      def middle_value(values):
+          head = build(values)
+          slow = fast = head
+          while fast and fast.next:
+              slow = slow.next
+              fast = fast.next.next
+          return slow.val
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Fast đi 2, slow đi 1: có chu trình thì hai con trỏ chắc chắn gặp nhau; không thì fast chạm None."
+      - "Điều kiện vòng lặp chuẩn: `while fast and fast.next`; so sánh node bằng `is`."
+      - "Fast tới cuối thì slow ở giữa; hai con trỏ lệch k bước cho node thứ k từ cuối, một lượt duyệt."
+      - "Node bắt đầu chu trình: từ điểm gặp nhau, một con trỏ mới từ head và slow cùng đi 1 bước; chỗ gặp là điểm vào vòng."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X428], l2: [X429], l3: [X430]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-04"
