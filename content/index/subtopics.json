@@ -4800,6 +4800,455 @@
       "plan_hours": 0.5
     },
     {
+      "id": "py.functions.decorators",
+      "section": "py",
+      "module": "py.functions",
+      "name_vi": "Decorator",
+      "order": 5,
+      "summary_vi": "Decorator là hàm 'bọc' một hàm khác để thêm việc trước hoặc sau (ví dụ đo thời gian chạy) mà không sửa code bên trong; dùng bằng dấu @ đặt trên hàm.",
+      "mastery_bar_vi": "Mức 3: viết decorator đo thời gian với *args/**kwargs và functools.wraps, giải thích @ tương đương với câu lệnh nào.",
+      "prerequisites": [],
+      "lang_prereqs": {
+        "python": [
+          "py.functions.scope_closures",
+          "py.functions.lambda_hof",
+          "py.functions.def_args"
+        ],
+        "java": null
+      },
+      "key_concepts": [
+        "decorator = function wrapping function",
+        "@syntax desugaring",
+        "functools.wraps preserves metadata",
+        "decorator with arguments (factory)",
+        "stacking order",
+        "common uses: logging, timing, caching, auth, retry"
+      ],
+      "concepts_vi": [
+        {
+          "text": "Decorator: hàm nhận một hàm và trả về hàm mới bọc quanh nó, như gói quà thêm một lớp giấy bên ngoài.",
+          "level": "co_ban"
+        },
+        {
+          "text": "@ten_decorator đặt trên def f là cách viết gọn của f = ten_decorator(f).",
+          "level": "co_ban"
+        },
+        {
+          "text": "Khung cơ bản: def wrapper(*args, **kwargs) nhận mọi đối số (đã học ở py.functions.def_args: * gom đối số thành tuple, ** gom thành dict); trong đó chạy việc trước, kq = f(*args, **kwargs), việc sau, rồi return kq.",
+          "level": "co_ban"
+        },
+        {
+          "text": "functools.wraps(f) giữ lại tên và mô tả của hàm gốc.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Dùng nhiều để đo thời gian, ghi log, kiểm tra quyền, thử lại (retry), lưu cache.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Decorator có tham số: @retry(3) là hàm trả về một decorator.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Xếp chồng nhiều decorator: áp dụng từ dưới lên; decorator viết bằng class (class có __call__ để object gọi được như hàm).",
+          "level": "nang_cao"
+        },
+        {
+          "text": "@classmethod, @staticmethod, @property là decorator có sẵn (xem py.oop.classes_basics).",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "Đo thời gian",
+          "vi": "Viết decorator in thời gian chạy của hàm được bọc."
+        },
+        {
+          "title": "Ghi log",
+          "vi": "Viết decorator in 'Gọi hàm <tên> với đối số ...' trước khi chạy hàm."
+        },
+        {
+          "title": "Thử lại",
+          "vi": "Viết decorator thử lại tối đa 3 lần khi hàm báo lỗi."
+        },
+        {
+          "title": "Trước và sau",
+          "vi": "Viết hàm chao() in 'Xin chào'; chạy một lần không có decorator, một lần có @do_thoi_gian và so hai kết quả in ra."
+        }
+      ],
+      "beginner_note_vi": "Cần hiểu closure (py.functions.scope_closures) trước; fresher cần phần Cơ bản, intern có thể bỏ qua.",
+      "starter_code_vi": {
+        "lang": "python",
+        "code": "import time\ndef do_thoi_gian(f):\n    def wrapper(*args, **kwargs):\n        bd = time.perf_counter()          # đồng hồ chính xác, đơn vị giây\n        kq = f(*args, **kwargs)\n        # TODO: in tên hàm (f.__name__) và thời gian đã chạy = time.perf_counter() - bd\n        return kq\n    return wrapper\n\n@do_thoi_gian                              # tương đương: tong = do_thoi_gian(tong)\ndef tong(n):\n    return sum(range(n))\nprint(tong(10_000_000))                    # mong muốn: in tên hàm + thời gian, rồi in kết quả"
+      },
+      "example_problems": [
+        "Write a timing decorator",
+        "Write a retry decorator with params",
+        "What does functools.wraps do?"
+      ],
+      "bank_topics": [
+        "python.functions"
+      ],
+      "bank_counts": {
+        "python.functions": {
+          "total": 24,
+          "y2026": 3
+        }
+      },
+      "target_swe": {
+        "intern": 0,
+        "fresher": 2,
+        "junior": 3,
+        "senior": 3
+      },
+      "target_ai": {
+        "intern": 0,
+        "fresher": 2,
+        "junior": 3,
+        "senior": 3
+      },
+      "est_hours": 4,
+      "est_hours_beginner": 7,
+      "plan_order": 43,
+      "plan_day": null,
+      "plan_hours": 4
+    },
+    {
+      "id": "py.functions.iterators_generators",
+      "section": "py",
+      "module": "py.functions",
+      "name_vi": "Iterator và generator",
+      "order": 6,
+      "summary_vi": "Generator là hàm dùng yield để 'nhả' từng giá trị khi được hỏi thay vì tạo cả danh sách một lúc, nên tiết kiệm bộ nhớ với dữ liệu rất lớn.",
+      "mastery_bar_vi": "Mức 3: viết generator dùng yield để đọc dữ liệu lớn từng phần và giải thích 'lười' và 'chỉ dùng một lần'.",
+      "prerequisites": [],
+      "lang_prereqs": {
+        "python": [
+          "py.functions.scope_closures",
+          "py.datastructs.comprehensions"
+        ],
+        "java": null
+      },
+      "key_concepts": [
+        "iterable vs iterator",
+        "generator function yield",
+        "generator expression",
+        "lazy evaluation & memory",
+        "generator exhaustion single-pass",
+        "generator vs list comprehension",
+        "infinite generators",
+        "iterator class and yield from / send (awareness, after py.oop)"
+      ],
+      "concepts_vi": [
+        {
+          "text": "Iterable (duyệt được): list, chuỗi, file... là thứ vòng for đi qua được; iterator là 'con trỏ' đưa ra từng phần tử mỗi lần gọi next().",
+          "level": "co_ban"
+        },
+        {
+          "text": "Generator function có yield: mỗi lần được hỏi, hàm chạy tới yield, nhả giá trị rồi tạm dừng; lần sau chạy tiếp từ chỗ đó.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Ví dụ: def ba(): yield 1; yield 2; yield 3. Với g = ba(), next(g) ra 1, next(g) ra 2, next(g) ra 3, lần thứ tư báo StopIteration (hết giá trị).",
+          "level": "co_ban"
+        },
+        {
+          "text": "Generator expression (x*x for x in range(10**6)) không tạo cả triệu số cùng lúc.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Lười (lazy): chỉ tính khi cần; đọc file 10 GB từng dòng không tràn bộ nhớ, còn nạp cả vào list có thể tràn.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Generator chỉ dùng được một lần: duyệt hết rồi thì phải tạo lại.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Generator vô hạn: while True với yield; lấy một đoạn bằng next() hoặc itertools.islice(g, 10) (cắt 10 phần tử đầu, xem py.functions.itertools_idioms).",
+          "level": "co_ban"
+        },
+        {
+          "text": "Viết iterator bằng class với __iter__ và __next__ (cần học py.oop.classes_basics trước).",
+          "level": "nang_cao"
+        },
+        {
+          "text": "yield from g nhả lần lượt mọi giá trị của g; send, throw, close lần lượt gửi giá trị vào, ném lỗi vào và tắt generator đang tạm dừng (hiếm dùng).",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "Dãy Fibonacci",
+          "vi": "Viết generator trả vô hạn các số Fibonacci và in 10 số đầu bằng next()."
+        },
+        {
+          "title": "Đọc file lớn",
+          "vi": "Viết generator đọc một file lớn và nhả từng dòng đã strip."
+        },
+        {
+          "title": "List hay generator",
+          "vi": "So sánh bộ nhớ của list và generator cho 1 triệu số bằng sys.getsizeof(x) (cho số byte x chiếm)."
+        }
+      ],
+      "beginner_note_vi": "Intern có thể bỏ qua; phần iterator viết bằng class học sau khi xong py.oop.",
+      "starter_code_vi": {
+        "lang": "python",
+        "code": "def fib():\n    a, b = 0, 1\n    while True:\n        yield a            # yield: nhả một giá trị rồi tạm dừng\n        # TODO: cập nhật a, b thành b, a + b\ng = fib()\nfor _ in range(10):\n    print(next(g))"
+      },
+      "example_problems": [
+        "Generator vs list comprehension?",
+        "Read a huge file in chunks lazily",
+        "Fibonacci generator"
+      ],
+      "bank_topics": [
+        "python.functions"
+      ],
+      "bank_counts": {
+        "python.functions": {
+          "total": 24,
+          "y2026": 3
+        }
+      },
+      "target_swe": {
+        "intern": 0,
+        "fresher": 2,
+        "junior": 3,
+        "senior": 3
+      },
+      "target_ai": {
+        "intern": 0,
+        "fresher": 2,
+        "junior": 3,
+        "senior": 3
+      },
+      "est_hours": 4,
+      "est_hours_beginner": 7,
+      "plan_order": 44,
+      "plan_day": null,
+      "plan_hours": 4
+    },
+    {
+      "id": "py.functions.itertools_idioms",
+      "section": "py",
+      "module": "py.functions",
+      "name_vi": "itertools và idiom phỏng vấn",
+      "order": 7,
+      "summary_vi": "itertools có sẵn các hàm sinh mọi cặp, hoán vị, tổ hợp (như tổ hợp lớp 11) và tính tổng tích lũy, giúp giải bài đếm và liệt kê mà không phải viết vòng lặp lồng nhau.",
+      "mastery_bar_vi": "Mức 3: sinh tập con, hoán vị và tổng tích lũy bằng itertools đúng, nhớ groupby cần dữ liệu đã sắp xếp.",
+      "prerequisites": [],
+      "lang_prereqs": {
+        "python": [
+          "py.datastructs.comprehensions",
+          "py.functions.iterators_generators"
+        ],
+        "java": null
+      },
+      "key_concepts": [
+        "itertools.product permutations combinations",
+        "accumulate for prefix sums",
+        "chain, islice, count, cycle, repeat",
+        "groupby needs sorted input",
+        "zip_longest, pairwise (3.10), batched (3.12)",
+        "any/all/sum/min/max with key",
+        "one-pass idioms: next(gen, default), zip(*matrix)",
+        "takewhile, dropwhile, tee (awareness)"
+      ],
+      "concepts_vi": [
+        {
+          "text": "itertools.product tạo mọi cặp (tích Descartes), permutations mọi hoán vị, combinations mọi cách chọn k phần tử.",
+          "level": "co_ban"
+        },
+        {
+          "text": "accumulate tính tổng tích lũy (prefix sum): [1, 2, 3, 4] → [1, 3, 6, 10].",
+          "level": "co_ban"
+        },
+        {
+          "text": "chain nối nhiều dãy, islice cắt một đoạn của dãy lười, count đếm vô hạn.",
+          "level": "co_ban"
+        },
+        {
+          "text": "any(...) và all(...) kiểm tra có/mọi phần tử thỏa điều kiện; sum, min, max nhận cả generator.",
+          "level": "co_ban"
+        },
+        {
+          "text": "max(ds, key=...) chọn phần tử theo tiêu chí; next(gen, mặc_định) lấy phần tử đầu mà không báo lỗi khi rỗng.",
+          "level": "co_ban"
+        },
+        {
+          "text": "groupby gom các phần tử liền nhau có cùng khóa, cần dữ liệu đã được xếp trước.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "zip_longest ghép cặp đến hết dãy dài hơn; pairwise ra các cặp liền kề (3.10); batched cắt dãy thành nhóm k phần tử (3.12); takewhile và dropwhile lấy hoặc bỏ phần tử đầu cho đến khi điều kiện sai; tee tách một iterator thành nhiều.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "zip(*m) chuyển vị ma trận (đổi hàng thành cột): dấu * bung các hàng thành đối số của zip (xem py.functions.def_args).",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "Mọi tập con",
+          "vi": "Liệt kê mọi tập con của [1, 2, 3] bằng itertools.combinations, lặp k từ 0 đến 3 rồi gộp kết quả."
+        },
+        {
+          "title": "Hoán vị",
+          "vi": "In mọi cách xếp 3 bạn An, Bình, Chi vào một hàng."
+        },
+        {
+          "title": "Doanh thu tích lũy",
+          "vi": "Cho doanh thu từng ngày, tính tổng doanh thu tích lũy bằng accumulate."
+        }
+      ],
+      "example_problems": [
+        "Generate all subsets",
+        "Prefix sums with accumulate",
+        "Group consecutive elements"
+      ],
+      "bank_topics": [
+        "python.data_structures",
+        "python.functions"
+      ],
+      "bank_counts": {
+        "python.data_structures": {
+          "total": 17,
+          "y2026": 2
+        },
+        "python.functions": {
+          "total": 24,
+          "y2026": 3
+        }
+      },
+      "target_swe": {
+        "intern": 0,
+        "fresher": 1,
+        "junior": 2,
+        "senior": 3
+      },
+      "target_ai": {
+        "intern": 0,
+        "fresher": 1,
+        "junior": 2,
+        "senior": 2
+      },
+      "est_hours": 3,
+      "est_hours_beginner": 5,
+      "plan_order": 45,
+      "plan_day": null,
+      "plan_hours": 3
+    },
+    {
+      "id": "py.functions.functools_cache",
+      "section": "py",
+      "module": "py.functions",
+      "name_vi": "functools và memoization (lru_cache)",
+      "order": 8,
+      "summary_vi": "Cache là bộ nhớ ghi lại kết quả đã tính để lần sau khỏi tính lại. @lru_cache làm việc đó tự động cho hàm, rất hữu ích với hàm tự gọi lại chính nó (đệ quy) nhiều lần với cùng đầu vào.",
+      "mastery_bar_vi": "Mức 3: dùng @lru_cache để memoize hàm gọi lại chính nó, giải thích vì sao đối số phải hashable và khi nào không nên cache.",
+      "prerequisites": [],
+      "lang_prereqs": {
+        "python": [
+          "py.functions.decorators"
+        ],
+        "java": null
+      },
+      "key_concepts": [
+        "lru_cache(maxsize) and cache",
+        "arguments must be hashable",
+        "cache_info and cache_clear",
+        "memoization turns exponential DP into polynomial",
+        "recursion limit with deep memoized recursion",
+        "caching methods: self keeps instances alive",
+        "cached_property",
+        "singledispatch (awareness)"
+      ],
+      "concepts_vi": [
+        {
+          "text": "Cache / memoization: lưu kết quả theo đầu vào; gọi lại cùng đầu vào thì trả ngay không tính lại.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Từ functools import lru_cache (hoặc cache), đặt @lru_cache(maxsize=None) hoặc @cache trên hàm là đủ; LRU nghĩa là khi đầy thì bỏ mục lâu không dùng nhất.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Ví dụ fib(n) tự gọi fib(n-1) và fib(n-2): không cache thì tính lặp rất nhiều lần, có cache thì nhanh hơn hàng triệu lần.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Đối số của hàm phải hashable (số, chuỗi, tuple; không phải list) vì dùng làm khóa tra cache.",
+          "level": "co_ban"
+        },
+        {
+          "text": "cache_info() cho biết số lần trúng và trượt cache; cache_clear() xóa cache.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Chỉ cache hàm 'thuần': cùng đầu vào luôn cùng kết quả và không có tác dụng phụ (không thay đổi gì bên ngoài như in ra hay ghi file).",
+          "level": "co_ban"
+        },
+        {
+          "text": "Cache method của class giữ self sống mãi (rò bộ nhớ); cached_property cho thuộc tính tính một lần rồi nhớ.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Đệ quy rất sâu bị giới hạn (recursion limit, mặc định khoảng 1000 tầng); cách khác là quy hoạch động (chia bài toán nhỏ và nhớ kết quả, học ở dsa.dp).",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Tự cài LRU cache là bài của dsa.design_ds; singledispatch cho một hàm có nhiều bản cài theo kiểu của đối số đầu tiên.",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "Fibonacci",
+          "vi": "Viết fib(n) đệ quy (fib(n) = fib(n-1) + fib(n-2)), đo thời gian fib(35) bằng time.perf_counter() (xem py.functions.decorators) khi chưa và khi đã thêm @lru_cache."
+        },
+        {
+          "title": "Lỗi hashable",
+          "vi": "Gọi hàm có @lru_cache với đối số là list và đọc lỗi nhận được."
+        },
+        {
+          "title": "Hiệu quả cache",
+          "vi": "Dùng cache_info() để xem số lần trúng và trượt cache sau nhiều lần gọi."
+        }
+      ],
+      "beginner_note_vi": "Đệ quy được dạy ở dsa.recursion_backtracking; chưa học thì đọc lướt ví dụ Fibonacci rồi quay lại.",
+      "example_problems": [
+        "Fibonacci with lru_cache",
+        "Why must lru_cache arguments be hashable?"
+      ],
+      "bank_topics": [
+        "python.functions"
+      ],
+      "bank_counts": {
+        "python.functions": {
+          "total": 24,
+          "y2026": 3
+        }
+      },
+      "target_swe": {
+        "intern": 0,
+        "fresher": 2,
+        "junior": 3,
+        "senior": 3
+      },
+      "target_ai": {
+        "intern": 0,
+        "fresher": 2,
+        "junior": 3,
+        "senior": 3
+      },
+      "est_hours": 3,
+      "est_hours_beginner": 5,
+      "plan_order": 46,
+      "plan_day": null,
+      "plan_hours": 3
+    },
+    {
       "id": "py.oop.inheritance_mro",
       "section": "py",
       "module": "py.oop",
@@ -4902,7 +5351,7 @@
       },
       "est_hours": 4,
       "est_hours_beginner": 7,
-      "plan_order": 43,
+      "plan_order": 47,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -5017,7 +5466,7 @@
       },
       "est_hours": 4,
       "est_hours_beginner": 7,
-      "plan_order": 44,
+      "plan_order": 48,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -5128,7 +5577,7 @@
       },
       "est_hours": 3,
       "est_hours_beginner": 5,
-      "plan_order": 45,
+      "plan_order": 49,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -5251,7 +5700,7 @@
       },
       "est_hours": 3,
       "est_hours_beginner": 5,
-      "plan_order": 46,
+      "plan_order": 50,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -5365,7 +5814,7 @@
       },
       "est_hours": 3,
       "est_hours_beginner": 5,
-      "plan_order": 47,
+      "plan_order": 51,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -5473,9 +5922,126 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 48,
+      "plan_order": 52,
       "plan_day": null,
       "plan_hours": 0.5
+    },
+    {
+      "id": "py.errors_modules.context_managers",
+      "section": "py",
+      "module": "py.errors_modules",
+      "name_vi": "Context manager (câu lệnh with)",
+      "order": 2,
+      "summary_vi": "Context manager là thứ dùng được với câu lệnh with: tự chuẩn bị khi vào và tự dọn dẹp khi ra (đóng file, dừng đồng hồ), kể cả khi có lỗi. Học xong, bạn tự viết được context manager của riêng mình.",
+      "mastery_bar_vi": "Mức 3: viết context manager bằng cả class lẫn @contextmanager và giải thích vai trò của __exit__ khi có lỗi.",
+      "prerequisites": [],
+      "lang_prereqs": {
+        "python": [
+          "py.errors_modules.exceptions",
+          "py.oop.dunder_methods",
+          "py.functions.iterators_generators"
+        ],
+        "java": null
+      },
+      "key_concepts": [
+        "with statement protocol: __enter__ and __exit__(exc_type, exc, tb)",
+        "returning True from __exit__ suppresses the exception",
+        "@contextmanager generator form",
+        "use cases: files, locks, transactions, timers",
+        "ExitStack, suppress, closing and async with (awareness)"
+      ],
+      "concepts_vi": [
+        {
+          "text": "with bắt đầu bằng __enter__ khi vào khối và kết thúc bằng __exit__ khi ra, kể cả khi có lỗi.",
+          "level": "co_ban"
+        },
+        {
+          "text": "with open('a.txt') as f: là ví dụ quen thuộc: file tự đóng khi ra khỏi khối.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Viết bằng class: định nghĩa __enter__ và __exit__(self, loai_loi, loi, vet), trong đó vet là traceback (vết lỗi) và ba giá trị này là None nếu không có lỗi.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Viết gọn bằng @contextmanager: hàm có một yield, code trước yield là phần vào, code sau yield là phần ra; bọc yield trong try/finally để phần ra vẫn chạy khi khối with báo lỗi.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Nếu __exit__ trả True thì lỗi bị nuốt; mặc định trả None thì lỗi vẫn lan ra.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Dùng cho: file, đo thời gian, tạm đổi cấu hình rồi trả lại.",
+          "level": "co_ban"
+        },
+        {
+          "text": "ExitStack quản lý số lượng with chưa biết trước; suppress(TenLoi) bỏ qua lỗi chỉ định; closing(x) gọi x.close() khi ra khỏi khối.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "async with cho code bất đồng bộ (xem py.concurrency.asyncio_basics); khóa (lock) và transaction (giao dịch database) cũng dùng with.",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "Đồng hồ bấm giờ",
+          "vi": "Viết context manager in thời gian chạy của khối bên trong with."
+        },
+        {
+          "title": "with open hoạt động ra sao",
+          "vi": "Tự viết class MoFile có __enter__ và __exit__ bắt chước with open."
+        },
+        {
+          "title": "Tạm đổi thư mục",
+          "vi": "Viết context manager đổi thư mục làm việc rồi tự trả về như cũ khi xong."
+        },
+        {
+          "title": "Lỗi bên trong with",
+          "vi": "Đặt raise ValueError trong khối with của MoFile (class) và của dong_ho (không có try/finally), rồi so sánh phần dọn dẹp có chạy không."
+        }
+      ],
+      "beginner_note_vi": "Intern có thể bỏ qua; with open ở py.core.io_input là đủ cho người mới.",
+      "starter_code_vi": {
+        "lang": "python",
+        "code": "import time\nfrom contextlib import contextmanager\n@contextmanager\ndef dong_ho():\n    bd = time.perf_counter()\n    yield                             # code trong khối with chạy ở đây\n    # TODO: in thời gian đã trôi qua = time.perf_counter() - bd\nwith dong_ho():\n    sum(range(10_000_000))"
+      },
+      "example_problems": [
+        "Write a timer context manager",
+        "How does `with open()` work?",
+        "Temporarily change the working directory"
+      ],
+      "bank_topics": [
+        "python.core_data_model",
+        "python.functions"
+      ],
+      "bank_counts": {
+        "python.core_data_model": {
+          "total": 27,
+          "y2026": 2
+        },
+        "python.functions": {
+          "total": 24,
+          "y2026": 3
+        }
+      },
+      "target_swe": {
+        "intern": 0,
+        "fresher": 2,
+        "junior": 3,
+        "senior": 3
+      },
+      "target_ai": {
+        "intern": 0,
+        "fresher": 2,
+        "junior": 3,
+        "senior": 3
+      },
+      "est_hours": 3,
+      "plan_order": 53,
+      "plan_day": null,
+      "plan_hours": 3
     },
     {
       "id": "py.errors_modules.files_pathlib",
@@ -5582,7 +6148,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 49,
+      "plan_order": 54,
       "plan_day": null,
       "plan_hours": 0.5
     },
@@ -5690,7 +6256,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 50,
+      "plan_order": 55,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -5799,7 +6365,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 51,
+      "plan_order": 56,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -5907,7 +6473,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 52,
+      "plan_order": 57,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -6014,7 +6580,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 53,
+      "plan_order": 58,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -6124,7 +6690,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 54,
+      "plan_order": 59,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -6235,7 +6801,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 55,
+      "plan_order": 60,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -6352,7 +6918,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 56,
+      "plan_order": 61,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -6464,7 +7030,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 57,
+      "plan_order": 62,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -6564,7 +7130,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 58,
+      "plan_order": 63,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -6670,7 +7236,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 59,
+      "plan_order": 64,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -6779,7 +7345,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 60,
+      "plan_order": 65,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -6924,7 +7490,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 61,
+      "plan_order": 66,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -7037,7 +7603,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 62,
+      "plan_order": 67,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -7150,7 +7716,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 63,
+      "plan_order": 68,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -7255,7 +7821,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 64,
+      "plan_order": 69,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -7363,7 +7929,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 65,
+      "plan_order": 70,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -7480,7 +8046,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 66,
+      "plan_order": 71,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -7588,7 +8154,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 67,
+      "plan_order": 72,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -7692,7 +8258,7 @@
         "senior": 0
       },
       "est_hours": 3,
-      "plan_order": 68,
+      "plan_order": 73,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -7804,7 +8370,7 @@
         "senior": 1
       },
       "est_hours": 3,
-      "plan_order": 69,
+      "plan_order": 74,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -7921,7 +8487,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 70,
+      "plan_order": 75,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -8030,7 +8596,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 71,
+      "plan_order": 76,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -8136,7 +8702,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 72,
+      "plan_order": 77,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -8271,7 +8837,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 73,
+      "plan_order": 78,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -8390,7 +8956,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 74,
+      "plan_order": 79,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -8518,7 +9084,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 75,
+      "plan_order": 80,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -8623,7 +9189,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 76,
+      "plan_order": 81,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -8736,7 +9302,7 @@
         "senior": 0
       },
       "est_hours": 2,
-      "plan_order": 77,
+      "plan_order": 82,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -8860,7 +9426,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 78,
+      "plan_order": 83,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -8968,7 +9534,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 79,
+      "plan_order": 84,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -9085,7 +9651,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 80,
+      "plan_order": 85,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -9190,7 +9756,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 81,
+      "plan_order": 86,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -9299,7 +9865,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 82,
+      "plan_order": 87,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -9435,7 +10001,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 83,
+      "plan_order": 88,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -9554,7 +10120,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 84,
+      "plan_order": 89,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -9679,7 +10245,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 85,
+      "plan_order": 90,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -9776,7 +10342,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 86,
+      "plan_order": 91,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -9898,7 +10464,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 87,
+      "plan_order": 92,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -10015,7 +10581,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 88,
+      "plan_order": 93,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -10124,7 +10690,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 89,
+      "plan_order": 94,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -10234,7 +10800,7 @@
         "senior": 1
       },
       "est_hours": 4,
-      "plan_order": 90,
+      "plan_order": 95,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -10339,7 +10905,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 91,
+      "plan_order": 96,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -10449,7 +11015,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 92,
+      "plan_order": 97,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -10554,7 +11120,7 @@
         "senior": 0
       },
       "est_hours": 3,
-      "plan_order": 93,
+      "plan_order": 98,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -10679,7 +11245,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 94,
+      "plan_order": 99,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -10802,7 +11368,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 95,
+      "plan_order": 100,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -10907,7 +11473,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 96,
+      "plan_order": 101,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -11009,7 +11575,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 97,
+      "plan_order": 102,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -11112,7 +11678,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 98,
+      "plan_order": 103,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -11230,7 +11796,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 99,
+      "plan_order": 104,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -11335,7 +11901,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 100,
+      "plan_order": 105,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -11427,7 +11993,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 101,
+      "plan_order": 106,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -11539,7 +12105,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 102,
+      "plan_order": 107,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -11657,7 +12223,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 103,
+      "plan_order": 108,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -11766,7 +12332,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 104,
+      "plan_order": 109,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -11876,7 +12442,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 105,
+      "plan_order": 110,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -11986,7 +12552,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 106,
+      "plan_order": 111,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -12094,7 +12660,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 107,
+      "plan_order": 112,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -12203,7 +12769,7 @@
         "senior": 1
       },
       "est_hours": 4,
-      "plan_order": 108,
+      "plan_order": 113,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -12313,7 +12879,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 109,
+      "plan_order": 114,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -12412,7 +12978,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 110,
+      "plan_order": 115,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -12516,7 +13082,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 111,
+      "plan_order": 116,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -12624,7 +13190,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 112,
+      "plan_order": 117,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -12734,7 +13300,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 113,
+      "plan_order": 118,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -12833,7 +13399,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 114,
+      "plan_order": 119,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -12936,7 +13502,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 115,
+      "plan_order": 120,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -13038,7 +13604,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 116,
+      "plan_order": 121,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -13142,7 +13708,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 117,
+      "plan_order": 122,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -13248,7 +13814,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 118,
+      "plan_order": 123,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -13352,7 +13918,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 119,
+      "plan_order": 124,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -13452,7 +14018,7 @@
         "senior": 0
       },
       "est_hours": 3,
-      "plan_order": 120,
+      "plan_order": 125,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -13557,7 +14123,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 121,
+      "plan_order": 126,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -13668,7 +14234,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 122,
+      "plan_order": 127,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -13775,7 +14341,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 123,
+      "plan_order": 128,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -13886,7 +14452,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 124,
+      "plan_order": 129,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -13996,7 +14562,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 125,
+      "plan_order": 130,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -14099,7 +14665,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 126,
+      "plan_order": 131,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -14203,7 +14769,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 127,
+      "plan_order": 132,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -14317,7 +14883,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 128,
+      "plan_order": 133,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -14436,7 +15002,7 @@
         "senior": 0
       },
       "est_hours": 6,
-      "plan_order": 129,
+      "plan_order": 134,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -14545,7 +15111,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 130,
+      "plan_order": 135,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -14646,7 +15212,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 131,
+      "plan_order": 136,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -14751,7 +15317,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 132,
+      "plan_order": 137,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -14857,7 +15423,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 133,
+      "plan_order": 138,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -14968,7 +15534,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 134,
+      "plan_order": 139,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -15074,7 +15640,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 135,
+      "plan_order": 140,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -15176,7 +15742,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 136,
+      "plan_order": 141,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -15291,7 +15857,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 137,
+      "plan_order": 142,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -15408,7 +15974,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 138,
+      "plan_order": 143,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -15531,7 +16097,7 @@
         "senior": 3
       },
       "est_hours": 2,
-      "plan_order": 139,
+      "plan_order": 144,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -15659,7 +16225,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 140,
+      "plan_order": 145,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -15779,7 +16345,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 141,
+      "plan_order": 146,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -15893,7 +16459,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 142,
+      "plan_order": 147,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -16015,7 +16581,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 143,
+      "plan_order": 148,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -16141,7 +16707,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 144,
+      "plan_order": 149,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -16261,7 +16827,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 145,
+      "plan_order": 150,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -16378,7 +16944,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 146,
+      "plan_order": 151,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -16497,7 +17063,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 147,
+      "plan_order": 152,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -16609,7 +17175,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 148,
+      "plan_order": 153,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -16731,7 +17297,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 149,
+      "plan_order": 154,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -16856,7 +17422,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 150,
+      "plan_order": 155,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -16973,7 +17539,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 151,
+      "plan_order": 156,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -17084,7 +17650,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 152,
+      "plan_order": 157,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -17196,7 +17762,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 153,
+      "plan_order": 158,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -17303,7 +17869,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 154,
+      "plan_order": 159,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -17423,7 +17989,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 155,
+      "plan_order": 160,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -17546,7 +18112,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 156,
+      "plan_order": 161,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -17656,7 +18222,7 @@
         "senior": 3
       },
       "est_hours": 2,
-      "plan_order": 157,
+      "plan_order": 162,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -17766,7 +18332,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 158,
+      "plan_order": 163,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -17882,7 +18448,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 159,
+      "plan_order": 164,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -18007,7 +18573,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 160,
+      "plan_order": 165,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -18121,7 +18687,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 161,
+      "plan_order": 166,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -18238,7 +18804,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 162,
+      "plan_order": 167,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -18336,7 +18902,7 @@
         "senior": 3
       },
       "est_hours": 2,
-      "plan_order": 163,
+      "plan_order": 168,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -18454,7 +19020,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 164,
+      "plan_order": 169,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -18578,7 +19144,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 165,
+      "plan_order": 170,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -18703,7 +19269,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 166,
+      "plan_order": 171,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -18831,7 +19397,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 167,
+      "plan_order": 172,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -18947,7 +19513,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 168,
+      "plan_order": 173,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -19051,7 +19617,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 169,
+      "plan_order": 174,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -19168,7 +19734,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 170,
+      "plan_order": 175,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -19280,7 +19846,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 171,
+      "plan_order": 176,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -19380,7 +19946,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 172,
+      "plan_order": 177,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -19514,7 +20080,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 173,
+      "plan_order": 178,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -19650,7 +20216,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 174,
+      "plan_order": 179,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -19795,7 +20361,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 175,
+      "plan_order": 180,
       "plan_day": null,
       "plan_hours": 6
     }

@@ -1,0 +1,48 @@
+subtopic_id: py.errors_modules.context_managers
+items:
+  - id: X402
+    difficulty: 1
+    type: read_code
+    minutes: 3
+    prompt_md: Chạy tay (không chạy máy), đoạn code in ra gì? Giải thích 1 câu.
+    code: |-
+      class C:
+          def __init__(self, swallow):
+              self.swallow = swallow
+
+          def __enter__(self):
+              print("in")
+              return 5
+
+          def __exit__(self, exc_type, exc, tb):
+              print("out", exc_type is None)
+              return self.swallow
+
+      with C(True) as x:
+          print(x)
+          raise ValueError
+      print("A")
+      try:
+          with C(False):
+              raise ValueError
+      except ValueError:
+          print("B")
+    expected_output: "in\n5\nout False\nA\nin\nout False\nB"
+    answer_md: '`as x` nhận giá trị `__enter__` trả về (5). `__exit__` luôn chạy khi có lỗi, `exc_type` khác `None` nên in `out False`. Lần đầu `__exit__` trả `True` nên lỗi bị nuốt và chạy tiếp tới `A`; lần hai trả `False` nên `ValueError` lan ra và bị `except` bắt, in `B`.'
+    rubric_md: "Output khớp từng ký tự (bỏ khoảng trắng cuối dòng) VÀ giải thích đúng 1 câu. Đúng: bằng chứng điểm 1; sai: tối đa điểm 0."
+  - id: X403
+    difficulty: 2
+    type: write_code
+    minutes: 6
+    prompt_md: |
+      Viết `run(kind)` (kind là `"ok"`, `"value"` hoặc `"key"`) trả về list log các sự kiện theo thứ tự. Định nghĩa context manager dạng class `Tracer(log)`: `__enter__` ghi `"enter"`; `__exit__` ghi `"exit"` nếu không lỗi, hoặc `"exit:<TênLỗi>"` nếu có lỗi, và chỉ nuốt `ValueError` (lỗi khác lan ra). Trong `run`: `with Tracer(log):` ghi `"body"`, rồi ném `ValueError` nếu kind là `"value"`, ném `KeyError` nếu kind là `"key"`, còn `"ok"` thì ghi `"end"`. Bọc cả khối `with` trong `try/except KeyError` ghi `"caught:KeyError"`; sau khối `try` (nếu chạy tới) ghi `"after"`. Ví dụ `"value"` cho `["enter", "body", "exit:ValueError", "after"]`.
+    problem_id: check-x403-trace-exit
+    rubric_md: "Pass toàn bộ test ẩn. Đúng không gợi ý trong time-box (6 phút): bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X404
+    difficulty: 3
+    type: write_code
+    minutes: 12
+    prompt_md: |
+      Viết `nested(names, fail)` trả về list log. Dùng `@contextlib.contextmanager` định nghĩa `scoped(log, name)`: ghi `"enter <name>"` khi vào, `yield`, và ghi `"exit <name>"` khi ra kể cả khi có lỗi (dùng `finally`). `nested` vào lần lượt các `scoped` theo thứ tự `names` (gợi ý: `contextlib.ExitStack`), ghi `"body"`, rồi nếu `fail` thì ném `RuntimeError`. Lỗi được bắt bên ngoài các `with` và ghi `"caught"`. Các `exit` phải theo thứ tự ngược với `enter`. Ví dụ `(["a", "b"], True)` cho `["enter a", "enter b", "body", "exit b", "exit a", "caught"]`.
+    problem_id: check-x404-nested-scopes
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 12 phút: bằng chứng điểm 3; phải xem gợi ý hoặc quá thời gian: tối đa điểm 2."

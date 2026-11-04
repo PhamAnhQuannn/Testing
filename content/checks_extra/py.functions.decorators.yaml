@@ -1,0 +1,54 @@
+subtopic_id: py.functions.decorators
+items:
+  - id: X390
+    difficulty: 1
+    type: read_code
+    minutes: 3
+    prompt_md: Chạy tay (không chạy máy), đoạn code in ra gì? Giải thích 1 câu.
+    code: |-
+      import functools
+
+      def twice(func):
+          @functools.wraps(func)
+          def wrapper(*args, **kwargs):
+              return func(*args, **kwargs) * 2
+          return wrapper
+
+      def plain(func):
+          def wrapper(*args, **kwargs):
+              return func(*args, **kwargs)
+          return wrapper
+
+      @twice
+      def a(x):
+          return x + 1
+
+      @plain
+      def b(x):
+          return x + 1
+
+      def c(x):
+          return x + 1
+
+      c = twice(c)
+      print(a(3), b(3), c(3))
+      print(a.__name__, b.__name__, c.__name__)
+    expected_output: "8 4 8\na wrapper c"
+    answer_md: '`@twice` là `a = twice(a)`, nên `a(3)` gọi wrapper và trả `(3 + 1) * 2 = 8`; `c = twice(c)` viết tay cho kết quả giống hệt. `b` chỉ chuyển tiếp nên `b(3)` là 4. Nhờ `functools.wraps`, `a` và `c` giữ tên gốc, còn `plain` không dùng `wraps` nên `b.__name__` là `wrapper`.'
+    rubric_md: "Output khớp từng ký tự (bỏ khoảng trắng cuối dòng) VÀ giải thích đúng 1 câu. Đúng: bằng chứng điểm 1; sai: tối đa điểm 0."
+  - id: X391
+    difficulty: 2
+    type: write_code
+    minutes: 5
+    prompt_md: |
+      Viết decorator `counted(func)` đếm số lần hàm được gọi: wrapper nhận `*args, **kwargs`, tăng `wrapper.calls` (khởi tạo 0), trả đúng giá trị của `func` và dùng `functools.wraps`. Rồi định nghĩa `double(x)` (trả `x * 2`) với `@counted` và `run_counted(xs)` trả `[list kết quả double(x) cho từng x trong xs, double.calls, double.__name__]`.
+    problem_id: check-x391-counted-calls
+    rubric_md: "Pass toàn bộ test ẩn. Đúng không gợi ý trong time-box (5 phút): bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X392
+    difficulty: 3
+    type: write_code
+    minutes: 12
+    prompt_md: |
+      Viết decorator có tham số `scaled(k)`: hàm bị bọc trả kết quả gốc nhân `k`; wrapper phải chuyển tiếp `*args, **kwargs` và giữ `__name__`, `__doc__` bằng `functools.wraps`. Định nghĩa `add(a, b=0)` với docstring `"Add."` (trả `a + b`) được decorate bằng `@scaled(k)` bên trong `run_scaled(k, xs)`, rồi trả `[[add(x, b=1) cho từng x trong xs], add.__name__, add.__doc__]`. Gợi ý: `@scaled(k)` tương đương `add = scaled(k)(add)`.
+    problem_id: check-x392-scaled-factory
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 12 phút: bằng chứng điểm 3; phải xem gợi ý hoặc quá thời gian: tối đa điểm 2."

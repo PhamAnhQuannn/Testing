@@ -1,0 +1,234 @@
+id: py.functions.itertools_idioms
+version: 1
+status: published
+title_vi: itertools và các idiom phỏng vấn (itertools_idioms)
+est_minutes: 12
+objectives_vi:
+- Sinh hoán vị, tổ hợp, tập con bằng permutations, combinations, product, chain.
+- Tính tổng tích lũy bằng accumulate; cắt iterator vô hạn bằng islice.
+- "Dùng groupby đúng cách: dữ liệu phải được sắp xếp theo key trước."
+blocks:
+  - id: s_comb
+    type: section
+    title_vi: "chain, product, permutations, combinations"
+    summary_vi: "Sinh tổ hợp, hoán vị, tích Descartes và tập con bằng itertools; luôn bọc list(...) để xem kết quả."
+    exercise_ref: ex_pairs
+  - id: t1
+    type: text
+    md: |
+      Module **`itertools`** cho các công cụ trả về **iterator** (lười, chưa tính ngay). Muốn xem
+      hoặc so sánh kết quả, bọc bằng `list(...)`.
+
+      - `chain(a, b)`: nối nhiều iterable thành một dãy.
+      - `product(a, b)`: tích Descartes (mọi cặp, như hai vòng `for` lồng nhau).
+      - `permutations(xs, r)`: **hoán vị** chọn `r` phần tử, **có phân biệt thứ tự**.
+      - `combinations(xs, r)`: **tổ hợp** chọn `r` phần tử, **không phân biệt thứ tự**, không lặp.
+
+      Thứ tự đầu ra theo vị trí của phần tử trong đầu vào, nên với đầu vào cố định thì kết quả cố định.
+      **Tập con** của một list là gộp `combinations(xs, r)` với `r = 0..len(xs)` qua
+      `chain.from_iterable`.
+  - id: c1
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      from itertools import chain, combinations, permutations, product
+
+      print(list(chain([1, 2], [3])))
+      print(list(product("ab", [0, 1])))
+      print(list(permutations([1, 2, 3], 2)))
+      print(list(combinations([1, 2, 3], 2)))
+      s = [1, 2, 3]
+      print(list(chain.from_iterable(combinations(s, r) for r in range(len(s) + 1))))
+    expected_output: |
+      [1, 2, 3]
+      [('a', 0), ('a', 1), ('b', 0), ('b', 1)]
+      [(1, 2), (1, 3), (2, 1), (2, 3), (3, 1), (3, 2)]
+      [(1, 2), (1, 3), (2, 3)]
+      [(), (1,), (2,), (3,), (1, 2), (1, 3), (2, 3), (1, 2, 3)]
+  - id: q1
+    type: quiz_mcq
+    prompt_md: "`len(list(permutations([1, 2, 3], 2)))` bằng bao nhiêu?"
+    options:
+      - {id: a, text_md: "3"}
+      - {id: b, text_md: "6"}
+      - {id: c, text_md: "9"}
+    answer: [b]
+    explain_md: "Chọn 2 trong 3 có phân biệt thứ tự: 3 * 2 = 6. `combinations` mới cho 3."
+  - id: ex_pairs
+    type: code_exercise
+    md: |
+      Viết `pair_sums(nums)` trả về list **đã sắp xếp** gồm tổng của mọi cặp hai phần tử ở hai vị trí
+      khác nhau (mỗi cặp vị trí tính một lần). Ví dụ `pair_sums([1, 2, 3])` là `[3, 4, 5]`.
+    entry: pair_sums
+    starter: |
+      from itertools import combinations
+
+
+      def pair_sums(nums):
+          # TODO: dùng combinations(nums, 2)
+          return []
+    guidance_md: |
+      - Lấy mọi cặp vị trí bằng `combinations(nums, 2)`.
+      - Với mỗi cặp `(a, b)` tính `a + b`.
+      - Trả về `sorted(...)` của các tổng.
+    hints:
+      - level: nudge
+        md: "Hàm đang trả list rỗng. Cần công cụ nào của itertools để lấy mọi cặp không phân biệt thứ tự?"
+      - level: approach
+        md: "Duyệt `combinations(nums, 2)`, cộng hai phần tử của mỗi cặp, rồi sắp xếp danh sách tổng."
+      - level: pseudocode
+        md: |
+          trả về sorted của [a + b với mỗi (a, b) trong combinations(nums, 2)]
+    tests:
+      - {args: [[1, 2, 3]], expected: [3, 4, 5]}
+      - {args: [[1, 1]], expected: [2]}
+      - {args: [[5]], expected: []}
+      - {args: [[4, 1, 3, 1]], expected: [2, 4, 4, 5, 5, 7]}
+    solution: "from itertools import combinations\n\n\ndef pair_sums(nums):\n    return sorted(a + b for a, b in combinations(nums, 2))\n"
+  - id: s_group
+    type: section
+    title_vi: "groupby cần dữ liệu đã sắp xếp"
+    summary_vi: "groupby chỉ gom các phần tử LIỀN KỀ có cùng key, nên phải sorted theo cùng key trước."
+    exercise_ref: ex_group
+  - id: t2
+    type: text
+    md: |
+      `groupby(data, key=f)` gom các phần tử **liền kề** có cùng `f(x)`. Nó **không** gom các phần tử
+      giống nhau nằm rải rác như `GROUP BY` của SQL. Vì vậy phải **`sorted(data, key=f)` trước** với
+      đúng cùng `key`; quên sắp xếp là lỗi kinh điển.
+
+      Mỗi nhóm `g` cũng là iterator dùng một lần: đọc ngay (ví dụ `len(list(g))`) trước khi sang nhóm
+      kế tiếp.
+  - id: c2
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      from itertools import groupby
+
+      data = ["b2", "a1", "b1", "a3"]
+      first = lambda s: s[0]
+
+      bad = [(k, len(list(g))) for k, g in groupby(data, key=first)]
+      print("chua sort:", bad)
+
+      good = [(k, len(list(g))) for k, g in groupby(sorted(data, key=first), key=first)]
+      print("da sort:", good)
+    expected_output: |
+      chua sort: [('b', 1), ('a', 1), ('b', 1), ('a', 1)]
+      da sort: [('a', 2), ('b', 2)]
+  - id: q2
+    type: quiz_mcq
+    prompt_md: "Vì sao cần `sorted(...)` trước `groupby`?"
+    options:
+      - {id: a, text_md: "groupby chỉ gom các phần tử liền kề có cùng key"}
+      - {id: b, text_md: "groupby không chạy được trên list chưa sắp xếp"}
+      - {id: c, text_md: "sorted làm groupby chạy nhanh hơn, kết quả không đổi"}
+    answer: [a]
+    explain_md: "Không sắp xếp thì cùng một key có thể xuất hiện thành nhiều nhóm tách rời; nó vẫn chạy nhưng cho kết quả sai."
+  - id: callout_group
+    type: callout
+    kind: interview
+    md: "Phỏng vấn hay hỏi: \"vì sao `groupby` cho nhiều nhóm trùng key?\". Trả lời: dữ liệu chưa sắp xếp theo key."
+  - id: ex_group
+    type: code_exercise
+    md: |
+      Viết `count_by_initial(words)` trả về list `[chữ cái đầu, số từ]` sắp theo chữ cái đầu tăng dần.
+      Ví dụ `count_by_initial(["bob", "amy", "ben", "al"])` là `[["a", 2], ["b", 2]]`. Code cho sẵn quên
+      sắp xếp nên cho kết quả sai.
+    entry: count_by_initial
+    starter: |
+      from itertools import groupby
+
+
+      def count_by_initial(words):
+          return [[k, len(list(g))] for k, g in groupby(words, key=lambda w: w[0])]
+    guidance_md: |
+      - Nhận ra `groupby` đang chạy trên `words` chưa sắp xếp.
+      - Sắp xếp `words` theo cùng key `w[0]` trước khi truyền vào `groupby`.
+      - Mỗi nhóm: đếm bằng `len(list(g))`.
+    hints:
+      - level: nudge
+        md: "Với `['bob','amy','ben','al']` hiện ra 4 nhóm thay vì 2. Điều kiện nào của groupby bị vi phạm?"
+      - level: approach
+        md: "Sắp xếp `words` theo cùng hàm key (chữ cái đầu) rồi mới đưa vào `groupby`."
+      - level: pseudocode
+        md: |
+          ordered <- words sắp xếp theo chữ cái đầu
+          với mỗi (key, nhóm) trong groupby(ordered, cùng key): thêm [key, độ dài nhóm]
+    tests:
+      - {args: [["bob", "amy", "ben", "al"]], expected: [["a", 2], ["b", 2]]}
+      - {args: [[]], expected: []}
+      - {args: [["zed", "x", "zoo", "x"]], expected: [["x", 2], ["z", 2]]}
+    solution: "from itertools import groupby\n\n\ndef count_by_initial(words):\n    ordered = sorted(words, key=lambda w: w[0])\n    return [[k, len(list(g))] for k, g in groupby(ordered, key=lambda w: w[0])]\n"
+  - id: s_acc
+    type: section
+    title_vi: "accumulate, islice, count, cycle"
+    summary_vi: "accumulate cho tổng tích lũy, islice cắt iterator; count và cycle vô hạn nên luôn giới hạn bằng islice."
+  - id: t3
+    type: text
+    md: |
+      - `accumulate(xs)`: **tổng tích lũy** (prefix sum). Truyền thêm hàm hai tham số để đổi phép toán,
+        ví dụ `accumulate(xs, max)` cho "max đến hiện tại".
+      - `islice(it, stop)` hoặc `islice(it, start, stop, step)`: cắt lát iterator (không âm).
+      - `count(start, step)` và `cycle(xs)` là iterator **vô hạn**: luôn giới hạn bằng `islice`, tuyệt
+        đối không `list(...)` trực tiếp.
+  - id: c3
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      from itertools import accumulate, count, cycle, islice
+
+      print(list(accumulate([1, 2, 3, 4])))
+      print(list(accumulate([3, 1, 4, 1, 5], max)))
+      print(list(islice(count(10, 5), 4)))
+      print(list(islice(cycle("ab"), 5)))
+      print(list(islice(range(10), 2, 8, 3)))
+    expected_output: |
+      [1, 3, 6, 10]
+      [3, 3, 4, 4, 5]
+      [10, 15, 20, 25]
+      ['a', 'b', 'a', 'b', 'a']
+      [2, 5]
+  - id: q3
+    type: quiz_mcq
+    prompt_md: "`list(accumulate([2, 3, 5]))` là gì?"
+    options:
+      - {id: a, text_md: "`[10]`"}
+      - {id: b, text_md: "`[2, 5, 10]`"}
+      - {id: c, text_md: "`[2, 3, 5]`"}
+    answer: [b]
+    explain_md: "Mặc định là tổng tích lũy: 2, 2+3=5, 5+5=10."
+  - id: p3
+    type: predict_output
+    code: |
+      from itertools import combinations
+      print(len(list(combinations(range(5), 3))))
+    expected_output: |
+      10
+    explain_md: "Số tổ hợp chọn 3 từ 5 là C(5,3) = 10."
+  - id: sum1
+    type: summary
+    bullets_vi:
+      - "`permutations` phân biệt thứ tự, `combinations` không; `product` là tích Descartes; `chain` nối các iterable."
+      - "Tập con: gộp `combinations(xs, r)` với `r = 0..len(xs)` qua `chain.from_iterable`."
+      - "`accumulate` cho tổng tích lũy; `islice` cắt iterator, bắt buộc với `count`/`cycle` vô hạn."
+      - "`groupby` chỉ gom phần tử liền kề: luôn `sorted` theo cùng key trước."
+      - "Kết quả itertools là iterator: bọc `list(...)` để so sánh hoặc in."
+problems:
+  practice: []
+  extra: []
+mastery_check:
+  l1: [X396]
+  l2: [X397]
+  l3: [X398]
+checkpoint:
+  pass_ratio: 0.7
+  min_items: 3
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: tools/gen_lesson_stubs.py
+  reviewed_by: null
+  date: '2026-11-03'
