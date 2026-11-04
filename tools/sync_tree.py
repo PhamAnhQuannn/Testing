@@ -35,6 +35,12 @@ EXTRA_IDS = {
     "py.errors_modules.exceptions",
     "py.errors_modules.files_pathlib",
     "py.errors_modules.stdlib_tour",
+    # Wave 2 Round 2: complete the py.oop module.
+    "py.oop.inheritance_mro",
+    "py.oop.dunder_methods",
+    "py.oop.dataclasses_enums",
+    "py.oop.equality_hashing_immutability",
+    "py.oop.abc_protocols",
 }
 
 # Expected shipped counts, asserted so an upstream tree edit can't silently change the snapshot.
@@ -42,7 +48,7 @@ PLAN_MVP_COUNT = 40
 EXPECTED_SD = 86
 EXPECTED_ML4 = 39
 EXPECTED_EXTRA_IDS = len(EXTRA_IDS)  # Wave 2 additions
-EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 170
+EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 175
 
 # Node fields the app uses (SPEC 4.2); optional ones are skipped when a node lacks them.
 NODE_FIELDS = [

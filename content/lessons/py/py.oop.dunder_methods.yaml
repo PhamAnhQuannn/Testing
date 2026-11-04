@@ -1,0 +1,365 @@
+id: py.oop.dunder_methods
+version: 1
+status: published
+title_vi: Phương thức đặc biệt (dunder methods)
+est_minutes: 12
+objectives_vi:
+- Phân biệt __repr__ và __str__, cài __eq__ cho class giá trị.
+- Cài so sánh thứ tự (__lt__, total_ordering) để sort được object.
+- Cài __len__, __getitem__, __add__, __bool__ và __call__ cho object của mình.
+blocks:
+  - id: s_repr
+    type: section
+    title_vi: "In đẹp và so sánh bằng: __repr__, __str__, __eq__"
+    summary_vi: "__repr__ cho lập trình viên, __str__ cho người dùng; __eq__ quyết định == so sánh theo giá trị."
+    exercise_ref: ex_point
+  - id: t1
+    type: text
+    md: |
+      **Dunder method** (double underscore) là method có tên dạng `__tên__`. Bạn không gọi chúng
+      trực tiếp: Python tự gọi khi bạn dùng cú pháp quen thuộc (`print(x)`, `a + b`, `len(x)`,
+      `a == b`).
+
+      - **`__repr__`**: chuỗi "chính xác, để debug", lý tưởng là trông như code tạo ra object
+        (`Point(1, 2)`). Hiện trong REPL, trong list `[p, q]`.
+      - **`__str__`**: chuỗi "đẹp cho người đọc", dùng bởi `print(x)` và `str(x)`. Nếu không có
+        `__str__`, Python **dùng `__repr__`** thay thế. Vì vậy nếu chỉ viết một, hãy viết `__repr__`.
+      - **`__eq__(self, other)`**: quyết định `a == b`. Mặc định so sánh **danh tính** (cùng object
+        mới bằng nhau). Class giá trị cần so sánh theo dữ liệu.
+  - id: c1
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class Point:
+          def __init__(self, x, y):
+              self.x = x
+              self.y = y
+
+          def __repr__(self):
+              return f"Point({self.x}, {self.y})"
+
+          def __str__(self):
+              return f"({self.x}, {self.y})"
+
+          def __eq__(self, other):
+              return isinstance(other, Point) and (self.x, self.y) == (other.x, other.y)
+
+
+      p = Point(1, 2)
+      print(p)
+      print([p])
+      print(repr(p))
+      print(p == Point(1, 2), p == Point(2, 1), p == "x")
+    expected_output: |
+      (1, 2)
+      [Point(1, 2)]
+      Point(1, 2)
+      True False False
+  - id: q1
+    type: quiz_mcq
+    prompt_md: "Class chỉ định nghĩa `__repr__` (không có `__str__`). `print(obj)` in ra gì?"
+    options:
+      - {id: a, text_md: "Dạng mặc định `<__main__.X object at 0x...>`"}
+      - {id: b, text_md: "Kết quả của `__repr__`, vì `__str__` mặc định rơi về `__repr__`"}
+      - {id: c, text_md: "Báo `TypeError` vì thiếu `__str__`"}
+    answer: [b]
+    explain_md: "`object.__str__` mặc định gọi `__repr__`, nên chỉ cần `__repr__` là `print` đã đẹp."
+  - id: q2
+    type: quiz_mcq
+    prompt_md: "Class tự định nghĩa `__eq__` mà không định nghĩa `__hash__`. Điều gì xảy ra với `{obj}` (đưa vào set)?"
+    options:
+      - {id: a, text_md: "Chạy bình thường như trước"}
+      - {id: b, text_md: "`TypeError: unhashable type`, vì Python đặt `__hash__ = None` khi bạn ghi đè `__eq__`"}
+      - {id: c, text_md: "Set tự dùng `__eq__` để so sánh nên vẫn hợp lệ"}
+    answer: [b]
+    explain_md: "Khi ghi đè `__eq__` mà không có `__hash__`, object trở thành unhashable. Muốn dùng trong set/dict key, hãy cài thêm `__hash__`."
+  - id: ex_point
+    type: code_exercise
+    md: |
+      Hoàn thiện `Point` với `__repr__` (dạng `Point(x, y)`) và `__eq__` (bằng khi cùng `x` và `y`).
+      `describe_points(x1, y1, x2, y2)` trả về `[repr(p1), p1 == p2]`.
+    entry: describe_points
+    starter: |
+      class Point:
+          def __init__(self, x, y):
+              self.x = x
+              self.y = y
+
+
+      def describe_points(x1, y1, x2, y2):
+          p1 = Point(x1, y1)
+          p2 = Point(x2, y2)
+          return [repr(p1), p1 == p2]
+    guidance_md: |
+      - Thêm `__repr__(self)` trả `f"Point({self.x}, {self.y})"`.
+      - Thêm `__eq__(self, other)` so sánh `x` và `y` của hai object.
+      - Không cần sửa `describe_points`.
+    hints:
+      - level: nudge
+        md: "Hiện `repr(p1)` trả `<... object at 0x...>` và `p1 == p2` luôn `False` với hai object khác nhau. Hai method đặc biệt nào điều khiển hai việc đó?"
+      - level: approach
+        md: "Viết `__repr__` trả chuỗi `Point(x, y)`; viết `__eq__` nhận `other` và so sánh dữ liệu của hai bên thay vì danh tính."
+      - level: pseudocode
+        md: |
+          __repr__: trả về chuỗi "Point(" + x + ", " + y + ")"
+          __eq__(other): trả về (x của self == x của other) và (y của self == y của other)
+    tests:
+      - {args: [1, 2, 1, 2], expected: ["Point(1, 2)", true]}
+      - {args: [1, 2, 2, 1], expected: ["Point(1, 2)", false]}
+      - {args: [0, -3, 0, -3], expected: ["Point(0, -3)", true]}
+    solution: |
+      class Point:
+          def __init__(self, x, y):
+              self.x = x
+              self.y = y
+
+          def __repr__(self):
+              return f"Point({self.x}, {self.y})"
+
+          def __eq__(self, other):
+              return self.x == other.x and self.y == other.y
+
+
+      def describe_points(x1, y1, x2, y2):
+          p1 = Point(x1, y1)
+          p2 = Point(x2, y2)
+          return [repr(p1), p1 == p2]
+  - id: s_order
+    type: section
+    title_vi: "So sánh thứ tự và sort: __lt__, total_ordering"
+    summary_vi: "Chỉ cần __eq__ và __lt__ (cộng @total_ordering) là sorted() và so sánh <, <=, >, >= đều chạy."
+  - id: t2
+    type: text
+    md: |
+      `a < b` gọi `a.__lt__(b)`. `sorted(list)` chỉ cần **`__lt__`**. Để có đủ `<=`, `>`, `>=`
+      mà không viết tay cả bốn, dùng **`@functools.total_ordering`**: bạn cài `__eq__` và **một**
+      trong `__lt__`/`__le__`/`__gt__`/`__ge__`, decorator sinh phần còn lại.
+
+      Ví dụ class `Tien` lưu số tiền bằng **xu** (số nguyên) để tránh sai số float.
+  - id: c2
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      from functools import total_ordering
+
+
+      @total_ordering
+      class Tien:
+          def __init__(self, xu):
+              self.xu = xu
+
+          def __repr__(self):
+              return f"Tien({self.xu})"
+
+          def __str__(self):
+              return f"{self.xu // 100}.{self.xu % 100:02d}"
+
+          def __eq__(self, other):
+              return self.xu == other.xu
+
+          def __lt__(self, other):
+              return self.xu < other.xu
+
+
+      a, b = Tien(505), Tien(1250)
+      print(a < b, a >= b, a == Tien(505))
+      print(sorted([b, a, Tien(99)]))
+      print(max(a, b), min(a, b))
+    expected_output: |
+      True False True
+      [Tien(99), Tien(505), Tien(1250)]
+      12.50 5.05
+  - id: q3
+    type: quiz_mcq
+    prompt_md: "Với `@total_ordering`, tối thiểu bạn phải tự viết những method so sánh nào?"
+    options:
+      - {id: a, text_md: "Cả sáu: `__eq__`, `__ne__`, `__lt__`, `__le__`, `__gt__`, `__ge__`"}
+      - {id: b, text_md: "`__eq__` và một trong `__lt__`, `__le__`, `__gt__`, `__ge__`"}
+      - {id: c, text_md: "Chỉ `__lt__`, vì `==` luôn được sinh tự động"}
+    answer: [b]
+    explain_md: "total_ordering suy ra các phép còn lại từ `__eq__` cộng một phép thứ tự."
+  - id: p2
+    type: predict_output
+    code: |
+      class Box:
+          def __init__(self, n):
+              self.n = n
+
+          def __lt__(self, other):
+              return self.n > other.n
+
+          def __repr__(self):
+              return f"B{self.n}"
+
+
+      print(sorted([Box(1), Box(3), Box(2)]))
+    expected_output: |
+      [B3, B2, B1]
+    explain_md: "`__lt__` bị đảo (`>`), nên `sorted` coi số lớn hơn là 'nhỏ hơn' và xếp lên trước."
+  - id: s_ops
+    type: section
+    title_vi: "Container và toán tử: __len__, __getitem__, __add__, __bool__, __call__"
+    summary_vi: "Cài __len__, __getitem__, __add__ để object dùng được với len(), [] và +; __call__ cho phép gọi object như hàm."
+    exercise_ref: ex_basket
+  - id: t3
+    type: text
+    md: |
+      - **`__len__`** cho `len(obj)`. Nó cũng quyết định **truthiness**: nếu không có `__bool__`,
+        `bool(obj)` là `False` khi `len(obj) == 0`.
+      - **`__bool__`** nếu muốn tự quy định `if obj:`.
+      - **`__getitem__(self, i)`** cho `obj[i]`; có nó (và `__len__`) thì còn `for x in obj`,
+        slicing do bạn tự xử lý `i`.
+      - **`__add__(self, other)`** cho `a + b`; nên trả về object **mới**, không sửa `self`.
+      - **`__call__`** cho `obj(args)`: object hoạt động như hàm nhưng giữ được trạng thái.
+  - id: c3
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class Vector:
+          def __init__(self, *xs):
+              self.xs = list(xs)
+
+          def __repr__(self):
+              return f"Vector({', '.join(map(str, self.xs))})"
+
+          def __len__(self):
+              return len(self.xs)
+
+          def __getitem__(self, i):
+              return self.xs[i]
+
+          def __add__(self, other):
+              return Vector(*[a + b for a, b in zip(self.xs, other.xs)])
+
+
+      class Counter:
+          def __init__(self):
+              self.n = 0
+
+          def __call__(self):
+              self.n += 1
+              return self.n
+
+
+      v = Vector(1, 2) + Vector(10, 20)
+      print(v, len(v), v[0], bool(Vector()))
+      c = Counter()
+      c()
+      print(c())
+    expected_output: |
+      Vector(11, 22) 2 11 False
+      2
+  - id: q4
+    type: quiz_mcq
+    prompt_md: "Class chỉ có `__len__` (không có `__bool__`). `bool(obj)` bằng gì khi `len(obj)` là 0?"
+    options:
+      - {id: a, text_md: "`True`, vì mọi object đều truthy"}
+      - {id: b, text_md: "`False`, vì Python dùng `__len__` để quyết định truthiness"}
+      - {id: c, text_md: "`TypeError`"}
+    answer: [b]
+    explain_md: "Không có `__bool__` thì Python thử `__len__`; độ dài 0 nghĩa là falsy."
+  - id: p3
+    type: predict_output
+    code: |
+      class Bag:
+          def __init__(self, items):
+              self.items = items
+
+          def __len__(self):
+              return len(self.items)
+
+
+      print(bool(Bag([])), bool(Bag([0])), len(Bag("abc")))
+    expected_output: |
+      False True 3
+    explain_md: "`Bag([])` có độ dài 0 nên falsy; `Bag([0])` có độ dài 1 nên truthy (không quan tâm phần tử là 0); `Bag('abc')` dài 3."
+  - id: ex_basket
+    type: code_exercise
+    md: |
+      Cài `Basket` với `__len__` (số phần tử), `__getitem__(i)` (phần tử thứ i) và `__add__`
+      (gộp hai giỏ thành giỏ mới). `merge_info(a, b)` gộp `Basket(a) + Basket(b)` rồi trả
+      `[len(c), phần tử đầu hoặc None, phần tử cuối hoặc None]` (None khi giỏ rỗng).
+    entry: merge_info
+    starter: |
+      class Basket:
+          def __init__(self, items):
+              self.items = list(items)
+
+
+      def merge_info(a, b):
+          c = Basket(a) + Basket(b)
+          if not c:
+              return [0, None, None]
+          return [len(c), c[0], c[-1]]
+    guidance_md: |
+      - Thêm `__len__` trả `len(self.items)`.
+      - Thêm `__getitem__(self, i)` trả `self.items[i]`.
+      - Thêm `__add__(self, other)` trả `Basket` mới chứa `self.items + other.items`.
+    hints:
+      - level: nudge
+        md: "`Basket(a) + Basket(b)` báo `TypeError`. Python gọi method đặc biệt nào cho dấu `+`, và cho `len(c)`, `c[0]`?"
+      - level: approach
+        md: "Cần ba method: một cho `+` (trả về giỏ mới, không sửa giỏ cũ), một cho `len`, một cho chỉ số `[i]`; tất cả đều làm việc trên `self.items`."
+      - level: pseudocode
+        md: |
+          __len__: trả độ dài của items
+          __getitem__(i): trả items[i]
+          __add__(other): tạo Basket mới từ (items của self) nối (items của other)
+    tests:
+      - {args: [[1, 2], [3]], expected: [3, 1, 3]}
+      - {args: [[], []], expected: [0, null, null]}
+      - {args: [[], ["x", "y"]], expected: [2, "x", "y"]}
+    solution: |
+      class Basket:
+          def __init__(self, items):
+              self.items = list(items)
+
+          def __len__(self):
+              return len(self.items)
+
+          def __getitem__(self, i):
+              return self.items[i]
+
+          def __add__(self, other):
+              return Basket(self.items + other.items)
+
+
+      def merge_info(a, b):
+          c = Basket(a) + Basket(b)
+          if not c:
+              return [0, None, None]
+          return [len(c), c[0], c[-1]]
+  - id: call1
+    type: callout
+    kind: interview
+    md: "Câu hỏi phỏng vấn kinh điển: `__str__` khác `__repr__` thế nào? Trả lời: `repr` cho dev (rõ ràng, lý tưởng eval được), `str` cho người dùng; thiếu `__str__` thì dùng `__repr__`."
+  - id: call2
+    type: callout
+    kind: warning
+    md: "Ghi đè `__eq__` mà không cài `__hash__` làm object không dùng được làm key của dict/set. Và `__add__` nên trả object mới, không sửa `self`."
+  - id: sum1
+    type: summary
+    bullets_vi:
+      - "`__repr__` để debug (hiện trong list), `__str__` để in đẹp; thiếu `__str__` thì `print` dùng `__repr__`."
+      - "`__eq__` so sánh theo giá trị; ghi đè nó mà thiếu `__hash__` thì object unhashable."
+      - "`__lt__` đủ cho `sorted`; `@total_ordering` + `__eq__` + một phép thứ tự cho đủ `<`, `<=`, `>`, `>=`."
+      - "`__len__`, `__getitem__`, `__add__` cho `len()`, `obj[i]`, `a + b`; không có `__bool__` thì `__len__` quyết định truthiness."
+      - "`__call__` cho phép gọi object như hàm và giữ trạng thái."
+problems:
+  practice: []
+  extra: []
+mastery_check:
+  l1: [X378]
+  l2: [X379]
+  l3: [X380]
+checkpoint:
+  pass_ratio: 0.7
+  min_items: 3
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: tools/gen_lesson_stubs.py
+  reviewed_by: null
+  date: '2026-10-24'
