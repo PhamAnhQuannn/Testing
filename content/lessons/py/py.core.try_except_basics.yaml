@@ -1,0 +1,292 @@
+id: py.core.try_except_basics
+version: 1
+status: published
+title_vi: "Bắt lỗi cơ bản với try/except (error handling basics)"
+est_minutes: 12
+objectives_vi:
+  - "Dùng try/except để bắt một loại exception cụ thể (ValueError, ZeroDivisionError, IndexError, KeyError) thay vì để chương trình dừng."
+  - "Nói đúng thứ tự chạy của try, except, else, finally, kể cả khi hàm có return."
+  - "Giải thích exception nổi bọt (bubbling) lên hàm gọi khi không có except khớp, và vì sao không nên dùng except trống."
+blocks:
+  - id: s_try_except
+    type: section
+    title_vi: "try/except và bắt đúng loại lỗi"
+    summary_vi: "Chặn lỗi lúc chạy bằng try/except; chọn đúng loại exception."
+    exercise_ref: ex_to_int
+  - id: b01
+    type: text
+    md: |
+      **Exception (ngoại lệ)** là lỗi xảy ra *lúc chương trình đang chạy*: chia cho 0
+      (`ZeroDivisionError`), `int("abc")` (`ValueError`), chỉ số ngoài list (`IndexError`), khoá
+      không có trong dict (`KeyError`), cộng chuỗi với số (`TypeError`). Nếu không xử lý, chương
+      trình dừng và in traceback.
+
+      `try/except` cho phép "thử" một đoạn code và xử lý nếu có lỗi:
+
+      ```python
+      try:
+          n = int(text)          # có thể gây ValueError
+      except ValueError:
+          n = 0                  # chạy khi try gặp ValueError
+      ```
+
+      - Đoạn trong `try` chạy từ trên xuống; **dòng đầu tiên gây lỗi** làm Python nhảy ngay sang
+        `except` khớp, các dòng còn lại của `try` bị bỏ qua.
+      - Luôn nêu **loại lỗi cụ thể** sau `except`. Viết nhiều khối `except` để xử lý từng loại khác
+        nhau, hoặc gộp bằng tuple: `except (ValueError, TypeError):`.
+      - `except ValueError as e:` giữ đối tượng lỗi trong `e` (in ra được thông báo).
+      - Tránh `except:` trống hoặc `except Exception:` bắt tất cả: nó nuốt luôn cả bug thật của bạn.
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      def chia(a, b):
+          try:
+              kq = a // b
+          except ZeroDivisionError:
+              print("loi: chia cho 0")
+              return None
+          else:
+              print("ok:", kq)
+              return kq
+          finally:
+              print("xong")
+
+      chia(7, 2)
+      chia(1, 0)
+      try:
+          int("abc")
+      except ValueError as e:
+          print("ValueError:", e)
+    expected_output: |
+      ok: 3
+      xong
+      loi: chia cho 0
+      xong
+      ValueError: invalid literal for int() with base 10: 'abc'
+  - id: b03
+    type: quiz_mcq
+    prompt_md: |
+      Đoạn sau in ra gì?
+
+      ```python
+      try:
+          int("x")
+      except TypeError:
+          print("T")
+      except ValueError:
+          print("V")
+      finally:
+          print("F")
+      ```
+    options:
+      - {id: a, text_md: "`T` rồi `F`"}
+      - {id: b, text_md: "`V` rồi `F`"}
+      - {id: c, text_md: "Chỉ `F`, rồi chương trình dừng vì lỗi"}
+    answer: [b]
+    explain_md: "`int(\"x\")` gây `ValueError`, khớp khối `except ValueError` (không khớp `TypeError`). Sau đó `finally` luôn chạy nên in `F`."
+  - id: ex_to_int
+    type: code_exercise
+    md: |
+      Viết `to_int(text, default)` đổi chuỗi `text` sang số nguyên; nếu `text` không phải số nguyên
+      hợp lệ thì trả về `default`. Ví dụ `to_int("42", 0)` là `42`, `to_int("abc", -1)` là `-1`.
+    entry: to_int
+    starter: |
+      def to_int(text, default):
+          # TODO: thử int(text), bắt ValueError
+          return default
+    guidance_md: |
+      - Đặt `int(text)` trong khối `try`.
+      - Bắt đúng `ValueError`, không dùng `except` trống.
+      - Trả về giá trị đổi được, hoặc `default` khi lỗi.
+    hints:
+      - level: nudge
+        md: "Điều gì xảy ra khi gọi `int(\"abc\")`? Loại exception nào?"
+      - level: approach
+        md: "Bọc `return int(text)` trong `try`, và trả `default` trong `except ValueError`."
+      - level: pseudocode
+        md: |
+          thử:
+              trả về int(text)
+          nếu gặp ValueError:
+              trả về default
+      - level: near_solution
+        md: |
+          def to_int(text, default):
+              try:
+                  return ...
+              except ...:
+                  return ...
+    tests:
+      - {args: ["42", 0], expected: 42}
+      - {args: ["abc", -1], expected: -1}
+      - {args: ["", 0], expected: 0}
+      - {args: [" 7 ", 0], expected: 7}
+      - {args: ["3.5", 9], expected: 9}
+    solution: |
+      def to_int(text, default):
+          try:
+              return int(text)
+          except ValueError:
+              return default
+  - id: s_else_finally
+    type: section
+    title_vi: "else và finally"
+    summary_vi: "Khi nào else chạy, vì sao finally luôn chạy."
+  - id: b04
+    type: text
+    md: |
+      Đầy đủ có bốn khối:
+
+      ```python
+      try:
+          ...      # code có thể lỗi
+      except ValueError:
+          ...      # chạy khi try gặp ValueError
+      else:
+          ...      # chạy CHỈ khi try xong mà KHÔNG có lỗi
+      finally:
+          ...      # LUÔN chạy (dọn dẹp), có lỗi hay không
+      ```
+
+      - `else` để đặt phần code "thành công" ra ngoài `try`, nên `try` chỉ chứa dòng thật sự có thể
+        lỗi. Lỗi xảy ra trong `else` **không** bị `except` ở cùng cấp bắt.
+      - `finally` chạy cả khi có `return`, `break` hay lỗi chưa được bắt: dùng để đóng tài nguyên,
+        in thông báo kết thúc. Nếu `try` đã `return`, `finally` vẫn chạy *trước khi* hàm thật sự
+        trả về.
+  - id: b05
+    type: predict_output
+    code: |
+      def f(x):
+          try:
+              print("a")
+              return 10 // x
+          except ZeroDivisionError:
+              print("b")
+              return -1
+          finally:
+              print("c")
+
+      print(f(5))
+      print(f(0))
+    expected_output: |
+      a
+      c
+      2
+      a
+      b
+      c
+      -1
+    explain_md: "`f(5)`: in `a`, tính `10 // 5 = 2` để return, nhưng `finally` vẫn chạy và in `c` trước khi hàm trả về, rồi `print` in `2`. `f(0)`: in `a`, `10 // 0` lỗi, nhảy vào `except` in `b`, return `-1`; `finally` in `c`; cuối cùng in `-1`."
+  - id: b06
+    type: quiz_fill
+    prompt_md: "Điền vào chỗ trống: khối `___` chạy chỉ khi `try` hoàn thành mà không có exception nào."
+    blanks: [{accept: ["else"]}]
+    explain_md: "`else` chạy khi `try` không có lỗi; `finally` thì chạy luôn luôn, kể cả khi có lỗi."
+  - id: s_bubbling
+    type: section
+    title_vi: "Exception nổi bọt (bubbling)"
+    summary_vi: "Lỗi không được bắt sẽ đi ngược lên hàm gọi."
+    exercise_ref: ex_safe_get
+  - id: b07
+    type: text
+    md: |
+      Nếu trong `try` có lỗi mà **không có `except` nào khớp**, exception không biến mất: nó **nổi
+      bọt (bubbling)** lên nơi gọi hàm, rồi lên nữa, cho tới khi có `except` bắt được hoặc chương
+      trình dừng.
+
+      ```python
+      def parse(s):
+          return int(s)          # không bắt lỗi ở đây
+
+      try:
+          parse("abc")           # ValueError nổi lên đến đây
+      except ValueError:
+          print("bắt ở nơi gọi")
+      ```
+
+      Quy tắc thực dụng: bắt lỗi **ở nơi bạn biết cách xử lý nó** (đưa giá trị mặc định, báo
+      người dùng nhập lại), còn nơi nào không biết xử lý thì cứ để lỗi nổi lên. Bạn cũng tự gây lỗi
+      được bằng `raise ValueError("thông báo")`.
+  - id: b08
+    type: predict_output
+    code: |
+      def inner(x):
+          return 10 // x
+
+      def outer(x):
+          try:
+              return inner(x)
+          except ZeroDivisionError:
+              return "loi"
+
+      print(outer(2), outer(0))
+      try:
+          outer("a")
+      except TypeError:
+          print("TypeError noi len")
+    expected_output: |
+      5 loi
+      TypeError noi len
+    explain_md: "`inner(0)` gây `ZeroDivisionError` nổi lên `outer` và bị bắt, trả `\"loi\"`. `outer(\"a\")` gây `TypeError` (`10 // \"a\"`), `outer` không bắt `TypeError` nên nó nổi tiếp lên nơi gọi và bị `except TypeError` bên ngoài bắt."
+  - id: ex_safe_get
+    type: code_exercise
+    md: |
+      Viết `safe_get(items, idx, default)` trả về `items[idx]`; nếu `idx` ngoài phạm vi thì trả về
+      `default`. Dùng `try/except`, không tự so sánh với `len`.
+    entry: safe_get
+    starter: |
+      def safe_get(items, idx, default):
+          # TODO: thử items[idx], bắt IndexError
+          return default
+    guidance_md: |
+      - Truy cập `items[idx]` trong `try`.
+      - Loại lỗi khi chỉ số ngoài phạm vi là `IndexError`.
+      - Chỉ số âm hợp lệ vẫn hoạt động bình thường.
+    hints:
+      - level: nudge
+        md: "Truy cập list ngoài phạm vi gây loại exception nào?"
+      - level: approach
+        md: "`try: return items[idx]` và `except IndexError: return default`."
+      - level: pseudocode
+        md: |
+          thử:
+              trả về items[idx]
+          nếu gặp IndexError:
+              trả về default
+      - level: near_solution
+        md: |
+          def safe_get(items, idx, default):
+              try:
+                  return ...
+              except ...:
+                  return ...
+    tests:
+      - {args: [[1, 2, 3], 1, "x"], expected: 2}
+      - {args: [[1, 2, 3], 5, "x"], expected: "x"}
+      - {args: [[], 0, -1], expected: -1}
+      - {args: [[1, 2, 3], -1, 0], expected: 3}
+      - {args: [[1, 2, 3], -4, "n"], expected: "n"}
+    solution: |
+      def safe_get(items, idx, default):
+          try:
+              return items[idx]
+          except IndexError:
+              return default
+  - id: b09
+    type: summary
+    bullets_vi:
+      - "`try/except LoạiLỗi:` bắt lỗi lúc chạy; dòng đầu tiên gây lỗi làm Python nhảy sang `except` khớp."
+      - "Luôn bắt loại cụ thể (`ValueError`, `ZeroDivisionError`, `IndexError`, `KeyError`); tránh `except:` trống vì nó nuốt bug thật."
+      - "`else` chạy chỉ khi `try` không lỗi; `finally` luôn chạy, kể cả khi có `return` hoặc lỗi chưa bắt."
+      - "Nhiều `except` được kiểm theo thứ tự; gộp bằng tuple `except (A, B):`; `as e` giữ đối tượng lỗi."
+      - "Lỗi không có `except` khớp nổi bọt lên hàm gọi; bắt ở nơi biết cách xử lý."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X360], l2: [X361], l3: [X362]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (Wave 2 py fundamentals)"
+  reviewed_by: null
+  date: "2026-11-04"

@@ -66,6 +66,7 @@ MODULE_NAMES: dict[str, str] = {
     "py.datastructs": "Cấu trúc dữ liệu Python",
     "py.functions": "Hàm",
     "py.oop": "Hướng đối tượng",
+    "py.errors_modules": "Lỗi, ngoại lệ & module",
     "cs.complexity": "Độ phức tạp",
     "dsa.foundations": "Nền tảng DSA",
     "dsa.arrays_strings": "Mảng & chuỗi",

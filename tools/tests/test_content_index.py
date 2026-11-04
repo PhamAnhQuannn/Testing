@@ -20,7 +20,7 @@ EXTRA_MODULES = {"ml.llm", "ml.rag_agents", "ml.llm_eval_serving", "ml.system_de
 
 def test_index_starts_with_the_40_subtopics_of_spec_4_1():
     ids = [s["id"] for s in SUBTOPICS]
-    assert len(ids) == 165  # 40 plan (py/dsa/cs) + 86 sd + 39 ml (the AI-engineer LLM track)
+    assert len(ids) == 170  # 40 plan + 86 sd + 39 ml + 5 Wave-2 py fundamentals (EXTRA_IDS)
     assert ids[:40] == spec_table_ids()
 
 
@@ -42,7 +42,7 @@ def test_every_plan_subtopic_has_a_lesson_file_named_after_it():
 def test_assumed_prerequisites():
     assumed = load_json(CONTENT / "index/assumed.json")["assumed"]
     shipped = {s["id"] for s in SUBTOPICS}
-    assert len(assumed) == 43  # prereqs of the sd + ml tracks that are not themselves shipped
+    assert len(assumed) == 45  # prereqs of sd + ml + Wave-2 py fundamentals that are not shipped
     assert "cs.onramp.computer_programming_model" in assumed
     assert set(assumed).isdisjoint(shipped)
     assert assumed == sorted(assumed)

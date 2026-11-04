@@ -1,0 +1,295 @@
+id: py.errors_modules.stdlib_tour
+version: 1
+status: published
+title_vi: "Thư viện chuẩn: math, random, statistics, datetime"
+est_minutes: 14
+objectives_vi:
+  - "Dùng module math (sqrt, gcd, factorial, ceil, floor) và statistics (mean, median, mode, stdev) cho các phép tính số học và thống kê."
+  - "Dùng random.seed để có kết quả ngẫu nhiên lặp lại được; gọi randint, choice, shuffle."
+  - "Làm việc với ngày giờ bằng date, datetime, timedelta, strftime (đối tượng thành chuỗi) và strptime (chuỗi thành đối tượng)."
+blocks:
+  - id: s_math
+    type: section
+    title_vi: "Module math"
+    summary_vi: "import và các hàm toán học: sqrt, gcd, factorial, ceil, floor."
+    exercise_ref: ex_lcm
+  - id: b01
+    type: text
+    md: |
+      **Thư viện chuẩn (standard library)** là bộ module đi kèm Python, không cần cài thêm. Muốn dùng
+      thì **import**: `import math` rồi gọi `math.sqrt(16)`; hoặc `from math import sqrt` rồi gọi
+      thẳng `sqrt(16)`.
+
+      Module **math** có các hàm hay gặp:
+
+      - `math.sqrt(x)`: căn bậc hai, luôn trả **float** (`math.sqrt(16)` là `4.0`).
+      - `math.gcd(a, b)`: ước chung lớn nhất (greatest common divisor) của hai số nguyên.
+      - `math.factorial(n)`: giai thừa `n!`, ví dụ `5! = 120`.
+      - `math.ceil(x)` làm tròn **lên**, `math.floor(x)` làm tròn **xuống** về số nguyên. Chú ý số
+        âm: `floor(-2.1)` là `-3`, `ceil(-2.1)` là `-2`.
+      - Hằng số `math.pi`, `math.e`.
+
+      Khác với `round(x)` (làm tròn gần nhất), `ceil` và `floor` luôn đi một hướng cố định. Ví dụ
+      chia `n` phần tử vào các trang cỡ `k`: số trang là `math.ceil(n / k)`.
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      import math
+
+      print(math.sqrt(16), math.gcd(12, 18), math.factorial(5))
+      print(math.ceil(2.1), math.floor(2.9), math.pi)
+      print(math.floor(-2.1), math.ceil(-2.1), round(math.sqrt(2), 3))
+    expected_output: |
+      4.0 6 120
+      3 2 3.141592653589793
+      -3 -2 1.414
+  - id: b03
+    type: predict_output
+    code: |
+      import math
+
+      print(math.ceil(7 / 2), math.floor(7 / 2))
+      print(math.gcd(8, 12), math.factorial(4))
+    expected_output: |
+      4 3
+      4 24
+    explain_md: "`7 / 2` là `3.5`: `ceil` lên `4`, `floor` xuống `3`. `gcd(8, 12)` là `4`, và `4! = 4*3*2*1 = 24`."
+  - id: b04
+    type: quiz_fill
+    prompt_md: "Điền vào chỗ trống để tính số trang khi có `n` mục, mỗi trang `k` mục: `math.___(n / k)`"
+    blanks: [{accept: ["ceil"]}]
+    explain_md: "Còn dư mục nào thì vẫn cần thêm một trang, nên phải làm tròn **lên**: `math.ceil`. Ví dụ 10 mục, mỗi trang 4: `ceil(2.5)` là 3 trang."
+  - id: ex_lcm
+    type: code_exercise
+    md: |
+      Viết `lcm(a, b)` trả về **bội chung nhỏ nhất** (least common multiple) của hai số nguyên dương.
+      Gợi ý: `a * b` chia (chia nguyên `//`) cho `math.gcd(a, b)`. Ví dụ `lcm(4, 6)` là `12`.
+    entry: lcm
+    starter: |
+      import math
+
+
+      def lcm(a, b):
+          # TODO: dùng math.gcd
+          pass
+    guidance_md: |
+      - Quan hệ: `gcd(a, b) * lcm(a, b) = a * b`.
+      - Từ đó suy ra `lcm`; dùng `//` để kết quả là số nguyên.
+    hints:
+      - level: nudge
+        md: "Ước chung lớn nhất và bội chung nhỏ nhất liên hệ với tích `a * b` thế nào?"
+      - level: approach
+        md: "`lcm = a * b // gcd(a, b)`."
+      - level: pseudocode
+        md: |
+          g = gcd của a và b
+          trả về (a * b) chia nguyên g
+      - level: near_solution
+        md: |
+          def lcm(a, b):
+              return a * b // math....(a, b)
+    tests:
+      - {args: [4, 6], expected: 12}
+      - {args: [1, 1], expected: 1}
+      - {args: [7, 5], expected: 35}
+      - {args: [12, 18], expected: 36}
+      - {args: [10, 10], expected: 10}
+    solution: |
+      import math
+
+
+      def lcm(a, b):
+          return a * b // math.gcd(a, b)
+  - id: s_random
+    type: section
+    title_vi: "Module random"
+    summary_vi: "seed, randint, choice, shuffle và vì sao luôn seed khi cần kết quả lặp lại."
+  - id: b05
+    type: text
+    md: |
+      Module **random** sinh số **giả ngẫu nhiên (pseudo-random)**: dãy số trông ngẫu nhiên nhưng
+      thật ra được tính từ một giá trị khởi đầu gọi là **seed**. Cùng seed thì cùng dãy kết quả. Vì
+      vậy khi viết test hay ví dụ cần output cố định, hãy gọi `random.seed(...)` trước.
+
+      - `random.seed(42)`: đặt seed.
+      - `random.randint(a, b)`: số nguyên ngẫu nhiên trong `[a, b]`, **gồm cả hai đầu**.
+      - `random.choice(seq)`: chọn một phần tử ngẫu nhiên trong dãy (list, chuỗi) không rỗng.
+      - `random.shuffle(lst)`: xáo trộn list **tại chỗ**, trả về `None` (đừng viết `x = random.shuffle(x)`).
+      - `random.random()`: số thực trong `[0, 1)`.
+
+      Không seed thì mỗi lần chạy ra một kết quả khác, nên **đừng** kiểm tra bằng `==` với giá trị
+      ngẫu nhiên không seed. Và `random` không dùng cho mật khẩu hay bảo mật (dùng `secrets`).
+  - id: b06
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      import random
+
+      random.seed(42)
+      print(random.randint(1, 10), random.randint(1, 10))
+      ds = ["an", "binh", "chi"]
+      print(random.choice(ds))
+      random.shuffle(ds)
+      print(ds)
+      random.seed(42)
+      print(random.randint(1, 10))
+    expected_output: |
+      2 1
+      chi
+      ['chi', 'an', 'binh']
+      2
+  - id: b07
+    type: quiz_mcq
+    prompt_md: |
+      Vì sao đoạn sau luôn in cùng một kết quả mỗi lần chạy?
+
+      ```python
+      import random
+
+      random.seed(7)
+      print(random.randint(1, 100))
+      ```
+    options:
+      - {id: a, text_md: "Vì `randint(1, 100)` luôn trả về `7`"}
+      - {id: b, text_md: "Vì `random.seed(7)` đặt điểm khởi đầu cố định cho bộ sinh số, nên dãy kết quả lặp lại được"}
+      - {id: c, text_md: "Vì `randint` không thật sự ngẫu nhiên khi chạy trong file `.py`"}
+    answer: [b]
+    explain_md: "Số của `random` là giả ngẫu nhiên: cùng seed thì cùng dãy. Đây là cách làm cho test và ví dụ có output ổn định."
+  - id: s_stat_date
+    type: section
+    title_vi: "statistics và datetime"
+    summary_vi: "mean/median/mode/stdev; date, datetime, timedelta, strftime, strptime."
+    exercise_ref: ex_add_days
+  - id: b08
+    type: text
+    md: |
+      **statistics** tính thống kê cơ bản trên một list số:
+
+      - `mean(xs)`: trung bình cộng; `median(xs)`: **trung vị** (phần tử giữa sau khi sắp xếp, với
+        số phần tử chẵn là trung bình hai phần tử giữa); `mode(xs)`: giá trị xuất hiện **nhiều nhất**.
+      - `stdev(xs)`: độ lệch chuẩn mẫu (cần ít nhất 2 phần tử). List rỗng gây `StatisticsError`.
+
+      **datetime** làm việc với ngày giờ:
+
+      - `date(2026, 11, 4)` là một ngày; `datetime(2026, 11, 4, 9, 5)` thêm giờ phút. Có các thuộc
+        tính `.year`, `.month`, `.day`.
+      - **`timedelta(days=30)`** là một khoảng thời gian. `ngay + timedelta(...)` cho ngày mới; trừ
+        hai ngày cho ra `timedelta`, lấy số ngày bằng `.days`.
+      - **`strftime(fmt)`** đổi đối tượng ngày thành **chuỗi** (f = format): `%Y` năm 4 chữ số, `%m`
+        tháng, `%d` ngày, `%H` giờ, `%M` phút.
+      - **`datetime.strptime(chuoi, fmt)`** đổi chuỗi thành đối tượng `datetime` (p = parse). Chuỗi
+        không khớp format gây `ValueError`.
+  - id: b09
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      import statistics
+      from datetime import date, datetime, timedelta
+
+      nums = [2, 4, 4, 5, 10]
+      print(statistics.mean(nums), statistics.median(nums), statistics.mode(nums))
+      print(round(statistics.stdev(nums), 2), statistics.median([1, 2, 3, 4]))
+
+      d = date(2026, 11, 4)
+      print(d, d.year, d.month, d.day)
+      print(d + timedelta(days=30))
+      print((date(2026, 12, 25) - d).days)
+      dt = datetime(2026, 11, 4, 9, 5)
+      print(dt.strftime("%d/%m/%Y %H:%M"))
+      p = datetime.strptime("2026-01-15", "%Y-%m-%d")
+      print(p.year, p.month, p.day)
+    expected_output: |
+      5 4 4
+      3.0 2.5
+      2026-11-04 2026 11 4
+      2026-12-04
+      51
+      04/11/2026 09:05
+      2026 1 15
+  - id: b10
+    type: predict_output
+    code: |
+      from datetime import date, timedelta
+
+      d = date(2026, 2, 27)
+      print(d + timedelta(days=2))
+      print(d.strftime("%d/%m"))
+    expected_output: |
+      2026-03-01
+      27/02
+    explain_md: "Năm 2026 không nhuận nên tháng 2 có 28 ngày: 27/02 cộng 2 ngày là 01/03. `strftime(\"%d/%m\")` in ngày rồi tháng, mỗi số 2 chữ số."
+  - id: b11
+    type: quiz_mcq
+    prompt_md: "Muốn đổi chuỗi `\"2026-01-15\"` thành đối tượng `datetime`, dùng cách nào?"
+    options:
+      - {id: a, text_md: "`datetime.strptime(\"2026-01-15\", \"%Y-%m-%d\")`"}
+      - {id: b, text_md: "`datetime.strftime(\"2026-01-15\", \"%Y-%m-%d\")`"}
+      - {id: c, text_md: "`timedelta(\"2026-01-15\")`"}
+    answer: [a]
+    explain_md: "`strptime` (parse) đổi **chuỗi thành datetime**; `strftime` (format) làm ngược lại, đổi datetime thành chuỗi. `timedelta` là khoảng thời gian, không nhận chuỗi ngày."
+  - id: ex_add_days
+    type: code_exercise
+    md: |
+      Viết `add_days(date_str, n)`: nhận ngày dạng chuỗi `"YYYY-MM-DD"` và số nguyên `n`, trả về
+      ngày sau `n` ngày (có thể âm) cũng dạng chuỗi `"YYYY-MM-DD"`. Ví dụ
+      `add_days("2026-02-27", 2)` là `"2026-03-01"`.
+    entry: add_days
+    starter: |
+      from datetime import datetime, timedelta
+
+
+      def add_days(date_str, n):
+          # TODO: strptime -> cộng timedelta -> strftime
+          pass
+    guidance_md: |
+      - Đổi chuỗi thành đối tượng ngày bằng `strptime`.
+      - Cộng một `timedelta(days=n)`.
+      - Đổi kết quả về chuỗi với `strftime` cùng format.
+    hints:
+      - level: nudge
+        md: "Cần đi chuỗi -> ngày -> cộng -> chuỗi. Hàm nào làm từng bước?"
+      - level: approach
+        md: "`strptime(date_str, \"%Y-%m-%d\")`, cộng `timedelta(days=n)`, rồi `.strftime(\"%Y-%m-%d\")`."
+      - level: pseudocode
+        md: |
+          d = parse date_str theo "%Y-%m-%d"
+          d2 = d + khoảng n ngày
+          trả về d2 định dạng "%Y-%m-%d"
+      - level: near_solution
+        md: |
+          def add_days(date_str, n):
+              d = datetime.strptime(date_str, "%Y-%m-%d")
+              return (d + timedelta(days=...)).strftime("%Y-%m-%d")
+    tests:
+      - {args: ["2026-02-27", 2], expected: "2026-03-01"}
+      - {args: ["2026-01-01", 0], expected: "2026-01-01"}
+      - {args: ["2026-01-01", -1], expected: "2025-12-31"}
+      - {args: ["2024-02-28", 1], expected: "2024-02-29"}
+      - {args: ["2026-12-31", 365], expected: "2027-12-31"}
+    solution: |
+      from datetime import datetime, timedelta
+
+
+      def add_days(date_str, n):
+          d = datetime.strptime(date_str, "%Y-%m-%d")
+          return (d + timedelta(days=n)).strftime("%Y-%m-%d")
+  - id: b12
+    type: summary
+    bullets_vi:
+      - "`import math` rồi `math.sqrt` (luôn float), `gcd`, `factorial`, `ceil` (lên) / `floor` (xuống); với số âm `floor(-2.1)` là `-3`."
+      - "`statistics`: `mean`, `median` (phần tử giữa), `mode` (nhiều nhất), `stdev`; list rỗng gây `StatisticsError`."
+      - "`random` là giả ngẫu nhiên: luôn `random.seed(...)` khi cần kết quả lặp lại; `randint(a, b)` gồm cả hai đầu; `shuffle` sửa tại chỗ và trả `None`."
+      - "`date` / `datetime` / `timedelta`: cộng trừ ngày; trừ hai ngày cho `timedelta`, lấy `.days`."
+      - "`strftime` đổi ngày thành chuỗi, `strptime` đổi chuỗi thành datetime; format chung: `%Y-%m-%d`, `%H:%M`."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X372], l2: [X373], l3: [X374]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (Wave 2 py fundamentals)"
+  reviewed_by: null
+  date: "2026-11-04"

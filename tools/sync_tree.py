@@ -28,11 +28,21 @@ PLAN_SNAPSHOT_LAST_DAY = 14
 EXTRA_SECTIONS = {"sd"}
 EXTRA_MODULES = {"ml.llm", "ml.rag_agents", "ml.llm_eval_serving", "ml.system_design"}
 
+# Individual nodes materialized beyond the MVP plan window (Wave 2+ fundamentals additions).
+EXTRA_IDS = {
+    "py.core.try_except_basics",
+    "py.core.regex",
+    "py.errors_modules.exceptions",
+    "py.errors_modules.files_pathlib",
+    "py.errors_modules.stdlib_tour",
+}
+
 # Expected shipped counts, asserted so an upstream tree edit can't silently change the snapshot.
 PLAN_MVP_COUNT = 40
 EXPECTED_SD = 86
 EXPECTED_ML4 = 39
-EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4  # 165
+EXPECTED_EXTRA_IDS = len(EXTRA_IDS)  # Wave 2 additions
+EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 170
 
 # Node fields the app uses (SPEC 4.2); optional ones are skipped when a node lacks them.
 NODE_FIELDS = [
@@ -75,7 +85,8 @@ def selected_ids(nodes: dict[str, tuple[str, str, dict]], plan: dict) -> list[st
     extra = [
         (sub_id, module, node)
         for sub_id, (section, module, node) in nodes.items()
-        if sub_id not in seen and (section in EXTRA_SECTIONS or module in EXTRA_MODULES)
+        if sub_id not in seen
+        and (section in EXTRA_SECTIONS or module in EXTRA_MODULES or sub_id in EXTRA_IDS)
     ]
     module_pos: dict[str, int] = {}
     for _sub_id, module, _node in extra:
@@ -141,12 +152,13 @@ def main() -> None:
 
     sd = sum(1 for s in subtopics if s["section"] in EXTRA_SECTIONS)
     ml4 = sum(1 for s in subtopics if s["module"] in EXTRA_MODULES)
-    plan_count = len(subtopics) - sd - ml4
-    got = (plan_count, sd, ml4, len(subtopics))
-    want = (PLAN_MVP_COUNT, EXPECTED_SD, EXPECTED_ML4, EXPECTED_TOTAL)
+    extra_ids = sum(1 for s in subtopics if s["id"] in EXTRA_IDS)
+    plan_count = len(subtopics) - sd - ml4 - extra_ids
+    got = (plan_count, sd, ml4, extra_ids, len(subtopics))
+    want = (PLAN_MVP_COUNT, EXPECTED_SD, EXPECTED_ML4, EXPECTED_EXTRA_IDS, EXPECTED_TOTAL)
     if got != want:
         raise SystemExit(
-            f"unexpected subtopic counts (plan, sd, ml4, total): got {got}, expected {want}"
+            f"unexpected counts (plan, sd, ml4, extra_ids, total): got {got}, expected {want}"
         )
 
     hashes = {"skill_tree.json": sha256_file(args.skill_tree), "plan.json": sha256_file(args.plan)}

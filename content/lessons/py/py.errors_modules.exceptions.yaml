@@ -1,0 +1,354 @@
+id: py.errors_modules.exceptions
+version: 1
+status: published
+title_vi: "Exception: các loại lỗi, raise và custom exception"
+est_minutes: 14
+objectives_vi:
+  - "Nhận ra các exception phổ biến (NameError, IndexError, KeyError, TypeError, ValueError, ZeroDivisionError) và biết khi nào mỗi loại xảy ra."
+  - "Dùng raise để chủ động báo lỗi, tự định nghĩa custom exception (class MyError(Exception)) và bắt đúng loại bằng try/except."
+  - "Biết re-raise bằng raise và exception chaining bằng raise ... from e để giữ lại nguyên nhân gốc."
+blocks:
+  - id: s_types
+    type: section
+    title_vi: "Các loại exception thường gặp"
+    summary_vi: "Mỗi lỗi lúc chạy là một exception có tên; đọc tên để biết sai ở đâu."
+    exercise_ref: ex_to_int
+  - id: b01
+    type: text
+    md: |
+      Khi code gặp tình huống không thể làm tiếp, Python **ném (raise)** một **exception** (ngoại lệ).
+      Nếu không ai bắt, chương trình dừng và in **traceback** (dấu vết lỗi) kèm *tên* exception.
+      Tên đó là manh mối quan trọng nhất. Các loại hay gặp ở mức nhập môn:
+
+      - **`NameError`**: dùng tên chưa được gán (`print(x)` khi chưa có `x`, hay gõ sai tên biến).
+      - **`IndexError`**: chỉ số ngoài phạm vi của list/str (`[1, 2, 3][5]`).
+      - **`KeyError`**: khóa không có trong dict (`{"a": 1}["b"]`).
+      - **`TypeError`**: phép toán/hàm dùng sai kiểu (`"3" + 4`, gọi hàm thiếu tham số).
+      - **`ValueError`**: kiểu đúng nhưng *giá trị* không hợp lệ (`int("abc")`).
+      - **`ZeroDivisionError`**: chia cho 0 (`1 / 0`, cả `//` và `%`).
+
+      Tất cả đều là lớp con của `Exception`. Bắt bằng `try/except TênLỗi`; viết `except Exception as e`
+      để lấy đối tượng lỗi `e`, và `type(e).__name__` cho biết tên loại. Nên bắt loại **cụ thể**, tránh
+      `except:` trống vì nó nuốt luôn cả lỗi bạn không lường trước.
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      cases = [
+          lambda: [1, 2, 3][5],
+          lambda: {"a": 1}["b"],
+          lambda: "3" + 4,
+          lambda: int("abc"),
+          lambda: 1 / 0,
+          lambda: chua_khai_bao,
+      ]
+      for f in cases:
+          try:
+              f()
+          except Exception as e:
+              print(type(e).__name__)
+    expected_output: |
+      IndexError
+      KeyError
+      TypeError
+      ValueError
+      ZeroDivisionError
+      NameError
+  - id: b03
+    type: quiz_mcq
+    prompt_md: |
+      Dòng nào gây `ValueError` (không phải `TypeError`)?
+    options:
+      - {id: a, text_md: "`int(\"12\") + \"3\"`"}
+      - {id: b, text_md: "`int(\"12.5\")`"}
+      - {id: c, text_md: "`len(5)`"}
+    answer: [b]
+    explain_md: "`int(\"12.5\")` nhận đúng kiểu `str` nhưng giá trị không phải số nguyên hợp lệ nên là `ValueError`. `int(\"12\") + \"3\"` cộng số với chuỗi và `len(5)` truyền sai kiểu: cả hai là `TypeError`."
+  - id: b04
+    type: predict_output
+    code: |
+      def lay(d, k):
+          try:
+              return d[k]
+          except KeyError:
+              return "none"
+
+      print(lay({"a": 1}, "a"), lay({"a": 1}, "b"))
+      try:
+          print([10, 20][2])
+      except IndexError:
+          print("het list")
+      print("xong")
+    expected_output: |
+      1 none
+      het list
+      xong
+    explain_md: "`lay({'a': 1}, 'b')` gây `KeyError`, bị bắt và trả `\"none\"`. `[10, 20][2]` ngoài phạm vi nên `IndexError`, in `het list`; chương trình chạy tiếp tới `xong`."
+  - id: ex_to_int
+    type: code_exercise
+    md: |
+      Viết `to_int_or_none(text)` đổi chuỗi `text` thành số nguyên bằng `int(text)`. Nếu chuỗi không
+      hợp lệ (gây `ValueError`) thì trả về `None`. Ví dụ `"42"` thành `42`, `"abc"` thành `None`.
+    entry: to_int_or_none
+    starter: |
+      def to_int_or_none(text):
+          # TODO: thử int(text); bắt ValueError thì trả None
+          pass
+    guidance_md: |
+      - Đặt `int(text)` trong khối `try`.
+      - Bắt đúng `ValueError`, không dùng `except:` trống.
+      - Nhánh lỗi trả về `None`.
+    hints:
+      - level: nudge
+        md: "`int('abc')` làm gì? Làm sao để chương trình không dừng mà trả về giá trị khác?"
+      - level: approach
+        md: "Bọc `return int(text)` trong `try`, rồi `except ValueError:` trả về `None`."
+      - level: pseudocode
+        md: |
+          thử:
+              trả về int(text)
+          nếu gặp ValueError:
+              trả về None
+      - level: near_solution
+        md: |
+          def to_int_or_none(text):
+              try:
+                  return ...
+              except ...:
+                  return None
+    tests:
+      - {args: ["42"], expected: 42}
+      - {args: ["abc"], expected: null}
+      - {args: [""], expected: null}
+      - {args: [" 7 "], expected: 7}
+      - {args: ["3.5"], expected: null}
+    solution: |
+      def to_int_or_none(text):
+          try:
+              return int(text)
+          except ValueError:
+              return None
+  - id: s_raise
+    type: section
+    title_vi: "raise và custom exception"
+    summary_vi: "Chủ động ném lỗi, tự định nghĩa lớp lỗi riêng và bắt đúng loại."
+    exercise_ref: ex_withdraw
+  - id: b05
+    type: text
+    md: |
+      Không chỉ Python mới ném lỗi: bạn cũng có thể dùng **`raise`** khi dữ liệu đầu vào sai, thay vì
+      trả về một giá trị "lạ" mà người gọi dễ quên kiểm tra:
+
+      ```python
+      def set_age(age):
+          if age < 0:
+              raise ValueError("age phai >= 0")
+          return age
+      ```
+
+      `raise ValueError("...")` tạo một đối tượng lỗi kèm thông điệp rồi dừng hàm ngay tại đó; lỗi
+      "nổi" lên cho nơi gọi hàm bắt bằng `try/except`.
+
+      **Custom exception** (ngoại lệ tự định nghĩa) là một lớp kế thừa `Exception`. Thân lớp có thể
+      chỉ là `pass`; giá trị nằm ở *cái tên* diễn đạt ý nghĩa nghiệp vụ và cho phép bắt riêng:
+
+      ```python
+      class InsufficientFundsError(Exception):
+          pass
+      ```
+
+      Gợi ý về **phân loại lỗi (error taxonomy)**: tạo một lớp gốc cho cả thư viện/ứng dụng
+      (`class AppError(Exception)`), rồi các lớp con (`class NotFoundError(AppError)`). Người gọi có
+      thể bắt riêng từng loại, hoặc bắt `AppError` để gom cả nhóm. Khi có nhiều `except`, Python
+      chọn khối **khớp đầu tiên** từ trên xuống, nên đặt lớp con trước lớp cha. Thêm `finally`
+      để chạy dọn dẹp dù có lỗi hay không.
+  - id: b06
+    type: quiz_fill
+    prompt_md: "Điền vào chỗ trống để định nghĩa custom exception tên `BadInput` kế thừa từ `Exception`: `class BadInput(___): pass`"
+    blanks: [{accept: ["Exception"]}]
+    explain_md: "Mọi exception kế thừa (trực tiếp hoặc gián tiếp) từ `BaseException`; custom exception thông thường kế thừa `Exception`. Viết `class BadInput(Exception): pass` là đủ để có một loại lỗi mới."
+  - id: b07
+    type: predict_output
+    code: |
+      class InvalidScoreError(Exception):
+          pass
+
+
+      def check_score(score):
+          if not isinstance(score, int):
+              raise TypeError("score must be int")
+          if score < 0 or score > 100:
+              raise InvalidScoreError(f"score out of range: {score}")
+          return score
+
+
+      for s in [85, 120, "9"]:
+          try:
+              print("ok", check_score(s))
+          except InvalidScoreError as e:
+              print("custom:", e)
+          except TypeError as e:
+              print("type:", e)
+          finally:
+              print("done", s)
+    expected_output: |
+      ok 85
+      done 85
+      custom: score out of range: 120
+      done 120
+      type: score must be int
+      done 9
+    explain_md: "85 hợp lệ nên in `ok 85`. 120 ném `InvalidScoreError`, in thông điệp bằng `e`. `\"9\"` không phải int nên `TypeError`. Khối `finally` luôn chạy, kể cả sau `return` hay lỗi, nên mỗi vòng đều in `done`."
+  - id: ex_withdraw
+    type: code_exercise
+    md: |
+      Viết custom exception `InsufficientFundsError` và hàm `withdraw(balance, amount)`:
+      ném `ValueError` nếu `amount <= 0`, ném `InsufficientFundsError` nếu `amount > balance`, còn lại
+      trả `balance - amount`. Sau đó viết `try_withdraw(balance, amount)` gọi `withdraw` và trả về
+      số dư mới; nếu gặp `InsufficientFundsError` thì trả `"insufficient"`, nếu gặp `ValueError` thì
+      trả `"invalid"`. Bài được chấm qua `try_withdraw`.
+    entry: try_withdraw
+    starter: |
+      class InsufficientFundsError(Exception):
+          pass
+
+
+      def withdraw(balance, amount):
+          # TODO: raise ValueError / InsufficientFundsError, hoặc trả số dư mới
+          pass
+
+
+      def try_withdraw(balance, amount):
+          # TODO: gọi withdraw trong try/except
+          pass
+    guidance_md: |
+      - Trong `withdraw`, kiểm tra `amount <= 0` rồi `amount > balance` bằng `if` + `raise`.
+      - Trong `try_withdraw`, đặt `return withdraw(...)` vào `try`.
+      - Dùng hai khối `except` riêng cho hai loại lỗi.
+    hints:
+      - level: nudge
+        md: "Hai loại lỗi khác nhau cần hai kết quả khác nhau; vậy cần mấy khối `except`?"
+      - level: approach
+        md: "`withdraw` dùng `raise` ở hai điều kiện sai rồi `return balance - amount`. `try_withdraw` có `try` với hai `except` riêng."
+      - level: pseudocode
+        md: |
+          withdraw: nếu amount <= 0 thì raise ValueError
+                    nếu amount > balance thì raise InsufficientFundsError
+                    trả balance - amount
+          try_withdraw: thử trả withdraw(...)
+                        gặp InsufficientFundsError thì "insufficient"
+                        gặp ValueError thì "invalid"
+      - level: near_solution
+        md: |
+          def withdraw(balance, amount):
+              if amount <= 0:
+                  raise ...("amount must be > 0")
+              if amount > balance:
+                  raise ...("not enough")
+              return balance - amount
+
+
+          def try_withdraw(balance, amount):
+              try:
+                  return withdraw(balance, amount)
+              except InsufficientFundsError:
+                  return ...
+              except ValueError:
+                  return ...
+    tests:
+      - {args: [100, 30], expected: 70}
+      - {args: [100, 100], expected: 0}
+      - {args: [50, 80], expected: "insufficient"}
+      - {args: [0, 1], expected: "insufficient"}
+      - {args: [10, 0], expected: "invalid"}
+    solution: |
+      class InsufficientFundsError(Exception):
+          pass
+
+
+      def withdraw(balance, amount):
+          if amount <= 0:
+              raise ValueError("amount must be > 0")
+          if amount > balance:
+              raise InsufficientFundsError("not enough")
+          return balance - amount
+
+
+      def try_withdraw(balance, amount):
+          try:
+              return withdraw(balance, amount)
+          except InsufficientFundsError:
+              return "insufficient"
+          except ValueError:
+              return "invalid"
+  - id: s_chain
+    type: section
+    title_vi: "Re-raise và exception chaining"
+    summary_vi: "Bắt rồi ném lại, hoặc đổi sang lỗi mới mà vẫn giữ nguyên nhân gốc."
+  - id: b08
+    type: text
+    md: |
+      Đôi khi bạn bắt lỗi chỉ để làm một việc phụ (ghi log, dọn dẹp) rồi để lỗi tiếp tục lan lên.
+      Dùng **`raise` trần** (không kèm gì) bên trong `except` để **re-raise** đúng lỗi đang xử lý:
+
+      ```python
+      try:
+          lam_viec()
+      except ValueError:
+          print("ghi log")
+          raise
+      ```
+
+      Khi muốn đổi sang lỗi *mang ý nghĩa của tầng mình* nhưng không mất nguyên nhân, dùng
+      **exception chaining**: `raise LoiMoi("...") from e`. Lỗi gốc `e` được gắn vào thuộc tính
+      `__cause__` của lỗi mới, và traceback hiển thị cả hai. Nếu bạn `raise` một lỗi mới bên trong
+      `except` mà không có `from`, Python vẫn tự gắn lỗi cũ vào `__context__`. Dùng `from None` để
+      cố ý giấu lỗi gốc.
+
+      Quy tắc thực dụng: bắt lỗi **ở nơi biết cách xử lý**; nếu không biết xử lý thì để nó lan lên
+      (hoặc re-raise). Đừng nuốt lỗi âm thầm bằng `except: pass`.
+  - id: b09
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      def load(text):
+          try:
+              return int(text)
+          except ValueError as e:
+              raise RuntimeError("cannot load") from e
+
+
+      try:
+          load("x1")
+      except RuntimeError as e:
+          print(e, "<-", type(e.__cause__).__name__)
+    expected_output: |
+      cannot load <- ValueError
+  - id: b10
+    type: quiz_mcq
+    prompt_md: |
+      Trong khối `except`, dòng nào ném lại **đúng lỗi đang xử lý** mà không tạo lỗi mới?
+    options:
+      - {id: a, text_md: "`raise`"}
+      - {id: b, text_md: "`raise Exception`"}
+      - {id: c, text_md: "`pass`"}
+    answer: [a]
+    explain_md: "`raise` đứng một mình re-raise exception hiện tại cùng traceback gốc. `raise Exception` tạo một lỗi mới tổng quát, còn `pass` nuốt mất lỗi."
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "Đọc tên exception trước: `NameError` (tên chưa có), `IndexError` (chỉ số), `KeyError` (khóa dict), `TypeError` (sai kiểu), `ValueError` (sai giá trị), `ZeroDivisionError` (chia 0)."
+      - "Bắt loại cụ thể bằng `try/except Loai as e`; tránh `except:` trống; `finally` luôn chạy."
+      - "`raise ValueError(\"...\")` chủ động báo lỗi; custom exception là `class MyError(Exception): pass`, nên có lớp gốc chung và lớp con để phân loại (taxonomy)."
+      - "Nhiều `except`: khối khớp đầu tiên thắng, đặt lớp con trước lớp cha."
+      - "`raise` trần re-raise lỗi hiện tại; `raise Moi(...) from e` giữ nguyên nhân ở `__cause__`; `from None` giấu nguyên nhân."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X366], l2: [X367], l3: [X368]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (Wave 2 py fundamentals)"
+  reviewed_by: null
+  date: "2026-11-04"
