@@ -47,6 +47,11 @@ EXTRA_IDS = {
     "py.functions.itertools_idioms",
     "py.functions.functools_cache",
     "py.errors_modules.context_managers",
+    # Wave 2 Round 4: complete py.advanced + type hints.
+    "py.advanced.descriptors",
+    "py.advanced.data_model_deep",
+    "py.advanced.walrus_match_syntax",
+    "py.typing_testing.type_hints",
 }
 
 # Expected shipped counts, asserted so an upstream tree edit can't silently change the snapshot.
@@ -54,7 +59,7 @@ PLAN_MVP_COUNT = 40
 EXPECTED_SD = 86
 EXPECTED_ML4 = 39
 EXPECTED_EXTRA_IDS = len(EXTRA_IDS)  # Wave 2 additions
-EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 180
+EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 184
 
 # Node fields the app uses (SPEC 4.2); optional ones are skipped when a node lacks them.
 NODE_FIELDS = [

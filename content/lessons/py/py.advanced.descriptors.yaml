@@ -1,0 +1,308 @@
+id: py.advanced.descriptors
+version: 1
+status: published
+title_vi: Descriptor, tra cứu thuộc tính và metaclass
+est_minutes: 12
+objectives_vi:
+- Giải thích descriptor là gì (__get__/__set__/__delete__) và vì sao nó nằm ở thuộc tính của CLASS.
+- Phân biệt data descriptor và non-data descriptor, và thứ tự ưu tiên khi tra cứu thuộc tính.
+- Viết descriptor kiểm tra dữ liệu (validate) dùng __set_name__ và lưu giá trị trong __dict__ của instance.
+blocks:
+  - id: s_what
+    type: section
+    title_vi: "Descriptor là gì và __set_name__"
+    summary_vi: "Descriptor là object có __get__/__set__/__delete__ đặt ở class; __set_name__ cho nó biết tên thuộc tính."
+    exercise_ref: ex_positive
+  - id: t1
+    type: text
+    md: |
+      **Descriptor** là một object định nghĩa ít nhất một trong các phương thức `__get__`,
+      `__set__`, `__delete__`, và được đặt làm **thuộc tính của class** (không phải của instance).
+      Khi bạn truy cập `obj.attr`, Python thấy `attr` trên class là descriptor nên gọi
+      `type(attr).__get__(attr, obj, type(obj))` thay vì trả thẳng object đó. Đây là cơ chế đằng sau
+      `property`, `classmethod`, `staticmethod` và cả hàm thường (method).
+
+      Một descriptor được dùng chung bởi mọi instance, nên **không được lưu giá trị trên chính
+      descriptor**. Hãy lưu trong `obj.__dict__` với key riêng. Để biết tên thuộc tính mà không phải
+      gõ lại, định nghĩa `__set_name__(self, owner, name)`: Python gọi nó một lần khi class được tạo.
+
+      Về ngữ cảnh: `__getattribute__` chạy cho MỌI truy cập thuộc tính, còn `__getattr__` chỉ chạy
+      khi tra cứu thông thường thất bại. **Metaclass** (mặc định là `type`) là "class của class": nó
+      quyết định cách class được tạo. Bài này tập trung vào descriptor.
+  - id: c1
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class Positive:
+          def __set_name__(self, owner, name):
+              self.key = "_" + name
+
+          def __get__(self, obj, owner=None):
+              if obj is None:
+                  return self
+              return obj.__dict__[self.key]
+
+          def __set__(self, obj, value):
+              if value <= 0:
+                  raise ValueError("must be positive")
+              obj.__dict__[self.key] = value
+
+      class Item:
+          price = Positive()
+
+          def __init__(self, price):
+              self.price = price
+
+      it = Item(5)
+      print(it.price)
+      try:
+          Item(-1)
+      except ValueError as e:
+          print("loi:", e)
+      print(it.__dict__)
+    expected_output: |
+      5
+      loi: must be positive
+      {'_price': 5}
+  - id: q1
+    type: quiz_mcq
+    prompt_md: "Vì sao `Positive` lưu giá trị vào `obj.__dict__[self.key]` thay vì `self.value`?"
+    options:
+      - {id: a, text_md: "Vì `self.value` không được phép trong Python"}
+      - {id: b, text_md: "Vì descriptor là một object dùng chung cho mọi instance, lưu vào `self` sẽ lẫn giá trị giữa các instance"}
+      - {id: c, text_md: "Vì `__dict__` nhanh hơn mọi cách khác"}
+    answer: [b]
+    explain_md: "Descriptor nằm ở class nên chỉ có một bản cho tất cả instance. Giá trị riêng của từng instance phải nằm ở instance (ở đây là `obj.__dict__`)."
+  - id: ex_positive
+    type: code_exercise
+    md: |
+      Descriptor `Positive` bên dưới chưa kiểm tra giá trị. Sửa `__set__` để ném `ValueError` khi
+      `value <= 0`. `try_set(value)` trả `"ok"` nếu gán được, `"err"` nếu bị từ chối.
+    entry: try_set
+    starter: |
+      class Positive:
+          def __set_name__(self, owner, name):
+              self.key = "_" + name
+
+          def __get__(self, obj, owner=None):
+              if obj is None:
+                  return self
+              return obj.__dict__[self.key]
+
+          def __set__(self, obj, value):
+              obj.__dict__[self.key] = value
+
+
+      class Item:
+          price = Positive()
+
+
+      def try_set(value):
+          try:
+              Item().price = value
+          except ValueError:
+              return "err"
+          return "ok"
+    guidance_md: |
+      - Chỉ cần sửa `Positive.__set__`.
+      - Kiểm tra điều kiện TRƯỚC khi ghi vào `obj.__dict__`.
+      - `0` cũng không hợp lệ (phải dương hẳn).
+    hints:
+      - level: nudge
+        md: "Gán `-3` hiện vẫn thành công. Chỗ nào của descriptor chạy khi bạn viết `item.price = ...`?"
+      - level: approach
+        md: "Trong `__set__`, nếu `value <= 0` thì `raise ValueError(...)` trước khi ghi."
+      - level: near_solution
+        md: |
+          def __set__(self, obj, value):
+              if value <= 0:
+                  raise ValueError("x")
+              ...
+    tests:
+      - {args: [5], expected: "ok"}
+      - {args: [-3], expected: "err"}
+      - {args: [0], expected: "err"}
+    solution: |
+      class Positive:
+          def __set_name__(self, owner, name):
+              self.key = "_" + name
+
+          def __get__(self, obj, owner=None):
+              if obj is None:
+                  return self
+              return obj.__dict__[self.key]
+
+          def __set__(self, obj, value):
+              if value <= 0:
+                  raise ValueError("must be positive")
+              obj.__dict__[self.key] = value
+
+
+      class Item:
+          price = Positive()
+
+
+      def try_set(value):
+          try:
+              Item().price = value
+          except ValueError:
+              return "err"
+          return "ok"
+  - id: s_prec
+    type: section
+    title_vi: "Data vs non-data descriptor"
+    summary_vi: "Data descriptor (có __set__/__delete__) thắng __dict__ của instance; non-data (chỉ __get__) thua nó."
+    exercise_ref: ex_const
+  - id: t2
+    type: text
+    md: |
+      Thứ tự ưu tiên khi tra cứu `obj.attr`:
+
+      1. **Data descriptor** trên class (có `__set__` hoặc `__delete__`) — thắng tất cả.
+      2. Giá trị trong `obj.__dict__`.
+      3. **Non-data descriptor** (chỉ có `__get__`) hoặc thuộc tính class thường.
+
+      Vì vậy `property` (luôn có `__set__`, kể cả khi không có setter thì `__set__` ném
+      `AttributeError`) là data descriptor và không thể bị che bởi `obj.__dict__`. Ngược lại, hàm
+      thường (method) chỉ có `__get__` nên là non-data: gán `obj.method = ...` che được method, đó là
+      cách người ta "patch" một method trên một instance.
+  - id: c2
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class Data:
+          def __get__(self, obj, owner=None):
+              return "data"
+
+          def __set__(self, obj, value):
+              pass
+
+      class NonData:
+          def __get__(self, obj, owner=None):
+              return "nondata"
+
+      class C:
+          d = Data()
+          n = NonData()
+
+      c = C()
+      c.__dict__["d"] = "inst"
+      c.__dict__["n"] = "inst"
+      print(c.d, c.n)
+      del c.__dict__["n"]
+      print(c.n)
+    expected_output: |
+      data inst
+      nondata
+  - id: q2
+    type: quiz_mcq
+    prompt_md: "Class có `x = NonData()` (chỉ `__get__`). Sau `obj.x = 5`, `obj.x` trả gì?"
+    options:
+      - {id: a, text_md: "Kết quả của `NonData.__get__`, vì descriptor luôn thắng"}
+      - {id: b, text_md: "`5`, vì giá trị trong `obj.__dict__` thắng non-data descriptor"}
+      - {id: c, text_md: "`AttributeError`"}
+    answer: [b]
+    explain_md: "Không có `__set__` nên phép gán ghi thẳng vào `obj.__dict__['x']`, và khi đọc thì `__dict__` thắng non-data descriptor."
+  - id: c3
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class P:
+          @property
+          def x(self):
+              return 1
+
+          def m(self):
+              return 2
+
+      px = P.__dict__["x"]
+      pm = P.__dict__["m"]
+      print(type(px).__name__)
+      print(hasattr(px, "__set__"), hasattr(pm, "__set__"), hasattr(pm, "__get__"))
+    expected_output: |
+      property
+      True False True
+  - id: q3
+    type: quiz_mcq
+    prompt_md: "Phát biểu nào đúng?"
+    options:
+      - {id: a, text_md: "`property` là data descriptor còn method thường là non-data descriptor"}
+      - {id: b, text_md: "Cả `property` và method thường đều là data descriptor"}
+      - {id: c, text_md: "Method thường không có `__get__`"}
+    answer: [a]
+    explain_md: "`property` có `__set__` nên là data descriptor. Hàm thường chỉ có `__get__` (nó tạo bound method) nên là non-data."
+  - id: ex_const
+    type: code_exercise
+    md: |
+      `Const.__get__` luôn trả `42`, nhưng sau khi gán `obj.v = value` thì `obj.v` lại trả `value`
+      vì `Const` chỉ là non-data descriptor. Thêm một `__set__` để biến nó thành data descriptor, sao
+      cho gán bị bỏ qua và `get_after_assign(value)` luôn trả `42`.
+    entry: get_after_assign
+    starter: |
+      class Const:
+          def __get__(self, obj, owner=None):
+              return 42
+
+
+      class Box:
+          v = Const()
+
+
+      def get_after_assign(value):
+          b = Box()
+          b.v = value
+          return b.v
+    guidance_md: |
+      - Chỉ cần thêm một phương thức vào `Const`.
+      - `__set__` nhận `(self, obj, value)` và không cần làm gì.
+    hints:
+      - level: nudge
+        md: "Gán đang ghi vào `b.__dict__` và che mất descriptor. Loại descriptor nào không bị che?"
+      - level: approach
+        md: "Thêm `def __set__(self, obj, value): pass` vào `Const`."
+    tests:
+      - {args: [1], expected: 42}
+      - {args: [99], expected: 42}
+      - {args: ["a"], expected: 42}
+    solution: |
+      class Const:
+          def __get__(self, obj, owner=None):
+              return 42
+
+          def __set__(self, obj, value):
+              pass
+
+
+      class Box:
+          v = Const()
+
+
+      def get_after_assign(value):
+          b = Box()
+          b.v = value
+          return b.v
+  - id: sum1
+    type: summary
+    bullets_vi:
+      - "Descriptor là object có `__get__`/`__set__`/`__delete__` đặt ở class; nó kiểm soát truy cập thuộc tính của instance."
+      - "`__set_name__(self, owner, name)` cho descriptor biết tên thuộc tính; lưu giá trị riêng của từng instance trong `obj.__dict__`, không lưu trên `self`."
+      - "Ưu tiên tra cứu: data descriptor > `obj.__dict__` > non-data descriptor/thuộc tính class. `property` là data descriptor, method là non-data."
+      - "Metaclass (`type`) quyết định cách class được tạo; `__getattribute__` chạy mọi truy cập, `__getattr__` chỉ khi tra cứu thất bại."
+problems:
+  practice: []
+  extra: []
+mastery_check:
+  l1: [X405]
+  l2: [X406]
+  l3: [X407]
+checkpoint:
+  pass_ratio: 0.7
+  min_items: 3
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-03"

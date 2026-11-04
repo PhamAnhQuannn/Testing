@@ -1,0 +1,247 @@
+id: py.typing_testing.type_hints
+version: 1
+status: published
+title_vi: Type hints và kiểu tĩnh
+est_minutes: 12
+objectives_vi:
+- Viết annotation cho tham số, giá trị trả về và biến; biết CPython không kiểm tra chúng lúc chạy.
+- Dùng generic built-in (list[int], dict[str, int]) và typing (Optional, Union, Callable, Literal...).
+- Đọc type hints bằng __annotations__, get_type_hints, get_origin, get_args.
+- Biết TypedDict, Protocol (structural typing) và NewType ở mức giới thiệu.
+blocks:
+  - id: s_basic
+    type: section
+    title_vi: "Annotation cơ bản và không bị ép lúc chạy"
+    summary_vi: "Type hint là chú thích cho người đọc và công cụ như mypy; Python không enforce chúng."
+    exercise_ref: ex_ret_name
+  - id: t1
+    type: text
+    md: |
+      **Type hint** gắn kiểu mong đợi vào code: `x: int = 3`, `def f(a: int, b: str) -> bool:`.
+      Chúng được lưu trong `f.__annotations__` (dict tên -> kiểu, theo thứ tự khai báo; giá trị trả
+      về có khoá `'return'`).
+
+      Quan trọng: **CPython bỏ qua hint lúc chạy**, không ném lỗi nếu bạn truyền sai kiểu. Việc kiểm tra
+      là của công cụ **tĩnh** như `mypy`/`pyright`, chạy trước khi chương trình chạy.
+  - id: c1
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      def add(a: int, b: int = 0) -> int:
+          return a + b
+
+      print(add("x", "y"))
+      print(add.__annotations__)
+    expected_output: |
+      xy
+      {'a': <class 'int'>, 'b': <class 'int'>, 'return': <class 'int'>}
+  - id: q1
+    type: quiz_mcq
+    prompt_md: "Với `def add(a: int, b: int) -> int`, chuyện gì xảy ra khi chạy `add(\"x\", \"y\")`?"
+    options:
+      - {id: a, text_md: "Ném `TypeError` vì sai kiểu"}
+      - {id: b, text_md: "Chạy bình thường và trả `'xy'`; mypy mới báo lỗi"}
+      - {id: c, text_md: "Python tự ép `\"x\"` thành `int`"}
+    answer: [b]
+    explain_md: "Hint không được enforce lúc chạy; chỉ trình kiểm tra tĩnh (mypy) mới báo lỗi."
+  - id: ex_ret_name
+    type: code_exercise
+    md: |
+      `ret_name(src)` nhận mã nguồn (chuỗi) định nghĩa hàm `f` có annotation kiểu trả về, và phải
+      trả `__name__` của kiểu trả về đó (vd `-> bool` cho `"bool"`). Hãy `exec` mã rồi đọc hint.
+    entry: ret_name
+    starter: |
+      from typing import get_type_hints
+
+
+      def ret_name(src):
+          ns = {}
+          exec(src, ns)
+          return ""
+    guidance_md: |
+      - `get_type_hints(ns["f"])` trả dict; kiểu trả về nằm ở khoá `"return"`.
+      - Lấy `.__name__` của kiểu đó.
+    hints:
+      - level: nudge
+        md: "Hàm `f` nằm trong `ns` sau `exec`. Hint của nó đọc bằng hàm nào trong `typing`?"
+      - level: approach
+        md: "`get_type_hints(ns['f'])['return']` là kiểu trả về."
+      - level: near_solution
+        md: "return get_type_hints(ns['f'])['return'].__name__"
+    tests:
+      - {args: ["def f(a: int) -> bool:\n    return True\n"], expected: "bool"}
+      - {args: ["def f() -> str:\n    return ''\n"], expected: "str"}
+      - {args: ["def f(x) -> list:\n    return []\n"], expected: "list"}
+    solution: |
+      from typing import get_type_hints
+
+
+      def ret_name(src):
+          ns = {}
+          exec(src, ns)
+          return get_type_hints(ns["f"])["return"].__name__
+  - id: s_generics
+    type: section
+    title_vi: "Generic và typing: Optional, Union, Callable"
+    summary_vi: "list[int], dict[str, int] (3.9+); Optional[X] = X | None; đọc bằng get_origin/get_args."
+    exercise_ref: ex_is_optional
+  - id: t2
+    type: text
+    md: |
+      Từ Python 3.9 dùng thẳng kiểu built-in làm generic: `list[int]`, `dict[str, int]`,
+      `set[str]`, `tuple[int, ...]` (tuple độ dài tuỳ ý). Module `typing` thêm:
+      `Optional[X]` (= `X | None`), `Union[X, Y]` (= `X | Y`), `Any`, `Callable[[int], str]`,
+      `Literal["a", "b"]`, `Final`, `TypeAlias`. Cú pháp `X | Y` cần Python 3.10+.
+
+      Để **đọc** một hint: `get_origin(t)` cho kiểu gốc (`list`), `get_args(t)` cho các tham số kiểu.
+      `Optional[int]` thực chất là union của `int` và `NoneType`.
+  - id: c2
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      from typing import Optional, get_args, get_origin
+
+      t = dict[str, list[int]]
+      print(get_origin(t) is dict)
+      print(get_args(t))
+      print(get_origin(Optional[int]) is not None, get_args(Optional[int]))
+      print(int | None == Optional[int])
+    expected_output: |
+      True
+      (<class 'str'>, list[int])
+      True (<class 'int'>, <class 'NoneType'>)
+      True
+  - id: q2
+    type: quiz_mcq
+    prompt_md: "`typing.Optional[str]` tương đương với cách viết nào?"
+    options:
+      - {id: a, text_md: "`str | None`"}
+      - {id: b, text_md: "`str = None` (tham số có mặc định)"}
+      - {id: c, text_md: "`list[str]`"}
+    answer: [a]
+    explain_md: "`Optional[X]` nghĩa là `X` hoặc `None`, tức `X | None`; nó không liên quan tới việc tham số có mặc định hay không."
+  - id: q3
+    type: quiz_mcq
+    prompt_md: "`get_origin(tuple[int, ...])` và `get_args(tuple[int, ...])` lần lượt trả gì?"
+    options:
+      - {id: a, text_md: "`tuple` và `(int, Ellipsis)`"}
+      - {id: b, text_md: "`None` và `()`"}
+      - {id: c, text_md: "`int` và `(tuple,)`"}
+    answer: [a]
+    explain_md: "Origin là `tuple`; args là `(int, ...)`, dấu `...` là đối tượng `Ellipsis`."
+  - id: ex_is_optional
+    type: code_exercise
+    md: |
+      `is_optional(expr)` nhận chuỗi biểu thức kiểu (vd `"Optional[int]"`, `"int | None"`,
+      `"list[int]"`), `eval` nó và trả `True` nếu kiểu là union có chứa `None`, ngược lại `False`.
+    entry: is_optional
+    starter: |
+      from typing import Optional, Union, get_args
+
+
+      def is_optional(expr):
+          tp = eval(expr, {"Optional": Optional, "Union": Union})
+          return False
+    guidance_md: |
+      - Phải đúng HAI điều: kiểu là union VÀ trong các đối số có `type(None)`.
+      - `get_origin(tp)` của union là `typing.Union` (từ `Optional`/`Union`) hoặc
+        `types.UnionType` (từ cú pháp `X | None`, cần Python 3.10+).
+      - Chỉ kiểm tra `type(None) in get_args(tp)` là chưa đủ: `dict[str, None]` cũng có `None`
+        trong args nhưng không phải union.
+    hints:
+      - level: nudge
+        md: "Cần phân biệt union (`Optional`/`Union`/`X | Y`) với kiểu generic thường như `dict[str, None]`."
+      - level: approach
+        md: "Dùng `get_origin(tp)` để biết có phải union không, rồi kiểm tra `type(None) in get_args(tp)`."
+      - level: near_solution
+        md: "Kiểm tra `get_origin(tp)` thuộc `(Union, types.UnionType)` và `type(None)` nằm trong `get_args(tp)`."
+    tests:
+      - {args: ["Optional[int]"], expected: true}
+      - {args: ["int | None"], expected: true}
+      - {args: ["list[int]"], expected: false}
+      - {args: ["Union[int, str]"], expected: false}
+    solution: |
+      import types
+      from typing import Optional, Union, get_args, get_origin
+
+
+      def is_optional(expr):
+          tp = eval(expr, {"Optional": Optional, "Union": Union})
+          return get_origin(tp) in (Union, types.UnionType) and type(None) in get_args(tp)
+  - id: s_struct
+    type: section
+    title_vi: "TypedDict, Protocol, NewType"
+    summary_vi: "TypedDict mô tả dict có khoá cố định; Protocol là duck typing có kiểu; NewType tạo kiểu phân biệt."
+  - id: t3
+    type: text
+    md: |
+      - **`TypedDict`**: dict với các khoá và kiểu giá trị cố định; lúc chạy vẫn là `dict` thường.
+      - **`Protocol`**: **structural typing**, tức duck typing có kiểu. Một lớp thoả `Protocol` chỉ
+        cần có các method phù hợp, **không cần kế thừa**.
+      - **`NewType("UserId", int)`**: kiểu riêng cho trình kiểm tra (không lẫn `int` với `UserId`);
+        lúc chạy chỉ là một callable trả lại nguyên giá trị truyền vào (từ 3.10 là instance của một
+        class, không phải function).
+  - id: c3
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      from typing import NewType, Protocol, TypedDict
+
+      class Movie(TypedDict):
+          title: str
+          year: int
+
+      m: Movie = {"title": "Alien", "year": 1979}
+      print(type(m).__name__, Movie.__annotations__)
+
+      class Speaks(Protocol):
+          def speak(self) -> str: ...
+
+      class Dog:
+          def speak(self) -> str:
+              return "woof"
+
+      def talk(x: Speaks) -> str:
+          return x.speak()
+
+      print(talk(Dog()))
+      UserId = NewType("UserId", int)
+      print(UserId(5), type(UserId(5)).__name__)
+    expected_output: |
+      dict {'title': <class 'str'>, 'year': <class 'int'>}
+      woof
+      5 int
+  - id: q4
+    type: quiz_mcq
+    prompt_md: "`Dog` không kế thừa `Speaks` nhưng có method `speak`. Với mypy, `talk(Dog())` có hợp lệ không?"
+    options:
+      - {id: a, text_md: "Không, `Dog` phải kế thừa `Speaks`"}
+      - {id: b, text_md: "Có, vì `Protocol` dùng structural typing: đủ method là thoả"}
+      - {id: c, text_md: "Chỉ hợp lệ khi chạy, mypy sẽ báo lỗi"}
+    answer: [b]
+    explain_md: "Protocol kiểm tra theo cấu trúc (có method đúng chữ ký), không cần kế thừa tường minh."
+  - id: sum1
+    type: summary
+    bullets_vi:
+      - "Hint nằm ở `__annotations__`; CPython không enforce, mypy/pyright kiểm tra tĩnh."
+      - "Generic built-in (3.9+): `list[int]`, `dict[str, int]`, `tuple[int, ...]`; `Optional[X]` = `X | None`."
+      - "Đọc hint bằng `get_type_hints`, `get_origin`, `get_args`; so sánh với lớp cụ thể (`t is int`) thay vì `repr`."
+      - "`TypedDict` (dict có schema), `Protocol` (duck typing có kiểu), `NewType` (kiểu phân biệt lúc kiểm tra)."
+problems:
+  practice: []
+  extra: []
+mastery_check:
+  l1: [X414]
+  l2: [X415]
+  l3: [X416]
+checkpoint:
+  pass_ratio: 0.7
+  min_items: 3
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-03"

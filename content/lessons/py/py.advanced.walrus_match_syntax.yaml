@@ -1,0 +1,291 @@
+id: py.advanced.walrus_match_syntax
+version: 1
+status: published
+title_vi: "Cú pháp hiện đại: walrus, match/case và tính năng mới"
+est_minutes: 12
+objectives_vi:
+- Dùng toán tử walrus `:=` để gán và dùng giá trị trong cùng một biểu thức (while, if, comprehension).
+- Viết `match`/`case` với literal, capture, wildcard, OR, sequence, mapping, class pattern và guard.
+- Nắm thứ tự khớp (first match wins) và vai trò của `_` làm nhánh mặc định.
+blocks:
+  - id: s_walrus
+    type: section
+    title_vi: "Walrus := gán trong biểu thức"
+    summary_vi: "`name := expr` vừa gán vừa trả giá trị, tránh tính hai lần; biến nằm ở scope bao quanh."
+    exercise_ref: ex_walrus
+  - id: t1
+    type: text
+    md: |
+      **Assignment expression** `:=` (Python 3.8+, gọi là "walrus") gán một giá trị cho biến **và**
+      trả chính giá trị đó, nên dùng được ở chỗ chỉ cho phép biểu thức: điều kiện `if`/`while`,
+      comprehension, đối số hàm.
+
+      Các cách dùng quen thuộc:
+
+      - `while (chunk := read()):` đọc rồi kiểm tra trong một dòng.
+      - `[y for x in data if (y := f(x)) > 0]`: tính `f(x)` **một lần**, vừa lọc vừa dùng lại `y`.
+      - `if (n := len(data)) > 3:` dùng `n` ngay sau đó.
+
+      Lưu ý: biến walrus được gán ở **scope bao quanh**, kể cả khi viết trong comprehension (nó
+      "rò" ra ngoài). Thường nên đặt trong ngoặc cho dễ đọc.
+  - id: c1
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      data = [3, -1, 4, -5, 9]
+      pos = [y for x in data if (y := x * 2) > 0]
+      print(pos)
+      if (n := len(data)) > 3:
+          print(n)
+      print(y)
+    expected_output: |
+      [6, 8, 18]
+      5
+      18
+  - id: q1
+    type: quiz_mcq
+    prompt_md: "Sau comprehension `[y for x in data if (y := x * 2) > 0]`, biến `y` thế nào?"
+    options:
+      - {id: a, text_md: "Không tồn tại vì comprehension có scope riêng"}
+      - {id: b, text_md: "Tồn tại ở scope bao quanh, giữ giá trị gán gần nhất"}
+      - {id: c, text_md: "Luôn bằng giá trị đầu tiên"}
+    answer: [b]
+    explain_md: "Walrus trong comprehension gán vào scope bao quanh, nên `y` vẫn dùng được và giữ giá trị lần gán cuối."
+  - id: ex_walrus
+    type: code_exercise
+    md: |
+      Viết `doubled_positive(nums)` trả list các `x * 2` mà dương, dùng walrus để chỉ tính `x * 2`
+      một lần trong comprehension.
+    entry: doubled_positive
+    starter: |
+      def doubled_positive(nums):
+          # TODO: dùng walrus trong comprehension
+          return []
+    guidance_md: |
+      - Mẫu: `[y for x in nums if (y := ...) > 0]`.
+      - Giá trị trả về là chính `y`.
+    hints:
+      - level: nudge
+        md: "Làm sao vừa lọc theo `x * 2 > 0` vừa lấy lại giá trị đó mà không tính hai lần?"
+      - level: approach
+        md: "Đặt `(y := x * 2)` trong điều kiện `if` của comprehension, phần tử xuất ra là `y`."
+      - level: near_solution
+        md: "Một list comprehension với điều kiện dùng walrus: gán `y := x * 2` ngay trong mệnh đề `if`, giữ lại khi `y > 0`, rồi trả danh sách các `y`."
+    tests:
+      - {args: [[3, -1, 4]], expected: [6, 8]}
+      - {args: [[]], expected: []}
+      - {args: [[-2, 0, -5]], expected: []}
+      - {args: [[1, 2, 3]], expected: [2, 4, 6]}
+    solution: |
+      def doubled_positive(nums):
+          return [y for x in nums if (y := x * 2) > 0]
+  - id: s_match
+    type: section
+    title_vi: "match/case: khớp theo cấu trúc"
+    summary_vi: "`match` thử từng `case` từ trên xuống, nhánh đầu khớp thắng; `_` là mặc định."
+    exercise_ref: ex_match
+  - id: t2
+    type: text
+    md: |
+      **Structural pattern matching** (`match`/`case`, Python 3.10+) so một giá trị với các pattern
+      theo thứ tự từ trên xuống; **nhánh đầu tiên khớp được chạy**, nên thứ tự rất quan trọng.
+
+      - **Literal**: `case 0:`, `case "stop":`.
+      - **Capture**: tên trần như `case x:` khớp mọi thứ và gán vào `x`.
+      - **Wildcard** `_`: khớp mọi thứ, không gán; dùng làm nhánh mặc định cuối cùng.
+      - **OR**: `case 1 | 2:`.
+      - **Sequence**: `case [x, y]:`, `case [first, *rest]:` (list/tuple, **không** gồm `str`).
+      - **Mapping**: `case {"key": v}:` chỉ cần có key đó, key thừa vẫn khớp.
+
+      Nếu không nhánh nào khớp và không có `_`, `match` không làm gì (không báo lỗi).
+  - id: c2
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      def f(v):
+          match v:
+              case 0:
+                  return "zero"
+              case 1 | 2:
+                  return "small"
+              case [x, y]:
+                  return f"pair {x}+{y}"
+              case [first, *rest]:
+                  return f"first={first} rest={rest}"
+              case {"k": val}:
+                  return f"k={val}"
+              case _:
+                  return "other"
+
+      print(f(0))
+      print(f(2))
+      print(f([1, 2]))
+      print(f([7, 8, 9]))
+      print(f({"k": 5, "z": 1}))
+      print(f("s"))
+    expected_output: |
+      zero
+      small
+      pair 1+2
+      first=7 rest=[8, 9]
+      k=5
+      other
+  - id: q2
+    type: quiz_mcq
+    prompt_md: "Với `f` ở trên, `f([])` trả gì?"
+    options:
+      - {id: a, text_md: "`\"other\"`, vì `[first, *rest]` cần ít nhất 1 phần tử"}
+      - {id: b, text_md: "`\"first=None rest=[]\"`"}
+      - {id: c, text_md: "Ném `IndexError`"}
+    answer: [a]
+    explain_md: "List rỗng không khớp `[x, y]` hay `[first, *rest]` (cần ≥1 phần tử), cũng không phải mapping, nên rơi vào `_`."
+  - id: ex_match
+    type: code_exercise
+    md: |
+      Viết `describe(cmd)` bằng `match`:
+      `["stop"]` -> `"stop"`; `["move", d, n]` với `d` là `"up"` hoặc `"down"` và `n` là int dương
+      -> `"<d> <n>"` (ví dụ `"up 3"`); mọi lệnh bắt đầu bằng `"move"` còn lại -> `"bad move"`;
+      còn lại -> `"unknown"`.
+    entry: describe
+    starter: |
+      def describe(cmd):
+          # TODO: dùng match/case
+          return "unknown"
+    guidance_md: |
+      - Dùng sequence pattern, OR pattern `("up" | "down") as d` và guard `if n > 0`.
+      - Nhánh `["move", *_]` đặt sau nhánh đúng, `_` đặt cuối.
+    hints:
+      - level: nudge
+        md: "Thứ tự case: cụ thể nhất trước, tổng quát sau, `_` cuối."
+      - level: approach
+        md: "`case [\"move\", (\"up\" | \"down\") as d, int(n)] if n > 0:` rồi `case [\"move\", *_]:`."
+      - level: near_solution
+        md: |
+          Viết các `case` theo thứ tự: `["stop"]` trả "stop"; `["move", hướng, int(n)]` với
+          `("up" | "down") as d` và guard `if n > 0` trả `f"{d} {n}"`; `["move", *_]` trả "bad move";
+          cuối cùng `case _` trả "unknown". Thứ tự quan trọng vì case khớp đầu tiên thắng.
+    tests:
+      - {args: [["stop"]], expected: "stop"}
+      - {args: [["move", "up", 3]], expected: "up 3"}
+      - {args: [["move", "down", -1]], expected: "bad move"}
+      - {args: [["move", "left", 2]], expected: "bad move"}
+      - {args: ["hello"], expected: "unknown"}
+    solution: |
+      def describe(cmd):
+          match cmd:
+              case ["stop"]:
+                  return "stop"
+              case ["move", ("up" | "down") as d, int(n)] if n > 0:
+                  return f"{d} {n}"
+              case ["move", *_]:
+                  return "bad move"
+              case _:
+                  return "unknown"
+  - id: s_class
+    type: section
+    title_vi: "Class pattern, guard và thứ tự"
+    summary_vi: "Class pattern khớp theo kiểu và thuộc tính; guard `if` thêm điều kiện; case cụ thể đặt trước."
+  - id: t3
+    type: text
+    md: |
+      **Class pattern** `Point(x=0, y=y)` kiểm tra `isinstance(v, Point)` rồi khớp từng thuộc tính;
+      `y` ở đây là capture. Với dataclass, cũng viết được theo vị trí `Point(0, y)`.
+
+      **Guard** `case p if cond:` chỉ khớp khi `cond` đúng (nên đặt sau pattern có thể gán biến).
+
+      Vì nhánh đầu khớp thắng, hãy xếp **cụ thể trước, tổng quát sau**; nếu đặt `Point(x=x, y=y)`
+      lên đầu, các nhánh dưới sẽ không bao giờ chạy.
+  - id: c3
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      from dataclasses import dataclass
+
+      @dataclass
+      class Point:
+          x: int
+          y: int
+
+      def where(p):
+          match p:
+              case Point(x=0, y=0):
+                  return "origin"
+              case Point(x=0, y=y):
+                  return f"y-axis {y}"
+              case Point(x=x, y=0):
+                  return f"x-axis {x}"
+              case Point(x=x, y=y) if x == y:
+                  return "diagonal"
+              case Point():
+                  return "plane"
+              case _:
+                  return "not a point"
+
+      print(where(Point(0, 0)))
+      print(where(Point(0, 5)))
+      print(where(Point(3, 0)))
+      print(where(Point(2, 2)))
+      print(where(Point(1, 2)))
+      print(where((1, 2)))
+    expected_output: |
+      origin
+      y-axis 5
+      x-axis 3
+      diagonal
+      plane
+      not a point
+  - id: q3
+    type: quiz_mcq
+    prompt_md: "Nếu đặt `case Point(x=x, y=y):` lên ĐẦU hàm `where`, điều gì xảy ra?"
+    options:
+      - {id: a, text_md: "Mọi `Point` khớp ngay nhánh đầu, các nhánh sau không bao giờ chạy"}
+      - {id: b, text_md: "Python tự chọn nhánh cụ thể nhất"}
+      - {id: c, text_md: "Báo `SyntaxError` do pattern trùng"}
+    answer: [a]
+    explain_md: "Nhánh đầu tiên khớp thắng; pattern tổng quát đặt trước sẽ che các nhánh cụ thể (thứ tự quan trọng)."
+  - id: s_misc
+    type: section
+    title_vi: "Một vài tính năng hiện đại khác"
+    summary_vi: "f-string `=` để debug nhanh; ưu tiên walrus/match khi nó làm code rõ hơn, không ép dùng."
+  - id: t4
+    type: text
+    md: |
+      Vài tiện ích hiện đại khác: f-string `f"{x=}"` in cả tên biểu thức lẫn giá trị (3.8+), rất
+      tiện khi debug. Đừng lạm dụng walrus hay `match` khi `if/elif` đơn giản đã đủ rõ; mục tiêu
+      là code dễ đọc hơn.
+  - id: c4
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      x = 7
+      print(f"{x=}")
+      print(f"{x * 2 = }")
+    expected_output: |
+      x=7
+      x * 2 = 14
+  - id: sum1
+    type: summary
+    bullets_vi:
+      - "`:=` gán và trả giá trị trong biểu thức; biến nằm ở scope bao quanh, tránh tính hai lần."
+      - "`match` thử case từ trên xuống, nhánh đầu khớp thắng; `_` là mặc định, thiếu `_` thì không khớp là bỏ qua."
+      - "Pattern: literal, capture, `_`, OR `a | b`, sequence `[x, *rest]` (không gồm str), mapping `{\"k\": v}`, class `P(x=0)`, guard `if`."
+      - "Xếp case cụ thể trước, tổng quát sau; f-string `{x=}` giúp debug."
+problems:
+  practice: []
+  extra: []
+mastery_check:
+  l1: [X411]
+  l2: [X412]
+  l3: [X413]
+checkpoint:
+  pass_ratio: 0.7
+  min_items: 3
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-03"

@@ -1,0 +1,63 @@
+id: check-x416-type-format
+subtopic_id: py.typing_testing.type_hints
+secondary_subtopics: []
+kind: check
+title: 'Check X416: type_format'
+title_vi: 'Kiểm tra X416: type_format'
+difficulty: easy
+source:
+  type: original
+statement_en_md: Implement `type_format(expr)` as described in the Vietnamese statement (mastery
+  check item X416, 12-minute time box).
+statement_vi_md: |-
+  Viết `type_format(expr)`. `expr` là chuỗi biểu thức kiểu như `"list[int]"`. Hãy `eval` nó với
+  namespace `{"Optional": Optional, "Union": Union, "Callable": Callable, "Any": Any}` rồi trả
+  chuỗi mô tả đệ quy bằng `get_origin`/`get_args`:
+  - kiểu thường (không có origin): `__name__` (`int`, `str`, `Any`...);
+  - `NoneType` thành `"None"`, `...` thành `"..."`, một list đối số (của `Callable`) thành `"[a, b]"`;
+  - Union (cả `Optional[X]`, `Union[...]`, `X | Y`): các thành phần nối bằng `" | "`;
+  - generic khác: `origin.__name__ + "[" + các đối số nối ", " + "]"`.
+constraints: []
+examples:
+- input: expr = "int"
+  output: '"int"'
+  explain_vi: Kiểu đơn không có origin nên trả chính tên kiểu.
+- input: expr = "dict[str, list[int]]"
+  output: '"dict[str, list[int]]"'
+  explain_vi: origin là dict, đối số là str và list[int] (định dạng đệ quy).
+- input: expr = "Optional[str]"
+  output: '"str | None"'
+  explain_vi: Optional[str] là Union[str, None] nên in thành str | None.
+io:
+  mode: function
+  entry: type_format
+  params:
+  - name: expr
+    type: str
+  returns: str
+  compare: exact
+starter:
+  python: "from typing import Any, Callable, Optional, Union, get_args, get_origin\nimport types\n\n\ndef type_format(expr):\n    # TODO\n    pass\n"
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+time_target_min: 12
+hints:
+- Viết hàm đệ quy `fmt(tp)`; xử lý `type(None)`, `Ellipsis` và `list` trước.
+- 'Nếu `get_origin(tp) is None` thì trả `tp.__name__`. Union: origin là `typing.Union` hoặc `types.UnionType`.'
+- 'Với generic khác ghép `origin.__name__` và `[` + `", ".join(fmt(a) for a in get_args(tp))` + `]`.'
+solution:
+  file: solution.py
+  approach_vi: Đệ quy trên get_origin/get_args, xử lý riêng Union, NoneType, Ellipsis và list.
+  complexity: O(k)
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x416
+status: validated
+version: 1
