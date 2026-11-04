@@ -1,5 +1,5 @@
 id: sd.data.data_modeling
-version: 2
+version: 3
 status: published
 title_vi: "Mô hình dữ liệu theo access pattern: thiết kế bảng theo cách bạn sẽ đọc"
 est_minutes: 14
@@ -79,6 +79,14 @@ blocks:
       - {id: c, text_md: "Không còn cách nào lấy được tên tác giả cho một bài viết."}
     answer: [b]
     explain_md: "Phi chuẩn hóa đổi đọc-nhanh lấy ghi-khó: tên bị lưu nhiều nơi nên mỗi lần đổi phải cập nhật tất cả và dễ sót gây mâu thuẫn. (a) ngược lại — mục đích chính là đọc nhanh hơn nhờ bỏ join. (c) sai, tên vẫn lấy được; vấn đề là giữ cho các bản sao nhất quán."
+  - id: x_denorm
+    type: callout
+    kind: tip
+    md: |
+      **Denormalization: đổi ghi lấy đọc**
+      **Denormalization** là cố ý **nhân bản/gộp dữ liệu** (vd lưu sẵn `author_name` trong `posts`, hay cột tổng hợp) để **tránh JOIN**
+      tốn kém và tăng tốc đọc. Hợp với hệ read-heavy hoặc khi không join được (đã shard/federation). Đánh đổi: ghi chậm và phức tạp hơn
+      (cập nhật nhiều nơi), nguy cơ **bất nhất** (cần trigger/job đồng bộ), tốn thêm dung lượng.
   - id: s_index
     type: section
     title_vi: "Index đúng cột và đúng thứ tự"
@@ -115,6 +123,13 @@ blocks:
       - {id: c, text_md: "Không cần index; cứ để DB quét cả bảng rồi sắp xếp cho đơn giản."}
     answer: [b]
     explain_md: "Index ghép `(user_id, created_at)` khớp đúng dạng 'lọc một cột rồi sắp theo cột kia' nên DB nhảy thẳng tới các bài của user và đọc theo thứ tự thời gian. (a) chỉ index `created_at` vẫn phải lọc `user_id` sau, kém hiệu quả. (c) quét cả bảng là đúng thứ ta muốn tránh khi bảng lớn."
+  - id: x_sql_tuning
+    type: text
+    md: |
+      **SQL tuning cơ bản** khi một truy vấn chậm: (1) **đo trước** bằng `EXPLAIN` / slow query log để thấy full scan, đừng tối ưu mò;
+      (2) thêm **index** đúng cột lọc/join/sắp xếp, composite index đúng thứ tự cột (cột so sánh bằng đứng trước), tránh index thừa vì
+      mỗi index làm ghi chậm hơn; (3) tránh `SELECT *`, hàm bọc cột được index (mất index), N+1; dùng `LIMIT`/phân trang;
+      (4) **query cache** / cache kết quả nóng (Redis, Memcached, buffer pool) để giảm đọc DB — nhưng phải lo **invalidation** (dữ liệu cũ).
   - id: s_unique
     type: section
     title_vi: "UNIQUE chặn ghi trùng và mẹo phỏng vấn"
@@ -176,7 +191,7 @@ blocks:
       - "Tạo **index** đúng cột `WHERE`/`ORDER BY` theo đúng thứ tự (ví dụ `(user_id, created_at)`); index tăng tốc đọc nhưng làm chậm ghi."
       - "Dùng **UNIQUE** để DB tự chặn ghi trùng (một phòng một đêm: `UNIQUE (room_id, night)`) — an toàn hơn kiểm tra ở tầng app vì tránh race condition."
 problems: {practice: [], extra: []}
-mastery_check: {l1: [S046], l2: [S047], l3: [S048]}
+mastery_check: {l1: [S046], l2: [S047, X305], l3: [S048]}
 checkpoint: {pass_ratio: 0.7, min_items: 3}
 source:
   tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9

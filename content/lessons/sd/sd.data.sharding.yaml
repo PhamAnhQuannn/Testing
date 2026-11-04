@@ -1,5 +1,5 @@
 id: sd.data.sharding
-version: 2
+version: 3
 status: published
 title_vi: "Phân vùng dữ liệu (partitioning và sharding): chọn shard key, hot shard và resharding"
 est_minutes: 14
@@ -81,6 +81,17 @@ blocks:
       - {id: c, text_md: "`country` của người gửi — để gom theo khu vực địa lý."}
     answer: [b]
     explain_md: "`conversation_id` khớp truy vấn hay gặp (đọc một cuộc trò chuyện → một shard) và thường cardinality đủ cao để chia tạm đều. (a) rải đều nhưng đọc một cuộc trò chuyện lại rải khắp shard → xuyên shard. (c) lệch nặng (nước đông dân phình to) và không khớp truy vấn."
+  - id: x_federation
+    type: callout
+    kind: tip
+    md: |
+      **Federation (phân vùng theo chức năng) vs sharding**
+      **Federation**: tách một DB lớn thành nhiều DB theo **miền chức năng** (`users`, `products`, `orders` mỗi cái một DB) —
+      mỗi DB nhỏ hơn nên ít đọc/ghi hơn, cache hit cao hơn, replication nhanh hơn. **Sharding**: chia **hàng của cùng một bảng**
+      theo shard key (hash/range) ra nhiều máy. Federation là bước đầu rẻ hơn khi tải tách được theo domain; khi một bảng/chức
+      năng đơn lẻ vẫn vượt sức một máy thì phải sharding (thường kết hợp cả hai).
+      Đánh đổi của federation: **join xuyên DB khó** (phải join ở tầng ứng dụng), giao dịch xuyên DB cần 2PC/saga,
+      ứng dụng phải biết route tới DB nào, vận hành phức tạp hơn.
   - id: s_hot_reshard
     type: section
     title_vi: "Hot shard và resharding"
@@ -160,7 +171,7 @@ blocks:
       - "**Resharding** đau vì `hash % n` dời gần hết dữ liệu khi đổi n; giảm đau bằng over-provision và **consistent hashing** (bài sau)."
       - "Xuyên shard làm **aggregate/join/giao dịch** đắt (scatter-gather, 2PC); chọn shard key để thao tác nóng gói trong một shard."
 problems: {practice: [], extra: []}
-mastery_check: {l1: [S052], l2: [S053], l3: [S054]}
+mastery_check: {l1: [S052], l2: [S053, X304], l3: [S054]}
 checkpoint: {pass_ratio: 0.7, min_items: 3}
 source:
   tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
