@@ -1,0 +1,392 @@
+id: py.oop.inheritance_mro
+version: 1
+status: published
+title_vi: Kế thừa, super() và MRO
+est_minutes: 12
+objectives_vi:
+- Dùng kế thừa và ghi đè method đúng, dự đoán bản method nào chạy khi class con và cha cùng có method.
+- Gọi class cha bằng super() trong chuỗi hợp tác.
+- Đọc thứ tự MRO (C3) bằng __mro__ để dự đoán kết quả khi đa kế thừa và kim cương.
+blocks:
+  - id: s_basic
+    type: section
+    title_vi: "Kế thừa và ghi đè method"
+    summary_vi: "Class con dùng lại code của cha; method cùng tên ở con ghi đè bản của cha."
+  - id: t1
+    type: text
+    md: |
+      **Kế thừa**: `class Dog(Animal)` làm `Dog` nhận sẵn mọi method của `Animal`. Khi gọi
+      `obj.method()`, Python tìm method **bắt đầu từ class của object**, rồi mới lên class cha. Vì vậy
+      nếu con và cha cùng có method tên đó, **bản của con thắng** (đây là **ghi đè**, override).
+
+      Lưu ý: khi method của cha gọi `self.speak()`, `self` vẫn là object của class con, nên Python
+      vẫn tìm `speak` từ class con trước. Đó là lý do `intro()` dưới đây nói "Woof" cho `Dog`.
+  - id: c1
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class Animal:
+          def speak(self):
+              return "..."
+
+          def intro(self):
+              return "I say " + self.speak()
+
+
+      class Dog(Animal):
+          def speak(self):
+              return "Woof"
+
+
+      print(Animal().intro())
+      print(Dog().intro())
+    expected_output: |
+      I say ...
+      I say Woof
+  - id: p1
+    type: predict_output
+    code: |
+      class P:
+          def f(self):
+              return "P"
+
+
+      class Q(P):
+          def f(self):
+              return "Q"
+
+
+      class R(Q):
+          pass
+
+
+      print(R().f(), P().f())
+    expected_output: |
+      Q P
+    explain_md: "`R` không có `f` nên lên `Q` (bản `Q.f` thắng `P.f`); `P().f()` vẫn là bản của `P`."
+  - id: s_super
+    type: section
+    title_vi: "super() và chuỗi gọi hợp tác"
+    summary_vi: "super() gọi tiếp bản của class đứng sau trong MRO; thường dùng để mở rộng thay vì thay thế bản của cha."
+    exercise_ref: ex_super_chain
+  - id: t2
+    type: text
+    md: |
+      Khi ghi đè mà vẫn muốn **giữ hành vi của cha**, gọi **`super().ten_method(...)`**. Đặc biệt
+      với `__init__`: nếu con có `__init__` riêng mà **không** gọi `super().__init__()`, phần khởi tạo
+      của cha **không chạy**.
+
+      Chính xác hơn, `super()` không nhất thiết là "cha trực tiếp": nó gọi class **kế tiếp trong MRO**
+      của object. Với kế thừa đơn hai thứ đó trùng nhau; với đa kế thừa thì khác (xem phần sau).
+  - id: c2
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class Base:
+          def __init__(self):
+              print("Base init")
+
+
+      class Child(Base):
+          def __init__(self):
+              print("Child init start")
+              super().__init__()
+              print("Child init end")
+
+
+      Child()
+    expected_output: |
+      Child init start
+      Base init
+      Child init end
+  - id: callout_super
+    type: callout
+    kind: warning
+    md: "Ghi đè `__init__` mà quên `super().__init__()` là lỗi rất hay gặp: thuộc tính của cha không bao giờ được gán, sau đó truy cập sẽ báo `AttributeError`."
+  - id: q2
+    type: quiz_mcq
+    prompt_md: "`class B(A)` có `__init__` riêng và **không** gọi `super().__init__()`. Khi tạo `B()`, điều gì xảy ra với `A.__init__`?"
+    options:
+      - {id: a, text_md: "Vẫn tự động chạy trước `B.__init__`"}
+      - {id: b, text_md: "Không chạy, trừ khi `B.__init__` gọi nó"}
+      - {id: c, text_md: "Chạy sau `B.__init__`"}
+    answer: [b]
+    explain_md: "Python không tự gọi `__init__` của cha khi con đã định nghĩa `__init__` riêng; phải gọi `super().__init__()` rõ ràng."
+  - id: ex_super_chain
+    type: code_exercise
+    md: |
+      Viết ba class: `Base.greet()` trả `"Hello"`; `Polite(Base).greet()` trả bản của cha nối thêm
+      `", please"`; `Shout(Polite).greet()` trả bản của cha **viết hoa** rồi nối thêm `"!"`.
+      `greet(kind)` nhận `"base"`, `"polite"` hoặc `"shout"`. Ví dụ `greet("shout")` là
+      `"HELLO, PLEASE!"`.
+    entry: greet
+    starter: |
+      class Base:
+          def greet(self):
+              return "Hello"
+
+
+      # TODO: class Polite(Base) và class Shout(Polite), dùng super().greet()
+
+
+      def greet(kind):
+          classes = {"base": Base, "polite": Polite, "shout": Shout}
+          return classes[kind]().greet()
+    guidance_md: |
+      - Khai báo `class Polite(Base):` với method `greet(self)` ghi đè.
+      - Trong đó lấy chuỗi của cha bằng `super().greet()` rồi nối `", please"`.
+      - `Shout(Polite)` làm tương tự nhưng dùng `.upper()` và nối `"!"`.
+    hints:
+      - level: nudge
+        md: "Hiện `Polite` và `Shout` chưa tồn tại. Mỗi class cần ghi đè `greet`, nhưng không được bỏ mất kết quả của cha."
+      - level: approach
+        md: "Trong `greet` của từng class con, gọi `super().greet()` để lấy chuỗi của cha, rồi biến đổi chuỗi đó (nối thêm, hoặc viết hoa rồi nối thêm)."
+      - level: pseudocode
+        md: |
+          class Polite kế thừa Base:
+              greet: (greet của cha) + ", please"
+          class Shout kế thừa Polite:
+              greet: viết hoa (greet của cha) + "!"
+    tests:
+      - {args: ["base"], expected: "Hello"}
+      - {args: ["polite"], expected: "Hello, please"}
+      - {args: ["shout"], expected: "HELLO, PLEASE!"}
+    solution: |
+      class Base:
+          def greet(self):
+              return "Hello"
+
+
+      class Polite(Base):
+          def greet(self):
+              return super().greet() + ", please"
+
+
+      class Shout(Polite):
+          def greet(self):
+              return super().greet().upper() + "!"
+
+
+      def greet(kind):
+          classes = {"base": Base, "polite": Polite, "shout": Shout}
+          return classes[kind]().greet()
+  - id: s_mro
+    type: section
+    title_vi: "Đa kế thừa, kim cương và MRO (C3)"
+    summary_vi: "MRO là thứ tự Python tìm method; xem bằng ClassName.__mro__ hoặc ClassName.mro()."
+  - id: t3
+    type: text
+    md: |
+      Python cho phép **đa kế thừa**: `class D(B, C)`. Khi `B` và `C` cùng kế thừa `A` ta có hình
+      **kim cương (diamond)**. Python cần một thứ tự cố định để tìm method: **MRO** (Method Resolution
+      Order), tính bằng thuật toán **C3 linearization**. Quy tắc dễ nhớ:
+
+      - Con luôn đứng **trước** cha của nó.
+      - Thứ tự base viết trong ngoặc được giữ: `D(B, C)` thì `B` đứng trước `C`.
+      - Class chung ở đỉnh kim cương (`A`) đứng **sau** tất cả các class dẫn tới nó.
+
+      Xem MRO bằng `D.__mro__` (tuple) hoặc `D.mro()` (list). Tìm method đi từ trái sang phải trong
+      MRO và dừng ở class đầu tiên có method đó **trong thân class của nó**.
+  - id: c3
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class A:
+          pass
+
+
+      class B(A):
+          pass
+
+
+      class C(A):
+          pass
+
+
+      class D(B, C):
+          pass
+
+
+      print([k.__name__ for k in D.__mro__])
+      print([k.__name__ for k in C.mro()])
+    expected_output: |
+      ['D', 'B', 'C', 'A', 'object']
+      ['C', 'A', 'object']
+  - id: p3
+    type: predict_output
+    code: |
+      class A:
+          def who(self):
+              return "A"
+
+
+      class B(A):
+          pass
+
+
+      class C(A):
+          def who(self):
+              return "C"
+
+
+      class D(B, C):
+          pass
+
+
+      print(D().who())
+    expected_output: |
+      C
+    explain_md: "MRO là D, B, C, A. `D` và `B` không tự định nghĩa `who`, `C` có nên dừng ở `C` (không phải `A`, dù `B` kế thừa `A`)."
+  - id: q3
+    type: quiz_fill
+    prompt_md: "Điền thuộc tính để in thứ tự Python tìm method của class `D`: `print(D.___)`"
+    blanks: [{accept: ["__mro__", "mro()"]}]
+    explain_md: "`D.__mro__` (tuple) hoặc `D.mro()` (list) cho thứ tự tìm method theo C3."
+  - id: callout_c3
+    type: callout
+    kind: interview
+    md: "Câu hỏi phỏng vấn quen thuộc: \"MRO của `class D(B, C)` với `B(A)`, `C(A)` là gì?\" Đáp: `D, B, C, A, object`. Nếu viết `class Z(X, Y)` trong khi `Y` kế thừa `X` thì C3 không thể thỏa mãn và Python ném `TypeError: Cannot create a consistent method resolution order`."
+  - id: s_coop
+    type: section
+    title_vi: "super() trong kim cương"
+    summary_vi: "Nếu mọi class đều gọi super(), mỗi class trong MRO chạy đúng một lần theo thứ tự C3."
+    exercise_ref: ex_diamond
+  - id: t4
+    type: text
+    md: |
+      Trong kim cương, `super()` trong `B` **không** gọi thẳng `A`: nó gọi class kế tiếp trong MRO
+      **của object đang chạy**. Với `D().trace()`, MRO là `D, B, C, A` nên chuỗi là `D -> B -> C -> A`:
+      `B` gọi `super()` và được `C`, không phải `A`. Nếu mọi class đều gọi `super()` (gọi là
+      **hợp tác**, cooperative), mỗi class chạy đúng **một lần**. Chỉ cần một class trong chuỗi quên
+      gọi `super()` thì các class phía sau nó bị bỏ qua.
+  - id: c4
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class A:
+          def trace(self):
+              return ["A"]
+
+
+      class B(A):
+          def trace(self):
+              return ["B"] + super().trace()
+
+
+      class C(A):
+          def trace(self):
+              return ["C"] + super().trace()
+
+
+      class D(B, C):
+          def trace(self):
+              return ["D"] + super().trace()
+
+
+      print(D().trace())
+      print(B().trace())
+    expected_output: |
+      ['D', 'B', 'C', 'A']
+      ['B', 'A']
+  - id: q4
+    type: quiz_mcq
+    prompt_md: "Với `class D(B, C)`, `B(A)`, `C(A)`, mọi class đều gọi `super().trace()`. `B().trace()` (object kiểu `B`, không phải `D`) đi qua những class nào?"
+    options:
+      - {id: a, text_md: "B -> C -> A"}
+      - {id: b, text_md: "B -> A"}
+      - {id: c, text_md: "B -> D -> A"}
+    answer: [b]
+    explain_md: "MRO phụ thuộc class của **object**: MRO của `B` là `B, A, object` nên `super()` trong `B` đi tới `A`. Chỉ khi object là `D` thì `B` mới chuyển sang `C`."
+  - id: ex_diamond
+    type: code_exercise
+    md: |
+      `B.trace()` và `C.trace()` hiện không hợp tác nên chuỗi bị cắt ngắn. Sửa để mỗi class trả
+      `[tên của nó] + super().trace()`. `walk(order)` tạo `D` với base theo `order` (`"BC"` là
+      `D(B, C)`, `"CB"` là `D(C, B)`, `"B"` là `D(B)`) rồi trả `D().trace()`. Ví dụ `walk("BC")` là
+      `["B", "C", "A"]`.
+    entry: walk
+    starter: |
+      class A:
+          def trace(self):
+              return ["A"]
+
+
+      class B(A):
+          def trace(self):
+              return ["B"]  # TODO
+
+
+      class C(A):
+          def trace(self):
+              return ["C"]  # TODO
+
+
+      def walk(order):
+          picked = {"B": B, "C": C}
+          D = type("D", tuple(picked[ch] for ch in order), {})
+          return D().trace()
+    guidance_md: |
+      - Trong `B.trace` và `C.trace`, đừng trả ngay danh sách một phần tử.
+      - Thêm kết quả của lớp kế tiếp trong MRO vào sau tên của chính class đó.
+      - Không sửa `A` hay `walk`; MRO của `D` sẽ tự quyết định thứ tự.
+    hints:
+      - level: nudge
+        md: "`walk(\"BC\")` đang trả `[\"B\"]`, thiếu `C` và `A`. Chuỗi bị cắt ở đâu?"
+      - level: approach
+        md: "Mỗi `trace` ở `B` và `C` phải nối thêm kết quả của `super().trace()` vào sau tên class hiện tại."
+      - level: pseudocode
+        md: |
+          B.trace: [tên B] nối với (trace của lớp kế tiếp trong MRO)
+          C.trace: tương tự với tên C
+    tests:
+      - {args: ["BC"], expected: ["B", "C", "A"]}
+      - {args: ["CB"], expected: ["C", "B", "A"]}
+      - {args: ["B"], expected: ["B", "A"]}
+      - {args: ["C"], expected: ["C", "A"]}
+    solution: |
+      class A:
+          def trace(self):
+              return ["A"]
+
+
+      class B(A):
+          def trace(self):
+              return ["B"] + super().trace()
+
+
+      class C(A):
+          def trace(self):
+              return ["C"] + super().trace()
+
+
+      def walk(order):
+          picked = {"B": B, "C": C}
+          D = type("D", tuple(picked[ch] for ch in order), {})
+          return D().trace()
+  - id: sum1
+    type: summary
+    bullets_vi:
+      - "Class con ghi đè method bằng cách định nghĩa cùng tên; Python tìm method từ class của object lên các class cha và dừng ở bản đầu tiên tìm thấy."
+      - "`super().method()` gọi class kế tiếp trong MRO; ghi đè `__init__` mà không gọi `super().__init__()` thì phần khởi tạo của cha không chạy."
+      - "Đa kế thừa dùng MRO tính bằng C3: con trước cha, thứ tự base trong ngoặc được giữ, class chung (đỉnh kim cương) đứng sau."
+      - "Xem MRO bằng `ClassName.__mro__` hoặc `ClassName.mro()`; thứ tự base mâu thuẫn gây `TypeError`."
+      - "Nếu mọi class trong kim cương cùng gọi `super()`, mỗi class chạy đúng một lần theo thứ tự MRO."
+problems:
+  practice: []
+  extra: []
+mastery_check:
+  l1: [X375]
+  l2: [X376]
+  l3: [X377]
+checkpoint:
+  pass_ratio: 0.7
+  min_items: 3
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: tools/gen_lesson_stubs.py
+  reviewed_by: null
+  date: '2026-11-03'

@@ -1,0 +1,373 @@
+id: py.oop.abc_protocols
+version: 1
+status: published
+title_vi: Abstract class, interface và duck typing (abc_protocols)
+est_minutes: 12
+objectives_vi:
+- Dùng abc.ABC và @abstractmethod để thiết kế nhóm class có chung giao diện.
+- Giải thích vì sao class thiếu method trừu tượng không tạo được object.
+- Giải thích duck typing và biết Protocol là gì (phần Nâng cao).
+blocks:
+  - id: s_abc
+    type: section
+    title_vi: "abc.ABC và @abstractmethod"
+    summary_vi: "Class cha kế thừa ABC khai báo method trừu tượng; class con phải cài hết mới tạo được object."
+    exercise_ref: ex_shapes
+  - id: t1
+    type: text
+    md: |
+      Khi nhiều class cùng làm một việc theo cách khác nhau (ví dụ mọi `Hinh` đều tính được diện
+      tích), ta muốn ép chúng có **cùng giao diện (interface)**. Python làm việc này bằng
+      **abstract base class**: kế thừa `abc.ABC` và đánh dấu method bắt buộc bằng
+      `@abstractmethod`.
+
+      Class có method trừu tượng chưa được cài thì **không tạo được object**: gọi `Hinh()` sẽ
+      `raise TypeError`. Class con chỉ tạo được object khi đã ghi đè **tất cả** method trừu tượng.
+  - id: c1
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      from abc import ABC, abstractmethod
+
+
+      class Hinh(ABC):
+          @abstractmethod
+          def dien_tich(self):
+              ...
+
+
+      class HinhVuong(Hinh):
+          def __init__(self, a):
+              self.a = a
+
+          def dien_tich(self):
+              return self.a * self.a
+
+
+      class Thieu(Hinh):
+          pass
+
+
+      try:
+          Hinh()
+      except TypeError:
+          print("khong tao duoc Hinh")
+      try:
+          Thieu()
+      except TypeError as e:
+          print(type(e).__name__)
+      print(HinhVuong(3).dien_tich())
+      print(isinstance(HinhVuong(2), Hinh))
+    expected_output: |
+      khong tao duoc Hinh
+      TypeError
+      9
+      True
+  - id: p1
+    type: predict_output
+    code: |
+      from abc import ABC, abstractmethod
+
+
+      class A(ABC):
+          @abstractmethod
+          def f(self):
+              ...
+
+
+      class B(A):
+          pass
+
+
+      class C(A):
+          def f(self):
+              return 1
+
+
+      try:
+          B()
+      except TypeError:
+          print("B loi")
+      print(C().f())
+    expected_output: |
+      B loi
+      1
+    explain_md: "`B` chưa cài `f` nên vẫn còn trừu tượng và `B()` ném `TypeError`; `C` đã cài `f` nên tạo được."
+  - id: q1
+    type: quiz_mcq
+    prompt_md: "Khi nào một class con của `Hinh(ABC)` tạo được object?"
+    options:
+      - {id: a, text_md: "Luôn tạo được, vì nó kế thừa từ ABC"}
+      - {id: b, text_md: "Khi nó đã ghi đè tất cả method `@abstractmethod` của cha"}
+      - {id: c, text_md: "Khi nó ghi đè ít nhất một method trừu tượng"}
+    answer: [b]
+    explain_md: "Chỉ cần còn một method trừu tượng chưa cài là `TypeError`. Phải cài hết."
+  - id: ex_shapes
+    type: code_exercise
+    md: |
+      `Shape` là ABC có method trừu tượng `area()`. Viết `Square(side)` và `Rect(w, h)` kế thừa
+      `Shape` và cài `area`. `total_area(specs)` nhận list như `[["sq", 3], ["rect", 2, 5]]` và trả
+      tổng diện tích (ở ví dụ là `19`).
+    entry: total_area
+    starter: |
+      from abc import ABC, abstractmethod
+
+
+      class Shape(ABC):
+          @abstractmethod
+          def area(self):
+              ...
+
+
+      # TODO: class Square(Shape) và class Rect(Shape) cài area
+
+
+      def total_area(specs):
+          kinds = {"sq": Square, "rect": Rect}
+          return sum(kinds[k](*args).area() for k, *args in specs)
+    guidance_md: |
+      - Khai báo `class Square(Shape)` với `__init__(self, side)` lưu `self.side`.
+      - Cài `area(self)` trả `self.side * self.side`.
+      - Làm tương tự cho `Rect(w, h)` với `w * h`.
+      - Không cần sửa `Shape` hay `total_area`.
+    hints:
+      - level: nudge
+        md: "Hiện `Square` và `Rect` chưa tồn tại nên `total_area` lỗi. Class con cần có gì để tạo được object?"
+      - level: approach
+        md: "Mỗi class con có `__init__` lưu số đo và ghi đè `area` (cùng tên với method trừu tượng của cha)."
+      - level: pseudocode
+        md: |
+          class Square kế thừa Shape:
+              __init__(side): lưu side
+              area(): trả side * side
+          class Rect kế thừa Shape: tương tự với w * h
+    tests:
+      - {args: [[["sq", 3], ["rect", 2, 5]]], expected: 19}
+      - {args: [[]], expected: 0}
+      - {args: [[["sq", 1], ["sq", 2], ["rect", 1, 1]]], expected: 6}
+    solution: |
+      from abc import ABC, abstractmethod
+
+
+      class Shape(ABC):
+          @abstractmethod
+          def area(self):
+              ...
+
+
+      class Square(Shape):
+          def __init__(self, side):
+              self.side = side
+
+          def area(self):
+              return self.side * self.side
+
+
+      class Rect(Shape):
+          def __init__(self, w, h):
+              self.w = w
+              self.h = h
+
+          def area(self):
+              return self.w * self.h
+
+
+      def total_area(specs):
+          kinds = {"sq": Square, "rect": Rect}
+          return sum(kinds[k](*args).area() for k, *args in specs)
+  - id: s_duck
+    type: section
+    title_vi: "Duck typing"
+    summary_vi: "Python gọi method theo tên lúc chạy; object nào có method đó là dùng được, không cần chung class cha."
+    exercise_ref: ex_duck
+  - id: t2
+    type: text
+    md: |
+      **Duck typing**: "nếu nó đi như vịt và kêu như vịt thì coi nó là vịt". Python **không kiểm
+      tra kiểu** trước khi gọi `x.keu()`; nó chỉ tìm method tên `keu` trên object lúc chạy. Hai class
+      không liên quan nhau, miễn cùng có `keu()`, đều dùng được trong cùng một vòng lặp. Nếu thiếu
+      method thì lỗi `AttributeError` chỉ xảy ra lúc gọi.
+
+      So với ABC: duck typing linh hoạt, không bắt buộc kế thừa; ABC cho lỗi sớm hơn (lúc tạo
+      object) và cho phép `isinstance(x, Hinh)`.
+  - id: c2
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class Vit:
+          def keu(self):
+              return "Quac"
+
+
+      class Robot:
+          def keu(self):
+              return "Bip"
+
+
+      class Da:
+          pass
+
+
+      for x in [Vit(), Robot(), Da()]:
+          try:
+              print(x.keu())
+          except AttributeError:
+              print("khong keu duoc")
+    expected_output: |
+      Quac
+      Bip
+      khong keu duoc
+  - id: q2
+    type: quiz_mcq
+    prompt_md: "Vì sao `x.keu()` chạy được với cả `Vit` và `Robot` dù chúng không chung class cha?"
+    options:
+      - {id: a, text_md: "Python tự động đổi kiểu của object thành kiểu chung"}
+      - {id: b, text_md: "Python chỉ tìm method tên `keu` trên object lúc chạy, không kiểm tra class cha"}
+      - {id: c, text_md: "Mọi class trong Python đều kế thừa một class có sẵn `keu`"}
+    answer: [b]
+    explain_md: "Đó là duck typing: việc gọi method được phân giải theo tên lúc chạy."
+  - id: p2
+    type: predict_output
+    code: |
+      from abc import ABC, abstractmethod
+
+
+      class A(ABC):
+          @abstractmethod
+          def f(self):
+              ...
+
+
+      class B(A):
+          pass
+
+
+      class V:
+          def f(self):
+              return 5
+
+
+      print(issubclass(B, A), isinstance(V(), A), V().f())
+    expected_output: |
+      True False 5
+    explain_md: "`B` kế thừa `A` nên `issubclass` đúng (dù không tạo được object). `V` không kế thừa `A` nên `isinstance` sai, nhưng `V().f()` vẫn chạy nhờ duck typing."
+  - id: ex_duck
+    type: code_exercise
+    md: |
+      `Vit` và `Robot` không có class cha chung nhưng đều có `keu()`. `keu_het(items)` nhận list tên
+      loại (`"vit"` hoặc `"robot"`) và trả list kết quả `keu()` theo thứ tự. Hàm hiện lọc bằng
+      `isinstance(x, Vit)` nên bỏ sót `Robot`; hãy sửa để dùng duck typing.
+    entry: keu_het
+    starter: |
+      class Vit:
+          def keu(self):
+              return "Quac"
+
+
+      class Robot:
+          def keu(self):
+              return "Bip"
+
+
+      def keu_het(items):
+          kinds = {"vit": Vit, "robot": Robot}
+          objs = [kinds[k]() for k in items]
+          return [x.keu() for x in objs if isinstance(x, Vit)]
+    guidance_md: |
+      - Điều kiện `if isinstance(x, Vit)` chặn mọi object không phải `Vit`.
+      - Duck typing nghĩa là cứ gọi `x.keu()` trên mọi object.
+      - Bỏ điều kiện lọc khỏi list comprehension.
+    hints:
+      - level: nudge
+        md: "Với `['vit', 'robot']` kết quả hiện chỉ có `Quac`. Dòng nào loại `Robot` ra?"
+      - level: approach
+        md: "Không cần kiểm tra kiểu: mọi object trong danh sách đều có `keu()`, cứ gọi trực tiếp."
+    tests:
+      - {args: [["vit", "robot"]], expected: ["Quac", "Bip"]}
+      - {args: [[]], expected: []}
+      - {args: [["robot", "robot", "vit"]], expected: ["Bip", "Bip", "Quac"]}
+    solution: |
+      class Vit:
+          def keu(self):
+              return "Quac"
+
+
+      class Robot:
+          def keu(self):
+              return "Bip"
+
+
+      def keu_het(items):
+          kinds = {"vit": Vit, "robot": Robot}
+          objs = [kinds[k]() for k in items]
+          return [x.keu() for x in objs]
+  - id: s_protocol
+    type: section
+    title_vi: "Protocol (Nâng cao)"
+    summary_vi: "Protocol mô tả giao diện bằng cấu trúc: class nào có đủ method là khớp, không cần kế thừa."
+  - id: t3
+    type: text
+    md: |
+      **Nâng cao** (đọc lướt; sẽ học kỹ sau bài *type hints*). `typing.Protocol` cho phép khai báo
+      một giao diện mà class **không cần kế thừa**: chỉ cần có đúng method là "khớp" (**structural
+      typing**, hay duck typing có kiểm tra bởi công cụ như mypy). Thêm `@runtime_checkable` thì
+      `isinstance(x, GiaoDien)` kiểm tra được lúc chạy, nhưng chỉ xem **có method đó hay không**.
+  - id: c3
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      from typing import Protocol, runtime_checkable
+
+
+      @runtime_checkable
+      class CoKeu(Protocol):
+          def keu(self) -> str:
+              ...
+
+
+      class Vit:
+          def keu(self):
+              return "Quac"
+
+
+      class Da:
+          pass
+
+
+      print(isinstance(Vit(), CoKeu), isinstance(Da(), CoKeu))
+    expected_output: |
+      True False
+  - id: q3
+    type: quiz_mcq
+    prompt_md: "Điểm khác chính giữa `Protocol` và `ABC` là gì?"
+    options:
+      - {id: a, text_md: "Class chỉ cần có đúng method là khớp `Protocol`, không cần kế thừa; ABC thì phải kế thừa"}
+      - {id: b, text_md: "`Protocol` ép lỗi `TypeError` khi tạo object, ABC thì không"}
+      - {id: c, text_md: "`Protocol` chỉ dùng được với số và chuỗi"}
+    answer: [a]
+    explain_md: "Protocol là structural typing (dựa trên cấu trúc), còn ABC là nominal (dựa trên kế thừa khai báo)."
+  - id: sum1
+    type: summary
+    bullets_vi:
+      - "`class Hinh(ABC)` + `@abstractmethod`: không tạo được object cho tới khi class con cài hết method trừu tượng (nếu không, `TypeError`)."
+      - "Dùng ABC để thiết kế họ class có chung giao diện; `isinstance(x, Hinh)` kiểm tra được."
+      - "Duck typing: Python gọi method theo tên lúc chạy, không cần chung class cha; thiếu method thì `AttributeError`."
+      - "Nâng cao: `typing.Protocol` mô tả giao diện theo cấu trúc, không cần kế thừa."
+problems:
+  practice: []
+  extra: []
+mastery_check:
+  l1: [X387]
+  l2: [X388]
+  l3: [X389]
+checkpoint:
+  pass_ratio: 0.7
+  min_items: 3
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: m2b/wave2-oop
+  reviewed_by: null
+  date: '2026-11-03'

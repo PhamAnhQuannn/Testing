@@ -1,0 +1,331 @@
+id: py.oop.equality_hashing_immutability
+version: 1
+status: published
+title_vi: Equality, hashing và immutability (__eq__ / __hash__)
+est_minutes: 12
+objectives_vi:
+- Cài __eq__ và __hash__ nhất quán cho class giá trị.
+- Giải thích hậu quả khi vi phạm hợp đồng eq/hash.
+- Dựng class bất biến bằng frozen dataclass.
+blocks:
+  - id: s_eq
+    type: section
+    title_vi: "== mặc định và việc định nghĩa __eq__"
+    summary_vi: "Mặc định == so sánh danh tính object; viết __eq__ để so sánh theo giá trị, nhưng __hash__ sẽ biến mất."
+  - id: t1
+    type: text
+    md: |
+      Với class tự viết, `a == b` mặc định chỉ đúng khi `a` và `b` là **cùng một object** (so sánh
+      danh tính). Hai object có dữ liệu giống hệt vẫn **không bằng nhau**, và `hash` mặc định cũng
+      dựa trên danh tính, nên một `set` coi chúng là hai phần tử.
+
+      Muốn "bằng nhau theo giá trị" (class giá trị như tọa độ, tiền tệ), ta định nghĩa
+      **`__eq__(self, other)`**. Có một cái bẫy: ngay khi class định nghĩa `__eq__` mà **không**
+      định nghĩa `__hash__`, Python đặt `__hash__ = None`, tức object trở thành **unhashable**
+      (không bỏ được vào `set` hay làm key của `dict`).
+  - id: c1
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class P:
+          def __init__(self, x, y):
+              self.x = x
+              self.y = y
+
+      a = P(1, 2)
+      b = P(1, 2)
+      print(a == b, a == a)
+      print(len({a, b}))
+    expected_output: |
+      False True
+      2
+  - id: c2
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class P:
+          def __init__(self, x, y):
+              self.x = x
+              self.y = y
+
+          def __eq__(self, other):
+              return self.x == other.x and self.y == other.y
+
+      a = P(1, 2)
+      b = P(1, 2)
+      print(a == b)
+      print(P.__hash__ is None)
+      try:
+          {a}
+      except TypeError:
+          print("unhashable")
+    expected_output: |
+      True
+      True
+      unhashable
+  - id: q1
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Class chỉ định nghĩa `__eq__` (không viết `__hash__`). Điều gì xảy ra với `{obj}`?"
+    options:
+      - {id: a, text_md: "Chạy bình thường, hash vẫn dựa trên danh tính như cũ"}
+      - {id: b, text_md: "Báo `TypeError: unhashable type`, vì `__hash__` bị đặt thành `None`"}
+      - {id: c, text_md: "Python tự sinh `__hash__` từ các thuộc tính"}
+    answer: [b]
+    explain_md: "Định nghĩa `__eq__` mà không có `__hash__` làm `__hash__ = None`, nên object không bỏ được vào set/dict."
+  - id: s_hash
+    type: section
+    title_vi: "Hợp đồng eq/hash"
+    summary_vi: "Hai object bằng nhau PHẢI có cùng hash; hash nên tính từ đúng các trường dùng trong __eq__."
+    exercise_ref: ex_point
+  - id: t2
+    type: text
+    md: |
+      **Hợp đồng**: nếu `a == b` thì bắt buộc `hash(a) == hash(b)`. (Chiều ngược lại không cần: hai
+      object khác nhau có thể trùng hash, gọi là va chạm, `set` sẽ dùng `==` để phân xử.)
+
+      Cách làm chuẩn: so sánh và băm **cùng một bộ trường**, thường qua tuple:
+
+      - `__eq__` so sánh `(self.x, self.y) == (other.x, other.y)`;
+      - `__hash__` trả `hash((self.x, self.y))`.
+
+      Khi đó object dùng được làm key của `dict` và phần tử của `set`. Nếu vi phạm hợp đồng (hai
+      object bằng nhau nhưng hash khác nhau), `set` và `dict` có thể **không tìm thấy** phần tử đã
+      có và giữ trùng lặp, một lỗi rất khó dò.
+  - id: c3
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class P:
+          def __init__(self, x, y):
+              self.x = x
+              self.y = y
+
+          def __eq__(self, other):
+              if not isinstance(other, P):
+                  return NotImplemented
+              return (self.x, self.y) == (other.x, other.y)
+
+          def __hash__(self):
+              return hash((self.x, self.y))
+
+      pts = [P(1, 2), P(1, 2), P(2, 1), P(3, 3)]
+      print(len(set(pts)))
+      seen = {P(1, 2): "A"}
+      print(seen[P(1, 2)])
+      print(P(2, 1) in seen)
+    expected_output: |
+      3
+      A
+      False
+  - id: q2
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Điều nào đúng về hợp đồng `__eq__` / `__hash__`?"
+    options:
+      - {id: a, text_md: "Nếu `a == b` thì `hash(a) == hash(b)`"}
+      - {id: b, text_md: "Nếu `hash(a) == hash(b)` thì chắc chắn `a == b`"}
+      - {id: c, text_md: "Hai object bằng nhau có thể có hash khác nhau miễn là cùng kiểu"}
+    answer: [a]
+    explain_md: "Bằng nhau kéo theo cùng hash. Chiều ngược lại sai vì có va chạm hash."
+  - id: ex_point
+    type: code_exercise
+    md: |
+      Class `Point` bên dưới đã có `__eq__` nhưng chưa dùng được trong `set`. Hãy thêm `__hash__`
+      nhất quán với `__eq__`. `distinct_points(pairs)` nhận list các cặp `[x, y]` và trả **số điểm
+      khác nhau**. Ví dụ `distinct_points([[1, 2], [1, 2], [2, 1]])` là `2`.
+    entry: distinct_points
+    starter: |
+      class Point:
+          def __init__(self, x, y):
+              self.x = x
+              self.y = y
+
+          def __eq__(self, other):
+              if not isinstance(other, Point):
+                  return NotImplemented
+              return (self.x, self.y) == (other.x, other.y)
+
+
+      def distinct_points(pairs):
+          return len({Point(x, y) for x, y in pairs})
+    guidance_md: |
+      - Chạy thử sẽ báo `TypeError: unhashable type`: `__hash__` đã bị đặt `None`.
+      - Thêm method `__hash__(self)` vào `Point`.
+      - Băm đúng các trường dùng trong `__eq__`: `hash((self.x, self.y))`.
+      - Không cần sửa `distinct_points`.
+    hints:
+      - level: nudge
+        md: "Lỗi `unhashable type` xuất hiện vì class có `__eq__` nhưng thiếu một method đặc biệt khác. Method nào?"
+      - level: approach
+        md: "Thêm `__hash__` trả về hash của một tuple chứa đúng các trường mà `__eq__` so sánh."
+      - level: near_solution
+        md: |
+          def __hash__(self):
+              return hash((..., ...))
+    tests:
+      - {args: [[[1, 2], [1, 2], [2, 1]]], expected: 2}
+      - {args: [[]], expected: 0}
+      - {args: [[[0, 0], [0, 0], [0, 0], [5, 5]]], expected: 2}
+    solution: |
+      class Point:
+          def __init__(self, x, y):
+              self.x = x
+              self.y = y
+
+          def __eq__(self, other):
+              if not isinstance(other, Point):
+                  return NotImplemented
+              return (self.x, self.y) == (other.x, other.y)
+
+          def __hash__(self):
+              return hash((self.x, self.y))
+
+
+      def distinct_points(pairs):
+          return len({Point(x, y) for x, y in pairs})
+  - id: s_frozen
+    type: section
+    title_vi: "Bất biến với frozen dataclass"
+    summary_vi: "Object đổi được trường sẽ phá hash; @dataclass(frozen=True) cấm gán và tự sinh __eq__ + __hash__."
+    exercise_ref: ex_frozen
+  - id: t3
+    type: text
+    md: |
+      Nếu một object nằm trong `set`/`dict` rồi mà ta **sửa trường dùng để băm**, hash của nó đổi
+      nhưng nó vẫn nằm ở "ngăn" cũ: tra cứu sau đó sẽ **không thấy** nó. Vì vậy key phải là
+      **bất biến (immutable)**.
+
+      **`@dataclass(frozen=True)`** giải quyết gọn: Python tự sinh `__init__`, `__repr__`, `__eq__`
+      theo giá trị **và** `__hash__` từ các trường, đồng thời cấm gán lại trường (gán sẽ ném
+      `FrozenInstanceError`). Muốn "sửa", ta tạo object mới.
+  - id: c4
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      from dataclasses import dataclass, FrozenInstanceError
+
+
+      @dataclass(frozen=True)
+      class Pt:
+          x: int
+          y: int
+
+
+      a = Pt(1, 2)
+      print(a == Pt(1, 2))
+      print(len({a, Pt(1, 2), Pt(2, 1)}))
+      try:
+          a.x = 9
+      except FrozenInstanceError:
+          print("frozen")
+      print(a)
+    expected_output: |
+      True
+      2
+      frozen
+      Pt(x=1, y=2)
+  - id: p1
+    type: predict_output
+    graded: true
+    code: |
+      class P:
+          def __init__(self, x):
+              self.x = x
+
+          def __eq__(self, other):
+              return self.x == other.x
+
+          def __hash__(self):
+              return hash(self.x)
+
+      p = P(1)
+      s = {p}
+      p.x = 2
+      print(p in s, P(1) in s, len(s))
+    expected_output: |
+      False False 1
+    explain_md: "Sau khi sửa `p.x`, hash đổi nên `p in s` tìm sai ngăn; còn `P(1)` đúng ngăn nhưng `P(1) == p` đã sai. Phần tử vẫn nằm trong set (`len` là 1) nhưng không truy cập được."
+  - id: q3
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao nên dùng `@dataclass(frozen=True)` cho class làm key của dict?"
+    options:
+      - {id: a, text_md: "Nó chạy nhanh hơn mọi class khác"}
+      - {id: b, text_md: "Trường không đổi được sau khi tạo, nên hash luôn nhất quán với `==`"}
+      - {id: c, text_md: "Nó cho phép hai object khác nhau có cùng hash mà vẫn bằng nhau"}
+    answer: [b]
+    explain_md: "Bất biến đảm bảo hash không đổi trong lúc object nằm trong set/dict; `frozen=True` còn tự sinh `__eq__` và `__hash__`."
+  - id: ex_frozen
+    type: code_exercise
+    md: |
+      `Pt` bên dưới là dataclass thường: có `__eq__` nhưng unhashable và sửa được. Biến nó thành
+      bất biến bằng `frozen=True`. `unique_sorted(pairs)` nhận list cặp `[x, y]` và trả list các
+      cặp `[x, y]` **khác nhau**, sắp xếp tăng dần. Ví dụ `[[2, 1], [1, 2], [2, 1]]` thành `[[1, 2], [2, 1]]`.
+    entry: unique_sorted
+    starter: |
+      from dataclasses import dataclass
+
+
+      @dataclass
+      class Pt:
+          x: int
+          y: int
+
+
+      def unique_sorted(pairs):
+          uniq = {Pt(x, y) for x, y in pairs}
+          return sorted([p.x, p.y] for p in uniq)
+    guidance_md: |
+      - Chạy thử sẽ báo `unhashable type: 'Pt'`: dataclass thường đặt `__hash__ = None`.
+      - Thêm tham số vào decorator: `@dataclass(frozen=True)`.
+      - Khi đó `__hash__` được sinh từ các trường; không cần viết thêm gì.
+    hints:
+      - level: nudge
+        md: "Dataclass thường có `__eq__` nên mất `__hash__`. Decorator có tham số nào làm object vừa bất biến vừa hashable?"
+      - level: approach
+        md: "Viết `@dataclass(frozen=True)` thay cho `@dataclass`."
+    tests:
+      - {args: [[[2, 1], [1, 2], [2, 1]]], expected: [[1, 2], [2, 1]]}
+      - {args: [[]], expected: []}
+      - {args: [[[3, 3], [3, 3], [0, 9], [0, 1]]], expected: [[0, 1], [0, 9], [3, 3]]}
+    solution: |
+      from dataclasses import dataclass
+
+
+      @dataclass(frozen=True)
+      class Pt:
+          x: int
+          y: int
+
+
+      def unique_sorted(pairs):
+          uniq = {Pt(x, y) for x, y in pairs}
+          return sorted([p.x, p.y] for p in uniq)
+  - id: sum1
+    type: summary
+    bullets_vi:
+      - "Mặc định `==` và `hash` dựa trên danh tính; hai object cùng dữ liệu vẫn khác nhau."
+      - "Định nghĩa `__eq__` mà không có `__hash__` làm object unhashable (`__hash__ = None`)."
+      - "Hợp đồng: `a == b` thì `hash(a) == hash(b)`; băm cùng bộ trường như `__eq__`, ví dụ `hash((self.x, self.y))`."
+      - "Sửa trường dùng để băm khi object đang nằm trong set/dict sẽ làm nó 'biến mất' khi tra cứu."
+      - "`@dataclass(frozen=True)` cho class giá trị bất biến, tự sinh `__eq__` và `__hash__`."
+problems:
+  practice: []
+  extra: []
+mastery_check:
+  l1: [X384]
+  l2: [X385]
+  l3: [X386]
+checkpoint:
+  pass_ratio: 0.7
+  min_items: 3
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: tools/gen_lesson_stubs.py
+  reviewed_by: null
+  date: '2026-11-03'

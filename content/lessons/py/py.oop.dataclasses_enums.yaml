@@ -1,0 +1,298 @@
+id: py.oop.dataclasses_enums
+version: 1
+status: published
+title_vi: dataclass, Enum và NamedTuple
+est_minutes: 12
+objectives_vi:
+- Mô hình hóa dữ liệu bằng @dataclass với giá trị mặc định.
+- Dùng field(default_factory=list) và giải thích vì sao list không được làm mặc định trực tiếp.
+- Giải thích order=True và frozen=True; dùng Enum, IntEnum và NamedTuple.
+blocks:
+  - id: s_dataclass
+    type: section
+    title_vi: "@dataclass: class dữ liệu gọn"
+    summary_vi: "@dataclass tự sinh __init__, __repr__ và __eq__ từ các field có type annotation."
+  - id: t1
+    type: text
+    md: |
+      Khi class chỉ để **chứa dữ liệu**, viết `__init__`, `__repr__`, `__eq__` bằng tay rất dài.
+      Decorator **`@dataclass`** (module `dataclasses`) sinh sẵn chúng từ các **field** là những dòng
+      `tên: kiểu` trong thân class.
+
+      Field có thể có **giá trị mặc định** (`y: int = 0`); field có mặc định phải đứng sau field không
+      có mặc định. `==` so sánh từng field, và `print(obj)` in dạng `Point(x=1, y=2)`.
+  - id: c1
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      from dataclasses import dataclass
+
+
+      @dataclass
+      class Point:
+          x: int
+          y: int = 0
+
+
+      p = Point(1, 2)
+      q = Point(1, 2)
+      print(p)
+      print(p == q)
+      print(Point(5))
+    expected_output: |
+      Point(x=1, y=2)
+      True
+      Point(x=5, y=0)
+  - id: q1
+    type: quiz_mcq
+    prompt_md: "Với `@dataclass class P: x: int; y: int = 0`, `P(1) == P(1, 0)` cho kết quả gì?"
+    options:
+      - {id: a, text_md: "`False`, vì hai object nằm ở hai địa chỉ khác nhau"}
+      - {id: b, text_md: "`True`, vì `__eq__` tự sinh so sánh từng field"}
+      - {id: c, text_md: "Báo lỗi vì thiếu đối số `y`"}
+    answer: [b]
+    explain_md: "`y` có mặc định 0 nên `P(1)` giống `P(1, 0)`; `__eq__` do dataclass sinh so sánh các field, không so địa chỉ."
+  - id: s_factory
+    type: section
+    title_vi: "Mặc định có thể thay đổi: default_factory"
+    summary_vi: "list/dict làm mặc định phải dùng field(default_factory=list) để mỗi object có bản riêng."
+    exercise_ref: ex_cart
+  - id: t2
+    type: text
+    md: |
+      Giá trị mặc định được tạo **một lần** khi định nghĩa class, rồi mọi object dùng chung. Với số
+      hay chuỗi thì vô hại, nhưng với **list** thì mọi object sẽ cùng sửa một list (bẫy giống thuộc
+      tính class). Vì vậy `items: list = []` bị dataclass **từ chối** bằng `ValueError`.
+
+      Cách đúng: **`field(default_factory=list)`**. `default_factory` là một hàm không đối số, được
+      gọi **mỗi lần tạo object** để cấp một list mới.
+  - id: c2
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      from dataclasses import dataclass, field
+
+
+      @dataclass
+      class Team:
+          name: str
+          members: list = field(default_factory=list)
+
+
+      a = Team("A")
+      b = Team("B")
+      a.members.append("an")
+      print(a.members, b.members)
+      try:
+          @dataclass
+          class Bad:
+              items: list = []
+      except ValueError as e:
+          print("loi:", e)
+    expected_output: |
+      ['an'] []
+      loi: mutable default <class 'list'> for field items is not allowed: use default_factory
+  - id: q2
+    type: quiz_mcq
+    prompt_md: "Vì sao dataclass dùng `field(default_factory=list)` thay cho `= []`?"
+    options:
+      - {id: a, text_md: "Để mỗi object nhận một list mới, không dùng chung một list mặc định"}
+      - {id: b, text_md: "Để list luôn bất biến"}
+      - {id: c, text_md: "Chỉ để code chạy nhanh hơn"}
+    answer: [a]
+    explain_md: "Mặc định `[]` chỉ được tạo một lần và chia sẻ giữa các object; `default_factory` gọi hàm mỗi lần tạo object nên mỗi object có list riêng."
+  - id: ex_cart
+    type: code_exercise
+    md: |
+      Class `Cart` bên dưới dùng `items: list = []` nên dataclass báo lỗi. Hãy dùng
+      `field(default_factory=list)`. `cart_sizes(a_items, b_items)` tạo hai giỏ, thêm đồ vào từng giỏ
+      và trả `[số đồ giỏ 1, số đồ giỏ 2]`.
+    entry: cart_sizes
+    starter: |
+      from dataclasses import dataclass, field
+
+
+      @dataclass
+      class Cart:
+          items: list = []
+
+
+      def cart_sizes(a_items, b_items):
+          c1 = Cart()
+          c2 = Cart()
+          for x in a_items:
+              c1.items.append(x)
+          for x in b_items:
+              c2.items.append(x)
+          return [len(c1.items), len(c2.items)]
+    guidance_md: |
+      - Nhận ra `= []` là mặc định có thể thay đổi nên bị từ chối.
+      - Thay vế phải bằng `field(...)`.
+      - Truyền `default_factory=list` (không có dấu ngoặc sau `list`).
+    hints:
+      - level: nudge
+        md: "Chạy thử sẽ thấy `ValueError` ngay lúc định nghĩa class. Dataclass muốn bạn khai báo giá trị mặc định kiểu list theo cách nào?"
+      - level: approach
+        md: "Dùng hàm `field` đã được import, với tham số `default_factory` nhận chính hàm `list`."
+      - level: pseudocode
+        md: |
+          items: list = field(default_factory=<hàm tạo list>)
+    tests:
+      - {args: [["x", "y"], ["z"]], expected: [2, 1]}
+      - {args: [[], ["a", "b", "c"]], expected: [0, 3]}
+      - {args: [["p"], []], expected: [1, 0]}
+    solution: "from dataclasses import dataclass, field\n\n\n@dataclass\nclass Cart:\n    items: list = field(default_factory=list)\n\n\ndef cart_sizes(a_items, b_items):\n    c1 = Cart()\n    c2 = Cart()\n    for x in a_items:\n        c1.items.append(x)\n    for x in b_items:\n        c2.items.append(x)\n    return [len(c1.items), len(c2.items)]\n"
+  - id: s_order_frozen
+    type: section
+    title_vi: "order=True và frozen=True"
+    summary_vi: "order=True sinh so sánh < > theo thứ tự field; frozen=True cấm gán lại field và làm object hashable."
+  - id: t3
+    type: text
+    md: |
+      **`@dataclass(order=True)`** sinh `<`, `<=`, `>`, `>=` so sánh các field **theo thứ tự khai
+      báo** (như so sánh tuple), nên có thể `sorted(list_of_objects)`.
+
+      **`@dataclass(frozen=True)`** làm object **bất biến**: gán `obj.x = 3` ném
+      `FrozenInstanceError`. Nhờ đó object có `__hash__` hợp lệ, dùng được làm phần tử `set` hoặc
+      khóa `dict`. Không có `frozen=True` (và `eq=True`) thì dataclass **không hashable**.
+  - id: c3
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      from dataclasses import dataclass, FrozenInstanceError
+
+
+      @dataclass(order=True, frozen=True)
+      class Ver:
+          major: int
+          minor: int
+
+
+      vs = [Ver(1, 5), Ver(1, 2), Ver(0, 9)]
+      print(sorted(vs))
+      print(Ver(1, 2) < Ver(1, 5))
+      v = Ver(1, 2)
+      try:
+          v.major = 3
+      except FrozenInstanceError:
+          print("frozen")
+      print(len({Ver(1, 2), Ver(1, 2)}))
+    expected_output: |
+      [Ver(major=0, minor=9), Ver(major=1, minor=2), Ver(major=1, minor=5)]
+      True
+      frozen
+      1
+  - id: q3
+    type: quiz_mcq
+    prompt_md: "`frozen=True` trên dataclass làm gì?"
+    options:
+      - {id: a, text_md: "Cấm gán lại field sau khi tạo và cho phép object dùng trong `set`/khóa `dict`"}
+      - {id: b, text_md: "Cấm tạo thêm object mới của class"}
+      - {id: c, text_md: "Sắp xếp các field theo thứ tự bảng chữ cái"}
+    answer: [a]
+    explain_md: "`frozen=True` làm object bất biến (gán field -> `FrozenInstanceError`) và sinh `__hash__`, nên dùng được trong set và làm khóa dict."
+  - id: s_enum
+    type: section
+    title_vi: "Enum, IntEnum và NamedTuple"
+    summary_vi: "Enum là tập hằng có tên; IntEnum so sánh như số; NamedTuple là tuple có tên field."
+    exercise_ref: ex_level
+  - id: t4
+    type: text
+    md: |
+      **`Enum`** định nghĩa một tập **hằng có tên**: mỗi member có `.name` (tên) và `.value` (giá
+      trị). Có thể lặp `for m in Color` (theo thứ tự khai báo) và tra ngược `Color(2)`.
+      **`IntEnum`** giống `Enum` nhưng member còn là số nguyên, nên so sánh được với số (`Level.HIGH > 1`).
+
+      **`NamedTuple`** (từ `typing`) là tuple bất biến có tên field: `p.x` thay cho `p[0]`, vẫn unpack
+      được. Nhẹ hơn dataclass nhưng không có giá trị mặc định có thể thay đổi hay `frozen` riêng.
+  - id: c4
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      from enum import Enum
+      from typing import NamedTuple
+
+
+      class Color(Enum):
+          RED = 1
+          GREEN = 2
+
+
+      print(Color.RED, Color.RED.name, Color.RED.value, Color(2))
+      print([c.name for c in Color])
+
+
+      class Pt(NamedTuple):
+          x: int
+          y: int
+
+
+      p = Pt(1, 2)
+      a, b = p
+      print(p, p.x, a + b)
+    expected_output: |
+      Color.RED RED 1 Color.GREEN
+      ['RED', 'GREEN']
+      Pt(x=1, y=2) 1 3
+  - id: ex_level
+    type: code_exercise
+    md: |
+      Hoàn thiện `Level(IntEnum)` với ba member `LOW = 1`, `MID = 5`, `HIGH = 10`.
+      `levels_above(t)` trả danh sách **tên** các member có giá trị lớn hơn `t`, theo thứ tự khai báo.
+    entry: levels_above
+    starter: |
+      from enum import IntEnum
+
+
+      class Level(IntEnum):
+          pass  # TODO: LOW = 1, MID = 5, HIGH = 10
+
+
+      def levels_above(t):
+          return [m.name for m in Level if m > t]
+    guidance_md: |
+      - Thêm ba dòng `TÊN = giá trị` vào thân class.
+      - Giữ đúng thứ tự LOW, MID, HIGH.
+      - Không cần sửa `levels_above`.
+    hints:
+      - level: nudge
+        md: "Hiện `Level` chưa có member nào nên vòng lặp không có gì để duyệt. Member của Enum được khai báo thế nào?"
+      - level: approach
+        md: "Mỗi member là một dòng `TÊN = số` trong thân class, theo đúng thứ tự đề bài."
+      - level: pseudocode
+        md: |
+          class Level(IntEnum):
+              LOW  <- 1
+              MID  <- 5
+              HIGH <- 10
+    tests:
+      - {args: [0], expected: ["LOW", "MID", "HIGH"]}
+      - {args: [5], expected: ["HIGH"]}
+      - {args: [10], expected: []}
+    solution: "from enum import IntEnum\n\n\nclass Level(IntEnum):\n    LOW = 1\n    MID = 5\n    HIGH = 10\n\n\ndef levels_above(t):\n    return [m.name for m in Level if m > t]\n"
+  - id: sum1
+    type: summary
+    bullets_vi:
+      - "`@dataclass` sinh `__init__`, `__repr__`, `__eq__` từ các field `tên: kiểu`; field có mặc định đứng sau field không mặc định."
+      - "List/dict làm mặc định phải dùng `field(default_factory=list)`; `= []` bị từ chối vì sẽ bị dùng chung giữa các object."
+      - "`order=True` cho phép `<`, `sorted` theo thứ tự field; `frozen=True` cấm gán lại field và làm object hashable."
+      - "`Enum`/`IntEnum` là tập hằng có `.name`/`.value`, lặp theo thứ tự khai báo; `NamedTuple` là tuple có tên field."
+problems:
+  practice: []
+  extra: []
+mastery_check:
+  l1: [X381]
+  l2: [X382]
+  l3: [X383]
+checkpoint:
+  pass_ratio: 0.7
+  min_items: 3
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: tools/gen_lesson_stubs.py
+  reviewed_by: null
+  date: '2026-11-03'
