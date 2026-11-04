@@ -1,5 +1,5 @@
 id: sd.caching.patterns
-version: 2
+version: 3
 status: published
 title_vi: "Các pattern caching (caching patterns): đọc, ghi và cách chọn"
 est_minutes: 13
@@ -51,6 +51,14 @@ blocks:
       - {id: c, text_md: "Vì cache-aside ghi vào DB và cache cùng lúc nên luôn nhất quán tuyệt đối."}
     answer: [b]
     explain_md: "Cache-aside để app tự rẽ xuống DB khi cache miss hoặc cache chết, nên mất cache chỉ làm chậm chứ không sập. (a) sai — hit ratio phụ thuộc khối lượng truy cập, không phải pattern đọc; (c) sai — đó là chuyện của pattern *ghi* (write-through), không phải cache-aside."
+  - id: x_refresh_ahead
+    type: callout
+    kind: tip
+    md: |
+      **Refresh-ahead: làm mới cache trước khi hết hạn**
+      **Refresh-ahead** tự động nạp lại các key nóng **trước khi TTL hết** (vd khi còn <20% TTL mà vừa có truy cập), nên người đọc
+      hiếm khi gặp cache miss và độ trễ đọc ổn định. Lợi khi dự đoán đúng key sắp được dùng; hại khi đoán sai — tốn tài nguyên làm mới
+      key không ai đọc và tải lên DB tăng không cần thiết.
   - id: s_write
     type: section
     title_vi: "Pattern ghi: write-through, write-back, write-around"
@@ -81,6 +89,14 @@ blocks:
       - {id: c, text_md: "Cache không bao giờ chứa dữ liệu mới nên đọc luôn trả về giá trị cũ."}
     answer: [b]
     explain_md: "Write-back báo 'xong' ngay sau khi ghi vào cache, nhưng DB chưa có dữ liệu đó; nếu cache sập trước lần flush, dữ liệu đã ack bị mất vĩnh viễn. (a) là đặc điểm của write-through (ghi chậm), không phải write-back; (c) sai — write-back cập nhật cache trước nên đọc lại thấy giá trị mới."
+  - id: x_write_policies
+    type: text
+    md: |
+      So sánh nhanh 4 chính sách:
+      - **Cache-aside**: app tự đọc cache, miss thì đọc DB rồi điền cache; chỉ cache cái được hỏi, lần đầu luôn chậm, dữ liệu có thể cũ.
+      - **Write-through**: ghi đồng bộ vào cache và DB; cache luôn mới, bền, nhưng ghi chậm hơn và cache chứa cả dữ liệu ít đọc.
+      - **Write-behind (write-back)**: ghi vào cache rồi ghi DB bất đồng bộ; ghi rất nhanh, gộp được nhiều ghi, nhưng **mất dữ liệu** nếu cache chết trước khi flush và phức tạp hơn.
+      - **Refresh-ahead**: nạp lại key nóng trước khi hết TTL; đọc mượt, nhưng cần dự đoán đúng, đoán sai thì tốn tài nguyên.
   - id: s_choose
     type: section
     title_vi: "Chọn pattern và tính hit ratio cần đạt"

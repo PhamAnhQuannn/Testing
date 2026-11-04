@@ -1,5 +1,5 @@
 id: sd.reliability_ops.fault_tolerance
-version: 2
+version: 3
 status: published
 title_vi: "Các pattern chịu lỗi (fault tolerance): timeout, retry, circuit breaker và retry storm"
 est_minutes: 14
@@ -97,6 +97,24 @@ blocks:
       (ưu tiên bỏ việc ít quan trọng, giữ việc quan trọng) thay vì nhận hết rồi chậm đều và sập. Bỏ 10%
       để cứu 90% thì tốt hơn là cố ôm 100% rồi mất tất. Họ hàng gần là **san tải bằng queue (queue-based
       load leveling)**: đặt một hàng đợi trước phần chậm để đột biến tải xếp hàng chờ thay vì đập thẳng.
+  - id: x_failover_modes
+    type: text
+    md: |
+      Hai kiểu failover: **active-passive** (hot standby) — chỉ một node phục vụ, node dự phòng theo dõi bằng heartbeat
+      và tiếp quản (lấy IP ảo) khi active chết; đơn giản, dễ nhất quán nhưng **lãng phí** tài nguyên nhàn rỗi và có
+      **thời gian failover** (có thể mất dữ liệu chưa replicate nếu replicate bất đồng bộ). **Active-active** — cả hai cùng
+      nhận traffic qua load balancer; dùng tài nguyên hiệu quả, failover gần tức thì, nhưng phức tạp: đồng bộ hai chiều,
+      **xung đột ghi**, và mỗi node cần dư công suất (headroom) để gánh phần của node kia.
+  - id: x_nines_math
+    type: callout
+    kind: interview
+    md: |
+      **Toán 'số 9' của availability**
+      1 năm ≈ 8760 giờ. **99.9% → 8,76 giờ/năm** downtime; **99.99% → ~52,6 phút/năm**; mỗi thêm một số 9 giảm downtime 10 lần.
+      **Nối tiếp** (mọi request qua cả hai): A = a1 × a2, vd 0,999 × 0,999 ≈ **99,8%** — thấp hơn từng mắt xích.
+      **Song song** (dự phòng): A = 1 − (1 − a)^n, vd hai bản 99% → 1 − 0,01² = **99,99%** — cao hơn từng bản.
+      Bài học: giảm phụ thuộc nối tiếp bắt buộc, thêm dự phòng song song ở SPOF. Lưu ý giả định lỗi độc lập — lỗi tương quan
+      (cùng AZ, cùng deploy) làm số thực tế thấp hơn, và bản thân failover cũng có thể lỗi.
   - id: s_retry_storm
     type: section
     title_vi: "Retry storm: 3 tầng × 3 lần = 27× tải và cách chặn"
@@ -158,7 +176,7 @@ blocks:
       - "Chặn retry storm: retry budget ~10%/tầng (×1,1 → 1,1×1,1×1,1 ≈ 1,33×, tức ~1.330 req/s thay vì 27.000) + backoff + jitter (phá spike đồng bộ) + circuit breaker (ngừng gọi, ×3 thành ×0)."
       - "Mục tiêu không phải không bao giờ lỗi, mà là cô lập lỗi và suy giảm có kiểm soát để một phần hỏng không kéo sập cả hệ."
 problems: {practice: [], extra: []}
-mastery_check: {l1: [S160], l2: [S161], l3: [S162]}
+mastery_check: {l1: [S160, X302], l2: [S161, X303], l3: [S162]}
 checkpoint: {pass_ratio: 0.7, min_items: 3}
 source:
   tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9

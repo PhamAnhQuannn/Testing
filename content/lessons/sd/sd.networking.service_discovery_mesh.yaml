@@ -1,5 +1,5 @@
 id: sd.networking.service_discovery_mesh
-version: 2
+version: 3
 status: published
 title_vi: "Service discovery và service mesh: tìm nhau và gọi nhau an toàn"
 est_minutes: 14
@@ -44,6 +44,24 @@ blocks:
       - {id: c, text_md: "Vì discovery giúp mã hóa toàn bộ lưu lượng giữa các service."}
     answer: [b]
     explain_md: "Trong hạ tầng động, instance đến và đi liên tục nên địa chỉ không ổn định — đó là lý do cần một danh bạ tự cập nhật. (a) sai, discovery không phải để tăng tốc tính toán; (c) mã hóa là việc của mTLS trong service mesh, không phải bản thân discovery."
+  - id: x_dns_basics
+    type: text
+    md: |
+      **DNS** là "danh bạ" của Internet: **phân giải tên miền → địa chỉ IP** (bản ghi A/AAAA; CNAME là bí danh).
+      Resolver hỏi lần lượt root → TLD → authoritative NS rồi **cache** kết quả theo **TTL**.
+      - **Round-robin DNS**: một tên trả về nhiều IP xoay vòng — phân tải thô, không biết server sống/chết hay tải thực.
+      - **GeoDNS**: trả IP khác nhau theo vị trí client (về region/POP gần nhất) để giảm độ trễ.
+      - **TTL**: TTL cao → ít truy vấn, nhanh, nhưng đổi IP lan chậm; TTL thấp → đổi/failover nhanh nhưng nhiều truy vấn hơn, tải NS tăng.
+  - id: x_dns_failure
+    type: callout
+    kind: warning
+    md: |
+      **DNS là single point of failure ẩn**
+      Điểm lỗi: resolver/client **cache quá TTL** (failover không tức thời), round-robin **không có health check**
+      vẫn trả IP chết, và nhà cung cấp authoritative NS chết hoặc bị **DDoS** (vụ **Dyn 2016**) thì cả tên miền tê liệt.
+      Giảm rủi ro: hạ **TTL thấp (30-60s)** *trước* khi failover kèm **health check** tự gỡ IP chết; dùng **nhiều NS,
+      multi-provider**; **anycast** (nhiều node cùng quảng bá một IP, chịu DDoS tốt); đặt LB/CDN sau một IP ổn định.
+      Đánh đổi: TTL thấp tốn truy vấn/chi phí, multi-provider khó đồng bộ bản ghi, anycast phụ thuộc nhà cung cấp và khó debug.
   - id: s_client_server_discovery
     type: section
     title_vi: "Client-side và server-side discovery: ai chọn instance"
@@ -146,7 +164,7 @@ blocks:
       - "**Service mesh** = **sidecar proxy** (Envoy, qua Istio/Linkerd) cạnh mỗi service, làm hộ mTLS, retry, timeout, traffic-splitting, observability — kéo networking ra khỏi code ứng dụng (data plane do sidecar, control plane là bộ não)."
       - "Mesh **đáng** khi nhiều service + đa ngôn ngữ; **quá mức** khi ít service một ngôn ngữ (dùng thư viện chung). Nó **thêm độ trễ** vì mỗi lời gọi qua **hai chặng proxy**."
 problems: {practice: [], extra: []}
-mastery_check: {l1: [S094], l2: [S095], l3: [S096]}
+mastery_check: {l1: [S094, X300], l2: [S095, X301], l3: [S096]}
 checkpoint: {pass_ratio: 0.7, min_items: 3}
 source:
   tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
