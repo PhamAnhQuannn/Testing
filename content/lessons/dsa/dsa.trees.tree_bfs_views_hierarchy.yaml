@@ -1,0 +1,421 @@
+id: dsa.trees.tree_bfs_views_hierarchy
+version: 1
+status: published
+title_vi: "BFS trên cây: duyệt theo tầng, zigzag và các góc nhìn (views)"
+est_minutes: 14
+objectives_vi:
+  - "Cài BFS bằng deque và xử lý trọn một tầng mỗi vòng ngoài nhờ chụp lại len(queue)."
+  - "Viết level-order trả về list các list và giải thích vì sao phải chụp kích thước tầng trước khi pop."
+  - "Biến level-order thành zigzag bằng cách đảo các tầng lẻ."
+  - "Tính thống kê theo tầng (tổng, trung bình) và lấy góc nhìn như right-side view từ một tầng."
+blocks:
+  - id: s_bfs
+    type: section
+    title_vi: "BFS từng tầng bằng deque"
+    summary_vi: "Chụp len(queue) đầu mỗi vòng để xử lý đúng một tầng, con đẩy vào cho tầng kế."
+    exercise_ref: ex_level
+  - id: t01
+    type: text
+    md: |
+      **BFS (breadth-first search)** thăm cây theo từng tầng, từ trên xuống. Cấu trúc dữ liệu là
+      **hàng đợi (queue)**; trong Python dùng `collections.deque` vì `popleft()` là O(1), còn
+      `list.pop(0)` là O(n).
+
+      Mẫu "xử lý trọn một tầng" gồm hai vòng lặp lồng nhau:
+
+      ```python
+      while queue:
+          size = len(queue)          # chụp kích thước tầng hiện tại
+          for _ in range(size):      # chỉ pop đúng size node
+              node = queue.popleft()
+              ...                    # xử lý node
+              # đẩy con trái, con phải vào queue (thuộc tầng kế)
+      ```
+
+      Điểm mấu chốt là `size = len(queue)` phải lấy **trước** vòng `for`. Trong lúc pop, ta liên tục
+      đẩy con vào queue nên `len(queue)` thay đổi; nếu gọi lại `len(queue)` trong điều kiện lặp thì
+      các tầng sẽ bị trộn lẫn. Độ phức tạp: thời gian O(n), bộ nhớ O(w) với `w` là độ rộng lớn nhất.
+  - id: c01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      from collections import deque
+
+      class TreeNode:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+      root = TreeNode(3, TreeNode(9), TreeNode(20, TreeNode(15), TreeNode(7)))
+      queue = deque([root])
+      depth = 0
+      while queue:
+          size = len(queue)
+          level = []
+          for _ in range(size):
+              node = queue.popleft()
+              level.append(node.val)
+              if node.left:
+                  queue.append(node.left)
+              if node.right:
+                  queue.append(node.right)
+          print("tang", depth, "size", size, level)
+          depth += 1
+    expected_output: |
+      tang 0 size 1 [3]
+      tang 1 size 2 [9, 20]
+      tang 2 size 2 [15, 7]
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Vì sao phải lưu `size = len(queue)` trước vòng `for`, thay vì viết `while len(queue) > 0` ở vòng trong?"
+    options:
+      - {id: a, text_md: "Vì `len(queue)` rất chậm"}
+      - {id: b, text_md: "Vì trong lúc pop ta đẩy thêm con vào queue, `len(queue)` đổi và các tầng bị trộn lẫn"}
+      - {id: c, text_md: "Vì `deque` không cho gọi `len` hai lần"}
+    answer: [b]
+    explain_md: "Con của tầng hiện tại được đẩy vào cùng queue. Nếu không chốt `size` ngay đầu tầng, vòng trong sẽ nuốt luôn cả node của tầng kế. `len` là O(1), và gọi nhiều lần vẫn được, chỉ là sai logic."
+  - id: ex_level
+    type: code_exercise
+    md: |
+      Viết `level_order(vals)`: dựng cây từ `vals` (list theo tầng, `None` là chỗ trống) bằng
+      `build_tree` có sẵn, rồi trả về list các list, mỗi list con là giá trị một tầng (trái sang
+      phải). Cây rỗng cho `[]`. Ví dụ `[3, 9, 20, None, None, 15, 7]` cho `[[3], [9, 20], [15, 7]]`.
+    entry: level_order
+    starter: |
+      from collections import deque
+
+      class TreeNode:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+      def build_tree(vals):
+          if not vals or vals[0] is None:
+              return None
+          root = TreeNode(vals[0])
+          queue = deque([root])
+          i = 1
+          while queue and i < len(vals):
+              node = queue.popleft()
+              if i < len(vals) and vals[i] is not None:
+                  node.left = TreeNode(vals[i])
+                  queue.append(node.left)
+              i += 1
+              if i < len(vals) and vals[i] is not None:
+                  node.right = TreeNode(vals[i])
+                  queue.append(node.right)
+              i += 1
+          return root
+
+      def level_order(vals):
+          root = build_tree(vals)
+          result = []
+          # TODO: BFS bằng deque, mỗi vòng ngoài xử lý đúng một tầng
+          return result
+    guidance_md: |
+      - Nếu cây rỗng, trả `[]` ngay.
+      - Khởi tạo `queue = deque([root])`.
+      - Trong khi queue còn node: chụp `size = len(queue)`, rồi pop đúng `size` node, ghi `val`.
+      - Đẩy con trái, con phải (nếu có) vào queue, sau mỗi tầng thêm list của tầng vào `result`.
+    hints:
+      - level: nudge
+        md: "Queue chứa lẫn node của tầng này và con của chúng. Làm sao biết tầng hiện tại có bao nhiêu node?"
+      - level: approach
+        md: "Đầu mỗi vòng `while queue`, lấy `size = len(queue)` rồi lặp `size` lần bằng `popleft()`; mỗi lần ghi `val` và đẩy con."
+      - level: pseudocode
+        md: |
+          nếu root là None: trả []
+          queue = deque([root])
+          trong khi queue:
+              level = []
+              lặp len(queue) lần:
+                  node = queue.popleft(); level.append(node.val)
+                  đẩy node.left, node.right nếu có
+              result.append(level)
+          trả result
+      - level: near_solution
+        md: |
+          if root is None:
+              return result
+          queue = deque([root])
+          while queue:
+              level = []
+              for _ in range(len(queue)):
+                  node = queue.popleft()
+                  level.append(node.val)
+                  ...   # đẩy con trái, con phải nếu có
+              result.append(level)
+          return result
+    tests:
+      - {args: [[]], expected: []}
+      - {args: [[7]], expected: [[7]]}
+      - {args: [[3, 9, 20, null, null, 15, 7]], expected: [[3], [9, 20], [15, 7]]}
+      - {args: [[1, 2, 3, null, 4]], expected: [[1], [2, 3], [4]]}
+      - {args: [[1, 2, 3, 4, 5, 6, 7]], expected: [[1], [2, 3], [4, 5, 6, 7]]}
+    solution: |
+      from collections import deque
+
+      class TreeNode:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+      def build_tree(vals):
+          if not vals or vals[0] is None:
+              return None
+          root = TreeNode(vals[0])
+          queue = deque([root])
+          i = 1
+          while queue and i < len(vals):
+              node = queue.popleft()
+              if i < len(vals) and vals[i] is not None:
+                  node.left = TreeNode(vals[i])
+                  queue.append(node.left)
+              i += 1
+              if i < len(vals) and vals[i] is not None:
+                  node.right = TreeNode(vals[i])
+                  queue.append(node.right)
+              i += 1
+          return root
+
+      def level_order(vals):
+          root = build_tree(vals)
+          result = []
+          if root is None:
+              return result
+          queue = deque([root])
+          while queue:
+              level = []
+              for _ in range(len(queue)):
+                  node = queue.popleft()
+                  level.append(node.val)
+                  if node.left:
+                      queue.append(node.left)
+                  if node.right:
+                      queue.append(node.right)
+              result.append(level)
+          return result
+  - id: s_zigzag
+    type: section
+    title_vi: "Zigzag: đảo chiều xen kẽ"
+    summary_vi: "Vẫn duyệt BFS bình thường, chỉ đảo list của các tầng lẻ."
+    exercise_ref: ex_zigzag
+  - id: t02
+    type: text
+    md: |
+      **Zigzag level-order**: tầng 0 đọc trái sang phải, tầng 1 phải sang trái, tầng 2 lại trái sang
+      phải, và cứ thế. Cách gọn nhất: giữ nguyên BFS (luôn pop từ trái, đẩy con trái trước con phải) và
+      chỉ **đảo list của tầng** khi chỉ số tầng lẻ. Đừng đổi thứ tự đẩy con vào queue, vì sẽ làm hỏng
+      thứ tự các tầng sau.
+
+      ```python
+      if depth % 2 == 1:
+          level.reverse()
+      ```
+
+      Đảo một list có k phần tử tốn O(k), cộng lại cả cây vẫn là O(n).
+  - id: q02
+    type: quiz_mcq
+    prompt_md: "Cây đầy đủ `[1, 2, 3, 4, 5, 6, 7]`. Kết quả zigzag là gì?"
+    options:
+      - {id: a, text_md: "`[[1], [2, 3], [4, 5, 6, 7]]`"}
+      - {id: b, text_md: "`[[1], [3, 2], [4, 5, 6, 7]]`"}
+      - {id: c, text_md: "`[[1], [3, 2], [7, 6, 5, 4]]`"}
+    answer: [b]
+    explain_md: "Tầng 0 và tầng 2 đọc trái sang phải, tầng 1 đọc phải sang trái nên `[3, 2]`. Đáp án a là level-order thường; đáp án c đảo cả tầng 2."
+  - id: ex_zigzag
+    type: code_exercise
+    md: |
+      `zigzag(vals)` phải trả các tầng theo kiểu zigzag: tầng 0 trái sang phải, tầng 1 phải sang trái,
+      tầng 2 trái sang phải, ... Bản dưới đây mới là level-order thường nên **sai** từ tầng 1.
+      Hãy bổ sung bước đảo. Ví dụ `[1, 2, 3, 4, 5, 6, 7]` cho `[[1], [3, 2], [4, 5, 6, 7]]`.
+    entry: zigzag
+    starter: |
+      from collections import deque
+
+      class TreeNode:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+      def build_tree(vals):
+          if not vals or vals[0] is None:
+              return None
+          root = TreeNode(vals[0])
+          queue = deque([root])
+          i = 1
+          while queue and i < len(vals):
+              node = queue.popleft()
+              if i < len(vals) and vals[i] is not None:
+                  node.left = TreeNode(vals[i])
+                  queue.append(node.left)
+              i += 1
+              if i < len(vals) and vals[i] is not None:
+                  node.right = TreeNode(vals[i])
+                  queue.append(node.right)
+              i += 1
+          return root
+
+      def zigzag(vals):
+          root = build_tree(vals)
+          result = []
+          if root is None:
+              return result
+          queue = deque([root])
+          left_to_right = True
+          while queue:
+              level = []
+              for _ in range(len(queue)):
+                  node = queue.popleft()
+                  level.append(node.val)
+                  if node.left:
+                      queue.append(node.left)
+                  if node.right:
+                      queue.append(node.right)
+              # TODO: đảo level ở các tầng lẻ (tầng 1, 3, ...)
+              result.append(level)
+              left_to_right = not left_to_right
+          return result
+    guidance_md: |
+      - Biến `left_to_right` đổi giá trị sau mỗi tầng (đã có sẵn trong code).
+      - Sau khi gom xong `level` của một tầng, kiểm tra chiều hiện tại.
+      - Nếu chiều là phải sang trái, đảo `level` trước khi thêm vào `result`.
+    hints:
+      - level: nudge
+        md: "Thứ tự pop và đẩy con có cần thay đổi không, hay chỉ cần đổi cách trình bày kết quả của tầng?"
+      - level: approach
+        md: "Giữ nguyên BFS. Trước `result.append(level)`, nếu `left_to_right` là False thì `level.reverse()`."
+      - level: near_solution
+        md: |
+          # ngay trước result.append(level):
+          if not left_to_right:
+              level.reverse()
+    tests:
+      - {args: [[]], expected: []}
+      - {args: [[5]], expected: [[5]]}
+      - {args: [[1, 2, 3, 4, 5, 6, 7]], expected: [[1], [3, 2], [4, 5, 6, 7]]}
+      - {args: [[3, 9, 20, null, null, 15, 7]], expected: [[3], [20, 9], [15, 7]]}
+      - {args: [[1, 2, 3, 4, null, null, 5, 6, 7, 8]], expected: [[1], [3, 2], [4, 5], [8, 7, 6]]}
+    solution: |
+      from collections import deque
+
+      class TreeNode:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+      def build_tree(vals):
+          if not vals or vals[0] is None:
+              return None
+          root = TreeNode(vals[0])
+          queue = deque([root])
+          i = 1
+          while queue and i < len(vals):
+              node = queue.popleft()
+              if i < len(vals) and vals[i] is not None:
+                  node.left = TreeNode(vals[i])
+                  queue.append(node.left)
+              i += 1
+              if i < len(vals) and vals[i] is not None:
+                  node.right = TreeNode(vals[i])
+                  queue.append(node.right)
+              i += 1
+          return root
+
+      def zigzag(vals):
+          root = build_tree(vals)
+          result = []
+          if root is None:
+              return result
+          queue = deque([root])
+          left_to_right = True
+          while queue:
+              level = []
+              for _ in range(len(queue)):
+                  node = queue.popleft()
+                  level.append(node.val)
+                  if node.left:
+                      queue.append(node.left)
+                  if node.right:
+                      queue.append(node.right)
+              if not left_to_right:
+                  level.reverse()
+              result.append(level)
+              left_to_right = not left_to_right
+          return result
+  - id: s_views
+    type: section
+    title_vi: "Thống kê theo tầng và các góc nhìn (views)"
+    summary_vi: "Mỗi tầng là một list: từ đó lấy tổng, trung bình, phần tử cuối (right-side view)."
+  - id: t03
+    type: text
+    md: |
+      Khi đã có từng tầng riêng, nhiều bài "hierarchy" chỉ là một phép tính trên list đó:
+
+      - **Trung bình mỗi tầng**: `sum(level) / len(level)` (bài `avg_levels`).
+      - **Tổng / max / min mỗi tầng**: `sum(level)`, `max(level)`, `min(level)`.
+      - **Right-side view** (nhìn cây từ bên phải): lấy phần tử **cuối** của mỗi tầng, `level[-1]`.
+        Tương tự, **left-side view** lấy `level[0]`.
+
+      Có thể không cần giữ cả list: ví dụ right-side view chỉ cần nhớ node ở chỉ số `size - 1` của
+      vòng `for`. Nhưng về tư duy, mọi bài này đều là "BFS theo tầng rồi tóm tắt mỗi tầng".
+  - id: c02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      from collections import deque
+
+      class TreeNode:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+      root = TreeNode(1, TreeNode(2, TreeNode(4), TreeNode(5)), TreeNode(3, None, TreeNode(6)))
+      queue = deque([root])
+      while queue:
+          n = len(queue)
+          level = []
+          for _ in range(n):
+              node = queue.popleft()
+              level.append(node.val)
+              if node.left:
+                  queue.append(node.left)
+              if node.right:
+                  queue.append(node.right)
+          print(level, "tong", sum(level), "phai nhat", level[-1])
+    expected_output: |
+      [1] tong 1 phai nhat 1
+      [2, 3] tong 5 phai nhat 3
+      [4, 5, 6] tong 15 phai nhat 6
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Right-side view của một cây (các node nhìn thấy khi đứng bên phải) được lấy từ BFS theo tầng bằng cách nào?"
+    options:
+      - {id: a, text_md: "Lấy node cuối cùng (`level[-1]`) của mỗi tầng"}
+      - {id: b, text_md: "Lấy node đầu tiên của mỗi tầng"}
+      - {id: c, text_md: "Lấy con phải của mỗi node trên đường đi từ gốc"}
+    answer: [a]
+    explain_md: "Ở mỗi tầng, node ngoài cùng bên phải che các node còn lại, tức phần tử cuối của list tầng. Không phải lúc nào nó cũng là con phải của node trước: nếu nhánh phải ngắn hơn, node nhìn thấy có thể nằm ở cây con trái."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "BFS dùng `deque`; `popleft()` là O(1), thời gian O(n), bộ nhớ O(w) (w là độ rộng lớn nhất)."
+      - "Xử lý trọn một tầng: chụp `size = len(queue)` đầu vòng `while`, rồi pop đúng `size` lần."
+      - "Level-order trả list các list; zigzag chỉ đảo list của các tầng lẻ, không đổi thứ tự đẩy con."
+      - "Thống kê theo tầng (tổng, trung bình) và views (right-side `level[-1]`, left-side `level[0]`) đều là phép tóm tắt trên từng tầng."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X444], l2: [Q123], l3: [Q124]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-04"

@@ -1,0 +1,562 @@
+id: dsa.trees.bst
+version: 1
+status: published
+title_vi: "Cây tìm kiếm nhị phân (BST): kiểm tra hợp lệ, k-th nhỏ nhất, LCA"
+est_minutes: 15
+objectives_vi:
+  - "Phát biểu bất biến của BST (cả cây con trái < node < cả cây con phải) và biết inorder cho dãy tăng dần."
+  - "Kiểm tra một cây có phải BST bằng khoảng (lo, hi) thay vì chỉ so với con trực tiếp."
+  - "Tìm phần tử nhỏ thứ k bằng inorder lặp với stack và dừng sớm."
+  - "Tìm tổ tiên chung thấp nhất (LCA) trong BST bằng cách đi xuống O(h)."
+blocks:
+  - id: s_invariant
+    type: section
+    title_vi: "Bất biến BST và kiểm tra hợp lệ"
+    summary_vi: "Mỗi node phải nằm trong khoảng (lo, hi) do tổ tiên quy định, không chỉ so với con trực tiếp."
+    exercise_ref: ex_valid
+  - id: t01
+    type: text
+    md: |
+      **Cây tìm kiếm nhị phân (BST)** là cây nhị phân thỏa **bất biến**: với mọi node, **mọi** giá trị ở
+      cây con trái **nhỏ hơn** node, và **mọi** giá trị ở cây con phải **lớn hơn** node (bài này coi giá
+      trị phân biệt, trùng lặp là không hợp lệ). Hệ quả quan trọng: duyệt **inorder** (trái, node, phải)
+      cho dãy **tăng dần**.
+
+      Tìm một giá trị: so với node, nhỏ hơn thì đi trái, lớn hơn thì đi phải. Mỗi bước bỏ nửa cây nếu cây
+      cân bằng, nên tốn **O(log n)**; nếu cây lệch thành một chuỗi (chèn dãy đã sắp) thì tốn **O(n)**.
+      Nói chung chi phí là **O(h)** với `h` là chiều cao.
+
+      Khi kiểm tra hợp lệ, lỗi kinh điển là chỉ so mỗi node với **con trực tiếp**. Cây
+      `5 -> trái 3 -> con phải 6` qua được phép so sánh đó (3 < 5, 6 > 3) nhưng sai, vì 6 nằm trong cây con
+      trái của 5 mà lại lớn hơn 5. Cách đúng: truyền xuống khoảng `(lo, hi)`; đi trái thì `hi = node.val`,
+      đi phải thì `lo = node.val`.
+  - id: cs01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class TreeNode:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+      def insert(node, v):
+          if node is None:
+              return TreeNode(v)
+          if v < node.val:
+              node.left = insert(node.left, v)
+          else:
+              node.right = insert(node.right, v)
+          return node
+
+      root = None
+      for v in [5, 3, 8, 1, 4, 7, 9]:
+          root = insert(root, v)
+
+      def inorder(n):
+          return inorder(n.left) + [n.val] + inorder(n.right) if n else []
+
+      print(inorder(root))
+
+      # 6 nằm trong cây con trái của 5 nhưng 6 > 5: cây này KHÔNG hợp lệ
+      bad = TreeNode(5, TreeNode(3, None, TreeNode(6)), TreeNode(8))
+
+      def naive(n):
+          if n is None:
+              return True
+          if n.left and n.left.val >= n.val:
+              return False
+          if n.right and n.right.val <= n.val:
+              return False
+          return naive(n.left) and naive(n.right)
+
+      def bounded(n, lo, hi):
+          if n is None:
+              return True
+          if not (lo < n.val < hi):
+              return False
+          return bounded(n.left, lo, n.val) and bounded(n.right, n.val, hi)
+
+      print(naive(bad), bounded(bad, float("-inf"), float("inf")))
+      print(bounded(root, float("-inf"), float("inf")))
+    expected_output: |
+      [1, 3, 4, 5, 7, 8, 9]
+      True False
+      True
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Duyệt inorder một BST hợp lệ cho kết quả nào?"
+    options:
+      - {id: a, text_md: "Các giá trị theo thứ tự tăng dần"}
+      - {id: b, text_md: "Các giá trị theo thứ tự giảm dần"}
+      - {id: c, text_md: "Các giá trị theo từng tầng"}
+    answer: [a]
+    explain_md: "Inorder là trái, node, phải; với BST mọi giá trị bên trái nhỏ hơn và bên phải lớn hơn nên dãy tăng dần."
+  - id: q02
+    type: quiz_mcq
+    prompt_md: "Vì sao chỉ so mỗi node với con trực tiếp (left < node < right) là chưa đủ để kết luận cây là BST?"
+    options:
+      - {id: a, text_md: "Vì cây có thể có nhiều hơn hai con"}
+      - {id: b, text_md: "Vì một node ở sâu hơn vẫn có thể vi phạm giới hạn của tổ tiên (ví dụ lớn hơn gốc dù nằm bên trái)"}
+      - {id: c, text_md: "Vì phép so sánh khi đó tốn O(n^2)"}
+    answer: [b]
+    explain_md: "Bất biến áp dụng cho cả cây con, nên cần mang theo khoảng (lo, hi) từ các tổ tiên xuống."
+  - id: ex_valid
+    type: code_exercise
+    md: |
+      Viết `is_valid_bst(vals)`: dựng cây từ `vals` (list theo tầng, `None` là chỗ trống) bằng `build_tree`
+      có sẵn và trả `True` nếu là BST hợp lệ (giá trị trùng là không hợp lệ). Bản dưới đây chỉ so với con
+      trực tiếp nên sai; hãy dùng khoảng `(lo, hi)`.
+    entry: is_valid_bst
+    starter: |
+      class TreeNode:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+      def build_tree(vals):
+          if not vals or vals[0] is None:
+              return None
+          root = TreeNode(vals[0])
+          queue = [root]
+          i = 1
+          while queue and i < len(vals):
+              node = queue.pop(0)
+              if i < len(vals) and vals[i] is not None:
+                  node.left = TreeNode(vals[i])
+                  queue.append(node.left)
+              i += 1
+              if i < len(vals) and vals[i] is not None:
+                  node.right = TreeNode(vals[i])
+                  queue.append(node.right)
+              i += 1
+          return root
+
+      def is_valid_bst(vals):
+          root = build_tree(vals)
+
+          def check(node):
+              if node is None:
+                  return True
+              # BUG: chỉ so với con trực tiếp
+              if node.left and node.left.val >= node.val:
+                  return False
+              if node.right and node.right.val <= node.val:
+                  return False
+              return check(node.left) and check(node.right)
+
+          return check(root)
+    guidance_md: |
+      - Thử `[5, 3, 8, None, 6]`: 6 là con phải của 3 nhưng lớn hơn 5.
+      - Viết `check(node, lo, hi)` với `lo = -inf`, `hi = +inf` ban đầu.
+      - Node hợp lệ khi `lo < node.val < hi`; đi trái cập nhật `hi`, đi phải cập nhật `lo`.
+    hints:
+      - level: nudge
+        md: "Node 6 trong `[5, 3, 8, None, 6]` qua được phép so với cha (3) nhưng vẫn sai. Nó vi phạm giới hạn của ai?"
+      - level: approach
+        md: "Mỗi lời gọi đệ quy mang theo một khoảng mở (lo, hi); node phải nằm trong khoảng đó."
+      - level: pseudocode
+        md: |
+          check(node, lo, hi):
+              nếu node là None: True
+              nếu không (lo < node.val < hi): False
+              check(trái, lo, node.val) và check(phải, node.val, hi)
+      - level: near_solution
+        md: |
+          def check(node, lo, hi):
+              if node is None:
+                  return True
+              if not (lo < node.val < hi):
+                  return False
+              return check(node.left, lo, node.val) and ...   # cây phải với lo = node.val
+          return check(root, float("-inf"), float("inf"))
+    tests:
+      - {args: [[]], expected: true}
+      - {args: [[2, 1, 3]], expected: true}
+      - {args: [[5, 3, 8, null, 6]], expected: false}
+      - {args: [[2, 2]], expected: false}
+      - {args: [[5, 3, 8, 1, 4, 7, 9]], expected: true}
+    solution: |
+      class TreeNode:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+      def build_tree(vals):
+          if not vals or vals[0] is None:
+              return None
+          root = TreeNode(vals[0])
+          queue = [root]
+          i = 1
+          while queue and i < len(vals):
+              node = queue.pop(0)
+              if i < len(vals) and vals[i] is not None:
+                  node.left = TreeNode(vals[i])
+                  queue.append(node.left)
+              i += 1
+              if i < len(vals) and vals[i] is not None:
+                  node.right = TreeNode(vals[i])
+                  queue.append(node.right)
+              i += 1
+          return root
+
+      def is_valid_bst(vals):
+          root = build_tree(vals)
+
+          def check(node, lo, hi):
+              if node is None:
+                  return True
+              if not (lo < node.val < hi):
+                  return False
+              return check(node.left, lo, node.val) and check(node.right, node.val, hi)
+
+          return check(root, float("-inf"), float("inf"))
+  - id: s_kth
+    type: section
+    title_vi: "Phần tử nhỏ thứ k bằng inorder lặp"
+    summary_vi: "Inorder bằng stack, đếm số node đã thăm và dừng ngay khi đến thứ k."
+    exercise_ref: ex_kth
+  - id: t02
+    type: text
+    md: |
+      Vì inorder cho dãy tăng dần, **phần tử nhỏ thứ k** chính là node thứ k được thăm. Ta không cần duyệt
+      hết: dùng **inorder lặp** với stack tường minh và **dừng sớm** khi đếm đủ k.
+
+      Khuôn mẫu: đi sâu hết bên trái và đẩy vào stack; pop một node (đây là lần thăm); nếu đó là lần thứ k
+      thì trả luôn; ngược lại chuyển sang cây con phải rồi lặp lại.
+
+      ```python
+      while stack or node:
+          while node:
+              stack.append(node)
+              node = node.left
+          node = stack.pop()      # thăm node
+          ...
+          node = node.right
+      ```
+
+      Chi phí **O(h + k)** thời gian (đi xuống h rồi k lần pop) và O(h) bộ nhớ stack. Dùng stack lặp tránh
+      giới hạn độ sâu đệ quy trên cây lệch.
+  - id: cs02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class TreeNode:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+      root = TreeNode(5, TreeNode(3, TreeNode(1), TreeNode(4)), TreeNode(8, TreeNode(7), TreeNode(9)))
+
+      def kth(root, k):
+          stack = []
+          node = root
+          pops = 0
+          while stack or node:
+              while node:
+                  stack.append(node)
+                  node = node.left
+              node = stack.pop()
+              pops += 1
+              if pops == k:
+                  return node.val, pops
+              node = node.right
+          return None, pops
+
+      for k in (1, 3, 5):
+          print(k, kth(root, k))
+    expected_output: |
+      1 (1, 1)
+      3 (4, 3)
+      5 (7, 5)
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Trong `kth_smallest` bằng inorder lặp, khi nào ta được phép trả kết quả?"
+    options:
+      - {id: a, text_md: "Ngay khi pop được node thứ k (đếm số lần pop), không cần duyệt phần còn lại"}
+      - {id: b, text_md: "Chỉ sau khi duyệt xong toàn bộ cây"}
+      - {id: c, text_md: "Khi stack đầy"}
+    answer: [a]
+    explain_md: "Node thứ k được thăm theo thứ tự tăng dần chính là phần tử nhỏ thứ k, nên có thể dừng sớm."
+  - id: ex_kth
+    type: code_exercise
+    md: |
+      Viết `kth_smallest(vals, k)`: dựng BST từ `vals` rồi trả giá trị nhỏ thứ `k` (đếm từ 1) bằng inorder
+      lặp với stack, dừng sớm khi tìm được. Bản dưới đây có lỗi lệch một đơn vị (off-by-one) ở chỗ đếm.
+    entry: kth_smallest
+    starter: |
+      class TreeNode:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+      def build_tree(vals):
+          if not vals or vals[0] is None:
+              return None
+          root = TreeNode(vals[0])
+          queue = [root]
+          i = 1
+          while queue and i < len(vals):
+              node = queue.pop(0)
+              if i < len(vals) and vals[i] is not None:
+                  node.left = TreeNode(vals[i])
+                  queue.append(node.left)
+              i += 1
+              if i < len(vals) and vals[i] is not None:
+                  node.right = TreeNode(vals[i])
+                  queue.append(node.right)
+              i += 1
+          return root
+
+      def kth_smallest(vals, k):
+          node = build_tree(vals)
+          stack = []
+          while stack or node:
+              while node:
+                  stack.append(node)
+                  node = node.left
+              node = stack.pop()
+              if k == 0:  # BUG: kiểm tra trước khi giảm k
+                  return node.val
+              k -= 1
+              node = node.right
+          return -1
+    guidance_md: |
+      - Thử `k = 1` trên `[2, 1, 3]`: kết quả phải là 1.
+      - Giảm `k` ngay sau mỗi lần pop, rồi mới kiểm tra `k == 0`.
+    hints:
+      - level: nudge
+        md: "Với k = 1 ta cần dừng ở lần pop đầu tiên. Điều kiện hiện tại dừng ở lần pop thứ mấy?"
+      - level: approach
+        md: "Sau mỗi `pop`, trừ `k` đi 1; khi `k` về 0 thì node vừa pop là đáp án."
+      - level: near_solution
+        md: |
+          node = stack.pop()
+          k -= 1
+          if k == 0:
+              return node.val
+          node = node.right
+    tests:
+      - {args: [[2, 1, 3], 1], expected: 1}
+      - {args: [[5, 3, 6, 2, 4, null, null, 1], 3], expected: 3}
+      - {args: [[5, 3, 6, 2, 4, null, null, 1], 6], expected: 6}
+      - {args: [[3, 1, 4, null, 2], 1], expected: 1}
+      - {args: [[3, 1, 4, null, 2], 4], expected: 4}
+    solution: |
+      class TreeNode:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+      def build_tree(vals):
+          if not vals or vals[0] is None:
+              return None
+          root = TreeNode(vals[0])
+          queue = [root]
+          i = 1
+          while queue and i < len(vals):
+              node = queue.pop(0)
+              if i < len(vals) and vals[i] is not None:
+                  node.left = TreeNode(vals[i])
+                  queue.append(node.left)
+              i += 1
+              if i < len(vals) and vals[i] is not None:
+                  node.right = TreeNode(vals[i])
+                  queue.append(node.right)
+              i += 1
+          return root
+
+      def kth_smallest(vals, k):
+          node = build_tree(vals)
+          stack = []
+          while stack or node:
+              while node:
+                  stack.append(node)
+                  node = node.left
+              node = stack.pop()
+              k -= 1
+              if k == 0:
+                  return node.val
+              node = node.right
+          return -1
+  - id: s_lca
+    type: section
+    title_vi: "Tổ tiên chung thấp nhất (LCA) trong BST"
+    summary_vi: "So p, q với node: cùng nhỏ thì sang trái, cùng lớn thì sang phải, ngược lại node hiện tại là LCA."
+    exercise_ref: ex_lca
+  - id: t03
+    type: text
+    md: |
+      **LCA** của hai giá trị `p`, `q` là node thấp nhất có cả hai làm hậu duệ (một node là hậu duệ của
+      chính nó). Trong BST ta không cần tìm đường đi như cây thường, chỉ cần đi xuống từ gốc:
+
+      - `p` và `q` đều **nhỏ hơn** `node.val`: LCA nằm bên **trái**.
+      - `p` và `q` đều **lớn hơn** `node.val`: LCA nằm bên **phải**.
+      - Ngược lại (p, q nằm hai phía, hoặc một trong hai bằng `node.val`): node hiện tại là LCA.
+
+      Mỗi bước đi xuống một tầng nên tốn **O(h)** thời gian và O(1) bộ nhớ nếu viết vòng lặp.
+  - id: cs03
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class TreeNode:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+      root = TreeNode(6, TreeNode(2, TreeNode(0), TreeNode(4, TreeNode(3), TreeNode(5))),
+                      TreeNode(8, TreeNode(7), TreeNode(9)))
+
+      def lca(root, p, q):
+          node = root
+          steps = 0
+          while node:
+              if p < node.val and q < node.val:
+                  node = node.left
+              elif p > node.val and q > node.val:
+                  node = node.right
+              else:
+                  return node.val, steps
+              steps += 1
+          return None, steps
+
+      print(lca(root, 2, 8))
+      print(lca(root, 3, 5))
+      print(lca(root, 2, 4))
+    expected_output: |
+      (6, 0)
+      (4, 2)
+      (2, 1)
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Trong BST có gốc 6, ta tìm LCA của `p = 2` và `q = 4`. Tại node 6, ta làm gì?"
+    options:
+      - {id: a, text_md: "Kết luận 6 là LCA vì nó là gốc"}
+      - {id: b, text_md: "Sang trái, vì cả 2 và 4 đều nhỏ hơn 6"}
+      - {id: c, text_md: "Sang phải, vì 4 lớn hơn 2"}
+    answer: [b]
+    explain_md: "Cả hai đều nhỏ hơn 6 nên LCA nằm ở cây con trái. Ở node 2, một giá trị bằng node.val nên 2 là LCA."
+  - id: ex_lca
+    type: code_exercise
+    md: |
+      Viết `lca_bst(vals, p, q)`: dựng BST từ `vals` rồi trả giá trị của LCA của `p` và `q` (hai giá trị đều
+      có trong cây), trong O(h). Bản dưới đây rẽ sai khi chỉ một trong hai giá trị so sánh được.
+    entry: lca_bst
+    starter: |
+      class TreeNode:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+      def build_tree(vals):
+          if not vals or vals[0] is None:
+              return None
+          root = TreeNode(vals[0])
+          queue = [root]
+          i = 1
+          while queue and i < len(vals):
+              node = queue.pop(0)
+              if i < len(vals) and vals[i] is not None:
+                  node.left = TreeNode(vals[i])
+                  queue.append(node.left)
+              i += 1
+              if i < len(vals) and vals[i] is not None:
+                  node.right = TreeNode(vals[i])
+                  queue.append(node.right)
+              i += 1
+          return root
+
+      def lca_bst(vals, p, q):
+          node = build_tree(vals)
+          while node:
+              # BUG: chỉ cần một trong hai nhỏ/lớn hơn là đã rẽ
+              if p < node.val or q < node.val:
+                  node = node.left
+              elif p > node.val or q > node.val:
+                  node = node.right
+              else:
+                  return node.val
+          return -1
+    guidance_md: |
+      - Rẽ trái chỉ khi **cả hai** nhỏ hơn `node.val`; rẽ phải chỉ khi **cả hai** lớn hơn.
+      - Trường hợp còn lại thì dừng và trả `node.val`.
+    hints:
+      - level: nudge
+        md: "Nếu p < node.val nhưng q > node.val thì p, q nằm hai phía. Có nên rẽ trái không?"
+      - level: approach
+        md: "Dùng `and` thay cho `or`: chỉ rẽ khi p và q cùng phía so với node."
+      - level: near_solution
+        md: |
+          if p < node.val and q < node.val:
+              node = node.left
+          elif p > node.val and q > node.val:
+              node = node.right
+          else:
+              return node.val
+    tests:
+      - {args: [[6, 2, 8, 0, 4, 7, 9, null, null, 3, 5], 2, 8], expected: 6}
+      - {args: [[6, 2, 8, 0, 4, 7, 9, null, null, 3, 5], 2, 4], expected: 2}
+      - {args: [[6, 2, 8, 0, 4, 7, 9, null, null, 3, 5], 3, 5], expected: 4}
+      - {args: [[6, 2, 8, 0, 4, 7, 9, null, null, 3, 5], 0, 5], expected: 2}
+      - {args: [[6, 2, 8, 0, 4, 7, 9, null, null, 3, 5], 7, 9], expected: 8}
+    solution: |
+      class TreeNode:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+      def build_tree(vals):
+          if not vals or vals[0] is None:
+              return None
+          root = TreeNode(vals[0])
+          queue = [root]
+          i = 1
+          while queue and i < len(vals):
+              node = queue.pop(0)
+              if i < len(vals) and vals[i] is not None:
+                  node.left = TreeNode(vals[i])
+                  queue.append(node.left)
+              i += 1
+              if i < len(vals) and vals[i] is not None:
+                  node.right = TreeNode(vals[i])
+                  queue.append(node.right)
+              i += 1
+          return root
+
+      def lca_bst(vals, p, q):
+          node = build_tree(vals)
+          while node:
+              if p < node.val and q < node.val:
+                  node = node.left
+              elif p > node.val and q > node.val:
+                  node = node.right
+              else:
+                  return node.val
+          return -1
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "BST: mọi giá trị cây con trái < node < mọi giá trị cây con phải; inorder cho dãy tăng dần."
+      - "Tìm kiếm tốn O(h): O(log n) khi cân bằng, O(n) khi cây lệch."
+      - "Kiểm tra hợp lệ phải mang khoảng `(lo, hi)` xuống; so với con trực tiếp là lỗi kinh điển."
+      - "`kth_smallest`: inorder lặp bằng stack, giảm k mỗi lần pop và dừng sớm khi k về 0."
+      - "LCA trong BST: cùng nhỏ thì trái, cùng lớn thì phải, ngược lại là node hiện tại; O(h)."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [Q125], l2: [Q126], l3: [Q127]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-04"

@@ -1,0 +1,247 @@
+id: dsa.trees.range_query_trees
+version: 1
+status: published
+title_vi: "Cây truy vấn đoạn (Fenwick / segment tree)"
+est_minutes: 14
+objectives_vi:
+  - "Giải thích vì sao prefix sum truy vấn O(1) nhưng cập nhật O(n), và khi nào đó là vấn đề."
+  - "Dùng `lowbit(i) = i & -i` để hiểu Fenwick tree (BIT): cập nhật điểm và truy vấn prefix đều O(log n)."
+  - "Biết khi nào cần segment tree thay cho Fenwick (min, max, gcd và các phép không có phép trừ)."
+blocks:
+  - id: s_prefix
+    type: section
+    title_vi: "Prefix sum: nhanh khi đọc, chậm khi ghi"
+    summary_vi: "Tổng đoạn bằng hiệu hai prefix; nhưng sửa một phần tử phải cập nhật lại cả đuôi."
+  - id: b01
+    type: text
+    md: |
+      Bài toán **truy vấn đoạn (range query)**: cho mảng `nums`, trả lời nhiều câu hỏi "tổng của
+      `nums[l..r]` là bao nhiêu?". Tính lại từng lần tốn O(n) mỗi truy vấn.
+
+      **Prefix sum** giải quyết khi mảng **không đổi**: đặt `prefix[0] = 0`,
+      `prefix[i + 1] = prefix[i] + nums[i]`. Khi đó tổng đoạn `[l, r]` (gồm cả hai đầu) là
+      `prefix[r + 1] - prefix[l]`: mỗi truy vấn O(1), dựng một lần O(n).
+
+      Nhưng nếu xen kẽ **cập nhật điểm** (`nums[i] = v`) thì `prefix[i + 1], prefix[i + 2], ...` đều
+      sai, phải sửa lại cả đuôi: **O(n) mỗi lần cập nhật**. Với `m` thao tác xen kẽ, tổng thời gian
+      là O(n * m), quá chậm khi `n, m` cỡ `10^5`.
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      nums = [2, 1, 3, 4, 5]
+      prefix = [0]
+      for x in nums:
+          prefix.append(prefix[-1] + x)
+      print(prefix)
+      print(prefix[4] - prefix[1])
+      nums[1] = 10
+      print(sum(nums[1:4]))
+    expected_output: |
+      [0, 2, 3, 6, 10, 15]
+      8
+      17
+  - id: b03
+    type: quiz_mcq
+    prompt_md: "Dùng mảng prefix sum, sau khi gán `nums[i] = v` thì cần làm gì để các truy vấn sau vẫn đúng?"
+    options:
+      - {id: a, text_md: "Chỉ sửa `prefix[i]`"}
+      - {id: b, text_md: "Sửa lại `prefix[i + 1], prefix[i + 2], ...` đến hết mảng, O(n)"}
+      - {id: c, text_md: "Không cần làm gì vì truy vấn lấy hiệu hai prefix"}
+    answer: [b]
+    explain_md: "Mỗi `prefix[j]` với `j > i` chứa `nums[i]` trong tổng, nên đều phải cộng thêm độ lệch `v - nums[i]`. Đó là lý do cập nhật O(n); Fenwick tree sẽ giảm xuống O(log n)."
+  - id: s_bit
+    type: section
+    title_vi: "Fenwick tree (BIT)"
+    summary_vi: "Mỗi ô tree[i] giữ tổng của lowbit(i) phần tử kết thúc tại i; cả hai thao tác đi theo dây lowbit."
+    exercise_ref: ex_path
+  - id: b04
+    type: text
+    md: |
+      **Fenwick tree** (còn gọi **BIT**, binary indexed tree) lưu một mảng `tree` đánh số **từ 1**.
+      Ô `tree[i]` giữ tổng của `lowbit(i)` phần tử kết thúc tại vị trí `i`, trong đó
+      `lowbit(i) = i & -i` là bit 1 thấp nhất của `i`. Ví dụ `lowbit(12) = 4` vì `12 = 0b1100`, nên
+      `tree[12]` giữ tổng các vị trí 9..12.
+
+      - **Truy vấn prefix(i)** (tổng `i` phần tử đầu): cộng `tree[i]` rồi *bỏ bit thấp nhất*
+        `i -= i & -i`, lặp đến khi `i = 0`. Đi qua nhiều nhất `log2(n)` ô.
+      - **Cập nhật cộng `d` vào vị trí `i`**: cộng `d` vào `tree[i]` rồi *nhảy lên ô cha*
+        `i += i & -i`, lặp đến khi `i > n`. Cũng nhiều nhất `log2(n)` ô.
+      - **Tổng đoạn** `[l, r]` (0-based): `prefix(r + 1) - prefix(l)`.
+
+      Muốn **gán** `nums[i] = v` thì cộng `delta = v - nums[i]` (cần giữ mảng giá trị hiện tại).
+  - id: b05
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      nums = [2, 1, 3, 4, 5, 6]
+      n = len(nums)
+      tree = [0] * (n + 1)
+
+      def update(i, d):
+          # i la chi so 1-based
+          while i <= n:
+              tree[i] += d
+              i += i & -i
+
+      def prefix(i):
+          s = 0
+          while i > 0:
+              s += tree[i]
+              i -= i & -i
+          return s
+
+      for idx, x in enumerate(nums, 1):
+          update(idx, x)
+      print(tree[1:])
+      print(prefix(4), prefix(6) - prefix(2))
+      update(3, 7)
+      print(prefix(4), prefix(6) - prefix(2))
+    expected_output: |
+      [2, 3, 3, 10, 5, 11]
+      10 18
+      17 25
+  - id: b06
+    type: quiz_mcq
+    prompt_md: "Fenwick tree với `n = 8`: cập nhật vị trí `i = 5` sẽ đi qua những ô nào (theo `i += i & -i`)?"
+    options:
+      - {id: a, text_md: "5, 6, 7, 8"}
+      - {id: b, text_md: "5, 6, 8"}
+      - {id: c, text_md: "5, 8"}
+    answer: [b]
+    explain_md: "`5 = 0b101`, lowbit 1 nên tới 6. `6 = 0b110`, lowbit 2 nên tới 8. `8` có lowbit 8 nên tới 16 > n và dừng. Vậy đường đi là 5, 6, 8."
+  - id: b07
+    type: callout
+    kind: warning
+    md: |
+      Fenwick đánh số từ **1**, còn mảng đề bài thường 0-based. Nếu dùng chỉ số 0, `i & -i = 0` và
+      vòng lặp không bao giờ tiến lên (treo). Luôn đổi `i += 1` trước khi cập nhật và dùng
+      `prefix(r + 1) - prefix(l)` cho đoạn `[l, r]`.
+  - id: ex_path
+    type: code_exercise
+    md: |
+      Viết `update_path(i, n)` trả về **danh sách các ô** của Fenwick tree (kích thước `n`, đánh số từ 1)
+      bị chạm khi cập nhật vị trí `i`, theo thứ tự đi qua, bắt đầu từ chính `i`.
+      Ví dụ `update_path(3, 8)` là `[3, 4, 8]`.
+    entry: update_path
+    starter: |
+      def update_path(i, n):
+          # TODO: đi từ i, mỗi bước i += i & -i cho đến khi i > n
+          pass
+    guidance_md: |
+      - Tạo danh sách rỗng `path`.
+      - Lặp khi `i <= n`: thêm `i` vào `path`.
+      - Nhảy lên ô cha bằng cách cộng bit thấp nhất của `i` vào chính `i`.
+      - Trả về `path`.
+    hints:
+      - level: nudge
+        md: "Bit thấp nhất của `i` tính bằng biểu thức `i & -i`."
+      - level: approach
+        md: "Vòng `while i <= n`: ghi `i` vào danh sách, rồi `i += i & -i`."
+      - level: near_solution
+        md: Bắt đầu từ `i`, lặp khi `i <= n`; mỗi vòng ghi `i` hiện tại vào danh sách
+          rồi nhảy lên cha bằng cách cộng thêm lowbit `i & -i`. Trả danh sách các chỉ số đã đi qua.
+    tests:
+      - {args: [3, 8], expected: [3, 4, 8]}
+      - {args: [1, 8], expected: [1, 2, 4, 8]}
+      - {args: [8, 8], expected: [8]}
+      - {args: [5, 6], expected: [5, 6]}
+      - {args: [6, 6], expected: [6]}
+    solution: |
+      def update_path(i, n):
+          path = []
+          while i <= n:
+              path.append(i)
+              i += i & -i
+          return path
+  - id: s_query
+    type: section
+    title_vi: "Truy vấn prefix và segment tree"
+    summary_vi: "Bỏ bit thấp nhất để cộng đủ các khối; segment tree tổng quát hơn cho min, max."
+    exercise_ref: ex_prefix
+  - id: b08
+    type: text
+    md: |
+      Truy vấn `prefix(i)` đi theo hướng ngược lại: từ `i` bỏ dần bit thấp nhất. Với `i = 6 = 0b110`
+      ta cộng `tree[6]` (vị trí 5..6) rồi `i = 4`, cộng `tree[4]` (vị trí 1..4) rồi `i = 0` và dừng:
+      hai khối ghép đúng thành 6 phần tử đầu.
+
+      **Segment tree** là cây nhị phân mà mỗi nút giữ kết quả của một đoạn (nút lá là một phần tử).
+      Nó tốn bộ nhớ và code nhiều hơn Fenwick (thường mảng cỡ `2n` hoặc `4n`), nhưng làm được các phép
+      **không có phép trừ**, như **min, max, gcd**: `min(l..r)` không thể tính bằng hiệu hai prefix.
+      Quy tắc chọn: tổng (hoặc phép có nghịch đảo) và chỉ cần cập nhật điểm thì dùng Fenwick, ngắn và
+      nhanh; cần min/max hoặc cập nhật cả đoạn (lazy propagation) thì dùng segment tree. Cả hai đều
+      O(log n) mỗi thao tác.
+  - id: b09
+    type: quiz_mcq
+    prompt_md: "Cần trả lời nhiều truy vấn 'giá trị nhỏ nhất trên `nums[l..r]`' xen kẽ với cập nhật điểm. Cấu trúc nào hợp lý?"
+    options:
+      - {id: a, text_md: "Fenwick tree lưu tổng, lấy `prefix(r + 1) - prefix(l)`"}
+      - {id: b, text_md: "Segment tree với mỗi nút giữ min của đoạn, O(log n) mỗi thao tác"}
+      - {id: c, text_md: "Prefix sum, cập nhật lại cả đuôi mỗi lần"}
+    answer: [b]
+    explain_md: "Min không có phép trừ, nên hiệu hai prefix không cho min đoạn; ý (a) sai. Ý (c) đúng nhưng tính tổng, không phải min, và cập nhật O(n). Segment tree gộp hai nút con bằng `min`."
+  - id: b10
+    type: quiz_mcq
+    prompt_md: "Giá trị `lowbit(12)` (với `lowbit(i) = i & -i`) là bao nhiêu?"
+    options:
+      - {id: a, text_md: "1"}
+      - {id: b, text_md: "4"}
+      - {id: c, text_md: "12"}
+    answer: [b]
+    explain_md: "`12 = 0b1100`; bit 1 thấp nhất là bit thứ 2, giá trị 4. Vậy `tree[12]` giữ tổng 4 phần tử (vị trí 9..12)."
+  - id: ex_prefix
+    type: code_exercise
+    md: |
+      Hàm `fenwick_prefix(tree, i)` trả về tổng `i` phần tử đầu từ mảng Fenwick `tree` (đánh số từ 1,
+      `tree[0]` không dùng). Code bên dưới có một **lỗi** ở bước di chuyển: hãy tìm và sửa.
+      Ví dụ với `tree = [0, 2, 3, 3, 10, 5, 11]` thì `fenwick_prefix(tree, 4)` là `10`.
+    entry: fenwick_prefix
+    starter: |
+      def fenwick_prefix(tree, i):
+          s = 0
+          while i > 0:
+              s += tree[i]
+              i -= 1
+          return s
+    guidance_md: |
+      - Chạy tay với `tree = [0, 2, 3, 3, 10, 5, 11]` và `i = 4`: đáp án đúng là 10 chỉ cần một ô.
+      - `tree[4]` đã chứa tổng 4 phần tử, vậy sau khi cộng nó ta có nên đi sang `tree[3]` không?
+      - Cần nhảy sang ô đại diện cho phần còn lại của prefix.
+    hints:
+      - level: nudge
+        md: "Mỗi ô `tree[i]` đã gộp `lowbit(i)` phần tử, nên không được cộng lại từng ô liền kề."
+      - level: approach
+        md: "Phải bỏ bit thấp nhất của `i` thay vì trừ 1: dùng `i -= i & -i`."
+      - level: near_solution
+        md: "Đổi đúng một dòng: `i -= 1` thành `i -= i & -i`."
+    tests:
+      - {args: [[0, 2, 3, 3, 10, 5, 11], 4], expected: 10}
+      - {args: [[0, 2, 3, 3, 10, 5, 11], 6], expected: 21}
+      - {args: [[0, 2, 3, 3, 10, 5, 11], 0], expected: 0}
+      - {args: [[0, 7], 1], expected: 7}
+      - {args: [[0, 1, 0, 2], 3], expected: 2}
+    solution: |
+      def fenwick_prefix(tree, i):
+          s = 0
+          while i > 0:
+              s += tree[i]
+              i -= i & -i
+          return s
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "Prefix sum: truy vấn đoạn O(1) bằng `prefix[r + 1] - prefix[l]`, nhưng cập nhật điểm phải sửa cả đuôi, O(n)."
+      - "Fenwick tree (BIT): `tree[i]` giữ tổng `lowbit(i) = i & -i` phần tử kết thúc tại `i`, đánh số từ 1."
+      - "Cập nhật: `i += i & -i` đến khi vượt `n`; truy vấn prefix: `i -= i & -i` đến khi `0`; đều O(log n). Gán giá trị thì cộng delta `v - cũ`."
+      - "Segment tree dùng khi phép gộp không có phép trừ (min, max, gcd) hoặc cần cập nhật đoạn; Fenwick ngắn hơn cho tổng với cập nhật điểm."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X445], l2: [X446], l3: [X447]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-04"

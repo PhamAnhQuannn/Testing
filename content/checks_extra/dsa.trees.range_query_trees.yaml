@@ -1,0 +1,47 @@
+subtopic_id: dsa.trees.range_query_trees
+items:
+  - id: X445
+    difficulty: 1
+    type: read_code
+    minutes: 3
+    prompt_md: Chạy tay (không chạy máy), đoạn code in ra gì? Giải thích 1 câu.
+    code: |-
+      n = 8
+      tree = [0] * (n + 1)
+
+      def update(i, d):
+          while i <= n:
+              tree[i] += d
+              i += i & -i
+
+      def prefix(i):
+          s = 0
+          while i > 0:
+              s += tree[i]
+              i -= i & -i
+          return s
+
+      update(3, 5)
+      print(tree[1:])
+      update(2, 4)
+      print(tree[1:])
+      print(prefix(3), prefix(8))
+    expected_output: "[0, 0, 5, 5, 0, 0, 0, 5]\n[0, 4, 5, 9, 0, 0, 0, 9]\n9 9"
+    answer_md: 'Cập nhật vị trí 3 chạm các ô 3, 4, 8 (`3 -> 4 -> 8` theo `i += i & -i`), mỗi ô cộng 5. Cập nhật vị trí 2 cộng 4 vào các ô 2, 4, 8. Cuối cùng `prefix(3)` cộng `tree[3] + tree[2] = 5 + 4 = 9` và `prefix(8)` chỉ cần `tree[8] = 9`; cả hai bằng tổng 9 của mọi phần tử đã cập nhật.'
+    rubric_md: "Output khớp từng ký tự (bỏ khoảng trắng cuối dòng) VÀ giải thích đúng 1 câu. Đúng: bằng chứng điểm 1; sai: tối đa điểm 0."
+  - id: X446
+    difficulty: 2
+    type: write_code
+    minutes: 8
+    prompt_md: |
+      Viết `range_sum(nums, queries)`: mỗi truy vấn `[l, r]` (chỉ số từ 0, gồm cả hai đầu) trả về tổng `nums[l] + ... + nums[r]`; kết quả là danh sách đáp án theo thứ tự truy vấn. Mảng không đổi giữa các truy vấn. `range_sum([3, 2, -1, 6, 5, 4], [[0, 5], [1, 3], [2, 2], [4, 5]])` là `[19, 7, -1, 9]`. Gợi ý: dựng prefix sum hoặc Fenwick tree một lần, rồi mỗi truy vấn là hiệu hai prefix.
+    problem_id: check-x446-range-sum-fenwick
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 8 phút: bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X447
+    difficulty: 3
+    type: write_code
+    minutes: 10
+    prompt_md: |
+      Viết `range_sum_updates(nums, ops)`: xử lý lần lượt `ops`. Thao tác `["u", i, v]` gán `nums[i] = v`; thao tác `["q", l, r]` hỏi tổng `nums[l..r]` (gồm cả hai đầu) của mảng hiện tại. Trả về danh sách đáp án của các thao tác `"q"` theo thứ tự. `range_sum_updates([1, 3, 5], [["q", 0, 2], ["u", 1, 10], ["q", 0, 2], ["q", 1, 1]])` là `[9, 16, 10]`. Gợi ý: Fenwick tree; gán giá trị là cộng `delta = v - giá trị cũ`.
+    problem_id: check-x447-range-sum-update
+    rubric_md: "Pass toàn bộ test ẩn (kể cả đầu vào lớn, cần O(log n) mỗi thao tác) không cần gợi ý trong time-box 10 phút: bằng chứng điểm 3; phải xem gợi ý hoặc quá thời gian: tối đa điểm 2."

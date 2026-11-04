@@ -489,6 +489,146 @@ SPECIAL: dict[str, dict] = {
             [[5, 3, 8, 2, 4, 7, 9]],
         ],
     },
+    # Wave 2 Round 8: trees module (drivers build trees via tree(vals), cannot be JSON-replayed).
+    "Q121": {
+        "target": "has_path_sum",
+        "keep": ["has_path_sum"],
+        "params": [("root", "tree_node"), ("target", "int")],
+        "calls": [
+            [[5, 4, 8, 11, None, 13, 4, 7, 2, None, None, None, 1], 22],
+            [[5, 4, 8, 11, None, 13, 4, 7, 2, None, None, None, 1], 5],
+            [[], 0],
+        ],
+        "extras": [[[], 1], [[1], 1], [[1], 2], [[1, 2], 3], [[1, 2, 3], 4]],
+    },
+    "Q122": {
+        "target": "is_balanced",
+        "keep": ["is_balanced"],
+        "params": [("root", "tree_node")],
+        "calls": [[[3, 9, 20, None, None, 15, 7]], [[1, 2, 2, 3, 3, None, None, 4, 4]], [[]]],
+        "extras": [
+            [[1]],
+            [[1, 2]],
+            [[1, 2, None, 3]],
+            [[1, None, 2, None, 3]],
+            [[1, 2, 3, 4, 5, 6, 7]],
+        ],
+    },
+    "W206": {
+        "target": "good_nodes",
+        "keep": ["good_nodes"],
+        "params": [("root", "tree_node")],
+        "calls": [[[3, 1, 4, 3, None, 1, 5]], [[3, 3, None, 4, 2]], [[1]]],
+        "extras": [[[1, 2, 3]], [[2, 4]], [[10, 5, 15]], [[1, 1, 1]], [[3, 2, 1]]],
+    },
+    # Q123/Q124/W207 references use collections.deque; keeping only the target drops the import,
+    # so supply a self-contained (deque-free) solution that walks the tree level by level.
+    "Q123": {
+        "target": "level_order",
+        "params": [("root", "tree_node")],
+        "calls": [[[3, 9, 20, None, None, 15, 7]], [[]]],
+        "extras": [
+            [[1]],
+            [[1, 2]],
+            [[1, None, 2]],
+            [[1, 2, 3, 4, 5, 6, 7]],
+            [[5, 4, 8, 11, None, 13, 4]],
+        ],
+        "solution": (
+            "def level_order(root):\n"
+            "    if not root:\n"
+            "        return []\n"
+            "    out, level = [], [root]\n"
+            "    while level:\n"
+            "        out.append([n.val for n in level])\n"
+            "        level = [c for n in level for c in (n.left, n.right) if c]\n"
+            "    return out\n"
+        ),
+    },
+    "Q124": {
+        "target": "zigzag",
+        "params": [("root", "tree_node")],
+        "calls": [[[3, 9, 20, None, None, 15, 7]], [[1, 2, 3, 4, 5, 6, 7]]],
+        "extras": [[[]], [[1]], [[1, 2]], [[1, None, 2]], [[1, 2, 3, 4, None, None, 7]]],
+        "solution": (
+            "def zigzag(root):\n"
+            "    if not root:\n"
+            "        return []\n"
+            "    out, level, ltr = [], [root], True\n"
+            "    while level:\n"
+            "        vals = [n.val for n in level]\n"
+            "        out.append(vals if ltr else vals[::-1])\n"
+            "        ltr = not ltr\n"
+            "        level = [c for n in level for c in (n.left, n.right) if c]\n"
+            "    return out\n"
+        ),
+    },
+    "W207": {
+        "target": "avg_levels",
+        "params": [("root", "tree_node")],
+        "calls": [[[3, 9, 20, None, None, 15, 7]], [[]]],
+        "extras": [
+            [[1]],
+            [[1, 2, 3]],
+            [[4, 2, 8, 1, 3]],
+            [[10, 20, None, 30]],
+            [[2, 1, 3]],
+        ],
+        "solution": (
+            "def avg_levels(root):\n"
+            "    if not root:\n"
+            "        return []\n"
+            "    out, level = [], [root]\n"
+            "    while level:\n"
+            "        out.append(sum(n.val for n in level) / len(level))\n"
+            "        level = [c for n in level for c in (n.left, n.right) if c]\n"
+            "    return out\n"
+        ),
+    },
+    "Q126": {
+        "target": "is_valid_bst",
+        "keep": ["is_valid_bst"],
+        "params": [("root", "tree_node")],
+        "calls": [[[2, 1, 3]], [[5, 1, 4, None, None, 3, 6]], [[5, 4, 6, None, None, 3, 7]]],
+        "extras": [
+            [[2, 2]],
+            [[]],
+            [[1]],
+            [[10, 5, 15]],
+            [[10, 5, 15, None, None, 6, 20]],
+            [[3, 1, 5, 0, 2, 4, 6]],
+        ],
+    },
+    "Q127": {
+        "target": "kth_smallest",
+        "keep": ["kth_smallest"],
+        "params": [("root", "tree_node"), ("k", "int")],
+        "calls": [[[3, 1, 4, None, 2], 1], [[5, 3, 6, 2, 4, None, None, 1], 3]],
+        "extras": [
+            [[1], 1],
+            [[2, 1, 3], 2],
+            [[2, 1, 3], 1],
+            [[5, 3, 6, 2, 4], 4],
+            [[4, 2, 6, 1, 3, 5, 7], 5],
+        ],
+    },
+    "W208": {
+        "target": "lca_bst",
+        "keep": ["lca_bst"],
+        "params": [("root", "tree_node"), ("p", "int"), ("q", "int")],
+        "calls": [
+            [[6, 2, 8, 0, 4, 7, 9, None, None, 3, 5], 2, 8],
+            [[6, 2, 8, 0, 4, 7, 9, None, None, 3, 5], 2, 4],
+            [[6, 2, 8, 0, 4, 7, 9, None, None, 3, 5], 3, 5],
+        ],
+        "extras": [
+            [[2, 1, 3], 1, 3],
+            [[2, 1, 3], 1, 1],
+            [[5, 3, 8, 1, 4], 1, 4],
+            [[5, 3, 8, 1, 4], 3, 8],
+            [[6, 2, 8, 0, 4, 7, 9], 7, 9],
+        ],
+    },
     "W199": {
         "target": "first_bad",
         "keep": ["first_bad"],
