@@ -121,7 +121,7 @@ def test_drafts_hidden_by_default_and_served_in_dev(tmp_path, settings, clock, d
 
 def test_real_content_loads(tmp_path):
     store = ContentStore.load(REPO_ROOT / "content", serve_drafts=True)
-    assert len(store.subtopics) == 170  # 40 plan + 86 sd + 39 ml + 5 Wave-2 py fundamentals (EXTRA_IDS)
+    assert len(store.subtopics) == 170  # 40 plan + 86 sd + 39 ml + 5 Wave-2 py (EXTRA_IDS)
     assert "ransom-note" in store.problems
     assert store.hidden_tests(store.problems["ransom-note"])
     s = Settings(
