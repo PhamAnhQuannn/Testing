@@ -1,0 +1,270 @@
+id: dsa.heap.heap_advanced
+version: 1
+status: published
+title_vi: "Hai heap, merge k, greedy với heap và lập lịch"
+est_minutes: 14
+objectives_vi:
+  - "Duy trì median của luồng số bằng hai heap: max-heap cho nửa nhỏ (lưu số âm) và min-heap cho nửa lớn."
+  - "Gộp k danh sách đã sắp bằng một min-heap k phần tử với độ phức tạp O(N log k)."
+  - "Dùng heap để chọn greedy (lập lịch, đếm phòng họp, xử lý phần tử lớn nhất) và giải thích vì sao lựa chọn đó an toàn."
+blocks:
+  - id: s_two_heaps
+    type: section
+    title_vi: "Hai heap và median của luồng số"
+    summary_vi: "Nửa nhỏ nằm trong max-heap, nửa lớn nằm trong min-heap; median luôn ở đỉnh."
+  - id: b01
+    type: text
+    md: |
+      Python chỉ có **min-heap** (`heapq`). Muốn max-heap, ta lưu **số âm**: đẩy `-x`, đọc đỉnh bằng `-h[0]`.
+
+      Bài **median của luồng số**: số đến lần lượt, sau mỗi số phải trả median hiện tại. Sắp lại cả mảng
+      mỗi lần là O(n log n) cho mỗi số. Với **hai heap** ta chỉ tốn O(log n) mỗi số:
+
+      - `lo`: max-heap (số âm) chứa **nửa nhỏ**.
+      - `hi`: min-heap chứa **nửa lớn**.
+      - Bất biến: mọi phần tử của `lo` <= mọi phần tử của `hi`, và `len(lo)` bằng `len(hi)` hoặc hơn 1.
+
+      Thêm `x`: đẩy qua `lo`, chuyển phần tử lớn nhất của `lo` sang `hi` (để đúng thứ tự), rồi nếu `hi`
+      dài hơn `lo` thì chuyển phần tử nhỏ nhất của `hi` về `lo`. Median là `-lo[0]` (số lượng lẻ) hoặc
+      trung bình `-lo[0]` và `hi[0]` (số lượng chẵn).
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      import heapq
+      lo, hi = [], []
+      for x in [5, 2, 8, 1]:
+          heapq.heappush(lo, -x)
+          heapq.heappush(hi, -heapq.heappop(lo))
+          if len(hi) > len(lo):
+              heapq.heappush(lo, -heapq.heappop(hi))
+          print(-lo[0], hi[0] if hi else None)
+    expected_output: |
+      5 None
+      2 5
+      5 8
+      2 5
+  - id: b03
+    type: quiz_mcq
+    prompt_md: "Trong cách làm hai heap cho median, vì sao ta lưu số âm trong `lo`?"
+    options:
+      - {id: a, text_md: "Vì `heapq` chỉ là min-heap; số âm làm đỉnh của `lo` là phần tử lớn nhất của nửa nhỏ"}
+      - {id: b, text_md: "Vì heap chỉ nhận được số âm"}
+      - {id: c, text_md: "Để sắp xếp `lo` giảm dần hoàn toàn"}
+    answer: [a]
+    explain_md: "`heapq` luôn đưa phần tử nhỏ nhất lên đỉnh. Đảo dấu thì phần tử lớn nhất của nửa nhỏ trở thành nhỏ nhất của `lo`, nên `-lo[0]` là đỉnh max. Heap không sắp xếp toàn bộ, chỉ đảm bảo đỉnh."
+  - id: s_merge
+    type: section
+    title_vi: "Gộp k danh sách đã sắp"
+    summary_vi: "Min-heap giữ phần tử đại diện của mỗi list; mỗi lần lấy nhỏ nhất rồi đẩy phần tử kế."
+  - id: b04
+    type: text
+    md: |
+      Cho `k` danh sách đã sắp tăng, tổng `N` phần tử. Gộp từng cặp một tốn O(N k). Dùng **một min-heap**
+      chứa tối đa `k` phần tử, mỗi list một **đại diện** (phần tử nhỏ nhất chưa lấy):
+
+      1. Đẩy `(lst[0], i, 0)` cho mỗi list không rỗng.
+      2. Pop phần tử nhỏ nhất `(val, i, j)`, ghi `val` vào kết quả.
+      3. Nếu list `i` còn phần tử, đẩy `(lists[i][j+1], i, j+1)`.
+
+      Mỗi phần tử được đẩy và pop đúng một lần, heap có kích thước <= k nên tổng là **O(N log k)**.
+      Thêm `i` vào tuple để khi hai giá trị bằng nhau, Python so sánh `i` (số nguyên) chứ không so sánh list.
+  - id: b05
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      import heapq
+      lists = [[1, 4, 7], [2, 5], [3, 6, 9]]
+      heap = [(lst[0], i, 0) for i, lst in enumerate(lists)]
+      heapq.heapify(heap)
+      out = []
+      while heap:
+          val, i, j = heapq.heappop(heap)
+          out.append(val)
+          if j + 1 < len(lists[i]):
+              heapq.heappush(heap, (lists[i][j + 1], i, j + 1))
+      print(out)
+      print(len(heap))
+    expected_output: |
+      [1, 2, 3, 4, 5, 6, 7, 9]
+      0
+  - id: b06
+    type: quiz_mcq
+    prompt_md: "Gộp `k` list có tổng `N` phần tử bằng min-heap đại diện. Độ phức tạp thời gian là?"
+    options:
+      - {id: a, text_md: "O(N log N)"}
+      - {id: b, text_md: "O(N log k)"}
+      - {id: c, text_md: "O(k log N)"}
+    answer: [b]
+    explain_md: "Heap chỉ chứa tối đa k phần tử nên mỗi push/pop tốn O(log k); có N lần pop và tối đa N lần push."
+  - id: s_greedy
+    type: section
+    title_vi: "Greedy với heap: lập lịch"
+    summary_vi: "Heap cho ta luôn lấy ngay phần tử tốt nhất theo tiêu chí greedy (kết thúc sớm nhất, nặng nhất)."
+    exercise_ref: ex_rooms
+  - id: b07
+    type: text
+    md: |
+      Nhiều bài greedy cần "lấy phần tử tốt nhất hiện tại" lặp đi lặp lại trong khi tập ứng viên thay đổi.
+      Heap làm việc đó trong O(log n).
+
+      **Đếm phòng họp (meeting rooms)**: cho các cuộc họp `[start, end)`, cần tối thiểu bao nhiêu phòng?
+      Sắp theo `start`; heap `ends` chứa thời điểm kết thúc của các phòng đang dùng. Khi cuộc họp mới
+      bắt đầu, nếu phòng kết thúc sớm nhất đã xong (`ends[0] <= start`) thì **tái sử dụng** phòng đó
+      (pop), rồi đẩy `end` mới. Kích thước cuối cùng của heap là số phòng cần.
+
+      Greedy an toàn vì: nếu phòng kết thúc sớm nhất còn bận thì mọi phòng khác cũng bận, nên bắt buộc mở thêm phòng.
+  - id: b08
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      import heapq
+      jobs = [(0, 30), (5, 10), (15, 20), (25, 40)]
+      ends = []
+      for start, end in sorted(jobs):
+          if ends and ends[0] <= start:
+              heapq.heappop(ends)
+          heapq.heappush(ends, end)
+          print(start, len(ends))
+    expected_output: |
+      0 1
+      5 2
+      15 2
+      25 2
+  - id: b09
+    type: callout
+    kind: warning
+    md: |
+      Cuộc họp kết thúc lúc `10` và cuộc họp khác bắt đầu lúc `10` **không** xung đột (khoảng nửa mở).
+      Vì vậy điều kiện tái sử dụng là `ends[0] <= start`, không phải `<`.
+  - id: ex_rooms
+    type: code_exercise
+    md: |
+      Viết `min_rooms(intervals)` trả về số phòng tối thiểu để tổ chức mọi cuộc họp `[start, end)`
+      (`intervals` là list các cặp `[start, end]`; list rỗng cho `0`). Ví dụ
+      `min_rooms([[0, 30], [5, 10], [15, 20]])` là `2`.
+    entry: min_rooms
+    starter: |
+      import heapq
+
+
+      def min_rooms(intervals):
+          # TODO: sắp theo start, heap giữ thời điểm kết thúc
+          pass
+    guidance_md: |
+      - Sắp các cuộc họp theo thời điểm bắt đầu.
+      - Heap lưu thời điểm kết thúc của các phòng đang dùng.
+      - Phòng kết thúc sớm nhất đã rảnh khi nào thì được tái sử dụng?
+      - Số phòng cần là kích thước heap sau khi xử lý hết.
+    hints:
+      - level: nudge
+        md: "Chỉ cần biết phòng nào kết thúc sớm nhất. Cấu trúc dữ liệu nào cho phần tử nhỏ nhất nhanh?"
+      - level: approach
+        md: "Sắp theo `start`. Với mỗi cuộc họp, nếu `ends[0] <= start` thì pop một phòng; sau đó push `end`."
+      - level: near_solution
+        md: |
+          def min_rooms(intervals):
+              ends = []
+              for start, end in sorted(intervals):
+                  if ends and ...:
+                      heapq.heappop(ends)
+                  heapq.heappush(ends, ...)
+              return len(ends)
+    tests:
+      - {args: [[[0, 30], [5, 10], [15, 20]]], expected: 2}
+      - {args: [[]], expected: 0}
+      - {args: [[[1, 2], [2, 3]]], expected: 1}
+      - {args: [[[1, 5], [2, 6], [3, 7]]], expected: 3}
+      - {args: [[[7, 10], [2, 4]]], expected: 1}
+    solution: |
+      import heapq
+
+
+      def min_rooms(intervals):
+          ends = []
+          for start, end in sorted(intervals):
+              if ends and ends[0] <= start:
+                  heapq.heappop(ends)
+              heapq.heappush(ends, end)
+          return len(ends)
+  - id: b10
+    type: quiz_mcq
+    prompt_md: "Trong bài đếm phòng họp, khi cuộc họp mới bắt đầu mà `ends[0] > start` thì phải làm gì?"
+    options:
+      - {id: a, text_md: "Pop phòng kết thúc sớm nhất rồi dùng lại"}
+      - {id: b, text_md: "Mở thêm một phòng mới (push `end` mà không pop)"}
+      - {id: c, text_md: "Bỏ qua cuộc họp này"}
+    answer: [b]
+    explain_md: "`ends[0]` là phòng rảnh sớm nhất. Nếu phòng đó còn bận tại `start` thì mọi phòng khác cũng bận, nên cần thêm phòng."
+  - id: ex_stones
+    type: code_exercise
+    md: |
+      Cho list trọng lượng `stones`. Mỗi lượt lấy hai viên **nặng nhất** `a >= b` và đập vào nhau:
+      nếu `a == b` cả hai biến mất, ngược lại còn một viên nặng `a - b`. Viết `last_stone(stones)` trả về
+      trọng lượng viên còn lại cuối cùng (hoặc `0` nếu không còn viên nào). Ví dụ
+      `last_stone([2, 7, 4, 1, 8, 1])` là `1`.
+    entry: last_stone
+    starter: |
+      import heapq
+
+
+      def last_stone(stones):
+          # TODO: max-heap bằng số âm
+          pass
+    guidance_md: |
+      - Cần lấy hai viên nặng nhất liên tục: dùng max-heap (số âm).
+      - Lặp khi heap còn ít nhất hai viên.
+      - Nếu hiệu khác 0 thì đẩy lại viên còn lại.
+    hints:
+      - level: nudge
+        md: "Mỗi lượt cần phần tử lớn nhất. `heapq` chỉ có min-heap, nên đảo dấu."
+      - level: approach
+        md: "Đẩy `-s` cho mọi viên. Khi `len(h) > 1`: pop hai lần, `a`, `b` là hai giá trị (nhớ đảo dấu), nếu `a != b` đẩy `-(a - b)`."
+      - level: near_solution
+        md: |
+          def last_stone(stones):
+              h = [-s for s in stones]
+              heapq.heapify(h)
+              while len(h) > 1:
+                  a = -heapq.heappop(h)
+                  b = -heapq.heappop(h)
+                  if a != b:
+                      ...
+              return -h[0] if h else 0
+    tests:
+      - {args: [[2, 7, 4, 1, 8, 1]], expected: 1}
+      - {args: [[1]], expected: 1}
+      - {args: [[2, 2]], expected: 0}
+      - {args: [[]], expected: 0}
+      - {args: [[10, 4, 2, 10]], expected: 2}
+    solution: |
+      import heapq
+
+
+      def last_stone(stones):
+          h = [-s for s in stones]
+          heapq.heapify(h)
+          while len(h) > 1:
+              a = -heapq.heappop(h)
+              b = -heapq.heappop(h)
+              if a != b:
+                  heapq.heappush(h, -(a - b))
+          return -h[0] if h else 0
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "Python chỉ có min-heap: max-heap lưu số âm (`push(-x)`, đỉnh là `-h[0]`)."
+      - "Median luồng số: `lo` (max-heap, nửa nhỏ) và `hi` (min-heap, nửa lớn), `len(lo)` bằng `len(hi)` hoặc hơn 1; mỗi số O(log n)."
+      - "Gộp k list đã sắp: heap `(giá trị, i, j)` kích thước <= k, tổng O(N log k)."
+      - "Greedy với heap: luôn lấy ứng viên tốt nhất (kết thúc sớm nhất, nặng nhất); đếm phòng họp dùng `ends[0] <= start` để tái sử dụng phòng."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X436], l2: [X437], l3: [X438]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-04"

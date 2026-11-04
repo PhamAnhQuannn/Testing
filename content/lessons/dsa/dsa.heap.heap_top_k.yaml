@@ -1,0 +1,246 @@
+id: dsa.heap.heap_top_k
+version: 1
+status: published
+title_vi: "Top-K bằng heap"
+est_minutes: 12
+objectives_vi:
+  - "Giải bài top-k bằng min-heap kích thước k (giữ k phần tử lớn nhất) trong O(n log k)."
+  - "Dùng `heapq.nlargest` / `heapq.nsmallest` với `key` và biết khi nào chúng là lựa chọn gọn nhất."
+  - "Đếm tần suất bằng Counter rồi lấy top-k, quy định rõ thứ tự khi hoà (ví dụ theo bảng chữ cái) để kết quả xác định."
+blocks:
+  - id: s_minheap
+    type: section
+    title_vi: "Min-heap kích thước k"
+    summary_vi: "Giữ k phần tử lớn nhất bằng một min-heap: đỉnh heap là phần tử nhỏ nhất trong nhóm k."
+    exercise_ref: ex_top_k
+  - id: b01
+    type: text
+    md: |
+      Bài **top-k**: từ n phần tử, lấy ra k phần tử lớn nhất (hoặc nhỏ nhất, hoặc tần suất cao nhất).
+      Sắp xếp cả mảng tốn O(n log n). Dùng heap, ta chỉ cần O(n log k) và O(k) bộ nhớ.
+
+      Mẹo hay gây bất ngờ: để lấy **k lớn nhất** ta dùng **min-heap** kích thước k.
+
+      - Heap giữ đúng k phần tử lớn nhất đã thấy; đỉnh `h[0]` là phần tử **nhỏ nhất trong nhóm đó**.
+      - Phần tử mới `x` được `heappush` vào; nếu heap vượt k phần tử thì `heappop` bỏ đi đỉnh
+        (phần tử nhỏ nhất, chắc chắn không thuộc top-k).
+      - Mỗi thao tác tốn O(log k), tổng O(n log k).
+
+      Đối xứng: để lấy **k nhỏ nhất** ta cần max-heap (trong Python hay lưu `-x` vào min-heap).
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      import heapq
+
+      h = []
+      for x in [4, 1, 7, 3, 8, 5]:
+          heapq.heappush(h, x)
+          if len(h) > 3:
+              heapq.heappop(h)
+          print(x, h[0], len(h))
+      print(sorted(h, reverse=True))
+    expected_output: |
+      4 4 1
+      1 1 2
+      7 1 3
+      3 3 3
+      8 4 3
+      5 5 3
+      [8, 7, 5]
+  - id: b03
+    type: quiz_mcq
+    prompt_md: "Muốn lấy **k phần tử lớn nhất** của một dãy rất dài, ta nên giữ cấu trúc nào?"
+    options:
+      - {id: a, text_md: "Max-heap chứa toàn bộ n phần tử"}
+      - {id: b, text_md: "Min-heap kích thước k, bỏ đỉnh khi heap vượt k"}
+      - {id: c, text_md: "Max-heap kích thước k, bỏ đỉnh khi heap vượt k"}
+    answer: [b]
+    explain_md: "Đỉnh của min-heap là phần tử nhỏ nhất trong nhóm k hiện tại, đúng là ứng viên cần loại khi có phần tử mới lớn hơn. Max-heap sẽ loại nhầm phần tử lớn nhất."
+  - id: ex_top_k
+    type: code_exercise
+    md: |
+      Viết `top_k_largest(nums, k)` trả về list gồm `k` phần tử lớn nhất của `nums`, **sắp giảm dần**
+      (nếu `k >= len(nums)` thì trả tất cả). Dùng min-heap kích thước `k`, O(n log k). Ví dụ
+      `top_k_largest([5, 1, 8, 3, 9, 2], 3)` là `[9, 8, 5]`.
+    entry: top_k_largest
+    starter: |
+      import heapq
+
+
+      def top_k_largest(nums, k):
+          # TODO: min-heap kich thuoc k
+          pass
+    guidance_md: |
+      - Tạo heap rỗng, duyệt từng số.
+      - Đẩy số vào heap; nếu heap có hơn `k` phần tử thì bỏ đỉnh.
+      - Cuối cùng heap chứa đúng top-k nhưng chưa sắp xếp theo thứ tự nào đặc biệt.
+      - Sắp giảm dần trước khi trả để kết quả xác định.
+    hints:
+      - level: nudge
+        md: "Đỉnh min-heap là phần tử nhỏ nhất trong heap. Khi heap quá `k` phần tử, ta muốn loại phần tử nào?"
+      - level: approach
+        md: "Với mỗi `x`: `heappush(h, x)`; nếu `len(h) > k` thì `heappop(h)`. Kết thúc, trả `sorted(h, reverse=True)`."
+      - level: pseudocode
+        md: |
+          h = []
+          với mỗi x trong nums:
+              đẩy x vào h
+              nếu len(h) > k: bỏ đỉnh
+          trả h sắp giảm dần
+      - level: near_solution
+        md: |
+          def top_k_largest(nums, k):
+              h = []
+              for x in nums:
+                  heapq.heappush(h, x)
+                  if len(h) > k:
+                      ...
+              return ...
+    tests:
+      - {args: [[5, 1, 8, 3, 9, 2], 3], expected: [9, 8, 5]}
+      - {args: [[1], 1], expected: [1]}
+      - {args: [[3, 3, 1], 2], expected: [3, 3]}
+      - {args: [[], 3], expected: []}
+      - {args: [[-1, -5, -2], 2], expected: [-1, -2]}
+    solution: |
+      import heapq
+
+
+      def top_k_largest(nums, k):
+          h = []
+          for x in nums:
+              heapq.heappush(h, x)
+              if len(h) > k:
+                  heapq.heappop(h)
+          return sorted(h, reverse=True)
+  - id: s_nlargest
+    type: section
+    title_vi: "nlargest, nsmallest và key"
+    summary_vi: "Thư viện heapq có sẵn hàm top-k; dùng key để chọn theo tiêu chí tuỳ ý, và dùng tuple để quy định thứ tự khi hoà."
+  - id: b04
+    type: text
+    md: |
+      `heapq.nlargest(k, iterable, key=None)` và `heapq.nsmallest(k, iterable, key=None)` trả về list
+      đã sắp xếp (nlargest giảm dần, nsmallest tăng dần) và bên trong dùng chính kỹ thuật heap kích
+      thước k. Với `k` nhỏ, chúng nhanh hơn `sorted(...)[:k]`; với `k` gần n thì `sorted` là đủ.
+
+      **k điểm gần x nhất (k-closest)**: dùng `key` là khoảng cách. Khi hai phần tử cùng khoảng cách,
+      ta phải **quy định thứ tự hoà**, ví dụ "giá trị nhỏ hơn đứng trước", bằng key dạng tuple:
+
+      ```python
+      arr = [1, 2, 3, 4, 5]
+      heapq.nsmallest(3, arr, key=lambda v: (abs(v - 3), v))   # [3, 2, 4]
+      ```
+
+      Nếu muốn kết quả theo thứ tự tăng dần của giá trị, sắp xếp lại bằng `sorted(...)` ở cuối.
+  - id: b05
+    type: callout
+    kind: warning
+    md: |
+      Không dựa vào thứ tự phần tử bên trong `h` (list của heap chỉ đảm bảo `h[0]` là nhỏ nhất, phần
+      còn lại KHÔNG sắp xếp). Muốn in hoặc trả kết quả xác định thì luôn `sorted(h)` hoặc dùng `nlargest`/`nsmallest`.
+  - id: b06
+    type: quiz_mcq
+    prompt_md: "`heapq.nsmallest(3, [1, 2, 3, 4, 5], key=lambda v: (abs(v - 3), v))` trả về gì?"
+    options:
+      - {id: a, text_md: "`[3, 2, 4]`"}
+      - {id: b, text_md: "`[3, 4, 2]`"}
+      - {id: c, text_md: "`[2, 3, 4]`"}
+    answer: [a]
+    explain_md: "Khoảng cách tới 3: 3 là 0, còn 2 và 4 cùng là 1. Key `(khoảng cách, giá trị)` cho 2 đứng trước 4 khi hoà. Kết quả nsmallest theo thứ tự key tăng dần: `[3, 2, 4]`."
+  - id: s_freq
+    type: section
+    title_vi: "Top-k tần suất (Counter + heap)"
+    summary_vi: "Đếm bằng Counter, rồi lấy k từ xuất hiện nhiều nhất; hoà thì theo bảng chữ cái."
+    exercise_ref: ex_top_words
+  - id: b07
+    type: text
+    md: |
+      Bài kinh điển: **k từ xuất hiện nhiều nhất**. Hai bước: đếm tần suất bằng `Counter` (O(n)), rồi
+      chọn top-k theo tần suất bằng heap (O(m log k), m là số từ phân biệt).
+
+      Yêu cầu thường đi kèm: tần suất bằng nhau thì **từ nhỏ hơn theo bảng chữ cái đứng trước**. Ta
+      gói vào key `(-count, word)`: `-count` để đếm lớn đứng trước, `word` để phá hoà. Vì key đã
+      toàn phần (không còn hai phần tử bằng nhau), kết quả hoàn toàn xác định.
+
+      ```python
+      c = Counter(["b", "a", "b", "c", "a", "d"])
+      heapq.nsmallest(2, c, key=lambda w: (-c[w], w))   # ['a', 'b']
+      ```
+
+      Lưu ý: không dựa vào thứ tự duyệt của dict hay `Counter.most_common` khi hoà; hãy tự quy
+      định bằng key như trên.
+  - id: b08
+    type: predict_output
+    code: |
+      import heapq
+      from collections import Counter
+
+      c = Counter(["b", "a", "b", "c", "a", "d"])
+      print(heapq.nsmallest(2, c, key=lambda w: (-c[w], w)))
+      print(heapq.nsmallest(3, c, key=lambda w: (-c[w], w)))
+    expected_output: |
+      ['a', 'b']
+      ['a', 'b', 'c']
+    explain_md: "Số lần: a=2, b=2, c=1, d=1. Key: a=(-2,'a'), b=(-2,'b'), c=(-1,'c'), d=(-1,'d'). Sắp key tăng dần: a, b, c, d. Hai phần tử đầu là a, b; ba phần tử đầu là a, b, c."
+  - id: ex_top_words
+    type: code_exercise
+    md: |
+      Viết `top_k_words(words, k)` trả về list `k` từ xuất hiện nhiều nhất, **tần suất giảm dần**;
+      các từ cùng tần suất thì **theo bảng chữ cái**. Nếu có ít hơn `k` từ phân biệt thì trả hết.
+      Ví dụ `top_k_words(["b", "a", "b", "c", "a", "d"], 2)` là `["a", "b"]`.
+    entry: top_k_words
+    starter: |
+      import heapq
+      from collections import Counter
+
+
+      def top_k_words(words, k):
+          # TODO: dem bang Counter, roi lay top-k theo key (-count, word)
+          pass
+    guidance_md: |
+      - Đếm tần suất của mỗi từ.
+      - Chọn k từ "tốt nhất" theo thứ tự: nhiều lần hơn trước, hoà thì từ nhỏ hơn trước.
+      - Key `(-count, word)` biểu diễn đúng thứ tự đó.
+      - `heapq.nsmallest` trả kết quả theo thứ tự key tăng dần.
+    hints:
+      - level: nudge
+        md: "Làm sao biến 'đếm lớn hơn thì tốt hơn' thành 'key nhỏ hơn thì tốt hơn'? Gợi ý: đổi dấu."
+      - level: approach
+        md: "`c = Counter(words)` rồi `heapq.nsmallest(k, c, key=lambda w: (-c[w], w))`."
+      - level: near_solution
+        md: |
+          def top_k_words(words, k):
+              c = Counter(words)
+              return heapq.nsmallest(k, c, key=...)
+    tests:
+      - {args: [["b", "a", "b", "c", "a", "d"], 2], expected: ["a", "b"]}
+      - {args: [["x", "y", "z"], 2], expected: ["x", "y"]}
+      - {args: [["b", "a", "b", "a"], 1], expected: ["a"]}
+      - {args: [[], 2], expected: []}
+      - {args: [["z", "z", "y", "y", "x"], 3], expected: ["y", "z", "x"]}
+    solution: |
+      import heapq
+      from collections import Counter
+
+
+      def top_k_words(words, k):
+          c = Counter(words)
+          return heapq.nsmallest(k, c, key=lambda w: (-c[w], w))
+  - id: b09
+    type: summary
+    bullets_vi:
+      - "Top-k lớn nhất: min-heap kích thước k; push phần tử mới, vượt k thì pop đỉnh. O(n log k), bộ nhớ O(k)."
+      - "`heapq.nlargest` / `nsmallest(k, it, key=...)` gọn và đã sắp xếp sẵn; với k gần n thì `sorted` đủ dùng."
+      - "Thứ tự bên trong list heap không đảm bảo; luôn sắp xếp hoặc dùng nlargest/nsmallest trước khi trả kết quả."
+      - "Khi hoà, quy định tường minh bằng key tuple như `(-count, word)` hoặc `(abs(v - x), v)` để kết quả xác định."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X435], l2: [Q108], l3: [Q109]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-04"

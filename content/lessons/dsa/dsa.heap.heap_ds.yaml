@@ -1,0 +1,216 @@
+id: dsa.heap.heap_ds
+version: 1
+status: published
+title_vi: "Binary heap và priority queue"
+est_minutes: 12
+objectives_vi:
+  - "Mô tả binary heap là cây nhị phân gần đầy lưu trong mảng và nêu chi phí push, pop, peek, heapify."
+  - "Dùng `heapq` (chỉ có min-heap) đúng cách, kể cả mẹo đổi dấu để có max-heap."
+  - "Dùng tuple `(priority, item)` để xây priority queue."
+blocks:
+  - id: s_heap
+    type: section
+    title_vi: "Heap là gì và heapq"
+    summary_vi: "Cây gần đầy lưu trong mảng, cha <= con; heapq cung cấp min-heap."
+    exercise_ref: ex_max_order
+  - id: b01
+    type: text
+    md: |
+      **Binary heap** là cây nhị phân **gần đầy** (complete tree: đầy mọi tầng, tầng cuối lấp từ
+      trái sang phải). Với **min-heap**, mỗi nút cha `<=` hai con, nên phần tử nhỏ nhất luôn ở gốc.
+
+      Nhờ cây gần đầy, ta lưu thẳng trong mảng `h`: con của vị trí `i` là `2*i + 1` và `2*i + 2`,
+      cha của `i` là `(i - 1) // 2`. Không cần con trỏ.
+
+      | Thao tác | Chi phí |
+      |---|---|
+      | peek (xem min): `h[0]` | O(1) |
+      | `heappush` / `heappop` | O(log n) (đi lên/xuống tối đa chiều cao cây) |
+      | `heapify(list)` | O(n) |
+
+      Python có module `heapq` thao tác trên **list thường**. Lưu ý: `heapq` **chỉ có min-heap**.
+      Muốn max-heap, đẩy số **âm** vào rồi đổi dấu khi lấy ra.
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      import heapq
+
+      h = []
+      for x in [5, 2, 8, 1]:
+          heapq.heappush(h, x)
+      print(h[0])
+      print(heapq.heappop(h), heapq.heappop(h))
+
+      data = [9, 4, 7, 1]
+      heapq.heapify(data)
+      print(data[0])
+
+      mx = []
+      for x in [3, 10, 6]:
+          heapq.heappush(mx, -x)
+      print(-heapq.heappop(mx))
+    expected_output: |
+      1
+      1 2
+      1
+      10
+  - id: b03
+    type: quiz_mcq
+    prompt_md: "Làm sao có max-heap với `heapq`?"
+    options:
+      - {id: a, text_md: "Gọi `heapq.heapify(h, reverse=True)`"}
+      - {id: b, text_md: "Đẩy `-x` vào heap, lấy ra thì đổi dấu lại"}
+      - {id: c, text_md: "Dùng `heapq.heappop(h, -1)` để lấy phần tử cuối"}
+    answer: [b]
+    explain_md: "`heapq` không có tham số đảo chiều. Đổi dấu khiến phần tử lớn nhất thành nhỏ nhất, nên min-heap của giá trị âm hoạt động như max-heap."
+  - id: b04
+    type: quiz_mcq
+    prompt_md: "Chi phí `heapq.heapify(lst)` trên list `n` phần tử là bao nhiêu?"
+    options:
+      - {id: a, text_md: "O(n)"}
+      - {id: b, text_md: "O(n log n)"}
+      - {id: c, text_md: "O(log n)"}
+    answer: [a]
+    explain_md: "Heapify xây heap từ dưới lên (sift down từ các nút trong) và tổng chi phí là O(n), rẻ hơn n lần push (O(n log n))."
+  - id: ex_max_order
+    type: code_exercise
+    md: |
+      Viết `desc_order(nums)` trả list các phần tử của `nums` theo thứ tự **giảm dần**, bằng cách
+      dùng `heapq` làm max-heap (đổi dấu). Ví dụ `desc_order([3, 1, 4, 1, 5])` là `[5, 4, 3, 1, 1]`.
+    entry: desc_order
+    starter: |
+      import heapq
+
+
+      def desc_order(nums):
+          h = list(nums)
+          heapq.heapify(h)
+          out = []
+          while h:
+              out.append(heapq.heappop(h))
+          return out
+    guidance_md: |
+      - `heapq` luôn lấy ra phần tử nhỏ nhất.
+      - Đoạn code hiện tại trả thứ tự tăng dần: làm sao để phần tử lớn nhất trở thành nhỏ nhất?
+      - Nhớ đổi dấu lại khi lấy ra.
+    hints:
+      - level: nudge
+        md: "Chạy thử với `[3, 1, 4]`: thứ tự ra là tăng hay giảm? Cần đảo chiều so sánh bằng cách nào?"
+      - level: approach
+        md: "Tạo heap từ các giá trị `-x`. Mỗi lần pop ra một số âm thì đổi dấu để được giá trị gốc."
+      - level: near_solution
+        md: "Đổi dòng tạo heap thành `h = [-x for x in nums]` và khi append thì thêm dấu trừ trước kết quả `heappop`. Phần còn lại giữ nguyên."
+    tests:
+      - {args: [[3, 1, 4, 1, 5]], expected: [5, 4, 3, 1, 1]}
+      - {args: [[]], expected: []}
+      - {args: [[7]], expected: [7]}
+      - {args: [[-2, 0, -5]], expected: [0, -2, -5]}
+    solution: |
+      import heapq
+
+
+      def desc_order(nums):
+          h = [-x for x in nums]
+          heapq.heapify(h)
+          out = []
+          while h:
+              out.append(-heapq.heappop(h))
+          return out
+  - id: s_pq
+    type: section
+    title_vi: "Priority queue với tuple"
+    summary_vi: "Đẩy (priority, item): heapq so sánh tuple từng phần tử từ trái sang."
+    exercise_ref: ex_tasks
+  - id: b05
+    type: text
+    md: |
+      **Priority queue** là hàng đợi mà phần tử có ưu tiên cao nhất ra trước. Heap là cách cài đặt
+      chuẩn. Trong Python ta đẩy tuple `(priority, item)`: tuple so sánh từng phần tử từ trái sang,
+      nên `priority` nhỏ hơn ra trước, và nếu bằng nhau thì so tiếp `item`.
+
+      ```python
+      pq = []
+      heapq.heappush(pq, (2, "b"))
+      heapq.heappush(pq, (1, "z"))
+      heapq.heappush(pq, (1, "a"))
+      heapq.heappop(pq)  # (1, 'a')
+      ```
+  - id: b06
+    type: callout
+    kind: warning
+    md: |
+      Nếu hai tuple bằng nhau ở `priority` mà `item` không so sánh được (ví dụ dict hoặc object),
+      Python báo `TypeError`. Khi đó thêm một **bộ đếm** làm khoá phụ: `(priority, counter, item)`.
+  - id: b07
+    type: quiz_mcq
+    prompt_md: "Sau khi push `(2, 'b')`, `(1, 'z')`, `(1, 'a')`, lần `heappop` đầu tiên trả gì?"
+    options:
+      - {id: a, text_md: "`(1, 'z')`"}
+      - {id: b, text_md: "`(2, 'b')`"}
+      - {id: c, text_md: "`(1, 'a')`"}
+    answer: [c]
+    explain_md: "Priority nhỏ nhất là 1; hai tuple cùng priority 1 nên so tiếp phần tử thứ hai, `'a' < 'z'`, vậy ra `(1, 'a')`."
+  - id: ex_tasks
+    type: code_exercise
+    md: |
+      Viết `run_order(tasks)`: `tasks` là list các cặp `(priority, name)`. Trả list `name` theo thứ
+      tự chạy, priority nhỏ chạy trước, hoà thì tên theo thứ tự chữ cái. Dùng heap. Ví dụ
+      `run_order([(2, "b"), (1, "z"), (1, "a")])` là `["a", "z", "b"]`.
+    entry: run_order
+    starter: |
+      import heapq
+
+
+      def run_order(tasks):
+          h = []
+          for priority, name in tasks:
+              heapq.heappush(h, (name, priority))
+          out = []
+          while h:
+              out.append(heapq.heappop(h)[0])
+          return out
+    guidance_md: |
+      - Tuple được so sánh từng phần tử từ trái sang.
+      - Phần tử đầu tuple phải là khoá ưu tiên chính.
+      - Khi lấy ra, `name` đang nằm ở vị trí nào trong tuple?
+    hints:
+      - level: nudge
+        md: "Chạy thử `[(2, 'b'), (1, 'z')]`: code hiện tại sắp theo gì? Khoá chính phải là gì?"
+      - level: approach
+        md: "Đẩy `(priority, name)` đúng thứ tự như đề; khi pop thì lấy phần tử có chỉ số 1 của tuple."
+      - level: near_solution
+        md: "Hai chỗ cần sửa: tuple đẩy vào phải đặt priority trước name, và khi lấy kết quả phải lấy phần tử thứ hai của tuple vừa pop."
+    tests:
+      - {args: [[[2, "b"], [1, "z"], [1, "a"]]], expected: ["a", "z", "b"]}
+      - {args: [[]], expected: []}
+      - {args: [[[5, "x"]]], expected: ["x"]}
+      - {args: [[[3, "c"], [1, "q"], [2, "m"], [1, "b"]]], expected: ["b", "q", "m", "c"]}
+    solution: |
+      import heapq
+
+
+      def run_order(tasks):
+          h = []
+          for priority, name in tasks:
+              heapq.heappush(h, (priority, name))
+          out = []
+          while h:
+              out.append(heapq.heappop(h)[1])
+          return out
+  - id: b08
+    type: summary
+    bullets_vi:
+      - "Binary heap là cây gần đầy lưu trong mảng, min-heap có cha <= con; con của `i` là `2i+1`, `2i+2`."
+      - "peek `h[0]` O(1); `heappush`/`heappop` O(log n); `heapify` O(n)."
+      - "`heapq` chỉ có min-heap; max-heap: đẩy số âm và đổi dấu khi lấy ra."
+      - "Priority queue: đẩy `(priority, item)`; nếu `item` không so sánh được, thêm khoá phụ là bộ đếm."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [Q106], l2: [Q107], l3: [X434]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-04"

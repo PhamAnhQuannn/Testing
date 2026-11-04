@@ -164,7 +164,7 @@ def test_committed_checks_are_up_to_date():
 
 def test_every_mvp_write_code_item_has_inputs():
     mvp_code = [i["id"] for i in ITEMS if i["type"] == "write_code" and i["subtopic_id"] in MVP]
-    assert len(mvp_code) == 68
+    assert len(mvp_code) == 74
     assert [i for i in mvp_code if i not in EXTRA_INPUTS and i not in SPECIAL] == []
     # +9 vs the day-1-12 MVP: upstream read_code/concept items for the 5 Wave-2 py subtopics
-    assert sum(1 for i in ITEMS if i["subtopic_id"] in MVP and i["type"] != "write_code") == 62
+    assert sum(1 for i in ITEMS if i["subtopic_id"] in MVP and i["type"] != "write_code") == 63
