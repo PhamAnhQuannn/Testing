@@ -756,8 +756,9 @@ SPECIAL: dict[str, dict] = {
             [5, [[1, 0], [2, 0], [3, 1], [4, 2]]],
         ],
         "note": (
-            "Bản chấm tự động yêu cầu trả về thứ tự topo nhỏ nhất theo thứ tự từ điển (dùng heap); "
-            "nếu đồ thị có chu trình trả về danh sách rỗng."
+            "LƯU Ý: khác với mô tả gốc ở trên, bản chấm tự động KHÔNG kiểm tra tính hợp lệ chung "
+            "chung mà so khớp CHÍNH XÁC với thứ tự topo nhỏ nhất theo thứ tự từ điển (min-heap "
+            "trong Kahn); nếu đồ thị có chu trình trả về danh sách rỗng."
         ),
     },
     "W199": {
