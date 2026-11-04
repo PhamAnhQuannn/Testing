@@ -1,0 +1,61 @@
+id: check-x424-mock-fallback
+subtopic_id: py.typing_testing.mock_testability
+secondary_subtopics: []
+kind: check
+title: 'Check X424: fetch_with_fallback'
+title_vi: 'Kiểm tra X424: fetch_with_fallback'
+difficulty: easy
+source:
+  type: original
+statement_en_md: Implement `fetch_with_fallback(outcomes)` as described in the Vietnamese statement (mastery
+  check item X424, 5-minute time box).
+statement_vi_md: |-
+  Viết `fetch_with_fallback(outcomes)`. `outcomes` là list; mỗi phần tử là một số (kết quả `fetch`
+  thành công) hoặc `None` (lần gọi đó phải ném `ConnectionError`).
+
+  Bên trong hàm: tạo `client = Mock()` và gán `client.fetch.side_effect` là một list, trong đó `None`
+  được đổi thành `ConnectionError("down")`, số giữ nguyên. Định nghĩa `get_price(c, item)` gọi
+  `c.fetch(item)` và trả `-1` nếu bắt được `ConnectionError`. Gọi `get_price(client, i)` cho
+  `i = 0, 1, ...` ứng với từng phần tử của `outcomes`.
+
+  Trả `[results, client.fetch.call_count, called_with]`, với `results` là list kết quả của
+  `get_price`, `called_with` là list đối số đầu tiên của từng lần gọi `client.fetch`
+  (lấy từ `call_args_list`). Không trả về chính mock.
+constraints: []
+examples:
+- input: outcomes = [5, None, 7]
+  output: '[[5, -1, 7], 3, [0, 1, 2]]'
+  explain_vi: Lần gọi thứ hai bị side_effect ném ConnectionError nên get_price trả -1; fetch được gọi 3 lần với đối số 0, 1, 2.
+io:
+  mode: function
+  entry: fetch_with_fallback
+  params:
+  - name: outcomes
+    type: list
+  returns: list
+  compare: exact
+starter:
+  python: "from unittest.mock import Mock\n\n\ndef fetch_with_fallback(outcomes):\n    # TODO\n    pass\n"
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+time_target_min: 5
+hints:
+- Gán `client.fetch.side_effect = [...]` với list đã đổi `None` thành `ConnectionError("down")`; mock ném exception khi gặp phần tử là exception.
+- Dùng `try/except ConnectionError` trong `get_price` để trả `-1`; gọi nó với `i` từ `range(len(outcomes))`.
+- '`client.fetch.call_count` đếm số lần gọi; `[c.args[0] for c in client.fetch.call_args_list]` lấy đối số từng lần.'
+solution:
+  file: solution.py
+  approach_vi: Mock với side_effect là list trộn giá trị và exception; get_price bắt lỗi trả -1; đọc call_count và call_args_list.
+  complexity: O(n)
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x424
+status: validated
+version: 1

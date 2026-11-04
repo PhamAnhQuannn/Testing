@@ -1,0 +1,62 @@
+id: check-x422-propagate-routing
+subtopic_id: py.errors_modules.logging_debug
+secondary_subtopics: []
+kind: check
+title: 'Check X422: route'
+title_vi: 'Kiểm tra X422: route'
+difficulty: easy
+source:
+  type: original
+statement_en_md: Implement `route(child_level, handler_level, records, propagate)` as described in the Vietnamese
+  statement (mastery check item X422, 12-minute time box).
+statement_vi_md: 'Viết `route(child_level, handler_level, records, propagate)` trả `[child_lines, parent_lines]`.
+  Logger cha `"x422"` (xoá handler, `propagate = False`, `setLevel(DEBUG)`); logger con `"x422.app"` (xoá handler,
+  `propagate` theo tham số, `setLevel(child_level)`). Con có handler ghi vào `io.StringIO` với format
+  `"C:%(levelname)s:%(message)s"`. Cha có handler với `setLevel(handler_level)` và format
+  `"P:%(levelname)s:%(name)s:%(message)s"` ghi vào `io.StringIO` khác. Ghi mọi record `[level_name, message]`
+  bằng logger con theo thứ tự rồi trả list dòng của con và của cha. Message chỉ tới cha khi qua ngưỡng của con,
+  `propagate` bật và qua level của handler cha.'
+constraints: []
+examples:
+- input: child_level = 'INFO', handler_level = 'ERROR', records = [['DEBUG', 'a'], ['INFO', 'b'], ['ERROR', 'c']], propagate = True
+  output: '[["C:INFO:b", "C:ERROR:c"], ["P:ERROR:x422.app:c"]]'
+  explain_vi: DEBUG bị bỏ bởi ngưỡng INFO của con; handler cha chỉ nhận ERROR trở lên nên chỉ dòng c tới cha.
+io:
+  mode: function
+  entry: route
+  params:
+  - name: child_level
+    type: str
+  - name: handler_level
+    type: str
+  - name: records
+    type: list[list[str]]
+  - name: propagate
+    type: bool
+  returns: list[list[str]]
+  compare: exact
+starter:
+  python: "import io\nimport logging\n\n\ndef route(child_level, handler_level, records, propagate):\n    # TODO\n    pass\n"
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+time_target_min: 12
+hints:
+- Lấy hai logger `x422` và `x422.app`, `handlers.clear()` cả hai mỗi lần gọi; cha `propagate = False`.
+- Message của con chỉ tới handler cha nếu con có `propagate = True`; level của handler cha còn lọc thêm một lần nữa.
+- Dùng hai `io.StringIO` riêng, hai `Formatter` riêng, `handler.setLevel(...)` cho handler cha, trả `[con, cha]` dạng `splitlines()`.
+solution:
+  file: solution.py
+  approach_vi: Dựng hai logger phân cấp với handler riêng; ngưỡng con, propagate và level handler cha quyết định dòng nào tới cha.
+  complexity: O(n)
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x422
+status: validated
+version: 1

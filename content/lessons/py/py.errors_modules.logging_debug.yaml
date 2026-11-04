@@ -1,0 +1,330 @@
+id: py.errors_modules.logging_debug
+version: 1
+status: published
+title_vi: Logging và debug
+est_minutes: 12
+objectives_vi:
+- Giải thích vì sao dùng logging thay print và dùng cấp độ (level) để bật/tắt thông điệp.
+- Cấu hình logger với handler và formatter, hiểu level threshold làm rơi message thấp hơn.
+- Hiểu logger hierarchy theo tên, propagate và NullHandler cho thư viện.
+- Đọc traceback từ dưới lên và dùng quy trình reproduce, minimise, bisect khi debug.
+blocks:
+  - id: s_level
+    type: section
+    title_vi: "logging thay print: cấp độ và handler"
+    summary_vi: "logging có 5 cấp độ; logger chỉ phát message có cấp độ từ ngưỡng trở lên, qua handler và formatter."
+    exercise_ref: ex_collect
+  - id: t1
+    type: text
+    md: |
+      `print` luôn in ra, không phân loại, muốn tắt phải xoá code. Module **`logging`** giải quyết
+      bằng **cấp độ (level)**: `DEBUG (10) < INFO (20) < WARNING (30) < ERROR (40) < CRITICAL (50)`.
+      Mỗi message có một cấp độ; mỗi logger có một **ngưỡng** (`setLevel`): message thấp hơn ngưỡng
+      bị **bỏ qua**. Nhờ vậy ở máy dev bật `DEBUG`, ở production chỉ giữ `WARNING` mà không sửa code.
+
+      Một logger lấy theo tên bằng `logging.getLogger(name)`. Nơi message đi tới do **handler**
+      quyết định (`StreamHandler` ghi ra stream, file, mạng...) và hình dạng dòng log do
+      **Formatter** quyết định, ví dụ `"%(levelname)s:%(name)s:%(message)s"`. Một logger gắn được
+      nhiều handler, nên cùng một message có thể đi nhiều đích.
+
+      Lưu ý: logging giữ **trạng thái toàn cục** (logger theo tên là singleton). Trong ví dụ dưới
+      ta ghi vào `io.StringIO` để quan sát kết quả xác định.
+  - id: c1
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      import io
+      import logging
+
+      buf = io.StringIO()
+      log = logging.getLogger("demo")
+      log.handlers.clear()
+      log.propagate = False
+      handler = logging.StreamHandler(buf)
+      handler.setFormatter(logging.Formatter("%(levelname)s:%(name)s:%(message)s"))
+      log.addHandler(handler)
+      log.setLevel(logging.WARNING)
+
+      log.debug("d")
+      log.info("i")
+      log.warning("w")
+      log.error("e")
+      for line in buf.getvalue().splitlines():
+          print(line)
+    expected_output: |
+      WARNING:demo:w
+      ERROR:demo:e
+  - id: q1
+    type: quiz_mcq
+    prompt_md: "Logger đặt `setLevel(logging.WARNING)`. Message nào được phát ra?"
+    options:
+      - {id: a, text_md: "`debug` và `info` và `warning` và `error`"}
+      - {id: b, text_md: "Chỉ `warning` và `error` (và `critical`)"}
+      - {id: c, text_md: "Chỉ `debug` và `info`"}
+    answer: [b]
+    explain_md: "Ngưỡng WARNING (30): chỉ message có cấp độ >= 30 được phát; DEBUG và INFO bị bỏ qua."
+  - id: ex_collect
+    type: code_exercise
+    md: |
+      `collect(records)` nhận list các cặp `[level, message]` (level là tên như `"INFO"`) và phải trả
+      list các dòng log `"LEVEL:name:message"` của mọi message, kể cả `DEBUG`. Hiện logger đang đặt
+      ngưỡng `WARNING` nên message thấp hơn (INFO, DEBUG) bị rơi. Sửa để mọi message được ghi.
+    entry: collect
+    starter: |
+      import io
+      import logging
+
+
+      def collect(records):
+          log = logging.getLogger("ex1")
+          log.handlers.clear()
+          log.propagate = False
+          log.setLevel(logging.WARNING)
+          buf = io.StringIO()
+          handler = logging.StreamHandler(buf)
+          handler.setFormatter(logging.Formatter("%(levelname)s:%(name)s:%(message)s"))
+          log.addHandler(handler)
+          for level, msg in records:
+              log.log(getattr(logging, level), msg)
+          return buf.getvalue().splitlines()
+    guidance_md: |
+      - Starter đang đặt ngưỡng `WARNING` nên message thấp hơn bị rơi.
+      - Hạ ngưỡng xuống thấp nhất để mọi message đi qua.
+    hints:
+      - level: nudge
+        md: "Message `INFO` biến mất vì logger đang ở ngưỡng `WARNING`. Cần ngưỡng nào để mọi message qua?"
+      - level: approach
+        md: "Đổi lời gọi `setLevel` sang cấp độ thấp nhất (`DEBUG`)."
+      - level: near_solution
+        md: "Sửa dòng `log.setLevel(...)` có sẵn thành `logging.DEBUG` (không thêm dòng mới)."
+    tests:
+      - {args: [[["INFO", "a"], ["ERROR", "b"]]], expected: ["INFO:ex1:a", "ERROR:ex1:b"]}
+      - {args: [[["DEBUG", "x"]]], expected: ["DEBUG:ex1:x"]}
+      - {args: [[]], expected: []}
+      - {args: [[["WARNING", "w"], ["INFO", "i"]]], expected: ["WARNING:ex1:w", "INFO:ex1:i"]}
+    solution: |
+      import io
+      import logging
+
+
+      def collect(records):
+          log = logging.getLogger("ex1")
+          log.handlers.clear()
+          log.propagate = False
+          log.setLevel(logging.DEBUG)
+          buf = io.StringIO()
+          handler = logging.StreamHandler(buf)
+          handler.setFormatter(logging.Formatter("%(levelname)s:%(name)s:%(message)s"))
+          log.addHandler(handler)
+          for level, msg in records:
+              log.log(getattr(logging, level), msg)
+          return buf.getvalue().splitlines()
+  - id: s_hier
+    type: section
+    title_vi: "Logger hierarchy, propagate và NullHandler"
+    summary_vi: "Logger tên 'a.b' là con của 'a'; message đi lên cha qua propagate; thư viện nên gắn NullHandler."
+    exercise_ref: ex_propagate
+  - id: t2
+    type: text
+    md: |
+      Tên logger phân cấp bằng dấu chấm: `"app.db"` là **con** của `"app"`, và `"app"` là con của
+      logger gốc (root). Hai hệ quả:
+
+      - Con không đặt level thì **kế thừa** level hiệu dụng của cha (`getEffectiveLevel()`).
+      - Sau khi con xử lý, message **propagate** lên handler của các logger tổ tiên. Chỉ ngưỡng của
+        *logger nơi message được tạo* được kiểm tra; level của logger cha không lọc lại, còn level
+        của *handler* thì có. Đặt `child.propagate = False` để chặn việc đi lên.
+
+      **Quy tắc cho thư viện**: thư viện chỉ gắn `logging.NullHandler()` vào logger của nó, để không
+      in gì và không ép cấu hình lên ứng dụng; ứng dụng mới là nơi gắn handler thật.
+  - id: c2
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      import io
+      import logging
+
+      buf = io.StringIO()
+      parent = logging.getLogger("app")
+      parent.handlers.clear()
+      parent.propagate = False
+      parent.setLevel(logging.INFO)
+      handler = logging.StreamHandler(buf)
+      handler.setFormatter(logging.Formatter("%(levelname)s:%(name)s:%(message)s"))
+      parent.addHandler(handler)
+
+      child = logging.getLogger("app.db")
+      print(child.parent.name)
+      print(child.getEffectiveLevel())
+      child.info("connect")
+      print(buf.getvalue().strip())
+      child.propagate = False
+      child.info("lost")
+      print(len(buf.getvalue().splitlines()))
+    expected_output: |
+      app
+      20
+      INFO:app.db:connect
+      1
+  - id: q2
+    type: quiz_mcq
+    prompt_md: "Logger `app.db` không có handler riêng, `propagate` mặc định. Handler của logger `app` có nhận message từ `app.db` không?"
+    options:
+      - {id: a, text_md: "Không, handler chỉ nhận message của đúng logger mà nó gắn vào"}
+      - {id: b, text_md: "Có, message propagate lên handler của logger cha"}
+      - {id: c, text_md: "Có, nhưng chỉ khi `app.db` gọi `addHandler` trước"}
+    answer: [b]
+    explain_md: "Với propagate=True (mặc định), message đi lên handler của các logger tổ tiên; propagate=False mới chặn."
+  - id: ex_propagate
+    type: code_exercise
+    md: |
+      `from_child(msg)` ghi `msg` bằng logger con `"ex2.app"` và phải trả list dòng mà handler của
+      logger cha `"ex2"` nhận được (`"name:message"`). Hiện không có gì tới cha. Tìm và sửa nguyên nhân.
+    entry: from_child
+    starter: |
+      import io
+      import logging
+
+
+      def from_child(msg):
+          parent = logging.getLogger("ex2")
+          parent.handlers.clear()
+          parent.propagate = False
+          parent.setLevel(logging.DEBUG)
+          buf = io.StringIO()
+          handler = logging.StreamHandler(buf)
+          handler.setFormatter(logging.Formatter("%(name)s:%(message)s"))
+          parent.addHandler(handler)
+
+          child = logging.getLogger("ex2.app")
+          child.propagate = False
+          child.info(msg)
+          return buf.getvalue().splitlines()
+    guidance_md: |
+      - Cha có handler; con không có handler riêng.
+      - Message chỉ tới cha nếu con cho phép đi lên.
+    hints:
+      - level: nudge
+        md: "Handler của cha đúng, nhưng con làm gì với message sau khi xử lý xong?"
+      - level: approach
+        md: "Thuộc tính `propagate` của logger con đang bị tắt; message không đi lên được."
+      - level: near_solution
+        md: "Đặt tường minh `child.propagate = True` để message đi lên handler của cha (đừng chỉ xoá dòng tắt — logger là singleton toàn cục, giá trị cũ có thể còn lại)."
+    tests:
+      - {args: ["hi"], expected: ["ex2.app:hi"]}
+      - {args: ["a b"], expected: ["ex2.app:a b"]}
+      - {args: [""], expected: ["ex2.app:"]}
+    solution: |
+      import io
+      import logging
+
+
+      def from_child(msg):
+          parent = logging.getLogger("ex2")
+          parent.handlers.clear()
+          parent.propagate = False
+          parent.setLevel(logging.DEBUG)
+          buf = io.StringIO()
+          handler = logging.StreamHandler(buf)
+          handler.setFormatter(logging.Formatter("%(name)s:%(message)s"))
+          parent.addHandler(handler)
+
+          child = logging.getLogger("ex2.app")
+          child.propagate = True
+          child.setLevel(logging.INFO)
+          child.info(msg)
+          return buf.getvalue().splitlines()
+  - id: c4
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      import logging
+
+      lib = logging.getLogger("mylib")
+      lib.addHandler(logging.NullHandler())
+      lib.warning("khong in gi")
+      print(type(lib.handlers[0]).__name__)
+    expected_output: |
+      NullHandler
+  - id: s_debug
+    type: section
+    title_vi: "Đọc traceback và phương pháp debug"
+    summary_vi: "Đọc traceback từ dưới lên; debug bằng reproduce, minimise, bisect; breakpoint() mở pdb."
+  - id: t3
+    type: text
+    md: |
+      **Traceback** liệt kê chuỗi lời gọi dẫn tới lỗi, mới nhất ở **cuối**. Hãy đọc **từ dưới lên**:
+      dòng cuối cho loại lỗi và thông điệp (`ZeroDivisionError: division by zero`), dòng ngay trên
+      cho vị trí gây lỗi, các khung phía trên là ngữ cảnh gọi. Module `traceback` cho phép xử lý
+      lập trình: `traceback.extract_tb(e.__traceback__)`, `traceback.format_exc()`; trong
+      `except`, `logger.exception("...")` ghi message ERROR kèm traceback.
+
+      **Quy trình debug**: (1) **reproduce**: tìm cách tái hiện lỗi ổn định; (2) **minimise**: cắt
+      input và code tới ví dụ nhỏ nhất vẫn lỗi; (3) **bisect**: chia đôi (theo đoạn code, commit hoặc
+      input) để khoanh vùng nguyên nhân. Khi cần dừng để soi biến, viết `breakpoint()`: nó mở trình
+      debug `pdb` (lệnh `n` bước tiếp, `s` bước vào, `p biến` in giá trị, `c` chạy tiếp).
+  - id: c3
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      import traceback
+
+      def inner():
+          return 1 / 0
+
+      def outer():
+          return inner()
+
+      try:
+          outer()
+      except ZeroDivisionError as e:
+          names = [f.name for f in traceback.extract_tb(e.__traceback__)]
+          print(names[-2:])
+          print(traceback.format_exception_only(type(e), e)[0].strip())
+    expected_output: |
+      ['outer', 'inner']
+      ZeroDivisionError: division by zero
+  - id: q3
+    type: quiz_mcq
+    prompt_md: "Bạn gặp traceback dài. Nên bắt đầu đọc từ đâu?"
+    options:
+      - {id: a, text_md: "Dòng cuối: loại lỗi và vị trí gần nhất gây lỗi"}
+      - {id: b, text_md: "Dòng đầu tiên vì đó là nguyên nhân gốc luôn luôn"}
+      - {id: c, text_md: "Bỏ qua traceback và thêm `print` ở mọi nơi"}
+    answer: [a]
+    explain_md: "Frame mới nhất nằm cuối; dòng cuối cho loại lỗi, dòng trên nó cho điểm gây lỗi. Sau đó lần ngược lên ngữ cảnh gọi."
+  - id: q4
+    type: quiz_mcq
+    prompt_md: "Lỗi chỉ xảy ra với file input 10.000 dòng. Bước debug hợp lý nhất?"
+    options:
+      - {id: a, text_md: "Reproduce, rồi cắt input (minimise) hoặc chia đôi (bisect) tới ví dụ nhỏ nhất vẫn lỗi"}
+      - {id: b, text_md: "Sửa ngẫu nhiên tới khi hết lỗi"}
+      - {id: c, text_md: "Chuyển mọi `print` sang `logging.debug` rồi bỏ qua lỗi"}
+    answer: [a]
+    explain_md: "Tái hiện ổn định rồi thu nhỏ và chia đôi để khoanh vùng nguyên nhân nhanh nhất."
+  - id: sum1
+    type: summary
+    bullets_vi:
+      - "logging có DEBUG < INFO < WARNING < ERROR < CRITICAL; message thấp hơn ngưỡng `setLevel` bị bỏ qua."
+      - "`getLogger(name)` + `StreamHandler` + `Formatter`; một logger gắn được nhiều handler."
+      - "`a.b` là con của `a`: kế thừa level và propagate lên handler của cha; `propagate = False` để chặn; thư viện chỉ gắn `NullHandler`."
+      - "Đọc traceback từ dưới lên; debug: reproduce, minimise, bisect; `breakpoint()` mở pdb."
+problems:
+  practice: []
+  extra: []
+mastery_check:
+  l1: [X420]
+  l2: [X421]
+  l3: [X422]
+checkpoint:
+  pass_ratio: 0.7
+  min_items: 3
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-04"

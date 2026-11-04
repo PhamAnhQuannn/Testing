@@ -1,0 +1,45 @@
+subtopic_id: py.errors_modules.logging_debug
+items:
+  - id: X420
+    difficulty: 1
+    type: read_code
+    minutes: 3
+    prompt_md: Chạy tay (không chạy máy), đoạn code in ra gì? Giải thích 1 câu.
+    code: |-
+      import io
+      import logging
+
+      buf = io.StringIO()
+      log = logging.getLogger("a")
+      log.propagate = False
+      h = logging.StreamHandler(buf)
+      h.setFormatter(logging.Formatter("%(levelname)s:%(name)s:%(message)s"))
+      log.addHandler(h)
+      log.setLevel(logging.WARNING)
+
+      child = logging.getLogger("a.b")
+      child.info("one")
+      child.warning("two")
+      child.setLevel(logging.INFO)
+      child.info("three")
+      print(buf.getvalue(), end="")
+      print(child.getEffectiveLevel(), log.getEffectiveLevel())
+    expected_output: "WARNING:a.b:two\nINFO:a.b:three\n20 30"
+    answer_md: 'Logger con `a.b` chưa đặt level nên kế thừa WARNING từ `a`: `info("one")` bị bỏ qua, `warning("two")` được phát và propagate lên handler của `a`. Sau `child.setLevel(logging.INFO)`, `info("three")` qua ngưỡng nên cũng được ghi (handler của cha không lọc thêm). Level hiệu dụng của con giờ là 20, của `a` vẫn là 30.'
+    rubric_md: "Output khớp từng ký tự (bỏ khoảng trắng cuối dòng) VÀ giải thích đúng 1 câu về kế thừa level / ngưỡng. Đúng: bằng chứng điểm 1; sai: tối đa điểm 0."
+  - id: X421
+    difficulty: 2
+    type: write_code
+    minutes: 5
+    prompt_md: |
+      Viết `emitted_lines(level, records)`: `level` là tên ngưỡng (ví dụ `"WARNING"`), `records` là list cặp `[level_name, message]`. Dùng logger tên `"x421"` (xoá handler cũ, `propagate = False`), `setLevel` theo `level`, gắn `StreamHandler` ghi vào `io.StringIO` với `Formatter("%(levelname)s:%(name)s:%(message)s")`, ghi từng record theo thứ tự, rồi trả list các dòng log thực sự được phát ra (message dưới ngưỡng bị bỏ). Không dùng root logger hay `basicConfig`.
+    problem_id: check-x421-emitted-lines
+    rubric_md: "Pass toàn bộ test ẩn. Đúng không gợi ý trong time-box (5 phút): bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X422
+    difficulty: 3
+    type: write_code
+    minutes: 12
+    prompt_md: |
+      Viết `route(child_level, handler_level, records, propagate)` trả `[child_lines, parent_lines]`. Dựng logger cha `"x422"` (xoá handler, `propagate = False`, `setLevel(DEBUG)`) và con `"x422.app"` (xoá handler, `propagate` theo tham số, `setLevel(child_level)`). Con có handler ghi vào một `io.StringIO` với format `"C:%(levelname)s:%(message)s"`; cha có handler với `setLevel(handler_level)` và format `"P:%(levelname)s:%(name)s:%(message)s"`, ghi vào `io.StringIO` khác. Ghi mọi record `[level_name, message]` bằng logger con theo thứ tự rồi trả list dòng của con và của cha. Lưu ý: message chỉ tới cha nếu qua ngưỡng của con VÀ `propagate` bật VÀ qua level của handler cha.
+    problem_id: check-x422-propagate-routing
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 12 phút: bằng chứng điểm 3; phải xem gợi ý hoặc quá thời gian: tối đa điểm 2."

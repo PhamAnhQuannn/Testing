@@ -1,0 +1,288 @@
+id: py.errors_modules.modules_packages
+version: 1
+status: published
+title_vi: Module, package và import
+est_minutes: 12
+objectives_vi:
+- Phân biệt module (file .py) và package (thư mục), dùng import / from ... import / import ... as.
+- Giải thích `if __name__ == "__main__":` và khi nào `__name__` là "__main__".
+- Biết Python tìm module qua sys.path, cache trong sys.modules; hiểu circular import và relative import.
+blocks:
+  - id: s_import
+    type: section
+    title_vi: "Module, package và các kiểu import"
+    summary_vi: "Module là file .py, package là thư mục chứa module; import theo ba cách."
+    exercise_ref: ex_module_name
+  - id: t1
+    type: text
+    md: |
+      Một **module** là một file `.py`. Một **package** là một thư mục chứa các module, thường có file
+      `__init__.py` (từ Python 3.3 thư mục không có `__init__.py` vẫn dùng được, gọi là *namespace package*).
+      Tên module dùng dấu chấm thay cho dấu `/`: file `app/utils/helpers.py` là module `app.utils.helpers`.
+
+      Ba cách import phổ biến:
+
+      - `import math` rồi dùng `math.sqrt(...)`: giữ tên module làm "không gian tên".
+      - `from math import sqrt` rồi dùng `sqrt(...)`: đưa thẳng tên vào namespace hiện tại.
+      - `import math as m` rồi dùng `m.sqrt(...)`: đặt bí danh.
+  - id: c1
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      import math
+      from math import sqrt
+      import math as m
+
+      print(math.sqrt(16))
+      print(sqrt(25))
+      print(m.sqrt(9))
+      print(m is math)
+    expected_output: |
+      4.0
+      5.0
+      3.0
+      True
+  - id: q1
+    type: quiz_mcq
+    prompt_md: "File `shop/cart/items.py` ứng với tên module nào?"
+    options:
+      - {id: a, text_md: "`shop/cart/items`"}
+      - {id: b, text_md: "`shop.cart.items`"}
+      - {id: c, text_md: "`items.cart.shop`"}
+    answer: [b]
+    explain_md: "Dấu `/` đổi thành `.` và bỏ đuôi `.py`: `shop.cart.items`."
+  - id: ex_module_name
+    type: code_exercise
+    md: |
+      Viết `module_name(path)` đổi đường dẫn file như `"app/utils/helpers.py"` thành tên module
+      `"app.utils.helpers"`.
+    entry: module_name
+    starter: |
+      def module_name(path):
+          return path
+    guidance_md: |
+      - Bỏ đuôi `.py`.
+      - Thay `/` bằng `.`.
+    hints:
+      - level: nudge
+        md: "Tên module không có đuôi file và không có dấu gạch chéo."
+      - level: approach
+        md: "Cắt đuôi `.py` rồi dùng `replace` để đổi dấu phân cách."
+      - level: near_solution
+        md: "Bỏ phần `.py` ở cuối bằng slicing hoặc `removesuffix`, sau đó thay `/` bằng `.` và trả chuỗi kết quả."
+    tests:
+      - {args: ["app/utils/helpers.py"], expected: "app.utils.helpers"}
+      - {args: ["main.py"], expected: "main"}
+      - {args: ["a/b.py"], expected: "a.b"}
+    solution: |
+      def module_name(path):
+          return path.removesuffix(".py").replace("/", ".")
+  - id: s_main
+    type: section
+    title_vi: "if __name__ == \"__main__\""
+    summary_vi: "__name__ là \"__main__\" khi chạy trực tiếp và là tên module khi được import."
+    exercise_ref: ex_mode
+  - id: t2
+    type: text
+    md: |
+      Mỗi module có biến `__name__`. Khi chạy file trực tiếp (`python script.py`), `__name__` bằng
+      `"__main__"`. Khi file được **import** từ nơi khác, `__name__` là tên module (ví dụ `"helpers"`).
+
+      Vì vậy đoạn `if __name__ == "__main__":` chỉ chạy khi file là điểm vào của chương trình, còn khi
+      import thì bị bỏ qua. Nhờ đó file vừa là thư viện vừa là script mà import không gây tác dụng phụ.
+      Ví dụ dưới mô phỏng bằng cách `exec` cùng một đoạn mã với hai giá trị `__name__`.
+  - id: c2
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      src = '''
+      print("top-level, __name__ =", __name__)
+      if __name__ == "__main__":
+          print("chay truc tiep")
+      '''
+      exec(src, {"__name__": "__main__"})
+      exec(src, {"__name__": "helpers"})
+    expected_output: |
+      top-level, __name__ = __main__
+      chay truc tiep
+      top-level, __name__ = helpers
+  - id: q2
+    type: quiz_mcq
+    prompt_md: "Khi module `tools.py` được `import tools` từ file khác, `__name__` bên trong `tools.py` là gì?"
+    options:
+      - {id: a, text_md: "`\"__main__\"`"}
+      - {id: b, text_md: "`\"tools\"`"}
+      - {id: c, text_md: "`None`"}
+    answer: [b]
+    explain_md: "Chỉ file chạy trực tiếp mới có `__name__ == \"__main__\"`; module được import mang tên của nó."
+  - id: ex_mode
+    type: code_exercise
+    md: |
+      Viết `run_mode(name)` nhận giá trị `__name__` và trả `"script"` nếu là `"__main__"`, ngược lại
+      trả `"module"`.
+    entry: run_mode
+    starter: |
+      def run_mode(name):
+          return "module"
+    guidance_md: |
+      - So sánh `name` với chuỗi `"__main__"`.
+    hints:
+      - level: nudge
+        md: "Hàm luôn trả `\"module\"`; cần một nhánh cho trường hợp chạy trực tiếp."
+      - level: approach
+        md: "Dùng câu lệnh điều kiện so sánh `name == \"__main__\"`."
+      - level: near_solution
+        md: "Nếu `name` bằng chuỗi `\"__main__\"` thì trả `\"script\"`, các trường hợp còn lại trả `\"module\"`."
+    tests:
+      - {args: ["__main__"], expected: "script"}
+      - {args: ["helpers"], expected: "module"}
+      - {args: ["app.main"], expected: "module"}
+    solution: |
+      def run_mode(name):
+          return "script" if name == "__main__" else "module"
+  - id: s_path
+    type: section
+    title_vi: "sys.path và sys.modules"
+    summary_vi: "sys.path là danh sách thư mục tìm module; sys.modules cache module đã import."
+  - id: t3
+    type: text
+    md: |
+      Khi gặp `import x`, Python làm hai việc:
+
+      1. Tìm `x` trong **`sys.modules`** (dict cache các module đã nạp). Có rồi thì dùng lại, không chạy lại file.
+      2. Nếu chưa có, duyệt các thư mục trong **`sys.path`** theo thứ tự (thư mục của script, rồi
+         `PYTHONPATH`, rồi thư viện chuẩn và site-packages) để tìm `x.py` hoặc package `x/`.
+
+      Hệ quả: import lần hai gần như miễn phí và module chỉ chạy mã top-level **một lần**. Nếu
+      `import x` báo `ModuleNotFoundError`, thư mục chứa `x` chưa nằm trong `sys.path`.
+  - id: c3
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      import sys
+      import json
+
+      print("json" in sys.modules)
+      import json as again
+      print(again is json)
+      print(sys.modules["json"] is json)
+      print(isinstance(sys.path, list))
+    expected_output: |
+      True
+      True
+      True
+      True
+  - id: q3
+    type: quiz_mcq
+    prompt_md: "Một module được import hai lần trong cùng chương trình. Mã top-level của nó chạy mấy lần?"
+    options:
+      - {id: a, text_md: "Hai lần, mỗi lần import một lần"}
+      - {id: b, text_md: "Một lần, lần sau lấy từ `sys.modules`"}
+      - {id: c, text_md: "Không lần nào"}
+    answer: [b]
+    explain_md: "`sys.modules` cache module sau lần nạp đầu nên lần import sau không chạy lại file."
+  - id: s_circ
+    type: section
+    title_vi: "Circular import và relative import"
+    summary_vi: "Circular import xảy ra khi hai module import lẫn nhau; relative import dùng dấu chấm."
+    exercise_ref: ex_run_both
+  - id: t4
+    type: text
+    md: |
+      **Circular import**: `a.py` có `import b` ở đầu file, còn `b.py` có `from a import f`. Khi một
+      module thứ ba chạy `import a`, Python bắt đầu nạp `a`, gặp `import b`, nạp `b`, `b` lại đòi `f`
+      từ `a` nhưng `a` mới chạy dở nên chưa có `f` và báo `ImportError`. (Lưu ý: nếu chạy thẳng
+      `python a.py` thì `a` là `__main__`, nên `from a import f` nạp `a.py` LẦN HAI dưới tên `a` và
+      lần nạp đó hoàn tất — ví dụ này chỉ lỗi khi `a` được import, không phải khi chạy như script.)
+      Cách tránh:
+
+      - **Tách** phần dùng chung ra module thứ ba để hai bên cùng import.
+      - **Import muộn**: đặt `import` bên trong hàm, chỉ chạy khi hàm được gọi.
+      - Dùng `import a` (giữ module) thay vì `from a import f` rồi truy cập `a.f` lúc chạy.
+
+      **Relative import** dùng dấu chấm trong package: `from . import x` (cùng package),
+      `from .. import y` (package cha), `from .utils import z`. **Absolute import** viết đầy đủ từ gốc,
+      ví dụ `from app.utils import z`; nên ưu tiên vì rõ ràng. Relative import chỉ dùng được trong
+      package, không dùng được khi chạy file trực tiếp như script.
+  - id: c4
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      from importlib.util import resolve_name
+
+      print(resolve_name(".utils", "app.sub"))
+      print(resolve_name("..utils", "app.sub"))
+      print(resolve_name("..", "app.sub"))
+    expected_output: |
+      app.sub.utils
+      app.utils
+      app
+  - id: q4
+    type: quiz_mcq
+    prompt_md: "Cách nào KHÔNG giúp tránh circular import?"
+    options:
+      - {id: a, text_md: "Tách phần dùng chung ra module thứ ba"}
+      - {id: b, text_md: "Đặt `import` bên trong hàm cần dùng"}
+      - {id: c, text_md: "Thêm nhiều `from a import *` ở đầu cả hai file"}
+    answer: [c]
+    explain_md: "Thêm import ở đầu cả hai file chỉ làm vòng phụ thuộc rõ hơn; tách module hoặc import muộn mới phá được vòng."
+  - id: ex_run_both
+    type: code_exercise
+    md: |
+      Viết `run_both(code)` thực thi chuỗi mã `code` hai lần, mỗi lần trong một namespace mới: lần đầu
+      với `__name__ = "__main__"`, lần hai với `__name__ = "mymod"`. Trong namespace có sẵn list `log`;
+      mã có thể gọi `log.append(...)`. Trả `[log_lan_1, log_lan_2]` (hai list).
+    entry: run_both
+    starter: |
+      def run_both(code):
+          log = []
+          exec(code, {"__name__": "__main__", "log": log})
+          return [log, []]
+    guidance_md: |
+      - Mỗi lần chạy cần một list `log` riêng và một dict namespace riêng.
+    hints:
+      - level: nudge
+        md: "Hiện chỉ chạy một lần và luôn trả list rỗng cho lần hai."
+      - level: approach
+        md: "Viết một vòng lặp qua hai giá trị tên; mỗi vòng tạo `log` mới, `exec` vào dict mới rồi gom `log`."
+      - level: near_solution
+        md: "Với mỗi tên trong `(\"__main__\", \"mymod\")`: tạo list rỗng, `exec(code, {\"__name__\": tên, \"log\": list})`, thêm list vào kết quả; cuối cùng trả list kết quả."
+    tests:
+      - {args: ["log.append('top')"], expected: [["top"], ["top"]]}
+      - {args: ["if __name__ == '__main__':\n    log.append('run')"], expected: [["run"], []]}
+      - {args: ["log.append(__name__)"], expected: [["__main__"], ["mymod"]]}
+    solution: |
+      def run_both(code):
+          result = []
+          for name in ("__main__", "mymod"):
+              log = []
+              exec(code, {"__name__": name, "log": log})
+              result.append(log)
+          return result
+  - id: sum1
+    type: summary
+    bullets_vi:
+      - "Module là file `.py`, package là thư mục (thường có `__init__.py`); `a/b.py` là module `a.b`."
+      - "`import m`, `from m import n`, `import m as x` khác nhau ở tên được đưa vào namespace."
+      - "`__name__ == \"__main__\"` chỉ đúng khi chạy trực tiếp; khi import, `__name__` là tên module."
+      - "Python tìm module qua `sys.path` và cache trong `sys.modules`, nên mã top-level chỉ chạy một lần."
+      - "Tránh circular import bằng cách tách module chung hoặc import trong hàm; ưu tiên absolute import, relative import chỉ trong package."
+problems:
+  practice: []
+  extra: []
+mastery_check:
+  l1: [X417]
+  l2: [X418]
+  l3: [X419]
+checkpoint:
+  pass_ratio: 0.7
+  min_items: 3
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-04"

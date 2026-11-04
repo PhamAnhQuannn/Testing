@@ -1,0 +1,55 @@
+id: check-x421-emitted-lines
+subtopic_id: py.errors_modules.logging_debug
+secondary_subtopics: []
+kind: check
+title: 'Check X421: emitted_lines'
+title_vi: 'Kiểm tra X421: emitted_lines'
+difficulty: easy
+source:
+  type: original
+statement_en_md: Implement `emitted_lines(level, records)` as described in the Vietnamese statement (mastery
+  check item X421, 5-minute time box).
+statement_vi_md: Viết `emitted_lines(level, records)`. Dùng logger tên `"x421"` (xoá handler cũ, `propagate = False`),
+  `setLevel` theo tên `level`, gắn `StreamHandler` ghi vào `io.StringIO` với
+  `Formatter("%(levelname)s:%(name)s:%(message)s")`, ghi mỗi record `[level_name, message]` theo thứ tự,
+  rồi trả list các dòng log thực sự được phát ra (message thấp hơn ngưỡng bị bỏ qua).
+constraints: []
+examples:
+- input: level = 'WARNING', records = [['DEBUG', 'a'], ['INFO', 'b'], ['WARNING', 'c'], ['ERROR', 'd']]
+  output: '["WARNING:x421:c", "ERROR:x421:d"]'
+  explain_vi: Ngưỡng WARNING nên DEBUG và INFO bị bỏ; chỉ WARNING và ERROR được ghi.
+io:
+  mode: function
+  entry: emitted_lines
+  params:
+  - name: level
+    type: str
+  - name: records
+    type: list[list[str]]
+  returns: list[str]
+  compare: exact
+starter:
+  python: "import io\nimport logging\n\n\ndef emitted_lines(level, records):\n    # TODO\n    pass\n"
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+time_target_min: 5
+hints:
+- Lấy logger bằng `logging.getLogger("x421")`, gọi `handlers.clear()` và đặt `propagate = False` để không bị lẫn giữa các lần gọi.
+- Đổi tên level sang số bằng `getattr(logging, name)`; dùng `logger.log(số, msg)` để ghi.
+- Gắn `StreamHandler(io.StringIO())` có `Formatter`, ghi hết records rồi trả `buf.getvalue().splitlines()`.
+solution:
+  file: solution.py
+  approach_vi: Logger duy nhất tên x421 được làm sạch mỗi lần gọi; ngưỡng level lọc message; trả các dòng đã ghi.
+  complexity: O(n)
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x421
+status: validated
+version: 1
