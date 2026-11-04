@@ -1,0 +1,381 @@
+id: py.functions.decorators
+version: 1
+status: published
+title_vi: Decorator (decorators)
+est_minutes: 12
+objectives_vi:
+- Giải thích `@dec` trên một hàm tương đương câu lệnh `f = dec(f)`.
+- Viết decorator bọc hàm bằng `*args/**kwargs` và dùng `functools.wraps`.
+- Viết decorator đếm số lần gọi và decorator nhận tham số (factory).
+blocks:
+  - id: s_desugar
+    type: section
+    title_vi: "@dec thực chất là gì"
+    summary_vi: "Decorator là hàm nhận một hàm và trả về hàm khác; `@dec` trên `def f` chỉ là cách viết gọn của `f = dec(f)`."
+    exercise_ref: ex_wraps
+  - id: t1
+    type: text
+    md: |
+      **Decorator** là một hàm nhận vào một hàm và trả về một hàm (thường là hàm bọc quanh hàm gốc).
+      Dòng `@dec` đặt ngay trên `def f(): ...` hoàn toàn tương đương với việc viết sau định nghĩa:
+
+      `f = dec(f)`
+
+      Nghĩa là tên `f` được gán lại thành thứ mà `dec` trả về. Vì vậy khi gọi `f(...)`, thực ra bạn gọi
+      hàm bọc (`wrapper`) do decorator tạo ra, và wrapper này tự quyết định có gọi hàm gốc hay không.
+  - id: c1
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      def shout(func):
+          def wrapper(*args, **kwargs):
+              result = func(*args, **kwargs)
+              return result.upper()
+          return wrapper
+
+      @shout
+      def hello(name):
+          return "hello " + name
+
+      def bye(name):
+          return "bye " + name
+
+      bye = shout(bye)   # y hệt viết @shout phía trên def bye
+
+      print(hello("an"))
+      print(bye("binh"))
+    expected_output: |
+      HELLO AN
+      BYE BINH
+  - id: q1
+    type: quiz_mcq
+    prompt_md: "Đoạn `@dec` rồi `def f(): ...` tương đương câu lệnh nào sau khi định nghĩa `f`?"
+    options:
+      - {id: a, text_md: "`dec = f(dec)`"}
+      - {id: b, text_md: "`f = dec(f)`"}
+      - {id: c, text_md: "`f = dec()`"}
+    answer: [b]
+    explain_md: "Decorator nhận hàm `f` làm đối số và kết quả trả về được gán lại cho tên `f`: `f = dec(f)`."
+  - id: t2
+    type: text
+    md: |
+      Wrapper nên nhận `*args, **kwargs` để chuyển tiếp **mọi** cách gọi sang hàm gốc, nhờ đó cùng một
+      decorator dùng được cho hàm có số tham số bất kỳ.
+
+      Có một tác dụng phụ: sau khi decorate, `f.__name__` thành `"wrapper"` và `f.__doc__` mất, vì `f`
+      giờ chính là wrapper. Dòng **`@functools.wraps(func)`** đặt trên `def wrapper` sao chép
+      `__name__`, `__doc__`... từ hàm gốc sang wrapper, giữ thông tin đúng cho debug và công cụ.
+
+      Decorator đo thời gian cũng viết đúng theo khuôn này: lấy `time.perf_counter()` trước và sau khi
+      gọi `func(*args, **kwargs)`. Vì thời gian chạy khác nhau mỗi lần nên bài này không in giá trị
+      thời gian ra; ta kiểm tra những thứ xác định như tên hàm, số lần gọi, giá trị trả về.
+  - id: c2
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      import functools
+
+      def plain(func):
+          def wrapper(*args, **kwargs):
+              return func(*args, **kwargs)
+          return wrapper
+
+      def kept(func):
+          @functools.wraps(func)
+          def wrapper(*args, **kwargs):
+              return func(*args, **kwargs)
+          return wrapper
+
+      @plain
+      def f(x):
+          "Tang x."
+          return x + 1
+
+      @kept
+      def g(x):
+          "Tang x."
+          return x + 1
+
+      print(f.__name__, f.__doc__)
+      print(g.__name__, g.__doc__)
+      print(f(1), g(1))
+    expected_output: |
+      wrapper None
+      g Tang x.
+      2 2
+  - id: q2
+    type: quiz_mcq
+    prompt_md: "Không dùng `functools.wraps`, hàm `add` đã decorate có `add.__name__` bằng gì (wrapper tên `wrapper`)?"
+    options:
+      - {id: a, text_md: "`\"add\"`"}
+      - {id: b, text_md: "`\"wrapper\"`"}
+      - {id: c, text_md: "`None`"}
+    answer: [b]
+    explain_md: "Tên `add` giờ trỏ tới wrapper, và wrapper có `__name__` là `\"wrapper\"`. `functools.wraps` sao chép lại tên gốc."
+  - id: ex_wraps
+    type: code_exercise
+    md: |
+      Decorator `traced` bên dưới bọc hàm nhưng làm mất tên và docstring. Thêm `functools.wraps` để
+      `add.__name__` vẫn là `"add"` và `add.__doc__` vẫn còn. `info(a, b)` trả
+      `[add.__name__, add.__doc__, add(a, b)]` — phần `*args/**kwargs` vẫn phải chuyển tiếp đúng.
+    entry: info
+    starter: |
+      import functools
+
+
+      def traced(func):
+          def wrapper(*args, **kwargs):
+              return func(*args, **kwargs)
+          return wrapper
+
+
+      @traced
+      def add(a, b):
+          "Cong hai so."
+          return a + b
+
+
+      def info(a, b):
+          return [add.__name__, add.__doc__, add(a, b)]
+    guidance_md: |
+      - `functools` đã được import sẵn.
+      - Đặt `@functools.wraps(func)` ngay trên dòng `def wrapper`.
+      - Không cần sửa `add` hay `info`.
+    hints:
+      - level: nudge
+        md: "Hiện `info()` trả `['wrapper', None]`. Thông tin của hàm gốc bị mất ở bước nào?"
+      - level: approach
+        md: "Dùng decorator có sẵn của `functools` đặt trên wrapper, truyền hàm gốc `func` vào."
+      - level: near_solution
+        md: |
+          def traced(func):
+              @functools.wraps(...)
+              def wrapper(*args, **kwargs):
+                  ...
+    tests:
+      - {args: [1, 2], expected: ["add", "Cong hai so.", 3]}
+      - {args: [10, 5], expected: ["add", "Cong hai so.", 15]}
+      - {args: [0, 0], expected: ["add", "Cong hai so.", 0]}
+    solution: "import functools\n\n\ndef traced(func):\n    @functools.wraps(func)\n    def wrapper(*args, **kwargs):\n        return func(*args, **kwargs)\n\n    return wrapper\n\n\n@traced\ndef add(a, b):\n    \"Cong hai so.\"\n    return a + b\n\n\ndef info(a, b):\n    return [add.__name__, add.__doc__, add(a, b)]\n"
+  - id: s_counter
+    type: section
+    title_vi: "Decorator đếm số lần gọi"
+    summary_vi: "Wrapper có thể giữ trạng thái (số lần gọi) và biến đổi giá trị trả về trước khi trả ra."
+    exercise_ref: ex_counter
+  - id: t3
+    type: text
+    md: |
+      Wrapper là một hàm bình thường nên làm được nhiều việc hơn chỉ chuyển tiếp: đếm số lần được gọi,
+      ghi log, đổi giá trị trả về... Để lưu bộ đếm, gán thuộc tính cho chính hàm wrapper
+      (`wrapper.calls += 1`); hàm trong Python là object nên có thuộc tính.
+
+      Nhớ đặt `wrapper.calls = 0` **trước khi** trả `wrapper`, và `return` kết quả của `func` để không
+      làm mất giá trị trả về.
+  - id: c3
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      import functools
+
+      def counted(func):
+          @functools.wraps(func)
+          def wrapper(*args, **kwargs):
+              wrapper.calls += 1
+              return func(*args, **kwargs)
+          wrapper.calls = 0
+          return wrapper
+
+      @counted
+      def sq(x):
+          return x * x
+
+      print(sq(3), sq(4), sq(x=5))
+      print(sq.calls, sq.__name__)
+    expected_output: |
+      9 16 25
+      3 sq
+  - id: p3
+    type: predict_output
+    code: |
+      def double(func):
+          def wrapper(*args, **kwargs):
+              return func(*args, **kwargs) * 2
+          return wrapper
+
+      @double
+      def three():
+          return 3
+
+      print(three(), three() + 1)
+    expected_output: |
+      6 7
+    explain_md: "Mỗi lần gọi `three()` thực ra gọi wrapper, trả `3 * 2 = 6`; do đó `three() + 1` là 7."
+  - id: ex_counter
+    type: code_exercise
+    md: |
+      Viết decorator `counted(func)`: mỗi lần hàm được gọi thì tăng `wrapper.calls`, vẫn trả đúng giá trị
+      của `func`, và giữ `__name__` bằng `functools.wraps`. Hàm `run_counted(xs)` gọi `double` với từng
+      phần tử của `xs` rồi trả `[danh sách kết quả, double.calls, double.__name__]`.
+      Ví dụ `run_counted([1, 2])` là `[[2, 4], 2, "double"]`.
+    entry: run_counted
+    starter: |
+      import functools
+
+
+      def counted(func):
+          # TODO: wrapper đếm số lần gọi qua wrapper.calls, dùng functools.wraps
+          return func
+
+
+      @counted
+      def double(x):
+          return x * 2
+
+
+      def run_counted(xs):
+          results = [double(x) for x in xs]
+          return [results, double.calls, double.__name__]
+    guidance_md: |
+      - Định nghĩa `wrapper(*args, **kwargs)` bên trong `counted`, đặt `@functools.wraps(func)` lên nó.
+      - Trong wrapper, tăng `wrapper.calls` rồi `return func(*args, **kwargs)`.
+      - Sau khi định nghĩa wrapper, gán `wrapper.calls = 0` và `return wrapper`.
+    hints:
+      - level: nudge
+        md: "Hiện `double.calls` báo lỗi vì decorator trả luôn hàm gốc. Cần một hàm bọc nào đó mang bộ đếm?"
+      - level: approach
+        md: "Tạo wrapper nhận `*args, **kwargs`, tăng bộ đếm là thuộc tính của wrapper, gọi hàm gốc và trả kết quả. Khởi tạo bộ đếm bằng 0 trước khi trả wrapper."
+      - level: pseudocode
+        md: |
+          counted(func):
+              wrapper(*args, **kwargs):
+                  wrapper.calls tăng 1
+                  trả về func(*args, **kwargs)
+              wrapper.calls <- 0
+              trả về wrapper
+    tests:
+      - {args: [[1, 2]], expected: [[2, 4], 2, "double"]}
+      - {args: [[]], expected: [[], 0, "double"]}
+      - {args: [[5, 5, 5]], expected: [[10, 10, 10], 3, "double"]}
+    solution: "import functools\n\n\ndef counted(func):\n    @functools.wraps(func)\n    def wrapper(*args, **kwargs):\n        wrapper.calls += 1\n        return func(*args, **kwargs)\n\n    wrapper.calls = 0\n    return wrapper\n\n\n@counted\ndef double(x):\n    return x * 2\n\n\ndef run_counted(xs):\n    results = [double(x) for x in xs]\n    return [results, double.calls, double.__name__]\n"
+  - id: s_factory
+    type: section
+    title_vi: "Decorator nhận tham số"
+    summary_vi: "`@dec(arg)` nghĩa là gọi `dec(arg)` trước để lấy decorator thật, rồi mới áp vào hàm: cần thêm một tầng hàm."
+    exercise_ref: ex_factory
+  - id: t4
+    type: text
+    md: |
+      Khi viết `@repeat(3)`, Python tính `repeat(3)` **trước**; kết quả phải là một decorator, rồi decorator
+      đó mới được áp lên hàm. Vậy `@repeat(3)` tương đương `f = repeat(3)(f)`.
+
+      Do đó decorator có tham số gồm **ba tầng**: hàm ngoài nhận tham số (factory), hàm giữa nhận `func`
+      (decorator thật), hàm trong là `wrapper`.
+  - id: c4
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      import functools
+
+      def times(k):
+          def decorator(func):
+              @functools.wraps(func)
+              def wrapper(*args, **kwargs):
+                  return func(*args, **kwargs) * k
+              return wrapper
+          return decorator
+
+      @times(10)
+      def one():
+          return 1
+
+      def two():
+          return 2
+
+      two = times(3)(two)   # tương đương @times(3)
+
+      print(one(), two())
+    expected_output: |
+      10 6
+  - id: q4
+    type: quiz_mcq
+    prompt_md: "`@times(10)` phía trên `def f` tương đương câu lệnh nào?"
+    options:
+      - {id: a, text_md: "`f = times(f)(10)`"}
+      - {id: b, text_md: "`f = times(10)(f)`"}
+      - {id: c, text_md: "`f = times(10, f)`"}
+    answer: [b]
+    explain_md: "`times(10)` được tính trước và trả về decorator thật, decorator đó nhận `f`: `f = times(10)(f)`."
+  - id: ex_factory
+    type: code_exercise
+    md: |
+      Viết decorator có tham số `power(n)`: hàm được decorate trả kết quả gốc nâng lên lũy thừa `n`.
+      `apply_power(n, xs)` decorate hàm `ident(x)` (trả `x`) bằng `@power(n)` rồi trả list `ident(x)` cho
+      từng `x` trong `xs`. Ví dụ `apply_power(2, [1, 2, 3])` là `[1, 4, 9]`.
+    entry: apply_power
+    starter: |
+      import functools
+
+
+      def power(n):
+          # TODO: trả về một decorator làm kết quả của hàm bị bọc lũy thừa n
+          pass
+
+
+      def apply_power(n, xs):
+          @power(n)
+          def ident(x):
+              return x
+
+          return [ident(x) for x in xs]
+    guidance_md: |
+      - `power(n)` phải trả về một decorator (hàm nhận `func`).
+      - Decorator đó trả về `wrapper(*args, **kwargs)` có `@functools.wraps(func)`.
+      - Wrapper trả `func(*args, **kwargs) ** n`.
+    hints:
+      - level: nudge
+        md: "`@power(n)` gọi `power(n)` trước. Hiện nó trả `None` nên không thể dùng làm decorator."
+      - level: approach
+        md: "Cần ba tầng: `power(n)` trả decorator, decorator nhận `func` và trả wrapper, wrapper tính `func(...) ** n`."
+      - level: pseudocode
+        md: |
+          power(n):
+              decorator(func):
+                  wrapper(*args, **kwargs): trả func(*args, **kwargs) lũy thừa n
+                  trả về wrapper
+              trả về decorator
+    tests:
+      - {args: [2, [1, 2, 3]], expected: [1, 4, 9]}
+      - {args: [3, [2, -2]], expected: [8, -8]}
+      - {args: [0, [5, 7]], expected: [1, 1]}
+    solution: "import functools\n\n\ndef power(n):\n    def decorator(func):\n        @functools.wraps(func)\n        def wrapper(*args, **kwargs):\n            return func(*args, **kwargs) ** n\n\n        return wrapper\n\n    return decorator\n\n\ndef apply_power(n, xs):\n    @power(n)\n    def ident(x):\n        return x\n\n    return [ident(x) for x in xs]\n"
+  - id: co1
+    type: callout
+    kind: interview
+    md: "Câu hỏi phỏng vấn quen thuộc: \"`@dec` là gì và vì sao cần `functools.wraps`?\". Trả lời: `@dec` là `f = dec(f)`; `wraps` giữ `__name__`/`__doc__` của hàm gốc."
+  - id: sum1
+    type: summary
+    bullets_vi:
+      - "`@dec` trên `def f` tương đương `f = dec(f)`; `@dec(arg)` tương đương `f = dec(arg)(f)`."
+      - "Wrapper nhận `*args, **kwargs` để chuyển tiếp mọi cách gọi và phải `return` kết quả của hàm gốc."
+      - "`@functools.wraps(func)` trên wrapper giữ `__name__`, `__doc__` của hàm gốc; thiếu nó tên thành `wrapper`."
+      - "Wrapper có thể giữ trạng thái (như `wrapper.calls`) hoặc biến đổi giá trị trả về."
+      - "Decorator đo thời gian dùng `time.perf_counter()` quanh lời gọi; thời gian không xác định nên đừng so sánh trong test."
+problems:
+  practice: []
+  extra: []
+mastery_check:
+  l1: [X390]
+  l2: [X391]
+  l3: [X392]
+checkpoint:
+  pass_ratio: 0.7
+  min_items: 3
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-03"

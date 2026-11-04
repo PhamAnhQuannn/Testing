@@ -1,0 +1,287 @@
+id: py.functions.iterators_generators
+version: 1
+status: published
+title_vi: Iterator và generator (iterators_generators)
+est_minutes: 12
+objectives_vi:
+- Giải thích giao thức iterator (__iter__, __next__, StopIteration).
+- Viết generator dùng yield để xử lý dữ liệu lớn từng phần.
+- Giải thích tính lười (lazy) và việc generator chỉ dùng được một lần.
+blocks:
+  - id: s_protocol
+    type: section
+    title_vi: "Giao thức iterator"
+    summary_vi: "Vòng for gọi iter() rồi next() liên tục cho tới khi gặp StopIteration."
+  - id: t1
+    type: text
+    md: |
+      Vòng `for` không cần biết đối tượng là list hay file. Nó làm hai việc: gọi **`iter(obj)`** để
+      lấy một **iterator**, rồi gọi **`next(it)`** lặp lại. Khi hết dữ liệu, iterator ném
+      **`StopIteration`** và vòng `for` dừng êm.
+
+      Một iterator là object có `__iter__` (trả về chính nó) và `__next__` (trả phần tử kế tiếp).
+      Iterator nhớ vị trí hiện tại, nên nó chỉ đi **tiến**, không quay lại được.
+  - id: c1
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class Countdown:
+          def __init__(self, n):
+              self.n = n
+
+          def __iter__(self):
+              return self
+
+          def __next__(self):
+              if self.n <= 0:
+                  raise StopIteration
+              self.n -= 1
+              return self.n + 1
+
+      print(list(Countdown(3)))
+      it = iter([10, 20])
+      print(next(it), next(it))
+      try:
+          next(it)
+      except StopIteration:
+          print("het")
+    expected_output: |
+      [3, 2, 1]
+      10 20
+      het
+  - id: q1
+    type: quiz_mcq
+    prompt_md: "Khi iterator hết phần tử, lệnh `next(it)` làm gì?"
+    options:
+      - {id: a, text_md: "Trả về `None`"}
+      - {id: b, text_md: "Ném `StopIteration`"}
+      - {id: c, text_md: "Quay lại phần tử đầu tiên"}
+    answer: [b]
+    explain_md: "Hết dữ liệu thì `next` ném `StopIteration`; vòng `for` bắt lỗi này để dừng."
+  - id: s_yield
+    type: section
+    title_vi: "Generator function và yield"
+    summary_vi: "Hàm có yield trả về generator: sinh từng giá trị khi được hỏi, không tạo cả list."
+    exercise_ref: ex_chunks
+  - id: t2
+    type: text
+    md: |
+      Viết cả class như `Countdown` khá dài. **Generator function** ngắn hơn: chỉ cần dùng
+      **`yield`** trong hàm. Gọi hàm đó **chưa chạy thân hàm**; nó trả về một generator (cũng là
+      iterator). Mỗi lần `next()`, hàm chạy tới `yield` kế tiếp, trả giá trị rồi **tạm dừng**, nhớ cả
+      biến cục bộ.
+
+      Đó là tính **lười (lazy)**: giá trị chỉ được tính khi cần. Nhờ vậy ta đọc file hoặc dữ liệu
+      cực lớn **từng phần**, mỗi lúc chỉ giữ một phần trong bộ nhớ thay vì cả tập dữ liệu.
+  - id: c2
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      def squares(n):
+          print("bat dau")
+          for i in range(1, n + 1):
+              yield i * i
+
+      g = squares(3)
+      print("da tao")
+      print(next(g))
+      print(next(g))
+      print(list(g))
+    expected_output: |
+      da tao
+      bat dau
+      1
+      4
+      [9]
+  - id: q2
+    type: quiz_mcq
+    prompt_md: "Với `g = squares(3)` ở trên, khi nào dòng `print(\"bat dau\")` chạy?"
+    options:
+      - {id: a, text_md: "Ngay khi gọi `squares(3)`"}
+      - {id: b, text_md: "Lần đầu gọi `next(g)`"}
+      - {id: c, text_md: "Không bao giờ chạy"}
+    answer: [b]
+    explain_md: "Gọi hàm generator chỉ tạo generator; thân hàm chỉ bắt đầu chạy ở lần `next` đầu tiên."
+  - id: ex_chunks
+    type: code_exercise
+    md: |
+      Đọc dữ liệu lớn từng phần: hoàn thiện generator `chunks(data, size)` dùng `yield` để sinh
+      lần lượt các lát `data[i:i+size]` (lát cuối có thể ngắn hơn). `chunk_sums(data, size)` đã cho
+      sẵn, trả list tổng của từng lát. Ví dụ `chunk_sums([1,2,3,4,5], 2)` là `[3, 7, 5]`.
+    entry: chunk_sums
+    starter: |
+      def chunks(data, size):
+          # TODO: dùng yield để sinh từng lát data[i:i+size]
+          pass
+
+
+      def chunk_sums(data, size):
+          return [sum(c) for c in chunks(data, size)]
+    guidance_md: |
+      - Duyệt chỉ số `i` từ 0 tới `len(data)` với bước `size` bằng `range(0, len(data), size)`.
+      - Với mỗi `i`, `yield data[i:i + size]`.
+      - Không cần `return` list; không sửa `chunk_sums`.
+    hints:
+      - level: nudge
+        md: "`chunks` hiện trả `None` nên `chunk_sums` không lặp được. Hàm cần là generator: từ khóa nào biến hàm thành generator?"
+      - level: approach
+        md: "Lặp `i` theo bước `size` trên `range`, và với mỗi `i` hãy `yield` lát cắt bắt đầu tại `i` dài `size`."
+      - level: pseudocode
+        md: |
+          for i từ 0 tới len(data), bước size:
+              yield lát data từ i tới i + size
+    tests:
+      - {args: [[1, 2, 3, 4, 5], 2], expected: [3, 7, 5]}
+      - {args: [[], 3], expected: []}
+      - {args: [[4, 4, 4], 3], expected: [12]}
+      - {args: [[1, 2, 3], 5], expected: [6]}
+    solution: |
+      def chunks(data, size):
+          for i in range(0, len(data), size):
+              yield data[i : i + size]
+
+
+      def chunk_sums(data, size):
+          return [sum(c) for c in chunks(data, size)]
+  - id: s_oneshot
+    type: section
+    title_vi: "Chỉ dùng được một lần"
+    summary_vi: "Generator đã duyệt hết thì cạn; duyệt lần hai không còn gì, muốn lại phải tạo generator mới."
+  - id: t3
+    type: text
+    md: |
+      Generator không lưu các giá trị đã sinh; nó chỉ nhớ vị trí hiện tại. Sau khi duyệt hết, nó
+      **cạn (exhausted)**: duyệt lần hai cho **kết quả rỗng**, không báo lỗi. Muốn duyệt lại, hãy gọi
+      lại hàm generator để tạo generator mới. Đây khác với `list` có thể duyệt bao nhiêu lần cũng được.
+
+      **Generator expression** là cách viết gọn: `(x * x for x in range(5))`. Dùng dấu ngoặc tròn
+      thay vì `[...]` để giữ tính lười; nó cũng chỉ dùng được một lần.
+  - id: p3
+    type: predict_output
+    code: |
+      g = (x * 2 for x in range(3))
+      print(list(g))
+      print(list(g))
+      print(sum(x for x in range(4)))
+    expected_output: |
+      [0, 2, 4]
+      []
+      6
+    explain_md: "Lần `list(g)` đầu rút cạn generator; lần hai không còn gì nên ra `[]`. Tổng `0+1+2+3` là 6."
+  - id: q3
+    type: quiz_mcq
+    prompt_md: "Cách nào cho phép duyệt lại dữ liệu từ đầu?"
+    options:
+      - {id: a, text_md: "Gọi `next(g)` thêm một lần"}
+      - {id: b, text_md: "Tạo generator mới bằng cách gọi lại hàm generator"}
+      - {id: c, text_md: "Dùng `for` lần nữa trên cùng generator cũ"}
+    answer: [b]
+    explain_md: "Generator cũ đã cạn và không tua lại được. Gọi lại hàm để có generator mới, hoặc lưu kết quả vào list."
+  - id: s_infinite
+    type: section
+    title_vi: "Generator vô hạn và islice"
+    summary_vi: "Vì lười nên generator có thể vô hạn; lấy n phần tử đầu bằng itertools.islice."
+    exercise_ref: ex_fib
+  - id: t4
+    type: text
+    md: |
+      Do giá trị chỉ được sinh khi cần, generator có thể **không bao giờ kết thúc** (vòng
+      `while True`). Đừng gọi `list()` trên nó: chương trình sẽ treo. Hãy lấy một phần bằng
+      **`itertools.islice(gen, n)`**, hoặc dừng thủ công bằng `break` sau n phần tử.
+  - id: c4
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      from itertools import islice
+
+
+      def naturals():
+          n = 1
+          while True:
+              yield n
+              n += 1
+
+
+      print(list(islice(naturals(), 5)))
+      total = sum(islice(naturals(), 100))
+      print(total)
+    expected_output: |
+      [1, 2, 3, 4, 5]
+      5050
+  - id: ex_fib
+    type: code_exercise
+    md: |
+      Hoàn thiện generator vô hạn `fib()` sinh dãy Fibonacci `0, 1, 1, 2, 3, 5, ...`.
+      `first_fibs(n)` đã cho dùng `islice` để lấy `n` số đầu. Ví dụ `first_fibs(6)` là
+      `[0, 1, 1, 2, 3, 5]`.
+    entry: first_fibs
+    starter: |
+      from itertools import islice
+
+
+      def fib():
+          # TODO: vòng while True, yield từng số Fibonacci
+          pass
+
+
+      def first_fibs(n):
+          return list(islice(fib(), n))
+    guidance_md: |
+      - Khởi tạo hai biến `a, b = 0, 1`.
+      - Trong `while True:`, `yield a`.
+      - Sau đó cập nhật `a, b = b, a + b`.
+    hints:
+      - level: nudge
+        md: "`fib()` hiện trả `None`, nên `islice` báo lỗi. Hàm cần là một generator chạy mãi, không `return` list."
+      - level: approach
+        md: "Giữ hai số liên tiếp. Trong vòng lặp vô hạn, yield số hiện tại rồi dời cặp số lên một bước."
+      - level: pseudocode
+        md: |
+          a, b <- 0, 1
+          lặp mãi:
+              yield a
+              (a, b) <- (b, a + b)
+    tests:
+      - {args: [6], expected: [0, 1, 1, 2, 3, 5]}
+      - {args: [0], expected: []}
+      - {args: [1], expected: [0]}
+      - {args: [10], expected: [0, 1, 1, 2, 3, 5, 8, 13, 21, 34]}
+    solution: |
+      from itertools import islice
+
+
+      def fib():
+          a, b = 0, 1
+          while True:
+              yield a
+              a, b = b, a + b
+
+
+      def first_fibs(n):
+          return list(islice(fib(), n))
+  - id: sum1
+    type: summary
+    bullets_vi:
+      - "Iterator có `__iter__` và `__next__`; hết dữ liệu thì ném `StopIteration`, vòng `for` tự bắt."
+      - "Hàm có `yield` là generator function: gọi nó trả về generator, thân hàm chạy tới `yield` mỗi lần `next()`."
+      - "Generator lười: chỉ tính khi cần, nên đọc dữ liệu lớn từng phần mà tốn ít bộ nhớ."
+      - "Generator chỉ dùng một lần: duyệt hết rồi thì duyệt lại ra rỗng; muốn lại phải tạo mới."
+      - "Generator vô hạn cần giới hạn bằng `itertools.islice` hoặc `break`."
+problems:
+  practice: []
+  extra: []
+mastery_check:
+  l1: [X393]
+  l2: [X394]
+  l3: [X395]
+checkpoint:
+  pass_ratio: 0.7
+  min_items: 3
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: wave2 subagent
+  reviewed_by: null
+  date: '2026-11-03'

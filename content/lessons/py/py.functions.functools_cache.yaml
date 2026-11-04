@@ -1,0 +1,293 @@
+id: py.functions.functools_cache
+version: 1
+status: published
+title_vi: functools - lru_cache, cache, partial, singledispatch
+est_minutes: 12
+objectives_vi:
+- Dùng @lru_cache / @cache để memoize hàm đệ quy và đọc cache_info().
+- Giải thích vì sao đối số của hàm được cache phải hashable.
+- Biết khi nào KHÔNG nên cache; dùng partial và singledispatch ở mức cơ bản.
+blocks:
+  - id: s_cache
+    type: section
+    title_vi: "lru_cache: memoize hàm đệ quy"
+    summary_vi: "@lru_cache nhớ kết quả theo đối số; lần gọi lại cùng đối số trả ngay từ cache."
+    exercise_ref: ex_fib_misses
+  - id: t1
+    type: text
+    md: |
+      Hàm đệ quy như Fibonacci gọi lại cùng một đối số rất nhiều lần nên chậm theo cấp số nhân.
+      **Memoization** là nhớ kết quả của từng đối số đã tính. Trong thư viện chuẩn, decorator
+      **`functools.lru_cache`** làm việc đó: lần đầu gặp một đối số là **miss** (tính thật), các lần
+      sau là **hit** (lấy từ cache). `@cache` (Python 3.9+) tương đương `@lru_cache(maxsize=None)`.
+
+      Hàm được bọc có thêm `.cache_info()` trả `CacheInfo(hits, misses, maxsize, currsize)` và
+      `.cache_clear()` để xoá cache. Với một dãy lời gọi cố định, các số này luôn giống nhau.
+  - id: c1
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      from functools import lru_cache
+
+      @lru_cache(maxsize=None)
+      def fib(n):
+          return n if n < 2 else fib(n - 1) + fib(n - 2)
+
+      print(fib(30))
+      print(fib.cache_info())
+    expected_output: |
+      832040
+      CacheInfo(hits=28, misses=31, maxsize=None, currsize=31)
+  - id: q1
+    type: quiz_mcq
+    prompt_md: "Sau `fib(30)` ở ví dụ trên, vì sao `misses=31`?"
+    options:
+      - {id: a, text_md: "Mỗi giá trị n từ 0 đến 30 được tính thật đúng một lần"}
+      - {id: b, text_md: "Vì fib gọi đệ quy 31 tầng sâu"}
+      - {id: c, text_md: "Vì cache chỉ giữ tối đa 31 phần tử"}
+    answer: [a]
+    explain_md: "Có 31 đối số khác nhau (0..30); mỗi đối số miss đúng một lần, các lần gặp lại là hit."
+  - id: ex_fib_misses
+    type: code_exercise
+    md: |
+      Hàm `fib` bên dưới chưa được cache nên `fib.cache_info()` không tồn tại. Thêm
+      `@lru_cache(maxsize=None)` để `fib_misses(n)` trả số lần miss sau khi tính `fib(n)`
+      (bằng `n + 1`).
+    entry: fib_misses
+    starter: |
+      from functools import lru_cache
+
+
+      def fib(n):
+          return n if n < 2 else fib(n - 1) + fib(n - 2)
+
+
+      def fib_misses(n):
+          fib.cache_clear()
+          fib(n)
+          return fib.cache_info().misses
+    guidance_md: |
+      - `lru_cache` đã được import sẵn.
+      - Đặt `@lru_cache(maxsize=None)` ngay trên `def fib`.
+      - Không cần sửa `fib_misses`.
+    hints:
+      - level: nudge
+        md: "Lỗi báo `fib` không có `cache_clear`. Chỉ hàm được bọc bởi decorator nào mới có thuộc tính này?"
+      - level: approach
+        md: "Bọc `fib` bằng `lru_cache`; khi đó `cache_info().misses` đếm số đối số khác nhau đã tính."
+      - level: near_solution
+        md: |
+          @lru_cache(maxsize=None)
+          def fib(n):
+              ...
+    tests:
+      - {args: [10], expected: 11}
+      - {args: [30], expected: 31}
+      - {args: [0], expected: 1}
+    solution: |
+      from functools import lru_cache
+
+
+      @lru_cache(maxsize=None)
+      def fib(n):
+          return n if n < 2 else fib(n - 1) + fib(n - 2)
+
+
+      def fib_misses(n):
+          fib.cache_clear()
+          fib(n)
+          return fib.cache_info().misses
+  - id: s_hashable
+    type: section
+    title_vi: "Đối số phải hashable"
+    summary_vi: "Cache dùng dict với đối số làm key nên đối số phải hashable; list/dict/set thì không."
+    exercise_ref: ex_tuple_key
+  - id: t2
+    type: text
+    md: |
+      `lru_cache` lưu kết quả trong một **dict** mà key được dựng từ các đối số. Key của dict phải
+      **hashable**, nên đối số kiểu `list`, `dict`, `set` làm `lru_cache` ném
+      `TypeError: unhashable type: 'list'`. Kiểu bất biến như `int`, `str`, `tuple` (chứa toàn thứ
+      hashable) thì dùng được.
+
+      Cách xử lý: đổi list thành `tuple(...)` trước khi gọi hàm được cache.
+  - id: c2
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      from functools import lru_cache
+
+      @lru_cache(maxsize=None)
+      def total(nums):
+          return sum(nums)
+
+      try:
+          total([1, 2, 3])
+      except TypeError as e:
+          print("loi:", e)
+      print(total((1, 2, 3)))
+      print(total(tuple([1, 2, 3])))
+      print(total.cache_info().hits)
+    expected_output: |
+      loi: unhashable type: 'list'
+      6
+      6
+      1
+  - id: q2
+    type: quiz_mcq
+    prompt_md: "Đối số nào dùng được trực tiếp cho hàm có `@lru_cache`?"
+    options:
+      - {id: a, text_md: "`[1, 2]`"}
+      - {id: b, text_md: "`{\"a\": 1}`"}
+      - {id: c, text_md: "`(1, 2)`"}
+    answer: [c]
+    explain_md: "Trong các lựa chọn, `tuple` hashable; `list`/`dict` có thể bị sửa nên không hashable (int/str cũng hashable)."
+  - id: ex_tuple_key
+    type: code_exercise
+    md: |
+      `count_chars(words)` nhận list chuỗi và phải trả tổng độ dài các chuỗi, dùng hàm `_total` có
+      cache. Hiện `_total(words)` báo `TypeError` vì nhận list. Sửa `count_chars` để truyền đối số
+      hashable.
+    entry: count_chars
+    starter: |
+      from functools import lru_cache
+
+
+      @lru_cache(maxsize=None)
+      def _total(words):
+          return sum(len(w) for w in words)
+
+
+      def count_chars(words):
+          return _total(words)
+    guidance_md: |
+      - Lỗi xuất phát từ việc truyền list vào hàm được cache.
+      - Đổi list thành tuple trước khi gọi `_total`.
+      - Không cần sửa `_total`.
+    hints:
+      - level: nudge
+        md: "`TypeError: unhashable type: 'list'`. Kiểu bất biến nào có thể thay cho list?"
+      - level: approach
+        md: "Gọi `_total` với `tuple(words)` thay vì `words`."
+    tests:
+      - {args: [["ab", "cde"]], expected: 5}
+      - {args: [[]], expected: 0}
+      - {args: [["x", "x", "x"]], expected: 3}
+    solution: |
+      from functools import lru_cache
+
+
+      @lru_cache(maxsize=None)
+      def _total(words):
+          return sum(len(w) for w in words)
+
+
+      def count_chars(words):
+          return _total(tuple(words))
+  - id: s_when_not
+    type: section
+    title_vi: "Khi nào KHÔNG nên cache"
+    summary_vi: "Không cache hàm có side-effect, kết quả mutable bị chia sẻ, hoặc không gian đối số không giới hạn."
+  - id: t3
+    type: text
+    md: |
+      Cache không miễn phí. **Không nên** dùng `lru_cache` khi:
+
+      - Hàm có **side-effect** (in, ghi file, gọi mạng, đọc giờ/random): lần gọi thứ hai không chạy
+        lại nên hiệu ứng biến mất hoặc kết quả cũ.
+      - Hàm trả về **đối tượng mutable** (list, dict): mọi nơi gọi nhận cùng một object, ai sửa nó
+        thì cache bị hỏng.
+      - **Không gian đối số không giới hạn** (mỗi lần một giá trị mới) với `maxsize=None`: cache phình
+        mãi gây tốn bộ nhớ. Hãy đặt `maxsize` hữu hạn (mặc định 128, bỏ phần ít dùng nhất).
+      - Hàm rẻ hoặc hiếm khi gọi lại cùng đối số: chi phí băm và lưu lớn hơn lợi ích.
+  - id: c3
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      from functools import lru_cache
+
+      @lru_cache(maxsize=None)
+      def make():
+          return []
+
+      a = make()
+      a.append("x")
+      b = make()
+      print(b, a is b)
+    expected_output: |
+      ['x'] True
+  - id: q3
+    type: quiz_mcq
+    prompt_md: "Hàm nào KHÔNG nên gắn `@lru_cache`?"
+    options:
+      - {id: a, text_md: "`def is_prime(n)` thuần tuý, gọi lại nhiều lần với cùng n"}
+      - {id: b, text_md: "`def log_and_get(x)` in ra màn hình mỗi lần gọi rồi trả `x * 2`"}
+      - {id: c, text_md: "`def fib(n)` đệ quy"}
+    answer: [b]
+    explain_md: "Có side-effect (in): với cache, lần gọi lặp lại sẽ không in nữa. Hai hàm còn lại thuần tuý và hưởng lợi từ cache."
+  - id: s_partial
+    type: section
+    title_vi: "partial và singledispatch"
+    summary_vi: "partial cố định bớt đối số của hàm; singledispatch chọn cài đặt theo kiểu của đối số đầu."
+  - id: t4
+    type: text
+    md: |
+      **`functools.partial(f, ...)`** tạo hàm mới với một số đối số đã được điền sẵn, ví dụ
+      `partial(power, exp=2)` thành hàm bình phương.
+
+      **`@singledispatch`** biến một hàm thành "hàm chung" và cho phép đăng ký cài đặt riêng theo
+      **kiểu của đối số đầu tiên** bằng `@ten_ham.register(kieu)`; kiểu chưa đăng ký dùng bản gốc.
+  - id: c4
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      from functools import partial, singledispatch
+
+      def power(base, exp):
+          return base ** exp
+
+      square = partial(power, exp=2)
+      print(square(7))
+
+      @singledispatch
+      def show(x):
+          return f"obj:{x}"
+
+      @show.register(int)
+      def _(x):
+          return f"int:{x}"
+
+      @show.register(list)
+      def _(x):
+          return f"list:{len(x)}"
+
+      print(show(5), show([1, 2]), show("a"))
+    expected_output: |
+      49
+      int:5 list:2 obj:a
+  - id: sum1
+    type: summary
+    bullets_vi:
+      - "`@lru_cache(maxsize=None)` (hoặc `@cache`) memoize hàm đệ quy; `cache_info()` cho hits/misses/currsize, `cache_clear()` xoá cache."
+      - "Đối số phải hashable vì cache là dict: list/dict/set gây `TypeError`; đổi sang tuple."
+      - "Không cache hàm có side-effect, trả object mutable, hoặc có không gian đối số không giới hạn (dùng `maxsize` hữu hạn)."
+      - "`partial` điền sẵn đối số; `singledispatch` chọn cài đặt theo kiểu đối số đầu."
+problems:
+  practice: []
+  extra: []
+mastery_check:
+  l1: [X399]
+  l2: [X400]
+  l3: [X401]
+checkpoint:
+  pass_ratio: 0.7
+  min_items: 3
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-03"

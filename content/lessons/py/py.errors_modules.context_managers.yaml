@@ -1,0 +1,381 @@
+id: py.errors_modules.context_managers
+version: 1
+status: published
+title_vi: Context manager (câu lệnh with)
+est_minutes: 12
+objectives_vi:
+- Giải thích vì sao `with` đảm bảo dọn dẹp, kể cả khi có lỗi.
+- Viết context manager bằng class (`__enter__`/`__exit__`) và bằng `@contextmanager`.
+- Giải thích `__exit__` nhận gì khi có lỗi và khi nào trả `True` để nuốt lỗi.
+blocks:
+  - id: s_with
+    type: section
+    title_vi: "Câu lệnh with và context manager bằng class"
+    summary_vi: "with gọi __enter__ khi vào và luôn gọi __exit__ khi ra, kể cả khi có lỗi."
+    exercise_ref: ex_class_cm
+  - id: t1
+    type: text
+    md: |
+      Nhiều tài nguyên cần **dọn dẹp** sau khi dùng: đóng file, nhả khóa, dừng đồng hồ. Nếu chỉ viết
+      `open(...)` rồi `close()` ở cuối, một lỗi giữa chừng sẽ bỏ qua dòng `close()`. Câu lệnh
+      **`with`** giải quyết việc này: phần dọn dẹp luôn chạy.
+
+      Một **context manager** là object có hai method đặc biệt:
+
+      - **`__enter__(self)`** chạy khi vào khối `with`; giá trị nó trả về được gán cho biến sau `as`.
+      - **`__exit__(self, exc_type, exc, tb)`** chạy khi rời khối, **dù khối chạy xong bình thường hay
+        bị lỗi**.
+  - id: c1
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      import io
+
+
+      class Resource:
+          def __init__(self, out):
+              self.out = out
+
+          def __enter__(self):
+              self.out.write("open\n")
+              return self
+
+          def __exit__(self, exc_type, exc, tb):
+              self.out.write("close\n")
+              return False
+
+
+      buf = io.StringIO()
+      with Resource(buf) as r:
+          buf.write("work\n")
+      print(buf.getvalue(), end="")
+    expected_output: |
+      open
+      work
+      close
+  - id: q1
+    type: quiz_mcq
+    prompt_md: "Khối `with obj as x:` gán gì cho `x`?"
+    options:
+      - {id: a, text_md: "Chính `obj`, luôn luôn"}
+      - {id: b, text_md: "Giá trị `obj.__enter__()` trả về"}
+      - {id: c, text_md: "Giá trị `obj.__exit__()` trả về"}
+    answer: [b]
+    explain_md: "`as x` nhận kết quả của `__enter__`. Nó thường là `self`, nhưng có thể là thứ khác (ví dụ file object)."
+  - id: ex_class_cm
+    type: code_exercise
+    md: |
+      Hoàn thiện class `Recorder(log)`: `__enter__` ghi `"enter"` vào `log` và trả `self`;
+      `__exit__` ghi `"exit"` nếu không có lỗi, hoặc `"exit:<TênLỗi>"` (ví dụ `"exit:ValueError"`)
+      nếu có lỗi. `run(n, fail)` đã dùng `with`: thân khối ghi `"step 0"`.. `"step n-1"`, rồi khi
+      `fail=True` ném `ValueError`.
+    entry: run
+    starter: |
+      class Recorder:
+          def __init__(self, log):
+              self.log = log
+
+
+      def run(n, fail):
+          log = []
+          with Recorder(log):
+              for i in range(n):
+                  log.append("step " + str(i))
+              if fail:
+                  raise ValueError("boom")
+          log.append("after")
+          return log
+    guidance_md: |
+      - Thêm `__enter__(self)`: ghi `"enter"`, `return self`.
+      - Thêm `__exit__(self, exc_type, exc, tb)`.
+      - Trong `__exit__`, `exc_type` là `None` khi không có lỗi; ngược lại dùng `exc_type.__name__`.
+      - Test cần chương trình chạy tiếp tới `"after"` ngay cả khi `fail=True`, nên `__exit__` phải
+        trả `True` để nuốt lỗi.
+    hints:
+      - level: nudge
+        md: "Hiện `with Recorder(log)` báo lỗi vì class chưa có hai method đặc biệt nào của context manager?"
+      - level: approach
+        md: "Viết `__enter__` và `__exit__`. Trong `__exit__` kiểm tra `exc_type is None` để chọn nhãn ghi vào log."
+      - level: pseudocode
+        md: |
+          __enter__: ghi "enter"; trả về self
+          __exit__(exc_type, exc, tb):
+              nếu exc_type là None: ghi "exit"
+              ngược lại: ghi "exit:" + tên của exc_type
+              trả về True nếu muốn lỗi biến mất, False nếu để lỗi lan ra
+    tests:
+      - {args: [0, false], expected: ["enter", "exit", "after"]}
+      - {args: [2, false], expected: ["enter", "step 0", "step 1", "exit", "after"]}
+      - {args: [1, true], expected: ["enter", "step 0", "exit:ValueError", "after"]}
+    solution: |
+      class Recorder:
+          def __init__(self, log):
+              self.log = log
+
+          def __enter__(self):
+              self.log.append("enter")
+              return self
+
+          def __exit__(self, exc_type, exc, tb):
+              if exc_type is None:
+                  self.log.append("exit")
+              else:
+                  self.log.append("exit:" + exc_type.__name__)
+              return True
+
+
+      def run(n, fail):
+          log = []
+          with Recorder(log):
+              for i in range(n):
+                  log.append("step " + str(i))
+              if fail:
+                  raise ValueError("boom")
+          log.append("after")
+          return log
+  - id: s_exit
+    type: section
+    title_vi: "__exit__ khi có lỗi: nuốt hay để lan"
+    summary_vi: "__exit__ nhận thông tin lỗi; trả True thì lỗi bị nuốt, trả False/None thì lỗi tiếp tục lan."
+  - id: t2
+    type: text
+    md: |
+      Khi thân khối `with` ném exception, Python gọi `__exit__(exc_type, exc, tb)` với loại lỗi,
+      object lỗi và traceback. Khi không có lỗi cả ba đều là `None`.
+
+      Giá trị `__exit__` trả về quyết định số phận của lỗi:
+
+      - **trả `True`**: lỗi bị **nuốt**, chương trình chạy tiếp sau khối `with`;
+      - **trả `False` hoặc `None`** (mặc định nếu quên `return`): lỗi **tiếp tục lan** lên trên.
+
+      Lưu ý: `__exit__` luôn chạy trước, rồi mới tới chuyện lỗi lan hay bị nuốt. Chỉ nuốt những lỗi
+      bạn thật sự muốn xử lý; nuốt mọi thứ che giấu bug.
+  - id: c2
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class Quiet:
+          def __enter__(self):
+              return self
+
+          def __exit__(self, exc_type, exc, tb):
+              print("Quiet thay", exc_type.__name__)
+              return True
+
+
+      class Loud:
+          def __enter__(self):
+              return self
+
+          def __exit__(self, exc_type, exc, tb):
+              print("Loud thay", exc_type.__name__)
+              return False
+
+
+      with Quiet():
+          raise ValueError("boom")
+      print("sau Quiet")
+      try:
+          with Loud():
+              raise ValueError("boom")
+      except ValueError as e:
+          print("lan ra:", e)
+    expected_output: |
+      Quiet thay ValueError
+      sau Quiet
+      Loud thay ValueError
+      lan ra: boom
+  - id: q2
+    type: quiz_mcq
+    prompt_md: "`__exit__` không có câu `return` nào và thân `with` ném `KeyError`. Điều gì xảy ra?"
+    options:
+      - {id: a, text_md: "`KeyError` bị nuốt vì `__exit__` đã chạy"}
+      - {id: b, text_md: "`KeyError` tiếp tục lan lên trên sau khi `__exit__` chạy xong"}
+      - {id: c, text_md: "`__exit__` không được gọi vì có lỗi"}
+    answer: [b]
+    explain_md: "Thiếu `return` nghĩa là trả `None` (falsy), nên lỗi không bị nuốt. `__exit__` vẫn luôn được gọi."
+  - id: p2
+    type: predict_output
+    code: |
+      log = []
+
+
+      class C:
+          def __enter__(self):
+              log.append("in")
+
+          def __exit__(self, exc_type, exc, tb):
+              log.append("out")
+              return exc_type is KeyError
+
+
+      with C():
+          log.append("a")
+          raise KeyError("k")
+      log.append("b")
+      print(log)
+    expected_output: |
+      ['in', 'a', 'out', 'b']
+    explain_md: "`__exit__` trả `True` vì lỗi là `KeyError`, nên lỗi bị nuốt và chạy tiếp tới `log.append(\"b\")`."
+  - id: s_gen
+    type: section
+    title_vi: "@contextmanager và contextlib.suppress"
+    summary_vi: "Viết context manager bằng generator: code trước yield là enter, sau yield là exit; dọn dẹp đặt trong finally."
+    exercise_ref: ex_gen_cm
+  - id: t3
+    type: text
+    md: |
+      Viết class hơi dài. **`@contextlib.contextmanager`** cho phép viết bằng một **generator** có
+      đúng một `yield`:
+
+      - code **trước** `yield` là phần *enter*;
+      - giá trị sau `yield` là thứ gán cho `as`;
+      - code **sau** `yield` là phần *exit*.
+
+      Khi thân `with` có lỗi, lỗi được **ném lại tại dòng `yield`**. Vì vậy phần dọn dẹp phải nằm
+      trong **`try ... finally`**, nếu không nó sẽ bị bỏ qua khi có lỗi. Bắt lỗi bằng `except` quanh
+      `yield` thì tương đương với việc nuốt lỗi.
+
+      **`contextlib.suppress(Lỗi)`** là context manager dựng sẵn để nuốt đúng loại lỗi đó.
+  - id: c3
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      from contextlib import contextmanager, suppress
+
+      log = []
+
+
+      @contextmanager
+      def tag(name):
+          log.append("enter")
+          try:
+              yield name
+          finally:
+              log.append("exit")
+
+
+      with tag("a") as t:
+          log.append("body " + t)
+      try:
+          with tag("b"):
+              raise KeyError("k")
+      except KeyError:
+          log.append("caught")
+      print(log)
+
+      with suppress(ZeroDivisionError):
+          1 / 0
+      print("tiep tuc")
+    expected_output: |
+      ['enter', 'body a', 'exit', 'enter', 'exit', 'caught']
+      tiep tuc
+  - id: q3
+    type: quiz_mcq
+    prompt_md: "Trong context manager viết bằng `@contextmanager`, vì sao nên đặt phần dọn dẹp trong `finally`?"
+    options:
+      - {id: a, text_md: "Vì khi thân `with` có lỗi, lỗi được ném lại tại `yield` và code sau `yield` sẽ bị bỏ qua nếu không có `finally`"}
+      - {id: b, text_md: "Vì `yield` bắt buộc phải nằm trong `finally`"}
+      - {id: c, text_md: "Vì `finally` làm lỗi bị nuốt"}
+    answer: [a]
+    explain_md: "Lỗi từ thân `with` được ném vào generator tại `yield`; `finally` đảm bảo dọn dẹp vẫn chạy rồi lỗi lan tiếp."
+  - id: ex_gen_cm
+    type: code_exercise
+    md: |
+      Hoàn thiện `opened(log, name)` bằng `@contextmanager`: ghi `"open <name>"` khi vào, `yield name`,
+      và ghi `"close <name>"` khi ra **kể cả khi có lỗi**. `run(name, fail)` dùng nó và, nếu `fail=True`,
+      thân khối ném `KeyError` (được bắt bên ngoài và ghi `"caught"`).
+    entry: run
+    starter: |
+      from contextlib import contextmanager
+
+
+      @contextmanager
+      def opened(log, name):
+          log.append("open " + name)
+          yield name
+
+
+      def run(name, fail):
+          log = []
+          try:
+              with opened(log, name) as n:
+                  log.append("use " + n)
+                  if fail:
+                      raise KeyError("k")
+          except KeyError:
+              log.append("caught")
+          return log
+    guidance_md: |
+      - Bọc `yield name` trong `try:`.
+      - Thêm `finally:` và ghi `"close " + name` ở đó.
+      - Không cần sửa `run`.
+    hints:
+      - level: nudge
+        md: "Với `fail=True` log hiện thiếu dòng `close f`. Lỗi bị ném lại ở đâu trong generator?"
+      - level: approach
+        md: "Dùng `try`/`finally` quanh `yield` để dòng ghi `close` luôn chạy."
+      - level: pseudocode
+        md: |
+          ghi "open <name>"
+          thử:
+              yield name
+          cuối cùng (finally):
+              ghi "close <name>"
+    tests:
+      - {args: ["f", false], expected: ["open f", "use f", "close f"]}
+      - {args: ["f", true], expected: ["open f", "use f", "close f", "caught"]}
+      - {args: ["g", true], expected: ["open g", "use g", "close g", "caught"]}
+    solution: |
+      from contextlib import contextmanager
+
+
+      @contextmanager
+      def opened(log, name):
+          log.append("open " + name)
+          try:
+              yield name
+          finally:
+              log.append("close " + name)
+
+
+      def run(name, fail):
+          log = []
+          try:
+              with opened(log, name) as n:
+                  log.append("use " + n)
+                  if fail:
+                      raise KeyError("k")
+          except KeyError:
+              log.append("caught")
+          return log
+  - id: call1
+    type: callout
+    kind: interview
+    md: "Câu hỏi phỏng vấn quen thuộc: \"`__exit__` nhận gì và trả gì khi có lỗi?\" Trả lời: nhận `(exc_type, exc, tb)`; trả `True` để nuốt lỗi, `False`/`None` để lỗi lan tiếp."
+  - id: sum1
+    type: summary
+    bullets_vi:
+      - "`with` đảm bảo `__exit__` chạy khi rời khối, kể cả khi thân bị lỗi."
+      - "`__enter__` trả giá trị gán cho `as`; `__exit__(exc_type, exc, tb)` nhận `None` x3 nếu không lỗi."
+      - "`__exit__` trả `True` thì nuốt lỗi; `False`/`None` (kể cả quên `return`) thì lỗi lan tiếp."
+      - "`@contextmanager`: code trước `yield` là enter, sau `yield` là exit; đặt dọn dẹp trong `finally`."
+      - "`contextlib.suppress(Lỗi)` nuốt đúng loại lỗi chỉ định."
+problems:
+  practice: []
+  extra: []
+mastery_check:
+  l1: [X402]
+  l2: [X403]
+  l3: [X404]
+checkpoint:
+  pass_ratio: 0.7
+  min_items: 3
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (Wave 2 py fundamentals)"
+  reviewed_by: null
+  date: "2026-11-04"
