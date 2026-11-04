@@ -21,3 +21,29 @@ items:
     (hoặc truyền tham số/trả về giá trị).'
   rubric_md: 'Đúng các ý chính trong đáp án (thiếu ý quan trọng = sai). Đúng: bằng chứng điểm 2; sai:
     tối đa điểm 1.'
+- id: X334
+  difficulty: 3
+  type: concept
+  minutes: 8
+  prompt_md: 'Đoạn code `fs = [lambda: i for i in range(3)]; print([f() for f in fs])` in ra gì và vì
+    sao? Giải thích
+
+    late binding của closure, nêu 2 cách sửa, và phân biệt khi nào cần `nonlocal` so với `global` (cho
+    ví dụ
+
+    bộ đếm bằng closure hoặc decorator).
+
+    '
+  answer_md: "In ra `[2, 2, 2]`. Closure không chụp giá trị mà chụp biến `i` (cell) của scope bao ngoài;\
+    \ các lambda\nchỉ tra `i` khi được gọi, lúc đó vòng lặp đã kết thúc với `i = 2` (late binding).\n\n\
+    Hai cách sửa:\n1. Gắn giá trị tại thời điểm định nghĩa bằng đối số mặc định: `lambda i=i: i`.\n2.\
+    \ Dùng hàm nhà máy tạo scope riêng: `def make(i): return lambda: i` rồi `[make(i) for i in range(3)]`\n\
+    \   (hoặc `functools.partial`).\n\n`nonlocal x` cho hàm lồng bên trong gán lại biến `x` của hàm bao\
+    \ ngoài gần nhất (không phải global), ví dụ\n`def counter(): n = 0; def inc(): nonlocal n; n += 1;\
+    \ return n; return inc`. `global x` gán lại biến cấp\nmodule. Chỉ đọc thì không cần khai báo (LEGB);\
+    \ gán mà không khai báo sẽ tạo biến local mới (và gây\n`UnboundLocalError` nếu đọc trước khi gán).\
+    \ Decorator là ứng dụng của closure: wrapper nhớ `func`\nvà trạng thái (bộ đếm, cache) của scope bao\
+    \ ngoài, nên cần `nonlocal` nếu muốn gán lại trạng thái đó và\n`functools.wraps` để giữ metadata.\n"
+  rubric_md: 'Điểm 3: dự đoán đúng [2, 2, 2], giải thích closure giữ biến chứ không giữ giá trị, nêu đủ
+    2 cách sửa, phân biệt đúng nonlocal/global. Điểm 2: đúng kết quả và 1 cách sửa nhưng giải thích nonlocal/global
+    còn mơ hồ. Điểm 1: biết kết quả nhưng không giải thích được nguyên nhân. 0: sai.'
