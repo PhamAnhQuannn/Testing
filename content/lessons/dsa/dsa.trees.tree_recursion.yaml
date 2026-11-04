@@ -1,0 +1,456 @@
+id: dsa.trees.tree_recursion
+version: 2
+status: published
+title_vi: "Đệ quy trên cây (tree recursion)"
+est_minutes: 15
+objectives_vi:
+  - "Viết đệ quy trên cây với trường hợp cơ sở `node is None` và gộp kết quả của hai cây con."
+  - "Giải bài path sum từ gốc đến lá, nhớ kiểm tra node là lá trước khi so sánh tổng."
+  - "Kiểm tra cây cân bằng (balanced) trong O(n) bằng một lượt post-order trả về cặp (height, balanced)."
+  - "Truyền thông tin xuống dưới (max-so-far) để đếm good nodes."
+blocks:
+  - id: s_combine
+    type: section
+    title_vi: "Khuôn đệ quy: base case và gộp con"
+    summary_vi: "Cây rỗng là trường hợp cơ sở; kết quả của node = gộp kết quả của hai cây con."
+  - id: t01
+    type: text
+    md: |
+      Hầu hết bài về cây giải theo một khuôn: **tin rằng hàm đã đúng cho hai cây con**, rồi chỉ việc
+      ghép kết quả ở node hiện tại.
+
+      1. **Base case**: `node is None` (cây rỗng) trả giá trị trung tính (0 cho đếm/tổng, `False` cho "có tồn tại").
+      2. **Gọi đệ quy** trên `node.left` và `node.right`.
+      3. **Gộp**: kết quả của node từ `node.val` và hai kết quả con.
+
+      Có hai hướng truyền thông tin: **đi lên** (giá trị trả về, kiểu post-order, như chiều cao) và
+      **đi xuống** (tham số, kiểu pre-order, như tổng còn lại hay max-so-far). Cây được dựng từ list
+      theo tầng (`None` là chỗ trống) bằng `build_tree`.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class TreeNode:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+      def build_tree(vals):
+          if not vals or vals[0] is None:
+              return None
+          root = TreeNode(vals[0])
+          queue = [root]
+          i = 1
+          while queue and i < len(vals):
+              node = queue.pop(0)
+              if i < len(vals) and vals[i] is not None:
+                  node.left = TreeNode(vals[i])
+                  queue.append(node.left)
+              i += 1
+              if i < len(vals) and vals[i] is not None:
+                  node.right = TreeNode(vals[i])
+                  queue.append(node.right)
+              i += 1
+          return root
+
+      def count_and_sum(node):
+          if node is None:
+              return 0, 0
+          lc, ls = count_and_sum(node.left)
+          rc, rs = count_and_sum(node.right)
+          return 1 + lc + rc, node.val + ls + rs
+
+      root = build_tree([5, 3, 8, 1, 4])
+      print(count_and_sum(root))
+      print(count_and_sum(None))
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Trong `count_and_sum`, vì sao base case trả `(0, 0)` cho `node is None`?"
+    options:
+      - {id: a, text_md: "Vì cây rỗng không có node nào và tổng bằng 0, nên không làm sai phép cộng ở node cha"}
+      - {id: b, text_md: "Vì Python bắt buộc hàm đệ quy phải trả `0`"}
+      - {id: c, text_md: "Vì lá luôn có giá trị 0"}
+    answer: [a]
+    explain_md: "Giá trị trả về cho `None` phải là phần tử trung tính của phép gộp: 0 node, tổng 0. Khi đó lá (hai con `None`) cho `1 + 0 + 0` node và `val + 0 + 0` tổng."
+  - id: s_path
+    type: section
+    title_vi: "Path sum từ gốc đến lá"
+    summary_vi: "Truyền xuống tổng còn lại; chỉ so sánh tại lá."
+    exercise_ref: ex_path
+  - id: t02
+    type: text
+    md: |
+      Bài: có đường đi **từ gốc đến một lá** có tổng bằng `target` không? Truyền xuống `remain`
+      (phần còn lại của target). Tại mỗi node trừ `node.val`; tại **lá** (cả hai con là `None`)
+      kiểm tra `remain == 0`.
+
+      Bẫy hay gặp: nếu để `None` trả `remain == 0`, một node chỉ có **một** con sẽ "mượn" con rỗng
+      còn lại làm lá giả, và đường kết thúc ở node giữa cây bị tính nhầm. Vì vậy `None` phải trả `False`
+      và phép so sánh chỉ nằm ở lá. Độ phức tạp **O(n)** thời gian, **O(h)** ngăn xếp.
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class TreeNode:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+      def build_tree(vals):
+          if not vals or vals[0] is None:
+              return None
+          root = TreeNode(vals[0])
+          queue = [root]
+          i = 1
+          while queue and i < len(vals):
+              node = queue.pop(0)
+              if i < len(vals) and vals[i] is not None:
+                  node.left = TreeNode(vals[i])
+                  queue.append(node.left)
+              i += 1
+              if i < len(vals) and vals[i] is not None:
+                  node.right = TreeNode(vals[i])
+                  queue.append(node.right)
+              i += 1
+          return root
+
+      def has_path_sum(node, remain):
+          if node is None:
+              return False
+          remain -= node.val
+          print("tại", node.val, "còn lại", remain)
+          if node.left is None and node.right is None:
+              return remain == 0
+          return has_path_sum(node.left, remain) or has_path_sum(node.right, remain)
+
+      root = build_tree([5, 4, 8, 11, None, 13, 4])
+      print(has_path_sum(root, 20))
+  - id: q02
+    type: quiz_mcq
+    prompt_md: "Cây `[1, 2]` (gốc 1 chỉ có con trái 2), `target = 1`. Đáp án đúng của `has_path_sum` là gì?"
+    options:
+      - {id: a, text_md: "`True`, vì đường chỉ gồm gốc có tổng 1"}
+      - {id: b, text_md: "`False`, vì gốc không phải lá; đường gốc đến lá duy nhất là 1 + 2 = 3"}
+      - {id: c, text_md: "`True`, vì con phải rỗng là một lá có tổng 1"}
+    answer: [b]
+    explain_md: "Gốc có con trái nên không phải lá. Đường hợp lệ duy nhất là 1, 2 với tổng 3. Con phải rỗng không phải là node, nên không được coi là lá."
+  - id: ex_path
+    type: code_exercise
+    md: |
+      `has_path_sum(vals, target)` dưới đây trả `True` sai khi đường đi kết thúc ở node không phải lá
+      (và cả khi cây rỗng). Sửa để chỉ chấp nhận tổng tại **lá**. Ví dụ `[1, 2]`, `target = 1` phải cho `False`.
+    entry: has_path_sum
+    starter: |
+      class TreeNode:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+      def build_tree(vals):
+          if not vals or vals[0] is None:
+              return None
+          root = TreeNode(vals[0])
+          queue = [root]
+          i = 1
+          while queue and i < len(vals):
+              node = queue.pop(0)
+              if i < len(vals) and vals[i] is not None:
+                  node.left = TreeNode(vals[i])
+                  queue.append(node.left)
+              i += 1
+              if i < len(vals) and vals[i] is not None:
+                  node.right = TreeNode(vals[i])
+                  queue.append(node.right)
+              i += 1
+          return root
+
+      def has_path_sum(vals, target):
+          def go(node, remain):
+              if node is None:
+                  return remain == 0
+              remain -= node.val
+              return go(node.left, remain) or go(node.right, remain)
+
+          return go(build_tree(vals), target)
+    guidance_md: |
+      - Thử `[]` và `[1, 2]` với `target = 1`: kết quả đúng là gì?
+      - Base case `None` nên trả gì để không tạo lá giả?
+      - Chỉ so sánh `remain == 0` khi `node.left` và `node.right` đều là `None`.
+    hints:
+      - level: nudge
+        md: "Một node có đúng một con có hai cây con; cây con rỗng đang được coi như thế nào?"
+      - level: approach
+        md: "`None` không phải là lá. Hãy trả `False` cho `None`, và chỉ so sánh `remain == 0` sau khi trừ `node.val`, khi node là lá."
+      - level: near_solution
+        md: |
+          Thân hàm `go` có ba phần theo thứ tự: nhánh `None` trả giá trị không bao giờ khớp,
+          trừ `node.val` khỏi `remain`, rồi một nhánh riêng cho lá quyết định bằng phép so sánh với 0;
+          node trong thì hỏi hai cây con bằng `or`.
+    tests:
+      - {args: [[], 0], expected: false}
+      - {args: [[7], 7], expected: true}
+      - {args: [[1, 2], 1], expected: false}
+      - {args: [[1, 2], 3], expected: true}
+      - {args: [[5, 4, 8, 11, null, 13, 4, 7, 2, null, null, null, 1], 22], expected: true}
+    solution: |
+      class TreeNode:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+      def build_tree(vals):
+          if not vals or vals[0] is None:
+              return None
+          root = TreeNode(vals[0])
+          queue = [root]
+          i = 1
+          while queue and i < len(vals):
+              node = queue.pop(0)
+              if i < len(vals) and vals[i] is not None:
+                  node.left = TreeNode(vals[i])
+                  queue.append(node.left)
+              i += 1
+              if i < len(vals) and vals[i] is not None:
+                  node.right = TreeNode(vals[i])
+                  queue.append(node.right)
+              i += 1
+          return root
+
+      def has_path_sum(vals, target):
+          def go(node, remain):
+              if node is None:
+                  return False
+              remain -= node.val
+              if node.left is None and node.right is None:
+                  return remain == 0
+              return go(node.left, remain) or go(node.right, remain)
+
+          return go(build_tree(vals), target)
+  - id: s_balanced
+    type: section
+    title_vi: "Cây cân bằng và good nodes"
+    summary_vi: "Một lượt post-order trả (height, balanced); max-so-far truyền xuống."
+    exercise_ref: ex_good
+  - id: t03
+    type: text
+    md: |
+      **Cây cân bằng (height-balanced)**: tại mọi node, chiều cao hai cây con chênh nhau không quá 1.
+      Cách ngây thơ gọi `height` ở mỗi node tốn **O(n^2)** với cây lệch. Cách tốt: một lượt
+      **post-order**, mỗi lời gọi trả về cặp `(height, balanced)`; node cha dùng luôn kết quả của con,
+      tổng **O(n)**.
+  - id: b03
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class TreeNode:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+      def build_tree(vals):
+          if not vals or vals[0] is None:
+              return None
+          root = TreeNode(vals[0])
+          queue = [root]
+          i = 1
+          while queue and i < len(vals):
+              node = queue.pop(0)
+              if i < len(vals) and vals[i] is not None:
+                  node.left = TreeNode(vals[i])
+                  queue.append(node.left)
+              i += 1
+              if i < len(vals) and vals[i] is not None:
+                  node.right = TreeNode(vals[i])
+                  queue.append(node.right)
+              i += 1
+          return root
+
+      def check(node):
+          if node is None:
+              return 0, True
+          lh, lok = check(node.left)
+          rh, rok = check(node.right)
+          ok = lok and rok and abs(lh - rh) <= 1
+          return 1 + max(lh, rh), ok
+
+      print(check(build_tree([3, 9, 20, None, None, 15, 7])))
+      print(check(build_tree([1, 2, None, 3])))
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Vì sao lời giải `(height, balanced)` chạy O(n) còn cách gọi `height` riêng ở mỗi node là O(n^2) trong trường hợp xấu?"
+    options:
+      - {id: a, text_md: "Vì cách đầu dùng `max` còn cách sau thì không"}
+      - {id: b, text_md: "Vì cách đầu thăm mỗi node đúng một lần và tái sử dụng chiều cao con, cách sau tính lại chiều cao của cùng các node nhiều lần"}
+      - {id: c, text_md: "Vì cách đầu không dùng đệ quy"}
+    answer: [b]
+    explain_md: "Trong cây lệch, gọi `height` tại node ở độ sâu d tốn O(n - d), cộng lại O(n^2). Trả `(height, balanced)` lên trên giúp mỗi node chỉ được xử lý một lần."
+  - id: t04
+    type: text
+    md: |
+      **Good nodes**: node `X` là "good" nếu không có node nào trên đường gốc đến `X` lớn hơn `X`,
+      tức `X.val >= max` của các tổ tiên. Đây là thông tin **đi xuống**: truyền `best` (max-so-far)
+      như tham số, đếm node thỏa `node.val >= best`, rồi cập nhật `best = max(best, node.val)` cho hai con.
+  - id: b04
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class TreeNode:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+      def build_tree(vals):
+          if not vals or vals[0] is None:
+              return None
+          root = TreeNode(vals[0])
+          queue = [root]
+          i = 1
+          while queue and i < len(vals):
+              node = queue.pop(0)
+              if i < len(vals) and vals[i] is not None:
+                  node.left = TreeNode(vals[i])
+                  queue.append(node.left)
+              i += 1
+              if i < len(vals) and vals[i] is not None:
+                  node.right = TreeNode(vals[i])
+                  queue.append(node.right)
+              i += 1
+          return root
+
+      def good_nodes(vals):
+          def dfs(node, best):
+              if node is None:
+                  return 0
+              here = 1 if node.val >= best else 0
+              best = max(best, node.val)
+              return here + dfs(node.left, best) + dfs(node.right, best)
+
+          root = build_tree(vals)
+          if root is None:
+              return 0
+          return dfs(root, root.val)
+
+      print(good_nodes([3, 1, 4, 3, None, 1, 5]))
+  - id: ex_good
+    type: code_exercise
+    md: |
+      `good_nodes(vals)` dưới đây đếm sai vì `best` chỉ lấy giá trị của node hiện tại thay vì max trên cả
+      đường từ gốc. Hãy sửa. Ví dụ `[5, 2, None, 1, 3]` cho `1` (chỉ gốc là good).
+    entry: good_nodes
+    starter: |
+      class TreeNode:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+      def build_tree(vals):
+          if not vals or vals[0] is None:
+              return None
+          root = TreeNode(vals[0])
+          queue = [root]
+          i = 1
+          while queue and i < len(vals):
+              node = queue.pop(0)
+              if i < len(vals) and vals[i] is not None:
+                  node.left = TreeNode(vals[i])
+                  queue.append(node.left)
+              i += 1
+              if i < len(vals) and vals[i] is not None:
+                  node.right = TreeNode(vals[i])
+                  queue.append(node.right)
+              i += 1
+          return root
+
+      def good_nodes(vals):
+          def dfs(node, best):
+              if node is None:
+                  return 0
+              here = 1 if node.val >= best else 0
+              best = node.val
+              return here + dfs(node.left, best) + dfs(node.right, best)
+
+          root = build_tree(vals)
+          if root is None:
+              return 0
+          return dfs(root, root.val)
+    guidance_md: |
+      - Với `[5, 2, None, 1, 3]`, node 3 (con của node 2) có good không? Đường là 5, 2, 3.
+      - `best` phải nhớ giá trị lớn nhất đã gặp trên đường, không chỉ node cha.
+      - Cập nhật bằng `max`.
+    hints:
+      - level: nudge
+        md: "Sau khi đi qua node 2 (nhỏ hơn 5), `best` đang trở thành bao nhiêu và lẽ ra nên là bao nhiêu?"
+      - level: approach
+        md: "`best` là giá trị lớn nhất trên đường từ gốc tới node hiện tại, nên nó chỉ có thể tăng khi đi xuống, không bao giờ giảm."
+      - level: near_solution
+        md: "Thay phép gán `best = node.val` bằng phép lấy lớn nhất giữa `best` hiện có và `node.val`, trước khi gọi hai cây con."
+    tests:
+      - {args: [[]], expected: 0}
+      - {args: [[3, 1, 4, 3, null, 1, 5]], expected: 4}
+      - {args: [[3, 3, null, 4, 2]], expected: 3}
+      - {args: [[2, null, 4, 10, 8, null, null, 4]], expected: 4}
+      - {args: [[5, 2, null, 1, 3]], expected: 1}
+    solution: |
+      class TreeNode:
+          def __init__(self, val, left=None, right=None):
+              self.val = val
+              self.left = left
+              self.right = right
+
+      def build_tree(vals):
+          if not vals or vals[0] is None:
+              return None
+          root = TreeNode(vals[0])
+          queue = [root]
+          i = 1
+          while queue and i < len(vals):
+              node = queue.pop(0)
+              if i < len(vals) and vals[i] is not None:
+                  node.left = TreeNode(vals[i])
+                  queue.append(node.left)
+              i += 1
+              if i < len(vals) and vals[i] is not None:
+                  node.right = TreeNode(vals[i])
+                  queue.append(node.right)
+              i += 1
+          return root
+
+      def good_nodes(vals):
+          def dfs(node, best):
+              if node is None:
+                  return 0
+              here = 1 if node.val >= best else 0
+              best = max(best, node.val)
+              return here + dfs(node.left, best) + dfs(node.right, best)
+
+          root = build_tree(vals)
+          if root is None:
+              return 0
+          return dfs(root, root.val)
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Khuôn cây: base case `None` trả giá trị trung tính, gọi đệ quy hai con rồi gộp."
+      - "Thông tin đi lên qua giá trị trả về (height, count); đi xuống qua tham số (remain, best)."
+      - "Path sum gốc-lá: `None` trả `False`, chỉ so sánh `remain == 0` tại lá."
+      - "Balanced O(n): một lượt post-order trả `(height, balanced)`, không tính lại chiều cao."
+      - "Good nodes: truyền `best = max(best, node.val)` xuống; đếm khi `node.val >= best`."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X443], l2: [Q121], l3: [Q122]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-04"

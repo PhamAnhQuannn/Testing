@@ -1,0 +1,57 @@
+# Placement-only items (P0 mcq / P1 read_code). Validated by content/schemas/placement.schema.json.
+# read_code expected_output = real stdout of `code` (computed by running it, never typed).
+subtopic_id: dsa.trees.bst
+items:
+- id: P1408
+  difficulty: 1
+  type: mcq
+  minutes: 1
+  prompt_md: Tìm một giá trị trong BST có n node bị lệch hẳn về một phía (giống danh sách liên kết) tốn bao nhiêu thời gian?
+  choices:
+  - O(1)
+  - O(log n)
+  - O(n)
+  - O(n log n)
+  answer_index: 2
+  explanation_md: Chi phí là O(h); cây lệch có h = n nên phải đi qua gần hết các node. Chỉ khi cây cân bằng mới có h = O(log n).
+- id: P1409
+  difficulty: 1
+  type: read_code
+  minutes: 2
+  prompt_md: 'Chạy tay (không chạy máy): đoạn code dưới in ra gì? Ghi đúng từng dòng.'
+  code: |
+    class T:
+        def __init__(self, v, l=None, r=None):
+            self.v, self.l, self.r = v, l, r
+
+    def insert(n, x):
+        if n is None:
+            return T(x)
+        if x < n.v:
+            n.l = insert(n.l, x)
+        else:
+            n.r = insert(n.r, x)
+        return n
+
+    root = None
+    for x in [8, 3, 10, 1, 6, 14]:
+        root = insert(root, x)
+
+    def inorder(n):
+        return inorder(n.l) + [n.v] + inorder(n.r) if n else []
+
+    def height(n):
+        return 0 if n is None else 1 + max(height(n.l), height(n.r))
+
+    def depth_of(n, t):
+        d = 0
+        while n.v != t:
+            n = n.l if t < n.v else n.r
+            d += 1
+        return d
+
+    print(inorder(root))
+    print(height(root), depth_of(root, 6))
+  expected_output: |
+    [1, 3, 6, 8, 10, 14]
+    3 2
