@@ -1,0 +1,211 @@
+id: py.errors_modules.files_pathlib
+version: 1
+status: published
+title_vi: "File, JSON, CSV và os.path"
+est_minutes: 14
+objectives_vi:
+  - "Giải thích các chế độ mở file (r, w, a, x, t, b) và vì sao dùng `with open(...)` (context manager) để file luôn được đóng."
+  - "Chuyển giữa chuỗi JSON và dữ liệu Python bằng `json.loads` / `json.dumps`; đọc CSV bằng `csv.reader` trên `io.StringIO`."
+  - "Xử lý đường dẫn dạng chuỗi bằng `os.path.join`, `splitext`, `basename`, `dirname`."
+blocks:
+  - id: s_files
+    type: section
+    title_vi: "File và chế độ mở (file modes)"
+    summary_vi: "open(), các mode, và vì sao luôn dùng with open."
+  - id: b01
+    type: text
+    md: |
+      Để làm việc với file, Python dùng `open(duong_dan, mode)`. **Chế độ (mode)** quyết định bạn được làm gì:
+
+      - `'r'` đọc (mặc định), file phải tồn tại; `'w'` ghi và **xoá sạch** nội dung cũ; `'a'` ghi nối thêm vào cuối; `'x'` tạo file mới, lỗi nếu đã tồn tại.
+      - `'t'` văn bản (text, mặc định) và `'b'` nhị phân (binary): `'rb'` đọc byte thô.
+
+      Cách đọc: `f.read()` lấy toàn bộ chuỗi, `f.readline()` một dòng, `f.readlines()` list các dòng, `f.write(s)` ghi chuỗi.
+
+      Mẫu chuẩn là **context manager** `with open("data.txt") as f:` — khi thoát khối `with` (kể cả khi có lỗi) file tự đóng, không bị rò rỉ tài nguyên. Bài này chạy trong trình duyệt (Pyodide) — ở đó chỉ có **filesystem ảo trong bộ nhớ**, không có file trên đĩa — nên ta luyện trên **chuỗi**, vì dữ liệu JSON/CSV đọc từ file về cũng chỉ là một chuỗi mà thôi.
+  - id: b02
+    type: quiz_mcq
+    prompt_md: "Bạn mở file bằng mode `'w'` trong khi file đã có 100 dòng. Điều gì xảy ra?"
+    options:
+      - {id: a, text_md: "Nội dung cũ bị xoá sạch ngay khi mở, rồi mới ghi nội dung mới"}
+      - {id: b, text_md: "Nội dung mới được nối vào cuối file"}
+      - {id: c, text_md: "Báo lỗi vì file đã tồn tại"}
+    answer: [a]
+    explain_md: "`'w'` cắt (truncate) file về rỗng. Muốn nối thêm dùng `'a'`; muốn báo lỗi nếu đã tồn tại dùng `'x'`."
+  - id: s_json_csv
+    type: section
+    title_vi: "JSON và CSV trên chuỗi"
+    summary_vi: "json.loads/dumps và csv.reader qua io.StringIO."
+    exercise_ref: ex_parse_row
+  - id: b03
+    type: text
+    md: |
+      **JSON** là định dạng văn bản trao đổi dữ liệu. Với chuỗi: `json.loads(s)` đổi chuỗi JSON thành dữ liệu Python (object thành `dict`, array thành `list`, `true`/`null` thành `True`/`None`); `json.dumps(obj)` làm ngược lại, trả về chuỗi. Với file thật có thêm cặp `json.load(f)` / `json.dump(obj, f)` (không có chữ `s`).
+
+      **CSV** là bảng văn bản, mỗi dòng các cột ngăn bằng dấu phẩy. `csv.reader(f)` nhận bất kỳ đối tượng giống file; để thử trên chuỗi, bọc bằng `io.StringIO(text)`. Mỗi dòng cho ra một list các chuỗi: **mọi giá trị đều là `str`**, nên số phải tự đổi bằng `int(...)`. Dùng `csv.reader` thay vì `split(",")` vì nó hiểu ô có dấu phẩy trong ngoặc kép như `"Ha Noi, VN"`.
+
+      **Lưu ý**: `json.loads` trên chuỗi sai cú pháp ném `json.JSONDecodeError` (một dạng `ValueError`). JSON chỉ chấp nhận nháy kép `"`.
+  - id: b04
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      import csv
+      import io
+      import json
+
+      raw = '{"name": "An", "scores": [8, 9], "ok": true, "note": null}'
+      data = json.loads(raw)
+      print(data["name"], sum(data["scores"]), data["ok"], data["note"])
+      data["scores"].append(10)
+      print(json.dumps(data))
+
+      text = "name,age\nAn,20\nBinh,31\n"
+      rows = list(csv.reader(io.StringIO(text)))
+      print(rows)
+      print(sum(int(r[1]) for r in rows[1:]))
+    expected_output: |
+      An 17 True None
+      {"name": "An", "scores": [8, 9, 10], "ok": true, "note": null}
+      [['name', 'age'], ['An', '20'], ['Binh', '31']]
+      51
+  - id: b05
+    type: predict_output
+    code: |
+      import json
+
+      s = json.dumps({"a": 1, "b": [True, None]})
+      print(s)
+      print(type(json.loads("[1, 2]")).__name__, json.loads("3") + 1)
+    expected_output: |
+      {"a": 1, "b": [true, null]}
+      list 4
+    explain_md: "`dumps` viết `True` thành `true` và `None` thành `null` (cú pháp JSON). `loads(\"[1, 2]\")` cho `list`; `loads(\"3\")` cho số `3`, cộng 1 được `4`."
+  - id: b06
+    type: quiz_fill
+    prompt_md: "Điền hàm để đổi chuỗi JSON `s` thành dữ liệu Python: `json.___(s)`"
+    blanks: [{accept: ["loads"]}]
+    explain_md: "`loads` (load **s**tring) đọc từ chuỗi; `load` không có `s` đọc từ file object. Ngược lại: `dumps` ra chuỗi, `dump` ghi vào file."
+  - id: ex_parse_row
+    type: code_exercise
+    md: |
+      Viết `first_column(text)` nhận chuỗi CSV (không có tiêu đề) và trả về **list giá trị cột đầu** của từng dòng, bỏ qua dòng trống. Ví dụ `"a,1\nb,2\n"` cho `["a", "b"]`. Dùng `csv.reader` và `io.StringIO`.
+    entry: first_column
+    starter: |
+      import csv
+      import io
+
+
+      def first_column(text):
+          # TODO: duyệt csv.reader(io.StringIO(text)), lấy phần tử đầu mỗi dòng không rỗng
+          return []
+    guidance_md: |
+      - Bọc `text` bằng `io.StringIO` để `csv.reader` coi nó như file.
+      - Mỗi `row` là một list; dòng trống cho list rỗng nên cần bỏ qua.
+    hints:
+      - level: nudge
+        md: "Dòng trống trong CSV được `csv.reader` trả về như thế nào?"
+      - level: approach
+        md: "Duyệt `for row in csv.reader(io.StringIO(text))`, nếu `row` không rỗng thì thêm `row[0]` vào kết quả."
+      - level: pseudocode
+        md: |
+          result = list rỗng
+          với mỗi row trong csv.reader(io.StringIO(text)):
+              nếu row không rỗng: thêm row[0] vào result
+          trả về result
+      - level: near_solution
+        md: |
+          def first_column(text):
+              return [row[0] for row in csv.reader(io.StringIO(text)) if ...]
+    tests:
+      - {args: [""], expected: []}
+      - {args: ["a,1\nb,2\n"], expected: ["a", "b"]}
+      - {args: ["x\n\ny\n"], expected: ["x", "y"]}
+      - {args: ["\"Ha Noi, VN\",5\nHue,6"], expected: ["Ha Noi, VN", "Hue"]}
+    solution: |
+      import csv
+      import io
+
+
+      def first_column(text):
+          return [row[0] for row in csv.reader(io.StringIO(text)) if row]
+  - id: s_ospath
+    type: section
+    title_vi: "Đường dẫn với os.path"
+    summary_vi: "join, splitext, basename, dirname trên chuỗi đường dẫn."
+    exercise_ref: ex_ext
+  - id: b07
+    type: text
+    md: |
+      Module `os.path` xử lý **đường dẫn như chuỗi**, không cần file có thật:
+
+      - `os.path.join("data", "a.csv")` ghép bằng dấu phân cách của hệ điều hành (trên Linux/Pyodide là `/`); đừng tự nối bằng `+ "/" +`.
+      - `os.path.basename("data/a.csv")` là `"a.csv"`; `os.path.dirname(...)` là `"data"`.
+      - `os.path.splitext("a.tar.gz")` trả tuple `("a.tar", ".gz")`: chỉ tách **đuôi cuối**.
+      - `os.path.exists(p)` kiểm tra đường dẫn có tồn tại (trên đĩa thật, hoặc trên filesystem ảo của Pyodide), `os.remove(p)` xoá file. (`pathlib.Path` là cách hiện đại hơn: `Path("data") / "a.csv"`.)
+  - id: b08
+    type: predict_output
+    code: |
+      import os.path
+
+      p = os.path.join("data", "reports", "sales.2026.csv")
+      print(p)
+      print(os.path.basename(p), os.path.dirname(p))
+      print(os.path.splitext(p)[1], os.path.splitext("archive.tar.gz"))
+    expected_output: |
+      data/reports/sales.2026.csv
+      sales.2026.csv data/reports
+      .csv ('archive.tar', '.gz')
+    explain_md: "`join` ghép bằng `/`. `basename` là phần sau dấu `/` cuối, `dirname` là phần trước. `splitext` chỉ cắt đuôi sau dấu chấm cuối cùng nên `archive.tar.gz` thành `('archive.tar', '.gz')`."
+  - id: ex_ext
+    type: code_exercise
+    md: |
+      Viết `file_ext(path)` trả về **đuôi file viết thường, không có dấu chấm** của đường dẫn; không có đuôi thì trả `""`. Ví dụ `"data/Report.CSV"` cho `"csv"`. Dùng `os.path.splitext`.
+    entry: file_ext
+    starter: |
+      import os.path
+
+
+      def file_ext(path):
+          # TODO: splitext, bỏ dấu chấm, viết thường
+          return ""
+    guidance_md: |
+      - `splitext` trả `(tên, đuôi)`; đuôi có dấu chấm đứng đầu (hoặc rỗng).
+      - Bỏ dấu chấm bằng `[1:]` rồi `lower()`.
+    hints:
+      - level: nudge
+        md: "Đuôi trả về từ `splitext` bắt đầu bằng ký tự nào?"
+      - level: approach
+        md: "Lấy phần tử thứ hai của `os.path.splitext(path)`, cắt bỏ ký tự đầu bằng `[1:]`, rồi `lower()`."
+      - level: near_solution
+        md: |
+          def file_ext(path):
+              ext = os.path.splitext(path)[1]
+              return ext[...].lower()
+    tests:
+      - {args: ["data/Report.CSV"], expected: "csv"}
+      - {args: ["archive.tar.gz"], expected: "gz"}
+      - {args: ["README"], expected: ""}
+      - {args: [".bashrc"], expected: ""}
+      - {args: ["a/b.d/c.JSON"], expected: "json"}
+    solution: |
+      import os.path
+
+
+      def file_ext(path):
+          return os.path.splitext(path)[1][1:].lower()
+  - id: b09
+    type: summary
+    bullets_vi:
+      - "Mode: `r` đọc, `w` ghi và xoá cũ, `a` nối thêm, `x` tạo mới, `t`/`b` văn bản/nhị phân; luôn dùng `with open(...) as f` để file tự đóng."
+      - "JSON: `loads`/`dumps` làm việc với chuỗi, `load`/`dump` với file; `True`/`None` tương ứng `true`/`null`; sai cú pháp gây `JSONDecodeError`."
+      - "CSV: `csv.reader(io.StringIO(text))` cho list các dòng; mọi giá trị là `str` nên cần `int(...)`; ưu tiên hơn `split(\",\")` vì xử lý ô có ngoặc kép."
+      - "`os.path`: `join`, `basename`, `dirname`, `splitext` (chỉ tách đuôi cuối); xử lý đường dẫn như chuỗi; `pathlib.Path` là cách hiện đại."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X369], l2: [X370], l3: [X371]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (Wave 2 py fundamentals)"
+  reviewed_by: null
+  date: "2026-11-04"

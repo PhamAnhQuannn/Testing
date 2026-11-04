@@ -1,0 +1,270 @@
+id: py.core.regex
+version: 1
+status: published
+title_vi: "Biểu thức chính quy (regex) với module re"
+est_minutes: 12
+objectives_vi:
+  - 'Phân biệt re.match (chỉ khớp ở đầu chuỗi), re.search (tìm chỗ khớp đầu tiên) và re.findall (lấy mọi chỗ khớp).'
+  - 'Viết pattern với \d \w \s, lượng từ + * ? {n}, nhóm (group) và cờ re.I.'
+  - 'Dùng re.sub để thay thế và re.split để tách chuỗi theo pattern.'
+blocks:
+  - id: s_find
+    type: section
+    title_vi: "match, search và findall"
+    summary_vi: "Ba cách tìm chỗ khớp: ở đầu chuỗi, chỗ đầu tiên, hoặc tất cả."
+    exercise_ref: ex_numbers
+  - id: b01
+    type: text
+    md: |
+      **Biểu thức chính quy (regular expression, regex)** là một chuỗi mô tả *mẫu* ký tự cần tìm.
+      Python cung cấp module `re` (có sẵn, không cần cài): `import re`. Hãy viết pattern bằng
+      **raw string** `r"..."` để dấu `\` không bị Python hiểu nhầm là ký tự thoát.
+
+      Ba hàm tìm kiếm cơ bản:
+
+      - `re.match(p, s)`: chỉ khớp **ở đầu chuỗi**; trả về đối tượng match hoặc `None`.
+      - `re.search(p, s)`: tìm chỗ khớp **đầu tiên ở bất kỳ đâu**; trả về match hoặc `None`.
+      - `re.findall(p, s)`: trả về **list** mọi chỗ khớp (không chồng lấn), list rỗng nếu không có.
+
+      Đối tượng match có `.group()` là đoạn văn bản khớp. Vì kết quả có thể là `None`, nên kiểm tra
+      `if m:` trước khi gọi `.group()`, nếu không sẽ gặp `AttributeError`.
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      import re
+
+      log = "Order 66 shipped on 2026-11-04, order 7 pending"
+      print(re.search(r"\d+", log).group())
+      print(re.match(r"\d+", log))
+      print(re.findall(r"\d+", log))
+      print(re.findall(r"order", log, re.I))
+    expected_output: |
+      66
+      None
+      ['66', '2026', '11', '04', '7']
+      ['Order', 'order']
+  - id: b03
+    type: quiz_mcq
+    prompt_md: |
+      Đoạn sau in ra gì?
+
+      ```python
+      import re
+      print(re.match(r"\d+", "ab12"))
+      print(re.search(r"\d+", "ab12").group())
+      ```
+    options:
+      - {id: a, text_md: "`None` rồi `12`, vì `match` chỉ khớp ở đầu chuỗi còn `search` tìm ở bất kỳ đâu"}
+      - {id: b, text_md: "`12` rồi `12`, vì cả hai đều tìm khắp chuỗi"}
+      - {id: c, text_md: "`None` rồi `None`, vì `\\d` không khớp chữ số"}
+    answer: [a]
+    explain_md: "`re.match` yêu cầu khớp từ vị trí 0, mà `ab12` bắt đầu bằng chữ nên trả `None`. `re.search` quét cả chuỗi và tìm thấy `12`."
+  - id: ex_numbers
+    type: code_exercise
+    md: |
+      Viết `extract_numbers(s)` trả về **list các số nguyên** (kiểu `int`) xuất hiện trong chuỗi `s`,
+      theo thứ tự xuất hiện. Mỗi dãy chữ số liên tiếp là một số. Không có số nào thì trả list rỗng.
+      Ví dụ `"a1b22c333"` cho `[1, 22, 333]`.
+    entry: extract_numbers
+    starter: |
+      def extract_numbers(s):
+          # TODO: dùng re.findall để lấy các dãy chữ số, rồi đổi sang int
+          return []
+    guidance_md: |
+      - Cần `import re` ở đầu file.
+      - Một dãy chữ số liên tiếp là pattern `\d+` (một hay nhiều chữ số).
+      - `re.findall` trả về list các **chuỗi**; đổi từng phần tử sang `int`.
+    hints:
+      - level: nudge
+        md: "Pattern nào khớp một dãy chữ số liên tiếp, và hàm nào lấy mọi chỗ khớp?"
+      - level: approach
+        md: 'Dùng `re.findall(r"\d+", s)` được list chuỗi, rồi đổi từng chuỗi thành `int` (vòng lặp hoặc list comprehension).'
+      - level: pseudocode
+        md: |
+          cac_so = re.findall(pattern chữ số một hay nhiều lần, s)
+          trả về list gồm int(x) với mỗi x trong cac_so
+      - level: near_solution
+        md: |
+          import re
+
+
+          def extract_numbers(s):
+              parts = re.findall(r"...", s)
+              return [int(...) for p in parts]
+    tests:
+      - {args: [""], expected: []}
+      - {args: ["abc"], expected: []}
+      - {args: ["a1b22c333"], expected: [1, 22, 333]}
+      - {args: ["007 and 42"], expected: [7, 42]}
+      - {args: ["x9"], expected: [9]}
+    solution: |
+      import re
+
+
+      def extract_numbers(s):
+          return [int(p) for p in re.findall(r"\d+", s)]
+  - id: s_patterns
+    type: section
+    title_vi: "Pattern, nhóm và cờ"
+    summary_vi: "Ký tự đặc biệt, lượng từ, nhóm ( ) và cờ re.I."
+  - id: b04
+    type: text
+    md: |
+      **Lớp ký tự (character class)**:
+
+      - `\d` chữ số 0-9; `\w` chữ, số hoặc `_`; `\s` khoảng trắng; `.` ký tự bất kỳ (trừ xuống dòng).
+      - `[abc]` một trong a, b, c; `[a-z]` một chữ thường; `[^0-9]` ký tự **không** phải chữ số.
+      - `\D`, `\W`, `\S` là phần bù của `\d`, `\w`, `\s`.
+
+      **Lượng từ (quantifier)** áp dụng cho phần đứng ngay trước:
+
+      - `*` không hoặc nhiều lần; `+` một hoặc nhiều lần; `?` không hoặc một lần.
+      - `{3}` đúng 3 lần; `{2,4}` từ 2 đến 4 lần.
+
+      **Neo (anchor)**: `^` đầu chuỗi, `$` cuối chuỗi. Ví dụ `^\d{3}$` chỉ khớp chuỗi gồm đúng 3 chữ số.
+
+      **Nhóm (group)**: dấu ngoặc `( )` bắt lấy một phần của chỗ khớp. `m.group(1)` là nhóm thứ nhất,
+      `m.groups()` là tuple mọi nhóm, `m.group(0)` (hay `m.group()`) là toàn bộ chỗ khớp.
+      Với `re.findall`, nếu pattern có nhóm thì kết quả là list các nhóm thay vì toàn bộ chỗ khớp.
+
+      **Cờ (flag)**: `re.I` (IGNORECASE) bỏ qua khác biệt hoa thường; truyền làm tham số cuối:
+      `re.findall(p, s, re.I)`.
+  - id: b05
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      import re
+
+      m = re.search(r"(\d{4})-(\d{2})-(\d{2})", "ngay 2026-11-04 nhe")
+      print(m.group(0), m.groups(), m.group(1))
+      print(re.match(r"^\d{3}$", "123") is not None, re.match(r"^\d{3}$", "1234"))
+      print(re.findall(r"colou?r", "color colour"))
+      print(re.findall(r"[a-z]+@\w+", "an@mail va bo@site"))
+    expected_output: |
+      2026-11-04 ('2026', '11', '04') 2026
+      True None
+      ['color', 'colour']
+      ['an@mail', 'bo@site']
+  - id: b06
+    type: predict_output
+    code: |
+      import re
+
+      print(re.findall(r"\d{2}", "1 23 456"))
+      print(re.findall(r"(\w)(\d)", "a1 b2 c"))
+    expected_output: |
+      ['23', '45']
+      [('a', '1'), ('b', '2')]
+    explain_md: "`\\d{2}` lấy từng cặp 2 chữ số, không chồng lấn: `23`, rồi trong `456` lấy `45` (còn `6` lẻ). Pattern có hai nhóm nên `findall` trả list các tuple (chữ, số); `c` không có chữ số theo sau nên không khớp."
+  - id: b07
+    type: quiz_fill
+    prompt_md: 'Điền vào chỗ trống để pattern khớp **đúng 5 chữ số**: `r"^\d___$"`'
+    blanks: [{accept: ["{5}"]}]
+    explain_md: "`{5}` là lượng từ \"đúng 5 lần\" áp dụng cho `\\d`. Hai neo `^` và `$` bảo đảm cả chuỗi chỉ gồm 5 chữ số."
+  - id: s_sub_split
+    type: section
+    title_vi: "sub và split"
+    summary_vi: "Thay thế và tách chuỗi theo pattern."
+    exercise_ref: ex_valid_code
+  - id: b08
+    type: text
+    md: |
+      - `re.sub(p, thay, s)` thay **mọi** chỗ khớp `p` trong `s` bằng `thay` và trả về chuỗi mới
+        (chuỗi gốc không đổi vì `str` bất biến). Có thể giới hạn bằng `count=1`.
+      - `re.split(p, s)` tách `s` tại mỗi chỗ khớp `p`, trả về list. Mạnh hơn `str.split` vì
+        dấu phân cách có thể là pattern, ví dụ `r"[,;]\s*"`.
+      - Trong chuỗi thay thế có thể dùng `\1`, `\2` để chèn lại nhóm đã bắt.
+
+      Khi nào dùng regex? Khi cần tìm **mẫu** (số điện thoại, email, ngày). Nếu chỉ cần tìm một
+      chuỗi cố định thì `in`, `find`, `replace` của `str` đơn giản và nhanh hơn.
+  - id: b09
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      import re
+
+      print(re.sub(r"\d", "#", "tel 090-123"))
+      print(re.sub(r"\s+", " ", "a   b \t c"))
+      print(re.split(r"[,;]\s*", "x, y;z,  w"))
+      print(re.sub(r"(\w+)@(\w+)", r"\2:\1", "an@mail"))
+    expected_output: |
+      tel ###-###
+      a b c
+      ['x', 'y', 'z', 'w']
+      mail:an
+  - id: b10
+    type: predict_output
+    code: |
+      import re
+
+      s = "Cat cat CAT"
+      print(re.sub(r"cat", "dog", s))
+      print(re.sub(r"cat", "dog", s, flags=re.I))
+      print(len(re.split(r"\s+", s)))
+    expected_output: |
+      Cat dog CAT
+      dog dog dog
+      3
+    explain_md: "Mặc định regex phân biệt hoa thường nên chỉ `cat` chữ thường bị thay. Với `flags=re.I` cả ba từ khớp. `re.split(r\"\\s+\", s)` tách tại các khoảng trắng nên được 3 phần."
+  - id: ex_valid_code
+    type: code_exercise
+    md: |
+      Viết `is_valid_code(s)` trả `True` nếu `s` có dạng **đúng 2 chữ cái in hoa rồi đúng 3 chữ số**
+      (ví dụ `"AB123"`), ngược lại trả `False`. Toàn bộ chuỗi phải khớp: `"AB1234"` và `"xAB123"` đều sai.
+    entry: is_valid_code
+    starter: |
+      def is_valid_code(s):
+          # TODO: dùng re.match với pattern có neo ^ và $
+          return False
+    guidance_md: |
+      - Hai chữ cái in hoa: `[A-Z]{2}`; ba chữ số: `\d{3}`.
+      - Thêm neo `^` ở đầu và `$` ở cuối để cả chuỗi phải khớp.
+      - `re.match` trả match hoặc `None`; đổi sang `bool` bằng `is not None`.
+    hints:
+      - level: nudge
+        md: "Làm sao bảo đảm chuỗi dài hơn hoặc có ký tự thừa ở đầu thì không khớp?"
+      - level: approach
+        md: 'Ghép pattern `^[A-Z]{2}\d{3}$` rồi dùng `re.match`; kết quả khác `None` nghĩa là hợp lệ.'
+      - level: pseudocode
+        md: |
+          m = re.match(pattern: đầu, 2 chữ in hoa, 3 chữ số, cuối; s)
+          trả về (m khác None)
+      - level: near_solution
+        md: |
+          import re
+
+
+          def is_valid_code(s):
+              return re.match(r"^...$", s) is not None
+    tests:
+      - {args: ["AB123"], expected: true}
+      - {args: ["AB1234"], expected: false}
+      - {args: ["xAB123"], expected: false}
+      - {args: ["ab123"], expected: false}
+      - {args: [""], expected: false}
+    solution: |
+      import re
+
+
+      def is_valid_code(s):
+          return re.match(r"^[A-Z]{2}\d{3}$", s) is not None
+  - id: b11
+    type: summary
+    bullets_vi:
+      - '`import re`; viết pattern bằng raw string `r"..."`. `match` chỉ khớp ở đầu chuỗi, `search` tìm chỗ đầu tiên, `findall` trả list mọi chỗ khớp.'
+      - "`match`/`search` có thể trả `None`: kiểm tra `if m:` trước khi `m.group()`."
+      - "Lớp ký tự `\\d \\w \\s .`, tập `[a-z]`; lượng từ `+ * ? {n} {n,m}`; neo `^` và `$`."
+      - "Nhóm `( )` cho `m.group(1)`, `m.groups()`; `findall` với nhóm trả list tuple/nhóm."
+      - "`re.sub(p, thay, s)` thay mọi chỗ khớp, `re.split(p, s)` tách theo pattern; cờ `re.I` bỏ qua hoa thường."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X363], l2: [X364], l3: [X365]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "Claude (Wave 2 py fundamentals)"
+  reviewed_by: null
+  date: "2026-11-04"
