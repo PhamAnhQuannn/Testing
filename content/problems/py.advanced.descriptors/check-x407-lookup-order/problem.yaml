@@ -1,0 +1,54 @@
+id: check-x407-lookup-order
+subtopic_id: py.advanced.descriptors
+secondary_subtopics: []
+kind: check
+title: 'Check X407: lookup_order'
+title_vi: 'Kiểm tra X407: lookup_order'
+difficulty: easy
+source:
+  type: original
+statement_en_md: Implement `lookup_order(ops)` as described in the Vietnamese statement (mastery
+  check item X407, 12-minute time box).
+statement_vi_md: Viết `lookup_order(ops)`. Bên trong, định nghĩa data descriptor `D` (`__get__` trả
+  `"data"`, `__set__` ghi `f"d={value}"` (tức `"d=" + str(value)`) vào một list log và không lưu gì), non-data descriptor `N`
+  (`__get__` trả `"nondata"`) và class `C` với `d = D()`, `n = N()`. Tạo một instance `c`, áp dụng
+  lần lượt từng cặp `[tên, giá_trị]` trong `ops` bằng `setattr(c, tên, giá_trị)` (tên là `"d"` hoặc
+  `"n"`). Trả `[c.d, c.n, log]`.
+constraints: []
+examples:
+- input: ops = [["d", "x"], ["n", "y"]]
+  output: '["data", "y", ["d=x"]]'
+  explain_vi: Gán d đi vào __set__ (được ghi log, d vẫn là "data"); gán n ghi vào __dict__ của instance nên che non-data descriptor, c.n là "y".
+io:
+  mode: function
+  entry: lookup_order
+  params:
+  - name: ops
+    type: list[list]
+  returns: list
+  compare: exact
+starter:
+  python: "def lookup_order(ops):\n    # TODO\n    pass\n"
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+time_target_min: 12
+hints:
+- Định nghĩa `log = []`, rồi `D`, `N`, `C` bên trong hàm để `D.__set__` ghi vào `log`.
+- '`D` có cả `__get__` và `__set__` (data descriptor); `N` chỉ có `__get__` (non-data).'
+- Gọi `setattr(c, name, value)` cho từng cặp rồi trả `[c.d, c.n, log]`; đừng tự viết logic ưu tiên, để Python quyết định.
+solution:
+  file: solution.py
+  approach_vi: Python tự áp dụng thứ tự ưu tiên; data descriptor chặn gán, non-data bị __dict__ che.
+  complexity: O(n)
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x407
+status: validated
+version: 1

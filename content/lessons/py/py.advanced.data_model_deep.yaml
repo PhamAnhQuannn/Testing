@@ -1,0 +1,299 @@
+id: py.advanced.data_model_deep
+version: 1
+status: published
+title_vi: Data model chuyên sâu và introspection
+est_minutes: 12
+objectives_vi:
+- Dùng type/isinstance/vars/dir/getattr/setattr/hasattr để khảo sát đối tượng lúc chạy.
+- Phân biệt namespace của class và của instance (__dict__), đọc __mro__, __name__, __qualname__.
+- Giải thích __slots__ tiết kiệm bộ nhớ và chặn thuộc tính tuỳ ý như thế nào.
+- Phân biệt __getattr__ (chỉ khi tra cứu thất bại) với __getattribute__ (mọi truy cập).
+blocks:
+  - id: s_intro
+    type: section
+    title_vi: "Mọi thứ là object và introspection"
+    summary_vi: "Instance giữ thuộc tính trong __dict__; các hàm type/vars/getattr/setattr/hasattr/callable cho phép khảo sát lúc chạy."
+    exercise_ref: ex_getattr
+  - id: t1
+    type: text
+    md: |
+      Trong Python **mọi thứ là object**: số, hàm, class, module. Mỗi instance thông thường giữ
+      thuộc tính của nó trong một dict riêng là **`__dict__`**; `vars(obj)` trả đúng dict đó.
+
+      Các hàm **introspection** (khảo sát lúc chạy): `type(obj)` / `obj.__class__` cho class,
+      `isinstance`/`issubclass` kiểm tra quan hệ kế thừa, `getattr`/`setattr`/`hasattr`/`delattr`
+      đọc-ghi thuộc tính theo **tên chuỗi**, `callable(x)` cho biết `x` gọi được không,
+      `dir(obj)` trả danh sách tên (đã sắp xếp).
+  - id: c1
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class P:
+          def __init__(self):
+              self.x = 1
+              self.y = 2
+
+      p = P()
+      print(type(p).__name__, isinstance(p, P))
+      print(vars(p))
+      print(p.__dict__ is vars(p))
+      print(hasattr(p, "z"), getattr(p, "z", 0))
+      setattr(p, "z", 3)
+      print(sorted(vars(p)))
+      print(callable(P), callable(p))
+    expected_output: |
+      P True
+      {'x': 1, 'y': 2}
+      True
+      False 0
+      ['x', 'y', 'z']
+      True False
+  - id: q1
+    type: quiz_mcq
+    prompt_md: "`getattr(p, \"z\", 0)` làm gì khi `p` không có thuộc tính `z`?"
+    options:
+      - {id: a, text_md: "Ném `AttributeError`"}
+      - {id: b, text_md: "Trả giá trị mặc định `0` mà không ném lỗi"}
+      - {id: c, text_md: "Tạo thuộc tính `z = 0` trên `p`"}
+    answer: [b]
+    explain_md: "Đối số thứ ba là giá trị mặc định khi thiếu thuộc tính; `getattr` không tạo thuộc tính mới."
+  - id: ex_getattr
+    type: code_exercise
+    md: |
+      `read_setting(data, name)` dựng đối tượng `Settings` từ dict `data` rồi đọc thuộc tính `name`.
+      Hiện tên không tồn tại gây `AttributeError`. Thêm `__getattr__` vào `Settings` để thuộc tính
+      thiếu trả `0`.
+    entry: read_setting
+    starter: |
+      class Settings:
+          def __init__(self, data):
+              for key, value in data.items():
+                  setattr(self, key, value)
+
+
+      def read_setting(data, name):
+          return getattr(Settings(data), name)
+    guidance_md: |
+      - `__getattr__(self, name)` chỉ được gọi khi cách tra cứu thông thường thất bại.
+      - Chỉ cần trả `0` trong `__getattr__`.
+    hints:
+      - level: nudge
+        md: "Lỗi là `AttributeError` khi tên không có. Phương thức đặc biệt nào được gọi khi tra cứu thuộc tính thất bại?"
+      - level: approach
+        md: "Định nghĩa `__getattr__(self, name)` trong `Settings` và trả giá trị mặc định."
+      - level: near_solution
+        md: "Định nghĩa phương thức `__getattr__(self, name)` trong class; nó chỉ được gọi khi tra cứu thường thất bại, nên trả về giá trị mặc định (0) cho mọi tên chưa có."
+    tests:
+      - {args: [{"a": 1}, "a"], expected: 1}
+      - {args: [{"a": 1}, "b"], expected: 0}
+      - {args: [{}, "x"], expected: 0}
+    solution: |
+      class Settings:
+          def __init__(self, data):
+              for key, value in data.items():
+                  setattr(self, key, value)
+
+          def __getattr__(self, name):
+              return 0
+
+
+      def read_setting(data, name):
+          return getattr(Settings(data), name)
+  - id: s_ns
+    type: section
+    title_vi: "Namespace của class, __mro__ và tên"
+    summary_vi: "Class có __dict__ riêng; tra cứu đi theo __mro__; __name__ và __qualname__ cho tên đơn giản và tên đầy đủ."
+  - id: t2
+    type: text
+    md: |
+      Class cũng có `__dict__` (chứa method và thuộc tính class). Khi tra `obj.name`, Python tìm
+      lần lượt trong instance rồi các class theo thứ tự **`cls.__mro__`** (method resolution order),
+      tuple các class từ con đến `object`. Thuộc tính khai báo ở class cha **không** nằm trong
+      `vars(B)` của class con dù `B.kind` vẫn truy cập được.
+
+      `__name__` là tên đơn giản; `__qualname__` là tên đầy đủ gồm cả class/hàm bao ngoài
+      (`Outer.Inner`); `__doc__` là docstring.
+  - id: c2
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class A:
+          kind = "a"
+
+      class B(A):
+          pass
+
+      class Outer:
+          class Inner:
+              """doc"""
+
+      print([c.__name__ for c in B.__mro__])
+      print("kind" in vars(B), B.kind)
+      print(Outer.Inner.__name__, Outer.Inner.__qualname__, Outer.Inner.__doc__)
+      print(issubclass(B, A), isinstance(B(), A))
+    expected_output: |
+      ['B', 'A', 'object']
+      False a
+      Inner Outer.Inner doc
+      True True
+  - id: q2
+    type: quiz_mcq
+    prompt_md: "Với `class B(A)` và `kind` khai báo trong `A`, biểu thức nào đúng?"
+    options:
+      - {id: a, text_md: "`\"kind\" in vars(B)` là `True`"}
+      - {id: b, text_md: "`B.kind` hợp lệ nhưng `\"kind\" in vars(B)` là `False`"}
+      - {id: c, text_md: "`B.kind` gây `AttributeError`"}
+    answer: [b]
+    explain_md: "`B.kind` tìm được qua `__mro__` (đến `A`), nhưng `vars(B)` chỉ chứa những gì khai báo trực tiếp trong `B`."
+  - id: s_slots
+    type: section
+    title_vi: "__slots__ và __getattribute__"
+    summary_vi: "__slots__ bỏ __dict__ để tiết kiệm bộ nhớ và chặn thuộc tính lạ; __getattribute__ chặn mọi truy cập, __getattr__ chỉ là dự phòng."
+    exercise_ref: ex_slots
+  - id: t3
+    type: text
+    md: |
+      Khai báo **`__slots__ = ("x", "y")`** làm instance không có `__dict__`: mỗi thuộc tính nằm ở
+      một ô cố định, tiết kiệm bộ nhớ khi tạo rất nhiều object, và gán thuộc tính ngoài danh sách
+      sẽ ném `AttributeError`. Lưu ý: nếu class cha không dùng `__slots__`, con vẫn có `__dict__`.
+
+      Hai hook truy cập thuộc tính: **`__getattribute__`** chạy cho **mọi** lần truy cập;
+      **`__getattr__`** chỉ chạy khi cách tra cứu thông thường **thất bại**. Trong
+      `__getattribute__` hãy gọi `super().__getattribute__(name)` để tránh đệ quy vô hạn.
+  - id: c3
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class Pt:
+          __slots__ = ("x", "y")
+
+          def __init__(self, x, y):
+              self.x = x
+              self.y = y
+
+      p = Pt(1, 2)
+      try:
+          p.z = 3
+      except AttributeError:
+          print("blocked")
+      print(hasattr(p, "__dict__"), p.x + p.y)
+
+      class Lazy:
+          def __init__(self):
+              self.a = 1
+
+          def __getattr__(self, name):
+              return f"default_{name}"
+
+      class Spy:
+          def __getattribute__(self, name):
+              if name == "x":
+                  return "intercepted"
+              return super().__getattribute__(name)
+
+      lz = Lazy()
+      print(lz.a, lz.b)
+      s = Spy()
+      s.y = 5
+      print(s.x, s.y)
+    expected_output: |
+      blocked
+      False 3
+      1 default_b
+      intercepted 5
+  - id: q3
+    type: quiz_mcq
+    prompt_md: "Khác biệt chính giữa `__getattr__` và `__getattribute__`?"
+    options:
+      - {id: a, text_md: "`__getattr__` chạy mọi lần truy cập, `__getattribute__` chỉ khi thiếu thuộc tính"}
+      - {id: b, text_md: "`__getattribute__` chạy mọi lần truy cập, `__getattr__` chỉ khi tra cứu thông thường thất bại"}
+      - {id: c, text_md: "Hai hook hoàn toàn giống nhau"}
+    answer: [b]
+    explain_md: "`__getattribute__` là cửa vào của mọi truy cập; `__getattr__` là phương án dự phòng sau khi tra cứu thất bại."
+  - id: q4
+    type: quiz_mcq
+    prompt_md: "Class có `__slots__ = (\"a\",)` và kế thừa từ class không khai báo `__slots__`. Điều gì đúng?"
+    options:
+      - {id: a, text_md: "Instance vẫn có `__dict__` nên gán thuộc tính tuỳ ý được"}
+      - {id: b, text_md: "Instance không có `__dict__`"}
+      - {id: c, text_md: "Khai báo class ném lỗi"}
+    answer: [a]
+    explain_md: "Class cha thường vẫn cung cấp `__dict__` cho instance, nên `__slots__` ở con không còn chặn thuộc tính lạ."
+  - id: ex_slots
+    type: code_exercise
+    md: |
+      `can_set(name)` thử gán thuộc tính `name` lên một `Pt` và trả `True` nếu thành công, `False`
+      nếu gặp `AttributeError`. Hiện `Pt` nhận mọi thuộc tính. Dùng `__slots__` để chỉ cho phép
+      `x` và `y`.
+    entry: can_set
+    starter: |
+      class Pt:
+          def __init__(self):
+              self.x = 0
+              self.y = 0
+
+
+      def can_set(name):
+          p = Pt()
+          try:
+              setattr(p, name, 1)
+          except AttributeError:
+              return False
+          return True
+    guidance_md: |
+      - Thêm `__slots__ = ("x", "y")` ở đầu class `Pt`.
+      - Không cần sửa `can_set`.
+    hints:
+      - level: nudge
+        md: "Instance thường cho gán mọi tên vì có `__dict__`. Khai báo nào loại bỏ `__dict__`?"
+      - level: approach
+        md: "Thêm `__slots__` liệt kê đúng các thuộc tính được phép."
+      - level: near_solution
+        md: |
+          class Pt:
+              __slots__ = ("x", "y")
+    tests:
+      - {args: ["x"], expected: true}
+      - {args: ["y"], expected: true}
+      - {args: ["z"], expected: false}
+    solution: |
+      class Pt:
+          __slots__ = ("x", "y")
+
+          def __init__(self):
+              self.x = 0
+              self.y = 0
+
+
+      def can_set(name):
+          p = Pt()
+          try:
+              setattr(p, name, 1)
+          except AttributeError:
+              return False
+          return True
+  - id: sum1
+    type: summary
+    bullets_vi:
+      - "Instance giữ thuộc tính trong `__dict__` (`vars(obj)`); dùng `type`, `isinstance`, `getattr/setattr/hasattr/delattr`, `dir`, `callable` để khảo sát lúc chạy."
+      - "Tra cứu thuộc tính đi theo `cls.__mro__`; `vars(Con)` không chứa thuộc tính của class cha. `__qualname__` gồm cả class bao ngoài."
+      - "`__slots__` bỏ `__dict__`, tiết kiệm bộ nhớ và chặn thuộc tính lạ (trừ khi class cha vẫn có `__dict__`)."
+      - "`__getattribute__` chặn mọi truy cập (gọi `super()` để tránh đệ quy); `__getattr__` chỉ là dự phòng khi tra cứu thất bại."
+problems:
+  practice: []
+  extra: []
+mastery_check:
+  l1: [X408]
+  l2: [X409]
+  l3: [X410]
+checkpoint:
+  pass_ratio: 0.7
+  min_items: 3
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-03"
