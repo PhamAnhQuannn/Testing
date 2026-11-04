@@ -32,4 +32,6 @@ def bank_summary(ops):
     for name, cmd, amount in ops:
         acct = accounts.setdefault(name, Account(name))
         acct.apply(cmd, amount)
-    return [[a.name, a.balance, a.ok, a.failed] for a in sorted(accounts.values(), key=lambda a: a.name)]
+    return [
+        [a.name, a.balance, a.ok, a.failed] for a in sorted(accounts.values(), key=lambda a: a.name)
+    ]

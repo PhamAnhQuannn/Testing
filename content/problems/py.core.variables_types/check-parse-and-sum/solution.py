@@ -1,3 +1,6 @@
+import contextlib
+
+
 def parse_and_sum(tokens):
     total = 0
     for tok in tokens:
@@ -11,8 +14,6 @@ def parse_and_sum(tokens):
         try:
             total += int(t)
         except ValueError:
-            try:
+            with contextlib.suppress(ValueError):
                 total += float(t)
-            except ValueError:
-                pass
     return f"{total:.2f}"

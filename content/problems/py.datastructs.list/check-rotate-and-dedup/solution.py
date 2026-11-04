@@ -3,7 +3,7 @@ def rotate_and_dedup(xs, k):
         return []
     n = len(xs)
     k %= n
-    rot = xs[n - k:] + xs[:n - k]
+    rot = xs[n - k :] + xs[: n - k]
     seen = set()
     out = []
     for v in rot:

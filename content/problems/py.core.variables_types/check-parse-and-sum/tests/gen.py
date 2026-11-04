@@ -1,4 +1,4 @@
-"""Inputs of check-parse-and-sum: `expected` is recorded from solution.py by tools/gen_hidden.py."""
+"""Test inputs; expected recorded by tools/gen_hidden.py."""
 
 SAMPLES = [
     {"id": "s1", "args": [["3", "2.5", "True", "abc"]]},

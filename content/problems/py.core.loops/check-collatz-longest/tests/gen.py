@@ -1,4 +1,4 @@
-"""Inputs of check-collatz-longest: `expected` is recorded from solution.py by tools/gen_hidden.py."""
+"""Test inputs; expected recorded by tools/gen_hidden.py."""
 
 SAMPLES = [
     {"id": "s1", "args": [10]},

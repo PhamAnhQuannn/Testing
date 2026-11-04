@@ -1,4 +1,4 @@
-"""Inputs of check-apply-ops: `expected` is recorded from solution.py by tools/gen_hidden.py."""
+"""Test inputs; expected recorded by tools/gen_hidden.py."""
 
 SAMPLES = [
     {"id": "s1", "args": [[1, 2, 3], [["add"], ["mul"]]]},
@@ -14,8 +14,16 @@ HIDDEN = [
     {"id": "h05", "args": [[-3, -1, 0, 4], [["drop_below"]]], "tags": []},
     {"id": "h06", "args": [[-3, -1, 0, 4], [["drop_below", -1], ["pow"]]], "tags": []},
     {"id": "h07", "args": [[2, 5, 9], [["pow", 3], ["clip"]]], "tags": []},
-    {"id": "h08", "args": [[2, 5, 9], [["clip", 6], ["add", -4], ["drop_below", 2], ["mul"]]], "tags": []},
-    {"id": "h09", "args": [[-5, 7, 3], [["add", 10], ["pow", 2], ["clip", 100], ["drop_below", 50]]], "tags": []},
+    {
+        "id": "h08",
+        "args": [[2, 5, 9], [["clip", 6], ["add", -4], ["drop_below", 2], ["mul"]]],
+        "tags": [],
+    },
+    {
+        "id": "h09",
+        "args": [[-5, 7, 3], [["add", 10], ["pow", 2], ["clip", 100], ["drop_below", 50]]],
+        "tags": [],
+    },
 ]
 
 

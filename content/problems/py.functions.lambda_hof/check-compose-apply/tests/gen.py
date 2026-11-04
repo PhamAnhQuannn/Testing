@@ -1,4 +1,4 @@
-"""Inputs of check-compose-apply: `expected` is recorded from solution.py by tools/gen_hidden.py."""
+"""Test inputs; expected recorded by tools/gen_hidden.py."""
 
 SAMPLES = [
     {"id": "s1", "args": [[1, 2, 3], [["add", 1], ["mul", 2]]]},
@@ -15,7 +15,11 @@ HIDDEN = [
     {"id": "h06", "args": [[7, 8, 9], [["mod", 5], ["neg", 0]]], "tags": []},
     {"id": "h07", "args": [[1, 2, 3, 4], [["add", 1], ["add", 2], ["add", 3]]], "tags": []},
     {"id": "h08", "args": [[3, -3], [["neg", 0], ["pow", 3], ["mod", 7], ["mul", 4]]], "tags": []},
-    {"id": "h09", "args": [[10, 20], [["mul", 3], ["mod", 8], ["pow", 2], ["add", -1]]], "tags": []},
+    {
+        "id": "h09",
+        "args": [[10, 20], [["mul", 3], ["mod", 8], ["pow", 2], ["add", -1]]],
+        "tags": [],
+    },
 ]
 
 

@@ -6,7 +6,7 @@ def apply_ops(nums, specs):
         return v * k
 
     def power(v, k=2):
-        return v ** k
+        return v**k
 
     def clip(v, k=10):
         return min(v, k)

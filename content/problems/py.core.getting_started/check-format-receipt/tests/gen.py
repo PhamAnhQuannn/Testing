@@ -1,4 +1,4 @@
-"""Inputs of check-format-receipt: `expected` is recorded from solution.py by tools/gen_hidden.py."""
+"""Test inputs; expected recorded by tools/gen_hidden.py."""
 
 SAMPLES = [
     {"id": "s1", "args": [["pen,2,150", "book,1,1250"]]},
