@@ -63,13 +63,27 @@ def mvp_ids(plan: dict) -> list[str]:
 
 
 def selected_ids(nodes: dict[str, tuple[str, str, dict]], plan: dict) -> list[str]:
-    """The plan-day MVP ids (rule 1), then the extra-track ids in tree order (rule 2)."""
+    """The plan-day MVP ids (rule 1), then the extra-track ids (rule 2).
+
+    Rule 2 keeps modules in their tree appearance order but orders subtopics WITHIN a module by the
+    node's authored ``order`` field, not the raw list order. The list order sometimes disagrees with
+    ``order`` (e.g. sd.archetypes lists metrics_logging before its prerequisite data_pipeline),
+    which otherwise produced a prerequisite-after-dependent pair in the generated plan order.
+    """
     ids = mvp_ids(plan)
     seen = set(ids)
-    for sub_id, (section, module, _) in nodes.items():
-        if sub_id not in seen and (section in EXTRA_SECTIONS or module in EXTRA_MODULES):
-            ids.append(sub_id)
-            seen.add(sub_id)
+    extra = [
+        (sub_id, module, node)
+        for sub_id, (section, module, node) in nodes.items()
+        if sub_id not in seen and (section in EXTRA_SECTIONS or module in EXTRA_MODULES)
+    ]
+    module_pos: dict[str, int] = {}
+    for _sub_id, module, _node in extra:
+        module_pos.setdefault(module, len(module_pos))
+    extra.sort(key=lambda t: (module_pos[t[1]], t[2].get("order", 0)))
+    for sub_id, _module, _node in extra:
+        ids.append(sub_id)
+        seen.add(sub_id)
     return ids
 
 
