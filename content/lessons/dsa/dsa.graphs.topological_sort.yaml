@@ -1,0 +1,315 @@
+id: dsa.graphs.topological_sort
+version: 1
+status: published
+title_vi: "Sắp xếp topo (topological sort)"
+est_minutes: 14
+objectives_vi:
+  - "Giải thích thứ tự topo của DAG và vì sao đồ thị có chu trình thì không có thứ tự topo."
+  - "Cài thuật toán Kahn (đếm bậc vào, hàng đợi) để kiểm tra chu trình và sinh thứ tự topo."
+  - "Mô tả DFS 3 trạng thái (white/gray/black) và nhận ra back-edge là chu trình."
+  - "Sinh thứ tự topo nhỏ nhất theo từ điển (lexicographically smallest) bằng min-heap."
+blocks:
+  - id: s_kahn
+    type: section
+    title_vi: "Thứ tự topo và thuật toán Kahn"
+    summary_vi: "Đếm bậc vào, lấy dần các nút bậc 0; nếu lấy không đủ n nút thì có chu trình."
+    exercise_ref: ex_can_finish
+  - id: t01
+    type: text
+    md: |
+      **Thứ tự topo (topological order)** của một đồ thị có hướng không chu trình (**DAG**) là cách xếp
+      mọi nút thành một hàng sao cho với mỗi cạnh `u -> v`, `u` đứng trước `v`. Ví dụ điển hình là xếp
+      môn học: phải học môn tiên quyết trước.
+
+      Quy ước của các bài tập ở đây: `prereqs = [a, b]` nghĩa là **học `b` trước `a`**, tức cạnh
+      **`b -> a`**. Khi dựng đồ thị: `adj[b].append(a)` và `indeg[a] += 1`.
+
+      **Thuật toán Kahn (BFS):**
+
+      1. Tính **bậc vào (in-degree)** của mọi nút.
+      2. Đưa mọi nút có bậc vào 0 vào hàng đợi (chúng không phải chờ ai).
+      3. Lặp: lấy một nút `u` ra, ghi vào kết quả, rồi với mỗi `v` kề `u` giảm `indeg[v]` đi 1; nếu về
+         0 thì đẩy `v` vào hàng đợi.
+
+      Nếu cuối cùng số nút đã lấy ra **nhỏ hơn n** thì phần còn lại nằm trên (hoặc sau) một chu trình:
+      các nút trong chu trình chờ nhau nên bậc vào không bao giờ về 0. Vậy **chu trình thì không có
+      thứ tự topo**. Độ phức tạp O(V + E).
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Với `prereqs = [[1, 0]]` (dạng `[a, b]`), cạnh và bậc vào nào đúng?"
+    options:
+      - {id: a, text_md: "Cạnh `1 -> 0`, `indeg[0] = 1`"}
+      - {id: b, text_md: "Cạnh `0 -> 1`, `indeg[1] = 1`"}
+      - {id: c, text_md: "Cạnh `0 -> 1`, `indeg[0] = 1`"}
+    answer: [b]
+    explain_md: "`[a, b]` nghĩa là học `b` trước `a`, nên cạnh là `b -> a` = `0 -> 1` và nút `1` có một cạnh đi vào."
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Trong thuật toán Kahn, nếu số nút lấy ra khỏi hàng đợi là `seen` thì đồ thị có chu trình khi `seen` ___ n (viết `<`, `=` hoặc `>`)."
+    blanks: [{accept: ["<", "nhỏ hơn"]}]
+    explain_md: "Các nút trên chu trình không bao giờ có bậc vào 0 nên không được lấy ra, do đó `seen < n`."
+  - id: ex_can_finish
+    type: code_exercise
+    md: |
+      Hàm `can_finish(n, prereqs)` phải trả `True` nếu học hết được `n` môn (đồ thị không có chu trình),
+      `prereqs[i] = [a, b]` nghĩa là học `b` trước `a`. Bản dưới đây chỉ kiểm tra là đã lấy được ít
+      nhất một nút, nên sai khi chỉ một phần đồ thị có chu trình. Hãy sửa điều kiện trả về.
+    entry: can_finish
+    starter: |
+      def can_finish(n, prereqs):
+          adj = [[] for _ in range(n)]
+          indeg = [0] * n
+          for a, b in prereqs:
+              adj[b].append(a)
+              indeg[a] += 1
+          queue = [i for i in range(n) if indeg[i] == 0]
+          seen = 0
+          while queue:
+              u = queue.pop()
+              seen += 1
+              for v in adj[u]:
+                  indeg[v] -= 1
+                  if indeg[v] == 0:
+                      queue.append(v)
+          return seen > 0
+    guidance_md: |
+      - Thử `n = 3`, `prereqs = [[1, 0], [2, 1], [1, 2]]`: nút 0 tự do nhưng 1 và 2 chờ nhau.
+      - `seen` đếm số nút đã lấy ra; cần so với tổng số nút.
+    hints:
+      - level: nudge
+        md: "Nếu chỉ có một phần đồ thị là chu trình, `seen` vẫn lớn hơn 0. Điều kiện nào mới phân biệt được?"
+      - level: approach
+        md: "Học hết được khi mọi nút đều được lấy ra. So `seen` với `n`."
+      - level: near_solution
+        md: "Đổi dòng cuối thành so sánh `seen` bằng `n` thay vì so với 0."
+    tests:
+      - {args: [2, [[1, 0]]], expected: true}
+      - {args: [2, [[1, 0], [0, 1]]], expected: false}
+      - {args: [3, []], expected: true}
+      - {args: [3, [[1, 0], [2, 1], [1, 2]]], expected: false}
+      - {args: [4, [[1, 0], [2, 1], [3, 2]]], expected: true}
+    solution: |
+      def can_finish(n, prereqs):
+          adj = [[] for _ in range(n)]
+          indeg = [0] * n
+          for a, b in prereqs:
+              adj[b].append(a)
+              indeg[a] += 1
+          queue = [i for i in range(n) if indeg[i] == 0]
+          seen = 0
+          while queue:
+              u = queue.pop()
+              seen += 1
+              for v in adj[u]:
+                  indeg[v] -= 1
+                  if indeg[v] == 0:
+                      queue.append(v)
+          return seen == n
+  - id: s_dfs
+    type: section
+    title_vi: "DFS 3 trạng thái"
+    summary_vi: "white/gray/black: gặp lại nút gray là back-edge, tức chu trình."
+  - id: t02
+    type: text
+    md: |
+      Cách thứ hai dùng **DFS** với **3 trạng thái** cho mỗi nút:
+
+      - **white (0)**: chưa thăm.
+      - **gray (1)**: đang thăm, tức đang nằm trên đường đệ quy hiện tại.
+      - **black (2)**: đã xong, mọi nút đạt tới từ nó đã xử lý.
+
+      Khi duyệt cạnh `u -> v`: nếu `v` là **gray** thì ta quay lại một tổ tiên đang mở, đó là
+      **back-edge** và nghĩa là **có chu trình**. Nếu `v` là white thì đệ quy; nếu black thì bỏ qua
+      (đã an toàn). Khi xong `u`, tô black và ghi `u` vào danh sách **postorder**. Thứ tự topo là
+      **đảo ngược của postorder**: nút xong sau cùng đứng đầu.
+
+      ```python
+      def dfs_order(n, prereqs):
+          adj = [[] for _ in range(n)]
+          for a, b in prereqs:
+              adj[b].append(a)
+          state, post = [0] * n, []
+
+          def go(u):
+              state[u] = 1
+              for v in adj[u]:
+                  if state[v] == 1:
+                      return False          # back-edge: chu trình
+                  if state[v] == 0 and not go(v):
+                      return False
+              state[u] = 2
+              post.append(u)
+              return True
+
+          for i in range(n):
+              if state[i] == 0 and not go(i):
+                  return []
+          return post[::-1]
+      ```
+
+      So sánh: **Kahn** phát hiện chu trình khi lấy ra `< n` nút và không cần đệ quy; **DFS** phát hiện
+      khi gặp lại nút gray. Cả hai O(V + E). Chỉ dùng 2 trạng thái (đã thăm/chưa) là **sai**, vì nút
+      black được gặp lại ở nhánh khác là bình thường (không phải chu trình).
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Trong DFS 3 trạng thái, khi duyệt cạnh `u -> v` mà `v` đang **gray**, điều gì đúng?"
+    options:
+      - {id: a, text_md: "Có chu trình (back-edge), không tồn tại thứ tự topo"}
+      - {id: b, text_md: "Bình thường, `v` đã xử lý xong nên bỏ qua"}
+      - {id: c, text_md: "Phải tô `v` lại thành white rồi duyệt tiếp"}
+    answer: [a]
+    explain_md: "Gray nghĩa là `v` vẫn nằm trên đường đệ quy hiện tại; từ `v` đi tới `u` rồi quay lại `v` tạo chu trình. Nút black mới là nút đã xong và an toàn bỏ qua."
+  - id: s_heap
+    type: section
+    title_vi: "Thứ tự không duy nhất và biến thể min-heap"
+    summary_vi: "Một DAG có nhiều thứ tự topo; dùng min-heap thay hàng đợi để được thứ tự nhỏ nhất theo từ điển."
+    exercise_ref: ex_find_order
+  - id: t03
+    type: text
+    md: |
+      Thứ tự topo **không duy nhất**. Với `n = 4`, `prereqs = [[1, 0], [2, 0], [3, 1], [3, 2]]`
+      thì `0, 1, 2, 3` và `0, 2, 1, 3` đều hợp lệ (DFS ở trên cho cái thứ hai). Hàng đợi FIFO thường
+      cho kết quả phụ thuộc thứ tự thêm cạnh, nên khó kiểm tra bằng so sánh cố định.
+
+      Để kết quả **xác định (deterministic)**, thay hàng đợi bằng **min-heap** (`heapq`): luôn lấy
+      nút **có nhãn nhỏ nhất** trong các nút đang bậc 0. Kết quả là thứ tự topo **nhỏ nhất theo từ
+      điển (lexicographically smallest)**. Chi phí tăng lên O((V + E) log V).
+
+      **Lưu ý cho bài kiểm tra:** bài `find_order` trong phần kiểm tra mastery yêu cầu đúng thứ tự
+      nhỏ nhất theo từ điển, tức phải dùng min-heap (không phải hàng đợi thường), và trả `[]` khi có
+      chu trình.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      import heapq
+
+      def find_order(n, prereqs):
+          adj = [[] for _ in range(n)]
+          indeg = [0] * n
+          for a, b in prereqs:
+              adj[b].append(a)
+              indeg[a] += 1
+          heap = [i for i in range(n) if indeg[i] == 0]
+          heapq.heapify(heap)
+          out = []
+          while heap:
+              u = heapq.heappop(heap)
+              out.append(u)
+              for v in adj[u]:
+                  indeg[v] -= 1
+                  if indeg[v] == 0:
+                      heapq.heappush(heap, v)
+          return out if len(out) == n else []
+
+      print(find_order(4, [[1, 0], [2, 0], [3, 1], [3, 2]]))
+      print(find_order(4, [[0, 3], [1, 3]]))
+      print(find_order(2, [[0, 1], [1, 0]]))
+    expected_output: |
+      [0, 1, 2, 3]
+      [2, 3, 0, 1]
+      []
+  - id: q04
+    type: predict_output
+    code: |
+      import heapq
+
+      n = 5
+      prereqs = [[0, 3], [1, 3], [2, 1], [4, 0]]
+      adj = [[] for _ in range(n)]
+      indeg = [0] * n
+      for a, b in prereqs:
+          adj[b].append(a)
+          indeg[a] += 1
+      heap = [i for i in range(n) if indeg[i] == 0]
+      heapq.heapify(heap)
+      order = []
+      while heap:
+          u = heapq.heappop(heap)
+          order.append(u)
+          for v in adj[u]:
+              indeg[v] -= 1
+              if indeg[v] == 0:
+                  heapq.heappush(heap, v)
+      print(*order)
+    expected_output: |
+      3 0 1 2 4
+    explain_md: "Cạnh: 3->0, 3->1, 1->2, 0->4. Chỉ nút 3 có bậc vào 0 nên ra trước. Sau đó 0 và 1 cùng bậc 0, heap lấy 0 (nhỏ hơn) và mở ra 4; heap còn {1, 4} nên lấy 1, mở ra 2; heap {2, 4} cho 2 rồi 4."
+  - id: ex_find_order
+    type: code_exercise
+    md: |
+      Viết `find_order(n, prereqs)` trả thứ tự topo **nhỏ nhất theo từ điển** của `n` môn (nhãn `0..n-1`),
+      hoặc `[]` nếu có chu trình. `prereqs[i] = [a, b]` nghĩa là học `b` trước `a`. Bản dưới đây dùng
+      list thường như hàng đợi FIFO nên không cho thứ tự nhỏ nhất. Hãy chuyển sang min-heap.
+    entry: find_order
+    starter: |
+      import heapq
+
+      def find_order(n, prereqs):
+          adj = [[] for _ in range(n)]
+          indeg = [0] * n
+          for a, b in prereqs:
+              adj[b].append(a)
+              indeg[a] += 1
+          queue = [i for i in range(n) if indeg[i] == 0]
+          out = []
+          while queue:
+              u = queue.pop(0)
+              out.append(u)
+              for v in adj[u]:
+                  indeg[v] -= 1
+                  if indeg[v] == 0:
+                      queue.append(v)
+          return out if len(out) == n else []
+    guidance_md: |
+      - Với `n = 6`, `prereqs = [[5, 2], [5, 0], [4, 0], [4, 1], [2, 3], [3, 1]]` đáp án là `[0, 1, 3, 2, 4, 5]`.
+      - `heapq.heappop` luôn lấy phần tử nhỏ nhất.
+    hints:
+      - level: nudge
+        md: "Hàng đợi FIFO lấy nút vào trước, không phải nút nhỏ nhất. Cấu trúc nào luôn cho phần tử nhỏ nhất?"
+      - level: approach
+        md: "Dùng `heapq`: `heapify` danh sách nút bậc 0 ban đầu, `heappop` để lấy nút, `heappush` khi một nút về bậc 0."
+      - level: near_solution
+        md: "Thay việc lấy phần tử đầu danh sách bằng `heapq.heappop`, thay `append` bằng `heapq.heappush`, và nhớ gọi `heapq.heapify` sau khi tạo danh sách ban đầu."
+    tests:
+      - {args: [4, [[1, 0], [2, 0], [3, 1], [3, 2]]], expected: [0, 1, 2, 3]}
+      - {args: [5, [[0, 3], [1, 3], [2, 1], [4, 0]]], expected: [3, 0, 1, 2, 4]}
+      - {args: [2, [[0, 1], [1, 0]]], expected: []}
+      - {args: [6, [[5, 2], [5, 0], [4, 0], [4, 1], [2, 3], [3, 1]]], expected: [0, 1, 3, 2, 4, 5]}
+      - {args: [4, [[0, 3], [1, 3]]], expected: [2, 3, 0, 1]}
+    solution: |
+      import heapq
+
+      def find_order(n, prereqs):
+          adj = [[] for _ in range(n)]
+          indeg = [0] * n
+          for a, b in prereqs:
+              adj[b].append(a)
+              indeg[a] += 1
+          heap = [i for i in range(n) if indeg[i] == 0]
+          heapq.heapify(heap)
+          out = []
+          while heap:
+              u = heapq.heappop(heap)
+              out.append(u)
+              for v in adj[u]:
+                  indeg[v] -= 1
+                  if indeg[v] == 0:
+                      heapq.heappush(heap, v)
+          return out if len(out) == n else []
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Thứ tự topo chỉ tồn tại với DAG; `[a, b]` nghĩa là cạnh `b -> a`."
+      - "Kahn: tính bậc vào, lấy dần nút bậc 0; lấy ra `< n` nút nghĩa là có chu trình."
+      - "DFS 3 trạng thái: gặp nút gray là back-edge (chu trình); thứ tự topo là đảo của postorder."
+      - "Thứ tự topo không duy nhất; min-heap trong Kahn cho thứ tự nhỏ nhất theo từ điển (bài kiểm tra yêu cầu), O((V + E) log V)."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X455], l2: [Q155], l3: [Q156]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-04"

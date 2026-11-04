@@ -1,0 +1,277 @@
+id: dsa.graphs.grid_graphs
+version: 1
+status: published
+title_vi: "Lưới 2D như đồ thị (BFS/DFS trên grid)"
+est_minutes: 14
+objectives_vi:
+  - "Xem lưới 2D như đồ thị ngầm: mỗi ô là một đỉnh, 4 hướng (r±1, c) và (r, c±1) là cạnh."
+  - "Viết DFS/BFS trên lưới với kiểm tra biên (bounds) và đánh dấu đã thăm (visited) đúng chỗ."
+  - "Cài flood fill, kể cả guard khi màu mới bằng màu cũ để tránh đệ quy vô hạn."
+  - "Tính diện tích đảo lớn nhất và chu vi đảo bằng cách đếm cạnh."
+blocks:
+  - id: s_model
+    type: section
+    title_vi: "Lưới là đồ thị ngầm"
+    summary_vi: "Neighbors 4 hướng, kiểm tra biên và đánh dấu visited."
+  - id: t01
+    type: text
+    md: |
+      Một lưới `grid` có `R` hàng, `C` cột là một **đồ thị ngầm (implicit graph)**: mỗi ô `(r, c)` là một
+      đỉnh, không cần dựng danh sách kề. Hàng xóm 4 hướng của ô là `(r+1, c)`, `(r-1, c)`, `(r, c+1)`,
+      `(r, c-1)`, nên ta lặp qua mảng hướng `DIRS = ((1, 0), (-1, 0), (0, 1), (0, -1))`.
+
+      Mỗi lần đi sang ô mới phải kiểm tra **biên (bounds)** `0 <= r < R` và `0 <= c < C` **trước** khi
+      đọc `grid[r][c]`, và phải có cách nhớ ô **đã thăm (visited)**: hoặc dùng `set`, hoặc **đánh dấu ngay
+      trên lưới** (ví dụ ghi đè bằng màu mới / `0`). Đánh dấu in place tiết kiệm bộ nhớ nhưng sửa input.
+
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      from collections import deque
+
+      grid = [[1, 0, 1],
+              [1, 0, 0],
+              [0, 1, 1]]
+      R, C = 3, 3
+      seen = {(0, 0)}
+      q = deque([(0, 0)])
+      while q:
+          r, c = q.popleft()
+          for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+              a, b = r + dr, c + dc
+              if 0 <= a < R and 0 <= b < C and grid[a][b] == 1 and (a, b) not in seen:
+                  seen.add((a, b))      # đánh dấu lúc đẩy vào queue
+                  q.append((a, b))
+      print(sorted(seen))
+    expected_output: |
+      [(0, 0), (1, 0)]
+  - id: s_fill
+    type: section
+    title_vi: "Flood fill và guard màu cũ"
+    summary_vi: "Đổi màu vùng liên thông; tránh đệ quy vô hạn khi màu mới bằng màu cũ."
+    exercise_ref: ex_fill
+  - id: t01b
+    type: text
+    md: |
+      **Flood fill** (như công cụ "đổ màu" trong Paint): từ `(sr, sc)`, đổi mọi ô liên thông có cùng màu
+      cũ sang `color`. Có một bẫy: nếu `color` **bằng** màu cũ của ô xuất phát thì việc "tô" không làm ô
+      nào khác đi, nên ô vừa tô vẫn khớp điều kiện "màu cũ" và đệ quy chạy mãi (`RecursionError`).
+      Vì vậy phải có guard: `if old == color: return img` (trả lưới **không đổi**).
+
+      ```python
+      def flood_fill(img, sr, sc, color):
+          old = img[sr][sc]
+          if old == color:          # guard: tránh đệ quy vô hạn
+              return img
+          R, C = len(img), len(img[0])
+
+          def dfs(r, c):
+              if r < 0 or r >= R or c < 0 or c >= C or img[r][c] != old:
+                  return
+              img[r][c] = color     # vừa tô vừa đánh dấu đã thăm
+              for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                  dfs(r + dr, c + dc)
+
+          dfs(sr, sc)
+          return img
+      ```
+      Độ phức tạp O(R*C) thời gian; ngăn xếp đệ quy tối đa O(R*C) trong trường hợp xấu nhất.
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      def flood_fill(img, sr, sc, color):
+          old = img[sr][sc]
+          if old == color:
+              return img
+          R, C = len(img), len(img[0])
+
+          def dfs(r, c):
+              if r < 0 or r >= R or c < 0 or c >= C or img[r][c] != old:
+                  return
+              img[r][c] = color
+              for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                  dfs(r + dr, c + dc)
+
+          dfs(sr, sc)
+          return img
+
+      print(flood_fill([[1, 1, 1], [1, 1, 0], [1, 0, 1]], 1, 1, 2))
+      print(flood_fill([[0, 0], [0, 1]], 0, 0, 0))
+    expected_output: |
+      [[2, 2, 2], [2, 2, 0], [2, 0, 1]]
+      [[0, 0], [0, 1]]
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Trong `flood_fill`, vì sao phải trả lưới nguyên trạng khi `color == img[sr][sc]`?"
+    options:
+      - {id: a, text_md: "Vì khi đó không có ô nào cần đổi, và nếu cứ chạy DFS thì ô đã tô vẫn bằng màu cũ nên đệ quy không bao giờ dừng"}
+      - {id: b, text_md: "Vì lưới chỉ cho phép đổi sang màu khác 0"}
+      - {id: c, text_md: "Vì DFS không đi được qua ô cùng màu"}
+    answer: [a]
+    explain_md: "Đánh dấu visited bằng chính việc đổi màu chỉ hoạt động khi màu mới khác màu cũ; nếu bằng nhau thì không có dấu hiệu nào ngăn quay lại ô đã thăm."
+  - id: ex_fill
+    type: code_exercise
+    md: |
+      Cài `flood_fill(img, sr, sc, color)`: đổi mọi ô liên thông 4 hướng có cùng màu với `img[sr][sc]`
+      sang `color` rồi trả về `img`. Nếu `color` bằng màu cũ, trả `img` không đổi.
+    entry: flood_fill
+    starter: |
+      def flood_fill(img, sr, sc, color):
+          old = img[sr][sc]
+          # TODO: guard khi old == color
+          # TODO: DFS 4 hướng, kiểm tra biên và img[r][c] == old, tô màu tại chỗ
+          return img
+    guidance_md: |
+      - Lấy `old = img[sr][sc]`, nếu `old == color` thì trả `img` ngay.
+      - Viết `dfs(r, c)` với điều kiện dừng: ra ngoài biên hoặc `img[r][c] != old`.
+      - Tô `img[r][c] = color` rồi gọi 4 hướng.
+    hints:
+      - level: nudge
+        md: "Điều gì xảy ra nếu màu mới bằng màu cũ? Và ô đã tô được nhận biết là đã thăm bằng cách nào?"
+      - level: approach
+        md: "Dùng `dfs(r, c)` kiểm tra biên và `img[r][c] == old`; việc đổi sang `color` đồng thời là đánh dấu visited. Cần guard `old == color` trước khi gọi."
+      - level: near_solution
+        md: "Thân của `dfs` theo thứ tự: kiểm tra biên và màu, gán màu mới cho ô, rồi lặp qua 4 hướng gọi lại `dfs`. Đừng quên guard ở đầu hàm chính."
+    tests:
+      - {args: [[[1, 1, 1], [1, 1, 0], [1, 0, 1]], 1, 1, 2], expected: [[2, 2, 2], [2, 2, 0], [2, 0, 1]]}
+      - {args: [[[0, 0, 0], [0, 0, 0]], 0, 0, 0], expected: [[0, 0, 0], [0, 0, 0]]}
+      - {args: [[[1]], 0, 0, 5], expected: [[5]]}
+      - {args: [[[1, 0, 1], [0, 1, 0]], 0, 0, 3], expected: [[3, 0, 1], [0, 1, 0]]}
+    solution: |
+      def flood_fill(img, sr, sc, color):
+          old = img[sr][sc]
+          if old == color:
+              return img
+          R, C = len(img), len(img[0])
+
+          def dfs(r, c):
+              if r < 0 or r >= R or c < 0 or c >= C or img[r][c] != old:
+                  return
+              img[r][c] = color
+              for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                  dfs(r + dr, c + dc)
+
+          dfs(sr, sc)
+          return img
+  - id: s_island
+    type: section
+    title_vi: "Diện tích đảo và chu vi"
+    summary_vi: "Đếm ô trong một thành phần liên thông và đếm cạnh tiếp giáp nước."
+    exercise_ref: ex_area
+  - id: t02
+    type: text
+    md: |
+      Với lưới `0/1` (`1` là đất, `0` là nước), một **đảo** là nhóm ô `1` liên thông 4 hướng. Để tìm
+      **diện tích đảo lớn nhất** (`max_area(grid)`), duyệt mọi ô; gặp ô `1` chưa thăm thì chạy DFS/BFS
+      đếm số ô của đảo đó, rồi lấy max. Đánh dấu bằng cách đặt `grid[r][c] = 0` ngay khi thăm.
+
+      ```python
+      def area(r, c):
+          if r < 0 or r >= R or c < 0 or c >= C or grid[r][c] != 1:
+              return 0
+          grid[r][c] = 0
+          return 1 + area(r + 1, c) + area(r - 1, c) + area(r, c + 1) + area(r, c - 1)
+      ```
+      **BFS** cho kết quả như nhau: dùng `collections.deque`, đánh dấu visited **lúc đẩy vào queue**
+      (không phải lúc pop) để mỗi ô vào queue đúng một lần.
+
+      **Chu vi (island_perimeter)** không cần DFS: mỗi ô đất đóng góp 4 cạnh, trừ đi 2 cho mỗi cặp ô đất
+      kề nhau (chỉ xét phía dưới và phía phải để không trừ trùng). Tương đương: cạnh nào giáp nước hoặc
+      ra ngoài lưới thì tính 1.
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Một ô đất đứng một mình (4 hàng xóm đều là nước) có chu vi ___."
+    blanks: [{accept: ["4", "bốn"]}]
+    explain_md: "Mỗi ô đất đóng góp 4 cạnh; không có hàng xóm đất nào để trừ đi."
+  - id: q03
+    type: predict_output
+    code: |
+      def island_perimeter(grid):
+          R, C = len(grid), len(grid[0])
+          total = 0
+          for r in range(R):
+              for c in range(C):
+                  if grid[r][c] == 1:
+                      total += 4
+                      if r + 1 < R and grid[r + 1][c] == 1:
+                          total -= 2
+                      if c + 1 < C and grid[r][c + 1] == 1:
+                          total -= 2
+          return total
+
+      g = [[0, 1, 0, 0],
+           [1, 1, 1, 0],
+           [0, 1, 0, 0],
+           [1, 1, 0, 0]]
+      print(island_perimeter(g))
+    expected_output: |
+      16
+    explain_md: "7 ô đất cho 28 cạnh; có 6 cặp ô kề nhau nên trừ 12, còn 16."
+  - id: ex_area
+    type: code_exercise
+    md: |
+      Viết `max_area(grid)`: trả diện tích (số ô) của đảo lớn nhất trong lưới `0/1` (liên thông 4
+      hướng); không có đảo thì trả 0. Được phép sửa `grid` tại chỗ để đánh dấu đã thăm.
+    entry: max_area
+    starter: |
+      def max_area(grid):
+          if not grid:
+              return 0
+          R, C = len(grid), len(grid[0])
+          best = 0
+          # TODO: với mỗi ô là 1, DFS/BFS đếm diện tích, đánh dấu đã thăm, cập nhật best
+          return best
+    guidance_md: |
+      - Duyệt mọi ô; ô `1` là điểm bắt đầu của một đảo mới.
+      - DFS trả về số ô; đặt ô thành `0` khi thăm để không đếm lại.
+      - Cập nhật `best = max(best, area)`.
+    hints:
+      - level: nudge
+        md: "Làm sao đảm bảo mỗi ô đất chỉ được đếm một lần dù có nhiều đường đi tới nó?"
+      - level: approach
+        md: "Hàm con `area(r, c)` trả 0 nếu ra biên hoặc ô không phải 1; ngược lại đặt ô thành 0 và cộng 1 với 4 lời gọi hàng xóm."
+      - level: near_solution
+        md: "Vòng ngoài: với mỗi ô gọi `area` rồi so với `best`. Ô nước hoặc ô đã đánh dấu sẽ trả 0 nên không ảnh hưởng kết quả."
+    tests:
+      - {args: [[]], expected: 0}
+      - {args: [[[0, 0], [0, 0]]], expected: 0}
+      - {args: [[[1, 1, 0, 0], [1, 0, 0, 1], [0, 0, 1, 1]]], expected: 3}
+      - {args: [[[1, 0, 1], [0, 1, 0], [1, 0, 1]]], expected: 1}
+      - {args: [[[1, 1, 1], [0, 1, 0], [0, 1, 1]]], expected: 6}
+    solution: |
+      def max_area(grid):
+          if not grid:
+              return 0
+          R, C = len(grid), len(grid[0])
+          best = 0
+
+          def area(r, c):
+              if r < 0 or r >= R or c < 0 or c >= C or grid[r][c] != 1:
+                  return 0
+              grid[r][c] = 0
+              return 1 + area(r + 1, c) + area(r - 1, c) + area(r, c + 1) + area(r, c - 1)
+
+          for r in range(R):
+              for c in range(C):
+                  if grid[r][c] == 1:
+                      best = max(best, area(r, c))
+          return best
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Lưới là đồ thị ngầm: hàng xóm 4 hướng `(r±1, c)`, `(r, c±1)`; kiểm tra biên trước khi đọc ô."
+      - "Visited: dùng set hoặc ghi đè trên lưới (đổi màu / đặt 0); BFS đánh dấu lúc đẩy vào queue."
+      - "flood_fill: nếu `color == màu cũ` trả lưới không đổi, nếu không sẽ đệ quy vô hạn."
+      - "Diện tích đảo = số ô DFS/BFS; chu vi = 4 mỗi ô đất trừ 2 cho mỗi cặp ô đất kề nhau."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X449], l2: [Q151], l3: [Q152]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-04"

@@ -1,0 +1,347 @@
+id: dsa.graphs.graph_traversal
+version: 1
+status: published
+title_vi: "Duyệt đồ thị: DFS và BFS (graph traversal)"
+est_minutes: 14
+objectives_vi:
+  - "Biểu diễn đồ thị bằng danh sách kề (adjacency list) và dùng tập `visited` để không thăm một đỉnh hai lần."
+  - "Cài DFS (đệ quy và dùng stack) cùng BFS (dùng queue) và dự đoán thứ tự thăm khi duyệt hàng xóm theo đúng thứ tự trong danh sách kề."
+  - "Đếm số thành phần liên thông (connected components) của đồ thị vô hướng."
+  - "Kiểm tra đồ thị hai phía (bipartite) bằng cách tô hai màu bằng BFS hoặc DFS."
+blocks:
+  - id: s_trav
+    type: section
+    title_vi: "DFS, BFS và tập visited"
+    summary_vi: "DFS đi sâu bằng stack/đệ quy, BFS đi theo lớp bằng queue; cả hai cần visited."
+    exercise_ref: ex_order
+  - id: t01
+    type: text
+    md: |
+      Đồ thị thường được cho bằng **danh sách kề (adjacency list)**: `adj[u]` là list các hàng xóm của
+      đỉnh `u`. Với đồ thị vô hướng, cạnh `(a, b)` xuất hiện ở cả `adj[a]` và `adj[b]`.
+
+      Khác với cây, đồ thị có thể có chu trình, nên phải có tập **visited**: đánh dấu đỉnh ngay khi
+      phát hiện (hoặc khi thăm) để không lặp vô hạn. Độ phức tạp của cả DFS và BFS là **O(V + E)**.
+
+      - **DFS** đi sâu hết một nhánh rồi mới quay lui; dùng đệ quy hoặc một **stack** tường minh.
+      - **BFS** thăm theo từng lớp khoảng cách (số cạnh) từ đỉnh xuất phát; dùng **queue**
+        (`deque.popleft()` là O(1), còn `list.pop(0)` là O(n)).
+      - Luôn duyệt hàng xóm theo thứ tự danh sách kề (không duyệt `set`) thì thứ tự thăm là xác định.
+  - id: cs01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      from collections import deque
+
+      adj = [[1, 2], [0, 3], [0, 3], [1, 2]]
+
+      def dfs(u, seen, out):
+          seen.add(u)
+          out.append(u)
+          for v in adj[u]:
+              if v not in seen:
+                  dfs(v, seen, out)
+          return out
+
+      def dfs_iter(s):
+          seen = set()
+          stack = [s]
+          out = []
+          while stack:
+              u = stack.pop()
+              if u in seen:
+                  continue
+              seen.add(u)
+              out.append(u)
+              for v in reversed(adj[u]):   # đảo để đỉnh đầu danh sách được pop trước
+                  if v not in seen:
+                      stack.append(v)
+          return out
+
+      def bfs(s):
+          seen = {s}
+          q = deque([s])
+          out = []
+          while q:
+              u = q.popleft()
+              out.append(u)
+              for v in adj[u]:
+                  if v not in seen:
+                      seen.add(v)
+                      q.append(v)
+          return out
+
+      print(dfs(0, set(), []))
+      print(dfs_iter(0))
+      print(bfs(0))
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Cần tìm số cạnh ít nhất từ đỉnh `s` tới mọi đỉnh khác trong đồ thị không trọng số. Nên dùng gì?"
+    options:
+      - {id: a, text_md: "BFS với queue, vì nó thăm theo từng lớp khoảng cách"}
+      - {id: b, text_md: "DFS với stack, vì nó đi sâu nhất"}
+      - {id: c, text_md: "DFS đệ quy không cần visited"}
+    answer: [a]
+    explain_md: "BFS mở rộng theo lớp nên lần đầu gặp một đỉnh chính là đường ngắn nhất (theo số cạnh). DFS không đảm bảo điều đó, và bỏ visited sẽ lặp vô hạn khi có chu trình."
+  - id: q02
+    type: predict_output
+    code: |
+      from collections import deque
+
+      adj = [[1, 2], [3], [4], [], []]
+
+      def dfs(u, seen, out):
+          seen.add(u)
+          out.append(u)
+          for v in adj[u]:
+              if v not in seen:
+                  dfs(v, seen, out)
+          return out
+
+      def bfs(s):
+          seen = {s}
+          q = deque([s])
+          out = []
+          while q:
+              u = q.popleft()
+              out.append(u)
+              for v in adj[u]:
+                  if v not in seen:
+                      seen.add(v)
+                      q.append(v)
+          return out
+
+      print(dfs(0, set(), []))
+      print(bfs(0))
+    expected_output: |
+      [0, 1, 3, 2, 4]
+      [0, 1, 2, 3, 4]
+    explain_md: "DFS từ 0 đi xuống 1 rồi 3 (hết đường), quay lại mới sang 2 rồi 4. BFS thăm lớp 0, rồi lớp {1, 2}, rồi lớp {3, 4}."
+  - id: ex_order
+    type: code_exercise
+    md: |
+      Viết `bfs_order(adj, start)` trả về list các đỉnh theo thứ tự BFS từ `start`, duyệt hàng xóm
+      theo thứ tự trong `adj`. Bản dưới đây dùng sai cấu trúc dữ liệu nên ra thứ tự kiểu DFS. Hãy sửa.
+    entry: bfs_order
+    starter: |
+      def bfs_order(adj, start):
+          seen = {start}
+          q = [start]
+          out = []
+          while q:
+              u = q.pop()
+              out.append(u)
+              for v in adj[u]:
+                  if v not in seen:
+                      seen.add(v)
+                      q.append(v)
+          return out
+    guidance_md: |
+      - Thử `adj = [[1, 2], [3], [4], [], []]` rồi in thứ tự: BFS phải ra `[0, 1, 2, 3, 4]`.
+      - Hàng đợi (FIFO) lấy phần tử vào trước ra trước.
+    hints:
+      - level: nudge
+        md: "`q.pop()` lấy phần tử vừa thêm vào cuối. Đó là hành vi của hàng đợi hay của stack?"
+      - level: approach
+        md: "BFS cần lấy đỉnh vào hàng đợi sớm nhất trước. Hãy lấy từ đầu hàng đợi thay vì từ cuối."
+      - level: near_solution
+        md: "Dùng một `deque` làm hàng đợi và lấy phần tử bằng `popleft()` thay cho `pop()`; phần còn lại giữ nguyên."
+    tests:
+      - {args: [[[1, 2], [0, 3], [0, 3], [1, 2]], 0], expected: [0, 1, 2, 3]}
+      - {args: [[[1, 2], [3], [4], [], []], 0], expected: [0, 1, 2, 3, 4]}
+      - {args: [[[1, 2], [0], [0, 3], [2]], 3], expected: [3, 2, 0, 1]}
+      - {args: [[[]], 0], expected: [0]}
+    solution: |
+      from collections import deque
+
+
+      def bfs_order(adj, start):
+          seen = {start}
+          q = deque([start])
+          out = []
+          while q:
+              u = q.popleft()
+              out.append(u)
+              for v in adj[u]:
+                  if v not in seen:
+                      seen.add(v)
+                      q.append(v)
+          return out
+  - id: s_comp
+    type: section
+    title_vi: "Thành phần liên thông"
+    summary_vi: "Mỗi lần khởi động traversal từ một đỉnh chưa thăm là gặp thêm một thành phần."
+    exercise_ref: ex_comp
+  - id: t02
+    type: text
+    md: |
+      Một **thành phần liên thông (connected component)** là tập đỉnh mà giữa hai đỉnh bất kỳ đều có
+      đường đi. Để đếm: duyệt `s` từ `0` tới `n - 1`; nếu `s` chưa visited thì **tăng bộ đếm**
+      rồi chạy DFS/BFS từ `s` để đánh dấu cả thành phần của nó. Đỉnh cô lập (không có cạnh) cũng là
+      một thành phần.
+
+      Đề thường cho `n` và danh sách cạnh `edges`, nên bước đầu là dựng `adj` (đừng quên thêm cả hai
+      chiều cho đồ thị vô hướng). Tổng chi phí vẫn **O(V + E)**.
+  - id: cs02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      def count_components(n, edges):
+          adj = [[] for _ in range(n)]
+          for a, b in edges:
+              adj[a].append(b)
+              adj[b].append(a)
+          seen = [False] * n
+          count = 0
+          for s in range(n):
+              if seen[s]:
+                  continue
+              count += 1
+              seen[s] = True
+              stack = [s]
+              while stack:
+                  u = stack.pop()
+                  for v in adj[u]:
+                      if not seen[v]:
+                          seen[v] = True
+                          stack.append(v)
+          return count
+
+      print(count_components(6, [[0, 1], [2, 3], [3, 4]]))
+  - id: q03
+    type: quiz_fill
+    prompt_md: "Đồ thị vô hướng có 6 đỉnh (0..5) và cạnh `[0,1]`, `[2,3]`, `[3,4]`. Số thành phần liên thông là ___."
+    blanks: [{accept: ["3", "ba"]}]
+    explain_md: "Có `{0, 1}`, `{2, 3, 4}` và đỉnh cô lập `{5}`: tổng cộng 3."
+  - id: ex_comp
+    type: code_exercise
+    md: |
+      Viết `count_components(n, edges)` trả số thành phần liên thông của đồ thị vô hướng `n` đỉnh
+      (đánh số `0..n-1`). Bản dưới đây chỉ đánh dấu đỉnh xuất phát chứ không duyệt tiếp, nên đếm sai.
+      Hãy sửa.
+    entry: count_components
+    starter: |
+      def count_components(n, edges):
+          adj = [[] for _ in range(n)]
+          for a, b in edges:
+              adj[a].append(b)
+              adj[b].append(a)
+          seen = [False] * n
+          count = 0
+          for s in range(n):
+              if seen[s]:
+                  continue
+              count += 1
+              seen[s] = True
+              # TODO: đánh dấu cả thành phần của s
+          return count
+    guidance_md: |
+      - Với `n = 3` và không có cạnh, đáp án là 3; với một đường 0-1-2 đáp án là 1.
+      - Sau khi `count += 1`, cần một vòng traversal từ `s`.
+    hints:
+      - level: nudge
+        md: "Khi đếm xong thành phần của `s`, các đỉnh còn lại của thành phần đó có còn chưa visited không?"
+      - level: approach
+        md: "Từ `s`, duyệt DFS/BFS và đánh dấu mọi đỉnh tới được là visited, để vòng `for` ngoài bỏ qua chúng."
+      - level: pseudocode
+        md: |
+          stack = [s]
+          trong khi stack còn phần tử:
+              u = lấy một đỉnh ra
+              với mỗi hàng xóm v của u chưa visited:
+                  đánh dấu v, đẩy v vào stack
+    tests:
+      - {args: [5, [[0, 1], [1, 2], [3, 4]]], expected: 2}
+      - {args: [3, []], expected: 3}
+      - {args: [4, [[0, 1], [1, 2], [2, 3]]], expected: 1}
+      - {args: [6, [[0, 1], [2, 3], [3, 4]]], expected: 3}
+    solution: |
+      def count_components(n, edges):
+          adj = [[] for _ in range(n)]
+          for a, b in edges:
+              adj[a].append(b)
+              adj[b].append(a)
+          seen = [False] * n
+          count = 0
+          for s in range(n):
+              if seen[s]:
+                  continue
+              count += 1
+              seen[s] = True
+              stack = [s]
+              while stack:
+                  u = stack.pop()
+                  for v in adj[u]:
+                      if not seen[v]:
+                          seen[v] = True
+                          stack.append(v)
+          return count
+  - id: s_bip
+    type: section
+    title_vi: "Đồ thị hai phía (bipartite)"
+    summary_vi: "Tô hai màu bằng BFS/DFS; gặp cạnh nối hai đỉnh cùng màu thì không phải bipartite."
+  - id: t03
+    type: text
+    md: |
+      Đồ thị là **bipartite** nếu tô được mỗi đỉnh một trong hai màu sao cho mọi cạnh nối hai màu khác
+      nhau (tương đương: không có chu trình độ dài lẻ). Cách kiểm tra bằng traversal:
+
+      1. Với mỗi đỉnh chưa tô (đồ thị có thể gồm nhiều thành phần), tô nó màu `0` rồi BFS/DFS.
+      2. Hàng xóm `v` chưa tô thì tô `1 - color[u]`.
+      3. Hàng xóm đã tô mà **cùng màu** với `u` thì trả `False` ngay.
+
+      Đầu vào là `graph` dạng danh sách kề (`graph[u]` là các hàng xóm). Dùng dict `color` vừa làm
+      visited vừa lưu màu.
+  - id: cs03
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      from collections import deque
+
+      def is_bipartite(graph):
+          color = {}
+          for s in range(len(graph)):
+              if s in color:
+                  continue
+              color[s] = 0
+              q = deque([s])
+              while q:
+                  u = q.popleft()
+                  for v in graph[u]:
+                      if v not in color:
+                          color[v] = 1 - color[u]
+                          q.append(v)
+                      elif color[v] == color[u]:
+                          return False
+          return True
+
+      print(is_bipartite([[1], [0, 2], [1, 3], [2]]))
+      print(is_bipartite([[1, 2], [0, 2], [0, 1]]))
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Đồ thị nào chắc chắn KHÔNG phải bipartite?"
+    options:
+      - {id: a, text_md: "Một chu trình độ dài 4 (4 đỉnh nối vòng)"}
+      - {id: b, text_md: "Một tam giác (chu trình độ dài 3)"}
+      - {id: c, text_md: "Một đường đi 0-1-2-3"}
+    answer: [b]
+    explain_md: "Chu trình độ dài lẻ buộc hai đỉnh kề nhau phải cùng màu. Chu trình độ dài 4 và đường đi đều tô xen kẽ được."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Danh sách kề + tập `visited`; DFS và BFS đều O(V + E)."
+      - "DFS dùng đệ quy hoặc stack; BFS dùng queue (`deque.popleft()`) và cho khoảng cách ngắn nhất theo số cạnh."
+      - "Duyệt hàng xóm theo thứ tự danh sách kề để thứ tự thăm xác định."
+      - "Đếm thành phần liên thông: mỗi lần bắt đầu traversal từ đỉnh chưa visited là +1."
+      - "Bipartite: tô 2 màu, gặp cạnh nối hai đỉnh cùng màu thì `False`."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X448], l2: [Q149], l3: [Q150]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-04"

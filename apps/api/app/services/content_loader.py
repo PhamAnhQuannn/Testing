@@ -78,6 +78,7 @@ MODULE_NAMES: dict[str, str] = {
     "dsa.recursion_backtracking": "Đệ quy & quay lui",
     "dsa.searching_sorting": "Tìm kiếm & sắp xếp",
     "dsa.trees": "Cây",
+    "dsa.graphs": "Đồ thị",
     "sd.fundamentals": "Nền tảng thiết kế hệ thống",
     "sd.networking": "Mạng",
     "sd.api": "Thiết kế API",
