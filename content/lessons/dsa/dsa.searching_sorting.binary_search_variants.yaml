@@ -1,0 +1,312 @@
+id: dsa.searching_sorting.binary_search_variants
+version: 1
+status: published
+title_vi: "Binary search trên mảng xoay, 2D, peak"
+est_minutes: 14
+objectives_vi:
+  - "Viết binary search theo khuôn lower_bound/upper_bound để tìm vị trí xuất hiện đầu và cuối, và giải thích bất biến của lo/hi."
+  - "Tìm trong mảng đã sắp bị xoay bằng cách xác định nửa nào đang được sắp, và tìm peak element bằng cách so sánh mid với mid + 1."
+  - "Tìm trong ma trận có hàng và cột đều tăng dần bằng cách bắt đầu ở góc trên phải."
+blocks:
+  - id: s_bounds
+    type: section
+    title_vi: "Lower bound, upper bound và bất biến"
+    summary_vi: "Khuôn nửa mở [lo, hi): luôn giữ đáp án nằm trong đoạn, mỗi bước loại một nửa."
+    exercise_ref: ex_lower_bound
+  - id: b01
+    type: text
+    md: |
+      Binary search không chỉ để hỏi "có target không". Dạng hữu ích nhất là tìm **vị trí chèn**:
+
+      - **lower_bound(target)**: chỉ số đầu tiên mà `nums[i] >= target` (bằng `len(nums)` nếu không có).
+      - **upper_bound(target)**: chỉ số đầu tiên mà `nums[i] > target`.
+
+      Từ đó: vị trí xuất hiện **đầu tiên** của target là `lower_bound(target)` (nếu `nums[i] == target`),
+      vị trí **cuối cùng** là `upper_bound(target) - 1`, và số lần xuất hiện là hiệu của hai bound.
+
+      Khuôn an toàn dùng đoạn **nửa mở** `[lo, hi)`:
+
+      ```python
+      lo, hi = 0, len(nums)
+      while lo < hi:
+          mid = (lo + hi) // 2
+          if nums[mid] < target:
+              lo = mid + 1      # mid chắc chắn bị loại
+          else:
+              hi = mid          # mid vẫn có thể là đáp án
+      # lo == hi là đáp án
+      ```
+
+      **Bất biến (loop invariant)**: mọi phần tử ở chỉ số `< lo` đều `< target`, mọi phần tử ở chỉ số
+      `>= hi` đều `>= target`. Mỗi bước giữ bất biến và thu hẹp `hi - lo`, nên vòng lặp dừng khi
+      `lo == hi`, và đó chính xác là ranh giới. Quy tắc nhích: nếu `mid` đã bị chứng minh **không** là
+      đáp án thì `lo = mid + 1`; nếu `mid` **có thể** là đáp án thì `hi = mid` (không trừ 1).
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      nums = [1, 2, 2, 2, 5, 8]
+      target = 2
+      lo, hi = 0, len(nums)
+      while lo < hi:
+          mid = (lo + hi) // 2
+          print(lo, hi, mid)
+          if nums[mid] < target:
+              lo = mid + 1
+          else:
+              hi = mid
+      print(lo)
+    expected_output: |
+      0 6 3
+      0 3 1
+      0 1 0
+      1
+  - id: b03
+    type: quiz_mcq
+    prompt_md: "Khuôn lower_bound ở trên dùng `if nums[mid] < target: lo = mid + 1 else: hi = mid`. Để thành **upper_bound** (chỉ số đầu tiên có `nums[i] > target`), cần đổi điều kiện `if` thành gì?"
+    options:
+      - {id: a, text_md: "`nums[mid] <= target`"}
+      - {id: b, text_md: "`nums[mid] > target`"}
+      - {id: c, text_md: "`nums[mid] == target`"}
+    answer: [a]
+    explain_md: "Với upper_bound, mọi phần tử `<= target` đều phải nằm bên trái ranh giới nên khi `nums[mid] <= target` ta loại `mid`: `lo = mid + 1`. Ngược lại `mid` có thể là phần tử đầu tiên `> target` nên `hi = mid`."
+  - id: ex_lower_bound
+    type: code_exercise
+    md: |
+      Viết `lower_bound(nums, target)` trả về chỉ số **đầu tiên** `i` sao cho `nums[i] >= target` trên
+      mảng **đã sắp tăng** (cho phép trùng). Nếu mọi phần tử đều nhỏ hơn target thì trả `len(nums)`.
+      O(log n). Ví dụ `lower_bound([1, 2, 2, 2, 5, 8], 2)` là `1`.
+    entry: lower_bound
+    starter: |
+      def lower_bound(nums, target):
+          # TODO: đoạn nửa mở [lo, hi), giữ bất biến
+          pass
+    guidance_md: |
+      - Đặt `lo = 0`, `hi = len(nums)` (hi nằm ngoài mảng, vì đáp án có thể là `len(nums)`).
+      - Lặp khi `lo < hi`, lấy `mid = (lo + hi) // 2`.
+      - Nếu `nums[mid] < target` thì `mid` và mọi thứ bên trái nó đều không phải đáp án.
+      - Ngược lại `mid` có thể là đáp án, nên giữ nó lại trong đoạn.
+      - Khi vòng lặp dừng, `lo == hi` là đáp án.
+    hints:
+      - level: nudge
+        md: "Khi `nums[mid] >= target`, có được loại `mid` không? Còn khi `nums[mid] < target`?"
+      - level: approach
+        md: "`nums[mid] < target` thì `lo = mid + 1`; ngược lại `hi = mid`. Với `hi = len(nums)` và điều kiện `lo < hi`, trả `lo`."
+      - level: pseudocode
+        md: |
+          lo, hi = 0, len(nums)
+          while lo < hi:
+              mid = (lo + hi) // 2
+              nếu nums[mid] < target: lo = mid + 1
+              ngược lại: hi = mid
+          trả lo
+      - level: near_solution
+        md: |
+          def lower_bound(nums, target):
+              lo, hi = 0, len(nums)
+              while lo < hi:
+                  mid = (lo + hi) // 2
+                  if nums[mid] < target:
+                      ...
+                  else:
+                      ...
+              return lo
+    tests:
+      - {args: [[1, 2, 2, 2, 5, 8], 2], expected: 1}
+      - {args: [[1, 3, 5], 4], expected: 2}
+      - {args: [[1, 3, 5], 9], expected: 3}
+      - {args: [[], 1], expected: 0}
+      - {args: [[1, 3, 5], 0], expected: 0}
+    solution: |
+      def lower_bound(nums, target):
+          lo, hi = 0, len(nums)
+          while lo < hi:
+              mid = (lo + hi) // 2
+              if nums[mid] < target:
+                  lo = mid + 1
+              else:
+                  hi = mid
+          return lo
+  - id: s_rotated_peak
+    type: section
+    title_vi: "Mảng xoay và peak element"
+    summary_vi: "Không có thứ tự toàn cục vẫn binary search được: tìm một nửa mà ta chắc chắn về nó."
+    exercise_ref: ex_peak
+  - id: b04
+    type: text
+    md: |
+      **Mảng sắp bị xoay (rotated sorted array)**, ví dụ `[4, 5, 6, 7, 0, 1, 2]`: cắt một đoạn đầu rồi nối
+      xuống cuối. Mảng không còn sắp toàn cục, nhưng **ít nhất một trong hai nửa `[lo, mid]` và
+      `[mid, hi]` luôn được sắp**. Mỗi bước:
+
+      1. Xác định nửa sắp: nếu `nums[lo] <= nums[mid]` thì nửa trái `[lo, mid]` được sắp.
+      2. Kiểm tra target có nằm trong khoảng của nửa sắp đó không (so sánh hai đầu). Nếu có, thu về nửa
+         đó; nếu không, đáp án (nếu có) ở nửa còn lại.
+
+      Với nửa trái sắp: target nằm trong nếu `nums[lo] <= target < nums[mid]` (đã loại `mid` vì đã so sánh
+      bằng). Với nửa phải sắp: `nums[mid] < target <= nums[hi]`. Bất biến: nếu target có trong mảng thì
+      nó nằm trong `[lo, hi]`.
+
+      **Peak element**: `nums[i] > nums[i+1]` và `nums[i] > nums[i-1]` (biên coi như `-inf`). Không cần mảng
+      sắp: nhìn độ dốc tại `mid`. Nếu `nums[mid] < nums[mid + 1]` thì đang đi **lên**, một peak chắc chắn
+      nằm bên phải (vì cuối mảng "rơi xuống -inf"), nên `lo = mid + 1`. Ngược lại `mid` có thể là peak nên
+      `hi = mid`. Khi `lo == hi` ta đứng ở một peak.
+  - id: b05
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      nums = [4, 5, 6, 7, 0, 1, 2]
+      target = 0
+      lo, hi = 0, len(nums) - 1
+      while lo <= hi:
+          mid = (lo + hi) // 2
+          print(lo, hi, mid)
+          if nums[mid] == target:
+              print("found", mid)
+              break
+          if nums[lo] <= nums[mid]:
+              if nums[lo] <= target < nums[mid]:
+                  hi = mid - 1
+              else:
+                  lo = mid + 1
+          else:
+              if nums[mid] < target <= nums[hi]:
+                  lo = mid + 1
+              else:
+                  hi = mid - 1
+    expected_output: |
+      0 6 3
+      4 6 5
+      4 4 4
+      found 4
+  - id: b06
+    type: callout
+    kind: warning
+    md: |
+      Dùng `nums[lo] <= nums[mid]` (có dấu bằng), không phải `<`. Khi `lo == mid` (đoạn còn 1-2 phần tử),
+      nửa trái chỉ có một phần tử và vẫn được coi là sắp. Bỏ dấu bằng sẽ chọn nhầm nửa và bỏ sót đáp án.
+  - id: b07
+    type: quiz_mcq
+    prompt_md: "Tìm peak: `lo = 0, hi = len(nums) - 1`, `while lo < hi`. Nếu `nums[mid] < nums[mid + 1]` thì làm gì và vì sao?"
+    options:
+      - {id: a, text_md: "`hi = mid - 1`, vì peak ở bên trái"}
+      - {id: b, text_md: "`lo = mid + 1`, vì đang đi lên nên có một peak ở bên phải mid"}
+      - {id: c, text_md: "Trả `mid`, vì đây là peak"}
+    answer: [b]
+    explain_md: "`nums[mid + 1]` lớn hơn nên `mid` chắc chắn không phải peak, và nếu cứ đi lên thì hoặc gặp đỉnh, hoặc tới cuối mảng (đó cũng là peak do biên là -inf). Vậy một peak nằm trong `[mid + 1, hi]`."
+  - id: ex_peak
+    type: code_exercise
+    md: |
+      Hàm `find_peak(nums)` trả về chỉ số của một **peak element** trong mảng không rỗng (hai phần tử
+      kề nhau luôn khác nhau, biên ngoài coi là `-inf`). Code dưới đây có một **lỗi** khiến nó trả sai
+      cho vài mảng: hãy tìm và sửa. Ví dụ `find_peak([1, 3, 5, 4, 2])` phải là `2`.
+    entry: find_peak
+    starter: |
+      def find_peak(nums):
+          lo, hi = 0, len(nums) - 1
+          while lo < hi:
+              mid = (lo + hi) // 2
+              if nums[mid] < nums[mid + 1]:
+                  lo = mid + 1
+              else:
+                  hi = mid - 1
+          return lo
+    guidance_md: |
+      - Chạy tay với `[1, 3, 5, 4, 2]` và theo dõi `lo`, `hi`.
+      - Khi `nums[mid] > nums[mid + 1]`, `mid` có thể là peak không?
+      - Nếu `mid` có thể là đáp án mà ta loại nó bằng `hi = mid - 1` thì chuyện gì xảy ra?
+    hints:
+      - level: nudge
+        md: "Thử `[1, 3, 5, 4, 2]`: kết quả là chỉ số mấy? Vòng lặp đã loại phần tử nào một cách sai?"
+      - level: approach
+        md: "Nhánh `else` nghĩa là mảng đang đi xuống tại mid, tức `mid` vẫn có thể là peak. Không được loại nó."
+      - level: near_solution
+        md: "Đổi `hi = mid - 1` thành `hi = mid`. Các dòng còn lại giữ nguyên."
+    tests:
+      - {args: [[1, 2, 3, 1]], expected: 2}
+      - {args: [[1, 3, 5, 4, 2]], expected: 2}
+      - {args: [[5]], expected: 0}
+      - {args: [[1, 2, 3]], expected: 2}
+      - {args: [[3, 2, 1]], expected: 0}
+    solution: |
+      def find_peak(nums):
+          lo, hi = 0, len(nums) - 1
+          while lo < hi:
+              mid = (lo + hi) // 2
+              if nums[mid] < nums[mid + 1]:
+                  lo = mid + 1
+              else:
+                  hi = mid
+          return lo
+  - id: s_matrix
+    type: section
+    title_vi: "Ma trận 2D"
+    summary_vi: "Hai cách: coi ma trận như một mảng phẳng, hoặc đi từ góc trên phải loại một hàng hay một cột mỗi bước."
+  - id: b08
+    type: text
+    md: |
+      Hai biến thể hay gặp:
+
+      - **Ma trận mà mỗi hàng tăng và đầu hàng sau lớn hơn cuối hàng trước**: nối các hàng lại sẽ thành
+        một mảng sắp. Binary search trên `0 .. rows*cols - 1`, với `mid` ánh xạ về `matrix[mid // cols][mid % cols]`.
+        Độ phức tạp O(log(rows*cols)).
+      - **Hàng tăng và cột tăng (nhưng không nối liền)**: không phẳng hoá được. Bắt đầu ở **góc trên phải**:
+        giá trị lớn nhất của hàng và nhỏ nhất của cột. Nếu giá trị `> target` thì cả cột này (từ hàng này
+        trở xuống) quá lớn: `c -= 1`. Nếu `< target` thì cả hàng này (từ cột này trở về trái) quá nhỏ:
+        `r += 1`. Mỗi bước loại một hàng hoặc một cột, nên O(rows + cols). Đây không phải binary search
+        thuần nhưng cùng tư duy: mỗi so sánh phải loại được một phần chắc chắn.
+  - id: b09
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      m = [[1, 4, 7],
+           [2, 5, 8],
+           [3, 6, 9]]
+      t = 6
+      r, c = 0, len(m[0]) - 1
+      found = False
+      while r < len(m) and c >= 0:
+          v = m[r][c]
+          print(r, c, v)
+          if v == t:
+              found = True
+              break
+          elif v > t:
+              c -= 1
+          else:
+              r += 1
+      print(found)
+    expected_output: |
+      0 2 7
+      0 1 4
+      1 1 5
+      2 1 6
+      True
+  - id: b10
+    type: quiz_mcq
+    prompt_md: "Ma trận có hàng và cột đều tăng. Ở góc trên phải ta thấy `v > target`. Bước đúng là gì?"
+    options:
+      - {id: a, text_md: "`r += 1`, bỏ hàng hiện tại"}
+      - {id: b, text_md: "`c -= 1`, bỏ cột hiện tại"}
+      - {id: c, text_md: "Dừng, vì không có target"}
+    answer: [b]
+    explain_md: "`v` là phần tử nhỏ nhất của phần cột còn lại (các phần tử bên dưới trong cùng cột lớn hơn hoặc bằng) và nó đã lớn hơn target, nên cả cột này không chứa target. Bỏ cột: `c -= 1`."
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "Dùng đoạn nửa mở `[lo, hi)`: `nums[mid] < target` thì `lo = mid + 1`, ngược lại `hi = mid`. Kết quả `lo` là lower_bound; đổi `<` thành `<=` thì ra upper_bound."
+      - "Vị trí đầu = lower_bound, vị trí cuối = upper_bound - 1; luôn kiểm tra chỉ số có nằm trong mảng và đúng giá trị không."
+      - "Mảng xoay: ít nhất một nửa được sắp; xác định bằng `nums[lo] <= nums[mid]`, rồi kiểm tra target có nằm trong khoảng nửa đó không."
+      - "Peak: so sánh `nums[mid]` với `nums[mid + 1]`; đi lên thì `lo = mid + 1`, đi xuống thì `hi = mid`."
+      - "Ma trận hàng+cột tăng: bắt đầu ở góc trên phải, mỗi bước bỏ một hàng hoặc một cột."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X439], l2: [Q098], l3: [Q099]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-04"

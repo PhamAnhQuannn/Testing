@@ -1,0 +1,273 @@
+id: dsa.searching_sorting.binary_search_answer
+version: 1
+status: published
+title_vi: "Binary search trên đáp án"
+est_minutes: 14
+objectives_vi:
+  - "Nhận ra bài toán 'tìm giá trị nhỏ nhất/lớn nhất thoả điều kiện' và chuyển nó thành tìm nhị phân trên khoảng đáp án."
+  - "Viết hàm kiểm tra `feasible(x)` đơn điệu và giải thích vì sao tính đơn điệu cho phép bỏ một nửa khoảng."
+  - "Dùng mẫu 'nhỏ nhất thoả' (`hi = mid` / `lo = mid + 1`) và chọn đúng cận dưới/cận trên cho các bài Koko, ship capacity, split array."
+blocks:
+  - id: s_idea
+    type: section
+    title_vi: "Ý tưởng: tìm nhị phân trên đáp án"
+    summary_vi: "Đáp án là một con số trong khoảng đã biết; nếu feasible(x) đơn điệu thì tìm nhị phân trên chính con số đó."
+  - id: b01
+    type: text
+    md: |
+      Binary search quen thuộc tìm một phần tử trong **mảng đã sắp**. **Binary search trên đáp án**
+      dùng cùng tư duy nhưng không có mảng nào cả: ta tìm nhị phân trên **chính giá trị đáp án**.
+
+      Điều kiện áp dụng: đáp án là một số nguyên nằm trong khoảng `[lo, hi]` đã biết, và có hàm kiểm tra
+      `feasible(x)` (trả `True`/`False`: "với giá trị x thì có làm được không?") **đơn điệu**:
+
+      - Nếu `x` làm được thì mọi `x' > x` cũng làm được (bài "nhỏ nhất thoả"), hoặc ngược lại.
+      - Dãy kết quả có dạng `False False False True True True`. Đáp án là vị trí `True` đầu tiên.
+
+      Ví dụ Koko ăn chuối: `piles = [3, 6, 7, 11]`, có `h = 8` giờ. Tốc độ `k` càng lớn thì càng ít giờ
+      cần, nên "ăn xong trong `h` giờ" đơn điệu theo `k`. Thay vì thử mọi `k`, ta nhìn một giá trị `mid`:
+      nếu `feasible(mid)` đúng thì đáp án `<= mid` (bỏ nửa phải), sai thì đáp án `> mid` (bỏ nửa trái).
+      Chi phí: `O(log(khoảng đáp án) * chi phí feasible)`.
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      piles = [3, 6, 7, 11]
+      h = 8
+
+      def hours(k):
+          return sum((p + k - 1) // k for p in piles)
+
+      for k in range(1, 8):
+          print(k, hours(k), hours(k) <= h)
+    expected_output: |
+      1 27 False
+      2 15 False
+      3 10 False
+      4 8 True
+      5 8 True
+      6 6 True
+      7 5 True
+  - id: b03
+    type: quiz_mcq
+    prompt_md: "Trong bài Koko, vì sao ta tìm nhị phân được trên tốc độ `k` dù `piles` không được sắp?"
+    options:
+      - {id: a, text_md: "Vì ta sắp xếp `piles` trước khi tìm"}
+      - {id: b, text_md: "Vì `feasible(k)` đơn điệu: tốc độ lớn hơn thì không bao giờ mất nhiều giờ hơn"}
+      - {id: c, text_md: "Vì `k` luôn là luỹ thừa của 2"}
+    answer: [b]
+    explain_md: "Thứ được tìm nhị phân là `k`, không phải `piles`. Chỉ cần dãy `feasible(1), feasible(2), ...` có dạng `False...False True...True`. Thứ tự của `piles` không liên quan."
+  - id: s_template
+    type: section
+    title_vi: "Mẫu 'nhỏ nhất thoả'"
+    summary_vi: "Giữ bất biến: đáp án nằm trong [lo, hi]; feasible(mid) đúng thì hi = mid, sai thì lo = mid + 1."
+    exercise_ref: ex_ceil_sqrt
+  - id: b04
+    type: text
+    md: |
+      Mẫu dùng khoảng **đóng-mở nửa** để tránh lặp vô hạn. Giữ bất biến *đáp án luôn nằm trong `[lo, hi]`*:
+
+      ```python
+      lo, hi = LOW, HIGH            # HIGH phải chắc chắn feasible
+      while lo < hi:
+          mid = (lo + hi) // 2      # nghiêng về lo
+          if feasible(mid):
+              hi = mid              # mid có thể chính là đáp án, giữ lại
+          else:
+              lo = mid + 1          # mid chắc chắn sai, loại
+      return lo                     # lo == hi
+      ```
+
+      Mỗi vòng khoảng nhỏ đi ít nhất một nửa, nên cần `O(log(HIGH - LOW))` vòng.
+  - id: b05
+    type: callout
+    kind: warning
+    md: |
+      Hai lỗi hay gặp: (1) viết `hi = mid - 1` khi `feasible(mid)` đúng, làm mất đáp án; (2) chọn cận
+      sai, ví dụ cận dưới không đủ nhỏ hoặc cận trên **không** feasible, khiến `lo` trả về một giá trị
+      vô nghĩa. Bài "lớn nhất thoả" thì đối xứng: dùng `mid = (lo + hi + 1) // 2`, `lo = mid` / `hi = mid - 1`.
+  - id: b06
+    type: predict_output
+    code: |
+      lo, hi = 0, 10
+      steps = 0
+      while lo < hi:
+          mid = (lo + hi) // 2
+          steps += 1
+          if mid >= 7:
+              hi = mid
+          else:
+              lo = mid + 1
+      print(lo, steps)
+    expected_output: |
+      7 4
+    explain_md: "mid lần lượt là 5 (sai, lo=6), 8 (đúng, hi=8), 7 (đúng, hi=7), 6 (sai, lo=7). Khi lo == hi == 7 thì dừng sau 4 bước; 7 là giá trị nhỏ nhất thoả `mid >= 7`."
+  - id: ex_ceil_sqrt
+    type: code_exercise
+    md: |
+      Viết `ceil_sqrt(n)` trả về số nguyên `x >= 0` **nhỏ nhất** sao cho `x * x >= n` (với `n >= 0`),
+      bằng tìm nhị phân trên `x` trong `[0, n]`, không dùng `math.sqrt`. Ví dụ `ceil_sqrt(50)` là `8`
+      vì `7 * 7 = 49 < 50 <= 64 = 8 * 8`.
+    entry: ceil_sqrt
+    starter: |
+      def ceil_sqrt(n):
+          # TODO: tìm nhị phân x nhỏ nhất thoả x * x >= n
+          pass
+    guidance_md: |
+      - Đáp án nằm trong khoảng `[0, n]`.
+      - `feasible(x)` ở đây là `x * x >= n`; nó đơn điệu theo `x`.
+      - Khi `feasible(mid)` đúng thì giữ `mid` lại; khi sai thì loại `mid`.
+      - Dừng khi hai đầu gặp nhau rồi trả về giá trị đó.
+    hints:
+      - level: nudge
+        md: "Dãy `x * x >= n` theo `x = 0, 1, 2, ...` có dạng gì? Ta cần vị trí `True` đầu tiên."
+      - level: approach
+        md: "Đặt `lo, hi = 0, n`. Nếu `mid * mid >= n` thì `hi = mid`, ngược lại `lo = mid + 1`. Lặp khi `lo < hi`."
+      - level: pseudocode
+        md: |
+          lo, hi = 0, n
+          while lo < hi:
+              mid = (lo + hi) // 2
+              nếu mid * mid >= n: hi = mid
+              ngược lại: lo = mid + 1
+          trả lo
+      - level: near_solution
+        md: |
+          def ceil_sqrt(n):
+              lo, hi = 0, n
+              while lo < hi:
+                  mid = (lo + hi) // 2
+                  if ...:
+                      hi = ...
+                  else:
+                      lo = ...
+              return lo
+    tests:
+      - {args: [50], expected: 8}
+      - {args: [0], expected: 0}
+      - {args: [1], expected: 1}
+      - {args: [2], expected: 2}
+      - {args: [100], expected: 10}
+    solution: |
+      def ceil_sqrt(n):
+          lo, hi = 0, n
+          while lo < hi:
+              mid = (lo + hi) // 2
+              if mid * mid >= n:
+                  hi = mid
+              else:
+                  lo = mid + 1
+          return lo
+  - id: b07
+    type: quiz_mcq
+    prompt_md: "Tìm nhị phân giá trị nhỏ nhất thoả. Khi `feasible(mid)` là `True`, ta cập nhật thế nào?"
+    options:
+      - {id: a, text_md: "`lo = mid + 1`"}
+      - {id: b, text_md: "`hi = mid - 1`"}
+      - {id: c, text_md: "`hi = mid`"}
+    answer: [c]
+    explain_md: "`mid` thoả nên có thể chính là đáp án nhỏ nhất; ta chỉ biết đáp án `<= mid`. Vì vậy giữ `mid` lại bằng `hi = mid`. `hi = mid - 1` có thể làm mất đáp án."
+  - id: s_feasible
+    type: section
+    title_vi: "Viết feasible và chọn cận"
+    summary_vi: "Koko, ship capacity, split array: đều là tìm nhị phân + một hàm kiểm tra tham lam."
+    exercise_ref: ex_min_time
+  - id: b08
+    type: text
+    md: |
+      Phần khó thật sự là hàm `feasible(x)` và hai cận. Một số bài kinh điển:
+
+      - **Koko ăn chuối** (min tốc độ): `feasible(k)` = `sum(ceil(p / k)) <= h`. Cận `[1, max(piles)]`.
+      - **Ship capacity** (min tải trọng chở trong `days` ngày): `feasible(c)` duyệt tham lam theo thứ tự,
+        đủ tải thì sang ngày mới, đếm ngày `<= days`. Cận `[max(weights), sum(weights)]`: dưới phải chở được kiện
+        nặng nhất, trên là chở một ngày.
+      - **Split array largest sum** (chia mảng thành `m` đoạn sao cho tổng đoạn lớn nhất nhỏ nhất): cùng
+        khuôn với ship capacity.
+      - **Min days to make bouquets**: `feasible(d)` đếm số bó hoa có thể làm khi chờ `d` ngày.
+
+      Khi nào dùng? Đề hỏi "giá trị **nhỏ nhất** sao cho ..." hoặc "**lớn nhất** có thể ... sao cho ...",
+      và kiểm tra một giá trị cụ thể thì dễ (thường `O(n)` tham lam) hơn nhiều so với tìm trực tiếp.
+  - id: b09
+    type: quiz_mcq
+    prompt_md: "Với ship capacity, vì sao cận dưới của khoảng tìm là `max(weights)` mà không phải `1`?"
+    options:
+      - {id: a, text_md: "Vì tải trọng nhỏ hơn `max(weights)` không bao giờ chở được kiện nặng nhất, nên chắc chắn không feasible"}
+      - {id: b, text_md: "Vì tải trọng phải bằng tổng các kiện"}
+      - {id: c, text_md: "Vì `1` làm vòng lặp chạy vô hạn"}
+    answer: [a]
+    explain_md: "Dùng `1` vẫn đúng nhưng lãng phí vài vòng. Cận chặt `max(weights)` an toàn vì mọi giá trị nhỏ hơn đều infeasible. Cận trên `sum(weights)` chắc chắn feasible (chở trong 1 ngày)."
+  - id: ex_min_time
+    type: code_exercise
+    md: |
+      Có các thợ, thợ `i` làm một việc mất `times[i]` phút (làm liên tục, nhiều việc nối tiếp nhau). Viết
+      `min_time(times, jobs)` trả về số phút `T` **nhỏ nhất** để cả nhóm hoàn thành ít nhất `jobs` việc khi mọi
+      thợ làm song song. Trong `T` phút thợ `i` làm được `T // times[i]` việc. Ví dụ `min_time([1, 2, 3], 6)` là `4`
+      (4 + 2 + 1 = 7 việc; còn `T = 3` chỉ được 3 + 1 + 1 = 5).
+    entry: min_time
+    starter: |
+      def min_time(times, jobs):
+          # TODO: tìm nhị phân T nhỏ nhất sao cho sum(T // t) >= jobs
+          pass
+    guidance_md: |
+      - `feasible(T)` là tổng số việc làm được trong `T` phút có `>= jobs` không.
+      - `feasible` đơn điệu theo `T`: thêm thời gian không làm giảm số việc.
+      - Cận dưới có thể là 1; cận trên chắc chắn đủ là `min(times) * jobs` (một thợ nhanh nhất làm hết).
+      - Dùng mẫu 'nhỏ nhất thoả'.
+    hints:
+      - level: nudge
+        md: "Nếu `T` phút đủ làm `jobs` việc thì `T + 1` phút có đủ không? Từ đó suy ra có tìm nhị phân được không."
+      - level: approach
+        md: "`lo, hi = 1, min(times) * jobs`. Với `mid`, đếm `sum(mid // t for t in times)`; nếu `>= jobs` thì `hi = mid`, ngược lại `lo = mid + 1`."
+      - level: pseudocode
+        md: |
+          lo, hi = 1, min(times) * jobs
+          while lo < hi:
+              mid = (lo + hi) // 2
+              done = tổng của (mid // t) với mỗi t
+              nếu done >= jobs: hi = mid
+              ngược lại: lo = mid + 1
+          trả lo
+      - level: near_solution
+        md: |
+          def min_time(times, jobs):
+              lo, hi = 1, min(times) * jobs
+              while lo < hi:
+                  mid = (lo + hi) // 2
+                  if sum(mid // t for t in times) ...:
+                      hi = ...
+                  else:
+                      lo = ...
+              return lo
+    tests:
+      - {args: [[1, 2, 3], 6], expected: 4}
+      - {args: [[2], 5], expected: 10}
+      - {args: [[5, 5], 4], expected: 10}
+      - {args: [[1], 1], expected: 1}
+      - {args: [[3, 7], 3], expected: 7}
+    solution: |
+      def min_time(times, jobs):
+          lo, hi = 1, min(times) * jobs
+          while lo < hi:
+              mid = (lo + hi) // 2
+              if sum(mid // t for t in times) >= jobs:
+                  hi = mid
+              else:
+                  lo = mid + 1
+          return lo
+  - id: b10
+    type: summary
+    bullets_vi:
+      - "Binary search trên đáp án: tìm nhị phân trên chính giá trị đáp án trong khoảng `[lo, hi]`, không cần mảng đã sắp."
+      - "Điều kiện: `feasible(x)` đơn điệu (`False...False True...True`); đáp án là `True` đầu tiên (hoặc cuối cùng)."
+      - "Mẫu nhỏ nhất thoả: `while lo < hi: mid = (lo + hi) // 2; feasible(mid) thì hi = mid, ngược lại lo = mid + 1`."
+      - "Chọn cận: cận dưới không bỏ sót đáp án, cận trên chắc chắn feasible (Koko: `[1, max]`; ship: `[max, sum]`)."
+      - "Độ phức tạp: `O(log(khoảng đáp án) * chi phí feasible)`, thường `O(n log S)`."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X440], l2: [X441], l3: [X442]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-04"
