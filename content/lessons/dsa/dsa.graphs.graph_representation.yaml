@@ -1,0 +1,239 @@
+id: dsa.graphs.graph_representation
+version: 1
+status: published
+title_vi: "Biểu diễn đồ thị (graph representation)"
+est_minutes: 14
+objectives_vi:
+  - "Phân biệt đồ thị có hướng và vô hướng, có trọng số và không trọng số, và tính bậc (degree) của đỉnh."
+  - "Biểu diễn đồ thị bằng edge list, adjacency list và adjacency matrix, và nêu đánh đổi về bộ nhớ và thời gian."
+  - "Dùng in-degree và out-degree để giải bài find_judge."
+  - "Dựng adjacency list rồi duyệt bằng stack để kiểm tra đường đi (has_path)."
+blocks:
+  - id: s_repr
+    type: section
+    title_vi: "Ba cách lưu một đồ thị"
+    summary_vi: "Edge list, adjacency list và adjacency matrix: cùng một đồ thị, chi phí khác nhau."
+  - id: t01
+    type: text
+    md: |
+      Một **đồ thị (graph)** gồm **V** đỉnh (vertex/node) và **E** cạnh (edge). Cạnh có thể
+      **vô hướng** (u-v đi được cả hai chiều) hoặc **có hướng** (u->v chỉ một chiều), và có thể
+      mang **trọng số (weight)**. **Bậc (degree)** của đỉnh là số cạnh chạm vào nó; với đồ thị có
+      hướng ta tách thành **out-degree** (cạnh đi ra) và **in-degree** (cạnh đi vào).
+
+      Ba cách lưu phổ biến:
+
+      - **Edge list**: list các cặp `[u, v]` (hoặc `[u, v, w]`). Gọn, hợp với input của bài toán.
+      - **Adjacency list**: `adj[u]` là list hàng xóm của `u`. Bộ nhớ **O(V + E)**, duyệt hàng xóm
+        của `u` mất **O(deg(u))**, kiểm tra cạnh (u, v) mất O(deg(u)). Hợp đồ thị **thưa**.
+      - **Adjacency matrix**: `m[u][v] = 1` nếu có cạnh. Bộ nhớ **O(V^2)**, kiểm tra cạnh **O(1)**,
+        nhưng duyệt hàng xóm phải quét cả hàng, **O(V)**. Hợp đồ thị **dày** hoặc V nhỏ.
+
+      Với đồ thị vô hướng, mỗi cạnh được ghi hai lần (`adj[u]` chứa `v` và `adj[v]` chứa `u`).
+      Với đồ thị có trọng số, lưu cặp `(v, w)` trong adjacency list, hoặc `w` trong ô của matrix.
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      n = 4
+      edges = [[0, 1], [0, 2], [1, 2], [2, 3]]   # vô hướng
+
+      adj = [[] for _ in range(n)]
+      mat = [[0] * n for _ in range(n)]
+      for a, b in edges:
+          adj[a].append(b)
+          adj[b].append(a)
+          mat[a][b] = mat[b][a] = 1
+
+      print(adj)
+      print(mat[2])
+      print([len(adj[u]) for u in range(n)])   # degree từng đỉnh
+      print(1 in adj[0], mat[0][3] == 1)       # kiểm tra cạnh
+    expected_output: |
+      [[1, 2], [0, 2], [0, 1, 3], [2]]
+      [1, 1, 0, 1]
+      [2, 2, 3, 1]
+      True False
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Đồ thị có V = 10000 đỉnh nhưng chỉ khoảng 30000 cạnh. Cách lưu nào hợp lý nhất?"
+    options:
+      - {id: a, text_md: "Adjacency matrix, vì kiểm tra cạnh O(1)"}
+      - {id: b, text_md: "Adjacency list, vì bộ nhớ O(V + E) cho đồ thị thưa"}
+      - {id: c, text_md: "Hai cách như nhau về bộ nhớ"}
+    answer: [b]
+    explain_md: "Matrix cần V^2 = 10^8 ô, quá lãng phí khi chỉ có 30000 cạnh. Adjacency list chỉ tốn khoảng V + 2E."
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Trong adjacency matrix, duyệt toàn bộ hàng xóm của một đỉnh mất O(___) (theo V)."
+    blanks: [{accept: ["V", "v", "O(V)"]}]
+    explain_md: "Phải quét cả hàng của đỉnh đó gồm V ô, kể cả khi hầu hết là 0."
+  - id: s_deg
+    type: section
+    title_vi: "Bậc vào và bậc ra: find_judge"
+    summary_vi: "Đếm in-degree/out-degree bằng một mảng điểm."
+    exercise_ref: ex_judge
+  - id: t03
+    type: text
+    md: |
+      Với đồ thị có hướng, đôi khi không cần dựng adjacency list mà chỉ cần **đếm bậc**. Bài
+      **find_judge**: `trust` là list cặp `[a, b]` nghĩa là a tin b. Người phán xét được **n-1**
+      người tin (in-degree = n-1) và **không tin ai** (out-degree = 0).
+
+      Mẹo: giữ một mảng `score`, mỗi cạnh `a -> b` thì `score[a] -= 1` và `score[b] += 1`. Người
+      phán xét là người có `score == n - 1` (out-degree 0 và in-degree n-1). Độ phức tạp
+      **O(n + E)**. Nhãn đỉnh chạy từ 1 đến n nên mảng có kích thước n + 1.
+  - id: q03
+    type: predict_output
+    code: |
+      trust = [[1, 3], [2, 3]]
+      n = 3
+      indeg = [0] * (n + 1)
+      outdeg = [0] * (n + 1)
+      for a, b in trust:
+          outdeg[a] += 1
+          indeg[b] += 1
+      print(indeg[1:], outdeg[1:])
+    expected_output: |
+      [0, 0, 2] [1, 1, 0]
+    explain_md: "Đỉnh 3 được hai người tin (indeg 2) và không tin ai (outdeg 0); đỉnh 1 và 2 mỗi đỉnh tin một người."
+  - id: ex_judge
+    type: code_exercise
+    md: |
+      Viết `find_judge(n, trust)`: người phán xét được n-1 người tin và không tin ai. `trust` là các
+      cặp `[a, b]` (a tin b). Trả nhãn (1..n) của người đó hoặc `-1` nếu không có.
+      Ví dụ `find_judge(3, [[1, 3], [2, 3]])` trả `3`.
+    entry: find_judge
+    starter: |
+      def find_judge(n, trust):
+          score = [0] * (n + 1)
+          # TODO: cập nhật score theo từng cặp (a, b)
+          return -1
+    guidance_md: |
+      - Mỗi cạnh a -> b: a mất điểm, b được điểm.
+      - Người phán xét có điểm đúng bằng n - 1.
+      - Với n = 1 và trust rỗng, người duy nhất là phán xét.
+    hints:
+      - level: nudge
+        md: "Người phán xét có in-degree n-1 và out-degree 0. Làm sao gộp hai điều kiện đó vào một con số?"
+      - level: approach
+        md: "Dùng một mảng điểm: tin ai đó thì bị trừ, được ai đó tin thì được cộng. Chỉ người phán xét mới đạt tối đa."
+      - level: near_solution
+        md: "Duyệt trust để trừ 1 ở a và cộng 1 ở b, rồi quét nhãn 1..n tìm người có điểm đúng n - 1; không thấy thì trả -1."
+    tests:
+      - {args: [2, [[1, 2]]], expected: 2}
+      - {args: [3, [[1, 3], [2, 3]]], expected: 3}
+      - {args: [3, [[1, 3], [2, 3], [3, 1]]], expected: -1}
+      - {args: [1, []], expected: 1}
+      - {args: [3, [[1, 2], [2, 3]]], expected: -1}
+    solution: |
+      def find_judge(n, trust):
+          score = [0] * (n + 1)
+          for a, b in trust:
+              score[a] -= 1
+              score[b] += 1
+          for i in range(1, n + 1):
+              if score[i] == n - 1:
+                  return i
+          return -1
+  - id: s_path
+    type: section
+    title_vi: "Duyệt hàng xóm và kiểm tra đường đi: has_path"
+    summary_vi: "Dựng adjacency list, rồi dùng stack và tập seen để đi từ s."
+    exercise_ref: ex_path
+  - id: t04
+    type: text
+    md: |
+      **Reachability** (có đường từ s tới t không?) là bài nền của đồ thị. Các bước:
+
+      1. Dựng adjacency list từ edge list (đồ thị vô hướng thì thêm cả hai chiều).
+      2. Đi từ `s` bằng stack (DFS) hoặc queue (BFS), dùng tập `seen` để không quay lại đỉnh cũ.
+      3. Gặp `t` thì trả `True`; hết đỉnh để đi mà chưa gặp thì trả `False`.
+
+      Mỗi đỉnh vào stack tối đa một lần và mỗi cạnh được xét hai lần, nên tổng là **O(V + E)**.
+      Quên `seen` sẽ lặp vô hạn khi đồ thị có chu trình.
+  - id: b05
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      adj = [[1], [0, 2], [1], [4], [3]]   # hai thành phần: {0,1,2} và {3,4}
+      seen = {0}
+      stack = [0]
+      order = []
+      while stack:
+          u = stack.pop()
+          order.append(u)
+          for v in adj[u]:
+              if v not in seen:
+                  seen.add(v)
+                  stack.append(v)
+      print(order)
+      print(3 in seen)
+    expected_output: |
+      [0, 1, 2]
+      False
+  - id: ex_path
+    type: code_exercise
+    md: |
+      Viết `has_path(n, edges, s, t)`: đồ thị **vô hướng** có `n` đỉnh đánh số `0..n-1`, `edges` là
+      list cặp `[a, b]`. Trả `True` nếu có đường từ `s` tới `t`, ngược lại `False`.
+      Bản dưới đây chỉ xét hàng xóm trực tiếp của `s`. Hãy hoàn thiện bằng DFS/BFS.
+    entry: has_path
+    starter: |
+      def has_path(n, edges, s, t):
+          adj = [[] for _ in range(n)]
+          for a, b in edges:
+              adj[a].append(b)
+              adj[b].append(a)
+          return t in adj[s]
+    guidance_md: |
+      - Thử đồ thị đường thẳng 0-1-2 với s=0, t=2.
+      - Cần đi tiếp từ hàng xóm của hàng xóm.
+      - Dùng `seen` để tránh lặp.
+    hints:
+      - level: nudge
+        md: "Đường đi có thể dài hơn một cạnh. Làm sao tiếp tục đi từ các đỉnh vừa tới được?"
+      - level: approach
+        md: "Dùng một stack (hoặc queue) chứa các đỉnh cần xử lý, và một tập các đỉnh đã thăm."
+      - level: near_solution
+        md: "Bắt đầu với stack chứa s và tập seen chứa s. Lấy một đỉnh ra; nếu là t thì trả True, nếu không thì đẩy các hàng xóm chưa thăm vào. Hết stack thì trả False."
+    tests:
+      - {args: [3, [[0, 1], [1, 2], [2, 0]], 0, 2], expected: true}
+      - {args: [6, [[0, 1], [0, 2], [3, 5], [5, 4], [4, 3]], 0, 5], expected: false}
+      - {args: [3, [[0, 1], [1, 2]], 0, 2], expected: true}
+      - {args: [1, [], 0, 0], expected: true}
+      - {args: [4, [[0, 1], [2, 3]], 3, 2], expected: true}
+    solution: |
+      def has_path(n, edges, s, t):
+          adj = [[] for _ in range(n)]
+          for a, b in edges:
+              adj[a].append(b)
+              adj[b].append(a)
+          seen = {s}
+          stack = [s]
+          while stack:
+              u = stack.pop()
+              if u == t:
+                  return True
+              for v in adj[u]:
+                  if v not in seen:
+                      seen.add(v)
+                      stack.append(v)
+          return False
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Edge list gọn; adjacency list O(V + E) hợp đồ thị thưa; adjacency matrix O(V^2) kiểm tra cạnh O(1) hợp đồ thị dày."
+      - "Đồ thị vô hướng ghi mỗi cạnh hai lần; có hướng tách in-degree và out-degree; có trọng số lưu cặp (v, w)."
+      - "find_judge: score[a] -= 1, score[b] += 1; người phán xét có score == n - 1."
+      - "has_path: dựng adjacency list, đi bằng stack/queue với tập seen, O(V + E)."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [Q147], l2: [Q148], l3: [X454]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-04"

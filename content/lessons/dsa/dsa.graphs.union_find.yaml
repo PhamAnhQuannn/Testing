@@ -1,0 +1,252 @@
+id: dsa.graphs.union_find
+version: 1
+status: published
+title_vi: "Union-Find / Disjoint Set Union (DSU)"
+est_minutes: 14
+objectives_vi:
+  - "Mô tả DSU: mảng parent, find(x) trả về đại diện (root) và union(x, y) gộp hai tập."
+  - "Cài find với path compression và union theo size/rank để gần O(1) khấu hao."
+  - "Đếm số thành phần liên thông (connected components) bằng DSU."
+  - "Phát hiện chu trình trong đồ thị vô hướng: union thất bại nghĩa là hai đầu đã cùng tập."
+blocks:
+  - id: s_dsu
+    type: section
+    title_vi: "find, union và tối ưu"
+    summary_vi: "Mỗi tập là một cây ngược trỏ về root; nén đường và gộp theo kích thước giữ cây thấp."
+    exercise_ref: ex_components
+  - id: t01
+    type: text
+    md: |
+      **Disjoint Set Union (DSU)**, còn gọi **Union-Find**, quản lý một họ các tập rời nhau và trả lời
+      nhanh câu hỏi "hai phần tử có cùng tập không?". Mỗi phần tử có `parent[x]`; phần tử có
+      `parent[x] == x` là **root (đại diện)** của tập.
+
+      - `find(x)`: đi theo `parent` cho tới root.
+      - `union(x, y)`: tìm root của hai phía; nếu khác nhau thì nối root này vào root kia.
+
+      Hai tối ưu làm cây rất thấp:
+
+      - **Path compression**: trong `find`, cho mỗi node trỏ thẳng lên cha của cha (hoặc thẳng root).
+      - **Union by size/rank**: luôn nối cây nhỏ (thấp) vào cây lớn (cao).
+
+      Kết hợp cả hai, mỗi thao tác tốn **O(alpha(n))** khấu hao, với alpha là hàm Ackermann ngược
+      (không vượt quá 4 với mọi n thực tế), tức coi như hằng số. DSU chỉ dùng mảng nên kết quả
+      hoàn toàn xác định (deterministic).
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      parent = list(range(6))
+
+      def find(x):
+          while parent[x] != x:
+              parent[x] = parent[parent[x]]
+              x = parent[x]
+          return x
+
+      def union(a, b):
+          ra, rb = find(a), find(b)
+          if ra == rb:
+              return False
+          parent[ra] = rb
+          return True
+
+      for a, b in [(0, 1), (1, 2), (3, 4), (0, 2)]:
+          print(a, b, union(a, b))
+      print(len({find(i) for i in range(6)}))
+    expected_output: |
+      0 1 True
+      1 2 True
+      3 4 True
+      0 2 False
+      3
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Trong DSU, `union(a, b)` trả về `False` (hai root giống nhau) khi thêm cạnh `(a, b)` của đồ thị vô hướng. Điều đó cho biết gì?"
+    options:
+      - {id: a, text_md: "Cạnh này tạo ra một chu trình (cycle)"}
+      - {id: b, text_md: "Đồ thị không liên thông"}
+      - {id: c, text_md: "`a` hoặc `b` chưa từng xuất hiện"}
+    answer: [a]
+    explain_md: "Root giống nhau nghĩa là `a` và `b` đã nối với nhau bằng các cạnh trước đó; thêm cạnh `(a, b)` khép thành chu trình."
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Có 6 node, ban đầu mỗi node là một tập riêng (6 thành phần). Mỗi lần `union` thành công gộp hai tập khác nhau thì số thành phần giảm đi ___."
+    blanks: [{accept: ["1", "một"]}]
+    explain_md: "Gộp hai tập khác nhau thành một nên số thành phần giảm đúng 1; `union` thất bại thì không đổi."
+  - id: ex_components
+    type: code_exercise
+    md: |
+      Viết `count_components(n, edges)`: đồ thị vô hướng có `n` node đánh số `0..n-1` và danh sách cạnh
+      `edges` (các cặp `[u, v]`, có thể lặp hoặc tạo chu trình). Trả về số thành phần liên thông.
+      Ví dụ `n = 5`, `edges = [[0, 1], [1, 2], [3, 4]]` cho `2`. Bản dưới đây trừ `count` ngay cả khi
+      hai đầu đã cùng tập. Hãy sửa.
+    entry: count_components
+    starter: |
+      def count_components(n, edges):
+          parent = list(range(n))
+
+          def find(x):
+              while parent[x] != x:
+                  parent[x] = parent[parent[x]]
+                  x = parent[x]
+              return x
+
+          count = n
+          for u, v in edges:
+              ru, rv = find(u), find(v)
+              parent[ru] = rv
+              count -= 1
+          return count
+    guidance_md: |
+      - Thử `n = 3`, `edges = [[0, 1], [0, 1]]`: đáp án là 2, nhưng code trả 1.
+      - Chỉ gộp và giảm `count` khi `ru != rv`.
+    hints:
+      - level: nudge
+        md: "Cạnh lặp lại `[0, 1]` lần thứ hai có làm số thành phần giảm thêm không?"
+      - level: approach
+        md: "Số thành phần chỉ giảm khi hai root khác nhau. Kiểm tra điều kiện này trước khi nối và trừ `count`."
+      - level: near_solution
+        md: "Bọc hai dòng `parent[ru] = rv` và `count -= 1` trong `if ru != rv:`. Khi hai root giống nhau thì bỏ qua cạnh đó, vì nó chỉ tạo chu trình hoặc lặp."
+    tests:
+      - {args: [0, []], expected: 0}
+      - {args: [5, [[0, 1], [1, 2], [3, 4]]], expected: 2}
+      - {args: [3, [[0, 1], [0, 1]]], expected: 2}
+      - {args: [4, [[0, 1], [1, 2], [2, 0]]], expected: 2}
+      - {args: [3, []], expected: 3}
+    solution: |
+      def count_components(n, edges):
+          parent = list(range(n))
+
+          def find(x):
+              while parent[x] != x:
+                  parent[x] = parent[parent[x]]
+                  x = parent[x]
+              return x
+
+          count = n
+          for u, v in edges:
+              ru, rv = find(u), find(v)
+              if ru != rv:
+                  parent[ru] = rv
+                  count -= 1
+          return count
+  - id: s_cycle
+    type: section
+    title_vi: "Phát hiện chu trình và Kruskal"
+    summary_vi: "Union thất bại là dấu hiệu chu trình; Kruskal dùng chính dấu hiệu này để bỏ cạnh thừa."
+    exercise_ref: ex_cycle
+  - id: t02
+    type: text
+    md: |
+      **Phát hiện chu trình** trong đồ thị vô hướng: duyệt từng cạnh `(u, v)`; nếu `find(u) == find(v)`
+      thì `u` và `v` đã liên thông, cạnh này khép chu trình; ngược lại `union(u, v)`.
+
+      **Union by size** giữ cây thấp:
+
+      ```python
+      if size[ra] < size[rb]:
+          ra, rb = rb, ra
+      parent[rb] = ra
+      size[ra] += size[rb]
+      ```
+
+      **Kruskal** tìm cây khung nhỏ nhất (MST): sắp xếp cạnh theo trọng số tăng dần, rồi lần lượt thêm
+      cạnh nếu `union` thành công (không tạo chu trình), bỏ qua nếu thất bại. DSU làm bước kiểm tra
+      "có tạo chu trình không" gần O(1), nên tổng chi phí chủ yếu là bước sắp xếp O(E log E).
+  - id: q03
+    type: predict_output
+    code: |
+      parent = list(range(4))
+
+      def find(x):
+          while parent[x] != x:
+              x = parent[x]
+          return x
+
+      for a, b in [(0, 1), (2, 3), (1, 3)]:
+          ra, rb = find(a), find(b)
+          if ra != rb:
+              parent[ra] = rb
+      print(parent)
+      print(find(0))
+    expected_output: |
+      [1, 3, 3, 3]
+      3
+    explain_md: "Cạnh (0,1): parent[0]=1. Cạnh (2,3): parent[2]=3. Cạnh (1,3): root của 1 là 1, của 3 là 3, nên parent[1]=3. Kết quả `[1, 3, 3, 3]`; từ 0 đi 0 -> 1 -> 3 nên `find(0)` là 3."
+  - id: ex_cycle
+    type: code_exercise
+    md: |
+      Viết `has_cycle(n, edges)`: trả `True` nếu đồ thị vô hướng (node `0..n-1`, cạnh `[u, v]`) có chu trình,
+      ngược lại `False`. Cạnh lặp `[0, 1]` hai lần được tính là chu trình. Dùng DSU: nếu hai đầu của
+      một cạnh đã cùng root thì có chu trình.
+    entry: has_cycle
+    starter: |
+      def has_cycle(n, edges):
+          parent = list(range(n))
+
+          def find(x):
+              while parent[x] != x:
+                  parent[x] = parent[parent[x]]
+                  x = parent[x]
+              return x
+
+          # TODO: với mỗi cạnh, kiểm tra root rồi union
+          return False
+    guidance_md: |
+      - Với mỗi cạnh `(u, v)` tính `ru = find(u)`, `rv = find(v)`.
+      - Nếu `ru == rv` thì trả `True`.
+      - Ngược lại nối `parent[ru] = rv`.
+      - Hết cạnh mà không gặp trường hợp trên thì trả `False`.
+    hints:
+      - level: nudge
+        md: "Khi nào một cạnh mới nối hai node vốn đã liên thông?"
+      - level: approach
+        md: "Tính root của hai đầu. Nếu giống nhau là chu trình; nếu khác nhau thì gộp hai tập lại rồi xét cạnh kế tiếp."
+      - level: pseudocode
+        md: |
+          với mỗi (u, v) trong edges:
+              ru = find(u); rv = find(v)
+              nếu ru == rv: trả True
+              parent[ru] = rv
+          trả False
+      - level: near_solution
+        md: "Trong vòng lặp qua `edges`, nhánh `ru == rv` phải kết thúc hàm ngay bằng `return True`; còn lại nối `parent[ru] = rv`. Sau vòng lặp trả `False`."
+    tests:
+      - {args: [3, []], expected: false}
+      - {args: [3, [[0, 1], [1, 2]]], expected: false}
+      - {args: [3, [[0, 1], [1, 2], [2, 0]]], expected: true}
+      - {args: [2, [[0, 1], [0, 1]]], expected: true}
+      - {args: [5, [[0, 1], [2, 3], [3, 4]]], expected: false}
+    solution: |
+      def has_cycle(n, edges):
+          parent = list(range(n))
+
+          def find(x):
+              while parent[x] != x:
+                  parent[x] = parent[parent[x]]
+                  x = parent[x]
+              return x
+
+          for u, v in edges:
+              ru, rv = find(u), find(v)
+              if ru == rv:
+                  return True
+              parent[ru] = rv
+          return False
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "DSU gồm `parent[]`; `find` trả root, `union` nối hai root khác nhau."
+      - "Path compression và union by size/rank cho gần O(1) khấu hao (inverse-Ackermann)."
+      - "Đếm thành phần: bắt đầu từ n, mỗi union thành công giảm 1."
+      - "Union thất bại (cùng root) nghĩa là cạnh đó tạo chu trình; Kruskal dùng nó để bỏ cạnh thừa."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X451], l2: [X452], l3: [X453]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-04"
