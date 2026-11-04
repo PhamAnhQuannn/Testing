@@ -1,0 +1,199 @@
+id: dsa.two_pointers_window.sliding_window_fixed
+version: 1
+status: published
+title_vi: "Cửa sổ trượt kích thước cố định"
+est_minutes: 12
+objectives_vi:
+  - "Nhận ra bài toán cửa sổ trượt cố định: đoạn liên tiếp dài đúng k, tìm tổng/trung bình tốt nhất hoặc đếm cửa sổ thoả điều kiện."
+  - "Cập nhật tổng cửa sổ trong O(1) bằng cách cộng phần tử mới và trừ phần tử rời đi, nên tổng thời gian O(n) thay vì O(n*k)."
+  - "Tránh lỗi lệch một: chỉ số phần tử rời đi là `i - k`, và không quên cửa sổ đầu tiên."
+blocks:
+  - id: s_idea
+    type: section
+    title_vi: "Ý tưởng: cập nhật thay vì tính lại"
+    summary_vi: "Hai cửa sổ liên tiếp chỉ khác hai đầu, nên tổng mới = tổng cũ + phần tử vào - phần tử ra."
+    exercise_ref: ex_max_sum
+  - id: b01
+    type: text
+    md: |
+      Bài toán **cửa sổ trượt kích thước cố định** (fixed-size sliding window): cho mảng `nums` và
+      số nguyên `k`, xét mọi đoạn con **liên tiếp dài đúng k** và tìm tổng lớn nhất, trung bình lớn
+      nhất, hoặc đếm số đoạn thoả một điều kiện.
+
+      Cách chậm: với mỗi vị trí bắt đầu, cộng lại k phần tử, tổng cộng O(n*k).
+
+      Nhận xét then chốt: cửa sổ `nums[i-k : i]` và cửa sổ kế tiếp `nums[i-k+1 : i+1]` chung k-1 phần tử.
+      Chỉ có **một phần tử vào** (`nums[i]`) và **một phần tử ra** (`nums[i-k]`). Do đó:
+
+      ```python
+      window += nums[i] - nums[i - k]   # O(1)
+      ```
+
+      Mỗi phần tử vào và ra cửa sổ đúng một lần, tổng thời gian **O(n)**, bộ nhớ O(1).
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      nums = [2, 1, 5, 1, 3, 2]
+      k = 3
+      window = sum(nums[:k])
+      print(window)
+      for i in range(k, len(nums)):
+          window += nums[i] - nums[i - k]
+          print(window)
+    expected_output: |
+      8
+      7
+      9
+      6
+  - id: b03
+    type: quiz_mcq
+    prompt_md: "Cửa sổ độ dài `k = 4` đang là `nums[2:6]`. Sau khi trượt sang phải một ô, phần tử nào vào và phần tử nào rời đi?"
+    options:
+      - {id: a, text_md: "Vào `nums[6]`, ra `nums[2]`"}
+      - {id: b, text_md: "Vào `nums[6]`, ra `nums[3]`"}
+      - {id: c, text_md: "Vào `nums[5]`, ra `nums[2]`"}
+    answer: [a]
+    explain_md: "Cửa sổ cũ gồm chỉ số 2, 3, 4, 5; cửa sổ mới gồm 3, 4, 5, 6. Vào `nums[6]`, ra `nums[2]`. Với `i = 6`: phần tử ra là `nums[i - k] = nums[2]`."
+  - id: ex_max_sum
+    type: code_exercise
+    md: |
+      Viết `best_window(nums, k)` trả về **tổng lớn nhất** của một đoạn gồm `k` phần tử liên tiếp
+      (giả sử `1 <= k <= len(nums)`). Dùng sliding window, O(n). Ví dụ
+      `best_window([2, 1, 5, 1, 3, 2], 3)` là `9`.
+    entry: best_window
+    starter: |
+      def best_window(nums, k):
+          # TODO: tổng cửa sổ đầu tiên, rồi trượt
+          pass
+    guidance_md: |
+      - Tính tổng k phần tử đầu và coi nó là `best`.
+      - Duyệt `i` từ `k` đến hết mảng.
+      - Mỗi bước: cộng `nums[i]`, trừ `nums[i - k]`.
+      - Cập nhật `best` sau mỗi bước.
+    hints:
+      - level: nudge
+        md: "Có cần cộng lại cả k phần tử ở mỗi vị trí không, hay chỉ đổi hai đầu?"
+      - level: approach
+        md: "`window = sum(nums[:k])`, `best = window`; rồi `for i in range(k, len(nums))`: `window += nums[i] - nums[i - k]`."
+      - level: near_solution
+        md: |
+          def best_window(nums, k):
+              window = sum(nums[:k])
+              best = window
+              for i in range(k, len(nums)):
+                  window += ...
+                  best = ...
+              return best
+    tests:
+      - {args: [[2, 1, 5, 1, 3, 2], 3], expected: 9}
+      - {args: [[1, 2, 3], 3], expected: 6}
+      - {args: [[4], 1], expected: 4}
+      - {args: [[-1, -2, -3, -4], 2], expected: -3}
+      - {args: [[5, 1, 1, 5], 2], expected: 6}
+    solution: |
+      def best_window(nums, k):
+          window = sum(nums[:k])
+          best = window
+          for i in range(k, len(nums)):
+              window += nums[i] - nums[i - k]
+              best = max(best, window)
+          return best
+  - id: s_variants
+    type: section
+    title_vi: "Biến thể: trung bình và đếm cửa sổ"
+    summary_vi: "Cùng khung code, chỉ đổi cách dùng tổng: chia k cuối cùng hoặc so với ngưỡng."
+    exercise_ref: ex_count
+  - id: b04
+    type: text
+    md: |
+      Khung code luôn giống nhau; chỉ phần xử lý tổng thay đổi:
+
+      - **Trung bình lớn nhất**: trung bình lớn nhất ứng với tổng lớn nhất, nên chỉ chia cho `k` **một lần ở cuối** (`best / k`).
+      - **Đếm cửa sổ thoả điều kiện**: so tổng với ngưỡng. Ví dụ trung bình >= `t` tương đương
+        `tổng >= k * t`, so sánh bằng số nguyên, không cần chia.
+
+      Hai chỗ hay sai: (1) **quên cửa sổ đầu tiên** (nó được tính trước vòng lặp trượt, nên phải
+      xét/đếm nó riêng); (2) nhầm chỉ số phần tử ra thành `i - k + 1` hay `i - k - 1`.
+  - id: b05
+    type: callout
+    kind: warning
+    md: |
+      Vòng trượt bắt đầu ở `i = k`, nên cửa sổ `nums[0:k]` chưa được xét bên trong vòng lặp. Nếu
+      bài yêu cầu đếm, nhớ khởi tạo `count` bằng 1 hoặc 0 tuỳ cửa sổ đầu có thoả hay không.
+  - id: b06
+    type: quiz_mcq
+    prompt_md: "Cần đếm các cửa sổ dài `k` có trung bình >= `t`. Cách so sánh nào an toàn nhất với số nguyên?"
+    options:
+      - {id: a, text_md: "`window / k >= t`"}
+      - {id: b, text_md: "`window >= k * t`"}
+      - {id: c, text_md: "`window // k >= t`"}
+    answer: [b]
+    explain_md: "Nhân thay vì chia giữ phép so sánh trong số nguyên, tránh sai số số thực. `window // k` còn làm tròn xuống nên có thể cho kết quả sai."
+  - id: q_slide
+    type: quiz_mcq
+    prompt_md: "Khi trượt cửa sổ cố định `k` sang phải một bước, cập nhật tổng thế nào để giữ O(1)?"
+    options:
+      - {id: a, text_md: "Cộng phần tử mới vào bên phải và trừ phần tử vừa rời khỏi bên trái"}
+      - {id: b, text_md: "Tính lại tổng của cả `k` phần tử trong cửa sổ mới"}
+      - {id: c, text_md: "Chỉ cộng phần tử mới bên phải"}
+    answer: [a]
+    explain_md: "Cửa sổ dịch 1 bước: thêm `nums[r]` và bớt `nums[r-k]`, nên mỗi bước O(1); tính lại cả cửa sổ là O(k) mỗi bước (O(nk) tổng)."
+  - id: ex_count
+    type: code_exercise
+    md: |
+      Viết `count_ge(nums, k, t)` trả về số cửa sổ gồm `k` phần tử liên tiếp có **tổng >= t**
+      (`1 <= k <= len(nums)`). Ví dụ `count_ge([2, 1, 5, 1, 3, 2], 3, 7)` là `3` (các tổng 8, 7, 9, 6).
+      Code bên dưới thiếu việc xét cửa sổ đầu tiên: hãy sửa.
+    entry: count_ge
+    starter: |
+      def count_ge(nums, k, t):
+          window = sum(nums[:k])
+          count = 0
+          for i in range(k, len(nums)):
+              window += nums[i] - nums[i - k]
+              if window >= t:
+                  count += 1
+          return count
+    guidance_md: |
+      - Thử `count_ge([5], 1, 5)`: kết quả đúng phải là 1.
+      - Vòng lặp bắt đầu từ `i = k`, vậy cửa sổ đầu được xét ở đâu?
+      - Cửa sổ đầu có tổng `window` ngay sau dòng khởi tạo.
+    hints:
+      - level: nudge
+        md: "Chạy thử với mảng chỉ có đúng k phần tử: vòng lặp có chạy lần nào không?"
+      - level: approach
+        md: "Trước vòng lặp, đặt `count = 1 if window >= t else 0` để tính cửa sổ đầu."
+      - level: near_solution
+        md: "Chỉ cần đổi dòng `count = 0` thành `count = 1 if window >= t else 0`. Phần còn lại giữ nguyên."
+    tests:
+      - {args: [[2, 1, 5, 1, 3, 2], 3, 7], expected: 3}
+      - {args: [[5], 1, 5], expected: 1}
+      - {args: [[1, 1, 1], 3, 4], expected: 0}
+      - {args: [[3, 3, 3, 3], 2, 6], expected: 3}
+      - {args: [[-1, 4, -2, 6], 2, 3], expected: 2}
+    solution: |
+      def count_ge(nums, k, t):
+          window = sum(nums[:k])
+          count = 1 if window >= t else 0
+          for i in range(k, len(nums)):
+              window += nums[i] - nums[i - k]
+              if window >= t:
+                  count += 1
+          return count
+  - id: b07
+    type: summary
+    bullets_vi:
+      - "Cửa sổ cố định dài k: hai cửa sổ liên tiếp chỉ khác một phần tử vào và một phần tử ra."
+      - "Cập nhật `window += nums[i] - nums[i - k]` là O(1), tổng O(n) thay vì O(n*k)."
+      - "Trung bình lớn nhất = tổng lớn nhất chia k một lần ở cuối; đếm theo ngưỡng thì so `tổng >= k * t` bằng số nguyên."
+      - "Đừng quên xét cửa sổ đầu tiên (tính trước vòng lặp) và dùng đúng chỉ số `i - k` cho phần tử rời đi."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [Q072], l2: [Q073], l3: [X426]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-04"
