@@ -1,0 +1,56 @@
+id: check-compose-apply
+subtopic_id: py.functions.lambda_hof
+secondary_subtopics: []
+kind: check
+title: "Check X331: compose_apply"
+title_vi: "Kiểm tra X331: compose_apply"
+difficulty: easy
+source:
+  type: original
+statement_en_md: |
+  Implement `compose_apply(xs, specs)`. Each spec is `[name, n]` and describes a one-argument function:
+  `"add"` -> `v + n`, `"mul"` -> `v * n`, `"pow"` -> `v ** n`, `"mod"` -> `v % n`,
+  `"neg"` -> `-v` (n ignored). Build the functions from `specs`, compose them left to right
+  (the first spec is applied first) and return `[f(x) for x in xs]`. With empty `specs`, return `xs` unchanged.
+statement_vi_md: |
+  Viết `compose_apply(xs, specs)`. Mỗi spec là `[name, n]` mô tả một hàm một tham số:
+  `"add"` -> `v + n`, `"mul"` -> `v * n`, `"pow"` -> `v ** n`, `"mod"` -> `v % n`,
+  `"neg"` -> `-v` (bỏ qua n). Dựng các hàm từ `specs`, ghép chúng từ trái sang phải
+  (spec đầu tiên áp dụng trước) rồi trả về `[f(x) for x in xs]`. `specs` rỗng thì trả `xs` nguyên vẹn.
+constraints:
+  - "0 <= len(xs) <= 20"
+  - "0 <= len(specs) <= 6"
+  - "n >= 1 cho mod; 0 <= n <= 5 cho pow"
+examples:
+  - {input: 'xs = [1, 2, 3], specs = [["add", 1], ["mul", 2]]', output: "[4, 6, 8]", explain_vi: "(v + 1) * 2."}
+  - {input: 'xs = [1, 2, 3], specs = [["mul", 2], ["add", 1]]', output: "[3, 5, 7]", explain_vi: "Thứ tự quan trọng: v * 2 + 1."}
+io:
+  mode: function
+  entry: compose_apply
+  params: [{name: xs, type: "list[int]"}, {name: specs, type: "list[list]"}]
+  returns: "list[int]"
+  compare: exact
+starter:
+  python: |
+    def compose_apply(xs, specs):
+        # TODO: dựng hàm (closure) từ mỗi spec, ghép bằng reduce rồi map lên xs
+        pass
+limits: {time_ms: 1000, memory_mb: 256, time_multiplier: {pyodide: 3}}
+time_target_min: 12
+hints:
+  - "Viết các nhà máy `lambda n: (lambda v: v + n)` trong dict; mỗi spec tạo ra một hàm đã nhớ `n` của nó."
+  - "Ghép bằng `functools.reduce(lambda acc, f: f(acc), funcs, v)` để áp dụng từ trái sang phải."
+  - "Cẩn thận late binding: nếu tạo lambda trong vòng lặp mà không truyền `n` qua tham số của nhà máy hoặc giá trị mặc định thì mọi hàm sẽ dùng chung n cuối cùng."
+solution:
+  file: solution.py
+  approach_vi: "Dict nhà máy closure, reduce để compose, map lên xs."
+  complexity: O(len(xs) * len(specs))
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+  - check
+  - x331
+status: validated
+version: 1
