@@ -1,0 +1,35 @@
+subtopic_id: py.errors_modules.logging_debug
+items:
+- id: P1380
+  difficulty: 1
+  type: mcq
+  minutes: 1
+  prompt_md: 'Logger có `setLevel(logging.ERROR)`. Gọi `logger.warning("x")` thì sao?'
+  choices:
+  - Message bị bỏ qua vì WARNING thấp hơn ngưỡng ERROR
+  - Message vẫn được phát vì handler không có level
+  - Python ném `ValueError` vì level không khớp
+  - Message được phát nhưng với cấp độ ERROR
+  answer_index: 0
+  explanation_md: 'Logger chỉ phát message có cấp độ lớn hơn hoặc bằng ngưỡng của nó. WARNING (30) < ERROR (40) nên bị bỏ qua, không có lỗi nào.'
+- id: P1381
+  difficulty: 1
+  type: read_code
+  minutes: 2
+  prompt_md: 'Chạy tay (không chạy máy): đoạn code dưới in ra gì? Ghi đúng từng dòng.'
+  code: |-
+    import io
+    import logging
+
+    buf = io.StringIO()
+    log = logging.getLogger("p")
+    log.propagate = False
+    h = logging.StreamHandler(buf)
+    h.setFormatter(logging.Formatter("%(levelname)s-%(message)s"))
+    log.addHandler(h)
+    log.setLevel(logging.ERROR)
+    log.warning("a")
+    log.error("b")
+    log.critical("c")
+    print(buf.getvalue().splitlines())
+  expected_output: "['ERROR-b', 'CRITICAL-c']"

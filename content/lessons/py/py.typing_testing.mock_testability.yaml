@@ -1,0 +1,307 @@
+id: py.typing_testing.mock_testability
+version: 1
+status: published
+title_vi: Mock và thiết kế code dễ test
+est_minutes: 12
+objectives_vi:
+- Dùng Mock/MagicMock với return_value, side_effect và kiểm tra lời gọi (call_count, call_args, assert_called_with).
+- Biết patch phải đặt tại nơi tên được tra cứu, không phải nơi nó được định nghĩa.
+- Phân biệt stub/mock/fake và dùng dependency injection để code dễ test.
+blocks:
+  - id: s_mock
+    type: section
+    title_vi: "Mock: return_value, side_effect, kiểm tra lời gọi"
+    summary_vi: "Mock thay một phụ thuộc thật; return_value/side_effect quyết định nó trả gì, call_count/call_args cho biết nó đã được gọi thế nào."
+    exercise_ref: ex_stub_total
+  - id: t1
+    type: text
+    md: |
+      Khi test, ta không muốn gọi mạng, đọc giờ hay ghi file thật. **`unittest.mock.Mock`** là một
+      đối tượng "giả" chấp nhận mọi lời gọi và mọi truy cập thuộc tính (`m.a.b()` tự sinh ra
+      mock con). `MagicMock` giống `Mock` nhưng hỗ trợ thêm các magic method (`len()`, `[]`, `with`...).
+
+      - **`return_value`**: giá trị mock trả về mỗi lần được gọi.
+      - **`side_effect`**: gán một **hàm** (tính kết quả từ đối số), một **exception** (mock ném nó),
+        hoặc một **iterable** (mỗi lần gọi lấy phần tử kế tiếp; phần tử là exception thì ném).
+      - Sau khi chạy, kiểm tra: `call_count`, `call_args` (lần gọi cuối), `call_args_list`,
+        `assert_called_with(...)`, `assert_called_once()`.
+  - id: c1
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      from unittest.mock import Mock
+
+      m = Mock()
+      m.price.return_value = 40
+      print(m.price("A"), m.price("B"))
+      print(m.price.call_count)
+      print(m.price.call_args)
+      m.price.assert_called_with("B")
+
+      m.fail.side_effect = ValueError("boom")
+      try:
+          m.fail()
+      except ValueError as e:
+          print("loi:", e)
+    expected_output: |
+      40 40
+      2
+      call('B')
+      loi: boom
+  - id: c2
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      from unittest.mock import Mock
+
+      seq = Mock(side_effect=[1, ConnectionError("x"), 3])
+      print(seq())
+      try:
+          seq()
+      except ConnectionError:
+          print("err")
+      print(seq())
+
+      dbl = Mock(side_effect=lambda x: x * 2)
+      print(dbl(21))
+    expected_output: |
+      1
+      err
+      3
+      42
+  - id: q1
+    type: quiz_mcq
+    prompt_md: "`m = Mock(side_effect=[1, ConnectionError('x'), 3])`. Lần gọi `m()` thứ hai làm gì?"
+    options:
+      - {id: a, text_md: "Trả `ConnectionError('x')` như một giá trị bình thường"}
+      - {id: b, text_md: "Ném `ConnectionError`"}
+      - {id: c, text_md: "Trả lại `1` lần nữa"}
+    answer: [b]
+    explain_md: "Với `side_effect` là iterable, phần tử là exception (instance hoặc class) thì mock ném nó thay vì trả về."
+  - id: ex_stub_total
+    type: code_exercise
+    md: |
+      `total_with_stub(names)` dùng một stub `price` để cộng giá của từng tên và trả
+      `[tổng, số_lần_gọi]`. Mỗi lần gọi `price(name)` phải trả `10`. Hiện stub chưa có giá trị
+      trả về nên phép cộng báo lỗi. Sửa để stub luôn trả `10`.
+    entry: total_with_stub
+    starter: |
+      from unittest.mock import Mock
+
+
+      def total_with_stub(names):
+          price = Mock()
+          total = sum(price(n) for n in names)
+          return [total, price.call_count]
+    guidance_md: |
+      - `Mock()` mặc định trả về một Mock khác, không cộng được với số.
+      - Có thể truyền `return_value=` ngay khi tạo `Mock`, hoặc gán sau.
+      - Không cần đổi phần còn lại của hàm.
+    hints:
+      - level: nudge
+        md: "Lỗi `TypeError` khi cộng: `price(n)` đang trả về loại đối tượng nào?"
+      - level: approach
+        md: "Cấu hình giá trị trả về của mock bằng `return_value` để mọi lời gọi cho ra số `10`."
+      - level: near_solution
+        md: "Khi tạo `price`, truyền đối số `return_value` bằng 10; phần tính tổng và `call_count` giữ nguyên."
+    tests:
+      - {args: [["a", "b"]], expected: [20, 2]}
+      - {args: [[]], expected: [0, 0]}
+      - {args: [["x"]], expected: [10, 1]}
+      - {args: [["a", "a", "a"]], expected: [30, 3]}
+    solution: |
+      from unittest.mock import Mock
+
+
+      def total_with_stub(names):
+          price = Mock(return_value=10)
+          total = sum(price(n) for n in names)
+          return [total, price.call_count]
+  - id: s_patch
+    type: section
+    title_vi: "patch: đặt tại nơi tên được tra cứu"
+    summary_vi: "patch thay một tên trong một namespace; phải thay đúng namespace mà code-under-test tra cứu tên đó."
+  - id: t2
+    type: text
+    md: |
+      **`patch("module.name")`** tạm thời thay `module.name` bằng một `MagicMock` rồi khôi phục khi
+      xong. Dùng như **context manager** (`with patch(...) as m:`) hoặc **decorator**
+      (`@patch(...)`, mock được truyền vào tham số của hàm test).
+
+      Lỗi kinh điển: **patch tại nơi tên được tra cứu, không phải nơi nó được định nghĩa**.
+      Nếu `app.py` viết `from lib import get_user`, thì `app` giữ một *bản sao tên* `get_user`.
+      `patch("lib.get_user")` đổi tên trong `lib` nhưng `app.get_user` vẫn trỏ về hàm thật. Phải
+      `patch("app.get_user")`.
+  - id: c3
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      import types
+      from unittest.mock import patch
+
+      lib = types.ModuleType("lib")
+      lib.now = lambda: "real"
+      app = types.ModuleType("app")
+      app.now = lib.now          # giống: from lib import now
+
+      def stamp():
+          return "t=" + app.now()
+
+      with patch.object(lib, "now", return_value="fake"):
+          print(stamp())         # patch sai chỗ
+      with patch.object(app, "now", return_value="fake"):
+          print(stamp())         # patch đúng chỗ
+      print(stamp())             # đã khôi phục
+    expected_output: |
+      t=real
+      t=fake
+      t=real
+  - id: q2
+    type: quiz_mcq
+    prompt_md: "File `app.py` có `from lib import get_user` và hàm `greet()` gọi `get_user()`. Test `greet` nên patch cái gì?"
+    options:
+      - {id: a, text_md: "`patch(\"lib.get_user\")`, vì hàm được định nghĩa ở `lib`"}
+      - {id: b, text_md: "`patch(\"app.get_user\")`, vì `greet` tra cứu tên `get_user` trong `app`"}
+      - {id: c, text_md: "`patch(\"greet\")`"}
+    answer: [b]
+    explain_md: "`from lib import get_user` tạo tên `get_user` riêng trong `app`. Code-under-test tra cứu tên đó ở `app`, nên phải patch ở đó."
+  - id: s_design
+    type: section
+    title_vi: "Thiết kế dễ test: dependency injection"
+    summary_vi: "Truyền phụ thuộc vào hàm thay vì hard-code để test chỉ cần đưa mock vào; stub/mock/fake khác nhau ở mục đích."
+    exercise_ref: ex_inject
+  - id: t3
+    type: text
+    md: |
+      **Dependency injection (DI)**: thay vì để hàm tự gọi `send_email(...)` hay `requests.get(...)`,
+      hãy **truyền phụ thuộc vào** (tham số, hoặc thuộc tính của object). Khi test chỉ cần truyền
+      một mock, không cần `patch` gì cả. Code vừa dễ test vừa dễ thay đổi.
+
+      Ba loại "test double":
+
+      - **Stub**: trả giá trị cố định cho test (`return_value`), ta không quan tâm nó được gọi thế nào.
+      - **Mock**: ta kiểm tra *tương tác* với nó (`assert_called_with`, `call_count`).
+      - **Fake**: cài đặt đơn giản có hành vi thật (ví dụ repository lưu trong dict).
+
+      **Testing pyramid**: nhiều unit test (nhanh, rẻ), vừa phải integration test, ít e2e test (chậm,
+      dễ vỡ). **Flaky test** (lúc qua lúc rớt không do code đổi) thường do thời gian, thứ tự,
+      mạng, random; cách trị là inject/cố định những thứ đó thay vì để test phụ thuộc chúng.
+  - id: c4
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      from unittest.mock import Mock
+
+      def notify(users, send):
+          for u in users:
+              send(u, "hi")
+          return len(users)
+
+      send = Mock()
+      print(notify(["a", "b"], send))
+      print(send.call_count)
+      send.assert_any_call("b", "hi")
+      print(send.call_args_list)
+    expected_output: |
+      2
+      2
+      [call('a', 'hi'), call('b', 'hi')]
+  - id: q3
+    type: quiz_mcq
+    prompt_md: "Test chủ yếu kiểm tra rằng hàm đã gọi `send(user, 'hi')` đúng số lần với đúng đối số. Test double này là gì?"
+    options:
+      - {id: a, text_md: "Stub"}
+      - {id: b, text_md: "Mock"}
+      - {id: c, text_md: "Fake"}
+    answer: [b]
+    explain_md: "Kiểm tra tương tác (lời gọi, đối số, số lần) là vai trò của mock. Stub chỉ cung cấp giá trị; fake là cài đặt đơn giản có hành vi thật."
+  - id: q4
+    type: quiz_mcq
+    prompt_md: "Theo testing pyramid, tỉ lệ hợp lý của các loại test là?"
+    options:
+      - {id: a, text_md: "Nhiều e2e, ít unit"}
+      - {id: b, text_md: "Nhiều unit, ít e2e"}
+      - {id: c, text_md: "Số lượng bằng nhau"}
+    answer: [b]
+    explain_md: "Unit test nhanh và ổn định nên nhiều; e2e chậm, dễ flaky nên ít."
+  - id: ex_inject
+    type: code_exercise
+    md: |
+      `notify(users, send=send_email)` hiện dùng `send_email` thật (ném `RuntimeError`, giả lập không
+      có mạng). Hàm `run(users)` tạo `mock_send` nhưng quên truyền vào. Sửa `run` để truyền
+      `mock_send` cho `notify` và trả `[số_lần_gọi, danh_sách_user_được_gửi]`.
+    entry: run
+    starter: |
+      from unittest.mock import Mock
+
+
+      def send_email(user):
+          raise RuntimeError("no network")
+
+
+      def notify(users, send=send_email):
+          for u in users:
+              send(u)
+
+
+      def run(users):
+          mock_send = Mock()
+          notify(users)
+          return [mock_send.call_count, [c.args[0] for c in mock_send.call_args_list]]
+    guidance_md: |
+      - `notify` đã nhận tham số `send`; chỉ cần truyền mock vào.
+      - Không cần sửa `notify` hay `send_email`.
+    hints:
+      - level: nudge
+        md: "`notify(users)` đang dùng giá trị mặc định của `send`. Làm sao bảo nó dùng thứ khác?"
+      - level: approach
+        md: "Truyền mock như đối số `send` khi gọi `notify` trong `run`."
+      - level: near_solution
+        md: "Trong `run`, gọi `notify` với danh sách users và đối số `send` bằng `mock_send`; dòng return giữ nguyên."
+    tests:
+      - {args: [["a", "b"]], expected: [2, ["a", "b"]]}
+      - {args: [[]], expected: [0, []]}
+      - {args: [["x"]], expected: [1, ["x"]]}
+    solution: |
+      from unittest.mock import Mock
+
+
+      def send_email(user):
+          raise RuntimeError("no network")
+
+
+      def notify(users, send=send_email):
+          for u in users:
+              send(u)
+
+
+      def run(users):
+          mock_send = Mock()
+          notify(users, send=mock_send)
+          return [mock_send.call_count, [c.args[0] for c in mock_send.call_args_list]]
+  - id: sum1
+    type: summary
+    bullets_vi:
+      - "`Mock`/`MagicMock`: `return_value` cho giá trị cố định, `side_effect` (hàm, exception, iterable) cho hành vi động; kiểm tra bằng `call_count`, `call_args`, `assert_called_with`."
+      - "`patch` thay một tên trong một namespace: patch tại nơi tên được tra cứu (`app.get_user`), không phải nơi định nghĩa (`lib.get_user`). Dùng như context manager hoặc decorator."
+      - "Dependency injection: truyền phụ thuộc vào thay vì hard-code, khi test chỉ cần đưa mock vào."
+      - "Stub trả giá trị, mock kiểm tra tương tác, fake là cài đặt đơn giản; testing pyramid nhiều unit ít e2e; flaky test do thời gian/thứ tự/mạng/random."
+problems:
+  practice: []
+  extra: []
+mastery_check:
+  l1: [X423]
+  l2: [X424]
+  l3: [X425]
+checkpoint:
+  pass_ratio: 0.7
+  min_items: 3
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-04"

@@ -1,0 +1,64 @@
+id: check-x425-patch-lookup
+subtopic_id: py.typing_testing.mock_testability
+secondary_subtopics: []
+kind: check
+title: 'Check X425: patch_lookup'
+title_vi: 'Kiểm tra X425: patch_lookup'
+difficulty: easy
+source:
+  type: original
+statement_en_md: Implement `patch_lookup(ids)` as described in the Vietnamese statement (mastery check item
+  X425, 12-minute time box).
+statement_vi_md: |-
+  Viết `patch_lookup(ids)` để chứng minh quy tắc "patch tại nơi tên được tra cứu".
+
+  Bên trong hàm:
+  1. Tạo `lib = types.ModuleType("lib")` với `lib.get_user(uid)` trả `f"real-{uid}"`.
+  2. Tạo `app = types.ModuleType("app")` và gán `app.get_user = lib.get_user` (giống
+     `from lib import get_user`: `app` giữ một bản sao tên).
+  3. Định nghĩa `greet(uid)` trả `"hi " + app.get_user(uid)`.
+  4. `wrong`: trong `with patch.object(lib, "get_user", return_value="stub")`, tính
+     `[greet(i) for i in ids]`.
+  5. `right`: trong `with patch.object(app, "get_user", return_value="stub") as mocked`, tính
+     `[greet(i) for i in ids]`.
+
+  Trả `[wrong, right, mocked.call_count, called_with]`, trong đó `called_with` là list đối số đầu
+  tiên của từng lần gọi `mocked` (từ `call_args_list`). Không trả về chính mock.
+constraints: []
+examples:
+- input: ids = [1, 2]
+  output: '[["hi real-1", "hi real-2"], ["hi stub", "hi stub"], 2, [1, 2]]'
+  explain_vi: Patch lib.get_user không đổi gì vì app đã giữ bản sao tên; patch app.get_user mới có tác dụng, mock được gọi 2 lần với 1 và 2.
+io:
+  mode: function
+  entry: patch_lookup
+  params:
+  - name: ids
+    type: list[int]
+  returns: list
+  compare: exact
+starter:
+  python: "import types\nfrom unittest.mock import patch\n\n\ndef patch_lookup(ids):\n    # TODO\n    pass\n"
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+time_target_min: 12
+hints:
+- '`from lib import get_user` tạo một tên mới trong `app`; ở đây là `app.get_user = lib.get_user`, nên `greet` tra cứu tên trong `app`.'
+- Dùng `patch.object(module, "get_user", return_value="stub")` làm context manager; chỉ patch `app` mới ảnh hưởng `greet`.
+- 'Lấy `as mocked` ở `with` thứ hai, rồi đọc `mocked.call_count` và `[c.args[0] for c in mocked.call_args_list]` (sau khối with vẫn đọc được).'
+solution:
+  file: solution.py
+  approach_vi: Hai khối patch.object, một vào lib (không tác dụng), một vào app (có tác dụng); đọc call_count và call_args_list.
+  complexity: O(n)
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x425
+status: validated
+version: 1
