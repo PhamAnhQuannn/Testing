@@ -1,0 +1,70 @@
+subtopic_id: dsa.concurrency_coding.thread_safe_basics
+items:
+  - id: X555
+    difficulty: 1
+    type: read_code
+    minutes: 3
+    prompt_md: Chạy tay (không chạy máy), đoạn code mô phỏng hai "thread" xen kẽ in ra gì? Giải thích 1 câu.
+    code: |-
+      counter = 0
+      a = counter      # thread A đọc
+      b = counter      # thread B đọc
+      counter = a + 1  # thread A ghi
+      counter = b + 1  # thread B ghi
+      print(counter)
+    expected_output: "1"
+    answer_md: 'Cả hai thread đọc `0` trước khi ai ghi, nên cả hai đều ghi `0 + 1 = 1`. Một lần tăng bị mất (lost update), nên in `1` chứ không phải `2`.'
+    rubric_md: "Output khớp VÀ nêu đúng lost update (đọc-sửa-ghi bị xen kẽ). Đúng: bằng chứng điểm 1; sai: tối đa điểm 0."
+  - id: X556
+    difficulty: 2
+    type: write_code
+    minutes: 8
+    prompt_md: |
+      Viết `class SafeCounter` mô hình bộ đếm được bảo vệ bằng lock (mỗi thao tác là một critical section atomic, áp dụng lần lượt): `incr()` cộng 1, `add(n)` cộng `n` (int), cả hai không trả gì; `value()` trả về int hiện tại (ban đầu 0). Ví dụ `incr()`, `incr()`, `add(5)`, `value()` là `7`.
+    problem_id: check-x556-safe-counter
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 8 phút: bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X557
+    difficulty: 3
+    type: read_code
+    minutes: 5
+    prompt_md: Chạy tay (không chạy máy), đoạn code mô phỏng critical section có early return in ra gì? Ghi đúng từng dòng và giải thích vì sao `lock.held` cuối cùng như vậy.
+    code: |-
+      class Lock:
+          def __init__(self):
+              self.held = False
+
+          def acquire(self):
+              if self.held:
+                  return False
+              self.held = True
+              return True
+
+          def release(self):
+              self.held = False
+
+
+      lock = Lock()
+      total = 0
+
+
+      def deposit(n):
+          global total
+          if not lock.acquire():
+              return False
+          try:
+              if n <= 0:
+                  return False
+              total += n
+              if n >= 10:
+                  total += 1
+              return True
+          finally:
+              lock.release()
+
+
+      results = [deposit(5), deposit(0), deposit(10), deposit(-3)]
+      print(results)
+      print(total, lock.held)
+    expected_output: "[True, False, True, False]\n16 False"
+    answer_md: '`deposit(5)` cộng 5; `deposit(0)` và `deposit(-3)` return sớm nhưng `finally` vẫn `release`; `deposit(10)` cộng 10 rồi thêm 1 bonus, tổng 5 + 11 = 16. Vì `finally` luôn chạy nên lock không bị giữ mãi: `held` là `False`.'
+    rubric_md: "Output khớp từng ký tự VÀ giải thích vai trò của finally/release. Đúng: bằng chứng điểm 3; sai: tối đa điểm 2."

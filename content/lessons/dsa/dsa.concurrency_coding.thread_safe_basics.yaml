@@ -1,0 +1,200 @@
+id: dsa.concurrency_coding.thread_safe_basics
+version: 1
+status: published
+title_vi: "Thread-safety cơ bản: race condition, lock, deadlock"
+est_minutes: 13
+objectives_vi:
+  - "Giải thích race condition và lost update khi nhiều thread cùng sửa dữ liệu chung."
+  - "Hiểu vì sao `counter += 1` là read-modify-write chứ không atomic."
+  - "Nói được lock / critical section bảo đảm điều gì: chỉ một thread vào vùng găng tại một thời điểm."
+  - "Nhận ra deadlock bằng một câu và mô phỏng xen kẽ có kịch bản bằng code Python tất định."
+blocks:
+  - id: s_race
+    type: section
+    title_vi: "Race condition và lost update"
+    summary_vi: "Hai thread đọc cùng giá trị cũ rồi ghi đè nhau thì một lần cập nhật bị mất."
+    exercise_ref: ex_racy
+  - id: t01
+    type: text
+    md: |
+      Khi nhiều thread cùng truy cập **dữ liệu chung** và ít nhất một thread ghi, kết quả có thể phụ
+      thuộc **thứ tự xen kẽ** (interleaving) do scheduler chọn. Đó là **race condition**.
+
+      `counter += 1` trông như một bước nhưng thực ra gồm ba bước **read-modify-write**:
+
+      1. đọc `counter` vào biến tạm;
+      2. cộng 1 vào biến tạm;
+      3. ghi biến tạm lại vào `counter`.
+
+      Nếu thread A và B cùng đọc `0` trước khi ai ghi, cả hai ghi `1` và một lần tăng bị mất
+      (**lost update**). Phép toán chỉ **atomic** khi không thể bị xen giữa chừng.
+
+      Trong app này Python chạy đơn luồng (Pyodide), nên ta **mô phỏng** xen kẽ bằng một kịch bản
+      cố định: thứ tự các dòng code chính là thứ tự scheduler chọn. Kết quả luôn tất định.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      counter = 0
+      # kịch bản xen kẽ: A đọc, B đọc, A ghi, B ghi
+      a = counter
+      b = counter
+      counter = a + 1
+      counter = b + 1
+      print("racy:", counter)
+
+      # kịch bản tuần tự (như khi có lock): A xong hẳn rồi mới tới B
+      counter = 0
+      counter = counter + 1
+      counter = counter + 1
+      print("locked:", counter)
+    expected_output: |
+      racy: 1
+      locked: 2
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Vì sao `counter += 1` không an toàn khi nhiều thread cùng chạy?"
+    options:
+      - {id: a, text_md: "Vì nó gồm đọc, cộng, ghi; thread khác có thể xen vào giữa các bước"}
+      - {id: b, text_md: "Vì phép cộng số nguyên trong Python bị sai khi chạy song song"}
+      - {id: c, text_md: "Vì biến `counter` bị khoá cứng và không thể ghi"}
+    answer: [a]
+    explain_md: "Nó là read-modify-write, không atomic. Hai thread cùng đọc giá trị cũ thì cùng ghi cùng một kết quả, nên mất một lần tăng."
+  - id: q02
+    type: predict_output
+    code: |
+      counter = 10
+      a = counter
+      b = counter
+      counter = a + 1
+      counter = b + 5
+      print(counter)
+    expected_output: |
+      15
+    explain_md: "Cả hai đọc `10`. A ghi `11`, rồi B ghi đè bằng `10 + 5 = 15`. Lần tăng của A bị mất; nếu tuần tự thì ra 16."
+  - id: ex_racy
+    type: code_exercise
+    md: |
+      Viết `racy_final(start, k)`: mô phỏng `k` thread cùng chạy `counter += 1` theo kịch bản xấu nhất:
+      **tất cả đọc trước**, sau đó từng thread ghi `giá trị đã đọc + 1`. Trả về giá trị counter cuối cùng
+      (bắt đầu từ `start`). Với `k = 0` không có thread nào ghi nên kết quả là `start`. Bản dưới đây coi
+      như không có race (cộng đủ `k`). Hãy sửa để mô phỏng đúng lost update.
+    entry: racy_final
+    starter: |
+      def racy_final(start, k):
+          return start + k
+    guidance_md: |
+      - Thử `racy_final(0, 2)`: cả hai đọc `0`, cả hai ghi `1`, đáp án `1`, code trả `2`.
+      - Dựng danh sách giá trị đã đọc trước, rồi ghi lần lượt `r + 1`.
+    hints:
+      - level: nudge
+        md: "Nếu mọi thread đã đọc xong trước khi ai ghi, mỗi thread đã đọc giá trị nào?"
+      - level: approach
+        md: "Tạo `reads = [start] * k`. Sau đó cho `value = start` và với mỗi `r` trong `reads` gán `value = r + 1`."
+      - level: near_solution
+        md: "Kết quả là `start + 1` khi `k >= 1` và `start` khi `k == 0`; vòng lặp ghi `r + 1` cho ra đúng như vậy."
+    tests:
+      - {args: [0, 0], expected: 0}
+      - {args: [0, 2], expected: 1}
+      - {args: [5, 3], expected: 6}
+      - {args: [10, 1], expected: 11}
+    solution: |
+      def racy_final(start, k):
+          reads = [start] * k
+          value = start
+          for r in reads:
+              value = r + 1
+          return value
+  - id: s_lock
+    type: section
+    title_vi: "Lock, critical section và deadlock"
+    summary_vi: "Lock biến read-modify-write thành critical section mà mỗi lúc chỉ một thread vào; hai lock lấy sai thứ tự gây deadlock."
+    exercise_ref: ex_locked
+  - id: t02
+    type: text
+    md: |
+      **Critical section** là đoạn code truy cập dữ liệu chung. **Lock (mutex)** bảo đảm tại một thời
+      điểm chỉ **một** thread ở trong critical section: thread khác phải chờ đến khi `release`. Nhờ vậy
+      cả cụm read-modify-write chạy như một khối **atomic** và không còn lost update.
+
+      Quy tắc dùng lock:
+
+      - Luôn `release` kể cả khi có lỗi hoặc `return` sớm (`with lock:` hoặc `try/finally`).
+      - Giữ critical section **ngắn**; không gọi việc chậm (I/O) khi đang giữ lock.
+      - Khi cần nhiều lock, mọi thread phải lấy theo **cùng một thứ tự**.
+
+      **Deadlock** (một câu): hai thread mỗi bên đang giữ một lock và chờ lock còn lại, nên không bên nào
+      tiến tiếp được. Cách tránh quen thuộc là thứ tự lấy lock cố định.
+
+      Khi mô phỏng bằng code đơn luồng, "có lock" nghĩa là mỗi thao tác chạy **trọn vẹn rồi mới tới
+      thao tác kế**: đọc, cộng, ghi liền nhau.
+  - id: q03
+    type: quiz_fill
+    prompt_md: "Hai thread, mỗi bên giữ một lock và chờ lock của bên kia, nên không bên nào chạy tiếp được. Tình trạng này gọi là ___."
+    blanks: [{accept: ["deadlock", "Deadlock", "dead lock"]}]
+    explain_md: "Đó là deadlock. Cách tránh: mọi thread lấy các lock theo cùng một thứ tự, hoặc dùng timeout."
+  - id: q04
+    type: predict_output
+    code: |
+      counter = 0
+      for amount in [1, 2, 3]:
+          # critical section: đọc-cộng-ghi trọn vẹn
+          tmp = counter
+          tmp = tmp + amount
+          counter = tmp
+      print(counter)
+    expected_output: |
+      6
+    explain_md: "Mỗi thao tác chạy xong hẳn rồi mới tới thao tác sau, nên không mất cập nhật nào: 1 + 2 + 3 = 6."
+  - id: ex_locked
+    type: code_exercise
+    md: |
+      Viết `locked_total(start, adds)`: `adds` là danh sách số nguyên, mỗi phần tử là một thao tác
+      `counter += a` của một thread. Có lock nên mỗi thao tác chạy **trọn vẹn** (đọc giá trị hiện tại,
+      cộng, ghi) trước thao tác kế. Trả về giá trị cuối. Bản dưới đây đọc hết trước rồi mới ghi nên mất
+      cập nhật. Hãy sửa.
+    entry: locked_total
+    starter: |
+      def locked_total(start, adds):
+          reads = [start for _ in adds]
+          value = start
+          for r, a in zip(reads, adds):
+              value = r + a
+          return value
+    guidance_md: |
+      - Thử `locked_total(0, [1, 1])`: đáp án `2`, code trả `1`.
+      - Mỗi bước phải đọc `value` hiện tại chứ không phải `start` cũ.
+    hints:
+      - level: nudge
+        md: "Sau khi thread đầu ghi xong, thread kế tiếp phải đọc giá trị nào?"
+      - level: approach
+        md: "Bỏ danh sách `reads`. Với mỗi `a` trong `adds`, đọc `value` hiện tại rồi ghi lại `value + a`."
+      - level: near_solution
+        md: "Dùng `for a in adds: value = value + a` rồi `return value`."
+    tests:
+      - {args: [0, []], expected: 0}
+      - {args: [0, [1, 1]], expected: 2}
+      - {args: [5, [2, 3, 4]], expected: 14}
+      - {args: [10, [-3]], expected: 7}
+    solution: |
+      def locked_total(start, adds):
+          value = start
+          for a in adds:
+              value = value + a
+          return value
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Race condition: kết quả phụ thuộc thứ tự xen kẽ các thread trên dữ liệu chung."
+      - "`counter += 1` là read-modify-write, không atomic; hai thread cùng đọc giá trị cũ sẽ gây lost update."
+      - "Lock giúp critical section chạy mỗi lúc một thread, nên cả cụm đọc-cộng-ghi là atomic; luôn release (try/finally hoặc with)."
+      - "Deadlock: hai thread giữ lock và chờ lock của nhau; tránh bằng thứ tự lấy lock cố định."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X555], l2: [X556], l3: [X557]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

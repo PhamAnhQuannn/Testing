@@ -1,0 +1,59 @@
+id: check-x559-bounded-buffer
+subtopic_id: dsa.concurrency_coding.producer_consumer_pool
+secondary_subtopics: []
+kind: check
+title: 'Check X559: Bounded Buffer'
+title_vi: 'Kiểm tra X559: Bounded buffer'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Simulate a bounded buffer (the queue between a producer and a consumer) without real threads.
+  Implement `class BoundedBuffer(capacity)` with:
+
+  - `put(x)`: stores `x` at the back and returns `True`; if the buffer already holds `capacity` items it does not block, stores nothing and returns `False`.
+  - `get()`: removes and returns the oldest item (FIFO); returns `None` if the buffer is empty.
+  - `size()`: returns the number of items currently stored (int).
+statement_vi_md: |
+  Mô phỏng bounded buffer (hàng đợi giữa producer và consumer) mà không dùng thread thật.
+  Viết `class BoundedBuffer(capacity)` với:
+
+  - `put(x)`: cất `x` vào cuối và trả `True`; nếu buffer đã đủ `capacity` phần tử thì không block, không cất gì và trả `False`.
+  - `get()`: lấy ra và trả phần tử cũ nhất (FIFO); buffer rỗng thì trả `None`.
+  - `size()`: trả số phần tử đang chứa (int).
+constraints:
+- 'capacity là số nguyên >= 1.'
+- 'Các giá trị put là số nguyên (không phải None).'
+examples:
+- input: ops = ['BoundedBuffer', 'put', 'put', 'put', 'get', 'size', 'get', 'get'], args = [[2], [5], [6], [7], [], [], [], []]
+  output: '[null, true, true, false, 5, 1, 6, null]'
+  explain_vi: 'Capacity 2: put 5 và 6 thành công, put 7 bị từ chối (đầy). get ra 5 (FIFO), còn 1 phần tử; get tiếp ra 6; get nữa khi rỗng trả null.'
+io:
+  mode: class_ops
+  compare: exact
+starter:
+  python: "class BoundedBuffer:\n    # TODO\n    pass\n"
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+time_target_min: 8
+hints:
+- Dùng một list làm hàng đợi; so len(list) với capacity trước khi thêm.
+- '`put` khi đầy phải trả `False` và không đổi state; `get` khi rỗng trả `None`.'
+- 'FIFO: thêm vào cuối bằng `append`, lấy ra từ đầu bằng `pop(0)`.'
+solution:
+  file: solution.py
+  approach_vi: List làm queue; put kiểm tra len < capacity rồi append, get pop(0) hoặc None khi rỗng, size là len. Mỗi thao tác O(n) tệ nhất do pop(0), đủ cho bài mô phỏng.
+  complexity: put/size O(1), get O(n)
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x559
+status: validated
+version: 1

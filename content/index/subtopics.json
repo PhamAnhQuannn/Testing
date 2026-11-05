@@ -13944,6 +13944,373 @@
       "plan_hours": 1.0
     },
     {
+      "id": "dsa.concurrency_coding.thread_safe_basics",
+      "section": "dsa",
+      "module": "dsa.concurrency_coding",
+      "name_vi": "Thread-safety, đồng bộ và cấu trúc thread-safe (thread-safety and synchronization)",
+      "order": 1,
+      "summary_vi": "Thread (luồng) là một dòng thực thi trong chương trình; nhiều thread chạy xen kẽ. Khi chúng cùng sửa một thứ, kết quả có thể sai (race condition). Lock là chìa khoá: ai cầm mới được sửa, nhưng dùng sai có thể làm các thread chờ nhau mãi (deadlock).",
+      "mastery_bar_vi": "Mức 3: Tìm và sửa race condition hoặc deadlock, dùng đúng lock và condition (wait trong while), cài LRU hay bounded queue an toàn khi nhiều thread.",
+      "prerequisites": [
+        "dsa.practical.practical_format",
+        "dsa.design_ds.design_cache"
+      ],
+      "lang_prereqs": {
+        "python": [
+          "py.concurrency.threading"
+        ],
+        "java": [
+          "java.concurrency.synchronization",
+          "java.concurrency.explicit_locks"
+        ]
+      },
+      "key_concepts": [
+        "race condition, critical section, lost update (find and fix)",
+        "mutual exclusion with locks; scoped acquire/release",
+        "condition variables: wait/notify inside a while loop",
+        "semaphore, event, barrier",
+        "atomic variables and compare-and-swap",
+        "visibility and memory model basics",
+        "deadlock conditions and lock ordering",
+        "immutability and thread confinement",
+        "coarse vs fine-grained locking; read-write lock",
+        "thread-safe structures: counter, LRU cache, inventory",
+        "bounded blocking queue (MPMC) and connection pool with timeout",
+        "thread-safe singleton / lazy initialization"
+      ],
+      "concepts_vi": [
+        {
+          "text": "Race condition: counter += 1 là 3 bước (đọc, cộng, ghi); hai thread xen nhau có thể làm mất một lần cộng (lost update). Đoạn code nhạy cảm là critical section.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Lock (khoá, mutual exclusion): chỉ một thread vào critical section một lúc; with lock: ... tự mở khoá khi ra, kể cả khi có lỗi.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Deadlock (kẹt cứng): thread 1 giữ khoá A chờ B, thread 2 giữ B chờ A. Tránh: luôn lấy các khoá theo cùng một thứ tự.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Condition variable: chờ tới khi điều kiện đúng thì mới chạy tiếp; luôn gọi wait trong vòng while vì thread có thể bị đánh thức khi điều kiện chưa đúng.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Semaphore: có N vé, hết vé thì chờ. Event: một cờ \"xong rồi\" để các thread chờ. Barrier: chờ đủ N thread đến rồi cùng đi tiếp.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Cấu trúc thread-safe đơn giản: counter, LRU cache, kho hàng bằng cách bọc mọi thao tác đọc ghi bằng cùng một lock.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Bounded blocking queue: hàng đợi tối đa N phần tử; put chờ khi đầy, get chờ khi rỗng. Connection pool: N kết nối dùng chung, hết thì chờ hoặc timeout.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Biến atomic và compare-and-swap (CAS: đổi chỉ khi giá trị vẫn như đã đọc); visibility (thay đổi của thread này có thể chưa được thread khác thấy); khoá đọc/ghi (nhiều thread đọc cùng lúc, ghi thì độc quyền).",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Bất biến (immutable) và dữ liệu riêng cho từng thread thì khỏi cần khoá; khoá thô (một khoá cho tất cả) hay khoá mịn (nhiều khoá nhỏ); singleton (class chỉ có một đối tượng) an toàn khi nhiều thread.",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "Thread-safe counter",
+          "vi": "Một counter có increment() được 10 thread gọi, mỗi thread 1000 lần; làm sao kết quả luôn đúng 10000."
+        },
+        {
+          "title": "Explain deadlock and fix it",
+          "vi": "Cho code hai thread lấy hai khoá theo thứ tự ngược nhau gây kẹt; giải thích vì sao và sửa."
+        },
+        {
+          "title": "Thread-safe LRU cache",
+          "vi": "Bọc LRU cache bằng lock để nhiều thread gọi get/put cùng lúc không làm hỏng dữ liệu."
+        },
+        {
+          "title": "Bounded Blocking Queue",
+          "vi": "Cài hàng đợi tối đa N phần tử, enqueue chờ khi đầy và dequeue chờ khi rỗng."
+        }
+      ],
+      "beginner_note_vi": "Học sau py.concurrency (bước 11 của lộ trình), vì cần biết thread trong Python trước.",
+      "example_problems": [
+        "Thread-safe counter",
+        "Explain deadlock and fix it",
+        "Thread-safe LRU cache",
+        "Bounded Blocking Queue",
+        "Database connection pool"
+      ],
+      "bank_topics": [
+        "dsa.concurrency_coding",
+        "lld.ood_problems"
+      ],
+      "bank_counts": {
+        "dsa.concurrency_coding": {
+          "total": 121,
+          "y2026": 93
+        },
+        "lld.ood_problems": {
+          "total": 211,
+          "y2026": 114
+        }
+      },
+      "target_swe": {
+        "intern": 0,
+        "fresher": 1,
+        "junior": 3,
+        "senior": 3
+      },
+      "target_ai": {
+        "intern": 0,
+        "fresher": 1,
+        "junior": 1,
+        "senior": 2
+      },
+      "est_hours": 6,
+      "plan_order": 123,
+      "plan_day": null,
+      "plan_hours": 6
+    },
+    {
+      "id": "dsa.concurrency_coding.producer_consumer_pool",
+      "section": "dsa",
+      "module": "dsa.concurrency_coding",
+      "name_vi": "Producer-consumer, thread pool, scheduler và bài đồng bộ kinh điển (producer-consumer and pools)",
+      "order": 2,
+      "summary_vi": "Producer-consumer: một bên bỏ việc vào hàng đợi có giới hạn, bên kia lấy ra làm; đầy thì bên bỏ phải chờ, rỗng thì bên lấy phải chờ. Thread pool là N worker cùng lấy việc từ hàng đợi đó.",
+      "mastery_bar_vi": "Mức 3: Cài producer-consumer và thread pool có backpressure và shutdown sạch, giải Print in Order và Dining Philosophers không deadlock.",
+      "prerequisites": [
+        "dsa.concurrency_coding.thread_safe_basics"
+      ],
+      "lang_prereqs": {
+        "python": [],
+        "java": []
+      },
+      "key_concepts": [
+        "producer-consumer with a bounded blocking queue; backpressure",
+        "worker threads, poison pill and graceful shutdown",
+        "build a thread pool / executor",
+        "delayed and periodic scheduler (heap + condition)",
+        "task dependencies with futures; priority-aware pool",
+        "per-key ordered executor",
+        "pub-sub / event dispatcher; queue with visibility timeout and retries",
+        "ordering and alternation with events/semaphores (Print in Order, FooBar, Zero-Even-Odd)",
+        "barriers and latches (H2O)",
+        "dining philosophers: deadlock avoidance",
+        "readers-writers fairness",
+        "spurious wakeups, interrupts and cancellation"
+      ],
+      "concepts_vi": [
+        {
+          "text": "Producer (sản xuất) bỏ việc vào hàng đợi, consumer (tiêu thụ) lấy ra xử lý; trong Python dùng queue.Queue(maxsize=N) đã an toàn sẵn.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Backpressure (áp lực ngược): hàng đợi đầy thì producer phải chậm lại thay vì làm tràn bộ nhớ.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Worker thread: vòng lặp lấy việc, xử lý, lặp lại. Thread pool: N worker chia nhau một hàng đợi việc.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Poison pill (viên thuốc độc): bỏ một việc đặc biệt (như None) vào hàng đợi để báo worker dừng. Shutdown sạch = làm hết việc đang có rồi mới dừng.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Bài đồng bộ kinh điển: Print in Order (ba thread gọi lộn xộn nhưng phải in \"first\", \"second\", \"third\" đúng thứ tự) dùng Event hoặc semaphore; FooBar in xen kẽ.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Dining philosophers: 5 triết gia, 5 đũa; tránh deadlock bằng cách lấy đũa theo thứ tự số hiệu.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Barrier / latch (cổng đếm ngược, mở khi đủ N tín hiệu; H2O: ghép hai H và một O thành một phân tử), readers-writers (nhiều người đọc hoặc một người ghi; công bằng = không để bên nào đói mãi).",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Scheduler hẹn giờ (heap + condition), pub-sub (nơi gửi tin, nhiều người đăng ký nhận), hàng đợi có visibility timeout (việc lấy ra mà chưa xác nhận xong thì sau hạn lại hiện cho worker khác), hủy tác vụ: thiên về system design.",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "Producer-Consumer buffer",
+          "vi": "Một thread sinh số từ 1 đến 100 bỏ vào hàng đợi cỡ 10, thread khác lấy ra in; kết thúc đúng cách."
+        },
+        {
+          "title": "Implement a thread pool",
+          "vi": "Cài ThreadPool(n) có submit(task) chạy tác vụ bằng n worker và shutdown() chờ xong việc rồi dừng."
+        },
+        {
+          "title": "Print in Order",
+          "vi": "Ba thread gọi first(), second(), third() theo thứ tự bất kỳ, đảm bảo luôn in đúng thứ tự một, hai, ba.",
+          "starter_code_vi": {
+            "lang": "python",
+            "code": "import threading\n\nclass Foo:\n    def __init__(self):\n        self.e1, self.e2 = threading.Event(), threading.Event()   # cờ \"xong rồi\"\n\n    def first(self, print_first):\n        print_first()\n        # TODO: báo cho second biết first đã xong (self.e1.set())\n\n    def second(self, print_second):\n        # TODO: chờ first (self.e1.wait()), rồi print_second(), rồi báo cho third (self.e2.set())\n        pass\n\n    def third(self, print_third):\n        # TODO: chờ second (self.e2.wait()), rồi print_third()\n        pass"
+          }
+        },
+        {
+          "title": "The Dining Philosophers",
+          "vi": "Năm triết gia ngồi quanh bàn có năm chiếc đũa, cần hai đũa kề mình mới ăn được; viết code để không bao giờ deadlock."
+        }
+      ],
+      "beginner_note_vi": "Học sau thread_safe_basics.",
+      "example_problems": [
+        "Producer-Consumer buffer",
+        "Implement a thread pool",
+        "Print in Order",
+        "Building H2O",
+        "The Dining Philosophers"
+      ],
+      "bank_topics": [
+        "dsa.concurrency_coding",
+        "lld.ood_problems"
+      ],
+      "bank_counts": {
+        "dsa.concurrency_coding": {
+          "total": 121,
+          "y2026": 93
+        },
+        "lld.ood_problems": {
+          "total": 211,
+          "y2026": 114
+        }
+      },
+      "target_swe": {
+        "intern": 0,
+        "fresher": 1,
+        "junior": 2,
+        "senior": 3
+      },
+      "target_ai": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 1,
+        "senior": 2
+      },
+      "est_hours": 6,
+      "plan_order": 124,
+      "plan_day": null,
+      "plan_hours": 6
+    },
+    {
+      "id": "dsa.concurrency_coding.concurrent_io_async",
+      "section": "dsa",
+      "module": "dsa.concurrency_coding",
+      "name_vi": "I/O đồng thời: crawler, async, xử lý song song (concurrent I/O)",
+      "order": 3,
+      "summary_vi": "Khi phần lớn thời gian chương trình là chờ mạng (tải nhiều trang web), ta chạy nhiều việc chờ cùng lúc bằng thread hoặc async, giới hạn số việc đồng thời bằng semaphore (N vé), đặt timeout và cho phép huỷ.",
+      "mastery_bar_vi": "Mức 3: Viết crawler đa luồng và tác vụ async có giới hạn đồng thời, timeout và huỷ, và chọn đúng giữa thread, process và async.",
+      "prerequisites": [
+        "dsa.concurrency_coding.producer_consumer_pool"
+      ],
+      "lang_prereqs": {
+        "python": [
+          "py.concurrency.asyncio_basics"
+        ],
+        "java": [
+          "java.concurrency.completable_future"
+        ]
+      },
+      "key_concepts": [
+        "multithreaded web crawler (visited set + queue)",
+        "bounded concurrency with a semaphore around parallel tasks",
+        "future/promise composition: chain, combine, handle errors",
+        "thread vs process vs async: when each",
+        "batching writes with a flush timer",
+        "timeouts and cancellation",
+        "error propagation in tasks",
+        "first successful result from parallel calls under a global timeout",
+        "request coalescing: batch keys requested within a time window",
+        "parallel map/reduce and parallel sort (split, sort, merge)"
+      ],
+      "concepts_vi": [
+        {
+          "text": "I/O-bound (chờ mạng, đĩa) khác CPU-bound (tính toán nặng): thread/async hợp I/O-bound; process hợp CPU-bound (CPython có GIL nên thread không tính toán song song được).",
+          "level": "co_ban"
+        },
+        {
+          "text": "Giới hạn số việc đồng thời: semaphore N vé quanh mỗi tác vụ, hoặc dùng pool N worker.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Future / promise: đối tượng đại diện kết quả chưa có; ghép nhiều future (gather chờ tất cả, chain nối tiếp) và xử lý lỗi của từng việc.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Timeout và huỷ (cancel): đặt hạn chờ cho mỗi tác vụ; huỷ tác vụ khi không cần nữa và dọn dẹp tài nguyên.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Web crawler đa luồng: BFS trên các link với hàng đợi URL; tập visited phải có lock hoặc dùng cấu trúc an toàn thread để không tải trùng.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Lan truyền lỗi: một tác vụ lỗi không được nuốt im lặng; trả lỗi về chỗ gọi.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Request coalescing (gộp các yêu cầu cùng khoá trong một cửa sổ thời gian thành một lần gọi), batch ghi theo timer, map/reduce song song.",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "Run async tasks with bounded concurrency",
+          "vi": "Có 100 tác vụ async tải URL, chạy sao cho tối đa 5 tác vụ chạy cùng lúc.",
+          "starter_code_vi": {
+            "lang": "python",
+            "code": "import asyncio\n\nasync def tai(url):                      # giả lập tải một URL\n    await asyncio.sleep(0.1)\n    return url\n\nasync def chay(urls, toi_da=5):\n    sem = asyncio.Semaphore(toi_da)      # tối đa 5 việc cùng lúc\n    async def mot(url):\n        # TODO: async with sem: trả về await tai(url)\n        ...\n    # TODO: return await asyncio.gather(*(mot(u) for u in urls))\n    ...\n\n# Thử: asyncio.run(chay([f\"u{i}\" for i in range(100)]))"
+          }
+        },
+        {
+          "title": "Web Crawler Multithreaded",
+          "vi": "Cho URL gốc, tải trang và đi theo mọi link cùng tên miền bằng nhiều thread, trả danh sách URL đã thăm, không tải trùng."
+        },
+        {
+          "title": "First successful result from parallel API calls",
+          "vi": "Gọi song song 3 API, trả kết quả của cái thành công đầu tiên, và báo lỗi nếu quá 2 giây mà chưa có kết quả nào. Gợi ý: asyncio.wait(tasks, timeout=..., return_when=asyncio.FIRST_COMPLETED) trả (done, pending); lặp lại tới khi có task thành công hoặc hết giờ, rồi cancel() các task còn lại."
+        }
+      ],
+      "beginner_note_vi": "Học sau py.concurrency và producer_consumer_pool.",
+      "example_problems": [
+        "Web Crawler Multithreaded",
+        "Run async tasks with bounded concurrency",
+        "Batch concurrent logs into windows",
+        "First successful result from parallel API calls with timeout",
+        "Async batched key-value fetcher"
+      ],
+      "bank_topics": [
+        "dsa.concurrency_coding"
+      ],
+      "bank_counts": {
+        "dsa.concurrency_coding": {
+          "total": 121,
+          "y2026": 93
+        }
+      },
+      "target_swe": {
+        "intern": 0,
+        "fresher": 1,
+        "junior": 2,
+        "senior": 3
+      },
+      "target_ai": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 1,
+        "senior": 2
+      },
+      "est_hours": 5,
+      "plan_order": 125,
+      "plan_day": null,
+      "plan_hours": 5
+    },
+    {
       "id": "sd.fundamentals.scalability",
       "section": "sd",
       "module": "sd.fundamentals",
@@ -14048,7 +14415,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 123,
+      "plan_order": 126,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -14156,7 +14523,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 124,
+      "plan_order": 127,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -14263,7 +14630,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 125,
+      "plan_order": 128,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -14373,7 +14740,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 126,
+      "plan_order": 129,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -14484,7 +14851,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 127,
+      "plan_order": 130,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -14601,7 +14968,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 128,
+      "plan_order": 131,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -14713,7 +15080,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 129,
+      "plan_order": 132,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -14813,7 +15180,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 130,
+      "plan_order": 133,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -14919,7 +15286,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 131,
+      "plan_order": 134,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -15028,7 +15395,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 132,
+      "plan_order": 135,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -15173,7 +15540,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 133,
+      "plan_order": 136,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -15286,7 +15653,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 134,
+      "plan_order": 137,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -15399,7 +15766,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 135,
+      "plan_order": 138,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -15504,7 +15871,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 136,
+      "plan_order": 139,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -15612,7 +15979,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 137,
+      "plan_order": 140,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -15729,7 +16096,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 138,
+      "plan_order": 141,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -15837,7 +16204,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 139,
+      "plan_order": 142,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -15941,7 +16308,7 @@
         "senior": 0
       },
       "est_hours": 3,
-      "plan_order": 140,
+      "plan_order": 143,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -16053,7 +16420,7 @@
         "senior": 1
       },
       "est_hours": 3,
-      "plan_order": 141,
+      "plan_order": 144,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -16170,7 +16537,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 142,
+      "plan_order": 145,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -16279,7 +16646,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 143,
+      "plan_order": 146,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -16385,7 +16752,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 144,
+      "plan_order": 147,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -16520,7 +16887,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 145,
+      "plan_order": 148,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -16639,7 +17006,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 146,
+      "plan_order": 149,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -16767,7 +17134,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 147,
+      "plan_order": 150,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -16872,7 +17239,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 148,
+      "plan_order": 151,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -16985,7 +17352,7 @@
         "senior": 0
       },
       "est_hours": 2,
-      "plan_order": 149,
+      "plan_order": 152,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -17109,7 +17476,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 150,
+      "plan_order": 153,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -17217,7 +17584,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 151,
+      "plan_order": 154,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -17334,7 +17701,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 152,
+      "plan_order": 155,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -17439,7 +17806,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 153,
+      "plan_order": 156,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -17548,7 +17915,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 154,
+      "plan_order": 157,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -17684,7 +18051,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 155,
+      "plan_order": 158,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -17803,7 +18170,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 156,
+      "plan_order": 159,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -17928,7 +18295,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 157,
+      "plan_order": 160,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -18025,7 +18392,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 158,
+      "plan_order": 161,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -18147,7 +18514,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 159,
+      "plan_order": 162,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -18264,7 +18631,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 160,
+      "plan_order": 163,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -18373,7 +18740,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 161,
+      "plan_order": 164,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -18483,7 +18850,7 @@
         "senior": 1
       },
       "est_hours": 4,
-      "plan_order": 162,
+      "plan_order": 165,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -18588,7 +18955,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 163,
+      "plan_order": 166,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -18698,7 +19065,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 164,
+      "plan_order": 167,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -18803,7 +19170,7 @@
         "senior": 0
       },
       "est_hours": 3,
-      "plan_order": 165,
+      "plan_order": 168,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -18928,7 +19295,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 166,
+      "plan_order": 169,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -19051,7 +19418,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 167,
+      "plan_order": 170,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -19156,7 +19523,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 168,
+      "plan_order": 171,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -19258,7 +19625,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 169,
+      "plan_order": 172,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -19361,7 +19728,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 170,
+      "plan_order": 173,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -19479,7 +19846,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 171,
+      "plan_order": 174,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -19584,7 +19951,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 172,
+      "plan_order": 175,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -19676,7 +20043,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 173,
+      "plan_order": 176,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -19788,7 +20155,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 174,
+      "plan_order": 177,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -19906,7 +20273,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 175,
+      "plan_order": 178,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -20015,7 +20382,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 176,
+      "plan_order": 179,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -20125,7 +20492,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 177,
+      "plan_order": 180,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -20235,7 +20602,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 178,
+      "plan_order": 181,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -20343,7 +20710,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 179,
+      "plan_order": 182,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -20452,7 +20819,7 @@
         "senior": 1
       },
       "est_hours": 4,
-      "plan_order": 180,
+      "plan_order": 183,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -20562,7 +20929,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 181,
+      "plan_order": 184,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -20661,7 +21028,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 182,
+      "plan_order": 185,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -20765,7 +21132,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 183,
+      "plan_order": 186,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -20873,7 +21240,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 184,
+      "plan_order": 187,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -20983,7 +21350,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 185,
+      "plan_order": 188,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -21082,7 +21449,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 186,
+      "plan_order": 189,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -21185,7 +21552,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 187,
+      "plan_order": 190,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -21287,7 +21654,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 188,
+      "plan_order": 191,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -21391,7 +21758,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 189,
+      "plan_order": 192,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -21497,7 +21864,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 190,
+      "plan_order": 193,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -21601,7 +21968,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 191,
+      "plan_order": 194,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -21701,7 +22068,7 @@
         "senior": 0
       },
       "est_hours": 3,
-      "plan_order": 192,
+      "plan_order": 195,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -21806,7 +22173,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 193,
+      "plan_order": 196,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -21917,7 +22284,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 194,
+      "plan_order": 197,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -22024,7 +22391,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 195,
+      "plan_order": 198,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -22135,7 +22502,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 196,
+      "plan_order": 199,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -22245,7 +22612,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 197,
+      "plan_order": 200,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -22348,7 +22715,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 198,
+      "plan_order": 201,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -22452,7 +22819,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 199,
+      "plan_order": 202,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -22566,7 +22933,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 200,
+      "plan_order": 203,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -22685,7 +23052,7 @@
         "senior": 0
       },
       "est_hours": 6,
-      "plan_order": 201,
+      "plan_order": 204,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -22794,7 +23161,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 202,
+      "plan_order": 205,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -22895,7 +23262,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 203,
+      "plan_order": 206,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -23000,7 +23367,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 204,
+      "plan_order": 207,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -23106,7 +23473,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 205,
+      "plan_order": 208,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -23217,7 +23584,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 206,
+      "plan_order": 209,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -23323,7 +23690,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 207,
+      "plan_order": 210,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -23425,7 +23792,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 208,
+      "plan_order": 211,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -23540,7 +23907,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 209,
+      "plan_order": 212,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -23657,7 +24024,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 210,
+      "plan_order": 213,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -23780,7 +24147,7 @@
         "senior": 3
       },
       "est_hours": 2,
-      "plan_order": 211,
+      "plan_order": 214,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -23908,7 +24275,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 212,
+      "plan_order": 215,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -24028,7 +24395,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 213,
+      "plan_order": 216,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -24142,7 +24509,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 214,
+      "plan_order": 217,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -24264,7 +24631,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 215,
+      "plan_order": 218,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -24390,7 +24757,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 216,
+      "plan_order": 219,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -24510,7 +24877,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 217,
+      "plan_order": 220,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -24627,7 +24994,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 218,
+      "plan_order": 221,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -24746,7 +25113,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 219,
+      "plan_order": 222,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -24858,7 +25225,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 220,
+      "plan_order": 223,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -24980,7 +25347,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 221,
+      "plan_order": 224,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -25105,7 +25472,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 222,
+      "plan_order": 225,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -25222,7 +25589,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 223,
+      "plan_order": 226,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -25333,7 +25700,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 224,
+      "plan_order": 227,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -25445,7 +25812,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 225,
+      "plan_order": 228,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -25552,7 +25919,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 226,
+      "plan_order": 229,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -25672,7 +26039,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 227,
+      "plan_order": 230,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -25795,7 +26162,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 228,
+      "plan_order": 231,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -25905,7 +26272,7 @@
         "senior": 3
       },
       "est_hours": 2,
-      "plan_order": 229,
+      "plan_order": 232,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -26015,7 +26382,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 230,
+      "plan_order": 233,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -26131,7 +26498,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 231,
+      "plan_order": 234,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -26256,7 +26623,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 232,
+      "plan_order": 235,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -26370,7 +26737,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 233,
+      "plan_order": 236,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -26487,7 +26854,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 234,
+      "plan_order": 237,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -26585,7 +26952,7 @@
         "senior": 3
       },
       "est_hours": 2,
-      "plan_order": 235,
+      "plan_order": 238,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -26703,7 +27070,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 236,
+      "plan_order": 239,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -26827,7 +27194,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 237,
+      "plan_order": 240,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -26952,7 +27319,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 238,
+      "plan_order": 241,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -27080,7 +27447,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 239,
+      "plan_order": 242,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -27196,7 +27563,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 240,
+      "plan_order": 243,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -27300,7 +27667,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 241,
+      "plan_order": 244,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -27417,7 +27784,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 242,
+      "plan_order": 245,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -27529,7 +27896,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 243,
+      "plan_order": 246,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -27629,7 +27996,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 244,
+      "plan_order": 247,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -27763,7 +28130,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 245,
+      "plan_order": 248,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -27899,7 +28266,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 246,
+      "plan_order": 249,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -28044,7 +28411,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 247,
+      "plan_order": 250,
       "plan_day": null,
       "plan_hours": 6
     }

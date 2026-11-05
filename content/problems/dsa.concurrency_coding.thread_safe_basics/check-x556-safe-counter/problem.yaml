@@ -1,0 +1,63 @@
+id: check-x556-safe-counter
+subtopic_id: dsa.concurrency_coding.thread_safe_basics
+secondary_subtopics: []
+kind: check
+title: 'Check X556: Safe Counter'
+title_vi: 'Kiểm tra X556: Bộ đếm an toàn'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Pyodide is single-threaded, so we model a lock-protected counter: every operation runs
+  as one atomic critical section, applied in order, and no update is ever lost.
+
+  Implement `class SafeCounter` (constructor takes no arguments, initial value 0) with:
+
+  - `incr()`: adds 1 to the counter; returns nothing.
+  - `add(n)`: adds the int `n` to the counter; returns nothing.
+  - `value()`: returns the current counter as an int.
+statement_vi_md: |
+  Pyodide chạy đơn luồng nên ta mô hình hoá bộ đếm được bảo vệ bằng lock: mỗi thao tác là một
+  critical section atomic, áp dụng lần lượt, không có lost update.
+
+  Viết `class SafeCounter` (constructor không tham số, giá trị ban đầu 0) với:
+
+  - `incr()`: cộng 1; không trả gì.
+  - `add(n)`: cộng số nguyên `n`; không trả gì.
+  - `value()`: trả về giá trị hiện tại (int).
+constraints:
+- 'n là số nguyên (có thể âm hoặc 0).'
+- 'Không dùng thread, time hay random.'
+examples:
+- input: ops = ['SafeCounter', 'incr', 'incr', 'add', 'value'], args = [[], [], [], [5], []]
+  output: '[null, null, null, null, 7]'
+  explain_vi: 'incr hai lần được 2, add(5) được 7; value trả 7.'
+io:
+  mode: class_ops
+  compare: exact
+starter:
+  python: "class SafeCounter:\n    # TODO\n    pass\n"
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+time_target_min: 8
+hints:
+- Chỉ cần một thuộc tính `self._n` bắt đầu từ 0; mỗi method là một critical section nên cứ đổi trực tiếp.
+- '`incr` là `self._n += 1`, `add(n)` là `self._n += n`, `value` trả `self._n`.'
+- Các method đổi state không trả gì (None); chỉ `value()` trả int.
+solution:
+  file: solution.py
+  approach_vi: Một biến int; mỗi thao tác chạy tuần tự nên mô hình lock đảm bảo không mất cập nhật. Mọi thao tác O(1).
+  complexity: O(1) mỗi thao tác
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x556
+status: validated
+version: 1

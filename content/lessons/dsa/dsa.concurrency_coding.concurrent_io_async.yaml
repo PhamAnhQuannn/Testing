@@ -1,0 +1,165 @@
+id: dsa.concurrency_coding.concurrent_io_async
+version: 1
+status: published
+title_vi: "Concurrent I/O và async"
+est_minutes: 14
+objectives_vi:
+  - "Giải thích event loop và cooperative scheduling: một thread, task tự nhường quyền ở điểm `await`."
+  - "Phân biệt I/O-bound (async chồng các lần chờ) và CPU-bound (async không làm nhanh hơn)."
+  - "Tính thời điểm hoàn thành của task = start + duration và thứ tự hoàn thành khi các task có duration khác nhau."
+  - "Mô phỏng scheduler có giới hạn concurrency bằng tính toán thuần (không cần thread thật)."
+blocks:
+  - id: s_loop
+    type: section
+    title_vi: "Event loop, await và I/O-bound"
+    summary_vi: "Một thread chạy nhiều task; task chờ I/O thì nhường chỗ cho task khác nên thời gian chờ chồng lên nhau."
+    exercise_ref: ex_finish
+  - id: t01
+    type: text
+    md: |
+      **Event loop** là vòng lặp trong một thread: lấy một task sẵn sàng, chạy cho tới khi task đó gặp `await`
+      (đang chờ I/O như gọi mạng, đọc đĩa), rồi **nhường** quyền cho task khác. Đây là **cooperative scheduling**:
+      task tự nhường, loop không ngắt giữa chừng. Khi I/O xong, task được đánh dấu sẵn sàng và chạy tiếp.
+
+      - **I/O-bound**: phần lớn thời gian là chờ. Chạy 3 request, mỗi request chờ 2s: tuần tự mất 6s, đồng thời
+        (overlap) chỉ khoảng 2s, tức `max` các lần chờ thay vì `sum`.
+      - **CPU-bound**: thời gian là tính toán thật. Một thread chỉ làm một việc một lúc, nên async **không**
+        làm nhanh hơn (cần nhiều process/core). Một task CPU nặng không có `await` còn **chặn** cả loop.
+
+      Mô hình tính thời gian dùng cả bài: task có `start` và `duration`, chạy đồng thời thì
+      `finish = start + duration`, và **thứ tự hoàn thành** là sắp xếp theo `finish` (hòa thì theo id), không phải
+      thứ tự bắt đầu hay thứ tự khai báo. Vì môi trường chấm là single-thread, ta mô phỏng bằng số học thuần.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      waits = [2, 2, 2]
+      sequential = sum(waits)
+      concurrent = max(waits)
+      print(sequential, concurrent)
+
+      tasks = [(1, 0, 5), (2, 1, 2), (3, 2, 1)]  # (id, start, duration)
+      order = sorted(tasks, key=lambda t: (t[1] + t[2], t[0]))
+      print([t[0] for t in order])
+    expected_output: |
+      6 2
+      [2, 3, 1]
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Chương trình gọi 100 API độc lập, mỗi lần chủ yếu chờ phản hồi. Vì sao async giúp nhanh hơn?"
+    options:
+      - {id: a, text_md: "Các lần chờ I/O chồng lên nhau trong khi loop chạy task khác"}
+      - {id: b, text_md: "Async chia phép tính cho nhiều core CPU"}
+      - {id: c, text_md: "Mỗi request tự chạy nhanh hơn vì dùng `await`"}
+    answer: [a]
+    explain_md: "Async không tăng tốc từng request hay dùng thêm core; nó chỉ tận dụng thời gian chờ để chạy task khác."
+  - id: q02
+    type: quiz_fill
+    prompt_md: "3 task I/O chạy đồng thời, cùng start = 0, duration lần lượt 4, 1, 3. Tất cả hoàn thành sau ___ đơn vị thời gian."
+    blanks: [{accept: ["4"]}]
+    explain_md: "Chạy đồng thời nên thời gian tổng là max(4, 1, 3) = 4 (tuần tự sẽ là 8)."
+  - id: ex_finish
+    type: code_exercise
+    md: |
+      Viết `finish_times(tasks)`: `tasks` là list `[start, duration]`, trả list thời điểm hoàn thành cùng thứ tự đầu vào
+      khi mọi task chạy đồng thời. Ví dụ `finish_times([[0, 5], [2, 1]])` cho `[5, 3]`. Bản dưới đây chỉ trả `duration`
+      mà quên cộng `start`. Hãy sửa.
+    entry: finish_times
+    starter: |
+      def finish_times(tasks):
+          out = []
+          for start, duration in tasks:
+              out.append(duration)
+          return out
+    guidance_md: |
+      - Thử `[[0, 5], [2, 1]]`: đáp án `[5, 3]` nhưng code trả `[5, 1]`.
+      - Task bắt đầu muộn thì kết thúc muộn tương ứng.
+    hints:
+      - level: nudge
+        md: "Task thứ hai bắt đầu lúc 2 và chạy 1 đơn vị, vậy nó xong lúc nào?"
+      - level: approach
+        md: "Thời điểm xong của một task là `start + duration`."
+      - level: near_solution
+        md: "Đổi `out.append(duration)` thành `out.append(start + duration)`. Danh sách rỗng vẫn trả `[]`."
+    tests:
+      - {args: [[]], expected: []}
+      - {args: [[[0, 5], [2, 1]]], expected: [5, 3]}
+      - {args: [[[3, 4]]], expected: [7]}
+      - {args: [[[0, 0], [1, 0]]], expected: [0, 1]}
+      - {args: [[[5, 5], [0, 1], [2, 8]]], expected: [10, 1, 10]}
+    solution: |
+      def finish_times(tasks):
+          out = []
+          for start, duration in tasks:
+              out.append(start + duration)
+          return out
+  - id: s_order
+    type: section
+    title_vi: "Thứ tự hoàn thành và giới hạn concurrency"
+    summary_vi: "Task ngắn có thể xong trước task bắt đầu sớm hơn; giới hạn số slot làm task phải chờ slot rảnh."
+    exercise_ref: ex_makespan
+  - id: t02
+    type: text
+    md: |
+      Task bắt đầu sớm chưa chắc xong sớm: task dài khai báo đầu vẫn có thể xong **sau** task ngắn khai báo sau.
+      Vì vậy thứ tự hoàn thành phải tính từ `start + duration`, và khi hòa cần quy tắc phá hòa rõ ràng (ví dụ id nhỏ trước).
+
+      Thực tế thường có **giới hạn concurrency** (semaphore, pool kích thước `k`): chỉ `k` task chạy cùng lúc,
+      task còn lại chờ. Mô phỏng: giữ `k` thời điểm "slot rảnh" (min-heap); mỗi task lấy slot rảnh sớm nhất, bắt đầu
+      tại `max(thời điểm đó, start)`, xong lúc `+ duration`, rồi trả slot về heap. Với `k = 1` mọi thứ thành tuần tự;
+      với `k` đủ lớn quay về mô hình chạy đồng thời hoàn toàn.
+  - id: q03
+    type: predict_output
+    code: |
+      tasks = [(1, 0, 3), (2, 1, 1), (3, 0, 2)]  # (id, start, duration)
+      for tid, s, d in sorted(tasks, key=lambda t: (t[1] + t[2], t[0])):
+          print(tid, s + d)
+    expected_output: |
+      2 2
+      3 2
+      1 3
+    explain_md: "Finish: task 1 = 3, task 2 = 2, task 3 = 2. Task 2 và 3 hòa lúc 2 nên id nhỏ trước, rồi tới task 1."
+  - id: ex_makespan
+    type: code_exercise
+    md: |
+      Viết `makespan(durations)`: tổng thời gian để hoàn thành mọi task I/O khi chạy đồng thời (cùng start = 0). Ví dụ
+      `makespan([4, 1, 3])` cho `4`; list rỗng cho `0`. Bản dưới đây cộng dồn như chạy tuần tự. Hãy sửa.
+    entry: makespan
+    starter: |
+      def makespan(durations):
+          return sum(durations)
+    guidance_md: |
+      - Thử `[4, 1, 3]`: code trả 8 nhưng chạy đồng thời chỉ mất 4.
+      - Chạy đồng thời thì thời gian bị quyết định bởi task chậm nhất.
+    hints:
+      - level: nudge
+        md: "Nếu mọi task chạy cùng lúc, bạn phải đợi task nào?"
+      - level: approach
+        md: "Task chậm nhất, tức giá trị lớn nhất. Nhớ trường hợp list rỗng."
+      - level: near_solution
+        md: "`return max(durations) if durations else 0`."
+    tests:
+      - {args: [[]], expected: 0}
+      - {args: [[4, 1, 3]], expected: 4}
+      - {args: [[7]], expected: 7}
+      - {args: [[2, 2, 2]], expected: 2}
+      - {args: [[0, 5, 0]], expected: 5}
+    solution: |
+      def makespan(durations):
+          return max(durations) if durations else 0
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Event loop chạy nhiều task trên một thread; task nhường quyền tại `await` (cooperative scheduling)."
+      - "Async giúp việc I/O-bound (chồng thời gian chờ: max thay vì sum), không giúp CPU-bound."
+      - "Chạy đồng thời: finish = start + duration; thứ tự hoàn thành sắp theo finish rồi tới quy tắc phá hòa (id)."
+      - "Giới hạn concurrency mô phỏng bằng min-heap các slot rảnh; k = 1 là tuần tự."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X561], l2: [X562], l3: [X563]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"
