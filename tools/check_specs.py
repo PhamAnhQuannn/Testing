@@ -460,6 +460,32 @@ EXTRA_INPUTS: dict[str, list[list]] = {
         [["a", "b", "c", "d"]],
         [["xy", "yz", "zx"]],
     ],
+    # Wave 2 Round 17: file_log_parsing. Plain-JSON inputs (list[str]/str + int); first input is the
+    # edge case, all distinct from the driver's own calls.
+    "Q143": [
+        [["GET /x 200"], 1],
+        [["POST /y 500", "GET /y 200", "GET /y 200"], 2],
+        [["bad", "GET /a 200", "DELETE /a 204"], 5],
+        [["GET /a 200", "GET /b 200", "GET /a 200", "GET /c 200"], 2],
+        [["onlyone"], 3],
+        [["GET /p 200", "GET /q 200", "GET /p 200", "GET /q 200", "GET /r 200"], 3],
+    ],
+    "Q144": [
+        ["", 3],
+        ["a a a b b c", 2],
+        ["Hello, HELLO! world.", 5],
+        ["one two two three three three", 2],
+        ["x y z", 10],
+        ["cat. Cat! CAT? dog", 2],
+    ],
+    "W212": [
+        [[]],
+        [["2026-01-01T09:00 ERROR a"]],
+        [["2026-01-01T23:30 ERROR x", "2026-01-01T23:59 ERROR y"]],
+        [["2026-01-01T08:00 INFO a", "2026-01-01T08:30 WARN b"]],
+        [["2026-01-01T12:00 ERROR a", "2026-01-01T12:10 ERROR b", "2026-01-01T13:00 ERROR c"]],
+        [["2026-01-01T00:00 ERROR z"]],
+    ],
 }
 
 

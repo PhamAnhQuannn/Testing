@@ -1,0 +1,195 @@
+id: dsa.practical.stream_iterator_processing
+version: 1
+status: published
+title_vi: "Iterator, stream và xử lý lazy"
+est_minutes: 14
+objectives_vi:
+  - "Phân biệt iterator và generator (yield), và giải thích lazy vs eager evaluation."
+  - "Xử lý luồng theo từng phần: batching bằng itertools.islice và pipeline lazy."
+  - "Cài thống kê chạy (running total) và loại trùng liên tiếp (dedup) trong một lượt với bộ nhớ O(1)."
+  - "Nhận biết windowed aggregation: cửa sổ trượt giữ trạng thái giới hạn (deque)."
+blocks:
+  - id: s_lazy
+    type: section
+    title_vi: "Generator, lazy và batching"
+    summary_vi: "Generator chỉ tính phần tử khi được hỏi; islice cắt luồng thành từng batch mà không nạp hết dữ liệu."
+    exercise_ref: ex_running
+  - id: t01
+    type: text
+    md: |
+      **Iterator** là đối tượng có `__next__()` trả phần tử kế tiếp và báo hết bằng `StopIteration`.
+      **Generator** là cách viết iterator ngắn gọn: hàm dùng `yield`, mỗi lần `next()` chạy tới `yield` kế tiếp
+      rồi tạm dừng, giữ nguyên biến cục bộ.
+
+      - **Eager**: tính hết rồi trả list (tốn bộ nhớ O(n)).
+      - **Lazy**: tính từng phần tử khi cần (bộ nhớ O(1) cho mỗi bước), cho phép luồng vô hạn và dừng sớm.
+
+      Một iterator chỉ đi **một chiều**: phần tử đã lấy sẽ không quay lại. `itertools.islice(it, k)` lấy tối đa `k`
+      phần tử kế tiếp, nên gọi lặp lại sẽ cắt luồng thành các **batch** (chunk). Cách này cho phép đọc file lớn
+      hoặc xử lý API phân trang mà không nạp hết vào RAM. Thống kê chạy (running total, mean) cũng chỉ cần một
+      biến trạng thái khi duyệt một lượt.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      from itertools import islice
+
+      def chunks(it, size):
+          it = iter(it)
+          while True:
+              block = list(islice(it, size))
+              if not block:
+                  return
+              yield block
+
+      for b in chunks(range(7), 3):
+          print(b)
+      print(sum(1 for _ in chunks([], 3)))
+    expected_output: |
+      [0, 1, 2]
+      [3, 4, 5]
+      [6]
+      0
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Ưu điểm chính của generator so với việc tạo list đầy đủ khi xử lý file log rất lớn là gì?"
+    options:
+      - {id: a, text_md: "Bộ nhớ chỉ giữ một phần nhỏ dữ liệu tại mỗi thời điểm"}
+      - {id: b, text_md: "Có thể duyệt lại từ đầu bao nhiêu lần tùy ý"}
+      - {id: c, text_md: "Truy cập ngẫu nhiên `g[i]` nhanh O(1)"}
+    answer: [a]
+    explain_md: "Generator lazy nên chỉ giữ trạng thái hiện tại; nó không duyệt lại được và không có chỉ số `g[i]`."
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Với `it = iter(range(10))`, sau khi `list(islice(it, 4))` chạy xong, `next(it)` trả về ___."
+    blanks: [{accept: ["4"]}]
+    explain_md: "`islice` đã tiêu thụ 0, 1, 2, 3 trên iterator gốc, nên phần tử kế tiếp là 4."
+  - id: ex_running
+    type: code_exercise
+    md: |
+      Viết `running_total(nums)`: trả list `out` với `out[i]` là tổng `nums[0..i]` (prefix sums), duyệt một lượt.
+      Ví dụ `running_total([1, 2, 3])` cho `[1, 3, 6]`. Bản dưới đây gán `total = x` thay vì cộng dồn. Hãy sửa.
+    entry: running_total
+    starter: |
+      def running_total(nums):
+          out = []
+          total = 0
+          for x in nums:
+              total = x
+              out.append(total)
+          return out
+    guidance_md: |
+      - Thử `[1, 2, 3]`: code trả `[1, 2, 3]` thay vì `[1, 3, 6]`.
+      - `total` phải giữ tổng của các phần tử đã thấy.
+    hints:
+      - level: nudge
+        md: "Sau phần tử thứ hai, `total` có còn nhớ phần tử thứ nhất không?"
+      - level: approach
+        md: "Mỗi bước cộng phần tử hiện tại vào biến tổng đang chạy, rồi mới thêm giá trị đó vào `out`."
+      - level: near_solution
+        md: "Đổi `total = x` thành `total += x`. Danh sách rỗng vẫn trả `[]` vì vòng lặp không chạy."
+    tests:
+      - {args: [[]], expected: []}
+      - {args: [[1, 2, 3]], expected: [1, 3, 6]}
+      - {args: [[5]], expected: [5]}
+      - {args: [[2, -2, 4, -1]], expected: [2, 0, 4, 3]}
+      - {args: [[0, 0, 0]], expected: [0, 0, 0]}
+    solution: |
+      def running_total(nums):
+          out = []
+          total = 0
+          for x in nums:
+              total += x
+              out.append(total)
+          return out
+  - id: s_pipe
+    type: section
+    title_vi: "Dedup liên tiếp và cửa sổ trượt"
+    summary_vi: "Pipeline lazy chỉ nhớ phần tử trước; windowed aggregation giữ cửa sổ giới hạn bằng deque."
+    exercise_ref: ex_dedup
+  - id: t02
+    type: text
+    md: |
+      Generator chỉ chạy khi có người lấy giá trị, nên các bước in/ghi log trong thân hàm chỉ xảy ra lúc `next()`.
+      Nhiều generator nối lại thành **pipeline lazy** (đọc, lọc, biến đổi, gom batch) mà bộ nhớ vẫn O(1).
+
+      **Dedup liên tiếp** chỉ cần nhớ phần tử vừa thấy (bounded memory): bỏ phần tử bằng phần tử trước nó.
+
+      **Windowed aggregation** tính trên `k` phần tử gần nhất, ví dụ max của mọi cửa sổ độ dài `k`. Dùng
+      `collections.deque` làm **monotonic deque** lưu chỉ số giảm dần theo giá trị: bỏ đuôi nhỏ hơn phần tử
+      mới, bỏ đầu đã rơi khỏi cửa sổ. Mỗi phần tử vào/ra deque tối đa một lần nên tổng O(n) dù luồng dài bao nhiêu.
+  - id: q03
+    type: predict_output
+    code: |
+      def squares():
+          for i in range(1, 4):
+              print("make", i)
+              yield i * i
+
+      g = squares()
+      print("start")
+      print(next(g))
+      print(list(g))
+    expected_output: |
+      start
+      make 1
+      1
+      make 2
+      make 3
+      [4, 9]
+    explain_md: "Gọi `squares()` chưa chạy gì. `print('start')` chạy trước, rồi `next(g)` chạy thân hàm tới `yield` đầu (in `make 1`, trả 1). `list(g)` chạy tiếp, in `make 2`, `make 3` rồi thu `[4, 9]`."
+  - id: ex_dedup
+    type: code_exercise
+    md: |
+      Viết `dedup_consecutive(items)`: bỏ các phần tử lặp liên tiếp, giữ thứ tự. Ví dụ
+      `dedup_consecutive([1, 1, 2, 2, 1])` cho `[1, 2, 1]` (số 1 cuối vẫn giữ vì không liền kề). Bản dưới đây
+      loại mọi phần tử đã từng thấy. Hãy sửa để chỉ so với phần tử liền trước.
+    entry: dedup_consecutive
+    starter: |
+      def dedup_consecutive(items):
+          out = []
+          seen = set()
+          for x in items:
+              if x not in seen:
+                  out.append(x)
+                  seen.add(x)
+          return out
+    guidance_md: |
+      - Thử `[1, 1, 2, 2, 1]`: đáp án là `[1, 2, 1]` nhưng code trả `[1, 2]`.
+      - Chỉ cần so với phần tử cuối của `out`.
+    hints:
+      - level: nudge
+        md: "Có cần nhớ toàn bộ phần tử đã thấy không, hay chỉ phần tử ngay trước?"
+      - level: approach
+        md: "Giữ phần tử cuối đã thêm vào `out`. Thêm `x` khi `out` rỗng hoặc `x` khác phần tử cuối."
+      - level: near_solution
+        md: "Bỏ `seen`; điều kiện thành `if not out or out[-1] != x:` rồi `out.append(x)`."
+    tests:
+      - {args: [[]], expected: []}
+      - {args: [[1, 1, 2, 2, 1]], expected: [1, 2, 1]}
+      - {args: [[7]], expected: [7]}
+      - {args: [[3, 3, 3]], expected: [3]}
+      - {args: [[1, 2, 3, 2, 1]], expected: [1, 2, 3, 2, 1]}
+    solution: |
+      def dedup_consecutive(items):
+          out = []
+          for x in items:
+              if not out or out[-1] != x:
+                  out.append(x)
+          return out
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Generator (`yield`) là iterator lazy: chỉ tính phần tử khi `next()`, đi một chiều, bộ nhớ O(1)."
+      - "`itertools.islice` gom luồng thành batch mà không nạp hết dữ liệu."
+      - "Thống kê chạy và dedup liên tiếp chỉ cần một vài biến trạng thái khi duyệt một lượt."
+      - "Windowed aggregation dùng deque (monotonic deque cho max cửa sổ) để mỗi phần tử vào/ra tối đa một lần: O(n)."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X533], l2: [X534], l3: [X535]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

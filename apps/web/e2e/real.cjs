@@ -82,7 +82,9 @@ async function startServer() {
     env: { ...process.env, DATA_DIR: dataDir, WEB_DIST: dist, BACKUP_DIR: path.join(dataDir, "backups") },
     stdio: ["ignore", fs.openSync(path.join(dataDir, "server.log"), "a"), fs.openSync(path.join(dataDir, "server.log"), "a")],
   });
-  for (let i = 0; i < 100; i++) {
+  // Up to 60s: ContentStore.load reads the whole published corpus at boot, which now takes ~20s in
+  // CI and grows with the content, so a 10s ceiling was tripping "server did not start" spuriously.
+  for (let i = 0; i < 600; i++) {
     try {
       const r = await fetch(`${base}/api/health`);
       if (r.status === 200 || r.status === 503) return r;

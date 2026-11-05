@@ -1,0 +1,62 @@
+id: check-x537-command-interpreter
+subtopic_id: dsa.practical.practical_format
+secondary_subtopics: []
+kind: check
+title: 'Check X537: run_kv command interpreter'
+title_vi: 'Kiểm tra X537: thông dịch lệnh run_kv'
+difficulty: easy
+source:
+  type: original
+statement_en_md: |
+  Implement `run_kv(commands)`. Each element is a command string: `"SET k v"`, `"GET k"`, or
+  `"DEL k"`. Execute them in order; for each `GET k` append the string value of `k` (or `""` if `k`
+  is absent) to a result list. Return the list of `GET` results in order. Parse the first token and
+  dispatch on it (parse-then-dispatch) — the pattern that lets later levels add commands cheaply.
+statement_vi_md: |
+  Viết `run_kv(commands)`: mỗi phần tử là một lệnh chuỗi `"SET k v"`, `"GET k"` hoặc `"DEL k"`. Thực
+  hiện lần lượt; với mỗi `GET k` thêm giá trị (chuỗi) của `k` vào danh sách kết quả, hoặc `""` nếu `k`
+  không tồn tại. Trả danh sách kết quả của các lệnh `GET` theo thứ tự. Tách từ khoá đầu rồi điều phối
+  (parse-then-dispatch) — kiểu thiết kế giúp thêm lệnh ở mức sau mà không sửa nhiều.
+constraints:
+- 0 <= len(commands) <= 1000
+- Mỗi lệnh là "SET k v", "GET k" hoặc "DEL k"; k và v không chứa khoảng trắng.
+examples:
+- input: commands = ['SET a 1', 'SET b 2', 'GET a', 'GET b', 'DEL a', 'GET a']
+  output: '["1", "2", ""]'
+  explain_vi: GET a trả "1", GET b trả "2"; sau DEL a thì GET a trả "" vì a đã bị xoá.
+io:
+  mode: function
+  entry: run_kv
+  params:
+  - name: commands
+    type: list[str]
+  returns: any
+  compare: exact
+starter:
+  python: |
+    def run_kv(commands):
+        # TODO: tách lệnh rồi điều phối SET/GET/DEL
+        pass
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+time_target_min: 8
+hints:
+- Tách mỗi dòng bằng split(); phần tử đầu là tên lệnh, các phần sau là tham số.
+- Dùng một dict làm store; SET gán, DEL xoá (bỏ qua nếu khoá thiếu), GET đọc giá trị.
+- 'GET khi khoá vắng mặt phải thêm "" vào kết quả chứ không bỏ qua; dùng store.get(k, "").'
+solution:
+  file: solution.py
+  approach_vi: Dict store; duyệt lệnh, điều phối theo token đầu; GET dùng store.get(k, "").
+  complexity: O(n)
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x537
+status: validated
+version: 1

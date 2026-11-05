@@ -1,0 +1,179 @@
+id: dsa.practical.practical_format
+version: 1
+status: published
+title_vi: "Định dạng vòng practical: bài nhiều level (multi-level)"
+est_minutes: 12
+objectives_vi:
+  - "Mô tả định dạng multi-level: level 1 đơn giản, mỗi level sau thêm yêu cầu lên code cũ."
+  - "Áp dụng playbook: đọc kỹ spec I/O, liệt kê operations, làm bản đơn giản trước, chạy ví dụ."
+  - "Thiết kế parse-then-dispatch: tách dòng lệnh thành (name, args) rồi tra dict {command: method}."
+  - "Thêm level mới mà không viết lại hay làm hỏng level trước (regression)."
+blocks:
+  - id: s_playbook
+    type: section
+    title_vi: "Playbook trước khi gõ code"
+    summary_vi: "Đọc spec, liệt kê operations, làm đơn giản trước; thiết kế sao cho thêm level chỉ là thêm code."
+    exercise_ref: ex_run
+  - id: t01
+    type: text
+    md: |
+      Vòng **practical** thường là một bài lớn chia 3-4 **level**. Level 1 đơn giản (vài operation),
+      mỗi level sau **thêm yêu cầu** lên đúng code bạn vừa viết. Điểm chính không phải thuật toán khó,
+      mà là code của bạn **có mở rộng được mà không vỡ phần cũ** hay không.
+
+      Playbook cho mỗi bài:
+
+      1. **Đọc hết spec**, nhất là định dạng input/output (in gì, trả gì khi lỗi). Ghi lại giả định.
+      2. **Liệt kê các operation** (`add`, `pay`, `top`...) và state mà chúng cần.
+      3. **Làm bản đơn giản nhất** cho level 1: dict/list thường, chưa tối ưu.
+      4. **Chạy ví dụ trong đề** ngay, rồi mới sang level sau.
+      5. Mỗi level mới: **thêm** operation/field, không đổi hành vi cũ; chạy lại ví dụ cũ (regression).
+
+      Đừng tối ưu sớm: level 2 có thể đổi yêu cầu, và một cấu trúc phức tạp từ level 1 sẽ khó sửa.
+  - id: t02
+    type: text
+    md: |
+      **Parse-then-dispatch**: input thường là danh sách dòng lệnh như `"add 5"`. Hai bước tách bạch:
+
+      - **Parse**: `name, *args = line.split()`.
+      - **Dispatch**: tra dict `handlers = {"add": self.add, ...}` rồi gọi `handlers[name](*args)`.
+
+      So với chuỗi `if/elif`, thêm lệnh mới ở level sau chỉ là viết một method và thêm một dòng vào dict;
+      code cũ không bị đụng tới. Mỗi method nhỏ, tên rõ, dễ test riêng.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      def parse(line):
+          parts = line.split()
+          return parts[0], parts[1:]
+
+      for line in ["add 5", "total", "move a b 3"]:
+          print(parse(line))
+
+      handlers = {"hi": lambda: "hello", "up": lambda s: s.upper()}
+      print(handlers["up"]("ab"), handlers["hi"]())
+    expected_output: |
+      ('add', ['5'])
+      ('total', [])
+      ('move', ['a', 'b', '3'])
+      AB hello
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Ở level 2 đề thêm lệnh `top N`. Thiết kế nào giữ level 1 an toàn nhất?"
+    options:
+      - {id: a, text_md: "Viết lại toàn bộ class cho gọn rồi thêm `top`"}
+      - {id: b, text_md: "Thêm method `top` và một dòng trong dict handlers, không đổi các method cũ"}
+      - {id: c, text_md: "Bỏ level 1 vì level 2 thay thế nó"}
+    answer: [b]
+    explain_md: "Thêm mà không sửa hành vi cũ giúp các ví dụ level 1 vẫn pass (regression); viết lại là rủi ro không cần thiết."
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Với `line = \"pay a 4\"`, `name, *args = line.split()` cho `args == [\"a\", \"4\"]` và `name == ___`."
+    blanks: [{accept: ["pay", "\"pay\"", "'pay'"]}]
+    explain_md: "Phần tử đầu tiên là tên lệnh `pay`; phần còn lại là danh sách tham số (vẫn là chuỗi, cần `int()` khi dùng như số)."
+  - id: ex_run
+    type: code_exercise
+    md: |
+      Viết `run_commands(cmds)`: `cmds` là danh sách dòng lệnh cho một bộ cộng dồn bắt đầu từ 0:
+      `add N` (cộng), `sub N` (trừ), `reset` (về 0), `total` (truy vấn). Trả về danh sách kết quả
+      của **các lệnh truy vấn** (`total`) theo thứ tự. Ví dụ `["add 5", "add 3", "total"]` cho `[8]`.
+      Bản dưới đây parse xong nhưng chưa dispatch gì. Hãy hoàn thiện bằng dict handlers.
+    entry: run_commands
+    starter: |
+      def run_commands(cmds):
+          state = {"total": 0}
+          out = []
+          for line in cmds:
+              name, *args = line.split()
+              # TODO: tra handlers[name] và gọi với args
+          return out
+    guidance_md: |
+      - Viết các hàm nhỏ `add`, `sub`, `total`, `reset` làm việc trên `state`.
+      - Gom vào `handlers = {"add": add, ...}`.
+      - Lệnh chỉ thay đổi state trả `None`; lệnh truy vấn trả giá trị cần ghi vào `out`.
+    hints:
+      - level: nudge
+        md: "Làm sao gọi đúng hàm theo tên lệnh mà không cần chuỗi if/elif?"
+      - level: approach
+        md: "Dùng dict `{tên lệnh: hàm}`. Gọi `handlers[name](*args)`; chỉ thêm vào `out` khi kết quả khác `None`."
+      - level: near_solution
+        md: "Định nghĩa `add`, `sub`, `reset` sửa `state[\"total\"]` (nhớ `int(n)`), `total` trả `state[\"total\"]`. Trong vòng lặp: `r = handlers[name](*args)` rồi `if r is not None: out.append(r)`."
+    tests:
+      - {args: [[]], expected: []}
+      - {args: [["add 5", "add 3", "total"]], expected: [8]}
+      - {args: [["add 5", "sub 2", "total", "reset", "total"]], expected: [3, 0]}
+      - {args: [["total", "add 4", "total"]], expected: [0, 4]}
+      - {args: [["add 1", "add 1"]], expected: []}
+    solution: |
+      def run_commands(cmds):
+          state = {"total": 0}
+
+          def add(n):
+              state["total"] += int(n)
+
+          def sub(n):
+              state["total"] -= int(n)
+
+          def total():
+              return state["total"]
+
+          def reset():
+              state["total"] = 0
+
+          handlers = {"add": add, "sub": sub, "total": total, "reset": reset}
+          out = []
+          for line in cmds:
+              name, *args = line.split()
+              r = handlers[name](*args)
+              if r is not None:
+                  out.append(r)
+          return out
+  - id: s_levels
+    type: section
+    title_vi: "Thêm level mà không vỡ level cũ"
+    summary_vi: "Mỗi level là phần mở rộng; chọn cấu trúc đơn giản và chạy lại ví dụ cũ sau mỗi bước."
+  - id: t03
+    type: text
+    md: |
+      Ví dụ level 2 "top N theo chi tiêu". Hai hướng:
+
+      - **Tính khi hỏi**: giữ dict `spent`, khi gặp `top N` thì `sorted(...)` rồi cắt N phần tử.
+        Đơn giản, O(k log k) mỗi truy vấn; hợp khi truy vấn ít.
+      - **Duy trì sẵn**: giữ cấu trúc xếp hạng (heap/list có thứ tự) cập nhật mỗi lần `pay`.
+        Truy vấn nhanh hơn nhưng code phức tạp, dễ sai.
+
+      Bắt đầu với hướng đơn giản; chỉ nâng cấp nếu đề nêu giới hạn lớn. Luôn nêu rõ **tie-break**
+      (ví dụ cùng chi tiêu thì theo tên) vì đề thường bắt buộc điều này.
+
+      Quản lý thời gian: dành khoảng nửa thời lượng cho các level đầu, để lại thời gian chạy lại ví dụ
+      của mọi level trước khi nộp.
+  - id: q03
+    type: predict_output
+    code: |
+      ops = {"inc": lambda x: x + 1, "dbl": lambda x: x * 2}
+      v = 3
+      for name in ["inc", "dbl", "inc"]:
+          v = ops[name](v)
+          print(name, v)
+    expected_output: |
+      inc 4
+      dbl 8
+      inc 9
+    explain_md: "3 -> inc = 4 -> dbl = 8 -> inc = 9. Mỗi bước tra dict theo tên rồi gọi hàm."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Practical là bài nhiều level; mỗi level thêm yêu cầu lên code cũ, nên khả năng mở rộng quan trọng hơn tối ưu."
+      - "Playbook: đọc spec I/O, liệt kê operations, bản đơn giản trước, chạy ví dụ mỗi level."
+      - "Parse-then-dispatch: `name, *args = line.split()` rồi `handlers[name](*args)`; thêm lệnh = thêm method + một dòng dict."
+      - "Thêm level bằng cách mở rộng, không viết lại; chạy lại ví dụ cũ để tránh regression và nêu rõ tie-break."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [Q160], l2: [X537], l3: [X536]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"
