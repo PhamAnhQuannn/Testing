@@ -1,0 +1,168 @@
+id: dsa.practical.refactor_debug_review
+version: 1
+status: published
+title_vi: "Refactor, debug và code review (đọc code, tái hiện, khoanh vùng, sửa)"
+est_minutes: 14
+objectives_vi:
+  - "Đọc code lạ bằng cách chạy thử một ví dụ nhỏ và đối chiếu kết quả thực với kết quả mong đợi."
+  - "Tái hiện bug, khoanh vùng dần đến một dòng rồi sửa và thêm một test hồi quy cho đúng ca đó."
+  - "Nhận ra các bug hay gặp: off-by-one, sửa list khi đang duyệt, aliasing, tham số mặc định là list, quên sort, chia nguyên."
+  - "Review code theo checklist: correctness, edge cases, naming, tests."
+blocks:
+  - id: s_debug
+    type: section
+    title_vi: "Tái hiện, khoanh vùng và sửa bug"
+    summary_vi: "Chạy ví dụ nhỏ, so output với mong đợi, thu hẹp đến một dòng, sửa, rồi thêm test hồi quy."
+    exercise_ref: ex_fix
+  - id: t01
+    type: text
+    md: |
+      Vòng debug gồm bốn bước: **(1) tái hiện** bug bằng một input nhỏ nhất còn làm sai; **(2) khoanh vùng**
+      bằng `print` hoặc debugger để xem giá trị ở từng bước, thu hẹp dần đến một dòng; **(3) sửa** đúng chỗ đó;
+      **(4) thêm một test hồi quy (regression test)** cho đúng ca đã hỏng để bug không quay lại.
+
+      Khi đọc code lạ, đừng đọc từng dòng từ đầu: hãy **chạy thử với ví dụ nhỏ**, đọc hàm chính trước rồi mới
+      đọc hàm phụ. Hàm `median` dưới đây trông hợp lý, nhưng chạy vài ca là thấy ngay hai lỗi cùng lúc: không
+      sort, và chia nguyên `//` làm mất phần `.5`.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      def median(nums):
+          n = len(nums)
+          if n % 2 == 1:
+              return nums[n // 2]
+          return (nums[n // 2 - 1] + nums[n // 2]) // 2
+
+      print(median([1, 2, 3]))
+      print(median([3, 1, 2]))
+      print(median([1, 2, 4, 5]))
+      print(median([1, 2]))
+    expected_output: |
+      2
+      1
+      3
+      1
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Với `median` ở trên, `median([3, 1, 2])` trả `1` thay vì `2`. Nguyên nhân gần nhất là gì?"
+    options:
+      - {id: a, text_md: "Hàm lấy phần tử giữa của list chưa sort, nên phải sort trước khi lấy giữa"}
+      - {id: b, text_md: "Hàm dùng `n % 2 == 1` sai điều kiện lẻ"}
+      - {id: c, text_md: "Hàm bị lỗi tràn số (integer overflow)"}
+    answer: [a]
+    explain_md: "Median chỉ có nghĩa trên dãy đã sắp; `[3, 1, 2]` có phần tử giữa theo vị trí là 1, còn sau khi sort `[1, 2, 3]` thì là 2."
+  - id: ex_fix
+    type: code_exercise
+    md: |
+      Hàm `remove_evens(nums)` phải trả list chỉ còn các số lẻ, giữ nguyên thứ tự, nhưng bản dưới đây bị bug
+      (sửa list khi đang duyệt nó). Hãy sửa. Ví dụ `remove_evens([1, 2, 4, 6, 7])` là `[1, 7]`.
+    entry: remove_evens
+    starter: |
+      def remove_evens(nums):
+          # BUG: remove trong lúc for đang duyệt chính list này
+          for x in nums:
+              if x % 2 == 0:
+                  nums.remove(x)
+          return nums
+    guidance_md: |
+      - Chạy thử `[1, 2, 4, 6, 7]`: kết quả là `[1, 4, 7]`, còn sót số 4.
+      - Duyệt list thì index tăng lên, nhưng `remove` làm các phần tử dồn sang trái nên một phần tử bị bỏ qua.
+      - Đừng sửa list đang duyệt: dựng list mới chỉ chứa phần tử cần giữ.
+    hints:
+      - level: nudge
+        md: "Sau khi `remove(2)`, phần tử nào sẽ ở vị trí mà vòng for sắp đọc tiếp theo?"
+      - level: approach
+        md: "Không xóa trong lúc duyệt. Tạo list mới gồm các `x` thỏa điều kiện giữ lại."
+      - level: near_solution
+        md: "Dùng list comprehension `[x for x in nums if x % 2 != 0]` rồi trả nó."
+    tests:
+      - {args: [[1, 2, 4, 6, 7]], expected: [1, 7]}
+      - {args: [[2, 4, 6]], expected: []}
+      - {args: [[1, 3, 5]], expected: [1, 3, 5]}
+      - {args: [[]], expected: []}
+      - {args: [[2, 2, 2, 3, 2]], expected: [3]}
+    solution: |
+      def remove_evens(nums):
+          return [x for x in nums if x % 2 != 0]
+  - id: q02
+    type: predict_output
+    code: |
+      def remove_evens(nums):
+          for x in nums:
+              if x % 2 == 0:
+                  nums.remove(x)
+          return nums
+
+      print(remove_evens([1, 2, 4, 6, 7]))
+    expected_output: |
+      [1, 4, 7]
+    explain_md: "Sau khi xóa 2, list thành [1, 4, 6, 7] và vòng for đọc tiếp vị trí 2 là 6, bỏ qua 4. Xóa 6 xong thì kết quả [1, 4, 7]."
+  - id: s_review
+    type: section
+    title_vi: "Bug hay gặp và checklist review"
+    summary_vi: "Off-by-one, aliasing, tham số mặc định là list; review theo correctness, edge case, tên, test."
+  - id: t02
+    type: text
+    md: |
+      Vài bug lặp đi lặp lại: **off-by-one** (`range(1, len(nums) - 1)` bỏ sót phần tử cuối);
+      **aliasing** (`b = a` không tạo bản sao, hai tên cùng trỏ một list); **tham số mặc định là list**
+      (`def f(x, acc=[])` tạo list đúng một lần khi định nghĩa hàm nên mọi lời gọi dùng chung nó);
+      **sửa list khi đang duyệt**; và **chia nguyên** `//` khi cần chia thực.
+
+      **Checklist review:** (1) *correctness*: có chạy đúng trên ví dụ nhỏ không; (2) *edge cases*: rỗng,
+      một phần tử, trùng, âm; (3) *naming* và hàm có làm đúng một việc; (4) *tests*: có test cho đúng ca
+      vừa sửa không; (5) độ phức tạp: có hai vòng lồng nhau thay được bằng `set` hoặc `dict` không.
+      Khi **refactor**, giữ nguyên kết quả và chạy lại test sau mỗi bước nhỏ.
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      def add(x, acc=[]):
+          acc.append(x)
+          return acc
+
+      a = add(1)
+      b = add(2)
+      print(a, b, a is b)
+      print(add(3, []))
+    expected_output: |
+      [1, 2] [1, 2] True
+      [3]
+  - id: q03
+    type: quiz_fill
+    prompt_md: "Sau khi sửa một bug, ta nên thêm một test ___ cho đúng ca đã hỏng để bug không quay lại (tiếng Anh: regression)."
+    blanks: [{accept: ["regression", "hồi quy", "hoi quy"]}]
+    explain_md: "Regression test khóa chặt hành vi đúng của ca đã từng lỗi."
+  - id: q04
+    type: predict_output
+    code: |
+      def total_after_first(nums):
+          total = 0
+          for i in range(1, len(nums) - 1):
+              total += nums[i]
+          return total
+
+      print(total_after_first([5, 1, 2, 3]))
+      print(total_after_first([7]))
+    expected_output: |
+      3
+      0
+    explain_md: "range(1, 3) chỉ lấy chỉ số 1 và 2 (1 + 2 = 3); phần tử cuối (3) bị bỏ do off-by-one. Với một phần tử, range(1, 0) rỗng nên 0."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Debug: tái hiện bằng input nhỏ, khoanh vùng bằng print hoặc debugger, sửa đúng một chỗ, thêm test hồi quy."
+      - "Đọc code lạ: chạy thử ví dụ nhỏ, đọc hàm chính trước."
+      - "Bug hay gặp: off-by-one, sửa list khi duyệt, aliasing, tham số mặc định là list, quên sort, chia nguyên."
+      - "Review theo checklist (correctness, edge cases, naming, tests, độ phức tạp); refactor giữ nguyên kết quả và chạy lại test từng bước."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [Q165], l2: [X551], l3: [X552]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

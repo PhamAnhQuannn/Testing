@@ -1,0 +1,163 @@
+id: dsa.practical.ai_assisted_coding
+version: 1
+status: published
+title_vi: "Vòng code có hỗ trợ AI (AI-assisted coding): prompt, đọc, kiểm chứng, sửa"
+est_minutes: 14
+objectives_vi:
+  - "Viết prompt đủ ngữ cảnh: đề bài, ràng buộc, ví dụ vào/ra và các trường hợp biên cần xử lý."
+  - "Đọc kỹ đoạn code AI đề xuất và chạy thử trên input biên (rỗng, 0, âm, một phần tử) trước khi nhận."
+  - "Nhận ra lỗi hay gặp của code AI: sót trường hợp biên, sai kiểu kết quả, gọi API không tồn tại (hallucination)."
+  - "Sửa gợi ý sai rồi giải thích được từng dòng; không bao giờ dán nguyên xi."
+blocks:
+  - id: s_prompt
+    type: section
+    title_vi: "Prompt đủ ngữ cảnh và đọc kết quả"
+    summary_vi: "Prompt tốt nêu rõ đầu vào, đầu ra, biên và test; sau đó đọc code như đọc code của đồng nghiệp."
+    exercise_ref: ex_fix
+  - id: t01
+    type: text
+    md: |
+      Ở vòng **AI-assisted coding**, người phỏng vấn chấm *cách bạn làm việc với trợ lý*, không phải tốc độ gõ.
+      Một **prompt** tốt gồm: (1) mô tả bài ngắn gọn, (2) kiểu dữ liệu vào/ra, (3) ràng buộc và **trường hợp biên**
+      (danh sách rỗng, `0`, số âm, một phần tử), (4) vài ví dụ vào/ra. Chia nhỏ việc: nhờ một hàm một lần
+      thay vì "viết cả chương trình".
+
+      Nhưng AI đề xuất thì **bạn chịu trách nhiệm**. Quy trình an toàn: đọc từng dòng, tự nghĩ ra 3-4 input biên,
+      chạy thử, rồi mới nhận. Lỗi hay gặp là code đúng với ví dụ đẹp nhưng sai ở biên, trả sai kiểu
+      (`2.0` thay vì `2`), hoặc gọi hàm **không tồn tại** (ví dụ `list.flatten()`), loại lỗi này gọi là
+      *hallucination*. Đừng dán nguyên xi; nếu không giải thích được một dòng thì hỏi lại hoặc viết lại.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      # Gợi ý của trợ lý: trung vị (median)
+      def median(nums):
+          s = sorted(nums)
+          return s[len(s) // 2]
+
+      print(median([3, 1, 2]))      # ví dụ đẹp: đúng
+      print(median([4, 1, 3, 2]))   # độ dài chẵn: đúng phải là 2.5
+      try:
+          median([])
+      except IndexError:
+          print("IndexError")
+    expected_output: |
+      2
+      3
+      IndexError
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      # Sau khi test biên, ta sửa: xử lý rỗng và độ dài chẵn
+      def median(nums):
+          if not nums:
+              return None
+          s = sorted(nums)
+          m = len(s) // 2
+          return s[m] if len(s) % 2 else (s[m - 1] + s[m]) / 2
+
+      print(median([3, 1, 2]), median([4, 1, 3, 2]), median([]))
+    expected_output: |
+      2 2.5 None
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Trợ lý AI đưa code chạy đúng trên ví dụ trong đề. Bước nào nên làm TIẾP THEO?"
+    options:
+      - {id: a, text_md: "Tự nghĩ input biên (rỗng, 0, số âm, một phần tử) và chạy thử, đồng thời đọc lại từng dòng"}
+      - {id: b, text_md: "Nộp luôn vì ví dụ đã đúng"}
+      - {id: c, text_md: "Nhờ AI tự xác nhận là code của nó đúng rồi nộp"}
+    answer: [a]
+    explain_md: "Ví dụ đẹp không chứng minh code đúng; người nhận code phải tự kiểm chứng ở biên và hiểu từng dòng."
+  - id: ex_fix
+    type: code_exercise
+    md: |
+      Trợ lý viết `mean_of_last(nums, k)`: trung bình của `k` phần tử cuối. Nó sai khi `k <= 0`, khi `k` lớn hơn
+      độ dài, và khi `nums` rỗng. Hãy sửa: nếu `k <= 0` hoặc `nums` rỗng trả `0`; nếu `k > len(nums)` lấy trung bình
+      cả danh sách; kết quả là `int` khi chia hết, ngược lại là `float`.
+    entry: mean_of_last
+    starter: |
+      def mean_of_last(nums, k):
+          # Bản AI đề xuất: sai ở các trường hợp biên
+          return sum(nums[-k:]) / k
+    guidance_md: |
+      - Xử lý `k <= 0` và `nums` rỗng ngay đầu hàm (tránh chia cho 0).
+      - Với `k > len(nums)`, slice `nums[-k:]` tự lấy cả danh sách, nhưng chia cho `len` thật chứ không chia cho `k`.
+      - Dùng `total % n == 0` để chọn `//` (int) hay `/` (float).
+    hints:
+      - level: nudge
+        md: "Thử `mean_of_last([5], 0)` và `mean_of_last([1, 2], 5)` trên bản AI: chuyện gì xảy ra với phép chia?"
+      - level: approach
+        md: "Lấy `window = nums[-k:]` (sau khi chặn `k <= 0`), rồi chia tổng cho `len(window)`."
+      - level: near_solution
+        md: "Sau `if k <= 0 or not nums: return 0`, tính `total = sum(window)`, `n = len(window)` và trả `total // n if total % n == 0 else total / n`."
+    tests:
+      - {args: [[1, 2, 3, 4], 2], expected: 3.5}
+      - {args: [[1, 2, 3], 3], expected: 2}
+      - {args: [[5], 0], expected: 0}
+      - {args: [[], 2], expected: 0}
+      - {args: [[1, 2], 5], expected: 1.5}
+    solution: |
+      def mean_of_last(nums, k):
+          if k <= 0 or not nums:
+              return 0
+          window = nums[-k:]
+          total, n = sum(window), len(window)
+          return total // n if total % n == 0 else total / n
+  - id: s_verify
+    type: section
+    title_vi: "Kiểm chứng, giữ quyền kiểm soát"
+    summary_vi: "Test biên, bắt hallucination, đi từng bước nhỏ và nói to lý do."
+  - id: t02
+    type: text
+    md: |
+      **Kiểm chứng** theo vòng nhỏ: yêu cầu một đoạn, đọc diff, chạy test, rồi mới xin đoạn tiếp. Khi phỏng vấn,
+      hãy **nói to** bạn đã yêu cầu gì và vì sao nhận hay sửa một dòng, đó là phần được chấm. Biết lúc *không*
+      dùng AI cũng là phán đoán tốt: bài ngắn, bạn đã nắm rõ thì tự viết nhanh hơn.
+
+      Các lỗi AI hay mắc cần soi: lệch một (off-by-one, như `range(len(nums) - k)` bỏ sót cửa sổ cuối),
+      quên trường hợp rỗng, trả sai kiểu, và dùng API không có thật. Đọc tài liệu hoặc chạy thử để xác minh API.
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Khi AI gọi một hàm hoặc phương thức không hề tồn tại trong thư viện, ta gọi đó là ___ (một từ tiếng Anh)."
+    blanks: [{accept: ["hallucination", "hallucinate", "ảo giác"]}]
+    explain_md: "Hallucination: mô hình bịa ra API/kết quả nghe hợp lý nhưng không có thật; cách phát hiện là chạy thử và đối chiếu tài liệu."
+  - id: q03
+    type: predict_output
+    code: |
+      def moving_avg(nums, k):
+          out = []
+          for i in range(len(nums) - k):
+              out.append(sum(nums[i:i + k]) / k)
+          return out
+
+      print(moving_avg([1, 2, 3, 4, 5], 2))
+      print(moving_avg([1, 2], 2))
+    expected_output: |
+      [1.5, 2.5, 3.5]
+      []
+    explain_md: "Vòng lặp chỉ chạy `len - k` lần nên bỏ sót cửa sổ cuối (đúng phải là `len - k + 1`): với 5 phần tử, k=2 chỉ có 3 cửa sổ thay vì 4, và [1, 2] cho kết quả rỗng."
+  - id: q04
+    type: predict_output
+    code: |
+      print(sum([1, 2, 4]) // 3, sum([-1, -2, -4]) // 3)
+    expected_output: |
+      2 -3
+    explain_md: "`//` làm tròn xuống: 7 // 3 = 2 và -7 // 3 = -3 (không phải -2). Một ví dụ nữa về biên cần test với số âm."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Prompt tốt: mô tả bài, kiểu vào/ra, ràng buộc, trường hợp biên và ví dụ; chia việc thành bước nhỏ."
+      - "Đọc code AI như code của đồng nghiệp và tự chạy input biên (rỗng, 0, âm, một phần tử) trước khi nhận."
+      - "Lỗi hay gặp: sót biên, off-by-one, sai kiểu kết quả, API không tồn tại (hallucination)."
+      - "Bạn chịu trách nhiệm từng dòng nhận vào: giải thích được, nói to lý do, không dán nguyên xi."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [Q173], l2: [X553], l3: [X554]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

@@ -1,0 +1,232 @@
+id: dsa.practical.oop_coding
+version: 1
+status: published
+title_vi: "Vòng code kiểu OOP: thiết kế class nhỏ"
+est_minutes: 13
+objectives_vi:
+  - "Biến các danh từ trong đề thành class, mỗi class giữ state riêng và có trách nhiệm rõ ràng."
+  - "Dùng encapsulation: state private (`_x`), chỉ đổi qua method đã kiểm tra dữ liệu vào."
+  - "Cài `__eq__` và `__hash__` cho value object, và ném exception khi thao tác không hợp lệ."
+  - "Phân biệt method trả giá trị với method đổi state, và giữ độ phức tạp từng method nhỏ."
+blocks:
+  - id: s_state
+    type: section
+    title_vi: "Class, state và encapsulation"
+    summary_vi: "Mỗi class giữ state trong thuộc tính riêng và chỉ cho đổi qua method đã kiểm tra."
+    exercise_ref: ex_group
+  - id: t01
+    type: text
+    md: |
+      Vòng code OOP thường cho một đề ngắn ("hệ thống bãi đỗ xe", "giỏ hàng", "ma trận") và yêu cầu
+      thiết kế vài class nhỏ trong khoảng 45 phút. Cách làm ổn định:
+
+      - **Gạch chân danh từ** trong đề: mỗi danh từ có hành vi riêng thường là một class.
+      - **Gạch chân động từ**: mỗi động từ là một method của class sở hữu dữ liệu đó.
+      - **Encapsulation**: state để ở `self._x` (quy ước private), bên ngoài chỉ gọi method. Method
+        kiểm tra dữ liệu vào rồi mới đổi state, nên object luôn ở trạng thái hợp lệ.
+      - **Exception** cho thao tác không hợp lệ (`ValueError`, `KeyError`) thay vì trả giá trị mơ hồ.
+      - Giữ **đơn giản** (YAGNI): chưa ai yêu cầu thì chưa thêm class hay interface.
+
+      Method đổi state thường trả `None` (hoặc `self` nếu muốn gọi nối); method truy vấn thì không
+      đổi state. Tách hai loại này giúp test bằng public API dễ hơn.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class Counter:
+          def __init__(self):
+              self._n = 0
+
+          def inc(self, k=1):
+              if k <= 0:
+                  raise ValueError("k must be positive")
+              self._n += k
+              return self
+
+          @property
+          def value(self):
+              return self._n
+
+
+      c = Counter()
+      c.inc().inc(3)
+      print(c.value)
+      try:
+          c.inc(0)
+      except ValueError as e:
+          print("error:", e)
+      print(c.value)
+    expected_output: |
+      4
+      error: k must be positive
+      4
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Vì sao nên đặt state ở `self._balance` và chỉ đổi qua `withdraw()` thay vì cho code ngoài gán thẳng?"
+    options:
+      - {id: a, text_md: "Để method kiểm tra dữ liệu (ví dụ không rút quá số dư) trước khi đổi state"}
+      - {id: b, text_md: "Vì Python chặn hẳn truy cập thuộc tính bắt đầu bằng `_`"}
+      - {id: c, text_md: "Để chương trình chạy nhanh hơn"}
+    answer: [a]
+    explain_md: "`_` chỉ là quy ước, Python không chặn. Lợi ích là mọi thay đổi đi qua một cửa có kiểm tra, nên object luôn hợp lệ."
+  - id: q02
+    type: predict_output
+    code: |
+      class Temp:
+          def __init__(self):
+              self._c = 0
+
+          def set(self, v):
+              if v < -273:
+                  raise ValueError("too cold")
+              self._c = v
+
+
+      t = Temp()
+      t.set(5)
+      try:
+          t.set(-300)
+      except ValueError:
+          pass
+      print(t._c)
+    expected_output: |
+      5
+    explain_md: "`set(-300)` ném `ValueError` trước khi gán, nên `_c` vẫn là 5."
+  - id: ex_group
+    type: code_exercise
+    md: |
+      Viết `group_by_key(pairs)`: `pairs` là danh sách cặp `[key, value]`. Trả về dict ánh xạ mỗi key
+      tới danh sách value theo thứ tự xuất hiện. Ví dụ `[["a", 1], ["b", 2], ["a", 3]]` cho
+      `{"a": [1, 3], "b": [2]}`. Bản dưới đây ghi đè danh sách cũ thay vì thêm vào. Hãy sửa.
+    entry: group_by_key
+    starter: |
+      def group_by_key(pairs):
+          groups = {}
+          for key, value in pairs:
+              groups[key] = [value]
+          return groups
+    guidance_md: |
+      - Thử `[["a", 1], ["a", 3]]`: đáp án `{"a": [1, 3]}`, code trả `{"a": [3]}`.
+      - Cần tạo danh sách rỗng khi gặp key lần đầu, sau đó `append`.
+    hints:
+      - level: nudge
+        md: "Khi key `a` xuất hiện lần thứ hai, dòng gán `groups[key] = [value]` làm gì với danh sách cũ?"
+      - level: approach
+        md: "Nếu key chưa có trong `groups` thì tạo danh sách rỗng cho nó. Sau đó luôn `append(value)` vào danh sách của key."
+      - level: near_solution
+        md: "Dùng `groups.setdefault(key, []).append(value)` thay cho dòng gán, hoặc kiểm tra `if key not in groups: groups[key] = []` rồi `groups[key].append(value)`."
+    tests:
+      - {args: [[]], expected: {}}
+      - {args: [[["a", 1], ["b", 2], ["a", 3]]], expected: {"a": [1, 3], "b": [2]}}
+      - {args: [[["x", 1]]], expected: {"x": [1]}}
+      - {args: [[["k", 1], ["k", 1], ["k", 2]]], expected: {"k": [1, 1, 2]}}
+    solution: |
+      def group_by_key(pairs):
+          groups = {}
+          for key, value in pairs:
+              groups.setdefault(key, []).append(value)
+          return groups
+  - id: s_value
+    type: section
+    title_vi: "Value object, exception và mở rộng"
+    summary_vi: "Value object so sánh theo nội dung; thao tác sai ném exception; yêu cầu mới nên chỉ cần thêm code."
+    exercise_ref: ex_stock
+  - id: t02
+    type: text
+    md: |
+      **Value object** (điểm, tiền, toạ độ) bằng nhau khi nội dung bằng nhau, không phải khi cùng
+      địa chỉ. Muốn vậy cài `__eq__`; và nếu object dùng làm key của dict/set thì cài thêm
+      `__hash__` nhất quán với `__eq__` (cùng dữ liệu thì cùng hash). Nên để value object bất biến.
+
+      **Hai tên cùng trỏ một object**: `b = a` không sao chép, nên đổi qua `b` thì `a` thấy thay đổi.
+
+      **Mở rộng theo yêu cầu mới (open/closed)**: khi interviewer thêm yêu cầu ("giảm giá theo
+      mùa"), ưu tiên thêm class/hàm mới (strategy) thay vì chèn `if` vào mọi method cũ. Trước đó chỉ
+      cần thiết kế đủ sạch: mỗi method làm một việc, state ở một chỗ.
+
+      Độ phức tạp: method trên `dict` thường O(1); duyệt toàn bộ state (ví dụ `total()` cộng mọi dòng)
+      là O(n). Nói rõ điều này khi trình bày.
+  - id: q03
+    type: predict_output
+    code: |
+      class Point:
+          def __init__(self, x, y):
+              self.x = x
+              self.y = y
+
+          def __eq__(self, other):
+              return (self.x, self.y) == (other.x, other.y)
+
+          def __hash__(self):
+              return hash((self.x, self.y))
+
+
+      print(len({Point(1, 2), Point(1, 2), Point(2, 1)}))
+      print(Point(1, 2) == Point(1, 2), Point(1, 2) is Point(1, 2))
+    expected_output: |
+      2
+      True False
+    explain_md: "Hai `Point(1, 2)` bằng nhau và cùng hash nên set chỉ giữ một; cùng với `Point(2, 1)` là 2 phần tử. `is` so sánh địa chỉ nên là `False`."
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Cài `__eq__` cho class dùng làm key của dict hoặc phần tử của set thì cũng phải cài thêm method ___ để hai object bằng nhau có cùng hash."
+    blanks: [{accept: ["__hash__", "hash"]}]
+    explain_md: "Khi chỉ định nghĩa `__eq__`, Python đặt `__hash__` thành `None` nên object không hashable. Cần định nghĩa `__hash__` nhất quán với `__eq__`."
+  - id: ex_stock
+    type: code_exercise
+    md: |
+      Viết `stock_after(ops)`: `ops` là danh sách thao tác `[kind, item, qty]` với `kind` là `"add"`
+      hoặc `"remove"`. `add` cộng `qty` vào tồn kho của `item`. `remove` chỉ trừ khi tồn kho đủ
+      (`>= qty`); không đủ thì bỏ qua thao tác. Item có tồn kho 0 sau khi trừ vẫn được giữ trong kết quả
+      với giá trị 0. Trả về dict `{item: tồn kho}`. Bản dưới đây trừ cả khi không đủ. Hãy sửa.
+    entry: stock_after
+    starter: |
+      def stock_after(ops):
+          stock = {}
+          for kind, item, qty in ops:
+              if kind == "add":
+                  stock[item] = stock.get(item, 0) + qty
+              else:
+                  stock[item] = stock.get(item, 0) - qty
+          return stock
+    guidance_md: |
+      - Thử `[["add", "a", 2], ["remove", "a", 5]]`: đáp án `{"a": 2}`, code trả `{"a": -3}`.
+      - Chỉ trừ khi `stock.get(item, 0) >= qty`; ngược lại bỏ qua.
+    hints:
+      - level: nudge
+        md: "Tồn kho có thể âm không? Thao tác `remove` nào nên bị bỏ qua?"
+      - level: approach
+        md: "Trước khi trừ, lấy tồn kho hiện tại `stock.get(item, 0)` và so với `qty`. Chỉ khi đủ mới cập nhật."
+      - level: near_solution
+        md: "Trong nhánh `remove`, thêm `if stock.get(item, 0) >= qty:` rồi mới gán `stock[item] = stock[item] - qty`. Lưu ý remove item chưa từng có với `qty > 0` thì bị bỏ qua và không tạo khoá mới."
+    tests:
+      - {args: [[]], expected: {}}
+      - {args: [[["add", "a", 2], ["remove", "a", 5]]], expected: {"a": 2}}
+      - {args: [[["add", "a", 3], ["remove", "a", 3]]], expected: {"a": 0}}
+      - {args: [[["remove", "z", 1]]], expected: {}}
+      - {args: [[["add", "a", 1], ["add", "b", 4], ["add", "a", 2], ["remove", "b", 1]]], expected: {"a": 3, "b": 3}}
+    solution: |
+      def stock_after(ops):
+          stock = {}
+          for kind, item, qty in ops:
+              if kind == "add":
+                  stock[item] = stock.get(item, 0) + qty
+              elif stock.get(item, 0) >= qty:
+                  stock[item] = stock[item] - qty
+          return stock
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Danh từ trong đề thành class, động từ thành method; state ở `self._x` và chỉ đổi qua method có kiểm tra."
+      - "Thao tác không hợp lệ thì ném exception; method đổi state tách khỏi method truy vấn."
+      - "Value object cài `__eq__` cùng `__hash__`; `b = a` chỉ thêm tên, không sao chép."
+      - "Giữ đơn giản (YAGNI) và để yêu cầu mới chỉ cần thêm class/hàm thay vì sửa lan."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X548], l2: [X549], l3: [X550]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"
