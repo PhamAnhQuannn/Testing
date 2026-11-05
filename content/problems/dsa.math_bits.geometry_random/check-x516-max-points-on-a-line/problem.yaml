@@ -1,0 +1,73 @@
+id: check-x516-max-points-on-a-line
+subtopic_id: dsa.math_bits.geometry_random
+secondary_subtopics: []
+kind: check
+title: 'Check X516: max_points'
+title_vi: 'Kiểm tra X516: max_points'
+difficulty: easy
+source:
+  type: leetcode
+  lc: 149
+  rewrite_required: true
+statement_en_md: |
+  Given `points[i] = [x, y]` on a 2D plane (duplicates allowed), return the maximum number of points that lie
+  on the same straight line. Compare slopes exactly as reduced fractions `(dy / g, dx / g)` with
+  `g = gcd(|dx|, |dy|)` and a fixed sign convention, never as floating-point numbers.
+statement_vi_md: |
+  Viết `max_points(points)`: `points[i] = [x, y]` là các điểm trên mặt phẳng (có thể trùng nhau). Trả về số
+  điểm nhiều nhất cùng nằm trên một đường thẳng. Hãy so sánh độ dốc bằng phân số rút gọn `(dy / g, dx / g)`
+  với `g = gcd(|dx|, |dy|)` và một quy ước dấu cố định, không dùng số thực (float).
+constraints:
+- 1 <= n <= 300
+- -10000 <= x, y <= 10000
+- Các điểm có thể trùng nhau
+examples:
+- input: points = [[1, 1], [2, 2], [3, 3]]
+  output: '3'
+  explain_vi: Ba điểm cùng nằm trên đường y = x nên đáp án là 3.
+io:
+  mode: function
+  entry: max_points
+  params:
+  - name: points
+    type: list[list[int]]
+  returns: int
+  compare: exact
+starter:
+  python: |
+    def max_points(points):
+        # TODO: với mỗi điểm neo, đếm theo độ dốc rút gọn (dy/g, dx/g)
+        n = len(points)
+        best = min(n, 2)
+        for i in range(n):
+            counts = {}
+            for j in range(i + 1, n):
+                dx = points[j][0] - points[i][0]
+                dy = points[j][1] - points[i][1]
+                key = dy / dx if dx else None
+                counts[key] = counts.get(key, 0) + 1
+                best = max(best, counts[key] + 1)
+        return best
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+time_target_min: 10
+hints:
+- Hai điểm bất kỳ luôn tạo một đường thẳng. Cố định một điểm neo i rồi đếm các điểm j sau nó theo hướng (độ dốc) từ i tới j.
+- Dùng float dy / dx dễ sai vì làm tròn, và chia cho 0 với đường thẳng đứng. Hãy lưu độ dốc dạng cặp số nguyên (dy // g, dx // g) với g = gcd(|dx|, |dy|), chuẩn hóa dấu để dx > 0 (hoặc dx = 0 và dy > 0).
+- "Với mỗi neo i: duyệt j > i; nếu trùng điểm thì tăng dup; ngược lại tăng counts[(dy, dx)]. Đáp án cho neo i là max(counts) + dup + 1; lấy max qua mọi i (n <= 2 trả thẳng n)."
+solution:
+  file: solution.py
+  approach_vi: Với mỗi điểm neo, đếm số điểm sau nó theo độ dốc là phân số rút gọn chuẩn hóa dấu, cộng thêm điểm trùng; lấy max.
+  complexity: O(n^2 log C) / O(n)
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x516
+status: validated
+version: 1

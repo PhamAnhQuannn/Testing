@@ -1,0 +1,196 @@
+id: dsa.math_bits.geometry_random
+version: 1
+status: published
+title_vi: "Hình học cơ bản và ý tưởng lấy mẫu"
+est_minutes: 13
+objectives_vi:
+  - "Tính khoảng cách Manhattan, Chebyshev và bình phương Euclid giữa hai điểm bằng số nguyên."
+  - "Dùng tích có hướng (cross product) để xác định ba điểm rẽ trái, rẽ phải hay thẳng hàng."
+  - "So sánh độ dốc bằng phân số rút gọn (dy/g, dx/g) thay vì số thực để tránh sai số float."
+  - "Hiểu ý tưởng lấy mẫu ngẫu nhiên (shuffle, reservoir sampling) ở mức khái niệm."
+blocks:
+  - id: s_dist
+    type: section
+    title_vi: "Khoảng cách và tích có hướng"
+    summary_vi: "Ba loại khoảng cách đều tính được bằng số nguyên; dấu của tích có hướng cho biết hướng rẽ."
+    exercise_ref: ex_manhattan
+  - id: t01
+    type: text
+    md: |
+      Với hai điểm `a = (x1, y1)`, `b = (x2, y2)`, đặt `dx = x2 - x1`, `dy = y2 - y1`:
+
+      - **Manhattan**: `|dx| + |dy|` (chỉ đi ngang/dọc).
+      - **Chebyshev**: `max(|dx|, |dy|)` (được đi chéo, mỗi bước đổi cả hai tọa độ).
+      - **Euclid bình phương**: `dx*dx + dy*dy`. So sánh khoảng cách thì không cần lấy căn, nên tránh được float.
+
+      **Tích có hướng (cross product)** của `o`, `a`, `b`:
+      `cross(o, a, b) = (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x)`.
+
+      - `> 0`: đi `o -> a -> b` rẽ **trái** (ngược chiều kim đồng hồ).
+      - `< 0`: rẽ **phải**.
+      - `== 0`: ba điểm **thẳng hàng**.
+
+      Giá trị tuyệt đối bằng hai lần diện tích tam giác `o, a, b`, và toàn bộ phép tính chỉ dùng số nguyên.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      def cross(o, a, b):
+          return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+
+      print(cross((0, 0), (4, 0), (4, 3)))
+      print(cross((0, 0), (4, 0), (4, -3)))
+      print(cross((0, 0), (2, 2), (5, 5)))
+    expected_output: |
+      12
+      -12
+      0
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Cho `o = (0, 0)`, `a = (4, 0)`, `b = (4, 3)`. Tích có hướng là 12 (dương). Đi `o -> a -> b` là hướng nào?"
+    options:
+      - {id: a, text_md: "Rẽ trái (ngược chiều kim đồng hồ)"}
+      - {id: b, text_md: "Rẽ phải (cùng chiều kim đồng hồ)"}
+      - {id: c, text_md: "Ba điểm thẳng hàng"}
+    answer: [a]
+    explain_md: "Đi từ gốc sang phải rồi lên trên là rẽ trái. Cross dương tương ứng rẽ trái, âm là rẽ phải, bằng 0 là thẳng hàng."
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Tính `cross((0, 0), (1, 2), (3, 1))` = 1*1 - 2*3 = ___."
+    blanks: [{accept: ["-5"]}]
+    explain_md: "(1 - 0) * (1 - 0) - (2 - 0) * (3 - 0) = 1 - 6 = -5, nên đây là rẽ phải."
+  - id: ex_manhattan
+    type: code_exercise
+    md: |
+      Viết `manhattan(a, b)`: trả về khoảng cách Manhattan `|x1 - x2| + |y1 - y2|` của hai điểm `a`, `b`
+      (mỗi điểm là cặp `[x, y]`). Ví dụ `manhattan([0, 0], [3, 4])` là `7`. Bản dưới đây trả về
+      khoảng cách Chebyshev nên sai. Hãy sửa.
+    entry: manhattan
+    starter: |
+      def manhattan(a, b):
+          dx = abs(a[0] - b[0])
+          dy = abs(a[1] - b[1])
+          return max(dx, dy)
+    guidance_md: |
+      - Thử `manhattan([0, 0], [3, 4])`: đáp án là 7 nhưng code trả 4.
+      - Manhattan cộng hai độ lệch, không lấy max.
+    hints:
+      - level: nudge
+        md: "Đi ngang rồi đi dọc tốn bao nhiêu bước tổng cộng?"
+      - level: approach
+        md: "Manhattan là tổng hai độ lệch tuyệt đối theo x và theo y. Max là khoảng cách của kiểu đi chéo được."
+      - level: near_solution
+        md: "Đổi dòng `return max(dx, dy)` thành phép cộng hai độ lệch `dx` và `dy`."
+    tests:
+      - {args: [[0, 0], [3, 4]], expected: 7}
+      - {args: [[1, 1], [1, 1]], expected: 0}
+      - {args: [[-2, 5], [3, -1]], expected: 11}
+      - {args: [[0, 0], [0, 9]], expected: 9}
+    solution: |
+      def manhattan(a, b):
+          return abs(a[0] - b[0]) + abs(a[1] - b[1])
+  - id: s_slope
+    type: section
+    title_vi: "Độ dốc chính xác và lấy mẫu"
+    summary_vi: "Độ dốc là phân số rút gọn có chuẩn hóa dấu; lấy mẫu ngẫu nhiên chỉ cần nắm ý tưởng."
+    exercise_ref: ex_orient
+  - id: t02
+    type: text
+    md: |
+      Đếm các điểm thẳng hàng (ví dụ Max Points on a Line) cần so sánh **độ dốc**. Dùng `dy / dx` kiểu
+      float dễ sai vì làm tròn (`0.1 + 0.2 != 0.3`) và chia cho 0 khi đường thẳng đứng. Cách chính xác:
+
+      1. `g = gcd(|dx|, |dy|)`, rồi `dx //= g`, `dy //= g`.
+      2. Chuẩn hóa dấu: nếu `dx < 0` hoặc (`dx == 0` và `dy < 0`) thì đổi dấu cả hai.
+      3. Dùng cặp `(dy, dx)` làm khóa trong dict; mỗi điểm neo có một dict riêng.
+
+      **Phần "random"** của chủ đề này chỉ cần nắm ý tưởng, không cần code: **Fisher-Yates shuffle** hoán
+      vị đều (mỗi hoán vị xác suất như nhau), **reservoir sampling** chọn đều một phần tử từ luồng không biết
+      độ dài, và chọn có trọng số dùng prefix sum cộng binary search. Vì kết quả ngẫu nhiên không lặp lại,
+      các bài chấm tự động ở đây chỉ dùng phép toán xác định (deterministic).
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      from math import gcd
+
+      def slope(p, q):
+          dx, dy = q[0] - p[0], q[1] - p[1]
+          g = gcd(abs(dx), abs(dy))
+          dx //= g
+          dy //= g
+          if dx < 0 or (dx == 0 and dy < 0):
+              dx, dy = -dx, -dy
+          return (dy, dx)
+
+      print(slope((0, 0), (2, 4)))
+      print(slope((0, 0), (-1, -2)))
+      print(slope((1, 1), (1, 5)))
+      print(0.1 + 0.2 == 0.3)
+    expected_output: |
+      (2, 1)
+      (2, 1)
+      (1, 0)
+      False
+  - id: q03
+    type: predict_output
+    code: |
+      pts = [(0, 0), (3, 2), (3, -1)]
+      t = 0
+      for p, q in zip(pts, pts[1:]):
+          t += max(abs(q[0] - p[0]), abs(q[1] - p[1]))
+      print(t)
+    expected_output: |
+      6
+    explain_md: "Đoạn (0,0)->(3,2) có max(3,2)=3; đoạn (3,2)->(3,-1) có max(0,3)=3. Tổng là 6."
+  - id: ex_orient
+    type: code_exercise
+    md: |
+      Viết `orientation(a, b, c)`: trả `1` nếu đi `a -> b -> c` rẽ trái (cross dương), `-1` nếu rẽ phải
+      (cross âm), `0` nếu thẳng hàng. Mỗi điểm là cặp `[x, y]`. Bản dưới đây trả luôn giá trị cross thay vì
+      dấu của nó. Hãy sửa.
+    entry: orientation
+    starter: |
+      def orientation(a, b, c):
+          return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+    guidance_md: |
+      - Thử `a = [0, 0]`, `b = [4, 0]`, `c = [4, 3]`: đáp án là 1 nhưng code trả 12.
+      - Chỉ cần dấu của cross, không cần độ lớn.
+    hints:
+      - level: nudge
+        md: "Bài chỉ hỏi hướng rẽ, vậy độ lớn của cross có cần giữ lại không?"
+      - level: approach
+        md: "Tính cross vào một biến, sau đó trả 1 nếu dương, -1 nếu âm, 0 nếu bằng 0."
+      - level: near_solution
+        md: "Gán cross cho biến `v`, rồi dùng `if v > 0` / `elif v < 0` / còn lại để trả `1`, `-1`, `0`."
+    tests:
+      - {args: [[0, 0], [4, 0], [4, 3]], expected: 1}
+      - {args: [[0, 0], [4, 0], [4, -3]], expected: -1}
+      - {args: [[0, 0], [2, 2], [5, 5]], expected: 0}
+      - {args: [[1, 1], [1, 3], [0, 2]], expected: 1}
+      - {args: [[2, 3], [2, 3], [7, 1]], expected: 0}
+    solution: |
+      def orientation(a, b, c):
+          v = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+          if v > 0:
+              return 1
+          if v < 0:
+              return -1
+          return 0
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Manhattan = |dx| + |dy|; Chebyshev = max(|dx|, |dy|); so sánh Euclid dùng dx*dx + dy*dy, không cần căn."
+      - "cross(o, a, b) dương là rẽ trái, âm là rẽ phải, 0 là thẳng hàng; toàn số nguyên nên chính xác."
+      - "Độ dốc dùng phân số rút gọn (dy/g, dx/g) với g = gcd và chuẩn hóa dấu, không dùng float."
+      - "Shuffle, reservoir sampling, chọn có trọng số là ý tưởng lấy mẫu; bài chấm tự động dùng phép toán xác định."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X514], l2: [X515], l3: [X516]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

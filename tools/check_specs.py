@@ -434,6 +434,32 @@ EXTRA_INPUTS: dict[str, list[list]] = {
         [[[5, 0, 10]], 5],
         [[[2, 1, 3], [3, 3, 5]], 4],
     ],
+    # Wave 2 Round 15: bit_basics. popcount (int), single_number (list[int], every value twice
+    # except one), max_unique_len (list[str]); first input is the edge, distinct from driver calls.
+    "Q158": [
+        [1],
+        [3],
+        [255],
+        [1023],
+        [65536],
+        [4095],
+    ],
+    "Q159": [
+        [[5]],
+        [[3, 3, 9]],
+        [[1, 2, 2, 1, 8]],
+        [[-4, -4, -7]],
+        [[10, 20, 10]],
+        [[0, 0, 5]],
+    ],
+    "Q260": [
+        [[]],
+        [["a"]],
+        [["ab", "cd"]],
+        [["abc", "abc"]],
+        [["a", "b", "c", "d"]],
+        [["xy", "yz", "zx"]],
+    ],
 }
 
 
@@ -1135,5 +1161,22 @@ SPECIAL: dict[str, dict] = {
         "target": "TTLCache",
         "keep": ["TTLCache"],
         "tests": ttlcache_tests(),
+    },
+    # Wave 2 Round 15: W217 defines two functions (missing_number + is_pow2); the driver calls both,
+    # so it is not plain-JSON replayable. Grade only missing_number; keep both in the solution.
+    "W217": {
+        "target": "missing_number",
+        "keep": ["missing_number", "is_pow2"],
+        "params": [("nums", "list[int]")],
+        "calls": [[[3, 0, 1]], [[0, 1]]],
+        "extras": [
+            [[0]],
+            [[1, 0]],
+            [[0, 2, 3, 1]],
+            [[2, 0, 1]],
+            [[0, 1, 2, 3, 5, 4, 6]],
+            [[4, 3, 2, 1, 0]],
+        ],
+        "note": "Bản chấm tự động chỉ kiểm tra `missing_number`; `is_pow2` không được chấm.",
     },
 }

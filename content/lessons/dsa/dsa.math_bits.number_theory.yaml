@@ -1,0 +1,223 @@
+id: dsa.math_bits.number_theory
+version: 1
+status: published
+title_vi: "Số học (number theory)"
+est_minutes: 15
+objectives_vi:
+  - "Tính gcd bằng thuật toán Euclid và suy ra lcm = a * b // gcd(a, b)."
+  - "Kiểm tra số nguyên tố trong O(sqrt n) và liệt kê nhiều số nguyên tố bằng Sieve of Eratosthenes."
+  - "Dùng lũy thừa nhanh (binary exponentiation) với mod để tính a^b mod m trong O(log b)."
+  - "Nắm quy tắc lấy mod: cộng và nhân lấy mod từng bước, nhưng không chia trực tiếp."
+blocks:
+  - id: s_gcd
+    type: section
+    title_vi: "gcd và lcm"
+    summary_vi: "Euclid thay (a, b) bằng (b, a % b) cho tới khi b = 0; lcm suy ra từ gcd."
+    exercise_ref: ex_gcd
+  - id: t01
+    type: text
+    md: |
+      **gcd (ước chung lớn nhất)** của `a` và `b` tính bằng **thuật toán Euclid**: vì
+      `gcd(a, b) == gcd(b, a % b)`, ta lặp cho tới khi `b == 0`, lúc đó đáp án là `a`.
+      Mỗi hai bước số lớn ít nhất giảm một nửa nên chi phí là **O(log min(a, b))**.
+
+      **lcm (bội chung nhỏ nhất)**: `lcm(a, b) = a * b // gcd(a, b)`. Python có số nguyên không giới hạn
+      nên `a * b` không tràn, nhưng ở ngôn ngữ khác nên viết `a // gcd(a, b) * b`.
+
+      Python có sẵn `math.gcd`, nhưng phỏng vấn thường muốn bạn tự viết được vòng lặp Euclid.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      def gcd(a, b):
+          while b:
+              a, b = b, a % b
+          return a
+
+      print(gcd(48, 18))
+      print(48 * 18 // gcd(48, 18))
+      print(gcd(17, 5), gcd(0, 9))
+    expected_output: |
+      6
+      144
+      1 9
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Độ phức tạp thời gian của thuật toán Euclid tính `gcd(a, b)` là gì?"
+    options:
+      - {id: a, text_md: "O(min(a, b))"}
+      - {id: b, text_md: "O(log min(a, b))"}
+      - {id: c, text_md: "O(sqrt(a))"}
+    answer: [b]
+    explain_md: "Sau mỗi hai bước lặp, số lớn giảm ít nhất một nửa nên số bước là logarit."
+  - id: ex_gcd
+    type: code_exercise
+    md: |
+      Viết `gcd(a, b)` trả về ước chung lớn nhất của hai số nguyên không âm (không đồng thời bằng 0).
+      Ví dụ `gcd(48, 18)` là `6`. Bản dưới đây trả sai vì trả về `b` thay vì `a` sau vòng lặp. Hãy sửa.
+    entry: gcd
+    starter: |
+      def gcd(a, b):
+          while b:
+              a, b = b, a % b
+          return b
+    guidance_md: |
+      - Thử `gcd(48, 18)`: các bước là (48, 18), (18, 12), (12, 6), (6, 0).
+      - Khi vòng lặp dừng thì `b == 0`, giá trị cần tìm nằm ở biến còn lại.
+    hints:
+      - level: nudge
+        md: "Khi vòng lặp kết thúc, `b` luôn bằng bao nhiêu?"
+      - level: approach
+        md: "Ở bước cuối cặp là `(g, 0)`. Đáp án là phần tử khác 0, tức biến `a`."
+      - level: near_solution
+        md: "Đổi câu lệnh sau vòng lặp thành `return a`; phần còn lại của vòng Euclid giữ nguyên."
+    tests:
+      - {args: [48, 18], expected: 6}
+      - {args: [17, 5], expected: 1}
+      - {args: [0, 9], expected: 9}
+      - {args: [100, 75], expected: 25}
+      - {args: [7, 7], expected: 7}
+    solution: |
+      def gcd(a, b):
+          while b:
+              a, b = b, a % b
+          return a
+  - id: s_prime
+    type: section
+    title_vi: "Số nguyên tố và Sieve"
+    summary_vi: "Thử chia tới sqrt(n) cho một số; sàng Eratosthenes cho mọi số nhỏ hơn n."
+    exercise_ref: ex_prime
+  - id: t02
+    type: text
+    md: |
+      **Kiểm tra một số**: `n >= 2` là nguyên tố nếu không có ước `d` nào với `2 <= d <= sqrt(n)`,
+      vì ước lớn hơn sqrt(n) luôn đi cặp với một ước nhỏ hơn. Chi phí **O(sqrt n)**.
+
+      **Sieve of Eratosthenes** liệt kê mọi số nguyên tố `< n`: giữ mảng `is_p`, với mỗi số nguyên tố `i`
+      đánh dấu hợp số các bội `i*i, i*i + i, ...`. Bắt đầu từ `i*i` vì các bội nhỏ hơn đã bị số nguyên tố
+      nhỏ hơn đánh dấu. Chi phí **O(n log log n)** thời gian, O(n) bộ nhớ.
+
+      Cần nhiều truy vấn "có phải nguyên tố không" trên dải nhỏ thì dùng sieve; chỉ một vài số lớn thì
+      thử chia.
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      n = 30
+      is_p = [True] * n
+      is_p[0] = is_p[1] = False
+      for i in range(2, int(n ** 0.5) + 1):
+          if is_p[i]:
+              for j in range(i * i, n, i):
+                  is_p[j] = False
+      print([i for i in range(n) if is_p[i]])
+      print(sum(is_p))
+    expected_output: |
+      [2, 3, 5, 7, 11, 13, 17, 19, 23, 29]
+      10
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Trong sieve, với số nguyên tố `i`, vòng đánh dấu bội bắt đầu từ ___ (biểu thức theo `i`)."
+    blanks: [{accept: ["i*i", "i * i", "i**2", "i ** 2"]}]
+    explain_md: "Các bội `i*k` với `k < i` đã bị số nguyên tố nhỏ hơn đánh dấu, nên bắt đầu từ `i*i`."
+  - id: ex_prime
+    type: code_exercise
+    md: |
+      Viết `is_prime(n)`: trả `True` nếu `n` là số nguyên tố, ngược lại `False` (`n <= 1` không phải).
+      Chỉ cần thử chia tới `sqrt(n)` **bao gồm** `sqrt(n)`. Bản dưới đây sai với `4` và `9`. Hãy sửa.
+    entry: is_prime
+    starter: |
+      def is_prime(n):
+          if n < 2:
+              return False
+          for d in range(2, int(n ** 0.5)):
+              if n % d == 0:
+                  return False
+          return True
+    guidance_md: |
+      - `is_prime(4)`: `int(4 ** 0.5)` là 2 nên `range(2, 2)` rỗng và hàm trả `True` sai.
+      - Cận trên của `range` là loại trừ.
+    hints:
+      - level: nudge
+        md: "Với `n = 4`, vòng `for` có chạy lần nào không?"
+      - level: approach
+        md: "Cận trên của `range` không được tính, mà ta cần thử cả `d = sqrt(n)` khi `n` là số chính phương."
+      - level: near_solution
+        md: "Cộng thêm 1 vào cận trên: dùng `range(2, int(n ** 0.5) + 1)`. Phần còn lại giữ nguyên."
+    tests:
+      - {args: [1], expected: false}
+      - {args: [2], expected: true}
+      - {args: [4], expected: false}
+      - {args: [9], expected: false}
+      - {args: [97], expected: true}
+    solution: |
+      def is_prime(n):
+          if n < 2:
+              return False
+          d = 2
+          while d * d <= n:
+              if n % d == 0:
+                  return False
+              d += 1
+          return True
+  - id: s_mod
+    type: section
+    title_vi: "Mod và lũy thừa nhanh"
+    summary_vi: "Lấy mod từng bước; bình phương lặp cho a^b mod m trong O(log b)."
+  - id: t03
+    type: text
+    md: |
+      **Quy tắc mod**: `(a + b) % m == ((a % m) + (b % m)) % m` và tương tự cho nhân. Vì vậy ta lấy mod
+      sau mỗi phép tính để số không phình to (đề hay dùng `m = 10**9 + 7`). **Không** chia trực tiếp:
+      muốn "chia" phải nhân với nghịch đảo modular (với `m` nguyên tố: `pow(b, m - 2, m)`).
+      Trong Python `(-7) % 3 == 2` (kết quả luôn không âm khi `m > 0`), khác C/Java.
+
+      **Lũy thừa nhanh**: viết `exp` dạng nhị phân; mỗi bit 1 thì nhân kết quả với `base` hiện tại, rồi
+      bình phương `base` và dịch `exp` sang phải. Chỉ **O(log exp)** phép nhân thay vì O(exp).
+
+      ```python
+      def mod_pow(base, exp, mod):
+          result, base = 1 % mod, base % mod
+          while exp:
+              if exp & 1:
+                  result = result * base % mod
+              base = base * base % mod
+              exp >>= 1
+          return result
+      ```
+  - id: q03
+    type: predict_output
+    code: |
+      def mod_pow(b, e, m):
+          r = 1
+          b %= m
+          while e:
+              if e & 1:
+                  r = r * b % m
+              b = b * b % m
+              e >>= 1
+          return r
+
+      print(mod_pow(2, 10, 1000))
+      print(mod_pow(3, 0, 7))
+    expected_output: |
+      24
+      1
+    explain_md: "`2**10 = 1024`, mod 1000 là 24. Với `e = 0` vòng lặp không chạy nên trả `r = 1`."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Euclid: `gcd(a, b) = gcd(b, a % b)` tới khi `b == 0`, O(log); `lcm = a * b // gcd`."
+      - "Số nguyên tố đơn lẻ: thử chia tới sqrt(n), O(sqrt n); nhiều số: Sieve, O(n log log n)."
+      - "Cộng và nhân lấy mod từng bước; không chia trực tiếp, dùng nghịch đảo modular."
+      - "Lũy thừa nhanh dựa trên bit của số mũ: bình phương lặp, O(log exp)."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X511], l2: [X512], l3: [X513]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

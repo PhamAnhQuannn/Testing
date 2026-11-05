@@ -1,0 +1,209 @@
+id: dsa.math_bits.bit_basics
+version: 1
+status: published
+title_vi: "Thao tác bit và bitmask"
+est_minutes: 14
+objectives_vi:
+  - "Dùng thành thạo các phép toán &, |, ^, ~ và dịch bit << >> trên số nguyên."
+  - "Kiểm tra, bật, tắt, đảo một bit bằng mask; dùng n & (n-1) để xoá bit 1 thấp nhất."
+  - "Nắm tính chất XOR (a ^ a = 0, a ^ 0 = a) để giải các bài tìm số lẻ lần, số thiếu."
+  - "Dùng một số nguyên làm bitmask biểu diễn tập con và duyệt mọi tập con."
+blocks:
+  - id: s_ops
+    type: section
+    title_vi: "Các phép toán bit cơ bản"
+    summary_vi: "AND, OR, XOR, NOT, dịch bit và mẫu check/set/clear/toggle."
+  - id: t01
+    type: text
+    md: |
+      Mỗi số nguyên là dãy bit; bit thứ `i` (đếm từ phải, từ 0) có giá trị `2**i`, nên `0b1101 = 8+4+1 = 13`.
+      Các phép toán chính trong Python:
+
+      - `a & b` (AND): bit kết quả là 1 khi **cả hai** đều là 1. Dùng để **lọc/kiểm tra** bit.
+      - `a | b` (OR): bit là 1 khi **ít nhất một** bên là 1. Dùng để **bật** bit.
+      - `a ^ b` (XOR): bit là 1 khi hai bên **khác nhau**. Dùng để **đảo** bit.
+      - `a << k` nhân với `2**k`; `a >> k` chia nguyên cho `2**k`.
+      - `~a = -a - 1` (Python dùng số nguyên không giới hạn, nên NOT cho số âm).
+
+      Bốn mẫu thao tác bit thứ `i` với mask `1 << i`:
+
+      - Kiểm tra: `(n >> i) & 1` hoặc `n & (1 << i)`
+      - Bật: `n | (1 << i)`
+      - Tắt: `n & ~(1 << i)`
+      - Đảo: `n ^ (1 << i)`
+
+      Mẹo quan trọng: `n & (n - 1)` **xoá bit 1 thấp nhất** của `n`. Lặp lại đến khi bằng 0 thì số lần lặp
+      chính là số bit 1 (popcount). Lũy thừa của 2 chỉ có đúng một bit 1, nên `n > 0 and n & (n-1) == 0`.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      n = 0b1101            # 13
+      print(bin(n), n & 0b0110, n | 0b0010, n ^ 0b0110)
+      print((n >> 2) & 1, n & ~(1 << 0), n ^ (1 << 1))
+      print(bin(n & (n - 1)), n << 2, ~n)
+    expected_output: |
+      0b1101 4 15 11
+      1 12 15
+      0b1100 52 -14
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Biểu thức nào **tắt** bit thứ `i` của `n` (các bit khác giữ nguyên)?"
+    options:
+      - {id: a, text_md: "`n & ~(1 << i)`"}
+      - {id: b, text_md: "`n | (1 << i)`"}
+      - {id: c, text_md: "`n ^ (1 << i)`"}
+    answer: [a]
+    explain_md: "`~(1 << i)` là mask có 0 duy nhất ở vị trí i; AND với nó xoá bit i. `|` bật bit, `^` đảo bit (nếu bit đang 0 thì thành 1)."
+  - id: q02
+    type: predict_output
+    code: |
+      n = 40            # 0b101000
+      c = 0
+      while n:
+          n &= n - 1
+          c += 1
+      print(c, 40 & -40)
+    expected_output: |
+      2 8
+    explain_md: "40 = 0b101000 có 2 bit 1 nên vòng lặp chạy 2 lần. `n & -n` giữ lại bit 1 thấp nhất, tức 8."
+  - id: s_count
+    type: section
+    title_vi: "Đếm bit và quy hoạch động theo bit"
+    summary_vi: "Tái dùng kết quả của i >> 1 để đếm bit cho cả dãy 0..n."
+    exercise_ref: ex_count
+  - id: t02
+    type: text
+    md: |
+      Để đếm bit 1 cho **nhiều số** `0..n`, đừng đếm lại từ đầu. Số `i` chỉ hơn `i >> 1` đúng một bit cuối
+      (bit thấp nhất của `i`), nên `bits[i] = bits[i >> 1] + (i & 1)`. Đây là một DP O(n) với `bits[0] = 0`.
+
+      **XOR** có ba tính chất: `a ^ a = 0`, `a ^ 0 = a`, và giao hoán/kết hợp. Hệ quả: XOR cả mảng mà mọi
+      số xuất hiện hai lần trừ một số thì kết quả là số lẻ đó (Single Number). Tương tự, XOR các chỉ số
+      `0..n` với các phần tử mảng sẽ triệt tiêu mọi giá trị có mặt và để lại số thiếu (Missing Number).
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      from functools import reduce
+      from operator import xor
+
+      bits = [0] * 8
+      for i in range(1, 8):
+          bits[i] = bits[i >> 1] + (i & 1)
+      print(bits)
+      print(reduce(xor, [4, 1, 2, 1, 2]))
+    expected_output: |
+      [0, 1, 1, 2, 1, 2, 2, 3]
+      4
+  - id: q03
+    type: quiz_fill
+    prompt_md: "Với mọi số nguyên `a`, biểu thức `a ^ a` luôn bằng ___."
+    blanks: [{accept: ["0", "không"]}]
+    explain_md: "Hai bit giống nhau thì XOR ra 0, nên a ^ a = 0; đó là lý do các cặp số trùng triệt tiêu nhau."
+  - id: ex_count
+    type: code_exercise
+    md: |
+      Cài `count_bits_upto(n)`: trả danh sách `ans` độ dài `n + 1`, trong đó `ans[i]` là số bit 1 của `i`.
+      Hãy dùng quan hệ `ans[i] = ans[i >> 1] + (i & 1)` thay vì đếm lại từng số.
+    entry: count_bits_upto
+    starter: |
+      def count_bits_upto(n):
+          ans = [0] * (n + 1)
+          # TODO: điền ans[i] từ ans[i >> 1] và bit thấp nhất của i
+          return ans
+    guidance_md: |
+      - `ans[0] = 0` đã có sẵn.
+      - Với `i` từ 1 đến n: bỏ bit cuối bằng `i >> 1`, rồi cộng bit cuối `i & 1`.
+    hints:
+      - level: nudge
+        md: "Số i và số i >> 1 khác nhau đúng ở đâu? Kết quả của số nhỏ hơn đã được tính chưa?"
+      - level: approach
+        md: "Duyệt `i` tăng dần từ 1; `i >> 1` luôn nhỏ hơn `i` nên `ans[i >> 1]` đã sẵn sàng."
+      - level: near_solution
+        md: "Trong vòng lặp, gán vào `ans[i]` tổng của giá trị đã lưu cho `i >> 1` và bit thấp nhất của `i` (lấy bằng AND với 1)."
+    tests:
+      - {args: [0], expected: [0]}
+      - {args: [1], expected: [0, 1]}
+      - {args: [5], expected: [0, 1, 1, 2, 1, 2]}
+      - {args: [8], expected: [0, 1, 1, 2, 1, 2, 2, 3, 1]}
+    solution: |
+      def count_bits_upto(n):
+          ans = [0] * (n + 1)
+          for i in range(1, n + 1):
+              ans[i] = ans[i >> 1] + (i & 1)
+          return ans
+  - id: s_mask
+    type: section
+    title_vi: "Bitmask biểu diễn tập con"
+    summary_vi: "Một số nguyên 0..2^k-1 là một tập con của k phần tử."
+    exercise_ref: ex_subsets
+  - id: t03
+    type: text
+    md: |
+      Với `k` phần tử, mỗi số `mask` trong `range(1 << k)` mã hoá một **tập con**: bit `j` bằng 1 nghĩa là
+      phần tử `j` được chọn. Có đúng `2**k` tập con. Phép toán tập hợp trở thành phép toán bit:
+      hợp = `|`, giao = `&`, "x thuộc tập" = `mask >> j & 1`, "A là tập con của B" = `A & B == A`.
+
+      Bitmask hữu ích khi `k` nhỏ (thường `k <= 20`), ví dụ backtracking chọn các chuỗi có chữ cái không
+      trùng: mỗi chuỗi được rút gọn thành một mask 26 bit, hai chuỗi ghép được khi `m1 & m2 == 0`.
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Hai chuỗi có mask chữ cái `m1`, `m2`. Điều kiện nào cho biết chúng **không** dùng chung chữ cái nào?"
+    options:
+      - {id: a, text_md: "`m1 & m2 == 0`"}
+      - {id: b, text_md: "`m1 | m2 == 0`"}
+      - {id: c, text_md: "`m1 ^ m2 == 0`"}
+    answer: [a]
+    explain_md: "AND chỉ giữ lại các bit cả hai cùng bật; bằng 0 nghĩa là không có chữ cái chung. `m1 ^ m2 == 0` nghĩa là hai mask giống hệt nhau."
+  - id: ex_subsets
+    type: code_exercise
+    md: |
+      Cài `subsets_by_mask(items)`: trả danh sách mọi tập con của `items` (là list), theo thứ tự `mask`
+      tăng dần từ 0 đến `2**k - 1`; trong mỗi tập con, phần tử giữ thứ tự gốc (bit `j` ứng với `items[j]`).
+    entry: subsets_by_mask
+    starter: |
+      def subsets_by_mask(items):
+          k = len(items)
+          out = []
+          # TODO: với mỗi mask trong range(1 << k), chọn items[j] có bit j bật
+          return out
+    guidance_md: |
+      - Vòng ngoài: `mask` từ 0 đến `(1 << k) - 1`.
+      - Vòng trong: `j` từ 0 đến k-1, nếu `mask >> j & 1` thì lấy `items[j]`.
+    hints:
+      - level: nudge
+        md: "Có bao nhiêu tập con khi có k phần tử, và mỗi số mask gợi ý điều gì về phần tử nào được chọn?"
+      - level: approach
+        md: "Mỗi mask dựng một list con bằng cách kiểm tra từng bit j của mask; thêm list đó vào kết quả."
+      - level: near_solution
+        md: "Dùng list comprehension theo `j` trong `range(k)` có điều kiện bit j của mask bằng 1, rồi append kết quả của mỗi mask vào `out`."
+    tests:
+      - {args: [[]], expected: [[]]}
+      - {args: [[7]], expected: [[], [7]]}
+      - {args: [[1, 2]], expected: [[], [1], [2], [1, 2]]}
+      - {args: [["a", "b", "c"]], expected: [[], ["a"], ["b"], ["a", "b"], ["c"], ["a", "c"], ["b", "c"], ["a", "b", "c"]]}
+    solution: |
+      def subsets_by_mask(items):
+          k = len(items)
+          out = []
+          for mask in range(1 << k):
+              out.append([items[j] for j in range(k) if mask >> j & 1])
+          return out
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Bốn mẫu với mask `1 << i`: kiểm tra `n & mask`, bật `n | mask`, tắt `n & ~mask`, đảo `n ^ mask`."
+      - "`n & (n-1)` xoá bit 1 thấp nhất: dùng để đếm bit và kiểm tra lũy thừa của 2; `n & -n` lấy bit thấp nhất."
+      - "XOR: `a ^ a = 0`, `a ^ 0 = a` nên XOR toàn mảng cho số lẻ lần / số thiếu."
+      - "Bitmask: số `0..2^k-1` là tập con của k phần tử; hợp `|`, giao `&`, tập con `A & B == A`."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [Q157], l2: [Q158], l3: [Q260]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"
