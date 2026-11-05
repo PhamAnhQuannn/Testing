@@ -1,0 +1,224 @@
+id: lld.process.extensibility
+version: 1
+status: published
+title_vi: "Khả năng mở rộng và yêu cầu bổ sung"
+est_minutes: 14
+objectives_vi:
+  - "Nhận ra và thiết kế điểm mở rộng (extension point) theo OCP: thêm luật hay loại mới bằng class hoặc dữ liệu, không sửa code lõi."
+  - "Tách lưu trữ sau interface Store (put, get) để đổi dict sang file hay database mà không sửa lõi."
+  - "Chọn giữa patch và refactor, và nói được đánh đổi khi sửa lõi vì yêu cầu mới."
+  - "Nhắc ngắn gợi ý mở rộng quy mô (nhiều bãi xe, nhiều máy chủ) mà không sa đà vào system design."
+blocks:
+  - id: t01
+    type: text
+    md: |
+      Cuối buổi LLD, người phỏng vấn thường hỏi: "Nếu thêm giá cuối tuần thì sao?", "Nếu lưu vào file thì sao?".
+      Thiết kế tốt trả lời bằng **một thay đổi nhỏ**, không phải viết lại.
+
+      - **Điểm mở rộng (extension point)**: chỗ bạn chủ động chừa sẵn để thêm cái mới. Hai dạng hay gặp là
+        **bảng dữ liệu** (dict luật) và **interface + class mới** (Strategy, Factory).
+      - **Thêm loại mới không đụng lõi (OCP)**: luật mới là một dòng dữ liệu hoặc một class mới, không phải thêm
+        `if kind == ...` vào hàm đang chạy. Mỗi lần sửa hàm cũ là một lần có thể làm hỏng ca đã đúng.
+      - **Tách lưu trữ**: lõi gọi interface `Store` với `put(key, value)` và `get(key)`. Ban đầu `MemoryStore` dùng
+        dict; sau thay bằng `FileStore` hay database, lõi giữ nguyên (đây là DIP).
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      RULES = {"weekday": 10, "weekend": 15}
+
+
+      def fee(hours, rule):
+          return hours * RULES.get(rule, RULES["weekday"])
+
+
+      before = fee(2, "holiday")  # chưa có luật holiday, rơi về weekday
+      RULES["holiday"] = 20  # thêm luật mới: chỉ là dữ liệu, không sửa fee
+      print(before, fee(2, "weekend"), fee(2, "holiday"))
+    expected_output: |
+      20 30 40
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Cần thêm luật giá ngày lễ vào hàm `fee`. Cách nào đúng tinh thần OCP?"
+    options:
+      - {id: a, text_md: "Thêm một mục `holiday` vào dict `RULES` (hoặc một class luật mới), không sửa thân hàm `fee`"}
+      - {id: b, text_md: "Thêm nhánh `elif rule == holiday` vào thân `fee`"}
+      - {id: c, text_md: "Copy hàm `fee` thành `fee_holiday` rồi sửa số"}
+    answer: [a]
+    explain_md: "Luật là dữ liệu nên thêm luật không đụng logic. Hai cách còn lại buộc phải sửa hoặc nhân bản code lõi."
+  - id: q02
+    type: predict_output
+    code: |
+      class Flat:
+          def cost(self, h):
+              return h * 10
+
+
+      class Weekend:
+          def cost(self, h):
+              return h * 15
+
+
+      def total(rule, hours):
+          return sum(rule.cost(h) for h in hours)
+
+
+      print(total(Flat(), [1, 2]), total(Weekend(), [1, 2]))
+    expected_output: |
+      30 45
+    explain_md: "`total` chỉ cần object có `cost`. Thêm `Weekend` là thêm class, `total` không đổi: 3 * 10 = 30 và 3 * 15 = 45."
+  - id: ex_rule
+    type: code_exercise
+    md: |
+      Viết `total_cost(entries)`: mỗi phần tử là `[hours, rule]`. Giá mỗi giờ: `weekday` = 10, `weekend` = 15,
+      `holiday` = 20; luật lạ dùng giá `weekday`. Trả tổng `hours * rate`. Bản dưới dùng chuỗi if/elif và quên
+      `holiday`. Hãy chuyển sang dict `RULES` để thêm luật chỉ là thêm dữ liệu.
+    entry: total_cost
+    starter: |
+      def total_cost(entries):
+          total = 0
+          for hours, rule in entries:
+              if rule == "weekend":
+                  total += hours * 15
+              else:
+                  total += hours * 10
+          return total
+    guidance_md: |
+      - Thử `total_cost([[2, "holiday"]])`: đáp án `40`, code trả `20`.
+      - `RULES.get(rule, RULES["weekday"])` cho luật lạ rơi về weekday.
+    hints:
+      - level: nudge
+        md: "Nếu giá là dữ liệu thì thêm `holiday` cần sửa mấy dòng logic?"
+      - level: approach
+        md: "Tạo `RULES = {'weekday': 10, 'weekend': 15, 'holiday': 20}` rồi cộng `hours * RULES.get(rule, RULES['weekday'])`."
+      - level: near_solution
+        md: "Vòng `for hours, rule in entries: total += hours * RULES.get(rule, RULES['weekday'])` rồi `return total`."
+    tests:
+      - {args: [[]], expected: 0}
+      - {args: [[[2, "holiday"]]], expected: 40}
+      - {args: [[[1, "weekend"], [3, "weekday"]]], expected: 45}
+      - {args: [[[4, "night"], [0, "holiday"]]], expected: 40}
+    solution: |
+      def total_cost(entries):
+          RULES = {"weekday": 10, "weekend": 15, "holiday": 20}
+          total = 0
+          for hours, rule in entries:
+              total += hours * RULES.get(rule, RULES["weekday"])
+          return total
+  - id: t02
+    type: text
+    md: |
+      **Patch hay refactor?**
+
+      - **Patch**: thêm `if` chữa cháy cho đúng yêu cầu trước mắt. Nhanh, ít đổi, nhưng nợ kỹ thuật tăng.
+      - **Refactor**: đổi cấu trúc (tách class, đưa luật vào bảng) để yêu cầu sau này dễ thêm. Tốn công hơn, phải
+        chạy lại các ca cũ.
+      - Quy tắc chọn: **lần đầu patch được; lần thứ hai cùng kiểu thì refactor**. Nếu yêu cầu mới đổi cả luồng,
+        sửa lõi là hợp lý.
+
+      **Nói đánh đổi** thành lời, ví dụ: "Em sửa lõi vì yêu cầu mới đổi cả luồng; đổi lại phải chạy lại các ca cũ."
+      Câu có hai vế (được gì, mất gì) luôn tốt hơn chỉ nói "em sẽ sửa".
+
+      **Gợi ý mở rộng quy mô** chỉ nhắc ngắn: nhiều bãi xe thì mỗi bãi một object và `Store` lưu theo `lot_id`;
+      nhiều máy chủ thì `Store` đổi sang database dùng chung. Chi tiết để dành cho system design.
+  - id: q03
+    type: quiz_fill
+    prompt_md: "Code lõi gọi interface `Store` thay vì dict cụ thể. Nguyên lý ___ (viết tắt 3 chữ cái) nói lõi phụ thuộc abstraction."
+    blanks: [{accept: ["DIP", "dip", "Dependency Inversion"]}]
+    explain_md: "Đó là DIP (Dependency Inversion Principle): lõi phụ thuộc interface nên đổi `MemoryStore` sang `FileStore` không phải sửa lõi."
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Lần thứ hai người phỏng vấn lại thêm một loại giá mới theo cùng kiểu. Nên làm gì?"
+    options:
+      - {id: a, text_md: "Refactor: đưa luật vào bảng hoặc class để thêm loại sau chỉ là thêm dữ liệu"}
+      - {id: b, text_md: "Patch thêm một `elif` nữa và tiếp tục như vậy"}
+      - {id: c, text_md: "Im lặng, không nói gì về đánh đổi"}
+    answer: [a]
+    explain_md: "Cùng một kiểu thay đổi lặp lại là tín hiệu nên refactor. Nên nói rõ đánh đổi: tốn công hơn bây giờ, đổi lại các lần sau rẻ."
+  - id: ex_store
+    type: code_exercise
+    md: |
+      `run(pairs, key)` lưu các cặp `[k, v]` bằng `store.put` (cặp sau ghi đè cặp trước) rồi trả `store.get(key)`;
+      khóa chưa có trả `-1`. `MemoryStore.get` còn thiếu. Hoàn thành nó; `run` chỉ gọi interface `Store`.
+    entry: run
+    starter: |
+      class Store:
+          def put(self, key, value):
+              raise NotImplementedError
+
+          def get(self, key):
+              raise NotImplementedError
+
+
+      class MemoryStore(Store):
+          def __init__(self):
+              self.d = {}
+
+          def put(self, key, value):
+              self.d[key] = value
+
+          def get(self, key):
+              pass
+
+
+      def run(pairs, key):
+          store = MemoryStore()
+          for k, v in pairs:
+              store.put(k, v)
+          return store.get(key)
+    guidance_md: |
+      - Thử `run([["a", 1]], "b")`: đáp án `-1`, code trả `None`.
+      - Dùng `self.d.get(key, -1)`.
+    hints:
+      - level: nudge
+        md: "Khóa chưa có thì `dict.get` trả gì nếu bạn cho giá trị mặc định?"
+      - level: approach
+        md: "`get` trả `self.d.get(key, -1)`."
+      - level: near_solution
+        md: "`def get(self, key): return self.d.get(key, -1)`."
+    tests:
+      - {args: [[], "a"], expected: -1}
+      - {args: [[["a", 1], ["b", 2]], "b"], expected: 2}
+      - {args: [[["a", 1], ["a", 9]], "a"], expected: 9}
+      - {args: [[["a", 1]], "z"], expected: -1}
+    solution: |
+      class Store:
+          def put(self, key, value):
+              raise NotImplementedError
+
+          def get(self, key):
+              raise NotImplementedError
+
+
+      class MemoryStore(Store):
+          def __init__(self):
+              self.d = {}
+
+          def put(self, key, value):
+              self.d[key] = value
+
+          def get(self, key):
+              return self.d.get(key, -1)
+
+
+      def run(pairs, key):
+          store = MemoryStore()
+          for k, v in pairs:
+              store.put(k, v)
+          return store.get(key)
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Điểm mở rộng: bảng dữ liệu hoặc interface + class mới; thêm luật là thêm dữ liệu hay class, không sửa lõi (OCP)."
+      - "Storage abstraction: lõi gọi `Store.put/get`; đổi dict sang file hay database không sửa lõi (DIP)."
+      - "Patch cho lần đầu, refactor khi cùng kiểu yêu cầu lặp lại; luôn nói đánh đổi hai vế."
+      - "Scaling: chỉ nhắc ngắn (một object mỗi bãi, Store dùng chung), chi tiết ở system design."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X600], l2: [X601], l3: [X602]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

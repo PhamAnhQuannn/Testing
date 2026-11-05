@@ -146,6 +146,11 @@ EXTRA_IDS = {
     "lld.patterns.behavioral_strategy_state",
     "lld.patterns.behavioral_observer_command",
     "lld.patterns.behavioral_template_chain_iterator",
+    # Wave 3 Round 24: LLD design process.
+    "lld.process.requirements",
+    "lld.process.entities_relationships",
+    "lld.process.apis_code",
+    "lld.process.extensibility",
 }
 
 # Expected shipped counts, asserted so an upstream tree edit can't silently change the snapshot.
@@ -153,7 +158,7 @@ PLAN_MVP_COUNT = 40
 EXPECTED_SD = 86
 EXPECTED_ML4 = 39
 EXPECTED_EXTRA_IDS = len(EXTRA_IDS)  # Wave 2 additions
-EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 259
+EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 263
 
 # Node fields the app uses (SPEC 4.2); optional ones are skipped when a node lacks them.
 NODE_FIELDS = [

@@ -1,0 +1,206 @@
+id: lld.process.requirements
+version: 1
+status: published
+title_vi: "Làm rõ yêu cầu và phạm vi"
+est_minutes: 14
+objectives_vi:
+  - "Phân biệt yêu cầu chức năng (làm gì) và phi chức năng (làm tốt cỡ nào) và phân loại đúng một danh sách yêu cầu."
+  - "Tìm actor và use case của bài (bãi xe, thang máy), rồi chốt in-scope và out-of-scope."
+  - "Hỏi câu làm rõ theo checklist và nói to giả định để người phỏng vấn xác nhận."
+  - "Chia thời gian (time boxing) cho buổi LLD: yêu cầu, class, code, mở rộng."
+blocks:
+  - id: s_req
+    type: section
+    title_vi: "Yêu cầu chức năng và phi chức năng"
+    summary_vi: "Tách yêu cầu thành hai nhóm: hệ thống làm được gì và làm tốt cỡ nào."
+    exercise_ref: ex_classify
+  - id: t01
+    type: text
+    md: |
+      Đề LLD thường chỉ có một câu ("thiết kế bãi đỗ xe"). Trước khi vẽ class, hãy **hỏi lại đề** giống
+      hỏi kỹ khách trước khi xây nhà. Mục tiêu: chốt **yêu cầu** và **phạm vi** trong khoảng 5 phút.
+
+      - **Functional requirement** (yêu cầu chức năng): hệ thống **làm được gì**. Ví dụ: "xe vào thì nhận vé",
+        "xe ra thì trả tiền".
+      - **Non-functional requirement** (phi chức năng): hệ thống **làm tốt cỡ nào**: nhanh, nhiều người cùng
+        lúc, vẫn đúng khi có lỗi, dễ mở rộng.
+
+      **Actor** là ai dùng hệ thống (khách, nhân viên, quản trị). **Use case** là việc mỗi actor muốn làm.
+      Liệt kê actor trước, rồi mỗi actor một vài use case, ta sẽ có danh sách yêu cầu chức năng gần như đầy đủ.
+
+      Mẹo phân loại: nếu yêu cầu có thể viết thành một **động từ + đối tượng** ("đặt vé") thì thường là chức năng;
+      nếu nó là **tính chất** hoặc **con số** ("dưới 200ms", "1000 người cùng lúc") thì là phi chức năng.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class Spec:
+          def __init__(self):
+              self.functional = []
+              self.nonfunctional = []
+
+          def add(self, kind, text):
+              if kind == "functional":
+                  self.functional.append(text)
+              else:
+                  self.nonfunctional.append(text)
+
+
+      s = Spec()
+      s.add("functional", "issue ticket on entry")
+      s.add("functional", "charge fee on exit")
+      s.add("nonfunctional", "gate opens within 1 second")
+      print(len(s.functional), len(s.nonfunctional))
+    expected_output: |
+      2 1
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Trong bài bãi đỗ xe, yêu cầu nào là **phi chức năng**?"
+    options:
+      - {id: a, text_md: "Xe vào thì hệ thống cấp vé"}
+      - {id: b, text_md: "Cổng phải mở trong vòng 1 giây kể cả lúc đông xe"}
+      - {id: c, text_md: "Nhân viên có thể xem danh sách chỗ trống"}
+    answer: [b]
+    explain_md: "Câu b nói về mức độ tốt (tốc độ, tải), không nói thêm một việc mới. Hai câu còn lại là hành vi: cấp vé, xem chỗ trống."
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Người dùng hệ thống (khách, nhân viên, quản trị) gọi là ___ (một từ tiếng Anh)."
+    blanks: [{accept: ["actor", "Actor", "actors"]}]
+    explain_md: "Đó là **actor**. Mỗi actor có các **use case** riêng, ví dụ khách: lấy vé, trả phí."
+  - id: q03
+    type: predict_output
+    code: |
+      reqs = [
+          ("functional", "issue ticket"),
+          ("nonfunctional", "p95 under 200ms"),
+          ("functional", "charge fee"),
+          ("functional", "show free spots"),
+          ("nonfunctional", "survive restart"),
+      ]
+      f = sum(1 for k, _ in reqs if k == "functional")
+      print(f, len(reqs) - f)
+    expected_output: |
+      3 2
+    explain_md: "Ba yêu cầu là `functional` và hai là `nonfunctional`, nên in `3 2`."
+  - id: ex_classify
+    type: code_exercise
+    md: |
+      Viết `classify(text)` trả `"nonfunctional"` nếu `text` chứa một trong các từ khoá `"fast"`, `"ms"`,
+      `"concurrent"`, `"available"`; ngược lại trả `"functional"`. Bản dưới luôn trả `"functional"`.
+    entry: classify
+    starter: |
+      def classify(text):
+          return "functional"
+    guidance_md: |
+      - Thử `classify("handle 1000 concurrent users")`: đáp án `"nonfunctional"`.
+      - Dùng `any(w in text for w in WORDS)`.
+    hints:
+      - level: nudge
+        md: "Từ khoá nào cho biết yêu cầu nói về tốc độ hoặc tải?"
+      - level: approach
+        md: "Đặt tuple các từ khoá, kiểm tra từng từ có nằm trong `text` không."
+      - level: near_solution
+        md: "`return \"nonfunctional\" if any(w in text for w in WORDS) else \"functional\"`."
+    tests:
+      - {args: ["issue ticket on entry"], expected: "functional"}
+      - {args: ["handle 1000 concurrent users"], expected: "nonfunctional"}
+      - {args: ["respond in 200 ms"], expected: "nonfunctional"}
+      - {args: ["system is highly available"], expected: "nonfunctional"}
+      - {args: [""], expected: "functional"}
+    solution: |
+      WORDS = ("fast", "ms", "concurrent", "available")
+
+
+      def classify(text):
+          return "nonfunctional" if any(w in text for w in WORDS) else "functional"
+  - id: s_scope
+    type: section
+    title_vi: "Phạm vi, câu hỏi, giả định, time-box"
+    summary_vi: "Chốt in-scope và out-of-scope, hỏi đúng câu, nói to giả định, chia thời gian."
+    exercise_ref: ex_scope
+  - id: t02
+    type: text
+    md: |
+      **Scope** (phạm vi): ghi rõ **in-scope** (sẽ làm) và **out-of-scope** (không làm) để khỏi lan man.
+      Bãi xe: in-scope = vào/ra, tính phí, chỗ trống; out-of-scope = cổng thanh toán thật, camera đọc biển số.
+
+      **Clarifying questions** theo checklist: ai dùng? quy mô (bao nhiêu tầng, loại xe)? quy tắc (phí theo giờ hay
+      theo lượt)? trường hợp biên (hết chỗ thì sao, mất vé)? mở rộng sau này?
+      - Bãi xe: mấy tầng? xe máy và ô tô có chỗ riêng không? phí tính thế nào? hết chỗ thì từ chối hay xếp hàng?
+      - Thang máy: mấy thang, mấy tầng? thuật toán ưu tiên? quá tải, mất điện thì sao?
+
+      **Assumption** (giả định): thứ chưa rõ mà bạn quyết định tạm. Hãy **nói to** ("em giả định thanh toán đã có
+      sẵn, anh/chị đồng ý không?") và chờ xác nhận. Giả định ngầm là nguồn lỗi lớn nhất.
+
+      **Time boxing** cho buổi 35-45 phút: khoảng 5 phút yêu cầu, 10 phút class và quan hệ, 15-20 phút code lõi,
+      phần còn lại chạy thử và mở rộng. Hỏi quá lâu thì không còn thời gian code; không hỏi thì dễ làm sai đề.
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Đề nói \"thiết kế thang máy\" và bạn chưa rõ có mấy thang. Việc nên làm đầu tiên?"
+    options:
+      - {id: a, text_md: "Tự quyết một thang và bắt đầu code ngay mà không nói gì"}
+      - {id: b, text_md: "Hỏi lại, hoặc nếu chưa được trả lời thì nêu giả định (ví dụ 3 thang) và xin xác nhận"}
+      - {id: c, text_md: "Thiết kế cho vô hạn thang, vô hạn tầng để chắc ăn"}
+    answer: [b]
+    explain_md: "Làm rõ rồi nói to giả định để cả hai cùng hiểu một đề. Giả định ngầm hoặc phạm vi vô hạn đều gây lỗi và tốn thời gian."
+  - id: q05
+    type: quiz_mcq
+    prompt_md: "Trong buổi LLD 40 phút, phần yêu cầu và phạm vi nên chiếm khoảng bao nhiêu?"
+    options:
+      - {id: a, text_md: "Khoảng 5 phút, rồi chuyển sang class và code"}
+      - {id: b, text_md: "30 phút để mọi thứ đều rõ"}
+      - {id: c, text_md: "0 phút, vào code luôn"}
+    answer: [a]
+    explain_md: "Time boxing: yêu cầu ngắn nhưng không được bỏ. Khoảng 5 phút đủ chốt actor, use case, scope và giả định."
+  - id: q06
+    type: predict_output
+    code: |
+      scope = {"vao_ra": True, "tinh_phi": True, "camera": False, "cong_thanh_toan": False}
+      print(sorted(k for k, v in scope.items() if v))
+      print(len([k for k, v in scope.items() if not v]))
+    expected_output: |
+      ['tinh_phi', 'vao_ra']
+      2
+    explain_md: "Hai mục có giá trị `True` là in-scope, sắp xếp ra `['tinh_phi', 'vao_ra']`. Hai mục `False` là out-of-scope nên đếm được 2."
+  - id: ex_scope
+    type: code_exercise
+    md: |
+      Viết `in_scope(items, out)` trả list **đã sắp xếp** các phần tử của `items` không nằm trong `out`.
+      Bản dưới quên loại `out` và quên sắp xếp.
+    entry: in_scope
+    starter: |
+      def in_scope(items, out):
+          return list(items)
+    guidance_md: |
+      - Thử `in_scope(["b", "a", "c"], ["c"])`: đáp án `["a", "b"]`.
+    hints:
+      - level: nudge
+        md: "Cần lọc những phần tử có trong `out`, rồi sắp xếp."
+      - level: approach
+        md: "List comprehension với điều kiện `x not in out`, bọc bằng `sorted`."
+      - level: near_solution
+        md: "`return sorted(x for x in items if x not in out)`."
+    tests:
+      - {args: [[], []], expected: []}
+      - {args: [["b", "a", "c"], ["c"]], expected: ["a", "b"]}
+      - {args: [["x", "y"], []], expected: ["x", "y"]}
+      - {args: [["x", "y"], ["x", "y"]], expected: []}
+    solution: |
+      def in_scope(items, out):
+          return sorted(x for x in items if x not in out)
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Functional = hệ thống làm gì; non-functional = làm tốt cỡ nào (tốc độ, tải, độ tin cậy)."
+      - "Liệt kê actor rồi use case của từng actor để ra danh sách yêu cầu chức năng."
+      - "Chốt in-scope và out-of-scope bằng lời; hỏi theo checklist (quy mô, quy tắc, trường hợp biên, mở rộng)."
+      - "Nói to giả định và xin xác nhận; dành khoảng 5 phút cho yêu cầu trong buổi 35-45 phút."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X591], l2: [X592], l3: [X593]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"
