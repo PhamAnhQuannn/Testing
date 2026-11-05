@@ -1,0 +1,171 @@
+id: dsa.practical.api_http_json
+version: 1
+status: published
+title_vi: "Gọi API HTTP, JSON và phân trang"
+est_minutes: 14
+objectives_vi:
+  - "Mô tả một request HTTP: method, path, query string và status code."
+  - "Phân tích query string thành dict bằng split và partition, xử lý khóa lặp và khóa không có giá trị."
+  - "Nhớ nhóm status code (2xx, 4xx, 5xx) và quyết định lỗi nào nên retry."
+  - "Khớp route có tham số kiểu /users/:id bằng cách tách theo dấu /."
+blocks:
+  - id: s_query
+    type: section
+    title_vi: "Query string và JSON"
+    summary_vi: "Query string là chuỗi key=value nối bằng &; parse thành dict là thao tác nền tảng khi làm việc với API."
+    exercise_ref: ex_build_qs
+  - id: t01
+    type: text
+    md: |
+      Một request HTTP gồm **method** (GET, POST, ...), **path** (`/users/7`), **query string**
+      (`?page=2&limit=10`) và có thể có **body JSON**. Phần query string là các cặp `key=value` nối với
+      nhau bằng `&`.
+
+      Khi tự parse, có vài quy tắc cần nhớ:
+
+      - Tách bằng `split("&")`, rồi tách từng cặp bằng `partition("=")` (chỉ cắt ở dấu `=` đầu tiên,
+        nên `n=a=b` cho giá trị `a=b`).
+      - Khóa không có `=` (ví dụ `flag`) cho giá trị rỗng `""`.
+      - Khóa lặp: nếu gán vào dict theo thứ tự thì **giá trị sau ghi đè giá trị trước**.
+      - Dữ liệu thật còn cần URL-decode (`%20`), nhưng bài này bỏ qua bước đó.
+
+      Phía ngược lại, dựng query string ổn định thì sắp xếp khóa (`sorted`) để kết quả không phụ thuộc
+      thứ tự chèn. Mọi thao tác này chỉ dùng chuỗi và dict nên hoàn toàn xác định (deterministic), không
+      cần gọi mạng thật; khi test API, người ta thay phần gọi mạng bằng dữ liệu giả (mock).
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      qs = "a=1&b=2&a=3&x"
+      d = {}
+      for part in qs.split("&"):
+          k, _, v = part.partition("=")
+          d[k] = v
+      print(d)
+      print(sorted(d.items()))
+      print(len(d))
+    expected_output: |
+      {'a': '3', 'b': '2', 'x': ''}
+      [('a', '3'), ('b', '2'), ('x', '')]
+      3
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Parse `\"k=1&k=2\"` bằng cách gán `d[k] = v` lần lượt từng cặp. Giá trị của `d[\"k\"]` là gì?"
+    options:
+      - {id: a, text_md: "`\"1\"`, vì giá trị đầu tiên được giữ"}
+      - {id: b, text_md: "`\"2\"`, vì giá trị sau ghi đè giá trị trước"}
+      - {id: c, text_md: "`[\"1\", \"2\"]`, dict tự gom thành list"}
+    answer: [b]
+    explain_md: "Gán `d[k] = v` vào cùng khóa thì ghi đè; dict của Python không tự gom giá trị lặp thành list."
+  - id: q02
+    type: quiz_fill
+    prompt_md: "`\"flag\".partition(\"=\")` trả `('flag', '', '')`, nên với khóa không có dấu `=` giá trị trong dict là chuỗi ___."
+    blanks: [{accept: ["rỗng", "\"\"", "''", "empty", "trống"]}]
+    explain_md: "Phần sau dấu `=` không tồn tại nên `partition` trả chuỗi rỗng; khóa `flag` ánh xạ tới `\"\"`."
+  - id: ex_build_qs
+    type: code_exercise
+    md: |
+      Viết `build_query_string(d)`: nhận dict `str -> str`, trả query string gồm các cặp `key=value`
+      nối bằng `&`, **sắp xếp theo khóa tăng dần**. Dict rỗng cho `""`.
+      Ví dụ `{"b": "2", "a": "1"}` cho `"a=1&b=2"`. Bản dưới đây giữ thứ tự chèn của dict. Hãy sửa.
+    entry: build_query_string
+    starter: |
+      def build_query_string(d):
+          parts = []
+          for k in d:
+              parts.append(k + "=" + d[k])
+          return "&".join(parts)
+    guidance_md: |
+      - Thử `{"b": "2", "a": "1"}`: đáp án là `"a=1&b=2"`, nhưng code trả `"b=2&a=1"`.
+      - Duyệt các khóa theo thứ tự đã sắp xếp.
+    hints:
+      - level: nudge
+        md: "Thứ tự duyệt dict phụ thuộc thứ tự chèn. Làm sao để thứ tự ổn định?"
+      - level: approach
+        md: "Duyệt các khóa đã được sắp xếp tăng dần, rồi ghép từng cặp `key=value` và nối bằng `&`."
+      - level: near_solution
+        md: "Đổi vòng lặp để đi qua khóa theo thứ tự tăng dần của chính chúng; phần ghép chuỗi và `join` giữ nguyên."
+    tests:
+      - {args: [{}], expected: ""}
+      - {args: [{"a": "1"}], expected: "a=1"}
+      - {args: [{"b": "2", "a": "1"}], expected: "a=1&b=2"}
+      - {args: [{"z": "9", "m": "", "c": "3"}], expected: "c=3&m=&z=9"}
+    solution: |
+      def build_query_string(d):
+          parts = []
+          for k in sorted(d):
+              parts.append(k + "=" + d[k])
+          return "&".join(parts)
+  - id: s_route
+    type: section
+    title_vi: "Status code và route matching"
+    summary_vi: "Status code cho biết nên retry hay không; route có :param được khớp theo từng segment."
+    exercise_ref: ex_retry
+  - id: t02
+    type: text
+    md: |
+      **Status code** chia theo nhóm: `2xx` thành công, `3xx` chuyển hướng, `4xx` lỗi do client
+      (`404` không tìm thấy, `429` quá nhiều request), `5xx` lỗi do server.
+
+      Quy tắc retry thường dùng: lỗi tạm thời (`429` và `5xx`) thì thử lại, thường kèm **exponential
+      backoff** (chờ 1s, 2s, 4s, ...); lỗi client như `400`, `404` thì thử lại cũng vô ích. Muốn retry
+      an toàn cần request **idempotent**, tức gọi lại nhiều lần cho cùng kết quả.
+
+      **Route matching**: tách pattern và path bằng `split("/")`. Hai bên phải có cùng số segment; mỗi
+      segment pattern hoặc là literal (phải bằng đúng) hoặc là `:name` (bắt giá trị của path). Ví dụ
+      `/users/:id` khớp `/users/7` và bắt `{"id": "7"}`.
+  - id: q03
+    type: predict_output
+    code: |
+      route = "/users/:id/posts"
+      print(route.split("/"))
+      print(len(route.split("/")))
+    expected_output: |
+      ['', 'users', ':id', 'posts']
+      4
+    explain_md: "Chuỗi bắt đầu bằng `/` nên phần tử đầu là chuỗi rỗng; tổng cộng 4 segment gồm `''`, `users`, `:id`, `posts`."
+  - id: ex_retry
+    type: code_exercise
+    md: |
+      Viết `is_retryable(status)`: trả `True` nếu status code là lỗi tạm thời đáng thử lại, gồm `429` và
+      mọi `5xx` (500 đến 599); ngược lại `False`. Ví dụ `is_retryable(503)` là `True`,
+      `is_retryable(404)` là `False`. Bản dưới đây bỏ sót `429` và coi cả mã lớn hơn 599 là retry. Hãy sửa.
+    entry: is_retryable
+    starter: |
+      def is_retryable(status):
+          return status >= 500
+    guidance_md: |
+      - `429` (Too Many Requests) cũng nên thử lại.
+      - `5xx` chỉ gồm 500 đến 599.
+    hints:
+      - level: nudge
+        md: "Thử `is_retryable(429)` và `is_retryable(600)`: kết quả có đúng không?"
+      - level: approach
+        md: "Có hai trường hợp đáng retry: mã bằng 429, hoặc mã nằm trong khoảng 500 đến 599. Gộp bằng `or`."
+      - level: near_solution
+        md: "Trả về một biểu thức boolean: so sánh `status` với 429, hoặc kiểm tra `status` nằm trong khoảng kín 500 đến 599 bằng so sánh chuỗi."
+    tests:
+      - {args: [200], expected: false}
+      - {args: [404], expected: false}
+      - {args: [429], expected: true}
+      - {args: [503], expected: true}
+      - {args: [600], expected: false}
+    solution: |
+      def is_retryable(status):
+          return status == 429 or 500 <= status <= 599
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Query string: `split(\"&\")`, rồi `partition(\"=\")`; khóa lặp thì giá trị sau thắng, khóa trần cho `\"\"`."
+      - "Dựng query string ổn định bằng cách sắp xếp khóa trước khi nối."
+      - "Retry cho `429` và `5xx` (kèm backoff, request idempotent); không retry lỗi `4xx` khác."
+      - "Route matching: `split(\"/\")`, so số segment, literal phải bằng, `:name` bắt giá trị."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X530], l2: [X531], l3: [X532]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

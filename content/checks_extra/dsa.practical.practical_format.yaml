@@ -1,0 +1,62 @@
+subtopic_id: dsa.practical.practical_format
+items:
+  - id: X537
+    difficulty: 2
+    type: write_code
+    minutes: 8
+    prompt_md: |
+      Viết `run_kv(commands)`: mỗi phần tử là một lệnh chuỗi dạng "SET k v", "GET k" hoặc "DEL k".
+      Thực hiện lần lượt; với mỗi "GET k" thêm vào danh sách kết quả giá trị (chuỗi) của k, hoặc ""
+      nếu k không tồn tại. Trả danh sách kết quả của các lệnh GET theo thứ tự. Gợi ý: tách lệnh rồi
+      điều phối theo từ khoá đầu (parse-then-dispatch), đúng tinh thần bài practical nhiều mức.
+    problem_id: check-x537-command-interpreter
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 8 phút: bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X536
+    difficulty: 3
+    type: read_code
+    minutes: 3
+    prompt_md: Chạy tay (không chạy máy), đoạn code in ra gì? Giải thích 1 câu về cách `pay` và `top` tương tác.
+    code: |-
+      class Bank:
+          def __init__(self):
+              self.bal = {}
+              self.spent = {}
+              self.handlers = {
+                  "open": self.open,
+                  "dep": self.dep,
+                  "pay": self.pay,
+                  "top": self.top,
+              }
+
+          def open(self, name):
+              self.bal[name] = 0
+              self.spent[name] = 0
+
+          def dep(self, name, amt):
+              self.bal[name] += int(amt)
+
+          def pay(self, name, amt):
+              amt = int(amt)
+              if self.bal[name] < amt:
+                  return "fail"
+              self.bal[name] -= amt
+              self.spent[name] += amt
+              return "ok"
+
+          def top(self, n):
+              ranked = sorted(self.spent, key=lambda k: (-self.spent[k], k))
+              return ",".join(ranked[:int(n)])
+
+          def run(self, line):
+              cmd, *args = line.split()
+              return self.handlers[cmd](*args)
+
+      b = Bank()
+      for line in ["open a", "open b", "dep a 10", "dep b 10", "pay a 4", "pay b 4",
+                   "pay a 7", "pay b 6", "top 1", "top 2"]:
+          r = b.run(line)
+          if r is not None:
+              print(r)
+    expected_output: "ok\nok\nfail\nok\nb\nb,a"
+    answer_md: '`pay a 7` thất bại vì số dư của a chỉ còn 6 nên không tăng `spent`; `pay b 6` thành công nên b chi 4 + 6 = 10 còn a chỉ 4. Do đó `top 1` là `b` và `top 2` là `b,a`. Lệnh `open`, `dep` trả `None` nên không in gì.'
+    rubric_md: "Output khớp từng ký tự (bỏ khoảng trắng cuối dòng) VÀ giải thích đúng 1 câu. Đúng: bằng chứng điểm 3; sai: tối đa điểm 1."

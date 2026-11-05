@@ -166,7 +166,19 @@ def build_checks(items: list[dict], content: Path) -> dict[str, list[dict]]:
 
 
 def ruff_format(code: str, name: str) -> str:
-    """The repo formatting (ruff, line length 100) so generated .py files pass `ruff format`."""
+    """Repo formatting so generated .py files pass `ruff format` AND `ruff check`: the import-sort
+    fix runs first so a reference with out-of-order imports does not trip I001 after generation."""
+    isort = subprocess.run(
+        [sys.executable, "-m", "ruff", "check", "--fix", "--select", "I",
+         "--stdin-filename", name, "-"],
+        input=code,
+        capture_output=True,
+        text=True,
+        cwd=ROOT,
+        check=False,
+    )  # fmt: skip
+    if isort.stdout:
+        code = isort.stdout
     proc = subprocess.run(
         [sys.executable, "-m", "ruff", "format", "--stdin-filename", name, "-"],
         input=code,

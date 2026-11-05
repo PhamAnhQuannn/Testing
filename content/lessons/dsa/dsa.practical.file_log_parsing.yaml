@@ -1,0 +1,161 @@
+id: dsa.practical.file_log_parsing
+version: 1
+status: published
+title_vi: "Parse log và đếm top-N (file and log parsing)"
+est_minutes: 14
+objectives_vi:
+  - "Cắt một dòng log thành các cột bằng split và kiểm tra dòng hỏng (malformed) trước khi dùng."
+  - "Gom nhóm đếm bằng dict hoặc Counter rồi lấy top-N với thứ tự ổn định (-count, key)."
+  - "Đặt chính sách lỗi rõ ràng: bỏ qua dòng hỏng thay vì để chương trình văng exception."
+blocks:
+  - id: s_parse
+    type: section
+    title_vi: "Cắt dòng và bỏ qua dòng hỏng"
+    summary_vi: "split() thành cột, kiểm tra số cột và định dạng, dòng sai thì bỏ qua."
+    exercise_ref: ex_status
+  - id: t01
+    type: text
+    md: |
+      Bài xử lý log luôn theo ba bước: **đọc từng dòng**, **cắt thành cột**, **gom nhóm**. Ví dụ dòng
+      `GET /home 200` có ba cột: method, path, status. `line.split()` (không đối số) cắt theo mọi khoảng
+      trắng và bỏ khoảng trắng thừa, nên `"  GET  /a 200 "` vẫn ra 3 phần.
+
+      Log thật luôn có **dòng hỏng (malformed line)**: thiếu cột, status không phải số, dòng trống. Hãy
+      đặt một **chính sách lỗi** ngay từ đầu. Mặc định của đề phỏng vấn là *bỏ qua dòng hỏng*:
+      kiểm tra `len(parts)` và `parts[2].isdigit()` rồi `continue`. Đừng bọc cả vòng lặp trong
+      `try/except` rộng vì sẽ nuốt luôn lỗi lập trình thật. Với file khổng lồ, dùng
+      `for line in open(path)` để đọc streaming, bộ nhớ chỉ O(1) mỗi dòng.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      def parse_line(line):
+          parts = line.split()
+          if len(parts) != 3:
+              return None
+          return parts[0], parts[1], parts[2]
+
+      print(parse_line("GET /home 200"))
+      print(parse_line("oops"))
+      print(parse_line("POST /api/x 500"))
+    expected_output: |
+      ('GET', '/home', '200')
+      None
+      ('POST', '/api/x', '500')
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Một dòng log chỉ có 2 cột (thiếu status). Theo chính sách phổ biến của bài top-N, nên làm gì?"
+    options:
+      - {id: a, text_md: "Bỏ qua dòng đó (kiểm tra số cột rồi `continue`) và tiếp tục xử lý các dòng sau"}
+      - {id: b, text_md: "Để `parts[2]` văng `IndexError` cho cả chương trình dừng"}
+      - {id: c, text_md: "Đếm dòng đó vào một nhóm status rỗng"}
+    answer: [a]
+    explain_md: "Một dòng hỏng không được làm hỏng cả kết quả; kiểm tra trước rồi bỏ qua là cách rõ ràng và an toàn."
+  - id: ex_status
+    type: code_exercise
+    md: |
+      Viết `count_status_codes(lines)`: mỗi dòng có dạng `METHOD path status`. Trả về dict
+      `{status: số_lần}` với `status` là **chuỗi** (ví dụ `"200"`). Bỏ qua dòng hỏng: không đúng 3 cột,
+      hoặc status không phải toàn chữ số. Danh sách rỗng trả `{}`.
+    entry: count_status_codes
+    starter: |
+      def count_status_codes(lines):
+          # TODO: split từng dòng, bỏ qua dòng hỏng, đếm status
+          return {}
+    guidance_md: |
+      - `parts = line.split()` rồi kiểm tra `len(parts) == 3`.
+      - `parts[2].isdigit()` để loại status không phải số.
+      - Đếm bằng `d[k] = d.get(k, 0) + 1`.
+    hints:
+      - level: nudge
+        md: "Dòng nào thì phải bỏ qua trước khi đụng tới cột status?"
+      - level: approach
+        md: "Với mỗi dòng: split, nếu số cột khác 3 hoặc cột cuối không phải số thì continue; còn lại cộng một vào đếm của cột cuối."
+      - level: near_solution
+        md: "Dùng dict rỗng `c`; sau hai điều kiện loại bỏ, gán `c[status] = c.get(status, 0) + 1` rồi trả `c`."
+    tests:
+      - {args: [[]], expected: {}}
+      - {args: [["GET /a 200", "GET /b 404", "POST /a 200"]], expected: {"200": 2, "404": 1}}
+      - {args: [["GET /a 200", "bad line", "GET /b xyz", "GET /c"]], expected: {"200": 1}}
+      - {args: [["GET /a 500", "GET /a 500", "GET /a 200", "  "]], expected: {"500": 2, "200": 1}}
+    solution: |
+      def count_status_codes(lines):
+          c = {}
+          for line in lines:
+              parts = line.split()
+              if len(parts) != 3 or not parts[2].isdigit():
+                  continue
+              c[parts[2]] = c.get(parts[2], 0) + 1
+          return c
+  - id: s_topn
+    type: section
+    title_vi: "Gom nhóm, top-N và theo giờ"
+    summary_vi: "Counter đếm, sort theo (-count, key) cho kết quả xác định, cắt key giờ bằng slicing."
+  - id: t02
+    type: text
+    md: |
+      **Gom nhóm (group-by)** là đếm theo key: `Counter` làm việc này gọn (`cnt[path] += 1`). Lấy **top-N**
+      thì cẩn thận thứ tự khi hai key bằng số đếm: `most_common` giữ thứ tự gặp đầu tiên, còn đề phỏng vấn
+      thường đòi **tie-break theo key**. Hãy sort tường minh:
+      `sorted(cnt.items(), key=lambda kv: (-kv[1], kv[0]))[:n]`. Dấu `-` đảo count thành giảm dần, key tăng dần.
+
+      Với **lỗi theo giờ**, dòng `12:05 ERROR disk` cho giờ là `t[:2]` (`"12"`). Dùng chuỗi hai chữ số để
+      sort theo thứ tự chữ vẫn đúng thứ tự thời gian. Với **đếm từ**, chuẩn hóa trước: `lower()` và bỏ
+      dấu câu, nếu không `"Hi"` và `"hi!"` bị tính là hai từ khác nhau. Độ phức tạp: O(n) để đếm,
+      O(k log k) để sort k key khác nhau.
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      from collections import Counter
+
+      lines = ["GET /a 200", "GET /b 404", "GET /a 200", "bad",
+               "GET /c 200", "GET /b 404", "GET /a 500"]
+      cnt = Counter()
+      for line in lines:
+          p = line.split()
+          if len(p) != 3:
+              continue
+          cnt[p[1]] += 1
+      print(sorted(cnt.items(), key=lambda kv: (-kv[1], kv[0])))
+      print(cnt.most_common(1))
+    expected_output: |
+      [('/a', 3), ('/b', 2), ('/c', 1)]
+      [('/a', 3)]
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Để top-N có thứ tự xác định khi hai key cùng số đếm, ta sort theo `(-count, ___)`, tức là thêm tiêu chí phụ là chính key."
+    blanks: [{accept: ["key", "word", "path", "kv[0]", "khóa", "khoa"]}]
+    explain_md: "Tie-break theo key tăng dần để kết quả không phụ thuộc thứ tự dòng đầu vào."
+  - id: q03
+    type: predict_output
+    code: |
+      from collections import Counter
+
+      s = "12:05 ERROR disk\n12:40 INFO ok\n13:01 ERROR net\n12:59 ERROR cpu"
+      e = Counter()
+      for line in s.splitlines():
+          t, level, _ = line.split()
+          if level == "ERROR":
+              e[t[:2]] += 1
+      print(dict(sorted(e.items())))
+    expected_output: |
+      {'12': 2, '13': 1}
+    explain_md: "Có 3 dòng ERROR: hai dòng giờ 12 (12:05, 12:59) và một dòng giờ 13. Dòng INFO bị bỏ qua."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Quy trình: đọc từng dòng, `split()` thành cột, kiểm tra hợp lệ, rồi gom nhóm."
+      - "Dòng hỏng (thiếu cột, status không phải số, dòng trống) thì bỏ qua bằng `continue`; không dùng `try/except` quá rộng."
+      - "Top-N xác định: `sorted(items, key=lambda kv: (-kv[1], kv[0]))[:n]`."
+      - "Theo giờ: lấy `t[:2]` làm key; đếm từ thì `lower()` và bỏ dấu câu trước. Đếm là O(n), sort là O(k log k)."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X529], l2: [Q143], l3: [Q144]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"
