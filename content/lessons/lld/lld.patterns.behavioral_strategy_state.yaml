@@ -1,0 +1,367 @@
+id: lld.patterns.behavioral_strategy_state
+version: 1
+status: published
+title_vi: "Strategy và State"
+est_minutes: 15
+objectives_vi:
+  - "Viết Strategy: mỗi cách tính (giảm 10%, trừ cố định...) là một class/callable cùng interface; context giữ strategy và giao việc cho nó."
+  - "Thêm một cách giảm giá mới bằng class mới, không sửa chuỗi if/elif của context (OCP)."
+  - "Viết State (máy bán hàng chờ tiền, đã bỏ tiền, hết hàng): mỗi state là một class quyết định hành vi và trạng thái kế tiếp."
+  - "Phân biệt Strategy (bên ngoài chọn, ít đổi) với State (tự đổi bên trong khi có sự kiện) trong vài câu."
+blocks:
+  - id: s_strategy
+    type: section
+    title_vi: "Strategy: đổi cách làm lúc chạy"
+    summary_vi: "Gói mỗi cách tính vào một class cùng interface; context giữ một strategy và giao việc cho nó."
+    exercise_ref: ex_strategy
+  - id: t01
+    type: text
+    md: |
+      **Behavioral pattern** (mẫu hành vi) lo việc các object **phối hợp và chia việc** cho nhau.
+
+      **Strategy**: có nhiều cách làm cùng một việc (giảm 10%, trừ 50k, không giảm). Mỗi cách là một class (hoặc
+      một hàm) với **cùng interface**, ví dụ đều có `apply(amount)`.
+
+      **Context** là object *giữ* strategy hiện tại và **giao việc** cho nó. Giỏ hàng giữ cách giảm giá; hàm
+      `total()` của giỏ không biết đó là 10% hay trừ cố định.
+
+      Lợi ích: thay chuỗi `if kind == "percent": ... elif kind == "fixed": ...` dài. **Thêm cách mới = thêm class
+      mới**, code của context không đổi (Open/Closed). Trong Python, strategy có thể chỉ là lambda hoặc một dict
+      tên → callable.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class Percent:
+          def __init__(self, p):
+              self.p = p
+
+          def apply(self, amount):
+              return amount * (100 - self.p) // 100
+
+
+      class NoDiscount:
+          def apply(self, amount):
+              return amount
+
+
+      class Cart:
+          def __init__(self, discount):
+              self.discount = discount  # context giữ strategy
+
+          def total(self, subtotal):
+              return self.discount.apply(subtotal)  # giao việc
+
+
+      print(Cart(NoDiscount()).total(200))
+      print(Cart(Percent(10)).total(200))
+    expected_output: |
+      200
+      180
+  - id: q01
+    type: predict_output
+    code: |
+      class Percent:
+          def __init__(self, p):
+              self.p = p
+
+          def apply(self, amount):
+              return amount * (100 - self.p) // 100
+
+
+      class Fixed:
+          def __init__(self, off):
+              self.off = off
+
+          def apply(self, amount):
+              return max(0, amount - self.off)
+
+
+      class Cart:
+          def __init__(self, discount):
+              self.discount = discount
+              self.items = []
+
+          def add(self, price):
+              self.items.append(price)
+
+          def total(self):
+              return self.discount.apply(sum(self.items))
+
+
+      cart = Cart(Percent(20))
+      cart.add(100)
+      cart.add(50)
+      print(cart.total())
+      cart.discount = Fixed(200)
+      print(cart.total())
+    expected_output: |
+      120
+      0
+    explain_md: "Tạm tính 150; `Percent(20)` cho 150 * 80 // 100 = 120. Sau đó đổi strategy sang `Fixed(200)`: `max(0, 150 - 200)` = 0. `Cart.total` không đổi dòng nào."
+  - id: q02
+    type: quiz_mcq
+    prompt_md: "Muốn thêm kiểu giảm giá `FreeShip` vào hệ thống đã dùng Strategy, cần làm gì?"
+    options:
+      - {id: a, text_md: "Viết thêm một class `FreeShip` có cùng method `apply`; code của `Cart` không phải sửa"}
+      - {id: b, text_md: "Thêm một nhánh `elif` mới vào bên trong `Cart.total`"}
+      - {id: c, text_md: "Viết lại toàn bộ các class giảm giá đang có"}
+    answer: [a]
+    explain_md: "Đó là lợi ích của Strategy: cùng interface nên context chỉ gọi `apply`, thêm cách mới chỉ thêm class (OCP)."
+  - id: q03
+    type: quiz_fill
+    prompt_md: "Object giữ strategy (hoặc state) hiện tại và giao việc cho nó gọi là ___ (một từ tiếng Anh)."
+    blanks: [{accept: ["context", "Context"]}]
+    explain_md: "Đó là **context**: giỏ hàng giữ cách giảm giá, máy bán hàng giữ trạng thái hiện tại."
+  - id: ex_strategy
+    type: code_exercise
+    md: |
+      Viết `checkout(amount, kind)`: `none` trả `amount`, `half` trả `amount // 2`, `minus30` trả `max(0, amount - 30)`;
+      loại lạ trả `amount`. Bản dưới dùng chuỗi if/elif và quên `half`. Hãy chuyển sang dict các strategy (callable).
+    entry: checkout
+    starter: |
+      def checkout(amount, kind):
+          if kind == "none":
+              return amount
+          elif kind == "minus30":
+              return max(0, amount - 30)
+          return amount
+    guidance_md: |
+      - Thử `checkout(100, "half")`: đáp án `50`, code trả `100`.
+      - `STRATEGIES = {"half": lambda a: a // 2, ...}` rồi `STRATEGIES.get(kind, lambda a: a)(amount)`.
+    hints:
+      - level: nudge
+        md: "Nếu mỗi cách giảm giá là một hàm trong dict, thêm `half` cần sửa mấy dòng logic?"
+      - level: approach
+        md: "Tạo dict tên → hàm; tra dict, loại lạ dùng hàm trả nguyên `amount`."
+      - level: near_solution
+        md: "`return STRATEGIES.get(kind, lambda a: a)(amount)` với ba khoá `none`, `half`, `minus30`."
+    tests:
+      - {args: [100, "none"], expected: 100}
+      - {args: [100, "half"], expected: 50}
+      - {args: [100, "minus30"], expected: 70}
+      - {args: [20, "minus30"], expected: 0}
+      - {args: [100, "weird"], expected: 100}
+    solution: |
+      STRATEGIES = {
+          "none": lambda a: a,
+          "half": lambda a: a // 2,
+          "minus30": lambda a: max(0, a - 30),
+      }
+
+
+      def checkout(amount, kind):
+          return STRATEGIES.get(kind, lambda a: a)(amount)
+  - id: s_state
+    type: section
+    title_vi: "State và so sánh với Strategy"
+    summary_vi: "Hành vi đổi theo trạng thái; mỗi state là một class tự quyết định bước chuyển kế tiếp."
+    exercise_ref: ex_state
+  - id: t02
+    type: text
+    md: |
+      **State**: một object **đổi cách hành xử theo trạng thái**. Máy bán hàng có 3 trạng thái:
+      `Waiting` (chờ tiền) → `Paid` (đã bỏ tiền) → nhả hàng rồi về `Waiting` (hoặc `SoldOut` khi hết hàng).
+
+      Mỗi state là một class có các method `insert`, `select`. Cùng thao tác `select` nhưng:
+      - ở `Waiting`: in "insert coin first", **không** nhả hàng;
+      - ở `Paid`: nhả hàng và **tự đổi** trạng thái của máy.
+
+      Đổi trạng thái chỉ là một dòng: `machine.state = Paid()`. Thay vì mỗi method của máy có chuỗi
+      `if state == ...`, hành vi được **chia cho từng class state**. **State machine** là bản đồ: các hộp
+      (trạng thái) và mũi tên (sự kiện) giữa chúng. Với máy nhỏ, `Enum` + dict chuyển trạng thái
+      `{(state, event): (output, next_state)}` cũng đủ.
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class Waiting:
+          def insert(self, m):
+              print("coin accepted")
+              m.state = Paid()
+
+          def select(self, m):
+              print("insert coin first")
+
+
+      class Paid:
+          def insert(self, m):
+              print("already paid")
+
+          def select(self, m):
+              print("dispense")
+              m.state = Waiting()
+
+
+      class Machine:
+          def __init__(self):
+              self.state = Waiting()  # context giữ state
+
+          def insert(self):
+              self.state.insert(self)
+
+          def select(self):
+              self.state.select(self)
+
+
+      m = Machine()
+      m.select()
+      m.insert()
+      m.select()
+    expected_output: |
+      insert coin first
+      coin accepted
+      dispense
+  - id: q04
+    type: predict_output
+    code: |
+      class Waiting:
+          def insert(self, m):
+              print("coin accepted")
+              m.state = Paid()
+
+          def select(self, m):
+              print("insert coin first")
+
+
+      class Paid:
+          def insert(self, m):
+              print("already paid")
+
+          def select(self, m):
+              m.stock -= 1
+              print("dispense, left", m.stock)
+              m.state = Waiting() if m.stock > 0 else SoldOut()
+
+
+      class SoldOut:
+          def insert(self, m):
+              print("sold out")
+
+          def select(self, m):
+              print("sold out")
+
+
+      class Machine:
+          def __init__(self, stock):
+              self.stock = stock
+              self.state = Waiting()
+
+          def insert(self):
+              self.state.insert(self)
+
+          def select(self):
+              self.state.select(self)
+
+
+      m = Machine(1)
+      m.insert()
+      m.insert()
+      m.select()
+      m.insert()
+      print(type(m.state).__name__)
+    expected_output: |
+      coin accepted
+      already paid
+      dispense, left 0
+      sold out
+      SoldOut
+    explain_md: "Kho chỉ có 1. `insert` đầu: Waiting → Paid. `insert` thứ hai ở Paid: in 'already paid'. `select` nhả hàng, kho về 0 nên sang `SoldOut`. `insert` cuối in 'sold out' và state hiện tại là `SoldOut`."
+  - id: t03
+    type: text
+    md: |
+      **Strategy vs State**: hai mẫu có **cấu trúc gần giống** (context giữ một object và giao việc cho nó) nhưng
+      **ý định khác**:
+
+      | | Strategy | State |
+      |---|---|---|
+      | Ai đổi? | Bên **ngoài** chọn (client gọi `set_discount`) | Object **tự đổi bên trong** khi có sự kiện |
+      | Tần suất | Thường chọn một lần, ít đổi | Đổi liên tục theo các bước |
+      | Các class biết nhau? | Không, các strategy độc lập | Có: state biết state kế tiếp |
+      | Ví dụ | Giảm 10% / trừ 50k | Chờ tiền → đã bỏ tiền → nhả hàng |
+
+      Mẹo nhớ: Strategy trả lời "**làm bằng cách nào**", State trả lời "**đang ở giai đoạn nào**".
+  - id: q05
+    type: quiz_mcq
+    prompt_md: "Điểm khác biệt chính giữa Strategy và State là gì?"
+    options:
+      - {id: a, text_md: "Strategy do bên ngoài chọn và ít đổi; State tự đổi bên trong khi có sự kiện, và state biết bước chuyển kế tiếp"}
+      - {id: b, text_md: "Strategy dùng kế thừa còn State thì không bao giờ dùng class"}
+      - {id: c, text_md: "Hai mẫu hoàn toàn giống nhau, chỉ khác tên"}
+    answer: [a]
+    explain_md: "Cấu trúc giống nhau (context + object được giao việc) nhưng ý định khác: chọn thuật toán (Strategy) so với mô hình hoá các giai đoạn vòng đời (State)."
+  - id: q06
+    type: quiz_mcq
+    prompt_md: "Cần mô hình một thang máy với các trạng thái `Idle`, `MovingUp`, `MovingDown`; thang tự chuyển trạng thái khi nhận nút bấm. Nên dùng mẫu nào?"
+    options:
+      - {id: a, text_md: "Strategy"}
+      - {id: b, text_md: "State"}
+      - {id: c, text_md: "Singleton"}
+    answer: [b]
+    explain_md: "Hành vi phụ thuộc giai đoạn hiện tại và tự chuyển giữa các giai đoạn khi có sự kiện: đó là State machine."
+  - id: ex_state
+    type: code_exercise
+    md: |
+      `run(events)` mô phỏng máy bán hàng. `events` là list gồm `"coin"` và `"select"`. Trả list kết quả cho từng sự kiện:
+      `Waiting` + `coin` trả `"ok"` rồi sang `Paid`; `Paid` + `select` trả `"drop"` rồi **về `Waiting`**; mọi trường hợp
+      còn lại trả `"no"` và giữ nguyên trạng thái. Bản dưới quên chuyển về `Waiting` sau khi nhả hàng. Hãy sửa, tốt hơn
+      là dùng bảng chuyển trạng thái (dict).
+    entry: run
+    starter: |
+      def run(events):
+          state = "waiting"
+          out = []
+          for e in events:
+              if state == "waiting" and e == "coin":
+                  out.append("ok")
+                  state = "paid"
+              elif state == "paid" and e == "select":
+                  out.append("drop")
+              else:
+                  out.append("no")
+          return out
+    guidance_md: |
+      - Thử `run(["coin", "select", "select"])`: đáp án `["ok", "drop", "no"]`, code trả `["ok", "drop", "drop"]`.
+      - Bảng: `TABLE[(state, event)] = (output, next_state)`; thiếu khoá thì `("no", state)`.
+    hints:
+      - level: nudge
+        md: "Sau khi nhả hàng, máy đang ở state nào? Code có ghi lại điều đó không?"
+      - level: approach
+        md: "Dùng dict `(state, event) -> (output, next_state)` và `TABLE.get((state, e), (\"no\", state))`."
+      - level: near_solution
+        md: "`TABLE = {(\"waiting\", \"coin\"): (\"ok\", \"paid\"), (\"paid\", \"select\"): (\"drop\", \"waiting\")}`."
+    tests:
+      - {args: [[]], expected: []}
+      - {args: [["coin", "select", "select"]], expected: ["ok", "drop", "no"]}
+      - {args: [["select", "coin", "coin", "select", "coin"]], expected: ["no", "ok", "no", "drop", "ok"]}
+    solution: |
+      TABLE = {
+          ("waiting", "coin"): ("ok", "paid"),
+          ("paid", "select"): ("drop", "waiting"),
+      }
+
+
+      def run(events):
+          state = "waiting"
+          out = []
+          for e in events:
+              result, state = TABLE.get((state, e), ("no", state))
+              out.append(result)
+          return out
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Strategy: mỗi cách làm là một class/callable cùng interface; context giữ strategy và giao việc; thêm cách mới = thêm class (OCP)."
+      - "State: mỗi trạng thái là một class quyết định hành vi và trạng thái kế tiếp; đổi state bằng `machine.state = Paid()`."
+      - "Strategy do bên ngoài chọn và ít đổi; State tự đổi bên trong khi có sự kiện (state biết bước kế)."
+      - "Máy trạng thái nhỏ có thể dùng Enum + dict `(state, event) -> (output, next)`; cả hai mẫu thay chuỗi if/else dài."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X582], l2: [X583], l3: [X584]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

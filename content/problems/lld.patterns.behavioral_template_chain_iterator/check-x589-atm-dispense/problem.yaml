@@ -1,0 +1,73 @@
+id: check-x589-atm-dispense
+subtopic_id: lld.patterns.behavioral_template_chain_iterator
+secondary_subtopics: []
+kind: check
+title: 'Check X589: ATM dispense'
+title_vi: 'Kiểm tra X589: ATM nhả tiền'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Implement `dispense(amount)`, the greedy cash dispenser behind a Chain of Responsibility. The
+  denominations are `[500, 200, 100, 50]` (in thousands). Each handler takes as many notes as it can
+  from the amount left, then passes the remainder to the next handler. Return a list of
+  `[denom, count]` pairs in descending denomination order, only for denominations with `count > 0`,
+  that sum exactly to `amount`. If a remainder is still left after the last handler (it is below 50 or
+  not a multiple of 50), the amount cannot be dispensed and you return `[]`. `amount = 0` also returns
+  `[]` (nothing to dispense), so `[]` means "no notes dispensed" in both cases.
+  For example `dispense(1300)` is `[[500, 2], [200, 1], [100, 1]]`, `dispense(0)` is `[]` and
+  `dispense(30)` is `[]` (cannot dispense).
+statement_vi_md: |
+  Cài `dispense(amount)`, bộ nhả tiền tham lam đứng sau Chain of Responsibility. Các mệnh giá là
+  `[500, 200, 100, 50]` (đơn vị nghìn). Mỗi handler lấy nhiều tờ nhất có thể từ số tiền còn lại rồi
+  chuyển phần dư cho handler kế. Trả về list các cặp `[mệnh giá, số tờ]` theo thứ tự mệnh giá giảm
+  dần, chỉ gồm mệnh giá có số tờ > 0, tổng đúng bằng `amount`. Nếu sau handler cuối vẫn còn dư (dư
+  nhỏ hơn 50 hoặc không chia hết cho 50) thì không nhả được, trả `[]`. `amount = 0` cũng trả `[]`
+  (không có gì để nhả), nên `[]` nghĩa là "không nhả tờ nào" ở cả hai trường hợp.
+constraints:
+- 0 <= amount <= 1000000
+examples:
+- input: amount = 1300
+  output: '[[500, 2], [200, 1], [100, 1]]'
+  explain_vi: 500 phát 2 tờ dư 300; 200 phát 1 tờ dư 100; 100 phát 1 tờ dư 0.
+- input: amount = 30
+  output: '[]'
+  explain_vi: Không mệnh giá nào nhỏ hơn 50 nên không nhả được, trả [].
+io:
+  mode: function
+  entry: dispense
+  params:
+  - name: amount
+    type: int
+  returns: list
+  compare: exact
+starter:
+  python: |
+    def dispense(amount):
+        # TODO: lần lượt qua 500, 200, 100, 50; lấy số tờ, giữ phần dư
+        # Còn dư cuối cùng (hoặc amount == 0) thì trả []
+        pass
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+time_target_min: 8
+hints:
+- Mỗi handler lấy `left // denom` tờ rồi chuyển `left % denom` cho handler kế.
+- Chỉ thêm cặp [denom, count] khi count > 0; đi theo thứ tự 500, 200, 100, 50.
+- "Sau vòng lặp nếu left != 0 thì không nhả được; nhớ amount == 0 cũng trả []."
+solution:
+  file: solution.py
+  approach_vi: Tham lam qua từng mệnh giá giảm dần, giữ phần dư; dư cuối khác 0 thì trả [].
+  complexity: O(1) / O(1)
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x589
+status: validated
+version: 1

@@ -1,0 +1,74 @@
+id: check-x586-editor-undo
+subtopic_id: lld.patterns.behavioral_observer_command
+secondary_subtopics: []
+kind: check
+title: 'Check X586: Editor Undo'
+title_vi: 'Kiểm tra X586: Undo cho trình soạn thảo'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Command pattern: model a tiny text editor whose operations can be undone. Each operation is
+  recorded on a history stack; `undo()` pops the most recent one and reverts it.
+
+  Implement `class Editor` (constructor takes no arguments, text starts as the empty string `""`) with:
+
+  - `type(s)`: appends the string `s` to the end of the text and records the operation. Returns nothing.
+  - `delete(n)`: removes the last `n` characters. If `n` is larger than the current length, it removes
+    everything (clamped to what is available). Records the operation so it can be undone. Returns nothing.
+  - `undo()`: reverts the most recent not-yet-undone operation (a `type` removes exactly the text it
+    added; a `delete` restores exactly the characters it removed). Does nothing if there is nothing to
+    undo. Returns nothing.
+  - `text()`: returns the current text (a `str`).
+
+  There is no redo. Every `type` and `delete` call is recorded, even if it changed nothing.
+statement_vi_md: |
+  Mẫu Command: mô hình một trình soạn thảo chữ nhỏ có thể hoàn tác. Mỗi thao tác được ghi vào một
+  stack lịch sử; `undo()` lấy thao tác mới nhất ra và hoàn nguyên nó.
+
+  Viết `class Editor` (constructor không tham số, văn bản ban đầu là chuỗi rỗng `""`) với:
+
+  - `type(s)`: nối chuỗi `s` vào cuối văn bản và ghi lại thao tác. Không trả gì.
+  - `delete(n)`: xóa `n` ký tự cuối. Nếu `n` lớn hơn độ dài hiện tại thì xóa hết (chặn theo số ký tự
+    đang có). Ghi lại thao tác để hoàn tác được. Không trả gì.
+  - `undo()`: hoàn nguyên thao tác gần nhất chưa bị undo (`type` bỏ đúng chuỗi nó đã thêm; `delete`
+    khôi phục đúng các ký tự nó đã xóa). Không làm gì nếu không còn gì để undo. Không trả gì.
+  - `text()`: trả văn bản hiện tại (`str`).
+
+  Không có redo. Mọi lần gọi `type` và `delete` đều được ghi lại, kể cả khi không làm đổi gì.
+constraints:
+- 'Ký tự và chuỗi ASCII; n là số nguyên không âm.'
+- 'Không dùng thread, time hay random.'
+examples:
+- input: ops = ['Editor', 'type', 'type', 'undo', 'text'], args = [[], ['ab'], ['cd'], [], []]
+  output: '[null, null, null, null, "ab"]'
+  explain_vi: 'Gõ "ab" rồi "cd" thành "abcd"; undo bỏ "cd" nên còn "ab".'
+io:
+  mode: class_ops
+  compare: exact
+starter:
+  python: "class Editor:\n    # TODO\n    pass\n"
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+time_target_min: 8
+hints:
+- 'Giữ một list làm stack lịch sử; mỗi thao tác push một bản ghi đủ dữ liệu để undo.'
+- 'Bản ghi của delete phải nhớ chuỗi đã bị xóa thật sự (sau khi chặn n), để undo nối lại đúng chuỗi đó.'
+- 'undo(): nếu stack rỗng thì bỏ qua; nếu không thì pop và hoàn nguyên theo loại bản ghi.'
+solution:
+  file: solution.py
+  approach_vi: Command lưu dữ liệu cần undo; stack lịch sử pop để hoàn tác. Mọi thao tác O(độ dài chuỗi).
+  complexity: O(len) mỗi thao tác
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x586
+status: validated
+version: 1
