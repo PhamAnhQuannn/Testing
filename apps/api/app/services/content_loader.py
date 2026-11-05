@@ -83,6 +83,7 @@ MODULE_NAMES: dict[str, str] = {
     "dsa.dp": "Quy hoạch động",
     "dsa.tries": "Trie (cây tiền tố)",
     "dsa.greedy_intervals": "Tham lam & khoảng",
+    "dsa.design_ds": "Thiết kế cấu trúc dữ liệu",
     "sd.fundamentals": "Nền tảng thiết kế hệ thống",
     "sd.networking": "Mạng",
     "sd.api": "Thiết kế API",

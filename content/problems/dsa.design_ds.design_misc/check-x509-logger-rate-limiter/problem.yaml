@@ -1,0 +1,57 @@
+id: check-x509-logger-rate-limiter
+subtopic_id: dsa.design_ds.design_misc
+secondary_subtopics: []
+kind: check
+title: 'Check X509: Logger Rate Limiter'
+title_vi: 'Kiểm tra X509: Logger Rate Limiter'
+difficulty: easy
+source:
+  type: leetcode
+  lc: 359
+  rewrite_required: true
+statement_en_md: |
+  Design `class Logger` with `should_print_message(timestamp, message) -> bool`. Messages arrive with
+  non-decreasing timestamps (in seconds). Return `True` (and record the print) only if the same message
+  has not been printed in the last 10 seconds, i.e. the message was never printed or
+  `timestamp >= last_printed + 10`. Otherwise return `False` and do not update the record.
+statement_vi_md: |
+  Viết `class Logger` có `should_print_message(timestamp, message) -> bool`. Các message đến với
+  `timestamp` (giây) không giảm dần. Trả `True` (và ghi nhận lần in) chỉ khi cùng message đó chưa được in
+  trong 10 giây gần nhất, tức là chưa từng in hoặc `timestamp >= lần_in_gần_nhất + 10`. Ngược lại trả
+  `False` và KHÔNG cập nhật thời điểm in.
+constraints:
+- 0 <= timestamp <= 10^9, timestamp không giảm giữa các lần gọi.
+- 1 <= len(message) <= 30
+- Tối đa 10^4 lần gọi.
+examples:
+- input: ops = ['Logger', 'should_print_message', 'should_print_message', 'should_print_message', 'should_print_message'], args = [[], [1, 'foo'], [2, 'bar'], [3, 'foo'], [11, 'foo']]
+  output: '[null, true, true, false, true]'
+  explain_vi: '`foo` in lúc 1; lúc 3 còn trong 10 giây nên False; lúc 11 = 1 + 10 nên được in lại.'
+io:
+  mode: class_ops
+  compare: exact
+starter:
+  python: "class Logger:\n    # TODO\n    pass\n"
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+time_target_min: 8
+hints:
+- Cần nhớ thời điểm in gần nhất của từng message; cấu trúc nào tra theo message trong O(1)?
+- Dùng dict `message -> last_printed`. Chỉ in được khi chưa có khoá hoặc `timestamp >= last + 10`.
+- Chỉ cập nhật dict khi thực sự in (trả True). Nếu cập nhật cả khi trả False thì cửa sổ 10 giây bị đẩy lùi sai.
+solution:
+  file: solution.py
+  approach_vi: Dict message -> thời điểm in gần nhất; so sánh timestamp với last + 10, chỉ ghi khi in.
+  complexity: O(1) mỗi lần gọi
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x509
+status: validated
+version: 1

@@ -11361,6 +11361,469 @@
       "plan_hours": 1.5
     },
     {
+      "id": "dsa.design_ds.design_cache",
+      "section": "dsa",
+      "module": "dsa.design_ds",
+      "name_vi": "Thiết kế cache: LRU, LFU, TTL (cache design)",
+      "order": 1,
+      "summary_vi": "LRU cache giống một ngăn kéo chỉ chứa N món: lấy món nào thì đặt nó lên đầu, đầy thì vứt món ở đáy (lâu không đụng tới nhất). Học xong bạn cài được LRU với mọi thao tác O(1) và mở rộng sang LFU và TTL.",
+      "mastery_bar_vi": "Mức 3: Cài LRU Cache O(1) không lỗi, thêm TTL, và nêu được khác biệt giữa LRU, LFU với ưu nhược điểm của mỗi cách.",
+      "prerequisites": [
+        "dsa.linked_list.ll_basics",
+        "dsa.arrays_strings.hash_tables"
+      ],
+      "lang_prereqs": {
+        "python": [],
+        "java": []
+      },
+      "key_concepts": [
+        "LRU: hash map + doubly linked list, O(1) get/put",
+        "LFU with frequency buckets",
+        "eviction policy as a swappable strategy (LRU/LFU/FIFO)",
+        "TTL expiry: lazy vs active eviction",
+        "capacity edge cases (0, 1, updating an existing key)",
+        "generic key/value types and a clean cache API",
+        "follow-ups: thread-safe variant, durability with a write-ahead log",
+        "ordered-map shortcut for LRU"
+      ],
+      "concepts_vi": [
+        {
+          "text": "LRU (least recently used, lâu không dùng nhất bị bỏ trước): get và put đều làm key đó thành \"mới dùng\"; đầy thì bỏ key cũ nhất.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Cách làm O(1): dict tra key -> node, và danh sách liên kết đôi (doubly linked list) giữ thứ tự dùng; dời node lên đầu hoặc cắt node cuối đều O(1).",
+          "level": "co_ban"
+        },
+        {
+          "text": "Vì sao cần danh sách liên kết đôi: xoá node ở giữa trong O(1) cần biết node đứng trước nó; dùng node giả ở đầu và cuối (sentinel) để khỏi xét biên.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Ca biên: capacity 0 hoặc 1, put key đã tồn tại (cập nhật giá trị và dời lên đầu), get key không có.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Lối tắt trong Python: OrderedDict với move_to_end và popitem(last=False); nên tự cài được cả hai cách.",
+          "level": "co_ban"
+        },
+        {
+          "text": "TTL (time to live, hạn dùng): lưu thời điểm hết hạn của mỗi key; kiểm tra lúc get (lazy) hoặc dọn định kỳ (active).",
+          "level": "co_ban"
+        },
+        {
+          "text": "LFU (least frequently used, ít dùng nhất bị bỏ): nhóm key theo số lần dùng, nhớ tần suất nhỏ nhất.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Chính sách bỏ key (eviction policy) thay được: LRU/LFU/FIFO là các class cùng giao diện.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Bản an toàn khi nhiều thread (xem concurrency_coding); ghi log để khôi phục.",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "LRU Cache",
+          "vi": "Cài class LRUCache(capacity) có get(key) và put(key, value), cả hai chạy O(1); đầy thì bỏ key lâu không dùng nhất."
+        },
+        {
+          "title": "Expiring cache with TTL",
+          "vi": "Cache mà mỗi key có hạn dùng ttl; get một key đã hết hạn thì coi như không có."
+        },
+        {
+          "title": "LFU Cache",
+          "vi": "Giống LRU nhưng khi đầy thì bỏ key được dùng ít lần nhất (hoà thì bỏ key lâu không dùng nhất)."
+        }
+      ],
+      "beginner_note_vi": "Cần danh sách liên kết và hash map trước.",
+      "example_problems": [
+        "LRU Cache",
+        "LFU Cache",
+        "Expiring cache with TTL",
+        "All O(1) Data Structure",
+        "Cache class with pluggable eviction policy"
+      ],
+      "bank_topics": [
+        "dsa.design_ds",
+        "lld.ood_problems"
+      ],
+      "bank_counts": {
+        "dsa.design_ds": {
+          "total": 461,
+          "y2026": 289
+        },
+        "lld.ood_problems": {
+          "total": 211,
+          "y2026": 114
+        }
+      },
+      "target_swe": {
+        "intern": 2,
+        "fresher": 3,
+        "junior": 3,
+        "senior": 3
+      },
+      "target_ai": {
+        "intern": 2,
+        "fresher": 3,
+        "junior": 3,
+        "senior": 3
+      },
+      "est_hours": 6,
+      "plan_order": 101,
+      "plan_day": null,
+      "plan_hours": 2.0
+    },
+    {
+      "id": "dsa.design_ds.design_o1_structures",
+      "section": "dsa",
+      "module": "dsa.design_ds",
+      "name_vi": "Cấu trúc O(1): RandomizedSet, stack đặc biệt (O(1) structures)",
+      "order": 2,
+      "summary_vi": "Muốn mọi thao tác chạy tức thì (O(1)), hãy ghép vài cấu trúc đã biết lại: mỗi cấu trúc lo một việc. Ví dụ RandomizedSet dùng list để chọn ngẫu nhiên và dict để biết phần tử nằm ở ô nào.",
+      "mastery_bar_vi": "Mức 3: Ghép mảng, hash map và stack/queue để mọi thao tác O(1) (RandomizedSet, Min Stack, Max Frequency Stack) và giải thích vì sao thiết kế đúng.",
+      "prerequisites": [
+        "dsa.arrays_strings.hash_tables",
+        "dsa.stack_queue.stack_problems"
+      ],
+      "lang_prereqs": {
+        "python": [],
+        "java": []
+      },
+      "key_concepts": [
+        "array + index map swap-delete trick",
+        "getRandom O(1) with duplicates",
+        "min stack / max frequency stack",
+        "design HashMap / HashSet",
+        "design circular deque",
+        "snapshot array",
+        "augmenting a structure to add an operation",
+        "multiset with weighted random pick (count-weighted)",
+        "first unique / first value appearing exactly once (queue + counts)",
+        "stock price fluctuation (map + two heaps with lazy delete)"
+      ],
+      "concepts_vi": [
+        {
+          "text": "Nguyên tắc: với mỗi thao tác đề yêu cầu, hỏi \"cấu trúc nào làm việc đó O(1)\", rồi ghép các cấu trúc và giữ chúng đồng bộ.",
+          "level": "co_ban"
+        },
+        {
+          "text": "RandomizedSet: list lưu giá trị, dict ánh xạ giá trị -> chỉ số. Xoá = đổi chỗ với phần tử cuối rồi pop (swap-delete). getRandom = random.choice(list).",
+          "level": "co_ban"
+        },
+        {
+          "text": "Min Stack: thêm một stack phụ lưu giá trị nhỏ nhất tại mỗi mức, nên getMin O(1).",
+          "level": "co_ban"
+        },
+        {
+          "text": "Max Frequency Stack: dict đếm tần suất và dict \"tần suất -> stack các phần tử\"; pop lấy từ stack của tần suất cao nhất. Push 5,7,5,7,4,5 thì pop ra 5, 7, 5, 4.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Design HashMap: mảng các \"ngăn\" (bucket), mỗi ngăn là list các cặp (key, value); chọn ngăn bằng hash(key) % số ngăn.",
+          "level": "co_ban"
+        },
+        {
+          "text": "First Unique Number: queue giữ thứ tự thêm vào và dict đếm; bỏ phần đầu queue khi nó không còn là số duy nhất.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Snapshot Array: mảng có snap() chụp lại và get(i, snap_id), lưu lịch sử mỗi ô rồi bisect. Stock Price Fluctuation: dict + hai heap xoá lười. Circular Deque: mảng vòng.",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "Insert Delete GetRandom O(1)",
+          "vi": "Thiết kế tập hợp hỗ trợ insert(val), remove(val), getRandom() chọn ngẫu nhiên đều một phần tử, tất cả O(1)."
+        },
+        {
+          "title": "Min Stack",
+          "vi": "Thiết kế stack hỗ trợ push, pop, top và getMin (lấy phần tử nhỏ nhất) đều O(1)."
+        },
+        {
+          "title": "Maximum Frequency Stack",
+          "vi": "Stack mà pop() lấy ra phần tử xuất hiện nhiều nhất; hoà thì lấy phần tử được đẩy vào gần đây nhất."
+        },
+        {
+          "title": "First Unique Number",
+          "vi": "Hàng đợi số có add(value) và showFirstUnique() trả số đầu tiên chỉ xuất hiện đúng một lần, hoặc -1."
+        }
+      ],
+      "beginner_note_vi": "Cần hash map và stack trước.",
+      "example_problems": [
+        "Insert Delete GetRandom O(1)",
+        "Maximum Frequency Stack",
+        "Design HashMap",
+        "Snapshot Array",
+        "First Unique Number"
+      ],
+      "bank_topics": [
+        "dsa.design_ds"
+      ],
+      "bank_counts": {
+        "dsa.design_ds": {
+          "total": 461,
+          "y2026": 289
+        }
+      },
+      "target_swe": {
+        "intern": 0,
+        "fresher": 1,
+        "junior": 3,
+        "senior": 3
+      },
+      "target_ai": {
+        "intern": 0,
+        "fresher": 1,
+        "junior": 1,
+        "senior": 2
+      },
+      "est_hours": 5,
+      "plan_order": 102,
+      "plan_day": null,
+      "plan_hours": 1.5
+    },
+    {
+      "id": "dsa.design_ds.design_time_versioned",
+      "section": "dsa",
+      "module": "dsa.design_ds",
+      "name_vi": "Store theo thời gian và phiên bản (time-based and versioned stores)",
+      "order": 3,
+      "summary_vi": "Kho dữ liệu có yếu tố thời gian: mỗi key nhớ danh sách (thời điểm, giá trị) và có thể hỏi \"giá trị tại thời điểm t\" hoặc \"bao nhiêu sự kiện trong 5 phút gần nhất\". Binary search và hàng đợi hai đầu là hai công cụ chính.",
+      "mastery_bar_vi": "Mức 3: Thiết kế Time Based Key-Value Store, Hit Counter và Moving Average bằng binary search hoặc deque, và nêu cách xử lý timestamp sai thứ tự.",
+      "prerequisites": [
+        "dsa.searching_sorting.binary_search_basics",
+        "dsa.stack_queue.stack_queue_ds",
+        "dsa.arrays_strings.hash_tables"
+      ],
+      "lang_prereqs": {
+        "python": [],
+        "java": []
+      },
+      "key_concepts": [
+        "map key -> sorted (timestamp,value) list",
+        "binary search for floor timestamp",
+        "hit counter with deque or buckets",
+        "logger rate limiter",
+        "moving average from data stream",
+        "versioned record with historical reads",
+        "timestamps out-of-order handling",
+        "memory pruning of old data",
+        "query time never decreases vs out-of-order events",
+        "expiring credits/tokens with grants and spend order"
+      ],
+      "concepts_vi": [
+        {
+          "text": "Time Based KV: timestamp là mốc thời gian dạng số (thường là giây); mỗi key lưu list (timestamp, value) tăng dần. set('a',1,t=1), set('a',2,t=5): get('a', 3) = 1; tìm bằng binary search mốc lớn nhất không quá t.",
+          "level": "co_ban"
+        },
+        {
+          "text": "bisect_right của Python tìm vị trí đó; trả về giá trị ở vị trí liền trước.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Hit Counter (đếm lượt truy cập 5 phút qua): giữ deque các timestamp, bỏ những cái đã quá hạn ở đầu hàng rồi đếm.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Moving Average from Data Stream: deque cửa sổ N phần tử kèm tổng đang chạy, cộng phần tử mới và trừ phần tử bị loại.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Logger Rate Limiter: dict \"thông điệp -> thời điểm in lần cuối\", chỉ cho in nếu đã cách đủ 10 giây (rate limiter đầy đủ xem practical.rate_limiters).",
+          "level": "co_ban"
+        },
+        {
+          "text": "Sự kiện đến sai thứ tự (out-of-order): chèn đúng chỗ bằng bisect.insort (chèn giữ list đã sắp xếp) thay vì thêm cuối.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Dọn dữ liệu cũ để giới hạn bộ nhớ: Hit Counter có hàng triệu lượt trong 300 giây thì deque quá dài; dùng 300 ô đếm theo giây (bucket) để bộ nhớ cố định. Bản ghi có phiên bản thì đọc lại lịch sử.",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "Time Based Key-Value Store",
+          "vi": "Time Based Key-Value Store: cài set(key, value, timestamp) và get(key, timestamp) trả giá trị có timestamp lớn nhất không vượt quá timestamp hỏi. Mẫu set('a',1,1), set('a',2,5): get('a',3) = 1, get('a',5) = 2."
+        },
+        {
+          "title": "Design Hit Counter",
+          "vi": "Design Hit Counter: cài hit(timestamp) ghi một lượt truy cập và getHits(timestamp) đếm số lượt trong 300 giây gần nhất."
+        },
+        {
+          "title": "Moving Average from Data Stream",
+          "vi": "Moving Average from Data Stream: nhận từng số một và sau mỗi số trả về trung bình của tối đa size số gần nhất."
+        },
+        {
+          "title": "Design Underground System",
+          "vi": "Design Underground System: tàu điện, khách quẹt thẻ vào/ra ga; trả về thời gian đi trung bình giữa hai ga. Gợi ý: một dict id khách -> (ga vào, giờ vào), một dict (ga vào, ga ra) -> (tổng thời gian, số lượt); khi quẹt ra thì cộng vào dict thứ hai."
+        }
+      ],
+      "beginner_note_vi": "Cần hash map, binary search và hàng đợi hai đầu trước.",
+      "example_problems": [
+        "Time Based Key-Value Store",
+        "Design Hit Counter",
+        "Logger Rate Limiter",
+        "Moving Average from Data Stream",
+        "Design Underground System"
+      ],
+      "bank_topics": [
+        "dsa.design_ds",
+        "dsa.practical_coding"
+      ],
+      "bank_counts": {
+        "dsa.design_ds": {
+          "total": 461,
+          "y2026": 289
+        },
+        "dsa.practical_coding": {
+          "total": 870,
+          "y2026": 608
+        }
+      },
+      "target_swe": {
+        "intern": 1,
+        "fresher": 1,
+        "junior": 3,
+        "senior": 3
+      },
+      "target_ai": {
+        "intern": 1,
+        "fresher": 1,
+        "junior": 1,
+        "senior": 2
+      },
+      "est_hours": 5,
+      "plan_order": 103,
+      "plan_day": null,
+      "plan_hours": 5
+    },
+    {
+      "id": "dsa.design_ds.design_misc",
+      "section": "dsa",
+      "module": "dsa.design_ds",
+      "name_vi": "Bài thiết kế khác: news feed, text editor, leaderboard, autocomplete (design problems)",
+      "order": 4,
+      "summary_vi": "Bài thiết kế mở giống \"lắp ghép\": đọc danh sách thao tác đề yêu cầu, với mỗi thao tác chọn cấu trúc làm nhanh nhất, nói rõ các hàm (API) và độ phức tạp trước rồi mới code. Ví dụ bảng tin Twitter là trộn nhiều danh sách bài đăng bằng heap.",
+      "mastery_bar_vi": "Mức 3: Chọn và kết hợp cấu trúc dữ liệu cho một bài thiết kế mở (news feed, text editor, leaderboard), nêu API và độ phức tạp trước khi code.",
+      "prerequisites": [
+        "dsa.design_ds.design_cache",
+        "dsa.heap.heap_top_k",
+        "dsa.heap.heap_advanced",
+        "dsa.tries.trie_ds"
+      ],
+      "lang_prereqs": {
+        "python": [],
+        "java": []
+      },
+      "key_concepts": [
+        "combining heap + hash map for news feed (merge k)",
+        "trie for autocomplete",
+        "file system as tree/trie with paths",
+        "text editor with cursor: two stacks / doubly linked list",
+        "undo/redo history and batching (command stack)",
+        "voting and leaderboard ranking with tie rules",
+        "follow graph with snapshots and top-k recommendations",
+        "spreadsheet cells with formulas (see practical.rules_engine_formulas)",
+        "choosing structure per operation set",
+        "API-first: define methods then complexity"
+      ],
+      "concepts_vi": [
+        {
+          "text": "Quy trình: liệt kê thao tác (API) -> chọn cấu trúc cho từng thao tác -> nêu độ phức tạp -> mới code.",
+          "level": "co_ban"
+        },
+        {
+          "text": "News feed (Design Twitter): mỗi người có list bài đăng; lấy 10 bài mới nhất của người mình theo dõi = trộn k list bằng heap.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Merge k (xem heap_advanced): heap giữ bài mới nhất của mỗi list; lấy bài mới nhất ra, đẩy bài kế tiếp cùng list vào heap; lặp 10 lần là đủ.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Autocomplete: trie lưu tần suất; gõ tiền tố thì đi xuống trie, duyệt cây con lấy mọi câu rồi chọn top 3 theo tần suất bằng heap hoặc sắp xếp.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Text editor có con trỏ: hai stack (chữ bên trái và bên phải con trỏ), hoặc danh sách liên kết đôi.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Undo/redo: hai stack (đã làm và đã hoàn tác); làm việc mới thì xoá stack redo.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Leaderboard: dict người -> điểm; top(K) bằng sắp xếp mọi điểm (O(n log n)) hoặc heapq.nlargest (O(n log K)); tie rule (luật khi bằng điểm, ví dụ người đạt trước xếp trước) phải hỏi rõ.",
+          "level": "co_ban"
+        },
+        {
+          "text": "File system dạng cây (xem practical.file_system_sim); đồ thị theo dõi (follow graph: ai theo dõi ai) lưu bằng dict người -> tập người theo dõi, snapshot là bản chụp trạng thái tại một thời điểm; gợi ý top-k người cùng follow.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Ô spreadsheet có công thức: xem practical.spreadsheet_formulas.",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "Design Twitter",
+          "vi": "Cài postTweet, follow, unfollow và getNewsFeed trả 10 bài mới nhất trong bài của mình và người mình theo dõi."
+        },
+        {
+          "title": "Design Text Editor",
+          "vi": "Cài editor có con trỏ với addText, deleteText, cursorLeft, cursorRight, mỗi thao tác nhanh."
+        },
+        {
+          "title": "Design Leaderboard",
+          "vi": "Cài addScore(player, score), top(K) trả tổng điểm của K người cao nhất, và reset(player)."
+        },
+        {
+          "title": "Design Autocomplete System",
+          "vi": "Mỗi lần gõ một ký tự, trả về tối đa 3 câu đã nhập trước đó bắt đầu bằng phần đã gõ, ưu tiên câu được gõ nhiều lần."
+        }
+      ],
+      "beginner_note_vi": "Cần heap và trie trước.",
+      "example_problems": [
+        "Design Twitter",
+        "Design In-Memory File System",
+        "Design Text Editor",
+        "Design Leaderboard",
+        "Design Autocomplete System"
+      ],
+      "bank_topics": [
+        "dsa.design_ds"
+      ],
+      "bank_counts": {
+        "dsa.design_ds": {
+          "total": 461,
+          "y2026": 289
+        }
+      },
+      "target_swe": {
+        "intern": 0,
+        "fresher": 1,
+        "junior": 3,
+        "senior": 3
+      },
+      "target_ai": {
+        "intern": 0,
+        "fresher": 1,
+        "junior": 1,
+        "senior": 2
+      },
+      "est_hours": 5,
+      "plan_order": 104,
+      "plan_day": null,
+      "plan_hours": 5
+    },
+    {
       "id": "sd.fundamentals.scalability",
       "section": "sd",
       "module": "sd.fundamentals",
@@ -11465,7 +11928,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 101,
+      "plan_order": 105,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -11573,7 +12036,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 102,
+      "plan_order": 106,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -11680,7 +12143,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 103,
+      "plan_order": 107,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -11790,7 +12253,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 104,
+      "plan_order": 108,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -11901,7 +12364,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 105,
+      "plan_order": 109,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -12018,7 +12481,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 106,
+      "plan_order": 110,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -12130,7 +12593,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 107,
+      "plan_order": 111,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -12230,7 +12693,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 108,
+      "plan_order": 112,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -12336,7 +12799,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 109,
+      "plan_order": 113,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -12445,7 +12908,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 110,
+      "plan_order": 114,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -12590,7 +13053,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 111,
+      "plan_order": 115,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -12703,7 +13166,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 112,
+      "plan_order": 116,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -12816,7 +13279,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 113,
+      "plan_order": 117,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -12921,7 +13384,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 114,
+      "plan_order": 118,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -13029,7 +13492,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 115,
+      "plan_order": 119,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -13146,7 +13609,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 116,
+      "plan_order": 120,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -13254,7 +13717,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 117,
+      "plan_order": 121,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -13358,7 +13821,7 @@
         "senior": 0
       },
       "est_hours": 3,
-      "plan_order": 118,
+      "plan_order": 122,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -13470,7 +13933,7 @@
         "senior": 1
       },
       "est_hours": 3,
-      "plan_order": 119,
+      "plan_order": 123,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -13587,7 +14050,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 120,
+      "plan_order": 124,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -13696,7 +14159,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 121,
+      "plan_order": 125,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -13802,7 +14265,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 122,
+      "plan_order": 126,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -13937,7 +14400,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 123,
+      "plan_order": 127,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -14056,7 +14519,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 124,
+      "plan_order": 128,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -14184,7 +14647,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 125,
+      "plan_order": 129,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -14289,7 +14752,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 126,
+      "plan_order": 130,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -14402,7 +14865,7 @@
         "senior": 0
       },
       "est_hours": 2,
-      "plan_order": 127,
+      "plan_order": 131,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -14526,7 +14989,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 128,
+      "plan_order": 132,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -14634,7 +15097,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 129,
+      "plan_order": 133,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -14751,7 +15214,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 130,
+      "plan_order": 134,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -14856,7 +15319,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 131,
+      "plan_order": 135,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -14965,7 +15428,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 132,
+      "plan_order": 136,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -15101,7 +15564,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 133,
+      "plan_order": 137,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -15220,7 +15683,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 134,
+      "plan_order": 138,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -15345,7 +15808,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 135,
+      "plan_order": 139,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -15442,7 +15905,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 136,
+      "plan_order": 140,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -15564,7 +16027,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 137,
+      "plan_order": 141,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -15681,7 +16144,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 138,
+      "plan_order": 142,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -15790,7 +16253,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 139,
+      "plan_order": 143,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -15900,7 +16363,7 @@
         "senior": 1
       },
       "est_hours": 4,
-      "plan_order": 140,
+      "plan_order": 144,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -16005,7 +16468,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 141,
+      "plan_order": 145,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -16115,7 +16578,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 142,
+      "plan_order": 146,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -16220,7 +16683,7 @@
         "senior": 0
       },
       "est_hours": 3,
-      "plan_order": 143,
+      "plan_order": 147,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -16345,7 +16808,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 144,
+      "plan_order": 148,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -16468,7 +16931,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 145,
+      "plan_order": 149,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -16573,7 +17036,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 146,
+      "plan_order": 150,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -16675,7 +17138,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 147,
+      "plan_order": 151,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -16778,7 +17241,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 148,
+      "plan_order": 152,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -16896,7 +17359,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 149,
+      "plan_order": 153,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -17001,7 +17464,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 150,
+      "plan_order": 154,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -17093,7 +17556,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 151,
+      "plan_order": 155,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -17205,7 +17668,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 152,
+      "plan_order": 156,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -17323,7 +17786,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 153,
+      "plan_order": 157,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -17432,7 +17895,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 154,
+      "plan_order": 158,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -17542,7 +18005,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 155,
+      "plan_order": 159,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -17652,7 +18115,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 156,
+      "plan_order": 160,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -17760,7 +18223,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 157,
+      "plan_order": 161,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -17869,7 +18332,7 @@
         "senior": 1
       },
       "est_hours": 4,
-      "plan_order": 158,
+      "plan_order": 162,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -17979,7 +18442,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 159,
+      "plan_order": 163,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -18078,7 +18541,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 160,
+      "plan_order": 164,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -18182,7 +18645,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 161,
+      "plan_order": 165,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -18290,7 +18753,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 162,
+      "plan_order": 166,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -18400,7 +18863,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 163,
+      "plan_order": 167,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -18499,7 +18962,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 164,
+      "plan_order": 168,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -18602,7 +19065,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 165,
+      "plan_order": 169,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -18704,7 +19167,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 166,
+      "plan_order": 170,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -18808,7 +19271,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 167,
+      "plan_order": 171,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -18914,7 +19377,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 168,
+      "plan_order": 172,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -19018,7 +19481,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 169,
+      "plan_order": 173,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -19118,7 +19581,7 @@
         "senior": 0
       },
       "est_hours": 3,
-      "plan_order": 170,
+      "plan_order": 174,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -19223,7 +19686,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 171,
+      "plan_order": 175,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -19334,7 +19797,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 172,
+      "plan_order": 176,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -19441,7 +19904,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 173,
+      "plan_order": 177,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -19552,7 +20015,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 174,
+      "plan_order": 178,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -19662,7 +20125,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 175,
+      "plan_order": 179,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -19765,7 +20228,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 176,
+      "plan_order": 180,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -19869,7 +20332,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 177,
+      "plan_order": 181,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -19983,7 +20446,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 178,
+      "plan_order": 182,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -20102,7 +20565,7 @@
         "senior": 0
       },
       "est_hours": 6,
-      "plan_order": 179,
+      "plan_order": 183,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -20211,7 +20674,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 180,
+      "plan_order": 184,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -20312,7 +20775,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 181,
+      "plan_order": 185,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -20417,7 +20880,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 182,
+      "plan_order": 186,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -20523,7 +20986,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 183,
+      "plan_order": 187,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -20634,7 +21097,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 184,
+      "plan_order": 188,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -20740,7 +21203,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 185,
+      "plan_order": 189,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -20842,7 +21305,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 186,
+      "plan_order": 190,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -20957,7 +21420,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 187,
+      "plan_order": 191,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -21074,7 +21537,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 188,
+      "plan_order": 192,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -21197,7 +21660,7 @@
         "senior": 3
       },
       "est_hours": 2,
-      "plan_order": 189,
+      "plan_order": 193,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -21325,7 +21788,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 190,
+      "plan_order": 194,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -21445,7 +21908,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 191,
+      "plan_order": 195,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -21559,7 +22022,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 192,
+      "plan_order": 196,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -21681,7 +22144,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 193,
+      "plan_order": 197,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -21807,7 +22270,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 194,
+      "plan_order": 198,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -21927,7 +22390,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 195,
+      "plan_order": 199,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -22044,7 +22507,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 196,
+      "plan_order": 200,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -22163,7 +22626,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 197,
+      "plan_order": 201,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -22275,7 +22738,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 198,
+      "plan_order": 202,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -22397,7 +22860,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 199,
+      "plan_order": 203,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -22522,7 +22985,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 200,
+      "plan_order": 204,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -22639,7 +23102,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 201,
+      "plan_order": 205,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -22750,7 +23213,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 202,
+      "plan_order": 206,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -22862,7 +23325,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 203,
+      "plan_order": 207,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -22969,7 +23432,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 204,
+      "plan_order": 208,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -23089,7 +23552,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 205,
+      "plan_order": 209,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -23212,7 +23675,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 206,
+      "plan_order": 210,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -23322,7 +23785,7 @@
         "senior": 3
       },
       "est_hours": 2,
-      "plan_order": 207,
+      "plan_order": 211,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -23432,7 +23895,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 208,
+      "plan_order": 212,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -23548,7 +24011,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 209,
+      "plan_order": 213,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -23673,7 +24136,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 210,
+      "plan_order": 214,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -23787,7 +24250,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 211,
+      "plan_order": 215,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -23904,7 +24367,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 212,
+      "plan_order": 216,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -24002,7 +24465,7 @@
         "senior": 3
       },
       "est_hours": 2,
-      "plan_order": 213,
+      "plan_order": 217,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -24120,7 +24583,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 214,
+      "plan_order": 218,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -24244,7 +24707,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 215,
+      "plan_order": 219,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -24369,7 +24832,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 216,
+      "plan_order": 220,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -24497,7 +24960,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 217,
+      "plan_order": 221,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -24613,7 +25076,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 218,
+      "plan_order": 222,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -24717,7 +25180,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 219,
+      "plan_order": 223,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -24834,7 +25297,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 220,
+      "plan_order": 224,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -24946,7 +25409,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 221,
+      "plan_order": 225,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -25046,7 +25509,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 222,
+      "plan_order": 226,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -25180,7 +25643,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 223,
+      "plan_order": 227,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -25316,7 +25779,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 224,
+      "plan_order": 228,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -25461,7 +25924,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 225,
+      "plan_order": 229,
       "plan_day": null,
       "plan_hours": 6
     }

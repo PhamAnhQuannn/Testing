@@ -1,0 +1,203 @@
+id: dsa.design_ds.design_o1_structures
+version: 1
+status: published
+title_vi: "Cấu trúc O(1): Min Stack và thống kê tức thì"
+est_minutes: 14
+objectives_vi:
+  - "Giải thích kỹ thuật augmenting: lưu thêm thông tin phụ cùng mỗi phần tử để một thao tác mới cũng chạy O(1)."
+  - "Cài Min Stack: mỗi phần tử mang theo giá trị nhỏ nhất tính đến thời điểm nó được push."
+  - "Dùng sum + count (thay vì lưu mọi giá trị) để trả về trung bình O(1), như bài Underground."
+  - "Chọn đúng cấu trúc ghép (list + dict, stack + running min) và nêu độ phức tạp từng thao tác."
+blocks:
+  - id: s_minstack
+    type: section
+    title_vi: "Augment stack để lấy min O(1)"
+    summary_vi: "Mỗi lần push, lưu kèm min tính đến đó; pop chỉ cần bỏ cả cặp."
+    exercise_ref: ex_running_min
+  - id: t01
+    type: text
+    md: |
+      Thiết kế cấu trúc O(1) nghĩa là **ghép các cấu trúc quen thuộc** và **lưu thêm thông tin phụ**
+      để mỗi thao tác không phải duyệt lại dữ liệu.
+
+      Ví dụ **Min Stack**: cần `push`, `pop`, `top`, `get_min` đều O(1). Duyệt cả stack để tìm min là O(n).
+      Cách sửa: mỗi phần tử lưu thành cặp `(value, min_so_far)`, trong đó `min_so_far` là
+      `min(value, min_so_far của phần tử bên dưới)`. Khi đó:
+
+      - `get_min` đọc `min_so_far` của phần tử trên cùng.
+      - `pop` bỏ cả cặp, và min của phần còn lại tự đúng vì nó đã được lưu sẵn.
+
+      Cùng ý tưởng cho **trung bình theo nhóm** (bài Underground): đừng lưu mọi lần đo; chỉ giữ
+      `total` và `count` cho mỗi khóa, `average = total / count` là O(1). Bộ nhớ cũng giảm từ
+      O(số lần đo) xuống O(số khóa).
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      st = []
+
+      def push(x):
+          cur = x if not st else min(x, st[-1][1])
+          st.append((x, cur))
+
+      for x in [5, 3, 7, 3, 1]:
+          push(x)
+          print(x, st[-1][1])
+      st.pop()
+      print(st[-1][1])
+    expected_output: |
+      5 5
+      3 3
+      7 3
+      3 3
+      1 1
+      3
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Trong Min Stack kiểu `(value, min_so_far)`, sau khi `pop()` phần tử trên cùng, vì sao `get_min` vẫn đúng mà không cần tính lại?"
+    options:
+      - {id: a, text_md: "Vì phần tử bên dưới đã lưu sẵn min của chính phần stack đến nó"}
+      - {id: b, text_md: "Vì `pop` duyệt lại toàn bộ stack để cập nhật min"}
+      - {id: c, text_md: "Vì min luôn là phần tử đầu tiên được push"}
+    answer: [a]
+    explain_md: "Mỗi cặp ghi min của mọi phần tử từ đáy đến nó. Bỏ phần tử trên cùng thì cặp bên dưới vẫn mô tả đúng phần stack còn lại."
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Để tính trung bình O(1) cho mỗi tuyến, ta chỉ lưu tổng và ___ các lần đo (rồi chia)."
+    blanks: [{accept: ["số lượng", "count", "số lần", "số lần đo"]}]
+    explain_md: "`average = total / count`: hai số này cập nhật O(1) mỗi lần check-out và không cần giữ từng giá trị."
+  - id: ex_running_min
+    type: code_exercise
+    md: |
+      Viết `running_min(nums)` trả về danh sách `out` với `out[i]` là giá trị nhỏ nhất của `nums[0..i]`
+      (đúng dãy `min_so_far` của Min Stack). Ví dụ `[5, 3, 7, 3, 1]` cho `[5, 3, 3, 3, 1]`.
+      Bản dưới đây chỉ so với phần tử liền trước thay vì min tích lũy. Hãy sửa.
+    entry: running_min
+    starter: |
+      def running_min(nums):
+          out = []
+          for i, x in enumerate(nums):
+              if i == 0:
+                  out.append(x)
+              else:
+                  out.append(min(x, nums[i - 1]))
+          return out
+    guidance_md: |
+      - Thử `[4, 1, 5, 6]`: đáp án `[4, 1, 1, 1]`, code trả `[4, 1, 1, 5]`.
+      - Min tích lũy nằm ở `out[-1]`, không phải `nums[i - 1]`.
+    hints:
+      - level: nudge
+        md: "Ở vị trí 3 của `[4, 1, 5, 6]`, min của cả đoạn đầu là bao nhiêu và nó nằm ở đâu?"
+      - level: approach
+        md: "So `x` với min đã tính cho vị trí trước, tức phần tử cuối của `out`, không phải với `nums[i - 1]`."
+      - level: near_solution
+        md: "Thay `min(x, nums[i - 1])` bằng `min(x, out[-1])`; nhánh `i == 0` vẫn giữ nguyên."
+    tests:
+      - {args: [[5, 3, 7, 3, 1]], expected: [5, 3, 3, 3, 1]}
+      - {args: [[4, 1, 5, 6]], expected: [4, 1, 1, 1]}
+      - {args: [[]], expected: []}
+      - {args: [[2, 2, 9]], expected: [2, 2, 2]}
+      - {args: [[3, 2, 1]], expected: [3, 2, 1]}
+    solution: |
+      def running_min(nums):
+          out = []
+          for i, x in enumerate(nums):
+              if i == 0:
+                  out.append(x)
+              else:
+                  out.append(min(x, out[-1]))
+          return out
+  - id: s_sim
+    type: section
+    title_vi: "Mô phỏng thao tác và thống kê"
+    summary_vi: "Cùng một mẹo augment dùng cho min, max, tổng, đếm; luôn kiểm tra độ phức tạp từng thao tác."
+    exercise_ref: ex_sim
+  - id: t02
+    type: text
+    md: |
+      Các mẫu thiết kế O(1) hay gặp:
+
+      - **RandomizedSet**: `list` giữ phần tử (chọn ngẫu nhiên O(1)) + `dict` phần tử -> chỉ số. Xóa bằng
+        **swap-delete**: đổi phần tử cần xóa với phần tử cuối rồi `pop()`.
+      - **Min/Max Stack**: cặp `(value, min_so_far)` như trên.
+      - **Thống kê theo khóa**: `total` và `count` mỗi khóa.
+
+      Khi đánh giá, liệt kê độ phức tạp **từng** thao tác: một thao tác O(n) làm cả thiết kế hỏng.
+      Với hash map, O(1) là trung bình (amortized/expected), không phải worst-case tuyệt đối.
+  - id: q03
+    type: predict_output
+    code: |
+      data = []
+      for v in [2, 5, 1]:
+          data.append(v)
+          print(min(data))
+    expected_output: |
+      2
+      2
+      1
+    explain_md: "Sau mỗi lần thêm, min của các phần tử hiện có là 2, 2, rồi 1. Cách này dùng `min(data)` O(n) mỗi lần; Min Stack thay nó bằng đọc một giá trị đã lưu."
+  - id: ex_sim
+    type: code_exercise
+    md: |
+      Viết `min_stack_sim(ops)`: `ops` là danh sách thao tác `["push", x]`, `["pop"]`, `["min"]`. Dùng stack
+      các cặp `(value, min_so_far)`; trả về danh sách kết quả của các thao tác `"min"` theo thứ tự.
+      Ví dụ `[["push", 3], ["push", 1], ["min"], ["pop"], ["min"]]` cho `[1, 3]`. Bản dưới đây trả giá trị
+      trên cùng thay vì min. Hãy sửa.
+    entry: min_stack_sim
+    starter: |
+      def min_stack_sim(ops):
+          st = []
+          res = []
+          for op in ops:
+              if op[0] == "push":
+                  cur = op[1] if not st else min(op[1], st[-1][1])
+                  st.append((op[1], cur))
+              elif op[0] == "pop":
+                  st.pop()
+              else:
+                  res.append(st[-1][0])
+          return res
+    guidance_md: |
+      - Thử `push 1`, `push 5`, `min`: đáp án 1 nhưng code trả 5.
+      - Mỗi cặp là `(value, min_so_far)`; `min` cần phần tử thứ hai của cặp.
+    hints:
+      - level: nudge
+        md: "Mỗi cặp là `(value, min_so_far)`. Thao tác `min` cần phần nào của cặp?"
+      - level: approach
+        md: "Phần tử thứ hai của cặp trên cùng, tức chỉ số 1, là min của cả stack."
+      - level: near_solution
+        md: "Đổi `res.append(st[-1][0])` thành `res.append(st[-1][1])`."
+    tests:
+      - {args: [[["push", 3], ["push", 1], ["min"], ["pop"], ["min"]]], expected: [1, 3]}
+      - {args: [[["push", 1], ["push", 5], ["min"]]], expected: [1]}
+      - {args: [[["push", 4], ["push", 2], ["push", 6], ["min"], ["pop"], ["pop"], ["min"]]], expected: [2, 4]}
+      - {args: [[]], expected: []}
+    solution: |
+      def min_stack_sim(ops):
+          st = []
+          res = []
+          for op in ops:
+              if op[0] == "push":
+                  cur = op[1] if not st else min(op[1], st[-1][1])
+                  st.append((op[1], cur))
+              elif op[0] == "pop":
+                  st.pop()
+              else:
+                  res.append(st[-1][1])
+          return res
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Thiết kế O(1) = ghép cấu trúc quen thuộc + lưu thông tin phụ (augment)."
+      - "Min Stack: mỗi phần tử là `(value, min_so_far)`; pop bỏ cả cặp, `get_min` đọc phần tử trên cùng."
+      - "Trung bình theo khóa: lưu `total` và `count`, `average = total / count`."
+      - "RandomizedSet: list + dict + swap-delete; luôn kiểm tra độ phức tạp từng thao tác."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X504], l2: [Q130], l3: [Q131]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

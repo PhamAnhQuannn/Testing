@@ -1,0 +1,150 @@
+id: dsa.design_ds.design_cache
+version: 1
+status: published
+title_vi: "Thiết kế cấu trúc dữ liệu: HashMap, TimeMap, TTL cache"
+est_minutes: 14
+objectives_vi:
+  - "Hiểu hash map hoạt động bằng bucket chaining: băm key ra chỉ số bucket, tìm/ghi đè trong danh sách của bucket."
+  - "Thiết kế class có state (put/get/remove) và xử lý đúng key không tồn tại, ghi đè key cũ."
+  - "Lưu thêm timestamp để làm time-based store (binary search theo thời gian) và TTL cache (hết hạn kiểu lazy)."
+blocks:
+  - id: s_map
+    type: section
+    title_vi: "Hash map bằng bucket chaining"
+    summary_vi: "Băm key vào bucket, mỗi bucket là một danh sách cặp [key, value]."
+    exercise_ref: ex_seen
+  - id: t01
+    type: text
+    md: |
+      Bài thiết kế thường yêu cầu một **class** giữ state qua nhiều lời gọi: `__init__` dựng cấu trúc,
+      các method `put`, `get`, `remove` thao tác trên đó. Với `MyHashMap` (không dùng `dict`), ta dùng
+      **bucket chaining**: tạo `B` bucket, key đi vào bucket `key % B`. Hai key khác nhau có thể cùng
+      bucket (**collision**), nên mỗi bucket là một danh sách các cặp `[key, value]`.
+
+      - `put(k, v)`: duyệt bucket; nếu thấy `k` thì **ghi đè** `v`, nếu không thì `append`.
+      - `get(k)`: duyệt bucket; không thấy trả `-1`.
+      - `remove(k)`: tìm và xoá cặp khỏi bucket (không có thì bỏ qua).
+
+      Trung bình O(1) nếu bucket ngắn; xấu nhất O(n) khi mọi key rơi vào một bucket.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      B = 4
+      buckets = [[] for _ in range(B)]
+
+      def put(k, v):
+          b = buckets[k % B]
+          for pair in b:
+              if pair[0] == k:
+                  pair[1] = v
+                  return
+          b.append([k, v])
+
+      def get(k):
+          for kk, v in buckets[k % B]:
+              if kk == k:
+                  return v
+          return -1
+
+      put(1, 10); put(5, 20); put(2, 30); put(1, 99)
+      print(get(1), get(5), get(9))
+      print(buckets)
+    expected_output: |
+      99 20 -1
+      [[], [[1, 99], [5, 20]], [[2, 30]], []]
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Trong `MyHashMap`, khi gọi `put(k, v)` với `k` đã có sẵn, cần làm gì?"
+    options:
+      - {id: a, text_md: "Ghi đè giá trị của cặp cũ, không thêm cặp mới"}
+      - {id: b, text_md: "Luôn `append` thêm một cặp mới vào bucket"}
+      - {id: c, text_md: "Báo lỗi vì key bị trùng"}
+    answer: [a]
+    explain_md: "Map chỉ giữ một value cho mỗi key; nếu append thêm, `get` có thể trả giá trị cũ và `remove` để sót cặp."
+  - id: ex_seen
+    type: code_exercise
+    md: |
+      Cài `two_sum_seen(nums, target)`: trả `[i, j]` (với `i < j`) sao cho `nums[i] + nums[j] == target`,
+      dùng một `dict` giá trị -> chỉ số để chạy O(n). Không có cặp thì trả `[]`.
+    entry: two_sum_seen
+    starter: |
+      def two_sum_seen(nums, target):
+          seen = {}
+          # TODO: duyệt nums, tra seen để tìm phần bù, rồi ghi nhớ giá trị hiện tại
+          return []
+    guidance_md: |
+      - Với mỗi `x` ở chỉ số `i`, phần bù là `target - x`.
+      - Nếu phần bù đã nằm trong `seen`, trả `[seen[phần bù], i]`.
+      - Nếu chưa, ghi `seen[x] = i`.
+    hints:
+      - level: nudge
+        md: "Thay vì thử mọi cặp, hãy hỏi: số cần để ghép với `x` đã xuất hiện trước đó chưa?"
+      - level: approach
+        md: "Dùng dict `seen` ánh xạ giá trị sang chỉ số. Tra `target - x` trước, ghi `x` sau."
+      - level: near_solution
+        md: "Trong vòng `for i, x in enumerate(nums)`: lấy `j = seen.get(target - x)`; nếu `j is not None` trả `[j, i]`; cuối vòng ghi `seen[x] = i`."
+    tests:
+      - {args: [[2, 7, 11, 15], 9], expected: [0, 1]}
+      - {args: [[3, 2, 4], 6], expected: [1, 2]}
+      - {args: [[3, 3], 6], expected: [0, 1]}
+      - {args: [[1, 2, 3], 10], expected: []}
+    solution: |
+      def two_sum_seen(nums, target):
+          seen = {}
+          for i, x in enumerate(nums):
+              j = seen.get(target - x)
+              if j is not None:
+                  return [j, i]
+              seen[x] = i
+          return []
+  - id: s_time
+    type: section
+    title_vi: "TimeMap và TTL cache"
+    summary_vi: "Lưu kèm thời gian: binary search cho TimeMap, kiểm tra hết hạn lúc truy cập cho TTL."
+  - id: t02
+    type: text
+    md: |
+      **TimeMap**: `set(k, v, t)` lưu thêm mốc thời gian, `get(k, t)` trả value của timestamp **lớn nhất
+      còn ≤ t**, không có thì `""`. Vì `set` được gọi với `t` tăng dần, mỗi key giữ một danh sách
+      `(t, v)` đã sắp xếp, và `get` dùng **binary search** (`bisect_right`) trong O(log n).
+
+      **TTL cache**: constructor nhận `ttl`; `put(k, v, now)` lưu `(v, now)`; `get(k, now)` kiểm tra
+      `now - t_put < ttl` thì trả value, ngược lại coi là hết hạn và trả `None`. Cách này gọi là
+      **lazy expiration**: không có luồng dọn nền, mục hết hạn chỉ bị phát hiện (và có thể xoá) khi có
+      người truy cập. Ngược lại, **active eviction** quét định kỳ để giải phóng bộ nhớ sớm.
+
+      Lưu ý cạnh: quy ước hết hạn là `>= ttl` hay `> ttl` phải đọc kỹ đề; ở đây `now - t < ttl` là còn sống.
+  - id: q02
+    type: quiz_fill
+    prompt_md: "TimeMap lưu timestamp tăng dần cho mỗi key, nên `get(k, t)` dùng ___ search để tìm bản ghi nhanh trong O(log n)."
+    blanks: [{accept: ["binary", "nhị phân", "bisect"]}]
+    explain_md: "Danh sách đã sắp xếp theo thời gian cho phép tìm vị trí cuối cùng có timestamp <= t bằng bisect_right."
+  - id: q03
+    type: predict_output
+    code: |
+      def get(d, k, now, ttl=5):
+          v, t = d[k]
+          return v if now - t < ttl else None
+
+      d = {"a": ("x", 10)}
+      print(get(d, "a", 14), get(d, "a", 15))
+    expected_output: |
+      x None
+    explain_md: "Lúc 14: 14-10=4 < 5 nên còn sống. Lúc 15: 15-10=5 không nhỏ hơn 5 nên hết hạn."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "MyHashMap: băm `key % B` vào bucket, mỗi bucket là danh sách cặp; put ghi đè key cũ, get thiếu trả -1."
+      - "Collision xử lý bằng chaining; trung bình O(1), xấu nhất O(n)."
+      - "TimeMap: danh sách (t, v) đã sắp xếp + binary search lấy timestamp lớn nhất <= t."
+      - "TTL cache: lưu thời điểm put, hết hạn khi `now - t >= ttl` (lazy expiration)."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X503], l2: [Q128], l3: [Q129]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

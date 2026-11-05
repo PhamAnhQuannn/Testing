@@ -1,0 +1,59 @@
+id: check-x506-snapshot-array
+subtopic_id: dsa.design_ds.design_time_versioned
+secondary_subtopics: []
+kind: check
+title: 'Check X506: SnapshotArray'
+title_vi: 'Kiểm tra X506: SnapshotArray'
+difficulty: easy
+source:
+  type: leetcode
+  lc: 1146
+  rewrite_required: true
+statement_en_md: |
+  Implement `class SnapshotArray`. `SnapshotArray(length)` creates an array of `length` zeros.
+  `set(index, val)` sets the element at `index` to `val`. `snap()` takes a snapshot of the array and
+  returns the snap id (the first call returns 0, then 1, 2, ...). `get(index, snap_id)` returns the value
+  at `index` at the moment `snap()` returned `snap_id`. Copying the whole array on every `snap()` is too
+  slow: keep a per-index history of (snap_id, value) and binary search it.
+statement_vi_md: |
+  Viết `class SnapshotArray`. `SnapshotArray(length)` tạo mảng `length` phần tử 0. `set(index, val)` gán
+  phần tử `index` bằng `val`. `snap()` chụp snapshot và trả về snap id (lần đầu là 0, rồi 1, 2, ...).
+  `get(index, snap_id)` trả về giá trị tại `index` ở thời điểm `snap()` trả `snap_id`. Không copy cả mảng
+  mỗi lần `snap()`; hãy lưu lịch sử (snap_id, value) theo từng index và binary search.
+constraints:
+- 1 <= length <= 50000
+- 0 <= index < length
+- 0 <= snap_id < số lần đã gọi snap()
+- 0 <= val <= 10^9
+examples:
+- input: ops = ['SnapshotArray', 'set', 'snap', 'set', 'snap', 'get', 'get'], args = [[3], [0, 5], [], [0, 6], [], [0, 0], [0, 1]]
+  output: '[null, null, 0, null, 1, 5, 6]'
+  explain_vi: Snap 0 chụp khi phần tử 0 bằng 5, snap 1 chụp khi nó bằng 6, nên get(0, 0) là 5 và get(0, 1) là 6.
+io:
+  mode: class_ops
+  compare: exact
+starter:
+  python: "class SnapshotArray:\n    def __init__(self, length):\n        # TODO\n        pass\n\n    def set(self, index, val):\n        # TODO\n        pass\n\n    def snap(self):\n        # TODO\n        pass\n\n    def get(self, index, snap_id):\n        # TODO\n        pass\n"
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+time_target_min: 8
+hints:
+- Mỗi snap() không được copy cả mảng. Chỉ index nào bị set mới cần ghi nhớ thay đổi.
+- Với mỗi index giữ một danh sách (snap_id, val) tăng dần theo snap_id, khởi đầu là (0, 0). set ghi đè mục cuối nếu cùng snap_id hiện tại, ngược lại append.
+- get dùng bisect_right trên danh sách của index để tìm mục cuối có snap_id <= snap_id được hỏi.
+solution:
+  file: solution.py
+  approach_vi: Mỗi index có lịch sử (snap_id, val) được binary search; snap() chỉ tăng bộ đếm.
+  complexity: set O(1), snap O(1), get O(log S)
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x506
+status: validated
+version: 1
