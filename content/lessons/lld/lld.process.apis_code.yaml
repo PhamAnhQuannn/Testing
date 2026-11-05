@@ -1,0 +1,303 @@
+id: lld.process.apis_code
+version: 1
+status: published
+title_vi: "Thiết kế API và viết code"
+est_minutes: 15
+objectives_vi:
+  - "Chốt public API (tên, tham số, giá trị trả về) trước khi viết thân hàm, và kiểm tra đầu vào sớm."
+  - "Phân biệt báo lỗi bằng exception và bằng giá trị trả về; chọn đúng cách cho từng tình huống."
+  - "Viết code chạy được cho luồng chính, chạy thử bằng main(), tránh god class và dùng dict cho tra cứu O(1)."
+blocks:
+  - id: s_api
+    type: section
+    title_vi: "Public API và kiểm tra đầu vào"
+    summary_vi: "Chốt hàm mà người ngoài gọi, rồi từ chối dữ liệu sai sớm; chọn exception hay giá trị trả về."
+    exercise_ref: ex_borrow
+  - id: t01
+    type: text
+    md: |
+      **Public API** là danh sách hàm mà code bên ngoài gọi. Hãy chốt nó **trước**: tên, tham số, giá trị trả về.
+      Ví dụ thư viện:
+
+      - `add_book(title, copies)`: thêm sách, không trả gì.
+      - `borrow(title) -> bool`: mượn được thì `True`.
+      - `return_book(title) -> bool`: trả được thì `True`.
+      - `available(title) -> int`: số bản còn lại.
+
+      **Đặt tên** rõ nghĩa (`borrow`, không phải `do1`), hàm ngắn, mỗi hàm một việc. **Dữ liệu nội bộ** (dict bên trong)
+      giữ riêng, người ngoài chỉ đi qua API.
+
+      **Validation**: từ chối dữ liệu sai sớm (tựa rỗng, số lượng âm) ngay đầu hàm, không để dữ liệu hỏng chạy sâu vào.
+
+      **Báo lỗi có hai cách**:
+
+      - *Exception*: `raise ValueError("copies < 0")` hoặc lỗi tự đặt như `OutOfStockError`. Hợp khi lỗi là bất thường
+        và người gọi không thể bỏ qua; exception không bị lờ đi âm thầm.
+      - *Giá trị trả về*: `borrow` trả `False` khi hết sách. Hợp khi "thất bại" là kết quả bình thường và hay gặp.
+        Nhược điểm: người gọi có thể quên kiểm tra.
+
+      Không `print` lỗi rồi chạy tiếp, cũng đừng trả `None` mơ hồ. Trong các bài chấm tự động ở đây ta báo lỗi
+      bằng giá trị trả về (`True`/`False`).
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class Library:
+          def __init__(self):
+              self.stock = {}
+
+          def add_book(self, title, copies):
+              if copies < 0:
+                  return False
+              self.stock[title] = self.stock.get(title, 0) + copies
+              return True
+
+          def borrow(self, title):
+              if self.stock.get(title, 0) <= 0:
+                  return False
+              self.stock[title] -= 1
+              return True
+
+
+      lib = Library()
+      print(lib.add_book("dune", -2), lib.add_book("dune", 1))
+      print(lib.borrow("dune"), lib.borrow("dune"))
+    expected_output: |
+      False True
+      True False
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "`borrow('x')` khi sách hết là chuyện bình thường, hay xảy ra. Cách báo nào hợp nhất khi ta chọn giá trị trả về?"
+    options:
+      - {id: a, text_md: "Trả `False` và không thay đổi trạng thái"}
+      - {id: b, text_md: "`print('het sach')` rồi trả `None`"}
+      - {id: c, text_md: "Giảm số bản xuống âm để ghi nhớ"}
+    answer: [a]
+    explain_md: "Trả `False` rõ nghĩa và người gọi kiểm tra được. In ra màn hình hay trả `None` mơ hồ làm người gọi không biết chuyện gì xảy ra, còn số âm làm hỏng dữ liệu."
+  - id: q02
+    type: predict_output
+    code: |
+      class Library:
+          def __init__(self):
+              self.stock = {}
+              self.out = {}
+
+          def add_book(self, title, copies):
+              self.stock[title] = self.stock.get(title, 0) + copies
+
+          def borrow(self, title):
+              if self.stock.get(title, 0) <= 0:
+                  return False
+              self.stock[title] -= 1
+              self.out[title] = self.out.get(title, 0) + 1
+              return True
+
+          def return_book(self, title):
+              if self.out.get(title, 0) <= 0:
+                  return False
+              self.out[title] -= 1
+              self.stock[title] += 1
+              return True
+
+
+      lib = Library()
+      lib.add_book("a", 1)
+      print(lib.return_book("a"), lib.borrow("a"), lib.borrow("a"), lib.return_book("a"), lib.return_book("a"))
+      print(lib.stock["a"])
+    expected_output: |
+      False True False True False
+      1
+    explain_md: "Chưa ai mượn nên `return_book` đầu False. Mượn lần một True, lần hai hết nên False. Trả lần một True (còn 1 bản), lần hai không còn lượt mượn nên False."
+  - id: q03
+    type: quiz_fill
+    prompt_md: "Để lấy số bản của một tựa chưa từng thêm mà không gây lỗi, dùng `self.stock.___(title, 0)` (tên method của dict, một từ)."
+    blanks: [{accept: ["get", "get()"]}]
+    explain_md: "`dict.get(key, default)` trả giá trị mặc định khi thiếu khóa và không tạo khóa mới; `stock[title]` sẽ ném `KeyError`."
+  - id: ex_borrow
+    type: code_exercise
+    md: |
+      `run_library(cmds)` mô phỏng thư viện. Mỗi phần tử của `cmds` là `["add", tựa, n]` (cộng `n` bản, không ghi kết quả),
+      hoặc `["borrow", tựa]` (ghi `True`/`False`). Trả list kết quả của các lệnh `borrow`. Bản dưới đây quên kiểm tra
+      hết sách nên `borrow` luôn `True`. Hãy sửa `borrow`.
+    entry: run_library
+    starter: |
+      class Library:
+          def __init__(self):
+              self.stock = {}
+
+          def add(self, title, n):
+              self.stock[title] = self.stock.get(title, 0) + n
+
+          def borrow(self, title):
+              self.stock[title] = self.stock.get(title, 0) - 1
+              return True
+
+
+      def run_library(cmds):
+          lib = Library()
+          out = []
+          for c in cmds:
+              if c[0] == "add":
+                  lib.add(c[1], c[2])
+              else:
+                  out.append(lib.borrow(c[1]))
+          return out
+    guidance_md: |
+      - Thử `run_library([["add", "a", 1], ["borrow", "a"], ["borrow", "a"]])`: đáp án `[True, False]`, code trả `[True, True]`.
+      - Chỉ trừ số bản khi còn; hết hoặc tựa lạ thì trả `False` mà không đổi dict.
+    hints:
+      - level: nudge
+        md: "Khi nào `borrow` phải trả `False`, và lúc đó có được đổi `stock` không?"
+      - level: approach
+        md: "Đọc số bản bằng `self.stock.get(title, 0)`; nếu `<= 0` trả `False` ngay."
+      - level: near_solution
+        md: "`if self.stock.get(title, 0) <= 0: return False` rồi mới `self.stock[title] -= 1`."
+    tests:
+      - {args: [[["add", "a", 1], ["borrow", "a"], ["borrow", "a"]]], expected: [true, false]}
+      - {args: [[["borrow", "x"]]], expected: [false]}
+      - {args: [[["add", "a", 2], ["add", "a", 1], ["borrow", "a"], ["borrow", "a"], ["borrow", "a"], ["borrow", "a"]]], expected: [true, true, true, false]}
+      - {args: [[]], expected: []}
+    solution: |
+      class Library:
+          def __init__(self):
+              self.stock = {}
+
+          def add(self, title, n):
+              self.stock[title] = self.stock.get(title, 0) + n
+
+          def borrow(self, title):
+              if self.stock.get(title, 0) <= 0:
+                  return False
+              self.stock[title] -= 1
+              return True
+
+
+      def run_library(cmds):
+          lib = Library()
+          out = []
+          for c in cmds:
+              if c[0] == "add":
+                  lib.add(c[1], c[2])
+              else:
+                  out.append(lib.borrow(c[1]))
+          return out
+  - id: s_structure
+    type: section
+    title_vi: "Chạy được trước, driver và cấu trúc"
+    summary_vi: "Viết luồng chính chạy end-to-end, thử bằng main(), tách class theo trách nhiệm, dùng dict để tra cứu nhanh."
+    exercise_ref: ex_count
+  - id: t02
+    type: text
+    md: |
+      **Làm cho chạy được trước, đẹp sau.** Viết luồng chính end-to-end (thêm sách, mượn, trả) bằng code đơn giản,
+      rồi mới thêm trường hợp phụ và tối ưu. Trong phỏng vấn, code chạy đúng một luồng hơn code đẹp nhưng dang dở.
+
+      **Driver / `main()`**: vài lệnh gọi thử rồi in kết quả để chứng minh code chạy:
+
+      ```python
+      def main():
+          lib = Library()
+          lib.add_book("dune", 1)
+          print(lib.borrow("dune"))   # True
+          print(lib.borrow("dune"))   # False
+      ```
+
+      **Tránh god class**: một class `Library` vừa lưu sách, vừa quản lý thành viên, vừa tính phí phạt, vừa in báo cáo
+      sẽ khó đọc và khó sửa. Tách theo trách nhiệm: `Catalog` (sách), `MemberRegistry` (thành viên), `FeePolicy`
+      (phí); `Library` chỉ điều phối.
+
+      **Chọn cấu trúc dữ liệu cho tra cứu O(1)**: tìm sách theo tựa bằng `dict` (trung bình O(1)) thay vì quét `list`
+      (O(n)). Khi cần theo dõi nhiều thuộc tính, dict trỏ tới object hoặc list nhỏ như `[available, borrowed]`.
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Library có 100000 đầu sách, mỗi lần `borrow(title)` cần tìm sách theo tựa. Cấu trúc nào hợp nhất?"
+    options:
+      - {id: a, text_md: "`dict` từ tựa sang số bản (trung bình O(1))"}
+      - {id: b, text_md: "`list` các cặp (tựa, số bản) và quét từ đầu (O(n))"}
+      - {id: c, text_md: "Một chuỗi dài nối mọi tựa rồi dùng `in`"}
+    answer: [a]
+    explain_md: "Dict băm theo khóa nên tra cứu trung bình O(1); quét list tốn O(n) mỗi lần gọi."
+  - id: q05
+    type: quiz_mcq
+    prompt_md: "Dấu hiệu nào cho thấy một class đang thành god class?"
+    options:
+      - {id: a, text_md: "Nó vừa lưu sách, vừa quản lý thành viên, tính phí và in báo cáo"}
+      - {id: b, text_md: "Nó có ba method ngắn cùng làm việc với một dict"}
+      - {id: c, text_md: "Nó có hàm `__init__`"}
+    answer: [a]
+    explain_md: "God class ôm nhiều trách nhiệm không liên quan. Nên tách thành các class nhỏ, mỗi class một việc."
+  - id: q06
+    type: predict_output
+    code: |
+      class Library:
+          def __init__(self):
+              self.books = {}
+
+          def add_book(self, title, copies):
+              self.books[title] = self.books.get(title, 0) + copies
+
+          def available(self, title):
+              return self.books.get(title, 0)
+
+
+      def main():
+          lib = Library()
+          lib.add_book("a", 2)
+          lib.add_book("b", 1)
+          lib.add_book("a", 3)
+          print(lib.available("a"), lib.available("b"), lib.available("c"))
+
+
+      main()
+    expected_output: |
+      5 1 0
+    explain_md: "`a` được thêm hai lần nên cộng dồn thành 5; `b` có 1; `c` chưa tồn tại nên `get` trả mặc định 0."
+  - id: ex_count
+    type: code_exercise
+    md: |
+      `count_titles(pairs)` nhận list các cặp `[tựa, số bản]` (có thể lặp tựa) và trả dict `tựa -> tổng số bản`.
+      Bản dưới đây ghi đè thay vì cộng dồn. Hãy sửa để cộng dồn.
+    entry: count_titles
+    starter: |
+      def count_titles(pairs):
+          stock = {}
+          for title, n in pairs:
+              stock[title] = n
+          return stock
+    guidance_md: |
+      - Thử `count_titles([["a", 2], ["a", 3]])`: đáp án `{"a": 5}`, code trả `{"a": 3}`.
+      - Đọc giá trị cũ bằng `get(title, 0)` rồi cộng `n`.
+    hints:
+      - level: nudge
+        md: "Lần thứ hai gặp cùng tựa, giá trị cũ đang bị mất. Làm sao giữ nó?"
+      - level: approach
+        md: "Dùng `stock.get(title, 0)` làm giá trị khởi đầu rồi cộng `n`."
+      - level: near_solution
+        md: "`stock[title] = stock.get(title, 0) + n`."
+    tests:
+      - {args: [[["a", 2], ["a", 3]]], expected: {"a": 5}}
+      - {args: [[["a", 1], ["b", 2], ["a", 4]]], expected: {"a": 5, "b": 2}}
+      - {args: [[]], expected: {}}
+      - {args: [[["x", 0]]], expected: {"x": 0}}
+    solution: |
+      def count_titles(pairs):
+          stock = {}
+          for title, n in pairs:
+              stock[title] = stock.get(title, 0) + n
+          return stock
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Chốt public API trước (tên, tham số, giá trị trả về); đặt tên rõ nghĩa, hàm ngắn, mỗi hàm một việc."
+      - "Validation: từ chối dữ liệu sai sớm. Báo lỗi bằng exception khi bất thường, bằng giá trị trả về (False) khi thất bại là chuyện bình thường."
+      - "Viết luồng chính chạy được trước, thử bằng main(); tách class theo trách nhiệm để tránh god class."
+      - "Dùng dict cho tra cứu theo khóa trung bình O(1) và dict.get(key, default) cho khóa thiếu."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X597], l2: [X598], l3: [X599]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

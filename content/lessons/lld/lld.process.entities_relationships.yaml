@@ -1,0 +1,348 @@
+id: lld.process.entities_relationships
+version: 1
+status: published
+title_vi: "Entity, quan hệ, thiết kế class và UML"
+est_minutes: 15
+objectives_vi:
+  - "Đọc đề, gạch danh từ thành class/thuộc tính và động từ thành method (noun-verb analysis)."
+  - "Chia trách nhiệm cho từng class theo SRP; đặt hành vi cạnh dữ liệu (rich model) thay vì class chỉ chứa dữ liệu (anemic)."
+  - "Chọn đúng has-a (composition) hay is-a (kế thừa); dùng enum cho tập giá trị cố định, value object cho giá trị không có danh tính."
+  - "Đọc và vẽ UML class diagram đơn giản: hộp ba ngăn, mũi tên kế thừa/aggregation/composition/association và multiplicity."
+blocks:
+  - id: s_noun_verb
+    type: section
+    title_vi: "Từ đề bài đến class và method"
+    summary_vi: "Gạch danh từ thành class, động từ thành method, rồi chia trách nhiệm cho từng class."
+    exercise_ref: ex_progress
+  - id: t01
+    type: text
+    md: |
+      **Noun-verb analysis**: đọc đề và gạch chân.
+
+      - **Danh từ** (Sách, Thành viên, Dự án, Việc) là ứng viên **class** hoặc **thuộc tính**.
+      - **Động từ** (mượn, trả, thêm, hoàn thành) là ứng viên **method**.
+
+      Đề: "Thư viện cho **thành viên mượn sách**." Danh từ: `Library`, `Member`, `Book`; động từ: `borrow`.
+      Không phải danh từ nào cũng thành class: "tiêu đề" chỉ là thuộc tính `title` của `Book`.
+
+      **SRP** (Single Responsibility Principle): mỗi class chỉ có **một lý do để thay đổi**. `Library` không
+      tự tính tiền phạt; việc đó thuộc về class `Fine`. Hỏi mỗi class: "bạn chịu trách nhiệm về điều gì?"; nếu câu
+      trả lời có chữ "và" quá nhiều thì nên tách.
+
+      **Entity** có danh tính riêng (Thành viên có mã), còn **value object** chỉ là giá trị (tiền 50k): hai
+      giá trị bằng nhau thì thay thế được cho nhau.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class Book:
+          def __init__(self, title):
+              self.title = title
+              self.loaned = False
+
+
+      class Library:
+          def __init__(self):
+              self.books = []  # has-a: Library chứa các Book
+
+          def add(self, title):
+              self.books.append(Book(title))
+
+          def borrow(self, title):  # động từ -> method
+              for b in self.books:
+                  if b.title == title and not b.loaned:
+                      b.loaned = True
+                      return True
+              return False
+
+
+      lib = Library()
+      lib.add("Dune")
+      print(lib.borrow("Dune"))
+      print(lib.borrow("Dune"))
+      print(lib.borrow("Emma"))
+    expected_output: |
+      True
+      False
+      False
+  - id: q01
+    type: predict_output
+    code: |
+      class Task:
+          def __init__(self, name):
+              self.name = name
+              self.done = False
+
+
+      class Project:
+          def __init__(self):
+              self.tasks = []
+
+          def add(self, name):
+              self.tasks.append(Task(name))
+
+          def complete(self, name):
+              for t in self.tasks:
+                  if t.name == name:
+                      t.done = True
+
+          def pending(self):
+              return sum(1 for t in self.tasks if not t.done)
+
+
+      p = Project()
+      p.add("a")
+      p.add("b")
+      p.complete("a")
+      p.complete("a")
+      p.complete("x")
+      print(p.pending())
+      print(len(p.tasks))
+    expected_output: |
+      1
+      2
+    explain_md: "Có 2 việc. `complete(\"a\")` hai lần chỉ đánh dấu một việc; `complete(\"x\")` không có việc đó nên bỏ qua. Còn 1 việc chưa xong, và `Project` vẫn chứa cả 2 `Task`."
+  - id: q02
+    type: quiz_mcq
+    prompt_md: "Class `Library` đang có thêm method `calc_fine(days)` tính tiền phạt trả muộn. Theo SRP nên làm gì?"
+    options:
+      - {id: a, text_md: "Tách thành class `Fine` (hoặc `FinePolicy`) riêng chịu trách nhiệm tính phạt; `Library` chỉ giữ sách và việc mượn/trả"}
+      - {id: b, text_md: "Giữ nguyên, một class làm càng nhiều việc càng tốt"}
+      - {id: c, text_md: "Chuyển `calc_fine` thành biến toàn cục"}
+    answer: [a]
+    explain_md: "Quy tắc tính phạt đổi vì lý do khác với việc quản lý sách, nên thuộc một class riêng (một lý do để thay đổi)."
+  - id: q03
+    type: quiz_fill
+    prompt_md: "Trong noun-verb analysis, **động từ** trong đề thường trở thành một ___ (một từ tiếng Anh) của class."
+    blanks: [{accept: ["method", "Method"]}]
+    explain_md: "Động từ (mượn, trả, hoàn thành) là hành vi nên thành **method**; danh từ thành class hoặc thuộc tính."
+  - id: ex_progress
+    type: code_exercise
+    md: |
+      `progress(tasks)` nhận list các cặp `[name, done]` (done là `True/False`) của một dự án. Trả chuỗi `"d/n"`
+      với `d` là số việc đã xong và `n` là tổng số việc, ví dụ `"2/3"`. Danh sách rỗng trả `"0/0"`. Bản dưới
+      bị sai: đếm số việc **chưa** xong. Hãy sửa.
+    entry: progress
+    starter: |
+      def progress(tasks):
+          d = 0
+          for name, done in tasks:
+              if not done:
+                  d += 1
+          return f"{d}/{len(tasks)}"
+    guidance_md: |
+      - Thử `progress([["a", True], ["b", True]])`: đáp án `"2/2"`, code trả `"0/2"`.
+      - Chỉ đếm khi `done` đúng.
+    hints:
+      - level: nudge
+        md: "Điều kiện `if not done` đang đếm nhóm nào?"
+      - level: approach
+        md: "Đếm các cặp có `done` là True, tổng là `len(tasks)`."
+      - level: near_solution
+        md: "`d = sum(1 for _, done in tasks if done)` rồi `return f\"{d}/{len(tasks)}\"`."
+    tests:
+      - {args: [[]], expected: "0/0"}
+      - {args: [[["a", true], ["b", false]]], expected: "1/2"}
+      - {args: [[["a", true], ["b", true], ["c", true]]], expected: "3/3"}
+      - {args: [[["a", false]]], expected: "0/1"}
+    solution: |
+      def progress(tasks):
+          d = sum(1 for _, done in tasks if done)
+          return f"{d}/{len(tasks)}"
+  - id: s_relations
+    type: section
+    title_vi: "Quan hệ, enum, UML và rich model"
+    summary_vi: "Chọn has-a hay is-a, dùng enum cho giá trị cố định, đọc class diagram và đặt hành vi vào đúng class."
+    exercise_ref: ex_enum
+  - id: t02
+    type: text
+    md: |
+      **Has-a vs is-a**: hỏi "A có thật sự là một loại B không?"
+
+      - `Dog` **is-a** `Animal` thì kế thừa được. `Project` **has-a** `Task` (chứa nhiều `Task`) thì dùng
+        **composition**: để `Project` giữ một list `Task`. Không viết `class Project(Task)`.
+      - Khi nghi ngờ, ưu tiên has-a: dễ đổi hơn và không kéo theo mọi method của lớp cha.
+
+      **Enum**: dùng cho tập giá trị **cố định** (trạng thái đơn hàng, loại xe). `Status.DONE` không gõ sai được,
+      còn chuỗi `"donee"` thì có. Trong Python, member của `enum.Enum` còn có method. Giá trị như tiền
+      (50k) hay toạ độ thì dùng **value object** (ví dụ `@dataclass(frozen=True)`).
+
+      **Rich vs anemic model**: class **anemic** chỉ chứa dữ liệu, mọi logic nằm ở hàm bên ngoài.
+      Class **rich** giữ cả dữ liệu lẫn hành vi: `task.complete()` thay vì `task.done = True` rải khắp nơi.
+      Rich model đặt luật nghiệp vụ ở một chỗ.
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      from enum import Enum
+
+
+      class Status(Enum):
+          TODO = "todo"
+          DONE = "done"
+
+          def flip(self):
+              return Status.DONE if self is Status.TODO else Status.TODO
+
+
+      class Task:
+          def __init__(self, name):
+              self.name = name
+              self.status = Status.TODO
+
+          def toggle(self):  # rich: hành vi nằm trong class
+              self.status = self.status.flip()
+
+
+      t = Task("a")
+      print(t.status.name)
+      t.toggle()
+      print(t.status.name)
+      t.toggle()
+      print(t.status == Status.TODO)
+    expected_output: |
+      TODO
+      DONE
+      True
+  - id: q04
+    type: predict_output
+    code: |
+      from enum import Enum
+
+
+      class Level(Enum):
+          LOW = 1
+          HIGH = 2
+
+
+      class Alert:
+          def __init__(self, level):
+              self.level = level
+
+          def escalate(self):
+              if self.level is Level.LOW:
+                  self.level = Level.HIGH
+
+
+      a = Alert(Level.LOW)
+      b = Alert(Level.HIGH)
+      a.escalate()
+      b.escalate()
+      print(a.level.name, b.level.name)
+      print(a.level is b.level)
+      print(Level(1).name)
+    expected_output: |
+      HIGH HIGH
+      True
+      LOW
+    explain_md: "`a` leo thang LOW sang HIGH, `b` đã HIGH nên giữ nguyên. Enum member là singleton nên `a.level is b.level` là True. `Level(1)` tra theo giá trị và trả `LOW`."
+  - id: t03
+    type: text
+    md: |
+      **UML class diagram** cơ bản. Mỗi class là hộp ba ngăn: **tên**, **thuộc tính**, **method**. Ký hiệu
+      visibility: `+` public, `-` private, `#` protected.
+
+      ```
+      +-----------------+            +--------------+
+      | Library         | 1        * | Book         |
+      |-----------------|<>--------->|--------------|
+      | -books: List    |            | +title: str  |
+      |-----------------|            |--------------|
+      | +borrow(title)  |            | +is_free()   |
+      +-----------------+            +--------------+
+      ```
+
+      Mũi tên và đường nối:
+
+      | Ký hiệu | Ý nghĩa |
+      |---|---|
+      | Tam giác rỗng | Kế thừa (is-a): `Dog` trỏ tới `Animal` |
+      | Kim cương rỗng | **Aggregation**: chứa nhưng phần tử sống độc lập (Đội và Cầu thủ) |
+      | Kim cương đặc | **Composition**: chứa và sở hữu, bỏ cha thì con mất (Dự án và Việc) |
+      | Đường thường (có thể có mũi tên) | **Association**: hai class biết nhau |
+
+      **Multiplicity** ghi ở đầu đường nối: `1`, `0..1`, `*` (nhiều). `Library 1 --- * Book` đọc là "một thư
+      viện có nhiều sách". Chỉ cần vẽ đúng ý trong 10 phút, không cần đúng từng ký hiệu.
+  - id: q05
+    type: quiz_mcq
+    prompt_md: "`Project` sở hữu các `Task`: xoá project thì các task cũng mất. Dùng ký hiệu UML nào ở đầu `Project`?"
+    options:
+      - {id: a, text_md: "Kim cương đặc (composition)"}
+      - {id: b, text_md: "Tam giác rỗng (kế thừa)"}
+      - {id: c, text_md: "Đường thường không có kim cương"}
+    answer: [a]
+    explain_md: "Phần tử không tồn tại khi thiếu chủ sở hữu là composition, vẽ bằng kim cương đặc ở phía chủ (`Project`)."
+  - id: q06
+    type: quiz_mcq
+    prompt_md: "Ghi `Member 1 --- * Loan` trên class diagram nghĩa là gì?"
+    options:
+      - {id: a, text_md: "Một Member có nhiều Loan; mỗi Loan thuộc về đúng một Member"}
+      - {id: b, text_md: "Một Loan có nhiều Member"}
+      - {id: c, text_md: "Member kế thừa Loan"}
+    answer: [a]
+    explain_md: "Multiplicity `1` ở phía Member và `*` ở phía Loan: một-nhiều."
+  - id: q07
+    type: quiz_fill
+    prompt_md: "Class chỉ chứa dữ liệu còn mọi logic nằm ở hàm bên ngoài gọi là mô hình ___ (một từ tiếng Anh, đối lập với rich)."
+    blanks: [{accept: ["anemic", "Anemic"]}]
+    explain_md: "Đó là **anemic model**. Rich model đặt hành vi cạnh dữ liệu trong cùng class."
+  - id: ex_enum
+    type: code_exercise
+    md: |
+      `advance(status)` nhận `"todo"`, `"doing"` hoặc `"done"` và trả trạng thái kế tiếp: `todo` sang `doing`,
+      `doing` sang `done`, `done` giữ `done`. Bản dưới dùng chuỗi if rời rạc và quên `doing`. Hãy dùng `Enum`
+      (hoặc danh sách thứ tự) để sửa.
+    entry: advance
+    starter: |
+      def advance(status):
+          if status == "todo":
+              return "doing"
+          return "done" if status == "done" else status
+    guidance_md: |
+      - Thử `advance("doing")`: đáp án `"done"`, code trả `"doing"`.
+      - Giữ thứ tự `["todo", "doing", "done"]`; trả phần tử kế tiếp, chặn ở cuối.
+    hints:
+      - level: nudge
+        md: "Nếu trạng thái nằm trong một list có thứ tự, 'kế tiếp' là gì?"
+      - level: approach
+        md: "`order = [\"todo\", \"doing\", \"done\"]`, lấy `order.index(status)` rồi cộng 1 nhưng không vượt cuối."
+      - level: near_solution
+        md: "`return order[min(order.index(status) + 1, len(order) - 1)]`."
+    tests:
+      - {args: ["todo"], expected: "doing"}
+      - {args: ["doing"], expected: "done"}
+      - {args: ["done"], expected: "done"}
+    solution: |
+      from enum import Enum
+
+
+      class Status(Enum):
+          TODO = "todo"
+          DOING = "doing"
+          DONE = "done"
+
+
+      ORDER = [Status.TODO, Status.DOING, Status.DONE]
+
+
+      def advance(status):
+          i = ORDER.index(Status(status))
+          return ORDER[min(i + 1, len(ORDER) - 1)].value
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Noun-verb analysis: danh từ thành class hoặc thuộc tính, động từ thành method; không phải danh từ nào cũng là class."
+      - "SRP: mỗi class một lý do để thay đổi (Library quản lý sách, Fine tính phạt); entity có danh tính, value object chỉ là giá trị."
+      - "Has-a (composition) khi A chứa B, is-a (kế thừa) khi A thật sự là một loại B; nghi ngờ thì chọn has-a. Enum cho tập giá trị cố định."
+      - "UML: hộp ba ngăn (+ public, - private); tam giác rỗng = kế thừa, kim cương rỗng = aggregation, kim cương đặc = composition, đường thường = association; multiplicity `1`, `*`."
+      - "Rich model đặt hành vi cạnh dữ liệu (`task.complete()`); anemic model chỉ chứa dữ liệu và phân tán logic."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X594], l2: [X595], l3: [X596]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

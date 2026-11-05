@@ -1,0 +1,107 @@
+subtopic_id: lld.process.entities_relationships
+items:
+  - id: X594
+    difficulty: 1
+    type: read_code
+    minutes: 3
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Giải thích 1 câu vì sao.
+    code: |-
+      class Task:
+          def __init__(self, name):
+              self.name = name
+              self.done = False
+
+
+      class Project:
+          def __init__(self, name):
+              self.name = name
+              self.tasks = []
+
+          def add(self, name):
+              self.tasks.append(Task(name))
+
+          def complete(self, name):
+              for t in self.tasks:
+                  if t.name == name:
+                      t.done = True
+
+          def pending(self):
+              return sum(1 for t in self.tasks if not t.done)
+
+
+      p = Project("web")
+      p.add("a")
+      p.add("b")
+      p.add("c")
+      p.complete("b")
+      print(p.pending())
+      p.complete("a")
+      p.complete("zzz")
+      print(p.pending())
+      print(len(p.tasks))
+    expected_output: "2\n1\n3"
+    answer_md: 'Thêm a, b, c (3 việc chưa xong); hoàn thành b nên còn 2. Hoàn thành a còn 1; `complete("zzz")` không có việc đó nên không đổi gì. `Project` chứa (has-a) 3 `Task` nên `len(p.tasks)` là 3.'
+    rubric_md: "Output khớp VÀ nêu Project chứa các Task (has-a) và giữ hành vi complete/pending. Đúng: bằng chứng điểm 1; sai: tối đa điểm 0."
+  - id: X595
+    difficulty: 2
+    type: write_code
+    minutes: 8
+    prompt_md: |
+      Phân tích danh từ - động từ: "dự án có nhiều việc, thêm việc và hoàn thành việc". Viết `class Project` (has-a các Task, composition): constructor `Project(name)`; `add_task(name)` thêm việc chưa xong (nếu đã có việc cùng tên thì bỏ qua); `complete(name)` đánh dấu việc đã xong (không làm gì nếu không có hoặc đã xong); `pending()` trả số (int) việc chưa xong; `done_names()` trả list tên các việc đã xong, sắp xếp tăng dần. Ví dụ thêm a, b rồi hoàn thành a thì `pending()` là 1 và `done_names()` là `["a"]`.
+    problem_id: check-x595-project-tasks
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 8 phút: bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X596
+    difficulty: 3
+    type: read_code
+    minutes: 5
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng và giải thích vì sao dùng enum cho trạng thái thay vì chuỗi và hành vi `next` nằm ở đâu (rich model).
+    code: |-
+      from enum import Enum
+
+
+      class Status(Enum):
+          TODO = "todo"
+          DOING = "doing"
+          DONE = "done"
+
+          def next(self):
+              order = [Status.TODO, Status.DOING, Status.DONE]
+              return order[min(order.index(self) + 1, 2)]
+
+
+      class Task:
+          def __init__(self, name):
+              self.name = name
+              self.status = Status.TODO
+
+          def advance(self):
+              self.status = self.status.next()
+
+
+      class Board:
+          def __init__(self):
+              self.tasks = []
+
+          def add(self, name):
+              t = Task(name)
+              self.tasks.append(t)
+              return t
+
+          def count(self, status):
+              return sum(1 for t in self.tasks if t.status == status)
+
+
+      b = Board()
+      t1 = b.add("x")
+      t2 = b.add("y")
+      b.add("z")
+      for _ in range(3):
+          t1.advance()
+      t2.advance()
+      print(t1.status.name)
+      print(b.count(Status.DONE), b.count(Status.TODO))
+      print(Status("doing") is t2.status)
+      print(t1.status == Status.TODO)
+    expected_output: "DONE\n1 1\nTrue\nFalse"
+    answer_md: 'Task x advance 3 lần: TODO, DOING, DONE, rồi kẹt ở DONE nên `.name` in `DONE`. Task y advance 1 lần (DOING), z còn TODO nên có 1 DONE và 1 TODO. `Status("doing")` trả đúng member DOING (enum là singleton) nên `is` cho True. x đang DONE nên `== Status.TODO` là False. `next` nằm trong enum (hành vi đi cùng dữ liệu).'
+    rubric_md: "Output khớp từng dòng VÀ nêu lợi ích enum (tập giá trị cố định, không gõ sai) hoặc hành vi nằm trong class. Đúng: bằng chứng điểm 3; sai: tối đa điểm 2."
