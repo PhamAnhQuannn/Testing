@@ -146,7 +146,7 @@ def test_api_shape_and_hint_not_strong(client) -> None:
     r = client.get("/api/diagnosis")
     assert r.status_code == 200
     body = r.json()
-    assert [tr["key"] for tr in body["tracks"]] == ["foundation", "system_design", "ai"]
+    assert [tr["key"] for tr in body["tracks"]] == ["foundation", "lld", "system_design", "ai"]
     (dom,) = body["domains"]
     assert dom["section"] == "py" and dom["track"] == "foundation"
     assert {"level", "mean", "coverage", "tier", "name_vi"} <= dom.keys()

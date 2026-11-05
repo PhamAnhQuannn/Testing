@@ -1,0 +1,207 @@
+id: lld.oop_principles.composition_vs_inheritance
+version: 1
+status: published
+title_vi: "Composition và inheritance (ưu tiên composition)"
+est_minutes: 14
+objectives_vi:
+  - "Phân biệt is-a (kế thừa) và has-a (composition) bằng câu hỏi 'A có thật sự là một loại B không?'."
+  - "Giải thích vì sao ưu tiên composition: tránh bùng nổ class con và đổi được hành vi lúc chạy."
+  - "Viết delegation: object giữ một object hành vi và giao việc cho nó."
+  - "Biết qua fragile base class, diamond problem (MRO trong Python) và mixin."
+blocks:
+  - id: s_isa
+    type: section
+    title_vi: "Is-a, has-a và bùng nổ class con"
+    summary_vi: "Chỉ kế thừa khi con thật sự là một loại của cha; còn lại hãy chứa object khác."
+    exercise_ref: ex_count
+  - id: t01
+    type: text
+    md: |
+      **Kế thừa (inheritance)** nghĩa là "A **là một** B" (is-a): Xe máy là một Xe. **Composition** nghĩa
+      là "A **có một** B" (has-a): Xe có một Động cơ. Câu hỏi kiểm tra nhanh: nếu thay B bằng A ở mọi
+      nơi mà vẫn đúng thì mới là is-a; còn không thì dùng has-a.
+
+      Vì sao nên **ưu tiên composition** (favor composition over inheritance)?
+
+      - Kế thừa gắn chặt con với cha; muốn đổi hành vi phải đổi cả dòng họ class.
+      - Kế thừa theo **tổ hợp** gây **bùng nổ class con** (subclass explosion). Vịt có 2 cách bay
+        (bay / không bay) và 3 cách kêu (kêu / câm / rít) cần `2 x 3 = 6` class con; thêm một cách bay nữa
+        là thành 9. Composition chỉ cần `2 + 3` hành vi nhỏ rồi ghép lại.
+      - Composition đổi được hành vi **lúc chạy** (runtime); kế thừa thì cố định từ khi tạo class.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Trường hợp nào nên dùng composition (has-a) thay vì kế thừa?"
+    options:
+      - {id: a, text_md: "`Car` và `Engine`: xe chứa một động cơ chứ không phải là một loại động cơ"}
+      - {id: b, text_md: "`Dog` và `Animal`: chó thật sự là một loại động vật"}
+      - {id: c, text_md: "`Square` và `Shape`: hình vuông là một loại hình"}
+    answer: [a]
+    explain_md: "Xe không phải là một loại Động cơ, nên quan hệ là has-a: `Car` giữ một object `Engine`. Hai trường hợp còn lại đều là is-a thật sự."
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Vịt có 2 cách bay và 3 cách kêu. Tạo một class con cho mỗi tổ hợp thì cần ___ class con."
+    blanks: [{accept: ["6", "sáu", "sau"]}]
+    explain_md: "2 x 3 = 6 class con, và mỗi cách bay/kêu mới nhân thêm số class. Với composition chỉ cần 2 + 3 = 5 hành vi nhỏ."
+  - id: ex_count
+    type: code_exercise
+    md: |
+      Viết `class_counts(n_fly, n_quack)`: trả về list `[inheritance, composition]` gồm số class cần
+      khi tạo một class con cho **mỗi tổ hợp** (kế thừa) và số hành vi nhỏ cần khi **ghép** (composition)
+      với `n_fly` cách bay và `n_quack` cách kêu. Bản dưới đây đang đếm sai.
+    entry: class_counts
+    starter: |
+      def class_counts(n_fly, n_quack):
+          return [n_fly + n_quack, n_fly * n_quack]
+    guidance_md: |
+      - `class_counts(2, 3)` phải là `[6, 5]`, code trả `[5, 6]`.
+      - Kế thừa nhân, composition cộng.
+    hints:
+      - level: nudge
+        md: "Mỗi tổ hợp bay x kêu là một class con; ghép thì mỗi hành vi chỉ viết một lần."
+      - level: approach
+        md: "Kế thừa là `n_fly * n_quack`, composition là `n_fly + n_quack`; kết quả đang bị đảo thứ tự."
+      - level: near_solution
+        md: "Trả `[n_fly * n_quack, n_fly + n_quack]`."
+    tests:
+      - {args: [2, 3], expected: [6, 5]}
+      - {args: [1, 1], expected: [1, 2]}
+      - {args: [3, 4], expected: [12, 7]}
+      - {args: [0, 5], expected: [0, 5]}
+    solution: |
+      def class_counts(n_fly, n_quack):
+          return [n_fly * n_quack, n_fly + n_quack]
+  - id: s_deleg
+    type: section
+    title_vi: "Delegation, fragile base class, diamond và mixin"
+    summary_vi: "Object giao việc cho object hành vi bên trong; kế thừa nhiều tầng thì dễ vỡ và dễ mơ hồ."
+    exercise_ref: ex_swap
+  - id: t02
+    type: text
+    md: |
+      **Delegation (ủy quyền)**: object không tự làm mà giao việc cho object bên trong nó. `Duck` giữ
+      `self.fly_behavior` và `perform_fly()` chỉ gọi `self.fly_behavior.fly()`. Muốn vịt không bay nữa,
+      chỉ cần gán một behavior khác, không cần class con nào.
+
+      Phần nâng cao, chỉ cần biết qua:
+
+      - **Fragile base class**: sửa class cha (ví dụ đổi một method nội bộ) có thể làm hỏng class con ở
+        xa mà không ai ngờ. Vì vậy chỉ kế thừa khi thật sự is-a và cha ổn định.
+      - **Diamond problem**: `D` kế thừa `B` và `C`, cả hai cùng kế thừa `A`; method của `A` bị `B`, `C`
+        ghi đè thì `D` gọi bản nào? Python giải bằng **MRO** (C3 linearization, xem `D.__mro__`), Java cấm
+        đa kế thừa class.
+      - **Mixin**: class nhỏ chỉ thêm một khả năng (ví dụ ghi log), trộn vào nhiều class bằng đa kế thừa.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class Flies:
+          def fly(self):
+              return "I fly"
+
+
+      class NoFly:
+          def fly(self):
+              return "I can't fly"
+
+
+      class Duck:
+          def __init__(self, fly_behavior):
+              self.fly_behavior = fly_behavior
+
+          def perform_fly(self):
+              return self.fly_behavior.fly()  # delegation
+
+
+      d = Duck(Flies())
+      print(d.perform_fly())
+      d.fly_behavior = NoFly()  # đổi hành vi lúc chạy
+      print(d.perform_fly())
+    expected_output: |
+      I fly
+      I can't fly
+  - id: q03
+    type: predict_output
+    code: |
+      class Loud:
+          def sound(self):
+              return "QUACK"
+
+
+      class Soft:
+          def sound(self):
+              return "quack"
+
+
+      class Duck:
+          def __init__(self, voice):
+              self.voice = voice
+
+          def speak(self):
+              return self.voice.sound()
+
+
+      d = Duck(Loud())
+      first = d.speak()
+      d.voice = Soft()
+      print(first, d.speak())
+    expected_output: |
+      QUACK quack
+    explain_md: "`speak()` delegate cho `self.voice`. Lần đầu voice là `Loud` nên ra `QUACK`; sau khi gán `Soft()` thì cùng lời gọi ra `quack`."
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Diamond problem trong Python được giải quyết bằng gì?"
+    options:
+      - {id: a, text_md: "MRO (C3 linearization): thứ tự cố định để tìm method, xem bằng `D.__mro__`"}
+      - {id: b, text_md: "Python cấm mọi đa kế thừa và báo lỗi"}
+      - {id: c, text_md: "Python chọn ngẫu nhiên một trong các class cha mỗi lần chạy"}
+    answer: [a]
+    explain_md: "Python tính một thứ tự MRO tất định cho mỗi class; `super()` đi theo thứ tự đó. Java thì cấm đa kế thừa class."
+  - id: ex_swap
+    type: code_exercise
+    md: |
+      Viết `fly_after(start, swaps)`: vịt bắt đầu với hành vi bay tên `start` (`"fly"` hoặc `"noway"`),
+      rồi lần lượt áp dụng các `set_fly(name)` trong list `swaps`. Trả về chuỗi `perform_fly()` cuối
+      cùng: `"I fly"` cho `"fly"` và `"I can't fly"` cho `"noway"`. Bản dưới đây bỏ qua `swaps`.
+    entry: fly_after
+    starter: |
+      def fly_after(start, swaps):
+          texts = {"fly": "I fly", "noway": "I can't fly"}
+          return texts[start]
+    guidance_md: |
+      - `fly_after("fly", ["noway"])` phải là `"I can't fly"`.
+      - Hành vi hiện tại là tên cuối cùng đã được set.
+    hints:
+      - level: nudge
+        md: "Mỗi lần `set_fly` thay hành vi hiện tại bằng tên mới."
+      - level: approach
+        md: "Giữ biến `current = start`, với mỗi `name` trong `swaps` gán `current = name`, rồi tra `texts[current]`."
+      - level: near_solution
+        md: "Thêm `for name in swaps: current = name` trước khi tra bảng."
+    tests:
+      - {args: ["fly", []], expected: "I fly"}
+      - {args: ["fly", ["noway"]], expected: "I can't fly"}
+      - {args: ["noway", ["fly", "noway", "fly"]], expected: "I fly"}
+      - {args: ["noway", []], expected: "I can't fly"}
+    solution: |
+      def fly_after(start, swaps):
+          texts = {"fly": "I fly", "noway": "I can't fly"}
+          current = start
+          for name in swaps:
+              current = name
+          return texts[current]
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Is-a dùng kế thừa, has-a dùng composition; hỏi 'A có thật sự là một loại B không?' trước khi kế thừa."
+      - "Kế thừa theo tổ hợp gây bùng nổ class con (2 x 3 = 6); composition ghép hành vi (2 + 3 = 5) và đổi được lúc chạy."
+      - "Delegation: object giữ object hành vi và gọi nó (`self.fly_behavior.fly()`)."
+      - "Biết qua: fragile base class, diamond problem (Python dùng MRO), mixin là class nhỏ thêm một khả năng."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X570], l2: [X571], l3: [X572]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"
