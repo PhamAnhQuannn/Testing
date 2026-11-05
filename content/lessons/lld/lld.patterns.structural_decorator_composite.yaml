@@ -1,0 +1,282 @@
+id: lld.patterns.structural_decorator_composite
+version: 1
+status: published
+title_vi: "Decorator và Composite"
+est_minutes: 15
+objectives_vi:
+  - "Viết Decorator: object bọc object cùng interface và thêm việc; xếp chồng nhiều lớp (pizza + topping)."
+  - "Phân biệt GoF Decorator (class bọc object) với @decorator của Python (hàm bọc hàm)."
+  - "Viết Composite: File (lá) và Folder (nhánh) cùng interface size(), Folder cộng size của các con."
+  - "Nhận ra ứng dụng: menu có menu con, hệ thống tập tin, sơ đồ tổ chức."
+blocks:
+  - id: s_dec
+    type: section
+    title_vi: "Decorator: bọc để thêm tính năng"
+    summary_vi: "Mỗi topping là một lớp bọc cùng interface; giá cộng dồn theo từng lớp."
+    exercise_ref: ex_price
+  - id: t01
+    type: text
+    md: |
+      **Decorator** là object **bọc** (wrap) một object khác có **cùng interface**, giao việc cho object
+      bên trong (delegation) rồi thêm việc của mình trước hoặc sau. Ví dụ: `Pizza` giá 100; `Cheese` bọc
+      pizza và cộng 20; `Mushroom` bọc và cộng 15. Không sửa class `Pizza`, không cần class con cho từng
+      tổ hợp.
+
+      **Xếp chồng**: `Cheese(Mushroom(Pizza()))` bọc nhiều lớp, gọi `price()` ở lớp ngoài cùng thì mỗi lớp
+      gọi vào lớp trong rồi cộng phần của mình: `100 + 15 + 20 = 135`. Muốn thêm topping mới chỉ cần viết
+      một class bọc mới, và ghép lúc chạy (runtime) thành tổ hợp tuỳ ý.
+
+      **Khác với `@decorator` của Python**: GoF Decorator là **class bọc object** (cùng interface), còn
+      `@decorator` của Python là **hàm bọc hàm** (nhận hàm, trả hàm mới). Hai thứ cùng ý tưởng "bọc để thêm
+      việc" nhưng không đồng nhất; cú pháp `@` chỉ là đường tắt `f = decorator(f)`. Trong Java,
+      `new BufferedReader(new FileReader(...))` là Decorator có sẵn trong thư viện.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class Pizza:
+          def price(self):
+              return 100
+
+
+      class Cheese:
+          def __init__(self, inner):
+              self.inner = inner
+
+          def price(self):
+              return self.inner.price() + 20
+
+
+      class Mushroom:
+          def __init__(self, inner):
+              self.inner = inner
+
+          def price(self):
+              return self.inner.price() + 15
+
+
+      print(Pizza().price())
+      print(Cheese(Pizza()).price())
+      print(Cheese(Mushroom(Pizza())).price())
+    expected_output: |
+      100
+      120
+      135
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "`Cheese(Mushroom(Pizza())).price()` với Pizza = 100, Cheese +20, Mushroom +15 trả bao nhiêu?"
+    options:
+      - {id: a, text_md: "135: mỗi lớp bọc cộng phần của mình vào giá lớp bên trong"}
+      - {id: b, text_md: "20: chỉ lớp ngoài cùng được tính"}
+      - {id: c, text_md: "100: giá pizza không đổi khi bọc"}
+    answer: [a]
+    explain_md: "`Cheese.price()` gọi `Mushroom.price()` (gọi `Pizza.price()` = 100, cộng 15 = 115) rồi cộng 20 ra 135."
+  - id: q02
+    type: quiz_mcq
+    prompt_md: "Điểm khác chính giữa GoF Decorator và `@decorator` của Python?"
+    options:
+      - {id: a, text_md: "GoF Decorator là class bọc object cùng interface; `@decorator` là hàm bọc hàm"}
+      - {id: b, text_md: "Chúng hoàn toàn giống nhau, chỉ khác cách viết"}
+      - {id: c, text_md: "`@decorator` chỉ dùng được cho class, GoF Decorator chỉ dùng cho hàm"}
+    answer: [a]
+    explain_md: "Cùng ý tưởng bọc để thêm việc, nhưng một cái bọc object (có interface chung), một cái bọc hàm (`f = decorator(f)`)."
+  - id: q03
+    type: predict_output
+    code: |
+      class Pizza:
+          def price(self):
+              return 100
+
+
+      class Olive:
+          def __init__(self, inner):
+              self.inner = inner
+
+          def price(self):
+              return self.inner.price() + 10
+
+
+      p = Olive(Olive(Pizza()))
+      print(p.price())
+    expected_output: |
+      120
+    explain_md: "Hai lớp `Olive` xếp chồng: 100 + 10 + 10 = 120. Cùng một topping bọc hai lần là hợp lệ."
+  - id: ex_price
+    type: code_exercise
+    md: |
+      Viết `stacked_price(toppings)`: pizza giá 100, rồi bọc lần lượt từng topping trong list theo thứ tự.
+      Giá topping: `"cheese"` = 20, `"mushroom"` = 15, `"olive"` = 10. Trả về giá cuối cùng (int).
+      Bản dưới đây đang **gán** thay vì **cộng dồn** giá.
+    entry: stacked_price
+    starter: |
+      def stacked_price(toppings):
+          extra = {"cheese": 20, "mushroom": 15, "olive": 10}
+          price = 100
+          for name in toppings:
+              price = extra[name]
+          return price
+    guidance_md: |
+      - `stacked_price(["mushroom", "cheese"])` phải là `135`.
+      - Mỗi lớp bọc **cộng** phần của mình vào kết quả lớp bên trong.
+    hints:
+      - level: nudge
+        md: "Mỗi lần bọc một topping, giá mới phụ thuộc vào giá hiện tại."
+      - level: approach
+        md: "Thay `price = extra[name]` bằng việc cộng thêm giá topping vào `price`."
+      - level: near_solution
+        md: "Dùng `price += extra[name]`."
+    tests:
+      - {args: [[]], expected: 100}
+      - {args: [["cheese"]], expected: 120}
+      - {args: [["mushroom", "cheese"]], expected: 135}
+      - {args: [["olive", "olive", "cheese", "mushroom"]], expected: 155}
+    solution: |
+      def stacked_price(toppings):
+          extra = {"cheese": 20, "mushroom": 15, "olive": 10}
+          price = 100
+          for name in toppings:
+              price += extra[name]
+          return price
+  - id: s_comp
+    type: section
+    title_vi: "Composite: cây gồm lá và nhánh cùng interface"
+    summary_vi: "File và Folder cùng có size(); Folder cộng size của các con nên không cần kiểm tra loại."
+    exercise_ref: ex_size
+  - id: t02
+    type: text
+    md: |
+      **Composite** biểu diễn **cây**: **lá** (leaf) và **nhánh** (composite) cùng một interface. Ví dụ hệ
+      thống tập tin: `File.size()` trả dung lượng của nó; `Folder` chứa danh sách con (File hoặc Folder khác)
+      và `Folder.size()` **cộng `size()` của từng con**.
+
+      Nhờ cùng interface, code gọi `size()` trên File hay Folder đều chạy đúng, **không cần `if` kiểm tra
+      loại**; đệ quy tự đi xuống cây. Folder rỗng cho 0. Cùng cách này dùng cho menu có menu con (đếm số
+      món), sơ đồ tổ chức công ty, cây UI.
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class File:
+          def __init__(self, name, n):
+              self.name = name
+              self.n = n
+
+          def size(self):
+              return self.n
+
+
+      class Folder:
+          def __init__(self, name, children):
+              self.name = name
+              self.children = children
+
+          def size(self):
+              total = 0
+              for child in self.children:
+                  total += child.size()
+              return total
+
+
+      docs = Folder("docs", [File("a", 10), File("b", 5)])
+      root = Folder("root", [docs, File("c", 1)])
+      print(docs.size())
+      print(root.size())
+      print(Folder("empty", []).size())
+    expected_output: |
+      15
+      16
+      0
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Vì sao Composite cho phép gọi `size()` mà không cần kiểm tra là File hay Folder?"
+    options:
+      - {id: a, text_md: "Lá và nhánh cùng interface, nên mỗi loại tự biết cách tính size"}
+      - {id: b, text_md: "Vì Folder luôn có size bằng 0"}
+      - {id: c, text_md: "Vì Python tự đoán kiểu của object"}
+    answer: [a]
+    explain_md: "File trả size của nó, Folder cộng size các con (gọi đệ quy); phía gọi chỉ cần biết interface chung."
+  - id: q05
+    type: quiz_fill
+    prompt_md: "Folder chứa File 10, File 5 và một Folder rỗng. `Folder.size()` của nó là ___."
+    blanks: [{accept: ["15"]}]
+    explain_md: "10 + 5 + 0 (folder rỗng) = 15."
+  - id: q06
+    type: predict_output
+    code: |
+      class File:
+          def __init__(self, n):
+              self.n = n
+
+          def size(self):
+              return self.n
+
+
+      class Folder:
+          def __init__(self, children):
+              self.children = children
+
+          def size(self):
+              return sum(c.size() for c in self.children)
+
+
+      tree = Folder([File(4), Folder([File(3), Folder([File(2)])])])
+      print(tree.size())
+    expected_output: |
+      9
+    explain_md: "Folder trong cùng: 2; folder giữa: 3 + 2 = 5; gốc: 4 + 5 = 9."
+  - id: ex_size
+    type: code_exercise
+    md: |
+      Viết `folder_size(node)` theo Composite: một node là **số nguyên** (file, giá trị là size) hoặc một
+      **list** (folder, các phần tử là node con). Trả về tổng size. Folder rỗng cho 0. Bản dưới đây chỉ
+      cộng các con trực tiếp nên sai với folder lồng nhau.
+    entry: folder_size
+    starter: |
+      def folder_size(node):
+          if isinstance(node, int):
+              return node
+          total = 0
+          for child in node:
+              if isinstance(child, int):
+                  total += child
+          return total
+    guidance_md: |
+      - `folder_size([10, [5, 3]])` phải là `18`, code trả `10`.
+      - Với con là folder, hãy gọi lại chính `folder_size` cho nó.
+    hints:
+      - level: nudge
+        md: "Con có thể là folder; folder con cũng cần được tính tổng."
+      - level: approach
+        md: "Bỏ nhánh `isinstance(child, int)`, cộng `folder_size(child)` cho mọi con (file trả chính nó)."
+      - level: near_solution
+        md: "`total += folder_size(child)` trong vòng lặp."
+    tests:
+      - {args: [[]], expected: 0}
+      - {args: [7], expected: 7}
+      - {args: [[10, [5, 3]]], expected: 18}
+      - {args: [[[], [1, [2, [3, []]]], 4]], expected: 10}
+    solution: |
+      def folder_size(node):
+          if isinstance(node, int):
+              return node
+          total = 0
+          for child in node:
+              total += folder_size(child)
+          return total
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Decorator: object bọc object cùng interface, thêm việc trước/sau; xếp chồng được (`Cheese(Mushroom(Pizza()))` = 135)."
+      - "GoF Decorator là class bọc object; `@decorator` của Python là hàm bọc hàm, cùng ý tưởng nhưng không đồng nhất."
+      - "Composite: lá (File) và nhánh (Folder) cùng interface `size()`; Folder cộng size các con."
+      - "Không cần kiểm tra loại; folder rỗng cho 0; dùng cho menu/sub-menu, hệ thống tập tin, sơ đồ tổ chức."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X579], l2: [X580], l3: [X581]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

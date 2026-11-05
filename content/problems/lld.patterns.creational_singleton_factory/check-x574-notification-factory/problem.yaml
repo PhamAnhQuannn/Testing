@@ -1,0 +1,67 @@
+id: check-x574-notification-factory
+subtopic_id: lld.patterns.creational_singleton_factory
+secondary_subtopics: []
+kind: check
+title: 'Check X574: notification factory'
+title_vi: 'Kiểm tra X574: notification factory'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Implement `make_message(kind, text)` as a Simple Factory built on a dict of callables (no long `if/elif` chain).
+  `kind` is one of `"email"`, `"sms"`, `"push"`; each maps to a formatter class whose `format(text)` returns a string:
+  `email` -> `"EMAIL: <text>"`, `sms` -> `"SMS: <text>"`, `push` -> `"PUSH: <text>"`.
+  Any unknown `kind` falls back to `"RAW: <text>"`. Return the formatted string (there is exactly one space after the colon,
+  and `<text>` is used unchanged, even if empty).
+statement_vi_md: |
+  Cài `make_message(kind, text)` theo Simple Factory dùng dict các callable (không dùng chuỗi `if/elif` dài).
+  `kind` là `"email"`, `"sms"` hoặc `"push"`; mỗi loại ứng với một class formatter có `format(text)` trả chuỗi:
+  `email` -> `"EMAIL: <text>"`, `sms` -> `"SMS: <text>"`, `push` -> `"PUSH: <text>"`.
+  `kind` lạ thì trả `"RAW: <text>"`. Trả về chuỗi đã định dạng (đúng một dấu cách sau dấu hai chấm, `<text>` giữ
+  nguyên kể cả khi rỗng).
+constraints:
+- kind is a string
+- 0 <= len(text) <= 100
+examples:
+- input: kind = "email", text = "hi"
+  output: '"EMAIL: hi"'
+  explain_vi: 'kind email dùng EmailFormatter nên ra "EMAIL: hi".'
+io:
+  mode: function
+  entry: make_message
+  params:
+  - name: kind
+    type: str
+  - name: text
+    type: str
+  returns: str
+  compare: exact
+starter:
+  python: |
+    def make_message(kind, text):
+        # TODO: dict kind -> class formatter, kind lạ dùng RAW
+        pass
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+time_target_min: 8
+hints:
+- Mỗi kind ứng với một class có method format(text).
+- "Tạo dict FACTORY = {'email': EmailFormatter, ...} rồi FACTORY.get(kind, RawFormatter)."
+- "Gọi class để tạo object rồi .format(text): FACTORY.get(kind, RawFormatter)().format(text)."
+solution:
+  file: solution.py
+  approach_vi: Tra class trong dict theo kind (mặc định RawFormatter), tạo object và gọi format(text).
+  complexity: O(len(text)) / O(1)
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x574
+status: validated
+version: 1

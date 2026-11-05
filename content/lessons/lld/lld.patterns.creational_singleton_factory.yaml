@@ -1,0 +1,306 @@
+id: lld.patterns.creational_singleton_factory
+version: 1
+status: published
+title_vi: "Mẫu khởi tạo: Singleton, Factory, Builder, Prototype"
+est_minutes: 15
+objectives_vi:
+  - "Viết Singleton (module-level hoặc __new__) và nêu vì sao nó bị chê: biến toàn cục ẩn, khó thay bằng đồ giả khi test."
+  - "Viết Simple Factory bằng dict các callable thay cho chuỗi if/elif; phân biệt với Factory Method."
+  - "Dùng Builder fluent thay cho hàm tạo nhiều tham số (telescoping constructor)."
+  - "Phân biệt shallow copy và deep copy trong Prototype; biết Abstract Factory là factory tạo cả họ object."
+blocks:
+  - id: s_single_factory
+    type: section
+    title_vi: "Singleton và Factory"
+    summary_vi: "Một object duy nhất (và cái giá phải trả); chọn class theo yêu cầu bằng dict hoặc lớp con."
+    exercise_ref: ex_factory
+  - id: t01
+    type: text
+    md: |
+      **Creational pattern** là các mẫu thiết kế lo việc **tạo object**.
+
+      **Singleton**: cả chương trình chỉ có **một** object (bảng cấu hình, bộ ghi log). Trong Python cách đơn giản
+      nhất là một biến ở cấp module (`config = Config()` rồi mọi nơi `import config`); cách khác là `__new__` trả lại
+      object đã tạo.
+
+      **Vì sao Singleton bị chê**:
+      - Là **biến toàn cục ẩn**: code gọi thẳng `Config()` ở mọi nơi nên khó thấy ai phụ thuộc vào nó.
+      - **Khó test**: không tiêm được bản giả qua `__init__`, và state còn sót lại giữa các test.
+      - Dễ bị lạm dụng. Thường tốt hơn: tạo một object rồi truyền qua `__init__` (dependency injection).
+
+      Khi nhiều luồng chạy cùng lúc, cần khóa hoặc khởi tạo sớm (double-checked locking) để không tạo hai object.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class Config:
+          _instance = None
+
+          def __new__(cls):
+              if cls._instance is None:
+                  cls._instance = super().__new__(cls)
+                  cls._instance.debug = False
+              return cls._instance
+
+
+      a = Config()
+      b = Config()
+      a.debug = True
+      print(a is b, b.debug)
+    expected_output: |
+      True True
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Nhược điểm chính của Singleton khi viết test là gì?"
+    options:
+      - {id: a, text_md: "Code gọi thẳng `Config()` nên không thay được bằng bản giả, và state dùng chung rò giữa các test"}
+      - {id: b, text_md: "Singleton luôn chạy chậm hơn class thường"}
+      - {id: c, text_md: "Singleton không thể có attribute"}
+    answer: [a]
+    explain_md: "Singleton là global state ẩn: test phải dọn state thủ công và không tiêm được đồ giả qua `__init__`."
+  - id: t02
+    type: text
+    md: |
+      **Simple Factory**: một hàm nhận `"email"`/`"sms"` và trả về object đúng class. Thay vì chuỗi `if/elif`, dùng
+      **dict các callable** (class cũng là callable): thêm loại mới chỉ là thêm một dòng dữ liệu (OCP).
+
+      ```python
+      CHANNELS = {"email": Email, "sms": Sms}
+      def make_channel(kind):
+          return CHANNELS[kind]()
+      ```
+
+      **Factory Method**: lớp cha có method tạo (`make_channel`) để **lớp con ghi đè**; lớp cha gọi
+      `self.make_channel()` mà không biết class cụ thể. Khác Simple Factory ở chỗ lựa chọn nằm ở kế thừa, không ở dict.
+
+      **Abstract Factory** (chỉ cần biết): một factory tạo cả **họ** object đi cùng nhau, ví dụ `LightFactory` tạo
+      nút sáng + ô nhập sáng, `DarkFactory` tạo nút tối + ô nhập tối.
+  - id: q02
+    type: predict_output
+    code: |
+      class Email:
+          def send(self, text):
+              return "email:" + text
+
+
+      class Sms:
+          def send(self, text):
+              return "sms:" + text
+
+
+      CHANNELS = {"email": Email, "sms": Sms}
+
+
+      def make_channel(kind):
+          return CHANNELS[kind]()
+
+
+      print(make_channel("sms").send("hi"))
+      CHANNELS["push"] = type("Push", (), {"send": lambda self, t: "push:" + t})
+      print(make_channel("push").send("yo"))
+    expected_output: |
+      sms:hi
+      push:yo
+    explain_md: "`make_channel` tra class trong dict rồi gọi `()` để tạo object. Thêm `push` vào dict mà không sửa hàm."
+  - id: q03
+    type: predict_output
+    code: |
+      class Notice:
+          def make_channel(self):
+              raise NotImplementedError
+
+          def send(self, text):
+              return self.make_channel().send(text)
+
+
+      class Email:
+          def send(self, text):
+              return "email:" + text
+
+
+      class EmailNotice(Notice):
+          def make_channel(self):
+              return Email()
+
+
+      print(EmailNotice().send("hi"))
+    expected_output: |
+      email:hi
+    explain_md: "Đây là Factory Method: `Notice.send` gọi `self.make_channel()`, lớp con `EmailNotice` quyết định trả `Email`."
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Simple Factory trong Python thường thay chuỗi if/elif bằng một ___ ánh xạ tên loại sang class (một từ tiếng Anh)."
+    blanks: [{accept: ["dict", "dictionary", "mapping"]}]
+    explain_md: "Dùng dict `{'email': Email, ...}` rồi `dict[kind]()`; thêm loại mới chỉ thêm một dòng."
+  - id: ex_factory
+    type: code_exercise
+    md: |
+      Viết `shape_value(kind, n)`: `square` trả `n * n`, `cube` trả `n * n * n`, `double` trả `n * 2`; loại lạ trả `0`.
+      Bản dưới đây dùng chuỗi if/elif và quên `cube`. Hãy chuyển sang dict các callable (Simple Factory).
+    entry: shape_value
+    starter: |
+      def shape_value(kind, n):
+          if kind == "square":
+              return n * n
+          elif kind == "double":
+              return n * 2
+          return 0
+    guidance_md: |
+      - Thử `shape_value("cube", 2)`: đáp án `8`, code trả `0`.
+      - `RULES = {"square": lambda n: n * n, ...}` rồi `RULES.get(kind, lambda n: 0)(n)`.
+    hints:
+      - level: nudge
+        md: "Nếu luật là dữ liệu thì thêm `cube` cần sửa mấy dòng logic?"
+      - level: approach
+        md: "Tạo dict tên loại sang hàm (lambda); tra dict, loại lạ dùng hàm trả 0."
+      - level: near_solution
+        md: "`return RULES.get(kind, lambda n: 0)(n)` với `RULES` có ba khoá."
+    tests:
+      - {args: ["square", 3], expected: 9}
+      - {args: ["cube", 2], expected: 8}
+      - {args: ["double", 5], expected: 10}
+      - {args: ["tri", 4], expected: 0}
+    solution: |
+      RULES = {
+          "square": lambda n: n * n,
+          "cube": lambda n: n * n * n,
+          "double": lambda n: n * 2,
+      }
+
+
+      def shape_value(kind, n):
+          return RULES.get(kind, lambda n: 0)(n)
+  - id: s_builder_proto
+    type: section
+    title_vi: "Builder và Prototype"
+    summary_vi: "Ráp object nhiều tuỳ chọn từng bước; nhân bản object và hiểu chép nông với chép sâu."
+    exercise_ref: ex_proto
+  - id: t03
+    type: text
+    md: |
+      **Builder**: ráp object có nhiều tuỳ chọn **từng bước**, tránh *telescoping constructor* (hàm tạo 8 tham số,
+      nhiều overload khó nhớ thứ tự). Builder **fluent** trả `self` từ mỗi bước để nối chuỗi, và `build()` tạo object
+      cuối cùng (thường bất biến). Trong Python, keyword args hoặc dataclass thường đã đủ; Builder đáng dùng khi có
+      nhiều bước, cần kiểm tra trước khi tạo, hoặc muốn kết quả bất biến.
+
+      **Prototype**: tạo object mới bằng cách **sao chép** object mẫu (`copy` module).
+      - **Shallow copy** (`copy.copy`): chép object ngoài, nhưng các object bên trong (list, dict) **dùng chung**.
+      - **Deep copy** (`copy.deepcopy`): chép đệ quy, bản sao hoàn toàn độc lập.
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class Request:
+          def __init__(self, url, headers, body):
+              self.url = url
+              self.headers = headers
+              self.body = body
+
+
+      class RequestBuilder:
+          def __init__(self, url):
+              self._url = url
+              self._headers = {}
+              self._body = ""
+
+          def header(self, k, v):
+              self._headers[k] = v
+              return self
+
+          def body(self, b):
+              self._body = b
+              return self
+
+          def build(self):
+              return Request(self._url, dict(self._headers), self._body)
+
+
+      r = RequestBuilder("/x").header("a", "1").body("hello").build()
+      print(r.url, r.headers, r.body)
+    expected_output: |
+      /x {'a': '1'} hello
+  - id: q05
+    type: predict_output
+    code: |
+      import copy
+
+
+      class Doc:
+          def __init__(self, tags):
+              self.tags = tags
+
+
+      orig = Doc(["a"])
+      shallow = copy.copy(orig)
+      deep = copy.deepcopy(orig)
+      shallow.tags.append("b")
+      deep.tags.append("c")
+      print(orig.tags, shallow.tags, deep.tags)
+    expected_output: |
+      ['a', 'b'] ['a', 'b'] ['a', 'c']
+    explain_md: "Bản shallow dùng chung list `tags` với bản gốc nên `append('b')` đổi cả hai. Bản deep có list riêng nên `append('c')` không ảnh hưởng gốc."
+  - id: q06
+    type: quiz_mcq
+    prompt_md: "Khi nào Builder đáng dùng hơn hàm tạo với nhiều tham số?"
+    options:
+      - {id: a, text_md: "Khi object có nhiều tuỳ chọn, cần ráp từng bước hoặc kiểm tra trước khi tạo, và muốn kết quả bất biến"}
+      - {id: b, text_md: "Khi object chỉ có hai trường bắt buộc"}
+      - {id: c, text_md: "Khi muốn cả chương trình chỉ có một object"}
+    answer: [a]
+    explain_md: "Builder giải quyết telescoping constructor. Hai trường thì hàm tạo thường là đủ; một object duy nhất là việc của Singleton."
+  - id: ex_proto
+    type: code_exercise
+    md: |
+      `fork(tags, extra)` tạo object `obj = {"tags": tags}`, nhân bản nó thành `clone`, thêm `extra` vào list `tags`
+      của **bản sao**, rồi trả `[obj["tags"], clone["tags"]]`. Bản gốc không được đổi. Code dưới dùng chép nông nên
+      làm đổi cả hai. Hãy sửa.
+    entry: fork
+    starter: |
+      import copy
+
+
+      def fork(tags, extra):
+          obj = {"tags": tags}
+          clone = copy.copy(obj)
+          clone["tags"].append(extra)
+          return [obj["tags"], clone["tags"]]
+    guidance_md: |
+      - Thử `fork(["a"], "b")`: đáp án `[["a"], ["a", "b"]]`, code trả `[["a", "b"], ["a", "b"]]`.
+      - Cần bản sao độc lập cho cả list bên trong.
+    hints:
+      - level: nudge
+        md: "`copy.copy` chép những tầng nào của dict?"
+      - level: approach
+        md: "Đổi sang chép sâu để list `tags` của bản sao là list riêng."
+      - level: near_solution
+        md: "`clone = copy.deepcopy(obj)`."
+    tests:
+      - {args: [["a"], "b"], expected: [["a"], ["a", "b"]]}
+      - {args: [[], "x"], expected: [[], ["x"]]}
+      - {args: [["p", "q"], "r"], expected: [["p", "q"], ["p", "q", "r"]]}
+    solution: |
+      import copy
+
+
+      def fork(tags, extra):
+          obj = {"tags": tags}
+          clone = copy.deepcopy(obj)
+          clone["tags"].append(extra)
+          return [obj["tags"], clone["tags"]]
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Singleton: một object duy nhất (module-level hoặc __new__); bị chê vì global state ẩn và khó test; ưu tiên truyền qua __init__."
+      - "Simple Factory: dict kind -> class/callable; Factory Method: lớp con ghi đè method tạo; Abstract Factory: factory tạo cả họ object."
+      - "Builder fluent thay telescoping constructor; Python thường dùng kwargs/dataclass là đủ."
+      - "Prototype: copy.copy chép nông (object bên trong dùng chung), copy.deepcopy chép sâu (độc lập)."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X573], l2: [X574], l3: [X575]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

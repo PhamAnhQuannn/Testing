@@ -90,6 +90,7 @@ MODULE_NAMES: dict[str, str] = {
     "dsa.practical": "Bài thực tế",
     "dsa.concurrency_coding": "Lập trình song song",
     "lld.oop_principles": "Nguyên lý OOP",
+    "lld.patterns": "Mẫu thiết kế",
     "sd.fundamentals": "Nền tảng thiết kế hệ thống",
     "sd.networking": "Mạng",
     "sd.api": "Thiết kế API",
