@@ -1,0 +1,192 @@
+id: dsa.dp.dp_foundations
+version: 1
+status: published
+title_vi: "Nền tảng quy hoạch động: memoization và tabulation"
+est_minutes: 14
+objectives_vi:
+  - "Nhận ra bài DP: có bài con lặp lại (overlapping subproblems) và cấu trúc con tối ưu (optimal substructure)."
+  - "Xác định state, transition, base case và answer cho một bài DP."
+  - "Cài top-down memoization và bottom-up tabulation cho Fibonacci, Climbing Stairs."
+  - "Tối ưu bộ nhớ bằng vài biến cuộn (rolling variables) khi transition chỉ nhìn lại vài bước."
+blocks:
+  - id: s_memo
+    type: section
+    title_vi: "Từ đệ quy vét cạn đến memo và bảng"
+    summary_vi: "Đệ quy thuần tính lại cùng một bài con nhiều lần; ghi nhớ kết quả hoặc điền bảng từ base case để mỗi bài con chỉ tính một lần."
+    exercise_ref: ex_fib
+  - id: t01
+    type: text
+    md: |
+      **Quy hoạch động (DP)** là đệ quy có sổ ghi nhớ. Ví dụ `fib(n) = fib(n-1) + fib(n-2)`: đệ quy thuần
+      gọi `fib(3)` rất nhiều lần khi tính `fib(10)`, tổng chi phí O(2^n). DP áp dụng khi bài có:
+
+      - **Overlapping subproblems**: cùng một bài con xuất hiện lại nhiều lần.
+      - **Optimal substructure**: đáp án của bài lớn ghép được từ đáp án các bài con.
+
+      Mọi bài DP đều trả lời 4 câu hỏi: **state** (`dp[i]` nghĩa là gì), **transition** (`dp[i]` tính từ đâu),
+      **base case** (giá trị khởi đầu) và **answer** (đọc kết quả ở đâu).
+
+      Hai cách cài:
+
+      - **Top-down (memoization)**: giữ nguyên đệ quy, thêm dict/mảng `memo`; gặp bài con đã có thì trả luôn.
+      - **Bottom-up (tabulation)**: điền `dp[0], dp[1], ...` theo thứ tự tăng dần, không cần đệ quy.
+
+      Cả hai đều O(n) thời gian cho Fibonacci. Quy trình khuyên dùng: vét cạn, rồi memo, rồi bảng, rồi rút gọn bộ nhớ.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      memo = {}
+      calls = 0
+
+      def fib(n):
+          global calls
+          calls += 1
+          if n < 2:
+              return n
+          if n in memo:
+              return memo[n]
+          memo[n] = fib(n - 1) + fib(n - 2)
+          return memo[n]
+
+      print(fib(10))
+      print(calls)
+      print([fib(i) for i in range(8)])
+    expected_output: |
+      55
+      19
+      [0, 1, 1, 2, 3, 5, 8, 13]
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Vì sao `fib(n)` đệ quy thuần chậm (O(2^n)) còn bản có `memo` chỉ O(n)?"
+    options:
+      - {id: a, text_md: "Bản memo dùng vòng lặp thay cho đệ quy"}
+      - {id: b, text_md: "Bản thuần tính lại cùng một bài con nhiều lần; memo tính mỗi `fib(k)` đúng một lần"}
+      - {id: c, text_md: "Bản memo bỏ qua base case"}
+    answer: [b]
+    explain_md: "Có n bài con khác nhau; memo đảm bảo mỗi bài con chỉ tính một lần rồi tra lại, nên tổng công việc O(n)."
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Cách cài DP điền `dp[0], dp[1], ...` theo thứ tự tăng dần mà không dùng đệ quy gọi là ___ (bottom-up)."
+    blanks: [{accept: ["tabulation", "Tabulation"]}]
+    explain_md: "Bottom-up còn gọi là tabulation: điền bảng từ base case lên đáp án; ngược lại top-down gọi là memoization."
+  - id: ex_fib
+    type: code_exercise
+    md: |
+      Viết `fib(n)` bằng bottom-up với hai biến cuộn: `fib(0) = 0`, `fib(1) = 1`,
+      `fib(n) = fib(n-1) + fib(n-2)`. Ví dụ `fib(10)` là `55`. Bản dưới đây trả lệch một vị trí. Hãy sửa.
+    entry: fib
+    starter: |
+      def fib(n):
+          a, b = 0, 1
+          for _ in range(n):
+              a, b = b, a + b
+          return b
+    guidance_md: |
+      - `fib(0)` phải là 0 nhưng code trả 1.
+      - Sau `n` vòng lặp, `a` đang giữ `fib(n)` còn `b` giữ `fib(n+1)`.
+    hints:
+      - level: nudge
+        md: "Thử `fib(0)`: code trả gì và đáp án đúng là gì?"
+      - level: approach
+        md: "Với `a, b = 0, 1` là `(fib(0), fib(1))`, mỗi vòng dịch cặp lên một bước. Sau n vòng, biến nào giữ `fib(n)`?"
+      - level: near_solution
+        md: "Giữ nguyên vòng lặp; chỉ đổi giá trị trả về từ `b` sang biến còn lại."
+    tests:
+      - {args: [0], expected: 0}
+      - {args: [1], expected: 1}
+      - {args: [2], expected: 1}
+      - {args: [10], expected: 55}
+      - {args: [20], expected: 6765}
+    solution: |
+      def fib(n):
+          a, b = 0, 1
+          for _ in range(n):
+              a, b = b, a + b
+          return a
+  - id: s_stairs
+    type: section
+    title_vi: "Climbing Stairs và mở rộng transition"
+    summary_vi: "Số cách leo n bậc bằng tổng số cách của các bậc ngay trước; đổi tập bước thì đổi transition."
+    exercise_ref: ex_climb3
+  - id: t02
+    type: text
+    md: |
+      **Climbing Stairs**: mỗi lần leo 1 hoặc 2 bậc, có bao nhiêu cách leo đúng n bậc?
+
+      - State: `dp[i]` = số cách tới bậc `i`.
+      - Transition: bước cuối là 1 bậc (từ `i-1`) hoặc 2 bậc (từ `i-2`), nên `dp[i] = dp[i-1] + dp[i-2]`.
+      - Base: `dp[0] = 1` (một cách không làm gì), `dp[1] = 1`.
+      - Answer: `dp[n]`.
+
+      Đây chính là Fibonacci lệch một vị trí. Vì `dp[i]` chỉ cần hai ô trước, ta rút gọn từ O(n) xuống
+      O(1) bộ nhớ bằng hai biến cuộn. Nếu cho phép bước 1, 2 hoặc 3 thì transition chỉ thêm một số hạng
+      `dp[i-3]`. Đây là dạng **counting DP**; còn bài tìm giá trị nhỏ nhất/lớn nhất là **optimization DP**
+      (thay `+` bằng `min`/`max`).
+  - id: q03
+    type: predict_output
+    code: |
+      def f(n):
+          a, b = 1, 1
+          for _ in range(n - 1):
+              a, b = b, a + b
+          return b
+
+      print(f(1), f(2), f(5))
+    expected_output: |
+      1 2 8
+    explain_md: "Đây là Climbing Stairs với dp[0]=dp[1]=1. f(1)=1, f(2)=2; với n=5 các bước là (1,2), (2,3), (3,5), (5,8) nên f(5)=8."
+  - id: ex_climb3
+    type: code_exercise
+    md: |
+      Viết `climb_123(n)`: số cách leo `n` bậc khi mỗi lần được leo 1, 2 hoặc 3 bậc (`climb_123(0) = 1`).
+      Ví dụ `climb_123(3)` là `4` (1+1+1, 1+2, 2+1, 3). Bản dưới đây quên bước 3. Hãy sửa.
+    entry: climb_123
+    starter: |
+      def climb_123(n):
+          dp = [0] * (n + 1)
+          dp[0] = 1
+          for i in range(1, n + 1):
+              dp[i] = dp[i - 1] + (dp[i - 2] if i >= 2 else 0)
+          return dp[n]
+    guidance_md: |
+      - Thử `n = 3`: đáp án 4 nhưng code trả 3.
+      - Thêm số hạng `dp[i-3]` khi `i >= 3`.
+    hints:
+      - level: nudge
+        md: "Bước cuối có thể là 1, 2 hoặc 3 bậc. Code hiện tại xét mấy trường hợp?"
+      - level: approach
+        md: "`dp[i]` là tổng `dp[i-1]`, `dp[i-2]`, `dp[i-3]`, mỗi số hạng chỉ cộng khi chỉ số không âm."
+      - level: near_solution
+        md: "Trong vòng lặp, cộng thêm số hạng thứ ba dạng `dp[i - 3]` có điều kiện `i >= 3`, giống cách đã xử lý `i - 2`."
+    tests:
+      - {args: [0], expected: 1}
+      - {args: [1], expected: 1}
+      - {args: [3], expected: 4}
+      - {args: [4], expected: 7}
+      - {args: [10], expected: 274}
+    solution: |
+      def climb_123(n):
+          dp = [0] * (n + 1)
+          dp[0] = 1
+          for i in range(1, n + 1):
+              for step in (1, 2, 3):
+                  if i - step >= 0:
+                      dp[i] += dp[i - step]
+          return dp[n]
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "DP = đệ quy + ghi nhớ, dùng khi có overlapping subproblems và optimal substructure."
+      - "Luôn xác định state, transition, base case, answer trước khi code."
+      - "Top-down dùng memo, bottom-up điền bảng; cả hai đều O(n) cho Fibonacci/Climbing Stairs."
+      - "Transition chỉ nhìn lại vài ô thì rút gọn bộ nhớ bằng biến cuộn."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X468], l2: [X469], l3: [X470]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

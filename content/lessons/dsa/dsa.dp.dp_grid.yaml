@@ -1,0 +1,249 @@
+id: dsa.dp.dp_grid
+version: 1
+status: published
+title_vi: "DP trên lưới (grid DP)"
+est_minutes: 14
+objectives_vi:
+  - "Định nghĩa dp[r][c] trên lưới và suy ra công thức từ ô trên và ô trái khi chỉ đi phải/xuống."
+  - "Xử lý đúng hàng đầu, cột đầu và chướng ngại khi đếm đường đi (unique paths)."
+  - "Tính tổng đường đi nhỏ nhất (min path sum) và điền bảng đúng thứ tự."
+  - "Giải Maximal Square bằng dp[r][c] = 1 + min(trên, trái, chéo)."
+blocks:
+  - id: s_paths
+    type: section
+    title_vi: "Đếm đường đi và chướng ngại"
+    summary_vi: "Số đường đi tới một ô bằng tổng số đường đi tới ô trên và ô trái; chướng ngại đặt ô đó về 0."
+    exercise_ref: ex_obst
+  - id: t01
+    type: text
+    md: |
+      **Grid DP** điền một bảng `dp` cùng kích thước với lưới. Khi chỉ được đi **sang phải** hoặc
+      **xuống dưới**, ô `(r, c)` chỉ có thể được tới từ ô trên `(r-1, c)` hoặc ô trái `(r, c-1)`.
+
+      Với bài **Unique Paths**:
+
+      - `dp[r][c]` là số đường đi từ góc trên trái tới ô `(r, c)`.
+      - Hàng đầu và cột đầu chỉ có 1 đường (đi thẳng), nên bằng 1.
+      - Các ô còn lại: `dp[r][c] = dp[r-1][c] + dp[r][c-1]`.
+
+      **Thứ tự điền** quan trọng: duyệt từng hàng từ trên xuống, mỗi hàng từ trái sang phải, để khi
+      tính một ô thì ô trên và ô trái đã có giá trị. Nếu ô có **chướng ngại** thì `dp = 0`, và ô khác
+      đọc 0 từ nó. Độ phức tạp O(m*n); vì mỗi hàng chỉ cần hàng trước nên có thể giữ một mảng 1 chiều.
+      Mọi phép tính là số nguyên nên kết quả hoàn toàn xác định (deterministic).
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      m, n = 3, 4
+      dp = [[1] * n for _ in range(m)]
+      for r in range(1, m):
+          for c in range(1, n):
+              dp[r][c] = dp[r - 1][c] + dp[r][c - 1]
+      for row in dp:
+          print(row)
+      print(dp[-1][-1])
+    expected_output: |
+      [1, 1, 1, 1]
+      [1, 2, 3, 4]
+      [1, 3, 6, 10]
+      10
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Trong Unique Paths, vì sao hàng đầu và cột đầu của `dp` đều bằng 1?"
+    options:
+      - {id: a, text_md: "Ô ở hàng đầu chỉ tới được từ bên trái, ô ở cột đầu chỉ tới được từ phía trên, nên chỉ có một đường"}
+      - {id: b, text_md: "Vì công thức `dp[r-1][c] + dp[r][c-1]` luôn cho 1 ở biên"}
+      - {id: c, text_md: "Vì lưới luôn có đúng một đường đi"}
+    answer: [a]
+    explain_md: "Ở biên chỉ có một ô nguồn (trái hoặc trên) nên chỉ có một đường đi thẳng; ta gán thẳng 1 thay vì dùng công thức với ô ngoài lưới."
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Lưới 3 hàng x 3 cột, chỉ đi phải/xuống. Số đường đi từ góc trên trái tới góc dưới phải là ___."
+    blanks: [{accept: ["6", "sáu"]}]
+    explain_md: "Hàng 0 là `[1, 1, 1]`, hàng 1 là `[1, 2, 3]`, hàng 2 là `[1, 3, 6]`; ô cuối bằng 6 (cũng là C(4, 2))."
+  - id: q03
+    type: predict_output
+    code: |
+      dp = [[0] * 3 for _ in range(2)]
+      dp[0] = [1, 1, 1]
+      dp[1][0] = 1
+      for c in range(1, 3):
+          dp[1][c] = dp[0][c] + dp[1][c - 1]
+      print(dp)
+      print(dp[1][2])
+    expected_output: |
+      [[1, 1, 1], [1, 2, 3]]
+      3
+    explain_md: "Hàng 1: `dp[1][1] = 1 + 1 = 2`, rồi `dp[1][2] = 1 + 2 = 3`. Kết quả `[[1, 1, 1], [1, 2, 3]]` và `3`."
+  - id: ex_obst
+    type: code_exercise
+    md: |
+      Viết `paths_with_obstacles(grid)`: `grid` là lưới 0/1 (1 là chướng ngại, 0 là ô trống). Đếm số đường
+      đi từ góc trên trái tới góc dưới phải khi chỉ đi phải hoặc xuống và không bước vào ô 1. Nếu ô đầu
+      hoặc ô cuối là chướng ngại thì kết quả là 0. Ví dụ lưới 3x3 chỉ có ô giữa là 1 cho `2`. Bản dưới
+      đây quên chướng ngại nên đếm như lưới trống. Hãy sửa.
+    entry: paths_with_obstacles
+    starter: |
+      def paths_with_obstacles(grid):
+          rows, cols = len(grid), len(grid[0])
+          dp = [[0] * cols for _ in range(rows)]
+          for r in range(rows):
+              for c in range(cols):
+                  if r == 0 and c == 0:
+                      dp[r][c] = 1
+                  else:
+                      up = dp[r - 1][c] if r > 0 else 0
+                      left = dp[r][c - 1] if c > 0 else 0
+                      dp[r][c] = up + left
+          return dp[-1][-1]
+    guidance_md: |
+      - Thử `[[0, 1], [0, 0]]`: đáp án là 1, nhưng code trả 2.
+      - Ô có `grid[r][c] == 1` phải có `dp = 0`.
+      - Ô bắt đầu cũng có thể là chướng ngại.
+    hints:
+      - level: nudge
+        md: "Một ô chướng ngại có thể đi qua được không? Nó đóng góp bao nhiêu đường cho ô kế tiếp?"
+      - level: approach
+        md: "Trước khi tính một ô, kiểm tra `grid[r][c]`. Nếu là chướng ngại thì để `dp[r][c] = 0` và chuyển sang ô tiếp theo."
+      - level: near_solution
+        md: "Thêm nhánh đầu tiên trong vòng lặp: nếu `grid[r][c] == 1` thì gán 0 rồi `continue`. Các nhánh còn lại giữ nguyên, kể cả ô `(0, 0)` gán 1 (chỉ khi nó không phải chướng ngại)."
+    tests:
+      - {args: [[[0, 0, 0], [0, 1, 0], [0, 0, 0]]], expected: 2}
+      - {args: [[[0]]], expected: 1}
+      - {args: [[[1]]], expected: 0}
+      - {args: [[[0, 1], [0, 0]]], expected: 1}
+      - {args: [[[0, 0], [0, 1]]], expected: 0}
+    solution: |
+      def paths_with_obstacles(grid):
+          rows, cols = len(grid), len(grid[0])
+          dp = [[0] * cols for _ in range(rows)]
+          for r in range(rows):
+              for c in range(cols):
+                  if grid[r][c] == 1:
+                      dp[r][c] = 0
+                      continue
+                  if r == 0 and c == 0:
+                      dp[r][c] = 1
+                  else:
+                      up = dp[r - 1][c] if r > 0 else 0
+                      left = dp[r][c - 1] if c > 0 else 0
+                      dp[r][c] = up + left
+          return dp[-1][-1]
+  - id: s_min
+    type: section
+    title_vi: "Min path sum và Maximal Square"
+    summary_vi: "Tổng nhỏ nhất lấy min của ô trên và ô trái; Maximal Square lấy min của ba ô lân cận rồi cộng 1."
+    exercise_ref: ex_square
+  - id: t02
+    type: text
+    md: |
+      **Min Path Sum**: `dp[r][c]` là tổng nhỏ nhất tới ô `(r, c)`.
+
+      - `dp[0][0] = grid[0][0]`.
+      - Hàng đầu và cột đầu chỉ cộng dồn (chỉ có một nguồn).
+      - Ô khác: `dp[r][c] = grid[r][c] + min(dp[r-1][c], dp[r][c-1])`.
+
+      **Maximal Square**: cho ma trận 0/1, tìm hình vuông toàn 1 lớn nhất và trả về diện tích. Đặt
+      `dp[r][c]` là **cạnh** của hình vuông toàn 1 lớn nhất có **góc dưới phải** tại `(r, c)`:
+
+      - Nếu ô là 0 thì `dp = 0`.
+      - Nếu ô là 1 thì `dp[r][c] = 1 + min(dp[r-1][c], dp[r][c-1], dp[r-1][c-1])` (ô ngoài lưới tính 0).
+
+      Lấy **min** vì hình vuông cạnh k chỉ tồn tại khi cả ba hướng đều chứa ít nhất hình vuông cạnh k-1.
+      Đáp án là `(max dp) ** 2`. Cả hai bài đều O(m*n).
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      grid = [[1, 3, 1], [1, 5, 1], [4, 2, 1]]
+      R, C = len(grid), len(grid[0])
+      dp = [[0] * C for _ in range(R)]
+      dp[0][0] = grid[0][0]
+      for c in range(1, C):
+          dp[0][c] = dp[0][c - 1] + grid[0][c]
+      for r in range(1, R):
+          dp[r][0] = dp[r - 1][0] + grid[r][0]
+          for c in range(1, C):
+              dp[r][c] = grid[r][c] + min(dp[r - 1][c], dp[r][c - 1])
+      print(dp)
+      print(dp[-1][-1])
+    expected_output: |
+      [[1, 4, 5], [2, 7, 6], [6, 8, 7]]
+      7
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Trong Maximal Square, vì sao dùng `min` của ba ô (trên, trái, chéo) chứ không phải `max`?"
+    options:
+      - {id: a, text_md: "Hình vuông cạnh k chỉ có thể kết thúc ở (r, c) khi cả ba hướng đều chứa hình vuông cạnh ít nhất k-1, nên bị giới hạn bởi hướng nhỏ nhất"}
+      - {id: b, text_md: "Vì `min` chạy nhanh hơn `max`"}
+      - {id: c, text_md: "Vì ba ô luôn bằng nhau"}
+    answer: [a]
+    explain_md: "Chỉ cần một hướng ngắn là hình vuông bị chặn lại; dùng `max` sẽ đếm hình vuông có lỗ 0."
+  - id: ex_square
+    type: code_exercise
+    md: |
+      Viết `maximal_square(matrix)`: `matrix` là lưới các số `0`/`1`. Trả về **diện tích** hình vuông toàn
+      số 1 lớn nhất (0 nếu không có số 1). Ví dụ `[[1, 1], [1, 1]]` cho `4`, `[[1, 0], [1, 1]]` cho `1`.
+      Bản dưới đây dùng `max` thay vì `min` nên đếm quá tay. Hãy sửa.
+    entry: maximal_square
+    starter: |
+      def maximal_square(matrix):
+          rows, cols = len(matrix), len(matrix[0])
+          dp = [[0] * cols for _ in range(rows)]
+          best = 0
+          for r in range(rows):
+              for c in range(cols):
+                  if matrix[r][c] == 1:
+                      up = dp[r - 1][c] if r > 0 else 0
+                      left = dp[r][c - 1] if c > 0 else 0
+                      diag = dp[r - 1][c - 1] if r > 0 and c > 0 else 0
+                      dp[r][c] = 1 + max(up, left, diag)
+                      best = max(best, dp[r][c])
+          return best * best
+    guidance_md: |
+      - Thử `[[1, 0], [1, 1]]`: đáp án là 1, nhưng code trả 9.
+      - Cạnh hình vuông bị giới hạn bởi hướng nhỏ nhất trong ba hướng.
+    hints:
+      - level: nudge
+        md: "Ở ô (1, 1) của `[[1, 0], [1, 1]]`, ô trên là 0. Hình vuông cạnh 2 có thể kết thúc ở đó không?"
+      - level: approach
+        md: "Hình vuông bị chặn bởi hướng yếu nhất. Hãy tính cạnh từ giá trị nhỏ nhất của ba ô lân cận (trên, trái, chéo), rồi cộng 1."
+      - level: near_solution
+        md: "Đổi `max(up, left, diag)` thành `min(up, left, diag)` trong dòng gán `dp[r][c]`; phần còn lại, gồm cả `best * best`, giữ nguyên."
+    tests:
+      - {args: [[[1, 0, 1, 0, 0], [1, 0, 1, 1, 1], [1, 1, 1, 1, 1], [1, 0, 0, 1, 0]]], expected: 4}
+      - {args: [[[0]]], expected: 0}
+      - {args: [[[1]]], expected: 1}
+      - {args: [[[1, 0], [1, 1]]], expected: 1}
+      - {args: [[[1, 1], [1, 1]]], expected: 4}
+    solution: |
+      def maximal_square(matrix):
+          rows, cols = len(matrix), len(matrix[0])
+          dp = [[0] * cols for _ in range(rows)]
+          best = 0
+          for r in range(rows):
+              for c in range(cols):
+                  if matrix[r][c] == 1:
+                      up = dp[r - 1][c] if r > 0 else 0
+                      left = dp[r][c - 1] if c > 0 else 0
+                      diag = dp[r - 1][c - 1] if r > 0 and c > 0 else 0
+                      dp[r][c] = 1 + min(up, left, diag)
+                      best = max(best, dp[r][c])
+          return best * best
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Grid DP: `dp[r][c]` phụ thuộc ô trên và ô trái; điền theo hàng, trên xuống, trái sang phải."
+      - "Unique Paths: biên bằng 1, ô khác là tổng hai nguồn; chướng ngại đặt ô về 0."
+      - "Min Path Sum: `grid[r][c] + min(trên, trái)`, biên chỉ cộng dồn."
+      - "Maximal Square: `1 + min(trên, trái, chéo)` khi ô là 1; đáp án là cạnh lớn nhất bình phương."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X480], l2: [X481], l3: [X482]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

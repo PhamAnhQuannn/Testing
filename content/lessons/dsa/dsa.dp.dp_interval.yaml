@@ -1,0 +1,225 @@
+id: dsa.dp.dp_interval
+version: 1
+status: published
+title_vi: "Interval DP: dp trên đoạn [l..r]"
+est_minutes: 15
+objectives_vi:
+  - "Nhận ra bài interval DP: đáp án cho đoạn [l..r] được ghép từ các đoạn con ngắn hơn."
+  - "Viết bảng dp[l][r] bottom-up theo độ dài đoạn và giải Longest Palindromic Subsequence."
+  - "Chọn điểm cắt k (thường là phần tử được xử lý cuối cùng) cho Matrix Chain và Burst Balloons, độ phức tạp O(n^3)."
+  - "Biết hai họ DP còn lại của mục này (bitmask, cây) khác interval ở hình dạng của state."
+blocks:
+  - id: s_lps
+    type: section
+    title_vi: "dp[l][r] và palindromic subsequence"
+    summary_vi: "State là một đoạn; hai đầu bằng nhau thì thu vào trong, khác nhau thì bỏ một đầu."
+    exercise_ref: ex_lps
+  - id: t01
+    type: text
+    md: |
+      **Interval DP** dùng state là một đoạn: `dp[l][r]` là đáp án cho đoạn `l..r`. Đoạn dài được tính từ
+      các đoạn ngắn hơn nằm bên trong nó, nên ta điền bảng theo **độ dài đoạn tăng dần** (hoặc `l` giảm dần,
+      `r` tăng dần) để các ô cần dùng luôn có sẵn.
+
+      Ví dụ **Longest Palindromic Subsequence (LPS)** của chuỗi `s`:
+
+      - `dp[i][i] = 1` (một ký tự tự là palindrome).
+      - Nếu `s[i] == s[j]`: hai ký tự này ôm hai đầu, `dp[i][j] = dp[i+1][j-1] + 2`.
+      - Ngược lại bỏ một đầu: `dp[i][j] = max(dp[i+1][j], dp[i][j-1])`.
+
+      Bảng có `O(n^2)` ô, mỗi ô O(1), nên tổng O(n^2). Phần dưới đường chéo (`i > j`) giữ giá trị 0, nhờ đó
+      `dp[i+1][j-1]` khi `j = i + 1` tự trả 0. Code hoàn toàn xác định (deterministic).
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      s = "bbbab"
+      n = len(s)
+      dp = [[0] * n for _ in range(n)]
+      for i in range(n - 1, -1, -1):
+          dp[i][i] = 1
+          for j in range(i + 1, n):
+              if s[i] == s[j]:
+                  dp[i][j] = dp[i + 1][j - 1] + 2
+              else:
+                  dp[i][j] = max(dp[i + 1][j], dp[i][j - 1])
+      for row in dp:
+          print(row)
+    expected_output: |
+      [1, 2, 3, 3, 4]
+      [0, 1, 2, 2, 3]
+      [0, 0, 1, 1, 3]
+      [0, 0, 0, 1, 1]
+      [0, 0, 0, 0, 1]
+  - id: q01
+    type: quiz_fill
+    prompt_md: "Trong LPS, nếu `s[i] == s[j]` thì `dp[i][j] = dp[i+1][j-1] + ___`."
+    blanks: [{accept: ["2", "hai"]}]
+    explain_md: "Hai ký tự ở hai đầu đều được dùng, mỗi ký tự thêm 1 vào độ dài palindrome nằm giữa, nên cộng 2."
+  - id: ex_lps
+    type: code_exercise
+    md: |
+      Số ký tự ít nhất phải chèn thêm để biến `s` thành palindrome bằng `len(s)` trừ độ dài subsequence
+      đối xứng dài nhất (LPS) của `s`. Viết `min_insertions_palindrome(s)` trả số chèn tối thiểu đó
+      (chuỗi rỗng cho 0). Ví dụ `"mbadm"` cho `2`, `"leetcode"` cho `5`. Bản dưới tính LPS nhưng chỉ cộng
+      1 khi hai đầu bằng nhau nên LPS sai; hãy sửa.
+    entry: min_insertions_palindrome
+    starter: |
+      def min_insertions_palindrome(s):
+          n = len(s)
+          if n == 0:
+              return 0
+          dp = [[0] * n for _ in range(n)]
+          for i in range(n - 1, -1, -1):
+              dp[i][i] = 1
+              for j in range(i + 1, n):
+                  if s[i] == s[j]:
+                      dp[i][j] = dp[i + 1][j - 1] + 1
+                  else:
+                      dp[i][j] = max(dp[i + 1][j], dp[i][j - 1])
+          return n - dp[0][n - 1]
+    guidance_md: |
+      - Thử `"mbadm"`: đáp án 2, nhưng code trả 3 vì LPS tính ra 2 thay vì 3.
+      - Khi `s[i] == s[j]`, cả hai ký tự đều nằm trong palindrome con.
+    hints:
+      - level: nudge
+        md: "Số chèn là `n - LPS`. Nếu LPS bị tính thiếu thì số chèn bị thừa; kiểm tra nhánh `s[i] == s[j]`."
+      - level: approach
+        md: "Hai ký tự bằng nhau ở hai đầu góp mỗi cái 1 vào LPS, nên phải cộng hai so với đoạn bên trong, không phải cộng một."
+      - level: near_solution
+        md: "Trong nhánh `s[i] == s[j]`, đổi hằng số cộng từ 1 thành 2. Dòng `return n - dp[0][n - 1]` và nhánh `else` giữ nguyên."
+    tests:
+      - {args: ["mbadm"], expected: 2}
+      - {args: ["leetcode"], expected: 5}
+      - {args: ["zzazz"], expected: 0}
+      - {args: ["a"], expected: 0}
+      - {args: [""], expected: 0}
+    solution: |
+      def min_insertions_palindrome(s):
+          n = len(s)
+          if n == 0:
+              return 0
+          dp = [[0] * n for _ in range(n)]
+          for i in range(n - 1, -1, -1):
+              dp[i][i] = 1
+              for j in range(i + 1, n):
+                  if s[i] == s[j]:
+                      dp[i][j] = dp[i + 1][j - 1] + 2
+                  else:
+                      dp[i][j] = max(dp[i + 1][j], dp[i][j - 1])
+          return n - dp[0][n - 1]
+  - id: s_split
+    type: section
+    title_vi: "Chọn điểm cắt k: Matrix Chain và Burst Balloons"
+    summary_vi: "Thử mọi k trong đoạn, ghép hai đoạn con cộng chi phí ghép; ba vòng lặp cho O(n^3)."
+    exercise_ref: ex_chain
+  - id: t02
+    type: text
+    md: |
+      Nhiều bài interval DP cần **thử điểm cắt `k`** trong đoạn:
+
+      ```
+      dp[l][r] = tối ưu qua k của ( dp[l][k] + dp[k][r] + chi_phi_ghep(l, k, r) )
+      ```
+
+      Ba vòng lặp (độ dài, `l`, `k`) cho **O(n^3)** thời gian, O(n^2) bộ nhớ.
+
+      - **Matrix Chain**: nhân dãy ma trận, `dims` có `n + 1` phần tử cho `n` ma trận. `k` là chỗ cắt dãy
+        thành hai nhóm; chi phí ghép là `dims[i] * dims[k+1] * dims[j+1]`.
+      - **Burst Balloons**: đừng chọn quả nổ *đầu tiên* (hai bên sẽ dính nhau). Hãy chọn quả nổ **cuối cùng**
+        `k` trong khoảng mở `(l, r)`: lúc đó hai khoảng `(l, k)` và `(k, r)` độc lập, xu thu được là
+        `a[l] * a[k] * a[r]` (thêm 1 vào hai đầu mảng).
+
+      Hai họ DP khác của mục này đổi hình dạng state: **bitmask DP** dùng một số nguyên làm tập đã dùng
+      (`dp[mask][last]`), **tree DP** cho mỗi node trả kết quả lên cha. Interval DP là họ dùng state là đoạn.
+  - id: q02
+    type: quiz_mcq
+    prompt_md: "Trong Burst Balloons, vì sao ta chọn quả bóng nổ **cuối cùng** `k` trong khoảng `(l, r)` thay vì quả nổ đầu tiên?"
+    options:
+      - {id: a, text_md: "Vì khi `k` nổ cuối, hai khoảng `(l, k)` và `(k, r)` độc lập và hàng xóm của `k` là `l`, `r` cố định"}
+      - {id: b, text_md: "Vì nổ cuối luôn cho nhiều xu nhất"}
+      - {id: c, text_md: "Vì nó giảm độ phức tạp xuống O(n^2)"}
+    answer: [a]
+    explain_md: "Chọn quả nổ đầu tiên thì sau đó hai bên dính nhau và state phụ thuộc cả hai. Chọn quả nổ cuối thì hai nửa tách rời và xu của `k` luôn là `a[l]*a[k]*a[r]`."
+  - id: q03
+    type: predict_output
+    code: |
+      order = []
+      for length in range(2, 4):
+          for l in range(0, 4 - length):
+              order.append((l, l + length))
+      print(order)
+    expected_output: |
+      [(0, 2), (1, 3), (0, 3)]
+    explain_md: "`length = 2`: `l` chạy 0 và 1 cho (0, 2), (1, 3). `length = 3`: `l` chỉ có 0 cho (0, 3). Đoạn ngắn luôn được tính trước đoạn dài."
+  - id: ex_chain
+    type: code_exercise
+    md: |
+      Viết `matrix_chain(dims)`: có `len(dims) - 1` ma trận, ma trận thứ `i` có kích thước
+      `dims[i] x dims[i+1]`. Trả số phép nhân vô hướng tối thiểu để nhân cả dãy (một ma trận hoặc rỗng cho 0).
+      Ví dụ `[10, 20, 30]` cho `6000` (10*20*30). Bản dưới đây quên cộng chi phí ghép hai nhóm. Hãy sửa.
+    entry: matrix_chain
+    starter: |
+      def matrix_chain(dims):
+          n = len(dims) - 1
+          if n <= 0:
+              return 0
+          dp = [[0] * n for _ in range(n)]
+          for length in range(2, n + 1):
+              for i in range(n - length + 1):
+                  j = i + length - 1
+                  best = None
+                  for k in range(i, j):
+                      cost = dp[i][k] + dp[k + 1][j]
+                      if best is None or cost < best:
+                          best = cost
+                  dp[i][j] = best
+          return dp[0][n - 1]
+    guidance_md: |
+      - Thử `[10, 20, 30]`: đáp án 6000, nhưng code trả 0.
+      - Nhân nhóm `i..k` (ma trận `dims[i] x dims[k+1]`) với nhóm `k+1..j` (`dims[k+1] x dims[j+1]`) tốn thêm một số phép nhân.
+    hints:
+      - level: nudge
+        md: "Sau khi có hai nhóm đã nhân xong, bước nhân hai kết quả đó với nhau có tốn phép nhân không?"
+      - level: approach
+        md: "Kết quả nhóm trái có kích thước `dims[i] x dims[k+1]`, nhóm phải `dims[k+1] x dims[j+1]`. Phép nhân hai ma trận cỡ này tốn tích ba số của chúng."
+      - level: near_solution
+        md: "Trong biến `cost`, cộng thêm `dims[i] * dims[k + 1] * dims[j + 1]`. Phần còn lại của vòng lặp giữ nguyên."
+    tests:
+      - {args: [[10, 20, 30]], expected: 6000}
+      - {args: [[40, 20, 30, 10, 30]], expected: 26000}
+      - {args: [[10, 20]], expected: 0}
+      - {args: [[10, 30, 5, 60]], expected: 4500}
+      - {args: [[5, 10, 3, 12, 5, 50, 6]], expected: 2010}
+    solution: |
+      def matrix_chain(dims):
+          n = len(dims) - 1
+          if n <= 0:
+              return 0
+          dp = [[0] * n for _ in range(n)]
+          for length in range(2, n + 1):
+              for i in range(n - length + 1):
+                  j = i + length - 1
+                  best = None
+                  for k in range(i, j):
+                      cost = dp[i][k] + dp[k + 1][j] + dims[i] * dims[k + 1] * dims[j + 1]
+                      if best is None or cost < best:
+                          best = cost
+                  dp[i][j] = best
+          return dp[0][n - 1]
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Interval DP: `dp[l][r]` là đáp án cho đoạn, điền theo độ dài đoạn tăng dần."
+      - "LPS: hai đầu bằng nhau thì `dp[i+1][j-1] + 2`, khác nhau thì `max` khi bỏ một đầu; O(n^2)."
+      - "Matrix Chain và Burst Balloons thử điểm cắt `k`, tổng O(n^3); Burst Balloons chọn quả nổ cuối cùng."
+      - "Bitmask DP và tree DP đổi hình dạng state (tập đã dùng, node), cùng tư duy ghép từ bài con."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X486], l2: [X487], l3: [X488]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

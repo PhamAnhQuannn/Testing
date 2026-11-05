@@ -85,6 +85,14 @@ EXTRA_IDS = {
     "dsa.advanced_graphs.bellman_ford_floyd",
     "dsa.advanced_graphs.mst",
     "dsa.advanced_graphs.graph_advanced_topics",
+    # Wave 2 Round 11: DSA breadth - finish the dp module.
+    "dsa.dp.dp_foundations",
+    "dsa.dp.dp_1d",
+    "dsa.dp.dp_knapsack",
+    "dsa.dp.dp_strings",
+    "dsa.dp.dp_grid",
+    "dsa.dp.dp_state_machine",
+    "dsa.dp.dp_interval",
 }
 
 # Expected shipped counts, asserted so an upstream tree edit can't silently change the snapshot.
@@ -92,7 +100,7 @@ PLAN_MVP_COUNT = 40
 EXPECTED_SD = 86
 EXPECTED_ML4 = 39
 EXPECTED_EXTRA_IDS = len(EXTRA_IDS)  # Wave 2 additions
-EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 211
+EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 218
 
 # Node fields the app uses (SPEC 4.2); optional ones are skipped when a node lacks them.
 NODE_FIELDS = [
