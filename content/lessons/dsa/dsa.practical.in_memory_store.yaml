@@ -1,0 +1,233 @@
+id: dsa.practical.in_memory_store
+version: 1
+status: published
+title_vi: "Store trong bộ nhớ: TTL và transaction lồng nhau"
+est_minutes: 14
+objectives_vi:
+  - "Cài key-value store bằng dict với TTL: entry hết hạn tại now + ttl, dọn dẹp kiểu lazy khi get."
+  - "Dùng đồng hồ truyền vào (injectable clock) qua tham số now để code xác định và dễ test."
+  - "Xử lý đúng điều kiện biên: tại now == expiry entry đã hết hạn."
+  - "Cài nested transaction begin/commit/rollback bằng undo log (stack các frame)."
+blocks:
+  - id: s_ttl
+    type: section
+    title_vi: "Key-value store có TTL"
+    summary_vi: "Mỗi key lưu kèm thời điểm hết hạn; get kiểm tra và xoá lazy; thời gian đi vào qua tham số now."
+    exercise_ref: ex_ttl
+  - id: t01
+    type: text
+    md: |
+      Bài practical kiểu "cơ sở dữ liệu mini" bắt đầu từ một `dict`. Để thêm **TTL (time-to-live)**, mỗi key
+      lưu kèm thời điểm hết hạn: `store[key] = (value, now + ttl)`.
+
+      - **Injectable clock**: không gọi `time.time()` trong class. Thời gian `now` là tham số của mỗi thao tác,
+        nên kết quả luôn xác định (deterministic) và test không phụ thuộc đồng hồ thật.
+      - **Lazy cleanup**: không cần luồng nền xoá key cũ. Khi `get`, nếu `now >= expiry` thì xoá entry và trả `None`.
+      - **Điều kiện biên**: quy ước thường gặp là entry sống trong nửa khoảng `[now, now + ttl)`, tức tại đúng
+        `now == expiry` nó đã hết hạn. Hãy hỏi người phỏng vấn để chắc chắn.
+      - `set` lên key đã có thì ghi đè cả value lẫn expiry.
+
+      Mỗi thao tác là O(1). Nhược điểm của lazy: key hết hạn mà không ai `get` sẽ chiếm bộ nhớ; nếu cần dọn chủ
+      động có thể thêm min-heap theo expiry (heap-based expiry) ở phần mở rộng sau.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      store = {}
+
+      def put(k, v, now, ttl):
+          store[k] = (v, now + ttl)
+
+      def get(k, now):
+          item = store.get(k)
+          if item is None:
+              return None
+          v, exp = item
+          if now >= exp:
+              del store[k]
+              return None
+          return v
+
+      put("a", 1, 0, 5)
+      print(get("a", 4))
+      print(get("a", 5))
+      print("a" in store)
+    expected_output: |
+      1
+      None
+      False
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Vì sao class store nhận `now` làm tham số thay vì gọi `time.time()` bên trong?"
+    options:
+      - {id: a, text_md: "Để kết quả xác định và test được mà không phụ thuộc đồng hồ thật"}
+      - {id: b, text_md: "Vì `time.time()` không dùng được trong Python"}
+      - {id: c, text_md: "Để store tự động xoá key hết hạn ở luồng nền"}
+    answer: [a]
+    explain_md: "Truyền `now` vào (injectable clock) giúp test dựng được mọi tình huống thời gian và luôn cho cùng kết quả; không liên quan đến luồng nền."
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Gọi `set(\"k\", 1, now=10, ttl=5)`. Entry hết hạn tại thời điểm ___ (theo quy ước hết hạn khi `now >= expiry`)."
+    blanks: [{accept: ["15"]}]
+    explain_md: "expiry = now + ttl = 10 + 5 = 15. Từ now = 15 trở đi `get` trả `None`."
+  - id: ex_ttl
+    type: code_exercise
+    md: |
+      Viết `run_ttl(ops)`: xử lý lần lượt danh sách thao tác trên một store có TTL. Mỗi thao tác là
+      `["set", key, value, now, ttl]` hoặc `["get", key, now]`. Trả về list kết quả của các thao tác `get`
+      (value hoặc `None` nếu thiếu/đã hết hạn), theo thứ tự. Entry hết hạn khi `now >= now_set + ttl`.
+      Ví dụ `[["set","a",1,0,5],["get","a",4],["get","a",5]]` cho `[1, None]`. Bản dưới đây sai ở điều kiện biên. Hãy sửa.
+    entry: run_ttl
+    starter: |
+      def run_ttl(ops):
+          store = {}
+          out = []
+          for op in ops:
+              if op[0] == "set":
+                  _, k, v, now, ttl = op
+                  store[k] = (v, now + ttl)
+              else:
+                  _, k, now = op
+                  item = store.get(k)
+                  if item is None:
+                      out.append(None)
+                  elif now > item[1]:
+                      del store[k]
+                      out.append(None)
+                  else:
+                      out.append(item[0])
+          return out
+    guidance_md: |
+      - Thử `[["set","a",1,0,5],["get","a",5]]`: đáp án phải là `[None]`, nhưng code trả `[1]`.
+      - Tại đúng thời điểm hết hạn entry đã mất.
+    hints:
+      - level: nudge
+        md: "Với `ttl = 5` đặt tại `now = 0`, gọi `get` ở `now = 5` thì entry còn sống hay đã hết hạn?"
+      - level: approach
+        md: "Entry sống trong nửa khoảng `[now_set, expiry)`. Điều kiện hết hạn phải bao gồm cả trường hợp bằng nhau."
+      - level: near_solution
+        md: "Ở nhánh kiểm tra hết hạn trong `get`, đổi phép so sánh chặt `>` thành `>=` giữa `now` và `expiry`."
+    tests:
+      - {args: [[]], expected: []}
+      - {args: [[["get", "x", 0]]], expected: [null]}
+      - {args: [[["set", "a", 1, 0, 5], ["get", "a", 4], ["get", "a", 5]]], expected: [1, null]}
+      - {args: [[["set", "a", 1, 0, 2], ["set", "a", 2, 1, 10], ["get", "a", 5]]], expected: [2]}
+      - {args: [[["set", "a", 1, 0, 3], ["get", "a", 3], ["get", "a", 3]]], expected: [null, null]}
+    solution: |
+      def run_ttl(ops):
+          store = {}
+          out = []
+          for op in ops:
+              if op[0] == "set":
+                  _, k, v, now, ttl = op
+                  store[k] = (v, now + ttl)
+              else:
+                  _, k, now = op
+                  item = store.get(k)
+                  if item is None:
+                      out.append(None)
+                  elif now >= item[1]:
+                      del store[k]
+                      out.append(None)
+                  else:
+                      out.append(item[0])
+          return out
+  - id: s_txn
+    type: section
+    title_vi: "Nested transaction bằng undo log"
+    summary_vi: "begin đẩy một frame; set ghi giá trị cũ vào frame; rollback khôi phục; commit con gộp frame vào cha."
+    exercise_ref: ex_undo
+  - id: t02
+    type: text
+    md: |
+      **Nested transaction** (`begin` / `commit` / `rollback`) cài bằng **undo log**: một stack các frame, mỗi frame
+      là dict `{key: giá trị cũ}`.
+
+      - `begin()`: đẩy frame rỗng.
+      - `set(k, v)`: nếu đang trong transaction, ghi giá trị cũ của `k` vào frame trên cùng (chỉ lần đầu cho mỗi key),
+        dùng một sentinel để phân biệt "key chưa tồn tại"; rồi ghi `v` vào dict chính.
+      - `rollback()`: lấy frame trên cùng, khôi phục từng key (xoá nếu trước đó chưa tồn tại). Trả `False` nếu không có transaction.
+      - `commit()`: bỏ frame trên cùng và giữ thay đổi. Nếu còn transaction cha, gộp frame con vào cha
+        (`parent.setdefault(k, old)`) để rollback cha vẫn hoàn tác được. Trả `False` nếu không có transaction.
+
+      Khi hoàn tác nhiều bản ghi undo, phải duyệt **ngược** (LIFO) để key đổi nhiều lần quay về đúng giá trị ban đầu.
+  - id: q03
+    type: predict_output
+    code: |
+      d = {"a": 1}
+      frames = []
+
+      frames.append({})
+      frames[-1]["a"] = d["a"]
+      d["a"] = 2
+
+      frames.append({})
+      frames[-1]["a"] = d["a"]
+      d["a"] = 3
+
+      f = frames.pop()
+      for k, old in f.items():
+          d[k] = old
+      print(d)
+      print(len(frames))
+    expected_output: |
+      {'a': 2}
+      1
+    explain_md: "Frame trong cùng lưu `a = 2` (giá trị trước khi set 3). Rollback frame này đưa `a` về 2, và còn lại 1 frame (transaction ngoài) trong stack."
+  - id: ex_undo
+    type: code_exercise
+    md: |
+      Viết `apply_undo(data, undo)`: `data` là dict hiện tại, `undo` là list các cặp `[key, old]` theo thứ tự ghi
+      (`old` là `None` nghĩa là key chưa tồn tại trước đó). Trả về dict mới sau khi hoàn tác tất cả, không sửa `data`.
+      Ví dụ `data = {"a": 3}`, `undo = [["a", 1], ["a", 2]]` cho `{"a": 1}`. Bản dưới đây hoàn tác sai thứ tự. Hãy sửa.
+    entry: apply_undo
+    starter: |
+      def apply_undo(data, undo):
+          d = dict(data)
+          for k, old in undo:
+              if old is None:
+                  d.pop(k, None)
+              else:
+                  d[k] = old
+          return d
+    guidance_md: |
+      - Với `undo = [["a", 1], ["a", 2]]` code trả `{"a": 2}` nhưng đáp án là `{"a": 1}`.
+      - Bản ghi cũ nhất phải được áp dụng sau cùng.
+    hints:
+      - level: nudge
+        md: "Bản ghi nào của key `a` mô tả giá trị gốc, bản đầu hay bản cuối của list?"
+      - level: approach
+        md: "Undo log là LIFO: hoàn tác từ bản ghi mới nhất về bản ghi cũ nhất, để bản cũ nhất thắng."
+      - level: near_solution
+        md: "Duyệt `undo` theo chiều ngược lại, ví dụ bằng `reversed(undo)`, và giữ nguyên phần xử lý `old is None`."
+    tests:
+      - {args: [{}, []], expected: {}}
+      - {args: [{"a": 2}, [["a", 1]]], expected: {"a": 1}}
+      - {args: [{"a": 2, "b": 3}, [["a", 1], ["b", null]]], expected: {"a": 1}}
+      - {args: [{"a": 3}, [["a", 1], ["a", 2]]], expected: {"a": 1}}
+      - {args: [{"a": 1}, [["b", null]]], expected: {"a": 1}}
+    solution: |
+      def apply_undo(data, undo):
+          d = dict(data)
+          for k, old in reversed(undo):
+              if old is None:
+                  d.pop(k, None)
+              else:
+                  d[k] = old
+          return d
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "TTL: lưu (value, now + ttl); get hết hạn khi now >= expiry và xoá lazy; mọi thao tác O(1)."
+      - "Injectable clock: truyền now vào thao tác, không gọi time.time(), để code xác định."
+      - "Nested transaction = stack undo log; set ghi giá trị cũ vào frame trên cùng một lần mỗi key."
+      - "rollback khôi phục frame (duyệt LIFO); commit con gộp frame vào cha; cả hai trả False khi không có transaction."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X517], l2: [X518], l3: [X519]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

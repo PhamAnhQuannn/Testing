@@ -1,0 +1,56 @@
+id: check-x518-ttl-store
+subtopic_id: dsa.practical.in_memory_store
+secondary_subtopics: []
+kind: check
+title: 'Check X518: TTL key-value store'
+title_vi: 'Kiểm tra X518: Key-value store có TTL'
+difficulty: easy
+source:
+  type: original
+statement_en_md: |
+  Implement `class TTLStore`, an in-memory key-value store with expiry. Time is never read from the system clock; it is passed in as `now`.
+
+  - `set(key, value, now, ttl)`: store `value`; the entry expires at `now + ttl`. Setting an existing key overwrites it (and its expiry).
+  - `get(key, now)`: return the value, or `None` if the key is missing or expired. An entry is expired when `now >= expiry` (exactly at the expiry time it is already gone). Cleanup is lazy: expired entries are removed on access.
+  - `delete(key)`: remove the key if present (no error if absent).
+statement_vi_md: |
+  Viết `class TTLStore`, một key-value store trong bộ nhớ có hạn dùng (TTL). Không đọc đồng hồ hệ thống; thời gian được truyền vào qua tham số `now` (injectable clock).
+
+  - `set(key, value, now, ttl)`: lưu `value`; entry hết hạn tại `now + ttl`. Ghi đè key cũ thì cũng ghi đè luôn hạn dùng.
+  - `get(key, now)`: trả về value, hoặc `None` nếu key không tồn tại hoặc đã hết hạn. Entry hết hạn khi `now >= expiry` (đúng tại mốc hết hạn là đã mất). Dọn dẹp kiểu lazy: entry hết hạn bị xoá khi được truy cập.
+  - `delete(key)`: xoá key nếu có (không lỗi nếu không có).
+constraints:
+- '`now` và `ttl` là số nguyên không âm; `now` không giảm theo thứ tự thao tác.'
+- Mọi thao tác nên là O(1).
+examples:
+- input: ops = ['TTLStore', 'set', 'get', 'get', 'get'], args = [[], ['a', 1, 0, 5], ['a', 4], ['a', 5], ['a', 6]]
+  output: '[null, null, 1, null, null]'
+  explain_vi: '`a` hết hạn tại 0 + 5 = 5; tại now = 4 còn sống, tại now = 5 đã hết hạn (null).'
+io:
+  mode: class_ops
+  compare: exact
+starter:
+  python: "class TTLStore:\n    def __init__(self):\n        self._d = {}\n\n    def set(self, key, value, now, ttl):\n        # TODO: lưu value cùng thời điểm hết hạn now + ttl\n        pass\n\n    def get(self, key, now):\n        # TODO: trả None nếu thiếu hoặc now >= expiry\n        pass\n\n    def delete(self, key):\n        # TODO\n        pass\n"
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+time_target_min: 8
+hints:
+- Lưu mỗi key thành cặp (value, expiry) với expiry = now + ttl, thay vì chỉ lưu value.
+- Trong get, so sánh now với expiry. Chú ý dấu bằng - tại now == expiry entry đã hết hạn.
+- Khi phát hiện hết hạn, xoá entry khỏi dict (lazy cleanup) rồi trả None. delete dùng dict.pop(key, None) để không lỗi khi thiếu key.
+solution:
+  file: solution.py
+  approach_vi: Dict key -> (value, expiry). get so sánh now >= expiry thì xoá lazy và trả None.
+  complexity: O(1) mỗi thao tác
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x518
+status: validated
+version: 1

@@ -111,6 +111,11 @@ EXTRA_IDS = {
     "dsa.math_bits.number_theory",
     "dsa.math_bits.bit_basics",
     "dsa.math_bits.geometry_random",
+    # Wave 2 Round 16: practical systems (stateful class_ops).
+    "dsa.practical.in_memory_store",
+    "dsa.practical.bank_ledger_systems",
+    "dsa.practical.file_system_sim",
+    "dsa.practical.rate_limiters",
 }
 
 # Expected shipped counts, asserted so an upstream tree edit can't silently change the snapshot.
@@ -118,7 +123,7 @@ PLAN_MVP_COUNT = 40
 EXPECTED_SD = 86
 EXPECTED_ML4 = 39
 EXPECTED_EXTRA_IDS = len(EXTRA_IDS)  # Wave 2 additions
-EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 232
+EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 236
 
 # Node fields the app uses (SPEC 4.2); optional ones are skipped when a node lacks them.
 NODE_FIELDS = [

@@ -1,0 +1,58 @@
+id: check-x525-file-search
+subtopic_id: dsa.practical.file_system_sim
+secondary_subtopics: []
+kind: check
+title: 'Check X525: File store: size and search'
+title_vi: 'Kiểm tra X525: File store: tổng dung lượng và tìm kiếm'
+difficulty: easy
+source:
+  type: original
+statement_en_md: |
+  Implement `class FileStore`, an in-memory store of files identified by absolute path.
+
+  - `add_file(path, size)`: record a file of integer `size` at `path`. Missing parent directories are created implicitly. Adding an existing path replaces its size.
+  - `total_size(dir_path)`: total size of all files anywhere under the directory `dir_path` (recursive). `/` covers every file. A directory with no files (or an unknown one) gives `0`.
+  - `find_by_min_size(dir_path, min_size)`: full paths of all files under `dir_path` whose size is `>= min_size`, sorted ascending (string order). No match gives `[]`.
+  - Directory matching is by whole path segments: `/a` does not include `/ab/f`.
+statement_vi_md: |
+  Viết `class FileStore`, kho file trong bộ nhớ định danh bằng đường dẫn tuyệt đối.
+
+  - `add_file(path, size)`: ghi nhận một file có `size` (số nguyên) tại `path`. Thư mục cha còn thiếu được tạo ngầm. Thêm lại cùng path thì thay size.
+  - `total_size(dir_path)`: tổng size mọi file nằm dưới thư mục `dir_path` (đệ quy, ở mọi độ sâu). `/` bao gồm mọi file. Thư mục không có file (hoặc không tồn tại) cho `0`.
+  - `find_by_min_size(dir_path, min_size)`: đường dẫn đầy đủ của mọi file dưới `dir_path` có size `>= min_size`, sắp xếp tăng dần (theo thứ tự chuỗi). Không có kết quả thì trả `[]`.
+  - Khớp thư mục theo từng segment nguyên: `/a` không bao gồm `/ab/f`.
+constraints:
+- 'Đường dẫn bắt đầu bằng `/`; size và min_size là số nguyên không âm.'
+- Số file tối đa khoảng 1000.
+examples:
+- input: "ops = ['FileStore', 'add_file', 'add_file', 'add_file', 'total_size', 'find_by_min_size'], args = [[], ['/a/x.txt', 10], ['/a/b/y.txt', 30], ['/c/z.txt', 5], ['/a'], ['/a', 20]]"
+  output: "[null, null, null, null, 40, ['/a/b/y.txt']]"
+  explain_vi: "Dưới `/a` có 10 + 30 = 40; chỉ `/a/b/y.txt` có size >= 20."
+io:
+  mode: class_ops
+  compare: exact
+starter:
+  python: "class FileStore:\n    def __init__(self):\n        self._files = {}\n\n    def add_file(self, path, size):\n        # TODO\n        pass\n\n    def total_size(self, dir_path):\n        # TODO: cộng size mọi file dưới dir_path\n        pass\n\n    def find_by_min_size(self, dir_path, min_size):\n        # TODO: trả đường dẫn đầy đủ, sorted\n        pass\n"
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+time_target_min: 10
+hints:
+- "Chuẩn hóa path (bỏ phần rỗng) rồi lưu dict path -> size; mọi truy vấn quy về 'file nào nằm dưới dir_path'."
+- "Một file nằm dưới `dir` khi path của nó bắt đầu bằng `dir + '/'` (hoặc dir là `/`). Dùng dấu `/` ở cuối để `/a` không khớp `/ab/f`."
+- "`total_size` là tổng size các file khớp; `find_by_min_size` lọc thêm `size >= min_size` rồi `sorted(...)` để kết quả xác định."
+solution:
+  file: solution.py
+  approach_vi: "Dict path chuẩn hóa -> size; mỗi truy vấn lọc theo tiền tố 'dir/'. find trả sorted nên không phụ thuộc thứ tự dict."
+  complexity: "O(F) mỗi truy vấn (F = số file), thêm O(k log k) khi sort"
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x525
+status: validated
+version: 1

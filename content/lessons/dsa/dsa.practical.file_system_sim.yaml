@@ -1,0 +1,175 @@
+id: dsa.practical.file_system_sim
+version: 1
+status: published
+title_vi: "In-memory file system: cây thư mục, mkdir/ls/cat và tìm kiếm"
+est_minutes: 14
+objectives_vi:
+  - "Mô hình hóa file system là cây: thư mục là dict tên -> node con, file là node chứa nội dung hoặc size."
+  - "Tách và chuẩn hóa đường dẫn (bỏ phần rỗng và `.`, xử lý `..`) rồi đi từ gốc xuống."
+  - "Cài mkdir -p, ls (sorted), thêm/đọc file bằng setdefault."
+  - "Tính tổng dung lượng và tìm file theo điều kiện bằng duyệt đệ quy hoặc lọc theo tiền tố path."
+blocks:
+  - id: s_path
+    type: section
+    title_vi: "Cây thư mục và tách đường dẫn"
+    summary_vi: "Mỗi thao tác là: tách path theo dấu /, bỏ phần rỗng, rồi đi từ node gốc xuống."
+    exercise_ref: ex_normalize
+  - id: t01
+    type: text
+    md: |
+      Một **in-memory file system** là một **cây**. Thư mục là node chứa dict `tên -> node con`;
+      file là node lá chứa nội dung (hoặc size). Mọi lệnh (`mkdir`, `ls`, `cat`) đều có cùng khung:
+
+      1. **Tách path**: `path.split("/")`.
+      2. **Chuẩn hóa**: bỏ phần tử rỗng (do `/` đầu, `//`, `/` cuối), bỏ `.`, `..` thì lùi một cấp.
+      3. **Đi từ gốc** xuống từng tên; `dict.setdefault(name, {})` vừa đi xuống vừa tạo thư mục còn thiếu
+         (đúng ý `mkdir -p`).
+
+      Lưu ý: `"/a//c/".split("/")` cho `['', 'a', '', 'c', '']`, có phần tử rỗng, nên nếu không lọc
+      thì sẽ tạo ra thư mục tên rỗng. `ls` phải trả `sorted(...)` để kết quả xác định
+      (không phụ thuộc thứ tự chèn của dict).
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      root = {}
+
+      def mkdir(path):
+          node = root
+          for name in path.split("/"):
+              if name:
+                  node = node.setdefault(name, {})
+
+      def ls(path):
+          node = root
+          for name in path.split("/"):
+              if name:
+                  node = node[name]
+          return sorted(node)
+
+      mkdir("/usr/bin")
+      mkdir("/usr/lib/python")
+      mkdir("/etc")
+      print(ls("/"))
+      print(ls("/usr"))
+      print(ls("/usr/lib"))
+    expected_output: |
+      ['etc', 'usr']
+      ['bin', 'lib']
+      ['python']
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Vì sao khi tách path ta thường viết `[p for p in path.split('/') if p]`?"
+    options:
+      - {id: a, text_md: "Để bỏ các phần tử rỗng sinh ra từ `/` đầu, `//` và `/` cuối"}
+      - {id: b, text_md: "Để sắp xếp các tên thư mục"}
+      - {id: c, text_md: "Để đổi tên thư mục thành chữ thường"}
+    answer: [a]
+    explain_md: "`split('/')` giữ lại chuỗi rỗng giữa hai dấu `/` liền nhau và ở hai đầu; lọc `if p` loại chúng đi."
+  - id: q02
+    type: quiz_fill
+    prompt_md: "`len('/a//c/'.split('/'))` bằng ___."
+    blanks: [{accept: ["5"]}]
+    explain_md: "Kết quả là `['', 'a', '', 'c', '']`, tức 5 phần tử, trong đó 3 phần tử rỗng."
+  - id: ex_normalize
+    type: code_exercise
+    md: |
+      Viết `normalize_path(path)` trả về **list tên** của đường dẫn sau khi chuẩn hóa: bỏ phần tử rỗng và `.`,
+      và `..` lùi một cấp (bỏ tên cuối nếu còn, nếu đã ở gốc thì bỏ qua). Ví dụ `"/a/./b/../c"` cho `['a', 'c']`
+      và `"/"` cho `[]`. Bản dưới đây chỉ `split` nên còn lẫn phần tử rỗng. Hãy sửa.
+    entry: normalize_path
+    starter: |
+      def normalize_path(path):
+          return path.split("/")
+    guidance_md: |
+      - Với `"/a/b"`, code hiện tại trả `['', 'a', 'b']`.
+      - Duyệt từng phần, dùng một list làm stack.
+      - Bỏ qua `""` và `"."`; `".."` thì `pop` nếu stack không rỗng; còn lại `append`.
+    hints:
+      - level: nudge
+        md: "`'/a/b'.split('/')` bắt đầu bằng chuỗi gì? Phần tử đó có phải tên thư mục không?"
+      - level: approach
+        md: "Dùng một list `stack`. Với mỗi phần `p`: bỏ qua `''` và `'.'`; `'..'` thì pop một cấp (nếu có); còn lại push `p`."
+      - level: near_solution
+        md: "Khởi tạo `stack = []`, lặp `for p in path.split('/')`. Nhánh `p in ('', '.')` thì `continue`; nhánh `p == '..'` thì `if stack: stack.pop()`; ngược lại `stack.append(p)`. Cuối cùng `return stack`."
+    tests:
+      - {args: ["/a/b"], expected: ["a", "b"]}
+      - {args: ["/"], expected: []}
+      - {args: ["a//b/"], expected: ["a", "b"]}
+      - {args: ["/a/./b/../c"], expected: ["a", "c"]}
+      - {args: ["/../.."], expected: []}
+    solution: |
+      def normalize_path(path):
+          stack = []
+          for p in path.split("/"):
+              if p in ("", "."):
+                  continue
+              if p == "..":
+                  if stack:
+                      stack.pop()
+              else:
+                  stack.append(p)
+          return stack
+  - id: s_size
+    type: section
+    title_vi: "Dung lượng và tìm kiếm"
+    summary_vi: "Tổng size và tìm file đều là duyệt cây (đệ quy) hoặc lọc theo tiền tố path; luôn sort kết quả."
+  - id: t02
+    type: text
+    md: |
+      Khi file mang theo **size**, ta thường cần các truy vấn tổng hợp:
+
+      - **Tổng dung lượng** của một thư mục: đệ quy, `size` của file cộng với tổng các thư mục con.
+      - **Tìm theo điều kiện** (`size >= k`, đuôi `.py`, ...): duyệt cây và lọc, hoặc lưu phẳng
+        `path -> size` rồi lọc theo tiền tố `dir + "/"`.
+
+      Hai bẫy hay gặp:
+
+      - Khớp tiền tố chuỗi thô: `"/ab/f".startswith("/a")` đúng nhưng `/ab` không nằm trong `/a`. Hãy khớp theo
+        cả segment (`dir + "/"`).
+      - Trả kết quả theo thứ tự dict. Hãy `sorted(...)` để output xác định.
+
+      Cài kiểu phẳng cho truy vấn O(F) mỗi lần (F là số file). Nếu cần nhanh hơn thì lưu thêm tổng size ở mỗi
+      node thư mục và cập nhật khi thêm file (đây là phần mở rộng quota).
+  - id: q03
+    type: predict_output
+    code: |
+      root = {}
+      for path in ["/a/b", "/a//c/", "a/b"]:
+          node = root
+          for name in path.split("/"):
+              if name:
+                  node = node.setdefault(name, {})
+      print(sorted(root))
+      print(sorted(root["a"]))
+      print("/a//c/".split("/"))
+    expected_output: |
+      ['a']
+      ['b', 'c']
+      ['', 'a', '', 'c', '']
+    explain_md: "Cả ba path đều đi qua thư mục `a` (path thứ ba là tương đối nhưng cũng chuẩn hóa về `a/b`), nên gốc chỉ có `a`; trong `a` có `b` và `c`. Dòng cuối là `split` thô còn giữ ba chuỗi rỗng."
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Vì sao nên trả `sorted(names)` từ `ls` thay vì `list(node)`?"
+    options:
+      - {id: a, text_md: "Kết quả xác định, không phụ thuộc thứ tự chèn vào dict"}
+      - {id: b, text_md: "Vì `list(node)` không hợp lệ với dict"}
+      - {id: c, text_md: "Để giảm độ phức tạp xuống O(1)"}
+    answer: [a]
+    explain_md: "Dict giữ thứ tự chèn nên hai chuỗi lệnh khác nhau có thể cho thứ tự khác nhau; `ls` thật cũng in theo thứ tự từ điển. `sorted` tốn O(k log k)."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "File system là cây: thư mục là dict tên -> node con, file là lá chứa nội dung hoặc size."
+      - "Mọi lệnh bắt đầu bằng chuẩn hóa path (bỏ rỗng và `.`, `..` lùi cấp) rồi đi từ gốc."
+      - "`setdefault(name, {})` cho mkdir -p; `ls` trả `sorted` để xác định."
+      - "Tổng size và tìm file: duyệt đệ quy hoặc lọc theo tiền tố `dir + '/'`, tránh khớp nhầm `/a` với `/ab`."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X523], l2: [X524], l3: [X525]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

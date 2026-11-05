@@ -1,0 +1,23 @@
+# Placement-only items (P0 mcq / P1 read_code). Validated by content/schemas/placement.schema.json.
+# read_code expected_output = real stdout of `code` (computed by running it, never typed).
+subtopic_id: dsa.practical.in_memory_store
+items:
+- id: P1474
+  difficulty: 1
+  type: mcq
+  minutes: 1
+  prompt_md: Store có TTL, set("k", v, now=10, ttl=5). Theo quy ước hết hạn khi now >= expiry, get("k", now=15) trả về gì?
+  choices:
+  - None, vì entry đã hết hạn tại 15
+  - v, vì 15 chưa vượt quá 15
+  - v, vì TTL tính từ lần get gần nhất
+  - Lỗi KeyError
+  answer_index: 0
+  explanation_md: expiry = 10 + 5 = 15. Với quy ước now >= expiry, tại now = 15 entry đã hết hạn nên get trả None (và xoá lazy).
+- id: P1475
+  difficulty: 1
+  type: read_code
+  minutes: 2
+  prompt_md: 'Chạy tay (không chạy máy): đoạn code dưới in ra gì? Ghi đúng từng dòng.'
+  code: "d = {\"a\": 1}\nundo = []\n\ndef put(k, v):\n    undo.append((k, d.get(k)))\n    d[k] = v\n\nput(\"a\", 2)\nput(\"b\", 3)\nwhile undo:\n    k, old = undo.pop()\n    if old is None:\n        del d[k]\n    else:\n        d[k] = old\nprint(d)\nprint(len(undo))"
+  expected_output: "{'a': 1}\n0"

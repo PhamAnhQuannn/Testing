@@ -1,0 +1,174 @@
+id: dsa.practical.bank_ledger_systems
+version: 1
+status: published
+title_vi: "Hệ thống ngân hàng, sổ cái và chia tiền"
+est_minutes: 14
+objectives_vi:
+  - "Biểu diễn tiền bằng số nguyên xu (cents) và giải thích vì sao không dùng float."
+  - "Cài transfer nguyên tử: kiểm tra đủ điều kiện trước, rồi mới trừ bên này và cộng bên kia."
+  - "Chia một khoản tiền thành n phần nguyên sao cho tổng đúng bằng khoản gốc (sum preserved)."
+  - "Xếp hạng top spenders với quy tắc hoà điểm rõ ràng (tổng chi giảm dần, id tăng dần)."
+blocks:
+  - id: s_money
+    type: section
+    title_vi: "Tiền là số nguyên và chia tiền"
+    summary_vi: "Lưu xu bằng int; khi chia, phần dư phải được phân phối để tổng không đổi."
+    exercise_ref: ex_split
+  - id: t01
+    type: text
+    md: |
+      Trong hệ thống ngân hàng, **tiền luôn là số nguyên xu (integer cents)**: 12,34 USD lưu thành `1234`.
+      Float không biểu diễn chính xác số thập phân (`0.1 + 0.2 != 0.3`), sai số tích luỹ qua nhiều giao
+      dịch sẽ làm sổ cái lệch.
+
+      Khi chia tiền, dùng `divmod(total, n)` để có phần đều `share` và phần dư `rem`. Phần dư không được
+      bỏ đi: phân phối 1 xu cho `rem` người đầu tiên. Bất biến cần giữ là **sum preserved**: tổng các
+      phần luôn bằng khoản gốc. Mọi quy tắc (ai nhận xu dư, thứ tự) phải xác định rõ để kết quả
+      deterministic. Thời gian, nếu cần, luôn là tham số truyền vào, không đọc đồng hồ hệ thống.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      def transfer(bal, src, dst, amt):
+          if amt <= 0 or dst not in bal or bal.get(src, 0) < amt:
+              return False
+          bal[src] -= amt
+          bal[dst] += amt
+          return True
+
+      bal = {"a": 1000, "b": 250}
+      print(transfer(bal, "a", "b", 300))
+      print(transfer(bal, "b", "a", 900))
+      print(bal)
+      print(sum(bal.values()))
+    expected_output: |
+      True
+      False
+      {'a': 700, 'b': 550}
+      1250
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Vì sao sổ cái lưu tiền bằng số nguyên xu thay vì `float`?"
+    options:
+      - {id: a, text_md: "Float chạy chậm hơn int rất nhiều"}
+      - {id: b, text_md: "Float không biểu diễn chính xác nhiều số thập phân nên sai số tích luỹ làm lệch số dư"}
+      - {id: c, text_md: "Python không cho cộng float với float"}
+    answer: [b]
+    explain_md: "Ví dụ `0.1 + 0.2 != 0.3`. Số nguyên cộng trừ chính xác tuyệt đối nên tổng tiền được bảo toàn."
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Chia 1000 xu cho 3 người bằng `divmod(1000, 3)` được phần đều 333 và phần dư ___ xu."
+    blanks: [{accept: ["1", "một"]}]
+    explain_md: "1000 = 3 x 333 + 1, nên còn dư 1 xu, phải trao cho người đầu tiên để tổng vẫn là 1000."
+  - id: ex_split
+    type: code_exercise
+    md: |
+      Viết `split_equally(amount_cents, n)` trả về list gồm `n` số nguyên xu có tổng đúng bằng
+      `amount_cents`. Phần dư được chia mỗi xu cho những người đầu tiên (người có chỉ số nhỏ nhất).
+      Ví dụ `split_equally(1000, 3)` là `[334, 333, 333]`. Bản dưới đây làm mất phần dư. Hãy sửa.
+    entry: split_equally
+    starter: |
+      def split_equally(amount_cents, n):
+          share = amount_cents // n
+          return [share] * n
+    guidance_md: |
+      - Thử `split_equally(1000, 3)`: tổng phải là 1000, nhưng code trả 999.
+      - Dùng `divmod` để lấy phần dư rồi cộng 1 cho `rem` phần đầu.
+    hints:
+      - level: nudge
+        md: "Tổng của `[333, 333, 333]` là bao nhiêu? Một xu còn lại đi đâu?"
+      - level: approach
+        md: "Lấy `share, rem = divmod(amount_cents, n)`. `rem` phần đầu tiên nhận thêm 1 xu."
+      - level: near_solution
+        md: "Trả về list comprehension qua `i in range(n)`, phần tử `i` bằng `share` cộng 1 nếu `i < rem`, ngược lại cộng 0."
+    tests:
+      - {args: [1000, 3], expected: [334, 333, 333]}
+      - {args: [10, 5], expected: [2, 2, 2, 2, 2]}
+      - {args: [7, 4], expected: [2, 2, 2, 1]}
+      - {args: [0, 3], expected: [0, 0, 0]}
+      - {args: [5, 1], expected: [5]}
+    solution: |
+      def split_equally(amount_cents, n):
+          share, rem = divmod(amount_cents, n)
+          return [share + (1 if i < rem else 0) for i in range(n)]
+  - id: s_transfer
+    type: section
+    title_vi: "Chuyển tiền nguyên tử và xếp hạng"
+    summary_vi: "Validate hết rồi mới sửa số dư; xếp hạng bằng khoá (-tổng chi, id)."
+    exercise_ref: ex_transfer
+  - id: t02
+    type: text
+    md: |
+      **Transfer atomicity**: một lần chuyển tiền hoặc xảy ra trọn vẹn (trừ `src` và cộng `dst`), hoặc
+      không thay đổi gì. Cách cài đơn giản: kiểm tra mọi điều kiện (tài khoản tồn tại, `amount > 0`,
+      `src` đủ tiền) **trước**, rồi mới sửa số dư. Không bao giờ trừ trước rồi mới phát hiện `dst` không
+      tồn tại. Bất biến: tổng tiền toàn hệ thống không đổi sau một transfer.
+
+      **Top-N spenders**: lưu tổng chi mỗi tài khoản trong dict, rồi sắp xếp theo khoá
+      `(-tổng_chi, account_id)`. Hoà điểm giải bằng `account_id` tăng dần nên kết quả xác định. Cắt `[:k]`;
+      nếu `k` lớn hơn số tài khoản thì slice tự trả tất cả.
+  - id: q03
+    type: predict_output
+    code: |
+      spent = {"b": 300, "a": 300, "c": 500}
+      order = sorted(spent, key=lambda x: (-spent[x], x))
+      print(order)
+      print(order[:2])
+    expected_output: |
+      ['c', 'a', 'b']
+      ['c', 'a']
+    explain_md: "c chi 500 nên đứng đầu. a và b cùng 300 (hoà) nên xếp theo id tăng dần: a trước b. Hai phần tử đầu là `['c', 'a']`."
+  - id: ex_transfer
+    type: code_exercise
+    md: |
+      Viết `safe_transfer(balances, src, dst, amount)`: `balances` là dict `id -> số dư (xu)`. Trả về
+      một dict MỚI (không sửa dict gốc). Nếu cả hai tài khoản tồn tại, `amount > 0` và `src` đủ tiền thì
+      trừ `src`, cộng `dst`; nếu không thì trả bản sao nguyên vẹn. Bản dưới đây không kiểm tra đủ tiền.
+      Hãy sửa.
+    entry: safe_transfer
+    starter: |
+      def safe_transfer(balances, src, dst, amount):
+          result = dict(balances)
+          if src in result and dst in result and amount > 0:
+              result[src] -= amount
+              result[dst] += amount
+          return result
+    guidance_md: |
+      - Thử `{"a": 100, "b": 0}`, chuyển 150 từ a sang b: phải giữ nguyên, nhưng code ra số dư âm.
+      - Thêm điều kiện `result[src] >= amount`.
+    hints:
+      - level: nudge
+        md: "Chuyển 150 khi `a` chỉ có 100 thì `a` còn bao nhiêu?"
+      - level: approach
+        md: "Điều kiện để chuyển phải gồm thêm việc `src` có số dư không nhỏ hơn `amount`."
+      - level: near_solution
+        md: "Nối thêm `and result[src] >= amount` vào điều kiện của câu `if`; hai dòng trừ và cộng giữ nguyên."
+    tests:
+      - {args: [{"a": 100, "b": 0}, "a", "b", 40], expected: {"a": 60, "b": 40}}
+      - {args: [{"a": 100, "b": 0}, "a", "b", 150], expected: {"a": 100, "b": 0}}
+      - {args: [{"a": 100}, "a", "z", 10], expected: {"a": 100}}
+      - {args: [{"a": 100, "b": 5}, "a", "b", 100], expected: {"a": 0, "b": 105}}
+      - {args: [{"a": 100, "b": 5}, "a", "b", 0], expected: {"a": 100, "b": 5}}
+    solution: |
+      def safe_transfer(balances, src, dst, amount):
+          result = dict(balances)
+          if src in result and dst in result and amount > 0 and result[src] >= amount:
+              result[src] -= amount
+              result[dst] += amount
+          return result
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Tiền là số nguyên xu; float gây sai số tích luỹ."
+      - "Transfer nguyên tử: validate mọi điều kiện trước, rồi mới trừ và cộng; tổng tiền hệ thống không đổi."
+      - "Chia tiền dùng `divmod`; phần dư trao từng xu cho những người đầu tiên để sum preserved."
+      - "Top-N: sắp xếp theo `(-tổng chi, id)` để hoà điểm có quy tắc xác định."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X520], l2: [X521], l3: [X522]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

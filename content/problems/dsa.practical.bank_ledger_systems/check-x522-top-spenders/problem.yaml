@@ -1,0 +1,54 @@
+id: check-x522-top-spenders
+subtopic_id: dsa.practical.bank_ledger_systems
+secondary_subtopics: []
+kind: check
+title: 'Check X522: Top spenders'
+title_vi: 'Kiểm tra X522: Top chi tiêu'
+difficulty: easy
+source:
+  type: original
+statement_en_md: |
+  Implement `class Ledger` with `open`, `pay`, `transfer` and `top_spenders(k)`: the k accounts with the
+  highest total outgoing spend, ties broken by account id ascending. Money is integer cents.
+statement_vi_md: |
+  Viết class `Ledger` theo dõi **tổng chi ra** của từng tài khoản (số nguyên xu):
+
+  - `open(account_id)`: mở tài khoản với tổng chi 0 (đã tồn tại thì giữ nguyên). Không trả giá trị.
+  - `pay(account_id, amount)`: ghi nhận tài khoản chi `amount`. Bỏ qua nếu không có tài khoản hoặc `amount <= 0`. Không trả giá trị.
+  - `transfer(src, dst, amount)`: nếu cả hai tài khoản tồn tại và `amount > 0` thì tính `amount` là khoản chi của `src` và trả `True`; ngược lại trả `False`, không ghi gì.
+  - `top_spenders(k)`: danh sách `k` account id có tổng chi cao nhất, **hoà thì `account_id` tăng dần**. Nếu `k` lớn hơn số tài khoản thì trả tất cả (kể cả tài khoản chi 0).
+constraints:
+- 'Mọi số tiền là số nguyên (xu).'
+- 'Số thao tác tối đa 10^4, số tài khoản tối đa 10^3.'
+examples:
+- input: ops = ['Ledger', 'open', 'open', 'open', 'pay', 'transfer', 'pay', 'top_spenders'], args = [[], ['a'], ['b'], ['c'], ['a', 100], ['b', 'c', 100], ['c', 50], [2]]
+  output: '[null, null, null, null, null, true, null, ["a", "b"]]'
+  explain_vi: 'a và b đều chi 100 (hoà) nên xếp theo id tăng dần; c chi 50.'
+io:
+  mode: class_ops
+  compare: exact
+starter:
+  python: "class Ledger:\n    # TODO\n    pass\n"
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+time_target_min: 10
+hints:
+- Giữ dict `account_id -> tổng chi`; `pay` và `transfer` (bên `src`) đều cộng vào tổng chi của người chi.
+- Để xếp hạng, sắp xếp các account id với khoá `(-tổng_chi, account_id)`.
+- Cắt `[:k]` sau khi sắp xếp; nếu k lớn hơn số tài khoản thì slice tự trả tất cả.
+solution:
+  file: solution.py
+  approach_vi: Dict tổng chi; top_spenders sắp xếp theo (-chi, id) rồi cắt k phần tử đầu.
+  complexity: O(1) cho pay/transfer, O(A log A) cho top_spenders
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x522
+status: validated
+version: 1
