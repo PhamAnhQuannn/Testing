@@ -1,0 +1,213 @@
+id: dsa.greedy_intervals.greedy_basics
+version: 1
+status: published
+title_vi: "Thuật toán tham lam (greedy) và exchange argument"
+est_minutes: 14
+objectives_vi:
+  - "Mô tả greedy: mỗi bước chọn phương án tốt nhất tại chỗ, không quay lại sửa, và chỉ đúng khi có greedy choice property."
+  - "Phác thảo lập luận đổi chỗ (exchange argument) để biết một cách chọn greedy có an toàn không."
+  - "Áp dụng mẫu 'sort rồi quét' cho activity selection và assign cookies."
+  - "Nhận ra lúc greedy sai (Coin Change với mệnh giá lạ) và giải Gas Station bằng một lượt quét."
+blocks:
+  - id: s_idea
+    type: section
+    title_vi: "Greedy choice và exchange argument"
+    summary_vi: "Greedy đúng khi có thể đổi lời giải tối ưu bất kỳ sang lời giải bắt đầu bằng lựa chọn greedy mà không xấu đi."
+    exercise_ref: ex_cookies
+  - id: t01
+    type: text
+    md: |
+      **Greedy** giải bài toán bằng chuỗi quyết định: ở mỗi bước chọn phương án có vẻ tốt nhất ngay lúc đó
+      và **không bao giờ quay lại sửa**. Cách này nhanh (thường O(n) hoặc O(n log n) do bước sort) nhưng
+      chỉ đúng khi bài toán có **greedy choice property**: tồn tại một lời giải tối ưu bắt đầu bằng lựa chọn
+      greedy.
+
+      Cách chứng minh thường dùng là **exchange argument** (lập luận đổi chỗ): lấy một lời giải tối ưu
+      bất kỳ, nếu nó không dùng lựa chọn greedy thì đổi một phần của nó sang lựa chọn greedy và chỉ ra kết
+      quả không tệ hơn. Ví dụ **activity selection** (chọn nhiều cuộc họp không chồng nhau nhất): luôn chọn
+      cuộc họp **kết thúc sớm nhất**. Nếu lời giải tối ưu mở đầu bằng cuộc họp kết thúc muộn hơn, đổi nó
+      sang cuộc họp kết thúc sớm nhất vẫn không chồng với các cuộc họp sau, nên số lượng không giảm.
+
+      Mẫu chung: **sort theo một khoá, rồi quét một lượt**, giữ vài biến trạng thái (`last_end`, `reach`, `tank`).
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      meetings = [(1, 4), (3, 5), (0, 6), (5, 7), (3, 9), (5, 9), (6, 10), (8, 11)]
+      meetings.sort(key=lambda m: m[1])  # kết thúc sớm nhất trước
+      chosen = []
+      last_end = 0
+      for s, e in meetings:
+          if s >= last_end:
+              chosen.append((s, e))
+              last_end = e
+      print(chosen)
+      print(len(chosen))
+    expected_output: |
+      [(1, 4), (5, 7), (8, 11)]
+      3
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Trong activity selection, vì sao sort theo thời điểm **kết thúc** (chứ không phải bắt đầu) rồi chọn greedy là an toàn?"
+    options:
+      - {id: a, text_md: "Cuộc họp kết thúc sớm nhất để lại nhiều chỗ nhất cho các cuộc họp sau, đổi chỗ không làm xấu lời giải"}
+      - {id: b, text_md: "Vì sort theo kết thúc luôn nhanh hơn sort theo bắt đầu"}
+      - {id: c, text_md: "Vì cuộc họp kết thúc sớm luôn ngắn nhất"}
+    answer: [a]
+    explain_md: "Đây chính là exchange argument: thay cuộc họp đầu của lời giải tối ưu bằng cuộc họp kết thúc sớm nhất thì các cuộc họp còn lại vẫn không chồng, số lượng không giảm."
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Chứng minh greedy bằng cách lấy lời giải tối ưu bất kỳ rồi đổi một phần sang lựa chọn greedy mà không làm xấu kết quả gọi là lập luận ___ (exchange argument)."
+    blanks: [{accept: ["đổi chỗ", "doi cho", "exchange", "đổi"]}]
+    explain_md: "Exchange argument (lập luận đổi chỗ): chỉ ra đổi sang lựa chọn greedy không làm lời giải tệ hơn."
+  - id: ex_cookies
+    type: code_exercise
+    md: |
+      **Assign cookies**: `greed[i]` là độ tham của đứa trẻ `i`, `cookies[j]` là kích thước chiếc bánh `j`.
+      Mỗi bánh cho tối đa một đứa, và đứa `i` hài lòng khi bánh có kích thước `>= greed[i]`. Viết
+      `count_content(greed, cookies)` trả về số đứa trẻ hài lòng nhiều nhất. Ví dụ
+      `count_content([3, 1, 2], [2, 3])` là `2`. Bản dưới đây quên sort nên cho đáp án sai. Hãy sửa.
+    entry: count_content
+    starter: |
+      def count_content(greed, cookies):
+          i = 0
+          for c in cookies:
+              if i < len(greed) and c >= greed[i]:
+                  i += 1
+          return i
+    guidance_md: |
+      - Thử `greed = [3, 1, 2]`, `cookies = [2, 3]`: đáp án 2 nhưng code trả 1.
+      - Đứa ít tham nhất nên nhận bánh nhỏ nhất đủ dùng.
+    hints:
+      - level: nudge
+        md: "Code đang ghép bánh với đứa trẻ theo thứ tự đầu vào. Thứ tự đó có tốt nhất không?"
+      - level: approach
+        md: "Cho bánh nhỏ nhất đủ thoả mãn đứa ít tham nhất còn lại. Muốn quét một lượt theo kiểu hai con trỏ thì cần cả hai danh sách đã được sắp xếp."
+      - level: near_solution
+        md: "Sort `greed` và `cookies` tăng dần trước vòng lặp; phần còn lại giữ nguyên: mỗi bánh thoả mãn đứa trẻ hiện tại thì chuyển sang đứa kế tiếp."
+    tests:
+      - {args: [[3, 1, 2], [2, 3]], expected: 2}
+      - {args: [[2, 1], [1, 2]], expected: 2}
+      - {args: [[1, 2, 3], [1, 1]], expected: 1}
+      - {args: [[], [1]], expected: 0}
+      - {args: [[5, 6], [1, 2]], expected: 0}
+    solution: |
+      def count_content(greed, cookies):
+          greed = sorted(greed)
+          cookies = sorted(cookies)
+          i = 0
+          for c in cookies:
+              if i < len(greed) and c >= greed[i]:
+                  i += 1
+          return i
+  - id: s_limits
+    type: section
+    title_vi: "Khi greedy sai và Gas Station"
+    summary_vi: "Greedy có thể sai (Coin Change); với Gas Station, một lượt quét có tổng dư thiếu là đủ để chọn điểm xuất phát."
+    exercise_ref: ex_gas
+  - id: t02
+    type: text
+    md: |
+      **Greedy không phải lúc nào cũng đúng.** Coin Change: đổi `6` bằng mệnh giá `{1, 3, 4}`. Greedy lấy
+      mệnh giá lớn nhất trước: `4 + 1 + 1` là 3 xu, nhưng tối ưu là `3 + 3` chỉ 2 xu. Mệnh giá `{1, 5, 10}`
+      thì greedy đúng, còn tập bất kỳ thì phải dùng **DP**. Khi không chứng minh nổi exchange argument,
+      hãy nghi ngờ greedy và thử phản ví dụ nhỏ.
+
+      Các bài greedy kinh điển khác: **Jump Game** (giữ `reach` xa nhất), **Partition Labels** (mở rộng
+      đoạn theo lần xuất hiện cuối), **Candy** (hai lượt trái-phải).
+
+      **Gas Station**: có `n` trạm vòng tròn, `gas[i]` là xăng nhận tại trạm `i`, `cost[i]` là xăng tốn để
+      đi tới trạm kế. Tìm trạm xuất phát để đi hết một vòng. Hai quan sát:
+
+      - Nếu `sum(gas) < sum(cost)` thì không có đáp án.
+      - Nếu bình xăng `tank` âm tại trạm `i`, mọi trạm xuất phát từ đoạn đã đi đều thất bại, nên thử lại từ `i + 1`.
+  - id: q03
+    type: predict_output
+    code: |
+      meetings = [(0, 10), (1, 2), (3, 4)]
+      for key in (0, 1):
+          ms = sorted(meetings, key=lambda m: m[key])
+          last = -1
+          n = 0
+          for s, e in ms:
+              if s >= last:
+                  n += 1
+                  last = e
+          print(n)
+    expected_output: |
+      1
+      2
+    explain_md: "key = 0 (sort theo bắt đầu): chọn (0, 10) trước nên chặn hết, được 1. key = 1 (sort theo kết thúc): chọn (1, 2) rồi (3, 4), được 2. Sort sai khoá làm greedy cho kết quả tệ hơn."
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Đổi `6` với mệnh giá `{1, 3, 4}` bằng greedy (lấy mệnh giá lớn nhất trước) cần bao nhiêu xu, và có tối ưu không?"
+    options:
+      - {id: a, text_md: "3 xu (4 + 1 + 1), không tối ưu vì 3 + 3 chỉ cần 2 xu"}
+      - {id: b, text_md: "2 xu, tối ưu"}
+      - {id: c, text_md: "3 xu, tối ưu"}
+    answer: [a]
+    explain_md: "Greedy lấy 4 rồi còn 2 nên lấy 1 + 1, tổng 3 xu; lời giải 3 + 3 chỉ 2 xu. Đây là phản ví dụ cho greedy, nên Coin Change tổng quát cần DP."
+  - id: ex_gas
+    type: code_exercise
+    md: |
+      Viết `start_station(gas, cost)`: các trạm xếp vòng tròn, đi từ trạm `i` tới trạm `i + 1` tốn `cost[i]`,
+      nhận `gas[i]` khi tới trạm `i`; bình xăng bắt đầu rỗng. Trả về chỉ số trạm xuất phát đi hết một vòng,
+      hoặc `-1` nếu không có. Ví dụ `start_station([1, 2, 3, 4, 5], [3, 4, 5, 1, 2])` là `3`.
+      Bản dưới đây chỉ xét tổng nên luôn chọn trạm 0. Hãy sửa.
+    entry: start_station
+    starter: |
+      def start_station(gas, cost):
+          if sum(gas) < sum(cost):
+              return -1
+          return 0
+    guidance_md: |
+      - Với `gas = [1, 2]`, `cost = [2, 1]`: đáp án là 1 nhưng code trả 0.
+      - Khi `tank` âm tại trạm `i`, trạm xuất phát phải là `i + 1` trở đi.
+    hints:
+      - level: nudge
+        md: "Tổng đủ xăng mới chỉ cho biết có đáp án; còn phải tìm trạm nào. Điều gì xảy ra với tank khi xuất phát sai?"
+      - level: approach
+        md: "Quét một lượt, giữ `tank` của đoạn hiện tại. Nếu `tank` âm sau khi qua trạm `i`, không trạm nào trong đoạn đã quét là điểm xuất phát được, nên đặt điểm xuất phát mới ở `i + 1` và đặt lại `tank`."
+      - level: pseudocode
+        md: |
+          total = 0; tank = 0; start = 0
+          với mỗi i: d = gas[i] - cost[i]; total += d; tank += d
+              nếu tank < 0: start = i + 1; tank = 0
+          trả start nếu total >= 0, ngược lại -1
+      - level: near_solution
+        md: "Một vòng `for i in range(len(gas))` cập nhật `total` và `tank` bằng `gas[i] - cost[i]`; khi `tank < 0` thì `start = i + 1` và `tank = 0`. Cuối hàm trả `start` nếu `total >= 0`, ngược lại `-1`."
+    tests:
+      - {args: [[1, 2, 3, 4, 5], [3, 4, 5, 1, 2]], expected: 3}
+      - {args: [[2, 3, 4], [3, 4, 3]], expected: -1}
+      - {args: [[1, 2], [2, 1]], expected: 1}
+      - {args: [[5], [4]], expected: 0}
+      - {args: [[3, 1, 1], [1, 2, 2]], expected: 0}
+    solution: |
+      def start_station(gas, cost):
+          total = 0
+          tank = 0
+          start = 0
+          for i in range(len(gas)):
+              diff = gas[i] - cost[i]
+              total += diff
+              tank += diff
+              if tank < 0:
+                  start = i + 1
+                  tank = 0
+          return start if total >= 0 else -1
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Greedy chọn tốt nhất tại chỗ và không quay lại; chỉ đúng khi có greedy choice property."
+      - "Exchange argument: đổi lời giải tối ưu sang lựa chọn greedy mà không làm xấu kết quả."
+      - "Mẫu hay gặp: sort theo đúng khoá (activity selection sort theo kết thúc), rồi quét một lượt."
+      - "Coin Change với mệnh giá bất kỳ là phản ví dụ của greedy, cần DP; Gas Station giải bằng total và tank."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X498], l2: [X499], l3: [X500]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

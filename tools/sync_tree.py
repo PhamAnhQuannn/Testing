@@ -98,6 +98,10 @@ EXTRA_IDS = {
     "dsa.recursion_backtracking.backtracking_constraints",
     "dsa.tries.trie_ds",
     "dsa.tries.trie_problems",
+    # Wave 2 Round 13: finish the greedy_intervals module.
+    "dsa.greedy_intervals.greedy_basics",
+    "dsa.greedy_intervals.interval_basics",
+    "dsa.greedy_intervals.interval_sweep",
 }
 
 # Expected shipped counts, asserted so an upstream tree edit can't silently change the snapshot.
@@ -105,7 +109,7 @@ PLAN_MVP_COUNT = 40
 EXPECTED_SD = 86
 EXPECTED_ML4 = 39
 EXPECTED_EXTRA_IDS = len(EXTRA_IDS)  # Wave 2 additions
-EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 222
+EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 225
 
 # Node fields the app uses (SPEC 4.2); optional ones are skipped when a node lacks them.
 NODE_FIELDS = [

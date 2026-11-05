@@ -1,0 +1,147 @@
+id: dsa.greedy_intervals.interval_sweep
+version: 1
+status: published
+title_vi: "Sweep line và bài lịch (cuộc họp, xe đón khách)"
+est_minutes: 14
+objectives_vi:
+  - "Đổi mỗi khoảng [start, end) thành hai sự kiện +1/-1, sắp theo thời gian rồi quét một lượt để biết số khoảng chồng nhau lớn nhất."
+  - "Xử lý đúng thứ tự khi hai sự kiện cùng thời điểm: kết thúc trước, bắt đầu sau (khoảng nửa mở)."
+  - "Áp dụng cùng khung sweep cho min_meeting_rooms, car pooling (tổng +/- hành khách) và min arrows (greedy sort theo end)."
+blocks:
+  - id: s_events
+    type: section
+    title_vi: "Sự kiện +1/-1 và đường quét"
+    summary_vi: "Biến khoảng thành sự kiện, sắp xếp, cộng dồn và ghi giá trị lớn nhất."
+    exercise_ref: ex_rooms
+  - id: t01
+    type: text
+    md: |
+      Để biết **tại một thời điểm có tối đa bao nhiêu cuộc họp chồng nhau**, đừng so từng cặp khoảng
+      (O(n^2)). Hãy đổi mỗi khoảng `[s, e)` thành hai **sự kiện**: `(s, +1)` "vào" và `(e, -1)` "ra".
+      Sắp mọi sự kiện theo thời gian rồi **quét (sweep)** một lượt: cộng dồn `cur += delta` và ghi
+      `best = max(best, cur)`. Độ phức tạp O(n log n) do sort.
+
+      **Cùng thời điểm** thì xử lý sự kiện kết thúc **trước** sự kiện bắt đầu, vì khoảng là nửa mở:
+      cuộc họp `[1, 5)` và `[5, 9)` không chồng nhau, chỉ cần một phòng. Với tuple `(time, delta)`,
+      `-1 < +1` nên `sorted` tự đặt "ra" trước "vào" khi time bằng nhau.
+
+      Cùng ý tưởng cho **car pooling** (Q135): sự kiện `(from, +passengers)`, `(to, -passengers)`, quét
+      và kiểm tra `cur <= capacity` ở mọi bước. Còn **min arrows** (Q134) là bài greedy: sort theo `end`,
+      bắn một mũi tên tại `end` của quả bóng đầu, bỏ qua mọi quả có `start <= end` đó.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      intervals = [(1, 5), (2, 6), (5, 8)]
+      events = []
+      for s, e in intervals:
+          events.append((s, 1))     # vào
+          events.append((e, -1))    # ra
+      events.sort()                 # cùng time: -1 đứng trước +1
+      cur = best = 0
+      for t, d in events:
+          cur += d
+          best = max(best, cur)
+      print(events)
+      print(best)
+    expected_output: |
+      [(1, 1), (2, 1), (5, -1), (5, 1), (6, -1), (8, -1)]
+      2
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Hai cuộc họp `[1, 5)` và `[5, 9)`. Vì sao sweep line chỉ cần 1 phòng?"
+    options:
+      - {id: a, text_md: "Vì tại time 5 sự kiện `-1` được xử lý trước `+1`, nên `cur` không bao giờ vượt 1"}
+      - {id: b, text_md: "Vì sweep line bỏ qua các sự kiện có time trùng nhau"}
+      - {id: c, text_md: "Vì cuộc họp thứ hai luôn dùng lại phòng của cuộc họp ngắn hơn"}
+    answer: [a]
+    explain_md: "Khoảng nửa mở nên điểm kết thúc không chiếm phòng; sort tuple (time, delta) đặt -1 trước +1 khi time bằng nhau."
+  - id: ex_rooms
+    type: code_exercise
+    md: |
+      Viết `min_meeting_rooms(intervals)` (LeetCode 253): `intervals` là danh sách `[start, end)`; trả số
+      phòng tối thiểu để mọi cuộc họp diễn ra. Cuộc họp kết thúc đúng lúc cuộc khác bắt đầu thì
+      dùng chung phòng. Danh sách rỗng trả 0.
+    entry: min_meeting_rooms
+    starter: |
+      def min_meeting_rooms(intervals):
+          events = []
+          # TODO: với mỗi [s, e) thêm (s, +1) và (e, -1)
+          # TODO: sort sự kiện, quét cộng dồn và lấy giá trị lớn nhất
+          return len(events)
+    guidance_md: |
+      - Mỗi khoảng sinh hai sự kiện `(s, 1)` và `(e, -1)`.
+      - `events.sort()` đặt `-1` trước `+1` khi cùng time.
+      - Quét: `cur += d`, `best = max(best, cur)`.
+    hints:
+      - level: nudge
+        md: "Số phòng cần tại một thời điểm bằng số cuộc họp đang diễn ra. Làm sao đếm nó mà không so từng cặp?"
+      - level: approach
+        md: "Tạo danh sách sự kiện (time, delta) với delta là +1 khi bắt đầu và -1 khi kết thúc, sort rồi cộng dồn, nhớ giá trị lớn nhất."
+      - level: near_solution
+        md: "Hai vòng lặp: một vòng thêm hai sự kiện cho mỗi khoảng, một vòng duyệt sự kiện đã sort để cập nhật bộ đếm và kết quả. Sort tuple lo sẵn thứ tự khi time trùng."
+    tests:
+      - {args: [[]], expected: 0}
+      - {args: [[[0, 30], [5, 10], [15, 20]]], expected: 2}
+      - {args: [[[7, 10], [2, 4]]], expected: 1}
+      - {args: [[[1, 5], [5, 9], [9, 12]]], expected: 1}
+      - {args: [[[1, 4], [2, 5], [3, 6], [4, 7]]], expected: 3}
+    solution: |
+      def min_meeting_rooms(intervals):
+          events = []
+          for s, e in intervals:
+              events.append((s, 1))
+              events.append((e, -1))
+          events.sort()
+          cur = best = 0
+          for _, d in events:
+              cur += d
+              best = max(best, cur)
+          return best
+  - id: s_calendar
+    type: section
+    title_vi: "Difference array và thứ tự khi trùng thời điểm"
+    summary_vi: "Đếm theo bucket thời gian và các bẫy khi hai sự kiện trùng time."
+  - id: t02
+    type: text
+    md: |
+      Khi thời gian là số nguyên nhỏ (trạm xe 0..1000), dùng **difference array**: `d[from] += n`,
+      `d[to] -= n`, rồi cộng dồn để ra số hành khách trên xe ở từng trạm. Đây là sweep line không cần sort.
+
+      Bẫy hay gặp: (1) **sai thứ tự** khi cùng time (xử lý bắt đầu trước kết thúc sẽ đếm dư);
+      (2) lẫn khoảng **đóng** `[s, e]` với **nửa mở** `[s, e)`: đọc kỹ đề; (3) quên trường hợp rỗng.
+      Heap cũng làm được min rooms (giữ các `end` đang chiếm phòng), nhưng sweep gọn hơn.
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Sweep line min rooms trên n khoảng có độ phức tạp thời gian O(___) (điền `n log n`)."
+    blanks: [{accept: ["n log n", "nlogn", "n*log n", "n log(n)", "n*log(n)"]}]
+    explain_md: "Có 2n sự kiện cần sort, quét sau đó chỉ O(n)."
+  - id: q03
+    type: predict_output
+    code: |
+      iv = [[1, 3], [3, 6], [2, 4]]
+      ev = sorted([(s, 1) for s, e in iv] + [(e, -1) for s, e in iv])
+      cur = best = 0
+      for t, d in ev:
+          cur += d
+          best = max(best, cur)
+      print(best)
+    expected_output: |
+      2
+    explain_md: "Sau sort: (1,+1),(2,+1),(3,-1),(3,+1),(4,-1),(6,-1); cur lần lượt 1,2,1,2,1,0 nên lớn nhất là 2."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Sweep line: mỗi khoảng thành hai sự kiện (s, +1) và (e, -1), sort rồi cộng dồn, lấy max: O(n log n)."
+      - "Cùng time thì kết thúc trước bắt đầu (khoảng nửa mở); sort tuple (time, delta) lo việc đó."
+      - "Car pooling: delta là số hành khách, kiểm tra cur <= capacity; nếu time nhỏ có thể dùng difference array."
+      - "Min arrows là greedy: sort theo end, mỗi mũi tên bắn tại end của quả đầu nhóm."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X502], l2: [Q134], l3: [Q135]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"
