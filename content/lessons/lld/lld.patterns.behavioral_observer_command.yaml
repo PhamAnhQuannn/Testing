@@ -1,0 +1,375 @@
+id: lld.patterns.behavioral_observer_command
+version: 1
+status: published
+title_vi: "Observer, Command và Mediator"
+est_minutes: 15
+objectives_vi:
+  - "Viết Observer với subscribe/unsubscribe/notify; phân biệt push và pull; nêu rủi ro rò rỉ listener và cách tránh."
+  - "Viết Command có execute() và undo(), dùng stack lịch sử để undo và stack thứ hai để redo."
+  - "Mô tả Mediator (phòng chat) và khác biệt với Observer: trao đổi hai chiều qua một trung tâm."
+blocks:
+  - id: s_observer
+    type: section
+    title_vi: "Observer"
+    summary_vi: "Subject giữ danh sách subscriber và báo cho từng người khi có sự kiện; nhớ unsubscribe để tránh rò rỉ."
+    exercise_ref: ex_observer
+  - id: t01
+    type: text
+    md: |
+      **Observer**: nguồn sự kiện (**subject**) giữ danh sách người đăng ký (**subscriber** hay **listener**).
+      Khi có sự kiện, subject gọi hàm báo cho từng người:
+
+      - `subscribe(fn)`: thêm vào danh sách.
+      - `unsubscribe(fn)`: bỏ khỏi danh sách.
+      - `notify(msg)`: `for fn in self.subs: fn(msg)`.
+
+      Ví dụ: dịch vụ thông báo gọi `notify()` để gửi email, SMS cho mọi người đã subscribe giá cổ phiếu.
+
+      **Push vs pull**: *push* gửi kèm dữ liệu (`giá mới = 25`); *pull* chỉ báo "có thay đổi" rồi người nghe tự
+      hỏi lại subject. Push tiện nhưng subject phải đoán người nghe cần gì; pull linh hoạt hơn nhưng tốn thêm một lượt gọi.
+
+      **Rò rỉ listener** (listener leak): object đã bỏ nhưng vẫn nằm trong danh sách đăng ký nên không được giải
+      phóng và vẫn bị gọi. Cách tránh: luôn `unsubscribe` khi xong việc, hoặc dùng `weakref` để subject không giữ
+      listener sống mãi.
+
+      **Pub/sub** là Observer có thêm kênh trung gian: người phát đăng lên kênh, người nhận đăng ký kênh, hai bên
+      không biết nhau.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class Subject:
+          def __init__(self):
+              self.subs = []
+              self.price = 0
+
+          def subscribe(self, fn):
+              self.subs.append(fn)
+
+          def set_price(self, p):
+              self.price = p
+              for fn in self.subs:
+                  fn(p)
+
+
+      log = []
+      s = Subject()
+      s.subscribe(lambda p: log.append("push:" + str(p)))
+      s.subscribe(lambda p: log.append("pull:" + str(s.price)))
+      s.set_price(25)
+      print(log)
+    expected_output: |
+      ['push:25', 'pull:25']
+  - id: q01
+    type: predict_output
+    code: |
+      class Subject:
+          def __init__(self):
+              self.subs = []
+
+          def subscribe(self, fn):
+              self.subs.append(fn)
+
+          def unsubscribe(self, fn):
+              self.subs.remove(fn)
+
+          def notify(self, msg):
+              for fn in self.subs:
+                  fn(msg)
+
+
+      out = []
+      f1 = lambda m: out.append("f1:" + m)
+      f2 = lambda m: out.append("f2:" + m)
+      s = Subject()
+      s.subscribe(f1)
+      s.subscribe(f2)
+      s.notify("a")
+      s.unsubscribe(f1)
+      s.notify("b")
+      print(out)
+    expected_output: |
+      ['f1:a', 'f2:a', 'f2:b']
+    explain_md: "Lần `notify('a')` cả hai nhận theo thứ tự đăng ký. Sau `unsubscribe(f1)` chỉ còn `f2` nên `notify('b')` chỉ `f2` nhận."
+  - id: q02
+    type: quiz_mcq
+    prompt_md: "Vì sao quên `unsubscribe` gây rò rỉ listener?"
+    options:
+      - {id: a, text_md: "Subject vẫn giữ tham chiếu tới listener trong danh sách, nên nó không được giải phóng và vẫn bị gọi"}
+      - {id: b, text_md: "Python tự xóa listener nên sự kiện bị mất"}
+      - {id: c, text_md: "Danh sách subscriber chỉ chứa được tối đa một phần tử"}
+    answer: [a]
+    explain_md: "Danh sách của subject giữ tham chiếu mạnh tới listener. Phải `unsubscribe` (hoặc dùng `weakref`) thì listener mới được giải phóng."
+  - id: ex_observer
+    type: code_exercise
+    md: |
+      `run_observer(names, drop, event)`: tạo một subject, mỗi tên trong `names` đăng ký một listener ghi dòng
+      `"<tên>:<event>"` vào danh sách `out`, rồi `unsubscribe` listener của tên `drop` (nếu có), sau đó `notify(event)`
+      và trả `out`. Bản dưới đây quên bỏ listener ra khỏi danh sách. Hãy sửa `unsubscribe`.
+    entry: run_observer
+    starter: |
+      class Subject:
+          def __init__(self):
+              self.subs = {}
+
+          def subscribe(self, name, fn):
+              self.subs[name] = fn
+
+          def unsubscribe(self, name):
+              pass
+
+          def notify(self, event):
+              for name in self.order:
+                  if name in self.subs:
+                      self.subs[name](event)
+
+
+      def run_observer(names, drop, event):
+          out = []
+          s = Subject()
+          s.order = list(names)
+          for n in names:
+              s.subscribe(n, lambda e, n=n: out.append(n + ":" + e))
+          s.unsubscribe(drop)
+          s.notify(event)
+          return out
+    guidance_md: |
+      - Thử `run_observer(["a", "b"], "a", "go")`: đáp án `["b:go"]`, code trả `["a:go", "b:go"]`.
+      - `unsubscribe` phải bỏ listener khỏi `self.subs`; tên không tồn tại thì bỏ qua.
+    hints:
+      - level: nudge
+        md: "Sau `unsubscribe(name)`, `name in self.subs` phải là gì?"
+      - level: approach
+        md: "Xóa khóa khỏi dict; dùng `pop` với giá trị mặc định để tên lạ không gây lỗi."
+      - level: near_solution
+        md: "`self.subs.pop(name, None)`."
+    tests:
+      - {args: [["a", "b"], "a", "go"], expected: ["b:go"]}
+      - {args: [["x", "y", "z"], "y", "hi"], expected: ["x:hi", "z:hi"]}
+      - {args: [["p"], "q", "e"], expected: ["p:e"]}
+      - {args: [[], "a", "e"], expected: []}
+    solution: |
+      class Subject:
+          def __init__(self):
+              self.subs = {}
+
+          def subscribe(self, name, fn):
+              self.subs[name] = fn
+
+          def unsubscribe(self, name):
+              self.subs.pop(name, None)
+
+          def notify(self, event):
+              for name in self.order:
+                  if name in self.subs:
+                      self.subs[name](event)
+
+
+      def run_observer(names, drop, event):
+          out = []
+          s = Subject()
+          s.order = list(names)
+          for n in names:
+              s.subscribe(n, lambda e, n=n: out.append(n + ":" + e))
+          s.unsubscribe(drop)
+          s.notify(event)
+          return out
+  - id: s_command_mediator
+    type: section
+    title_vi: "Command và Mediator"
+    summary_vi: "Gói thao tác thành object để undo/redo bằng stack; Mediator là trung tâm điều phối như phòng chat."
+    exercise_ref: ex_undo
+  - id: t02
+    type: text
+    md: |
+      **Command**: gói một thao tác (gõ chữ, xóa) thành object có `execute()` và `undo()`. Lệnh phải **nhớ dữ liệu
+      của mình**: lệnh `GoChu` giữ chuỗi chữ đã thêm để `undo()` bỏ đúng từng ấy ký tự; lệnh `XoaChu` giữ chuỗi đã bị
+      xóa để `undo()` nối lại. Vì mỗi thao tác là object nên có thể xếp hàng đợi, ghi log, hoặc gộp lại.
+
+      **Undo/redo bằng hai stack**:
+
+      - Chạy lệnh xong thì `history.append(cmd)`.
+      - **Ctrl+Z** là `cmd = history.pop(); cmd.undo(); redo.append(cmd)`.
+      - **Redo** là `cmd = redo.pop(); cmd.execute(); history.append(cmd)`.
+      - Làm một lệnh **mới** thì phải `redo.clear()`, vì nhánh tương lai cũ không còn hợp lệ.
+
+      **Macro command**: một lệnh gộp nhiều lệnh con; undo một lần hoàn tác cả nhóm (theo thứ tự ngược).
+
+      **Mediator**: mọi thành viên chỉ nói chuyện với một **trung tâm** (phòng chat); trung tâm chuyển tin cho người
+      khác. Thành viên không giữ tham chiếu tới nhau nên giảm phụ thuộc chéo. Khác Observer: Observer là một chiều
+      (subject báo cho listener), còn Mediator điều phối trao đổi **hai chiều** giữa nhiều bên. Rủi ro: mediator có thể
+      phình thành "god object".
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class Append:
+          def __init__(self, doc, s):
+              self.doc, self.s = doc, s
+
+          def execute(self):
+              self.doc.append(self.s)
+
+          def undo(self):
+              self.doc.pop()
+
+
+      doc, history = [], []
+      for piece in ["a", "b", "c"]:
+          cmd = Append(doc, piece)
+          cmd.execute()
+          history.append(cmd)
+      history.pop().undo()
+      print("".join(doc))
+    expected_output: |
+      ab
+  - id: q03
+    type: predict_output
+    code: |
+      text = ""
+      history = []
+      redo = []
+      for step in ["+a", "+b", "undo", "+c", "undo", "redo", "redo"]:
+          if step == "undo":
+              if history:
+                  piece = history.pop()
+                  text = text[: len(text) - len(piece)]
+                  redo.append(piece)
+          elif step == "redo":
+              if redo:
+                  piece = redo.pop()
+                  text += piece
+                  history.append(piece)
+          else:
+              piece = step[1:]
+              text += piece
+              history.append(piece)
+              redo.clear()
+      print(text)
+    expected_output: |
+      ac
+    explain_md: "`+a`,`+b` cho `ab`; undo còn `a` (redo=[b]); `+c` thành `ac` và xóa redo; undo còn `a` (redo=[c]); redo thành `ac`; redo cuối không còn gì nên giữ `ac`."
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Trong undo/redo, Ctrl+Z lấy lệnh gần nhất ra khỏi stack lịch sử bằng `history.___()` rồi gọi `undo()` trên nó (một từ tiếng Anh, tên method của list)."
+    blanks: [{accept: ["pop", "pop()"]}]
+    explain_md: "Stack là LIFO nên lệnh mới nhất nằm cuối list; `history.pop()` lấy nó ra để `undo()`."
+  - id: q05
+    type: quiz_mcq
+    prompt_md: "Khi bạn làm một lệnh mới sau vài lần undo, stack redo phải thế nào?"
+    options:
+      - {id: a, text_md: "Bị xóa sạch, vì nhánh tương lai cũ không còn hợp lệ"}
+      - {id: b, text_md: "Giữ nguyên để redo được lệnh cũ sau lệnh mới"}
+      - {id: c, text_md: "Được đẩy hết sang stack lịch sử"}
+    answer: [a]
+    explain_md: "Lệnh mới tạo ra một nhánh lịch sử khác, nên các lệnh đã undo không thể redo nữa; ta gọi `redo.clear()`."
+  - id: q06
+    type: predict_output
+    code: |
+      class Room:
+          def __init__(self):
+              self.members = []
+
+          def join(self, m):
+              self.members.append(m)
+
+          def send(self, sender, text):
+              for m in self.members:
+                  if m is not sender:
+                      m.inbox.append(sender.name + ":" + text)
+
+
+      class Member:
+          def __init__(self, name):
+              self.name = name
+              self.inbox = []
+
+
+      room = Room()
+      x, y = Member("x"), Member("y")
+      room.join(x)
+      room.join(y)
+      room.send(x, "hello")
+      room.send(y, "hey")
+      print(x.inbox, y.inbox)
+    expected_output: |
+      ['y:hey'] ['x:hello']
+    explain_md: "`Room` (Mediator) chuyển tin cho mọi thành viên trừ người gửi. `x` chỉ nhận tin của `y` và ngược lại."
+  - id: ex_undo
+    type: code_exercise
+    md: |
+      `run_editor(cmds)` mô phỏng soạn thảo: một phần tử không phải `"undo"` hay `"redo"` là chuỗi cần gõ thêm vào
+      cuối; `"undo"` bỏ chuỗi vừa gõ (không làm gì nếu hết lịch sử); `"redo"` gõ lại chuỗi vừa bị undo (không làm gì
+      nếu không có). Gõ chuỗi mới thì xóa redo. Trả văn bản cuối. Bản dưới đây chưa xử lý `"redo"` nên coi nó là chữ
+      cần gõ. Hãy thêm nhánh redo.
+    entry: run_editor
+    starter: |
+      def run_editor(cmds):
+          text = ""
+          history = []
+          redo = []
+          for c in cmds:
+              if c == "undo":
+                  if history:
+                      piece = history.pop()
+                      text = text[: len(text) - len(piece)]
+                      redo.append(piece)
+              else:
+                  text += c
+                  history.append(c)
+                  redo.clear()
+          return text
+    guidance_md: |
+      - Thử `run_editor(["a", "b", "undo", "redo"])`: đáp án `"ab"`, code trả `"abredo"`.
+      - Redo: lấy từ `redo`, nối vào văn bản và đẩy lại vào `history`; không `redo.clear()`.
+    hints:
+      - level: nudge
+        md: "Chuỗi `\"redo\"` hiện đang đi vào nhánh `else`. Cần nhánh riêng cho nó trước đó."
+      - level: approach
+        md: "Thêm `elif c == \"redo\"`: nếu `redo` không rỗng thì pop, nối vào `text`, append vào `history`."
+      - level: near_solution
+        md: "`piece = redo.pop(); text += piece; history.append(piece)`."
+    tests:
+      - {args: [["a", "b", "undo", "redo"]], expected: "ab"}
+      - {args: [["a", "b", "undo", "c", "redo"]], expected: "ac"}
+      - {args: [["undo", "redo"]], expected: ""}
+      - {args: [[]], expected: ""}
+      - {args: [["ab", "cd", "undo", "undo", "redo"]], expected: "ab"}
+    solution: |
+      def run_editor(cmds):
+          text = ""
+          history = []
+          redo = []
+          for c in cmds:
+              if c == "undo":
+                  if history:
+                      piece = history.pop()
+                      text = text[: len(text) - len(piece)]
+                      redo.append(piece)
+              elif c == "redo":
+                  if redo:
+                      piece = redo.pop()
+                      text += piece
+                      history.append(piece)
+              else:
+                  text += c
+                  history.append(c)
+                  redo.clear()
+          return text
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Observer: subject giữ danh sách subscriber; subscribe/unsubscribe/notify; push gửi kèm dữ liệu, pull để listener tự hỏi lại."
+      - "Quên unsubscribe gây rò rỉ listener (subject giữ tham chiếu); tránh bằng unsubscribe hoặc weakref."
+      - "Command: object có execute()/undo() và nhớ dữ liệu của mình; history stack cho undo, redo stack cho redo; lệnh mới thì xóa redo."
+      - "Mediator: mọi bên chỉ nói chuyện với trung tâm (phòng chat), trao đổi hai chiều; cẩn thận mediator thành god object."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X585], l2: [X586], l3: [X587]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

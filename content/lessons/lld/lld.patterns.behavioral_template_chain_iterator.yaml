@@ -1,0 +1,255 @@
+id: lld.patterns.behavioral_template_chain_iterator
+version: 1
+status: published
+title_vi: "Template Method, Chain of Responsibility và Iterator"
+est_minutes: 15
+objectives_vi:
+  - "Dựng Chain of Responsibility: mỗi handler giữ self.tiep, xử lý phần của mình rồi chuyển phần dư; handler cuối phải kiểm tra self.tiep trước khi gọi."
+  - "Viết Template Method: lớp cha cố định thứ tự các bước, lớp con chỉ ghi đè hook."
+  - "Viết Iterator (__iter__ hoặc generator) để duyệt bằng for mà không lộ cấu trúc bên trong."
+  - "Chọn kế thừa (Template Method) hay composition (Strategy) cho cùng một bài toán."
+blocks:
+  - id: s_chain
+    type: section
+    title_vi: "Chain of Responsibility"
+    summary_vi: "Yêu cầu đi qua một dãy handler; ai xử lý được thì làm, phần còn lại chuyển sang handler kế."
+    exercise_ref: ex_chain
+  - id: t01
+    type: text
+    md: |
+      **Chain of Responsibility**: yêu cầu đi qua một **dãy handler** (bộ xử lý). Mỗi handler làm phần của mình,
+      phần còn lại đẩy cho handler kế. Người gửi không cần biết handler nào sẽ xử lý.
+
+      Ví dụ **ATM** nhả 1300 (nghìn) bằng chuỗi 500 -> 200 -> 100: 500 phát 2 tờ, dư 300; 200 phát 1 tờ, dư 100;
+      100 phát 1 tờ, dư 0.
+
+      Dòng then chốt: mỗi handler giữ `self.tiep` (handler kế). Handler **cuối** có `self.tiep = None`, nên phải
+      kiểm tra `if self.tiep` trước khi gọi `self.tiep.phat(du)`, nếu không sẽ lỗi `AttributeError`.
+
+      Ứng dụng khác: bộ log nhiều mức (INFO/DEBUG/ERROR), middleware cho yêu cầu web.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class Handler:
+          def __init__(self, mg, tiep=None):
+              self.mg = mg
+              self.tiep = tiep
+
+          def phat(self, tien):
+              so_to = tien // self.mg
+              if so_to > 0:
+                  print(f"{self.mg} x{so_to}")
+              du = tien % self.mg
+              if du and self.tiep:
+                  self.tiep.phat(du)
+
+
+      chuoi = Handler(500, Handler(200, Handler(100)))
+      chuoi.phat(1300)
+    expected_output: |
+      500 x2
+      200 x1
+      100 x1
+  - id: q01
+    type: predict_output
+    code: |
+      class Handler:
+          def __init__(self, mg, tiep=None):
+              self.mg = mg
+              self.tiep = tiep
+
+          def phat(self, tien):
+              so_to = tien // self.mg
+              if so_to > 0:
+                  print(f"{self.mg} x{so_to}")
+              du = tien % self.mg
+              if du and self.tiep:
+                  self.tiep.phat(du)
+
+
+      Handler(500, Handler(200, Handler(100))).phat(1700)
+    expected_output: |
+      500 x3
+      200 x1
+    explain_md: "500 phát 3 tờ (1500), dư 200. Handler 200 phát 1 tờ, dư 0 nên dừng; handler 100 không được gọi và không in gì."
+  - id: q02
+    type: quiz_mcq
+    prompt_md: "Vì sao handler cuối của chuỗi cần kiểm tra `if self.tiep` trước khi gọi `self.tiep.phat(du)`?"
+    options:
+      - {id: a, text_md: "Vì `self.tiep` của handler cuối là `None`, gọi `.phat` trên `None` gây lỗi"}
+      - {id: b, text_md: "Vì Python bắt buộc mọi method phải kiểm tra thuộc tính trước khi gọi"}
+      - {id: c, text_md: "Vì handler cuối không có thuộc tính `mg`"}
+    answer: [a]
+    explain_md: "Chuỗi kết thúc ở handler có `tiep = None`. Không kiểm tra thì khi còn dư sẽ gọi `None.phat(...)` và lỗi."
+  - id: ex_chain
+    type: code_exercise
+    md: |
+      `cash(amount)` nhả tiền bằng chuỗi handler 500 -> 200 -> 100 và trả list chuỗi dạng `"500x2"` (mệnh giá, chữ `x`,
+      số tờ), chỉ cho mệnh giá có số tờ > 0. `cash(0)` trả `[]`. Code dưới lỗi vì handler cuối gọi `self.tiep` là `None`.
+      Hãy sửa.
+    entry: cash
+    starter: |
+      class Handler:
+          def __init__(self, mg, tiep=None):
+              self.mg = mg
+              self.tiep = tiep
+
+          def phat(self, tien, out):
+              so_to = tien // self.mg
+              if so_to > 0:
+                  out.append(f"{self.mg}x{so_to}")
+              du = tien % self.mg
+              self.tiep.phat(du, out)
+
+
+      def cash(amount):
+          out = []
+          Handler(500, Handler(200, Handler(100))).phat(amount, out)
+          return out
+    guidance_md: |
+      - Thử `cash(1300)`: đáp án `["500x2", "200x1", "100x1"]`, code báo `AttributeError`.
+      - Chỉ chuyển tiếp khi còn dư và còn handler kế.
+    hints:
+      - level: nudge
+        md: "`self.tiep` của handler cuối là gì?"
+      - level: approach
+        md: "Chỉ gọi handler kế khi còn dư và `self.tiep` không phải `None`."
+      - level: near_solution
+        md: "`if du and self.tiep: self.tiep.phat(du, out)`."
+    tests:
+      - {args: [1300], expected: ["500x2", "200x1", "100x1"]}
+      - {args: [100], expected: ["100x1"]}
+      - {args: [0], expected: []}
+      - {args: [700], expected: ["500x1", "200x1"]}
+    solution: |
+      class Handler:
+          def __init__(self, mg, tiep=None):
+              self.mg = mg
+              self.tiep = tiep
+
+          def phat(self, tien, out):
+              so_to = tien // self.mg
+              if so_to > 0:
+                  out.append(f"{self.mg}x{so_to}")
+              du = tien % self.mg
+              if du and self.tiep:
+                  self.tiep.phat(du, out)
+
+
+      def cash(amount):
+          out = []
+          Handler(500, Handler(200, Handler(100))).phat(amount, out)
+          return out
+  - id: s_template_iter
+    type: section
+    title_vi: "Template Method và Iterator"
+    summary_vi: "Lớp cha cố định khung thuật toán, con điền hook; Iterator cho duyệt bằng for mà không lộ bên trong."
+  - id: t02
+    type: text
+    md: |
+      **Template Method**: lớp cha viết sẵn **khung** các bước (nấu mì: đun nước, bỏ mì, nêm gia vị). Lớp con chỉ ghi
+      đè vài bước, gọi là **hook** (điểm móc). Thứ tự các bước do lớp cha quyết định, con không đảo được.
+
+      **Kế thừa hay composition**: Template Method dùng **kế thừa** (con ghi đè method của cha). Strategy dùng
+      **composition** (truyền object chiến lược vào). Cùng một bài toán giải được cả hai cách; composition linh hoạt hơn
+      vì đổi hành vi lúc chạy được, kế thừa gọn hơn khi khung cố định.
+  - id: q03
+    type: predict_output
+    code: |
+      class Noodle:
+          def cook(self):
+              steps = ["boil", "add noodle", self.season()]
+              return " > ".join(steps)
+
+          def season(self):
+              return "salt"
+
+
+      class Spicy(Noodle):
+          def season(self):
+              return "chili"
+
+
+      print(Noodle().cook())
+      print(Spicy().cook())
+    expected_output: |
+      boil > add noodle > salt
+      boil > add noodle > chili
+    explain_md: "`cook` (khung) nằm ở lớp cha và gọi `self.season()`. `Spicy` chỉ ghi đè hook `season`, thứ tự bước vẫn do lớp cha giữ."
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Template Method dựa trên ___ (lớp con ghi đè hook của lớp cha), còn Strategy dựa trên composition (một từ tiếng Anh)."
+    blanks: [{accept: ["inheritance", "kế thừa", "ke thua"]}]
+    explain_md: "Template Method = kế thừa (inheritance); Strategy = composition, truyền chiến lược vào object."
+  - id: t03
+    type: text
+    md: |
+      **Iterator**: cách duyệt từng phần tử bằng `for` mà **không lộ cấu trúc bên trong** (list, cây, hay dữ liệu sinh
+      dần). Trong Python, class chỉ cần `__iter__`; cách gọn nhất là viết `__iter__` như một **generator** (dùng
+      `yield`), phần tử được sinh **lười** (lazy), tới đâu tính tới đó. Có thể bọc `iter(self.items)` để giấu list bên
+      trong.
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class Countdown:
+          def __init__(self, n):
+              self.n = n
+
+          def __iter__(self):
+              i = self.n
+              while i > 0:
+                  yield i
+                  i -= 1
+
+
+      print(list(Countdown(3)))
+      print(sum(Countdown(4)))
+    expected_output: |
+      [3, 2, 1]
+      10
+  - id: q05
+    type: predict_output
+    code: |
+      class Box:
+          def __init__(self, items):
+              self.items = items
+
+          def __iter__(self):
+              return iter(self.items)
+
+
+      b = Box(["x", "y"])
+      print([i * 2 for i in b])
+      print(list(b) == list(b))
+    expected_output: |
+      ['xx', 'yy']
+      True
+    explain_md: "`Box` có `__iter__` nên dùng được trong list comprehension. Mỗi lần duyệt `__iter__` tạo iterator mới nên duyệt hai lần cho cùng kết quả."
+  - id: q06
+    type: quiz_mcq
+    prompt_md: "Lợi ích chính của Iterator là gì?"
+    options:
+      - {id: a, text_md: "Duyệt tập hợp bằng một giao diện chung (`for`) mà không cần biết cấu trúc bên trong"}
+      - {id: b, text_md: "Làm tập hợp chạy nhanh hơn"}
+      - {id: c, text_md: "Cho phép lớp con đổi thứ tự các bước của thuật toán"}
+    answer: [a]
+    explain_md: "Iterator giấu cấu trúc bên trong sau giao diện duyệt thống nhất. Đổi thứ tự bước không phải việc của Iterator."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Chain of Responsibility: mỗi handler giữ self.tiep, xử lý phần của mình rồi chuyển phần dư; handler cuối có tiep None nên kiểm tra if self.tiep."
+      - "ATM 1300 qua 500, 200, 100: phát 2, 1, 1 tờ; cũng dùng cho logger nhiều mức và middleware."
+      - "Template Method: lớp cha cố định thứ tự bước, lớp con ghi đè hook; dùng kế thừa (Strategy dùng composition)."
+      - "Iterator: duyệt bằng for không lộ cấu trúc bên trong; trong Python dùng __iter__ hoặc generator (lazy)."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X588], l2: [X589], l3: [X590]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

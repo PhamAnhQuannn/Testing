@@ -1,0 +1,72 @@
+id: check-x583-cart-discount
+subtopic_id: lld.patterns.behavioral_strategy_state
+secondary_subtopics: []
+kind: check
+title: 'Check X583: Cart Discount Strategy'
+title_vi: 'Kiểm tra X583: Chiến lược giảm giá giỏ hàng'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Strategy pattern: a shopping cart whose discount rule can be swapped at runtime. The cart is the
+  context: it holds the current discount strategy and delegates the price maths to it. Money is an
+  `int` (no floats).
+
+  Implement `class Cart` (constructor takes no arguments; subtotal starts at 0, discount is `"none"`) with:
+
+  - `add(price)`: adds the non-negative int `price` to the subtotal. Returns nothing.
+  - `set_discount(kind)`: selects the discount strategy by name. `kind` is one of `"none"`,
+    `"percent10"`, `"fixed50"`. Returns nothing. Can be called again to replace the strategy.
+  - `total()`: returns the int total after applying the CURRENT discount to the subtotal:
+    - `"none"`: `subtotal`
+    - `"percent10"`: `subtotal * 90 // 100` (integer math)
+    - `"fixed50"`: `max(0, subtotal - 50)` (never below 0)
+statement_vi_md: |
+  Mẫu Strategy: giỏ hàng có cách giảm giá đổi được lúc chạy. Giỏ hàng là context: giữ strategy giảm
+  giá hiện tại và giao việc tính tiền cho nó. Tiền là `int` (không dùng float).
+
+  Viết `class Cart` (constructor không tham số; tạm tính ban đầu 0, giảm giá ban đầu là `"none"`) với:
+
+  - `add(price)`: cộng `price` (int không âm) vào tạm tính. Không trả gì.
+  - `set_discount(kind)`: chọn strategy giảm giá theo tên. `kind` là `"none"`, `"percent10"` hoặc
+    `"fixed50"`. Không trả gì. Gọi lại được để đổi strategy.
+  - `total()`: trả tổng (int) sau khi áp strategy HIỆN TẠI lên tạm tính:
+    - `"none"`: `subtotal`
+    - `"percent10"`: `subtotal * 90 // 100` (chia nguyên)
+    - `"fixed50"`: `max(0, subtotal - 50)` (không âm)
+constraints:
+- 'price là số nguyên không âm; kind luôn hợp lệ.'
+- 'Không dùng float, thread, time hay random.'
+examples:
+- input: ops = ['Cart', 'add', 'add', 'set_discount', 'total'], args = [[], [100], [100], ['percent10'], []]
+  output: '[null, null, null, null, 180]'
+  explain_vi: 'Tạm tính 200; percent10 cho 200 * 90 // 100 = 180.'
+io:
+  mode: class_ops
+  compare: exact
+starter:
+  python: "class Cart:\n    # TODO\n    pass\n"
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+time_target_min: 8
+hints:
+- 'Giữ tạm tính và một object strategy hiện tại; mặc định là strategy "none".'
+- 'Tạo dict tên sang class strategy, mỗi class có method apply(subtotal); set_discount chỉ đổi object đang giữ.'
+- '`total()` gọi `self._discount.apply(self._subtotal)`; fixed50 dùng `max(0, ...)`.'
+solution:
+  file: solution.py
+  approach_vi: Context Cart giữ strategy hiện tại và giao việc cho nó; thêm kiểu giảm giá mới chỉ thêm một class và một dòng dict. Mọi thao tác O(1).
+  complexity: O(1) mỗi thao tác
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x583
+status: validated
+version: 1

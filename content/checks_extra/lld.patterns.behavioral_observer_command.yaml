@@ -1,0 +1,95 @@
+subtopic_id: lld.patterns.behavioral_observer_command
+items:
+  - id: X585
+    difficulty: 1
+    type: read_code
+    minutes: 3
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Giải thích 1 câu vì sao.
+    code: |-
+      class Subject:
+          def __init__(self):
+              self.subs = []
+
+          def subscribe(self, fn):
+              self.subs.append(fn)
+
+          def unsubscribe(self, fn):
+              self.subs.remove(fn)
+
+          def notify(self, msg):
+              for fn in self.subs:
+                  fn(msg)
+
+
+      def make(name):
+          def listener(msg):
+              print(name + " got " + msg)
+
+          return listener
+
+
+      news = Subject()
+      a = make("A")
+      b = make("B")
+      news.subscribe(a)
+      news.subscribe(b)
+      news.notify("hi")
+      news.unsubscribe(a)
+      news.notify("bye")
+    expected_output: "A got hi\nB got hi\nB got bye"
+    answer_md: '`notify` gọi từng subscriber theo thứ tự đăng ký nên lần đầu A rồi B cùng nhận `hi`. Sau `unsubscribe(a)` chỉ còn B nên lần hai chỉ B nhận `bye`.'
+    rubric_md: "Output khớp VÀ nêu notify duyệt danh sách subscriber, unsubscribe bỏ A khỏi danh sách. Đúng: bằng chứng điểm 1; sai: tối đa điểm 0."
+  - id: X586
+    difficulty: 2
+    type: write_code
+    minutes: 8
+    prompt_md: |
+      Viết `class Editor` theo mẫu Command, mô hình trình soạn thảo có hoàn tác. Constructor không tham số, văn bản ban đầu là `""`. `type(s)` nối `s` vào cuối và ghi lại thao tác; `delete(n)` xóa `n` ký tự cuối (nếu `n` lớn hơn độ dài thì xóa hết) và ghi lại thao tác; `undo()` hoàn nguyên thao tác gần nhất (không làm gì nếu chưa có thao tác nào); `text()` trả văn bản hiện tại. Ví dụ `type("ab")`, `type("cd")`, `undo()` thì `text()` là `"ab"`; `type("abc")`, `delete(10)`, `undo()` thì `text()` là `"abc"`.
+    problem_id: check-x586-editor-undo
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 8 phút: bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X587
+    difficulty: 3
+    type: read_code
+    minutes: 5
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng và giải thích vì sao người gửi không nhận lại tin của chính mình, và vì sao các thành viên không cần biết nhau (Mediator).
+    code: |-
+      class ChatRoom:
+          def __init__(self):
+              self.members = []
+
+          def join(self, user):
+              self.members.append(user)
+              user.room = self
+
+          def send(self, sender, text):
+              for m in self.members:
+                  if m is not sender:
+                      m.receive(sender.name, text)
+
+
+      class User:
+          def __init__(self, name):
+              self.name = name
+              self.room = None
+              self.inbox = []
+
+          def say(self, text):
+              self.room.send(self, text)
+
+          def receive(self, who, text):
+              self.inbox.append(who + ":" + text)
+
+
+      room = ChatRoom()
+      an, binh, chi = User("an"), User("binh"), User("chi")
+      for u in (an, binh, chi):
+          room.join(u)
+      an.say("hi")
+      binh.say("yo")
+      print(an.inbox)
+      print(binh.inbox)
+      print(chi.inbox)
+      print(len(room.members))
+    expected_output: "['binh:yo']\n['an:hi']\n['an:hi', 'binh:yo']\n3"
+    answer_md: '`say` chỉ gọi `room.send`; phòng chat (Mediator) chuyển tin cho mọi thành viên trừ `sender` (`m is not sender`). `an` chỉ nhận tin của `binh`, `binh` chỉ nhận tin của `an`, `chi` nhận cả hai theo thứ tự gửi. Các `User` không giữ tham chiếu tới nhau, chỉ biết phòng.'
+    rubric_md: "Output khớp từng dòng VÀ giải thích đúng vai trò điều phối của phòng chat. Đúng: bằng chứng điểm 3; sai: tối đa điểm 2."
