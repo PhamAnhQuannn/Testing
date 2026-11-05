@@ -130,6 +130,10 @@ EXTRA_IDS = {
     "dsa.practical.oop_coding",
     "dsa.practical.refactor_debug_review",
     "dsa.practical.ai_assisted_coding",
+    # Wave 2 Round 20: concurrency coding (concept-driven, deterministic simulations).
+    "dsa.concurrency_coding.thread_safe_basics",
+    "dsa.concurrency_coding.producer_consumer_pool",
+    "dsa.concurrency_coding.concurrent_io_async",
 }
 
 # Expected shipped counts, asserted so an upstream tree edit can't silently change the snapshot.
@@ -137,7 +141,7 @@ PLAN_MVP_COUNT = 40
 EXPECTED_SD = 86
 EXPECTED_ML4 = 39
 EXPECTED_EXTRA_IDS = len(EXTRA_IDS)  # Wave 2 additions
-EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 247
+EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 250
 
 # Node fields the app uses (SPEC 4.2); optional ones are skipped when a node lacks them.
 NODE_FIELDS = [

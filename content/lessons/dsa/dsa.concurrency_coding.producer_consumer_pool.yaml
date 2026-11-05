@@ -1,0 +1,232 @@
+id: dsa.concurrency_coding.producer_consumer_pool
+version: 1
+status: published
+title_vi: "Producer/consumer, bounded buffer và thread pool"
+est_minutes: 13
+objectives_vi:
+  - "Mô tả pattern producer/consumer: một hàng đợi đứng giữa bên sinh việc và bên xử lý việc."
+  - "Giải thích bounded buffer: khi đầy thì producer phải chờ hoặc bị từ chối (backpressure); khi rỗng thì consumer chờ hoặc nhận tín hiệu rỗng."
+  - "Phân biệt thao tác blocking và non-blocking, và vì sao queue tách tốc độ producer khỏi consumer."
+  - "Mô phỏng bounded buffer và work queue của thread pool bằng list thuần, kết quả hoàn toàn tất định."
+blocks:
+  - id: s_buffer
+    type: section
+    title_vi: "Bounded buffer và backpressure"
+    summary_vi: "Hàng đợi có giới hạn: đầy thì từ chối hoặc chờ, rỗng thì không có gì để lấy."
+    exercise_ref: ex_fill
+  - id: t01
+    type: text
+    md: |
+      **Producer/consumer** là pattern chia công việc làm hai phía: *producer* sinh ra dữ liệu hoặc
+      task, *consumer* lấy ra và xử lý. Ở giữa là một **queue** (hàng đợi FIFO). Hai phía không gọi
+      nhau trực tiếp, nên chạy với tốc độ khác nhau mà không hỏng: producer có thể nhanh theo từng
+      đợt, consumer xử lý đều đều, queue làm đệm (buffer) hấp thụ chênh lệch.
+
+      Nếu queue không giới hạn và producer luôn nhanh hơn, queue phình mãi đến hết bộ nhớ. Vì vậy
+      thực tế hay dùng **bounded buffer** có `capacity` cố định:
+
+      - **Đầy** (`len == capacity`): `put` không thể cất thêm. Có hai cách xử lý. *Blocking*: producer
+        chờ đến khi consumer lấy bớt. *Non-blocking*: `put` trả ngay tín hiệu thất bại (ví dụ `False`)
+        và producer tự quyết (thử lại, bỏ, báo lỗi). Việc ép producer chậm lại như vậy gọi là
+        **backpressure**.
+      - **Rỗng**: `get` không có gì để lấy. Blocking thì consumer chờ; non-blocking thì trả tín hiệu
+        rỗng (ví dụ `None`).
+      - Thứ tự **FIFO**: phần tử vào trước ra trước.
+
+      Trong môi trường thật `queue.Queue(maxsize=n)` hay `asyncio.Queue` làm việc blocking này cho bạn.
+      Ở đây ta mô phỏng bằng list thuần, trả tín hiệu `False`/`None` thay cho việc chờ, nên không cần
+      thread và kết quả luôn giống nhau mỗi lần chạy.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      buf = []
+      capacity = 2
+
+      def put(x):
+          if len(buf) >= capacity:
+              return False
+          buf.append(x)
+          return True
+
+      def get():
+          return buf.pop(0) if buf else None
+
+      print(put("a"), put("b"), put("c"))
+      print(get(), get(), get())
+    expected_output: |
+      True True False
+      a b None
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Producer sinh dữ liệu nhanh hơn consumer rất nhiều và buffer có giới hạn. Khi buffer đầy thì cách xử lý hợp lý là gì?"
+    options:
+      - {id: a, text_md: "Chặn hoặc từ chối `put` cho đến khi consumer lấy bớt (backpressure)"}
+      - {id: b, text_md: "Tự động tăng `capacity` mỗi lần đầy"}
+      - {id: c, text_md: "Xoá âm thầm phần tử cũ nhất để nhường chỗ"}
+    answer: [a]
+    explain_md: "Giới hạn buffer chính là để ép producer chậm lại. Tăng capacity vô hạn đưa ta về queue không giới hạn; xoá âm thầm làm mất dữ liệu (chỉ hợp lý khi nghiệp vụ cho phép, ví dụ drop-oldest có chủ đích)."
+  - id: q02
+    type: predict_output
+    code: |
+      buf = []
+      cap = 2
+      log = []
+      for x in [1, 2, 3, 4]:
+          if len(buf) < cap:
+              buf.append(x)
+              log.append("P")
+          else:
+              log.append("F")
+      print("".join(log), buf)
+    expected_output: |
+      PPFF [1, 2]
+    explain_md: "Hai phần tử đầu vào được (`P`), buffer đầy nên 3 và 4 bị từ chối (`F`). Buffer vẫn là `[1, 2]`."
+  - id: ex_fill
+    type: code_exercise
+    md: |
+      Viết `accepted(items, capacity)`: producer đẩy lần lượt từng phần tử của `items` vào bounded
+      buffer có `capacity` chỗ, chưa có consumer nào lấy ra. Phần tử nào đến khi buffer đã đầy thì bị
+      từ chối. Trả về danh sách các phần tử được nhận, theo thứ tự. Ví dụ `accepted([5, 6, 7], 2)`
+      là `[5, 6]`. Bản dưới đây bỏ qua capacity. Hãy sửa.
+    entry: accepted
+    starter: |
+      def accepted(items, capacity):
+          buf = []
+          for x in items:
+              buf.append(x)
+          return buf
+    guidance_md: |
+      - Thử `accepted([5, 6, 7], 2)`: đáp án `[5, 6]`, code trả `[5, 6, 7]`.
+      - Cần kiểm tra `len(buf)` so với `capacity` trước khi thêm.
+    hints:
+      - level: nudge
+        md: "Với `capacity = 2`, phần tử thứ ba nên đi đâu? Code hiện tại có chỗ nào nhìn vào `capacity` không?"
+      - level: approach
+        md: "Trước mỗi lần `append`, kiểm tra buffer còn chỗ không (`len(buf) < capacity`). Nếu đầy thì bỏ qua phần tử đó."
+      - level: near_solution
+        md: "Trong vòng lặp: `if len(buf) < capacity: buf.append(x)`. Không cần `else` vì phần tử bị từ chối thì không làm gì."
+    tests:
+      - {args: [[], 3], expected: []}
+      - {args: [[5, 6, 7], 2], expected: [5, 6]}
+      - {args: [[1, 2], 5], expected: [1, 2]}
+      - {args: [[9, 8, 7, 6], 1], expected: [9]}
+    solution: |
+      def accepted(items, capacity):
+          buf = []
+          for x in items:
+              if len(buf) < capacity:
+                  buf.append(x)
+          return buf
+  - id: s_pool
+    type: section
+    title_vi: "Work queue và thread pool"
+    summary_vi: "Pool giữ số worker cố định lấy việc từ một queue chung; script put/get xen kẽ cho kết quả tất định."
+    exercise_ref: ex_script
+  - id: t02
+    type: text
+    md: |
+      **Thread pool** giữ một số worker cố định (ví dụ 4). Các worker đều là consumer của cùng một
+      **work queue**; nơi nhận request là producer đẩy task vào queue. Lợi ích:
+
+      - **Tái sử dụng worker**: không tạo/huỷ một thread cho mỗi task (tốn kém).
+      - **Giới hạn tài nguyên**: tối đa N task chạy cùng lúc, phần còn lại đợi trong queue.
+      - **Tách tốc độ**: producer chỉ việc đẩy task; queue hấp thụ đợt tăng tải.
+      - Queue **có giới hạn** thì pool có backpressure: queue đầy thì từ chối task mới (reject) hoặc
+        bắt chính producer chạy task (caller-runs).
+
+      Thread pool không tự khử race condition: nếu task đụng dữ liệu chia sẻ thì vẫn phải đồng bộ.
+      Trong phỏng vấn, bạn thường được hỏi cách thiết kế `put`/`get` của buffer; để kiểm thử tất
+      định, ta đưa vào một **script** các thao tác `put`/`get` xen kẽ rồi xem từng kết quả.
+  - id: q03
+    type: predict_output
+    code: |
+      buf = []
+      cap = 2
+      out = []
+      for op in [("put", 1), ("put", 2), ("put", 3), ("get",), ("put", 4), ("get",), ("get",), ("get",)]:
+          if op[0] == "put":
+              if len(buf) < cap:
+                  buf.append(op[1])
+                  out.append(True)
+              else:
+                  out.append(False)
+          else:
+              out.append(buf.pop(0) if buf else None)
+      print(out)
+    expected_output: |
+      [True, True, False, 1, True, 2, 4, None]
+    explain_md: "Put 3 bị từ chối vì đầy. `get` đầu lấy 1; sau đó put 4 vào được. Ba `get` cuối lấy 2, 4 rồi `None` vì rỗng."
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Một hàng đợi mà phần tử vào trước ra trước gọi là hàng đợi ___ (viết tắt tiếng Anh)."
+    blanks: [{accept: ["FIFO", "fifo"]}]
+    explain_md: "FIFO = First In, First Out. Buffer giữa producer và consumer thường là FIFO để giữ thứ tự công việc."
+  - id: ex_script
+    type: code_exercise
+    md: |
+      Viết `run_script(ops, capacity)`: `ops` là danh sách thao tác, mỗi thao tác là `["put", x]` hoặc
+      `["get"]`, áp lên một bounded buffer FIFO có `capacity` chỗ (ban đầu rỗng). Với mỗi thao tác,
+      thêm một kết quả vào danh sách trả về: `put` cho `True` nếu cất được, `False` nếu buffer đầy
+      (không đổi state); `get` cho phần tử cũ nhất, hoặc `None` nếu rỗng. Bản dưới đây lấy phần tử
+      mới nhất thay vì cũ nhất. Hãy sửa.
+    entry: run_script
+    starter: |
+      def run_script(ops, capacity):
+          buf = []
+          out = []
+          for op in ops:
+              if op[0] == "put":
+                  if len(buf) < capacity:
+                      buf.append(op[1])
+                      out.append(True)
+                  else:
+                      out.append(False)
+              else:
+                  out.append(buf.pop() if buf else None)
+          return out
+    guidance_md: |
+      - Thử `[["put", 1], ["put", 2], ["get"]]` với capacity 2: đáp án `[True, True, 1]`, code trả `[True, True, 2]`.
+      - FIFO nghĩa là lấy từ đầu danh sách, không phải từ cuối.
+    hints:
+      - level: nudge
+        md: "`buf.pop()` không đối số lấy phần tử nào của danh sách? Đó là hành vi của stack hay queue?"
+      - level: approach
+        md: "Queue FIFO lấy ra phần tử đã vào sớm nhất, tức vị trí 0 của danh sách."
+      - level: near_solution
+        md: "Đổi `buf.pop()` thành `buf.pop(0)` ở nhánh `get`."
+    tests:
+      - {args: [[], 2], expected: []}
+      - {args: [[["put", 1], ["put", 2], ["get"]], 2], expected: [true, true, 1]}
+      - {args: [[["get"], ["put", 5], ["get"], ["get"]], 1], expected: [null, true, 5, null]}
+      - {args: [[["put", 1], ["put", 2], ["put", 3], ["get"], ["put", 4], ["get"], ["get"], ["get"]], 2], expected: [true, true, false, 1, true, 2, 4, null]}
+    solution: |
+      def run_script(ops, capacity):
+          buf = []
+          out = []
+          for op in ops:
+              if op[0] == "put":
+                  if len(buf) < capacity:
+                      buf.append(op[1])
+                      out.append(True)
+                  else:
+                      out.append(False)
+              else:
+                  out.append(buf.pop(0) if buf else None)
+          return out
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Producer/consumer: queue ở giữa tách tốc độ hai phía, hấp thụ đợt tăng tải."
+      - "Bounded buffer có capacity: đầy thì chờ hoặc từ chối (backpressure), rỗng thì chờ hoặc trả tín hiệu rỗng; thứ tự FIFO."
+      - "Blocking chờ trong lời gọi; non-blocking trả ngay `False`/`None` để caller tự quyết."
+      - "Thread pool: số worker cố định cùng lấy việc từ một work queue (có giới hạn thì có reject/backpressure); không tự khử race condition."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X558], l2: [X559], l3: [X560]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

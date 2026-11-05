@@ -1,0 +1,64 @@
+subtopic_id: dsa.concurrency_coding.producer_consumer_pool
+items:
+  - id: X558
+    difficulty: 1
+    type: read_code
+    minutes: 3
+    prompt_md: Chạy tay (không chạy máy), đoạn code mô phỏng bounded buffer dưới đây in ra gì? Giải thích 1 câu.
+    code: |-
+      buf = []
+      capacity = 3
+      for x in range(1, 6):
+          if len(buf) < capacity:
+              buf.append(x)
+              print("put", x)
+          else:
+              print("full", x)
+      print(buf)
+    expected_output: "put 1\nput 2\nput 3\nfull 4\nfull 5\n[1, 2, 3]"
+    answer_md: 'Buffer có capacity 3 nên ba lần `put` đầu (1, 2, 3) thành công; từ giá trị 4 buffer đã đầy nên bị từ chối (`full`), không phần tử nào bị đẩy ra, và buffer cuối cùng là `[1, 2, 3]`.'
+    rubric_md: "Output khớp từng ký tự (bỏ khoảng trắng cuối dòng) VÀ giải thích đúng 1 câu. Đúng: bằng chứng điểm 1; sai: tối đa điểm 0."
+  - id: X559
+    difficulty: 2
+    type: write_code
+    minutes: 8
+    prompt_md: |
+      Viết `class BoundedBuffer(capacity)` mô phỏng hàng đợi giữa producer và consumer (không dùng thread): `put(x)` trả `True` nếu cất được, `False` nếu buffer đã đầy (không block, không đổi state); `get()` trả phần tử cũ nhất (FIFO) hoặc `None` nếu rỗng; `size()` trả int số phần tử hiện có. Ví dụ capacity 2: `put(5)`, `put(6)`, `put(7)` cho `True, True, False`; `get()` cho `5`, `size()` cho `1`.
+    problem_id: check-x559-bounded-buffer
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 8 phút: bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X560
+    difficulty: 3
+    type: read_code
+    minutes: 6
+    prompt_md: 'Chạy tay (không chạy máy): producer đẩy hai phần tử mỗi vòng, consumer chỉ lấy ra ở vòng chia hết cho 3. Đoạn code in ra gì? Giải thích 1 câu.'
+    code: |-
+      class BoundedBuffer:
+          def __init__(self, capacity):
+              self._cap = capacity
+              self._items = []
+
+          def put(self, x):
+              if len(self._items) >= self._cap:
+                  return False
+              self._items.append(x)
+              return True
+
+          def get(self):
+              if not self._items:
+                  return None
+              return self._items.pop(0)
+
+
+      buf = BoundedBuffer(2)
+      results = []
+      for i in range(1, 8):
+          if i % 3 == 0:
+              for _ in range(3):
+                  results.append(buf.get())
+          else:
+              buf.put(i)
+              buf.put(i * 10)
+      print(results)
+    expected_output: "[1, 10, None, 4, 40, None]"
+    answer_md: 'Vòng 1: buffer nhận 1 và 10 (đầy). Vòng 2: cả hai `put` bị từ chối vì đầy, nên 2 và 20 mất. Vòng 3: ba `get` cho 1, 10 rồi `None` (rỗng). Vòng 4 nhận 4 và 40, vòng 5 bị từ chối, vòng 6 lấy ra 4, 40, `None`; vòng 7 nhận 7 và 70 nhưng chưa ai lấy. Kết quả `[1, 10, None, 4, 40, None]`.'
+    rubric_md: "Output khớp từng ký tự VÀ giải thích đúng ý (put bị từ chối khi đầy làm mất dữ liệu, get khi rỗng cho None). Đúng: bằng chứng điểm 3; sai hoặc quá thời gian: tối đa điểm 2."
