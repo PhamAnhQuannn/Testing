@@ -1,0 +1,84 @@
+subtopic_id: lld.problems.elevator
+items:
+  - id: X609
+    difficulty: 1
+    type: read_code
+    minutes: 3
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Giải thích 1 câu cách chọn tầng kế theo SCAN/LOOK.
+    code: |-
+      def tang_ke(hien_tai, huong, yeu_cau):
+          tren = sorted(t for t in yeu_cau if t > hien_tai)
+          duoi = sorted((t for t in yeu_cau if t < hien_tai), reverse=True)
+          if huong == 1:
+              if tren:
+                  return tren[0]
+              if duoi:
+                  return duoi[0]
+          else:
+              if duoi:
+                  return duoi[0]
+              if tren:
+                  return tren[0]
+          return hien_tai
+
+
+      print(tang_ke(3, 1, {5, 1, 7}))
+      print(tang_ke(7, 1, {1, 4}))
+      print(tang_ke(4, -1, {6, 9}))
+      print(tang_ke(2, 1, set()))
+    expected_output: "5\n4\n6\n2"
+    answer_md: 'Lần 1: ở tầng 3 đi lên, tầng phía trên là {5, 7} nên chọn 5. Lần 2: ở tầng 7 đi lên nhưng không còn tầng trên, đảo chiều và lấy tầng dưới gần nhất là 4. Lần 3: ở tầng 4 đi xuống nhưng chỉ có 6 và 9 ở trên, đảo chiều lấy 6. Lần 4: yêu cầu rỗng nên trả tầng hiện tại 2.'
+    rubric_md: "Output khớp VÀ nêu quy tắc: ưu tiên tầng gần nhất theo chiều hiện tại, hết thì đảo chiều. Đúng: bằng chứng điểm 1; sai: tối đa điểm 0."
+  - id: X610
+    difficulty: 2
+    type: write_code
+    minutes: 8
+    prompt_md: |
+      Viết `class Elevator` theo LOOK: `Elevator(start)` đặt tầng hiện tại là `start`, chiều ban đầu là đi lên. `request(floor)` ghi nhận tầng được gọi (bỏ qua tầng trùng và tầng hiện tại). `step()` đi đến tầng được gọi gần nhất theo chiều hiện tại; hết tầng theo chiều đó thì đảo chiều và lấy tầng gần nhất ở chiều ngược lại; xoá tầng đó khỏi danh sách chờ, cập nhật tầng hiện tại và chiều, trả tầng mới (int). Không còn yêu cầu thì `step()` trả tầng hiện tại. `current()` trả tầng hiện tại; `pending()` trả list đã sắp xếp các tầng còn chờ. Ví dụ ở tầng 3 đi lên với yêu cầu 5, 1, 7: `step()` lần lượt trả 5, 7, 1.
+    problem_id: check-x610-elevator-scan
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 8 phút: bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X611
+    difficulty: 3
+    type: read_code
+    minutes: 5
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng và giải thích thang đảo chiều ở những bước nào.
+    code: |-
+      class Lift:
+          def __init__(self, floor):
+              self.floor = floor
+              self.up = True
+              self.todo = set()
+
+          def call(self, f):
+              self.todo.add(f)
+
+          def step(self):
+              if not self.todo:
+                  return self.floor
+              s = sorted(self.todo)
+              above = [f for f in s if f > self.floor]
+              below = [f for f in s if f < self.floor]
+              if self.up and not above:
+                  self.up = False
+              elif not self.up and not below:
+                  self.up = True
+              self.floor = above[0] if self.up else below[-1]
+              self.todo.discard(self.floor)
+              return self.floor
+
+
+      lift = Lift(4)
+      for f in (6, 2, 9):
+          lift.call(f)
+      print(lift.step())
+      print(lift.step())
+      lift.call(7)
+      lift.call(1)
+      print(lift.step())
+      print(lift.step())
+      print(lift.step())
+      print(lift.step())
+      print("up" if lift.up else "down")
+    expected_output: "6\n9\n7\n2\n1\n1\ndown"
+    answer_md: 'Bắt đầu ở tầng 4 đi lên với {6, 2, 9}: phục vụ 6 rồi 9. Thêm 7 và 1; ở tầng 9 hết tầng phía trên nên đảo chiều xuống, phục vụ 7, 2, 1 (tầng gần nhất theo chiều xuống). Lần step cuối không còn yêu cầu nên giữ nguyên tầng 1, chiều vẫn là xuống.'
+    rubric_md: "Output khớp từng dòng VÀ nêu đúng bước đảo chiều (tại tầng 9). Đúng: bằng chứng điểm 3; sai: tối đa điểm 2."

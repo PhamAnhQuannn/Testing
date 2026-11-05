@@ -1,0 +1,337 @@
+id: lld.problems.vending_atm
+version: 1
+status: published
+title_vi: "Máy bán hàng và ATM"
+est_minutes: 15
+objectives_vi:
+  - "Vẽ state machine của máy bán hàng: trạng thái (chờ tiền, đã bỏ tiền, nhả hàng), sự kiện (bỏ tiền, chọn món, hủy) và bước chuyển."
+  - "Quản lý inventory bằng dict {mã ngăn: số lượng}, tính tiền thừa bằng int và từ chối khi hết hàng hoặc thiếu tiền."
+  - "Cài State pattern: mỗi state là một class, máy (context) giao việc cho state hiện tại."
+  - "Mô hình ATM: thẻ, PIN, khóa thẻ sau số lần sai; giải thích transaction atomicity (nhả hàng/tiền lỗi thì không trừ)."
+blocks:
+  - id: s_vending
+    type: section
+    title_vi: "Máy bán hàng: trạng thái, kho và tiền thừa"
+    summary_vi: "Sơ đồ trạng thái, inventory dict và quy tắc chọn món trả tiền thừa hoặc từ chối."
+    exercise_ref: ex_vending
+  - id: t01
+    type: text
+    md: |
+      Máy bán hàng là một **state machine** (máy trạng thái): tại mỗi thời điểm máy ở **một** trạng thái, và chỉ
+      đổi trạng thái khi có **sự kiện**.
+
+      - Trạng thái: `Waiting` (chờ tiền) → `Paid` (đã bỏ tiền) → nhả hàng + trả tiền thừa → về `Waiting`.
+      - Sự kiện: **bỏ tiền** (`insert`), **chọn món** (`select`), **hủy** (`cancel`, trả lại tiền, về `Waiting`).
+
+      Vẽ sơ đồ trước: hình tròn là trạng thái, mũi tên có nhãn sự kiện. Ví dụ `Waiting --insert--> Paid`,
+      `Paid --select--> Waiting`, `Paid --cancel--> Waiting`.
+
+      **Kho hàng** là dict `{"A1": 2}`; **giá** là dict `{"A1": 10}`. Tiền luôn là `int` (không dùng float).
+      Quy tắc `select(code)`: nếu ngăn **không có / hết hàng** hoặc **chưa đủ tiền** thì trả sentinel `-1`
+      và **giữ nguyên** mọi thứ; ngược lại trừ kho 1, trả **tiền thừa** `balance - price`, đặt balance về 0.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class Machine:
+          def __init__(self):
+              self.stock = {"A1": 1, "B2": 3}
+              self.price = {"A1": 10, "B2": 15}
+              self.balance = 0
+
+          def insert(self, n):
+              self.balance += n
+
+          def select(self, code):
+              if self.stock.get(code, 0) == 0 or self.balance < self.price[code]:
+                  return -1
+              self.stock[code] -= 1
+              change = self.balance - self.price[code]
+              self.balance = 0
+              return change
+
+
+      m = Machine()
+      m.insert(10)
+      print(m.select("B2"))
+      m.insert(10)
+      print(m.select("B2"))
+      print(m.stock["B2"], m.balance)
+    expected_output: |
+      -1
+      5
+      2 0
+  - id: q01
+    type: predict_output
+    code: |
+      class Machine:
+          def __init__(self):
+              self.stock = {"A1": 1, "B2": 3}
+              self.price = {"A1": 10, "B2": 15}
+              self.balance = 0
+
+          def insert(self, n):
+              self.balance += n
+
+          def select(self, code):
+              if self.stock.get(code, 0) == 0 or self.balance < self.price[code]:
+                  return -1
+              self.stock[code] -= 1
+              change = self.balance - self.price[code]
+              self.balance = 0
+              return change
+
+
+      m = Machine()
+      m.insert(20)
+      print(m.select("A1"))
+      print(m.balance)
+      m.insert(5)
+      print(m.select("A1"))
+      print(m.select("B2"))
+      print(m.balance)
+    expected_output: |
+      10
+      0
+      -1
+      -1
+      5
+    explain_md: "Lần đầu: đủ tiền (20 >= 10), tiền thừa 10, balance về 0, kho A1 về 0. Sau đó bỏ 5: A1 hết hàng nên `-1`; B2 giá 15 > 5 nên `-1`. Hai lần từ chối **không** đổi balance (vẫn 5)."
+  - id: q02
+    type: quiz_mcq
+    prompt_md: "Khách bỏ 10 nhưng món giá 15. `select` nên làm gì?"
+    options:
+      - {id: a, text_md: "Trả sentinel `-1`, không nhả hàng, giữ nguyên balance để khách bỏ thêm hoặc hủy"}
+      - {id: b, text_md: "Nhả hàng và để balance âm là -5"}
+      - {id: c, text_md: "Reset balance về 0 và mất 10"}
+    answer: [a]
+    explain_md: "Thiếu tiền là trường hợp bị từ chối: không đổi kho, không đổi balance. Khách có thể `insert` thêm hoặc `cancel`."
+  - id: q03
+    type: quiz_fill
+    prompt_md: "Sơ đồ trạng thái gồm trạng thái (hình tròn) và mũi tên có nhãn là các ___ (một từ tiếng Anh, số ít) làm máy đổi trạng thái."
+    blanks: [{accept: ["event", "Event"]}]
+    explain_md: "Đó là **event**: `insert`, `select`, `cancel`. Cùng một event có thể làm gì đó khác nhau ở mỗi state."
+  - id: ex_vending
+    type: code_exercise
+    md: |
+      Viết `buy(stock, price, balance, code)`: nếu `code` có trong `stock` với số lượng > 0 **và** `balance >= price[code]`
+      thì trừ `stock[code]` đi 1 và trả tiền thừa `balance - price[code]`; ngược lại trả `-1` (không đổi `stock`).
+      Bản dưới quên kiểm tra hết hàng và thiếu tiền.
+    entry: buy
+    starter: |
+      def buy(stock, price, balance, code):
+          stock[code] -= 1
+          return balance - price[code]
+    guidance_md: |
+      - Thử `buy({"A1": 0}, {"A1": 10}, 10, "A1")`: đáp án `-1`, code làm kho thành -1.
+      - Dùng `stock.get(code, 0)` để ngăn không tồn tại cũng thành hết hàng.
+    hints:
+      - level: nudge
+        md: "Có những trường hợp nào phải từ chối trước khi trừ kho?"
+      - level: approach
+        md: "Kiểm tra `stock.get(code, 0) <= 0` và `balance < price[code]`, cả hai thì `return -1`."
+      - level: near_solution
+        md: "Sau hai điều kiện từ chối: `stock[code] -= 1` rồi `return balance - price[code]`."
+    tests:
+      - {args: [{"A1": 2}, {"A1": 10}, 25, "A1"], expected: 15}
+      - {args: [{"A1": 2}, {"A1": 10}, 10, "A1"], expected: 0}
+      - {args: [{"A1": 2}, {"A1": 10}, 9, "A1"], expected: -1}
+      - {args: [{"A1": 0}, {"A1": 10}, 50, "A1"], expected: -1}
+      - {args: [{"A1": 2}, {"A1": 10}, 50, "Z9"], expected: -1}
+    solution: |
+      def buy(stock, price, balance, code):
+          if stock.get(code, 0) <= 0 or balance < price[code]:
+              return -1
+          stock[code] -= 1
+          return balance - price[code]
+  - id: s_state
+    type: section
+    title_vi: "State pattern, ATM và atomicity"
+    summary_vi: "Mỗi state là một class; ATM khóa thẻ sau PIN sai; giao dịch hoặc xong hết hoặc không đổi gì."
+    exercise_ref: ex_atm
+  - id: t02
+    type: text
+    md: |
+      **State pattern**: thay vì `if state == ...` trong mọi method, mỗi trạng thái là một class có `insert`,
+      `select`, `cancel`. Máy (**context**) chỉ giữ `self.state` và giao việc: `self.state.select(self, code)`.
+      Đổi trạng thái là một dòng: `m.state = Waiting()`. Thêm trạng thái mới (`OutOfService`) = thêm class.
+
+      **ATM** là state machine tương tự: `NoCard` → (thẻ vào) `HasCard` → (PIN đúng) `Authenticated` → rút tiền.
+      Đếm PIN sai: mỗi lần sai `fails += 1`; đúng thì `fails` về 0; khi `fails` đạt ngưỡng (ví dụ 3) thì **khóa** thẻ
+      (`Locked`). Khóa là trạng thái cuối: PIN đúng cũng không mở lại được.
+
+      **Transaction atomicity** (tính nguyên tử): một giao dịch **hoặc xong hết, hoặc không đổi gì**. Thứ tự đúng
+      khi rút tiền/nhả hàng: kiểm tra điều kiện, **nhả (dispense) trước**, nếu nhả thành công mới **trừ** số dư/kho.
+      Nếu nhả lỗi thì không trừ gì và chuyển sang trạng thái lỗi riêng (hoặc hoàn tác). Trừ trước rồi nhả lỗi là
+      khách mất tiền mà không có hàng.
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class Waiting:
+          def insert(self, m, n):
+              m.balance += n
+              m.state = Paid()
+              print("paid", m.balance)
+
+          def select(self, m, code):
+              print("insert money first")
+
+
+      class Paid:
+          def insert(self, m, n):
+              m.balance += n
+              print("paid", m.balance)
+
+          def select(self, m, code):
+              if m.stock.get(code, 0) == 0:
+                  print("out of stock")
+                  return
+              print("dispense", code, "change", m.balance - m.price[code])
+              m.stock[code] -= 1
+              m.balance = 0
+              m.state = Waiting()
+
+
+      class Machine:
+          def __init__(self):
+              self.stock = {"A1": 1}
+              self.price = {"A1": 10}
+              self.balance = 0
+              self.state = Waiting()
+
+          def insert(self, n):
+              self.state.insert(self, n)
+
+          def select(self, code):
+              self.state.select(self, code)
+
+
+      m = Machine()
+      m.select("A1")
+      m.insert(5)
+      m.insert(10)
+      m.select("A1")
+      print(type(m.state).__name__, m.stock["A1"])
+    expected_output: |
+      insert money first
+      paid 5
+      paid 15
+      dispense A1 change 5
+      Waiting 0
+  - id: q04
+    type: predict_output
+    code: |
+      class Atm:
+          def __init__(self, pin, balance):
+              self.pin = pin
+              self.balance = balance
+              self.fails = 0
+              self.locked = False
+
+          def enter_pin(self, p):
+              if self.locked:
+                  return "locked"
+              if p == self.pin:
+                  self.fails = 0
+                  return "ok"
+              self.fails += 1
+              if self.fails >= 3:
+                  self.locked = True
+                  return "locked"
+              return "wrong"
+
+
+      a = Atm("1234", 100)
+      print(a.enter_pin("0000"))
+      print(a.enter_pin("1234"))
+      print(a.enter_pin("1111"))
+      print(a.enter_pin("2222"))
+      print(a.enter_pin("3333"))
+      print(a.enter_pin("1234"))
+    expected_output: |
+      wrong
+      ok
+      wrong
+      wrong
+      locked
+      locked
+    explain_md: "PIN sai lần 1, rồi PIN đúng reset `fails` về 0. Sau đó sai 3 lần liên tiếp (1111, 2222, 3333): lần thứ ba khóa thẻ. Khi đã khóa, PIN đúng `1234` vẫn trả `locked`."
+  - id: q05
+    type: quiz_mcq
+    prompt_md: "ATM rút 50: bộ phận nhả tiền báo lỗi. Cách đúng theo transaction atomicity là gì?"
+    options:
+      - {id: a, text_md: "Không trừ số dư (hoặc hoàn tác nếu đã trừ), chuyển sang trạng thái lỗi riêng"}
+      - {id: b, text_md: "Vẫn trừ 50 khỏi số dư rồi nhờ khách khiếu nại"}
+      - {id: c, text_md: "Trừ thêm phí 5 vì giao dịch lỗi"}
+    answer: [a]
+    explain_md: "Giao dịch hoặc xong hết hoặc không đổi gì. Nhả tiền (side effect khó hoàn tác) làm trước, chỉ trừ số dư sau khi nhả thành công."
+  - id: q06
+    type: quiz_fill
+    prompt_md: "Tính chất 'giao dịch hoặc xong hết hoặc không đổi gì' gọi là ___ (một từ tiếng Anh)."
+    blanks: [{accept: ["atomicity", "Atomicity", "atomic", "Atomic"]}]
+    explain_md: "Đó là **atomicity**: nhả hàng lỗi thì không được trừ kho hay tiền."
+  - id: ex_atm
+    type: code_exercise
+    md: |
+      Viết `check_pins(correct, attempts)`: với mỗi PIN thử trả `"ok"` (đúng, reset đếm sai về 0), `"wrong"` (sai,
+      chưa đủ 3 lần sai liên tiếp) hoặc `"locked"` (lần sai thứ 3 liên tiếp khóa thẻ, và sau khi khóa mọi lần thử
+      đều trả `"locked"`). Bản dưới không khóa thẻ.
+    entry: check_pins
+    starter: |
+      def check_pins(correct, attempts):
+          out = []
+          for p in attempts:
+              out.append("ok" if p == correct else "wrong")
+          return out
+    guidance_md: |
+      - Thử `check_pins("1", ["0", "0", "0", "1"])`: đáp án `["wrong", "wrong", "locked", "locked"]`.
+      - Giữ hai biến `fails` và `locked`.
+    hints:
+      - level: nudge
+        md: "Cần nhớ điều gì giữa các lần thử?"
+      - level: approach
+        md: "Biến `fails` và `locked`; nếu `locked` thì luôn trả `locked`; đúng thì `fails = 0`."
+      - level: near_solution
+        md: "Khi sai: `fails += 1`; nếu `fails >= 3` thì `locked = True` và trả `locked`."
+    tests:
+      - {args: ["1", []], expected: []}
+      - {args: ["1234", ["0", "0", "0", "1234"]], expected: ["wrong", "wrong", "locked", "locked"]}
+      - {args: ["1234", ["0", "1234", "0", "0"]], expected: ["wrong", "ok", "wrong", "wrong"]}
+      - {args: ["1234", ["1234", "1234"]], expected: ["ok", "ok"]}
+    solution: |
+      def check_pins(correct, attempts):
+          out = []
+          fails = 0
+          locked = False
+          for p in attempts:
+              if locked:
+                  out.append("locked")
+              elif p == correct:
+                  fails = 0
+                  out.append("ok")
+              else:
+                  fails += 1
+                  if fails >= 3:
+                      locked = True
+                      out.append("locked")
+                  else:
+                      out.append("wrong")
+          return out
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Máy bán hàng là state machine: Waiting → Paid → nhả hàng + tiền thừa → Waiting; sự kiện là insert, select, cancel."
+      - "Inventory là dict mã → số lượng; tiền là int; hết hàng hoặc thiếu tiền trả sentinel `-1` và không đổi kho/balance."
+      - "State pattern: mỗi state là một class, máy giữ `state` và giao việc; thêm state = thêm class."
+      - "ATM: đếm PIN sai, khóa thẻ ở lần sai thứ 3 liên tiếp; transaction atomicity: nhả thành công mới trừ, lỗi thì không đổi gì."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X606], l2: [X607], l3: [X608]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

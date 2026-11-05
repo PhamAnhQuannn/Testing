@@ -1,0 +1,303 @@
+id: lld.problems.elevator
+version: 1
+status: published
+title_vi: "Thang máy"
+est_minutes: 15
+objectives_vi:
+  - "Mô hình thang máy là máy trạng thái (idle / moving up / moving down / door open) và nêu sự kiện chuyển trạng thái."
+  - "Lưu các tầng được gọi trong một set và chọn tầng kế bằng phần trên / phần dưới tầng hiện tại."
+  - "Cài LOOK: phục vụ mọi tầng theo chiều hiện tại, hết thì đảo chiều; phân biệt với SCAN thuần."
+  - "Tách bộ điều phối (dispatcher) bằng Strategy và kể các ca đặc biệt: quá tải, cửa mở, dừng khẩn cấp, nhiều thang."
+blocks:
+  - id: s_states
+    type: section
+    title_vi: "Trạng thái và chọn tầng kế (LOOK)"
+    summary_vi: "Thang là máy trạng thái; set tầng được gọi và quy tắc LOOK quyết định tầng kế."
+    exercise_ref: ex_next
+  - id: t01
+    type: text
+    md: |
+      **Elevator** là bài **state machine** (máy trạng thái) cộng một bài **scheduling** (chọn thứ tự phục vụ).
+
+      Trạng thái: `Idle` (đứng yên), `MovingUp`, `MovingDown`, `DoorOpen`. Sự kiện (bấm tầng, đến tầng, hết giờ
+      mở cửa) làm thang chuyển trạng thái: `Idle` + có yêu cầu thì sang `MovingUp/Down`; đến tầng được gọi thì sang
+      `DoorOpen`; đóng cửa thì tiếp tục chạy hoặc về `Idle` nếu hết yêu cầu.
+
+      **Hàng đợi yêu cầu**: giữ các tầng đang được gọi trong một **set** (trùng thì tự gộp). Tầng kế tiếp lấy từ
+      hai phần: `tren` là các tầng lớn hơn tầng hiện tại (lấy nhỏ nhất), `duoi` là các tầng nhỏ hơn (lấy lớn nhất).
+      **Luôn `sorted(...)` trước khi chọn**, đừng dựa vào thứ tự duyệt set.
+
+      **SCAN/LOOK** (giống xe buýt): đi theo một chiều, phục vụ mọi tầng được gọi trên đường; hết yêu cầu theo chiều
+      đó thì **đảo chiều**. LOOK quay ngay tại tầng yêu cầu **xa nhất**; SCAN thuần còn đi tới tận tầng cuối rồi
+      mới quay. Ví dụ: ở tầng 3 đi lên, yêu cầu {5, 1, 7} thì phục vụ 5, 7 rồi quay xuống 1.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      def tang_ke(hien_tai, huong, yeu_cau):
+          tren = sorted(t for t in yeu_cau if t > hien_tai)
+          duoi = sorted((t for t in yeu_cau if t < hien_tai), reverse=True)
+          if huong == 1:
+              if tren:
+                  return tren[0]
+              if duoi:
+                  return duoi[0]
+          else:
+              if duoi:
+                  return duoi[0]
+              if tren:
+                  return tren[0]
+          return hien_tai
+
+
+      print(tang_ke(3, 1, {5, 1, 7}))
+      print(tang_ke(7, 1, {1, 4}))
+      print(tang_ke(4, -1, {6, 9}))
+      print(tang_ke(2, 1, set()))
+    expected_output: |
+      5
+      4
+      6
+      2
+  - id: q01
+    type: predict_output
+    code: |
+      class Lift:
+          def __init__(self, floor):
+              self.floor = floor
+              self.up = True
+              self.todo = set()
+
+          def call(self, f):
+              self.todo.add(f)
+
+          def step(self):
+              if not self.todo:
+                  return self.floor
+              s = sorted(self.todo)
+              above = [f for f in s if f > self.floor]
+              below = [f for f in s if f < self.floor]
+              if self.up and not above:
+                  self.up = False
+              elif not self.up and not below:
+                  self.up = True
+              self.floor = above[0] if self.up else below[-1]
+              self.todo.discard(self.floor)
+              return self.floor
+
+
+      lift = Lift(5)
+      for f in (8, 2, 6, 3):
+          lift.call(f)
+      print(lift.step())
+      print(lift.step())
+      print(lift.step())
+      lift.call(1)
+      print(lift.step())
+      print(lift.step())
+      print(lift.step())
+      print(lift.step())
+    expected_output: |
+      6
+      8
+      3
+      2
+      1
+      1
+      1
+    explain_md: "Ở tầng 5 đi lên với {8, 2, 6, 3}: phục vụ 6, 8. Hết tầng trên nên đảo chiều xuống: gần nhất là 3, rồi 2. Thêm tầng 1 thì phục vụ 1. Hai lần `step` cuối không còn yêu cầu nên giữ nguyên tầng 1."
+  - id: q02
+    type: quiz_mcq
+    prompt_md: "Thang đang ở tầng 3 đi lên, các tầng được gọi là {5, 1, 7}. Theo LOOK, thứ tự phục vụ là gì?"
+    options:
+      - {id: a, text_md: "5, 7, rồi đảo chiều xuống 1"}
+      - {id: b, text_md: "5, 1, 7 (theo thứ tự được gọi)"}
+      - {id: c, text_md: "1, 5, 7 (từ thấp lên cao)"}
+    answer: [a]
+    explain_md: "Đi lên phục vụ mọi tầng phía trên (5 rồi 7); hết tầng phía trên mới đảo chiều và phục vụ 1."
+  - id: q03
+    type: quiz_fill
+    prompt_md: "LOOK quay đầu ngay tại tầng yêu cầu ___ nhất theo chiều đang đi (một từ tiếng Việt), còn SCAN thuần đi tới tận tầng cuối."
+    blanks: [{accept: ["xa", "Xa"]}]
+    explain_md: "LOOK chỉ đi tới tầng được gọi **xa** nhất rồi quay, không đi hết toà nhà như SCAN."
+  - id: ex_next
+    type: code_exercise
+    md: |
+      Hoàn thành `tang_ke(hien_tai, huong, yeu_cau)`: `huong` là `+1` (lên) hoặc `-1` (xuống), `yeu_cau` là tập các tầng.
+      Trả tầng gần nhất theo chiều hiện tại; không còn thì đảo chiều và trả tầng gần nhất ở chiều ngược lại;
+      yêu cầu rỗng (hoặc chỉ có tầng hiện tại) trả `hien_tai`. Bản dưới mới xử lý trường hợp đi lên còn tầng phía trên.
+    entry: tang_ke
+    starter: |
+      def tang_ke(hien_tai, huong, yeu_cau):
+          tren = sorted(t for t in yeu_cau if t > hien_tai)
+          duoi = sorted((t for t in yeu_cau if t < hien_tai), reverse=True)
+          if huong == 1 and tren:
+              return tren[0]
+          # TODO: các trường hợp còn lại
+          return hien_tai
+    guidance_md: |
+      - Thử `tang_ke(3, 1, {1})`: đáp án `1` (đảo chiều), code trả `3`.
+      - Chia theo `huong`: chiều ưu tiên trước, chiều còn lại sau, cuối cùng `hien_tai`.
+    hints:
+      - level: nudge
+        md: "Khi đi lên mà `tren` rỗng, thang nên làm gì? Còn khi đi xuống thì sao?"
+      - level: approach
+        md: "Viết hai nhánh theo `huong`: nhánh lên thử `tren` rồi `duoi`; nhánh xuống thử `duoi` rồi `tren`."
+      - level: near_solution
+        md: "`if huong == 1:` thử `tren[0]` rồi `duoi[0]`; `else:` thử `duoi[0]` rồi `tren[0]`; cuối cùng `return hien_tai`."
+    tests:
+      - {args: [3, 1, [5, 1, 7]], expected: 5}
+      - {args: [7, 1, [1, 4]], expected: 4}
+      - {args: [4, -1, [6, 9]], expected: 6}
+      - {args: [4, -1, [2, 6]], expected: 2}
+      - {args: [2, 1, []], expected: 2}
+    solution: |
+      def tang_ke(hien_tai, huong, yeu_cau):
+          tren = sorted(t for t in yeu_cau if t > hien_tai)
+          duoi = sorted((t for t in yeu_cau if t < hien_tai), reverse=True)
+          if huong == 1:
+              if tren:
+                  return tren[0]
+              if duoi:
+                  return duoi[0]
+          else:
+              if duoi:
+                  return duoi[0]
+              if tren:
+                  return tren[0]
+          return hien_tai
+  - id: s_dispatch
+    type: section
+    title_vi: "Dispatcher, nhiều thang và ca đặc biệt"
+    summary_vi: "Tách thuật toán chọn tầng bằng Strategy, rồi kể các ca biên của thang thật."
+    exercise_ref: ex_order
+  - id: t02
+    type: text
+    md: |
+      **Dispatcher** (bộ điều phối) là class chọn tầng kế bằng một **Strategy**: `Elevator` giữ `scheduler` và gọi
+      `scheduler.next(current, direction, pending)`. `LookScheduler`, `NearestFirstScheduler`, `FifoScheduler` cùng
+      interface, đổi thuật toán **không sửa** class `Elevator` (OCP).
+
+      **Nhiều thang**: thêm một lớp phía trên chọn *thang nào* nhận yêu cầu (gần nhất, ít việc nhất) rồi đưa yêu cầu
+      cho thang đó; mỗi thang vẫn tự chạy LOOK.
+
+      **Ca đặc biệt** cần quyết định rõ trong code:
+      - **Quá tải** (overload): không đóng cửa / không chạy, báo qua trạng thái hoặc giá trị trả về.
+      - **Cửa đang mở**: yêu cầu mới ở tầng hiện tại chỉ gia hạn cửa; chỉ chạy khi cửa đã đóng.
+      - **Dừng khẩn cấp** (emergency stop): chuyển sang trạng thái riêng, giữ nguyên set yêu cầu.
+      - Yêu cầu **trùng** hoặc ở **tầng hiện tại**: bỏ qua; tầng ngoài phạm vi toà nhà: từ chối.
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Muốn thêm thuật toán `NearestFirst` mà không sửa class `Elevator`, nên làm gì?"
+    options:
+      - {id: a, text_md: "Viết class `NearestFirstScheduler` cùng interface với scheduler hiện có và truyền vào `Elevator`"}
+      - {id: b, text_md: "Thêm nhánh `elif algo == 'nearest'` vào trong `Elevator.step`"}
+      - {id: c, text_md: "Sao chép cả class `Elevator` rồi sửa bản sao"}
+    answer: [a]
+    explain_md: "Đó là Strategy: `Elevator` chỉ gọi interface, thêm thuật toán mới là thêm class (OCP)."
+  - id: q05
+    type: quiz_mcq
+    prompt_md: "Thang đang ở tầng 6 với yêu cầu {6, 6, 2}. Phát biểu nào đúng?"
+    options:
+      - {id: a, text_md: "Tầng 6 là tầng hiện tại nên bỏ qua; set tự gộp trùng, chỉ còn tầng 2 cần phục vụ"}
+      - {id: b, text_md: "Phải phục vụ tầng 6 hai lần vì được gọi hai lần"}
+      - {id: c, text_md: "Thang đảo chiều lên tầng 6 trước rồi mới xuống 2"}
+    answer: [a]
+    explain_md: "Dùng set nên trùng bị gộp; tầng đang đứng đã được phục vụ, chỉ còn 2."
+  - id: ex_order
+    type: code_exercise
+    md: |
+      `thu_tu(start, yeu_cau, huong=1)` trả list các tầng theo thứ tự phục vụ của LOOK, bắt đầu ở `start` với chiều `huong`
+      (tầng `start` không được tính là một lần phục vụ). Hàm `tang_ke` đã có sẵn. Bản dưới quên bỏ tầng `start` khỏi
+      tập yêu cầu nên trả thừa chính tầng đó. Hãy sửa.
+    entry: thu_tu
+    starter: |
+      def tang_ke(hien_tai, huong, yeu_cau):
+          tren = sorted(t for t in yeu_cau if t > hien_tai)
+          duoi = sorted((t for t in yeu_cau if t < hien_tai), reverse=True)
+          if huong == 1:
+              if tren:
+                  return tren[0]
+              if duoi:
+                  return duoi[0]
+          else:
+              if duoi:
+                  return duoi[0]
+              if tren:
+                  return tren[0]
+          return hien_tai
+
+
+      def thu_tu(start, yeu_cau, huong=1):
+          con_lai = set(yeu_cau)
+          hien, out = start, []
+          while con_lai:
+              nxt = tang_ke(hien, huong, con_lai)
+              if (huong == 1 and nxt < hien) or (huong == -1 and nxt > hien):
+                  huong = -huong
+              con_lai.discard(nxt)
+              out.append(nxt)
+              hien = nxt
+          return out
+    guidance_md: |
+      - Thử `thu_tu(4, [4, 4])`: đáp án `[]`, code trả `[4]`.
+      - Thử `thu_tu(3, [5, 1, 7])`: đáp án `[5, 7, 1]`.
+    hints:
+      - level: nudge
+        md: "Tầng `start` nằm trong `con_lai`; `tang_ke` thấy nó thì trả gì?"
+      - level: approach
+        md: "Bỏ `start` khỏi `con_lai` ngay sau khi tạo set."
+      - level: near_solution
+        md: "Thêm `con_lai.discard(start)` trước vòng `while`."
+    tests:
+      - {args: [3, [5, 1, 7]], expected: [5, 7, 1]}
+      - {args: [8, [2, 5, 9], -1], expected: [5, 2, 9]}
+      - {args: [4, [4, 4]], expected: []}
+      - {args: [5, [8, 2, 6, 3]], expected: [6, 8, 3, 2]}
+      - {args: [1, [3, 2, 1]], expected: [2, 3]}
+    solution: |
+      def tang_ke(hien_tai, huong, yeu_cau):
+          tren = sorted(t for t in yeu_cau if t > hien_tai)
+          duoi = sorted((t for t in yeu_cau if t < hien_tai), reverse=True)
+          if huong == 1:
+              if tren:
+                  return tren[0]
+              if duoi:
+                  return duoi[0]
+          else:
+              if duoi:
+                  return duoi[0]
+              if tren:
+                  return tren[0]
+          return hien_tai
+
+
+      def thu_tu(start, yeu_cau, huong=1):
+          con_lai = set(yeu_cau)
+          con_lai.discard(start)
+          hien, out = start, []
+          while con_lai:
+              nxt = tang_ke(hien, huong, con_lai)
+              if (huong == 1 and nxt < hien) or (huong == -1 and nxt > hien):
+                  huong = -huong
+              con_lai.discard(nxt)
+              out.append(nxt)
+              hien = nxt
+          return out
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Thang là state machine: Idle, MovingUp, MovingDown, DoorOpen; sự kiện bấm tầng / đến tầng chuyển trạng thái."
+      - "Yêu cầu lưu trong set; tầng kế là nhỏ nhất phía trên hoặc lớn nhất phía dưới tầng hiện tại; luôn `sorted` để kết quả xác định."
+      - "LOOK/SCAN: phục vụ mọi tầng theo chiều hiện tại, hết thì đảo chiều (LOOK quay ở tầng xa nhất, SCAN đi hết toà nhà)."
+      - "Dispatcher là Strategy: đổi thuật toán không sửa `Elevator`; nhiều thang thêm lớp chọn thang."
+      - "Ca biên: trùng / tầng hiện tại, quá tải, cửa mở, dừng khẩn cấp, tầng ngoài phạm vi."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X609], l2: [X610], l3: [X611]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

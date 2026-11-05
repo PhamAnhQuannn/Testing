@@ -1,0 +1,304 @@
+id: lld.problems.parking_lot
+version: 1
+status: published
+title_vi: "Bãi đỗ xe"
+est_minutes: 15
+objectives_vi:
+  - "Xác định entity Vehicle/Spot/Ticket/Floor/ParkingLot và trách nhiệm của từng class, dùng enum cho loại xe và loại chỗ."
+  - "Viết luồng vào (tìm chỗ trống phù hợp, phát vé) và ra (tính phí = rate * hours, trả chỗ); hết chỗ hoặc vé lạ thì trả giá trị báo lỗi, không ném lỗi."
+  - "Tách allocation strategy và pricing strategy bằng Strategy để đổi cách chọn chỗ hoặc cách tính phí mà không sửa lõi."
+  - "Mở rộng thêm xe điện (EV) bằng một giá trị enum và một mục giá mới, không sửa ParkingLot."
+blocks:
+  - id: s_flow
+    type: section
+    title_vi: "Entity và luồng vào/ra"
+    summary_vi: "Vehicle, Spot, Ticket, Floor, ParkingLot; vào = tìm chỗ rồi phát vé, ra = tính phí rồi trả chỗ."
+    exercise_ref: ex_pick
+  - id: t01
+    type: text
+    md: |
+      Đề chuẩn: bãi nhiều tầng, có xe máy và ô tô, phát vé khi vào, tính phí theo giờ khi ra, hết chỗ thì từ chối.
+      Việc đầu tiên là tách **entity** theo trách nhiệm:
+
+      - `Vehicle`: biển số và **loại xe** (enum `VehicleType`: `CAR`, `MOTO`).
+      - `Spot`: id, **loại chỗ** (enum `SpotType`) và đang trống hay không.
+      - `Ticket`: id vé, chỗ được cấp, giờ vào. Một vé là một lượt đỗ.
+      - `Floor`: gom các `Spot` của một tầng, biết tầng còn chỗ loại nào.
+      - `ParkingLot`: điều phối, giữ các `Floor` và các vé đang mở.
+
+      **Enum** thay cho chuỗi tự do: gõ sai `"cra"` là lỗi ngay thay vì chạy sai âm thầm, và mọi giá trị hợp lệ nằm một chỗ.
+
+      **Luồng vào** (`check_in`): tìm một `Spot` trống đúng loại; nếu có thì đánh dấu đã có xe, tạo `Ticket` rồi trả vé;
+      nếu không thì trả giá trị báo hết chỗ (ví dụ `-1`) và **không đổi gì**.
+      **Luồng ra** (`check_out`): tra vé (vé lạ hoặc đã ra thì trả `-1`), tính phí `fee = rate * hours`, trả chỗ về trống, xóa vé.
+
+      Phí tính từ tham số `hours` chứ không đọc đồng hồ trong hàm: code dễ test và kết quả xác định. Tiền dùng số nguyên.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class Spot:
+          def __init__(self, sid, kind):
+              self.sid = sid
+              self.kind = kind
+              self.taken = False
+
+
+      class Lot:
+          def __init__(self, spots):
+              self.spots = spots
+              self.tickets = {}
+              self.next_id = 1
+
+          def check_in(self, kind):
+              for s in self.spots:
+                  if s.kind == kind and not s.taken:
+                      s.taken = True
+                      tid = self.next_id
+                      self.next_id += 1
+                      self.tickets[tid] = s
+                      return tid
+              return -1
+
+          def check_out(self, tid, hours):
+              s = self.tickets.pop(tid, None)
+              if s is None:
+                  return -1
+              s.taken = False
+              return hours * 20
+
+
+      lot = Lot([Spot(1, "car"), Spot(2, "moto")])
+      print(lot.check_in("car"), lot.check_in("car"), lot.check_in("moto"))
+      print(lot.check_out(1, 2), lot.check_out(1, 2))
+    expected_output: |
+      1 -1 2
+      40 -1
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Một xe đỗ xong, ta cần lúc ra biết đã vào chỗ nào và từ giờ nào. Thông tin đó nên nằm ở đâu?"
+    options:
+      - {id: a, text_md: "Trong `Ticket` (id vé, chỗ được cấp, giờ vào)"}
+      - {id: b, text_md: "Trong enum `VehicleType`"}
+      - {id: c, text_md: "Trong một biến toàn cục ghi 'xe cuối cùng'"}
+    answer: [a]
+    explain_md: "Một vé mô tả một lượt đỗ: chỗ, giờ vào và id để tra. Enum chỉ liệt kê loại, còn biến toàn cục không phân biệt được nhiều xe."
+  - id: q02
+    type: predict_output
+    code: |
+      class Spot:
+          def __init__(self, sid, kind):
+              self.sid = sid
+              self.kind = kind
+              self.taken = False
+
+
+      spots = [Spot(1, "car"), Spot(2, "moto"), Spot(3, "car")]
+
+
+      def find(kind):
+          for s in spots:
+              if s.kind == kind and not s.taken:
+                  return s
+          return None
+
+
+      s = find("car")
+      s.taken = True
+      print(s.sid)
+      s = find("car")
+      s.taken = True
+      print(s.sid)
+      print(find("car"))
+      print(find("moto").sid)
+    expected_output: |
+      1
+      3
+      None
+      2
+    explain_md: "Chỗ 1 rồi chỗ 3 là hai chỗ ô tô, lần ba không còn chỗ ô tô nên `find` trả `None`. Chỗ xe máy (2) vẫn trống vì tìm theo đúng loại."
+  - id: q03
+    type: quiz_fill
+    prompt_md: "Khi bãi hết chỗ, `check_in` trả giá trị báo lỗi `___` (số nguyên) và không đổi trạng thái; ta không ném exception vì hết chỗ là chuyện bình thường."
+    blanks: [{accept: ["-1"]}]
+    explain_md: "Quy ước ở các bài chấm tự động: thất bại là kết quả bình thường nên báo bằng giá trị trả về (-1), người gọi phải kiểm tra."
+  - id: ex_pick
+    type: code_exercise
+    md: |
+      `pick_floor(free)` nhận list số chỗ trống của từng tầng (tầng 0 ở đầu) và trả chỉ số **tầng thấp nhất** còn chỗ,
+      hoặc `-1` nếu mọi tầng đều hết. Bản dưới đây trả tầng cao nhất. Hãy sửa.
+    entry: pick_floor
+    starter: |
+      def pick_floor(free):
+          for f in range(len(free) - 1, -1, -1):
+              if free[f] > 0:
+                  return f
+          return -1
+    guidance_md: |
+      - Thử `pick_floor([0, 2, 1])`: đáp án `1`, code trả `2`.
+      - Duyệt từ tầng 0 lên và trả ngay tầng đầu tiên còn chỗ.
+    hints:
+      - level: nudge
+        md: "Hướng duyệt hiện tại là từ tầng cao xuống thấp. Muốn tầng thấp nhất thì duyệt thế nào?"
+      - level: approach
+        md: "Dùng `for f in range(len(free))` và trả `f` ngay khi `free[f] > 0`."
+      - level: near_solution
+        md: "`for f in range(len(free)): if free[f] > 0: return f` rồi `return -1` ở cuối."
+    tests:
+      - {args: [[0, 2, 1]], expected: 1}
+      - {args: [[3, 0]], expected: 0}
+      - {args: [[0, 0]], expected: -1}
+      - {args: [[]], expected: -1}
+    solution: |
+      def pick_floor(free):
+          for f in range(len(free)):
+              if free[f] > 0:
+                  return f
+          return -1
+  - id: s_strategy
+    type: section
+    title_vi: "Strategy cho chọn chỗ, tính phí và mở rộng"
+    summary_vi: "Allocation và pricing là hai Strategy; thêm EV bằng một enum và một mục giá, không sửa lõi."
+    exercise_ref: ex_fee
+  - id: t02
+    type: text
+    md: |
+      Có hai quyết định hay đổi, nên tách khỏi `ParkingLot` bằng **Strategy** (cùng interface, `ParkingLot` giữ strategy và giao việc):
+
+      - **Allocation strategy** (chọn chỗ): gần cửa nhất, tầng thấp nhất, hay chỗ nhỏ nhất vừa xe. Interface ví dụ `pick(spots, kind) -> Spot | None`.
+      - **Pricing strategy** (tính phí): theo giờ (`rate * hours`), theo ngày, đồng giá. Interface ví dụ `fee(hours) -> int`.
+
+      ```python
+      class Hourly:
+          def __init__(self, rate): self.rate = rate
+          def fee(self, hours): return self.rate * hours
+
+      class Flat:
+          def __init__(self, price): self.price = price
+          def fee(self, hours): return self.price
+      ```
+
+      Đổi cách tính phí nghĩa là truyền strategy khác vào, không sửa `check_out` (đúng OCP: mở cho mở rộng, đóng với sửa đổi).
+
+      **Mở rộng xe điện (EV)** không cần đụng lõi nếu thiết kế đúng:
+
+      1. Thêm giá trị `EV` vào enum loại xe/loại chỗ.
+      2. Thêm một mục giá (`"ev": 30`) hoặc một class pricing mới.
+      3. Thêm `Spot` loại `EV` vào `Floor`.
+
+      Nếu `check_in` đầy `if kind == "car" ... elif kind == "moto" ...` thì mỗi loại xe mới lại phải sửa nó: đó là dấu hiệu
+      thiếu Strategy hoặc thiếu bảng tra (dict). Tương tự, thêm tầng chỉ là thêm một `Floor` vào danh sách.
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      RATES = {"car": 20, "moto": 10}
+
+
+      def fee(kind, hours):
+          return RATES[kind] * hours
+
+
+      print(fee("car", 3), fee("moto", 3))
+      RATES["ev"] = 30
+      print(fee("ev", 3))
+    expected_output: |
+      60 30
+      90
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Thêm xe điện (EV) vào bãi đã có, cách nào giữ nguyên nguyên tắc 'không sửa lõi'?"
+    options:
+      - {id: a, text_md: "Thêm giá trị enum `EV`, một mục giá và các `Spot` loại EV; `ParkingLot` không đổi"}
+      - {id: b, text_md: "Thêm một nhánh `elif kind == 'ev'` vào cả `check_in` và `check_out`"}
+      - {id: c, text_md: "Sao chép `ParkingLot` thành `EVParkingLot`"}
+    answer: [a]
+    explain_md: "Khi chọn chỗ và tính phí dựa vào enum, bảng giá hoặc strategy thì loại xe mới chỉ là dữ liệu mới. Thêm nhánh if hoặc nhân bản class là cách làm lõi phình ra."
+  - id: q05
+    type: predict_output
+    code: |
+      class Hourly:
+          def __init__(self, rate):
+              self.rate = rate
+
+          def fee(self, hours):
+              return self.rate * hours
+
+
+      class Flat:
+          def __init__(self, price):
+              self.price = price
+
+          def fee(self, hours):
+              return self.price
+
+
+      class Lot:
+          def __init__(self, pricing):
+              self.pricing = pricing
+
+          def checkout(self, hours):
+              return self.pricing.fee(hours)
+
+
+      print(Lot(Hourly(20)).checkout(3), Lot(Flat(50)).checkout(3), Lot(Hourly(30)).checkout(0))
+    expected_output: |
+      60 50 0
+    explain_md: "`Hourly(20)` cho 20*3=60; `Flat(50)` luôn 50 bất kể giờ; `Hourly(30)` với 0 giờ cho 0. `Lot` không đổi, chỉ strategy khác."
+  - id: ex_fee
+    type: code_exercise
+    md: |
+      `fees(stays)` nhận list `[loại, số giờ]` và trả list phí theo bảng giá `{"car": 20, "moto": 10, "ev": 30}`
+      (phí = giá * giờ); loại không có trong bảng trả `-1`. Bản dưới đây đang tính mọi loại xe giá 20. Hãy sửa để dùng bảng giá.
+    entry: fees
+    starter: |
+      RATES = {"car": 20, "moto": 10, "ev": 30}
+
+
+      def fees(stays):
+          out = []
+          for kind, hours in stays:
+              out.append(20 * hours)
+          return out
+    guidance_md: |
+      - Thử `fees([["car", 3], ["moto", 2]])`: đáp án `[60, 20]`, code trả `[60, 40]`.
+      - Tra giá bằng `RATES.get(kind)`; `None` nghĩa là loại lạ.
+    hints:
+      - level: nudge
+        md: "Giá 20 đang bị gõ cứng. Giá thật của mỗi loại nằm ở đâu?"
+      - level: approach
+        md: "Lấy `rate = RATES.get(kind)`; nếu `rate is None` thì thêm `-1`, ngược lại thêm `rate * hours`."
+      - level: near_solution
+        md: "`out.append(-1 if rate is None else rate * hours)`."
+    tests:
+      - {args: [[["car", 3], ["moto", 2]]], expected: [60, 20]}
+      - {args: [[["ev", 1]]], expected: [30]}
+      - {args: [[["bus", 2], ["car", 0]]], expected: [-1, 0]}
+      - {args: [[]], expected: []}
+    solution: |
+      RATES = {"car": 20, "moto": 10, "ev": 30}
+
+
+      def fees(stays):
+          out = []
+          for kind, hours in stays:
+              rate = RATES.get(kind)
+              out.append(-1 if rate is None else rate * hours)
+          return out
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Entity: Vehicle (loại xe), Spot (loại, trống hay không), Ticket (một lượt đỗ), Floor (nhóm chỗ), ParkingLot (điều phối); dùng enum cho loại xe và loại chỗ."
+      - "Vào: tìm chỗ trống đúng loại rồi phát vé, hết chỗ trả -1 và không đổi gì. Ra: tra vé, phí = rate * hours, trả chỗ; vé lạ trả -1."
+      - "Tách allocation strategy (chọn chỗ) và pricing strategy (tính phí) để đổi mà không sửa lõi; tiền là số nguyên, giờ là tham số."
+      - "Thêm EV: một giá trị enum, một mục giá, các Spot mới; nếu phải sửa chuỗi if/elif trong lõi thì thiết kế chưa mở rộng được."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X603], l2: [X604], l3: [X605]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

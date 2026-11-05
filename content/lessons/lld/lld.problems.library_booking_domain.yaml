@@ -1,0 +1,345 @@
+id: lld.problems.library_booking_domain
+version: 1
+status: published
+title_vi: "Thư viện, khách sạn, nhà hàng, đặt vé phim"
+est_minutes: 15
+objectives_vi:
+  - "Mô hình hóa bài quản lý bằng entity (Book/Member/Loan hoặc Seat/Room/Booking) và CRUD, tra cứu bằng dict."
+  - "Vẽ và code vòng đời lượt đặt (held, paid, used, cancelled) như một state machine với bảng chuyển trạng thái."
+  - "Chặn đặt trùng (double-booking): kiểm tra chỗ còn trống rồi mới đánh dấu đã đặt; chọn đúng khóa cho đặt theo khung giờ."
+  - "Nhận ra khách sạn, nhà hàng, rạp phim dùng cùng một khung, chỉ khác tên class và quy tắc."
+blocks:
+  - id: s_core
+    type: section
+    title_vi: "Entity, CRUD và chặn đặt trùng"
+    summary_vi: "Mọi bài booking đều có danh sách chỗ, lượt đặt, và quy tắc không cho hai người giữ cùng một chỗ."
+    exercise_ref: ex_book
+  - id: t01
+    type: text
+    md: |
+      Các bài **thư viện, khách sạn, nhà hàng, rạp phim** là cùng một loại: có **danh sách đồ có hạn** (sách, phòng,
+      bàn, ghế), có **người dùng**, và có **lượt đặt** gắn người với đồ.
+
+      **CRUD** (Create, Read, Update, Delete) là phần nền: thêm sách/ghế, tìm, sửa, xóa. Lưu bằng `dict` theo mã
+      (`id`) để tra cứu trung bình O(1).
+
+      **Entity** điển hình:
+
+      - Thư viện: `Book`, `Member`, `Loan` (ai mượn sách nào, hạn trả), phạt trả muộn; tìm sách theo nhiều tiêu chí
+        (tựa, tác giả) bằng cách lọc.
+      - Rạp phim: `Show` (suất chiếu), `Seat`, `Booking`.
+      - Khách sạn: `Room`, `Guest`, `Reservation` theo ngày.
+
+      **Đặt theo khung giờ**: ghế, phòng hay bàn có giờ bắt đầu và kết thúc, nên cái bị tranh nhau là cặp
+      *(chỗ, khung giờ)*, không phải riêng chỗ. Phòng 101 ngày 5 và phòng 101 ngày 6 là hai khóa khác nhau.
+
+      **Chặn đặt trùng (double-booking)** ở mức đơn giản: **kiểm tra chỗ còn trống, rồi mới đánh dấu đã đặt**.
+      Nếu đã đặt thì trả `False` và không đổi gì. Thứ tự "đánh dấu trước, kiểm tra sau" là sai.
+
+      Khi nhiều người đặt cùng lúc, hai luồng có thể cùng thấy "còn trống" rồi cùng đặt; khi đó cần khóa (lock).
+      Phần đó học ở `lld.concurrency_design`; ở đây ta giả định một luồng.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class Seats:
+          def __init__(self):
+              self.booked = {}
+
+          def book(self, seat, who):
+              if seat in self.booked:
+                  return False
+              self.booked[seat] = who
+              return True
+
+
+      s = Seats()
+      print(s.book("A1", "an"))
+      print(s.book("A1", "binh"))
+      print(s.booked)
+    expected_output: |
+      True
+      False
+      {'A1': 'an'}
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Cách nào chặn đặt trùng đúng trong code một luồng?"
+    options:
+      - {id: a, text_md: "Kiểm tra ghế còn trống; nếu trống thì đánh dấu đã đặt và trả `True`, nếu không trả `False`"}
+      - {id: b, text_md: "Đánh dấu ghế đã đặt trước, rồi mới kiểm tra xem trước đó có ai đặt chưa"}
+      - {id: c, text_md: "Luôn trả `True` và để người dùng tự xử lý trùng"}
+    answer: [a]
+    explain_md: "Phải kiểm tra trước rồi mới ghi. Đánh dấu trước sẽ ghi đè lượt đặt của người khác; luôn trả `True` thì không chặn được gì."
+  - id: q02
+    type: predict_output
+    code: |
+      class Seats:
+          def __init__(self):
+              self.s = {"a": False, "b": False}
+
+          def book(self, x):
+              if x not in self.s or self.s[x]:
+                  return False
+              self.s[x] = True
+              return True
+
+          def cancel(self, x):
+              if not self.s.get(x, False):
+                  return False
+              self.s[x] = False
+              return True
+
+
+      t = Seats()
+      print(t.book("a"), t.book("a"), t.book("z"))
+      print(t.cancel("a"), t.cancel("a"), t.cancel("b"))
+      print(t.book("a"))
+    expected_output: |
+      True False False
+      True False False
+      True
+    explain_md: "`book('a')` True, lần hai đã đặt nên False, ghế `z` lạ nên False. `cancel('a')` True, lần hai ghế đã trống nên False, `b` chưa từng đặt nên False. Sau khi hủy, `a` đặt lại được nên True."
+  - id: q03
+    type: quiz_fill
+    prompt_md: "Để kiểm tra ghế đã có người đặt trong dict `booked`, viết `if seat ___ self.booked:` (toán tử một từ)."
+    blanks: [{accept: ["in"]}]
+    explain_md: "`seat in self.booked` kiểm tra khóa có trong dict, trung bình O(1)."
+  - id: ex_book
+    type: code_exercise
+    md: |
+      `run_booking(cmds)` mô phỏng hệ thống đặt ghế. Mỗi phần tử của `cmds` là `["add", ghế]` (đăng ký ghế trống, không ghi kết quả),
+      `["book", ghế]` hoặc `["cancel", ghế]` (ghi `True`/`False`). Trả list kết quả của các lệnh `book` và `cancel`.
+      Bản dưới đây quên kiểm tra ghế đã đặt nên `book` luôn `True`. Hãy sửa `book` (và để `cancel` chỉ trả `True` khi ghế đang được đặt).
+    entry: run_booking
+    starter: |
+      class Booking:
+          def __init__(self):
+              self.seats = {}
+
+          def add(self, seat):
+              self.seats.setdefault(seat, False)
+
+          def book(self, seat):
+              self.seats[seat] = True
+              return True
+
+          def cancel(self, seat):
+              if not self.seats.get(seat, False):
+                  return False
+              self.seats[seat] = False
+              return True
+
+
+      def run_booking(cmds):
+          b = Booking()
+          out = []
+          for c in cmds:
+              if c[0] == "add":
+                  b.add(c[1])
+              elif c[0] == "book":
+                  out.append(b.book(c[1]))
+              else:
+                  out.append(b.cancel(c[1]))
+          return out
+    guidance_md: |
+      - Thử `run_booking([["add", "a"], ["book", "a"], ["book", "a"]])`: đáp án `[True, False]`, code trả `[True, True]`.
+      - Ghế lạ hoặc đã đặt thì trả `False` mà không đổi dict.
+    hints:
+      - level: nudge
+        md: "Khi nào `book` phải trả `False`, và lúc đó có được đổi `seats` không?"
+      - level: approach
+        md: "Nếu `seat` không có trong `self.seats` hoặc giá trị đang `True` thì trả `False` ngay."
+      - level: near_solution
+        md: "`if seat not in self.seats or self.seats[seat]: return False` rồi mới `self.seats[seat] = True`."
+    tests:
+      - {args: [[["add", "a"], ["book", "a"], ["book", "a"]]], expected: [true, false]}
+      - {args: [[["book", "x"]]], expected: [false]}
+      - {args: [[["add", "a"], ["book", "a"], ["cancel", "a"], ["book", "a"], ["cancel", "b"]]], expected: [true, true, true, false]}
+      - {args: [[]], expected: []}
+    solution: |
+      class Booking:
+          def __init__(self):
+              self.seats = {}
+
+          def add(self, seat):
+              self.seats.setdefault(seat, False)
+
+          def book(self, seat):
+              if seat not in self.seats or self.seats[seat]:
+                  return False
+              self.seats[seat] = True
+              return True
+
+          def cancel(self, seat):
+              if not self.seats.get(seat, False):
+                  return False
+              self.seats[seat] = False
+              return True
+
+
+      def run_booking(cmds):
+          b = Booking()
+          out = []
+          for c in cmds:
+              if c[0] == "add":
+                  b.add(c[1])
+              elif c[0] == "book":
+                  out.append(b.book(c[1]))
+              else:
+                  out.append(b.cancel(c[1]))
+          return out
+  - id: s_life
+    type: section
+    title_vi: "Vòng đời lượt đặt và cùng một khung cho nhiều domain"
+    summary_vi: "Lượt đặt đi qua held, paid, used hoặc cancelled; bảng chuyển trạng thái chặn bước sai."
+    exercise_ref: ex_life
+  - id: t02
+    type: text
+    md: |
+      Một lượt đặt có **vòng đời** (lifecycle), vẽ như **state machine**:
+
+      ```
+      held --pay--> paid --use--> used
+        |             |
+        +--cancel-----+--> cancelled
+      ```
+
+      - `held`: đang giữ chỗ (chưa trả tiền, thường có hạn giữ).
+      - `paid`: đã thanh toán.
+      - `used`: đã dùng (xem phim, nhận phòng); trạng thái kết thúc.
+      - `cancelled`: đã hủy, chỗ được trả về trống; trạng thái kết thúc.
+
+      Cách code gọn là **bảng chuyển trạng thái**: dict `(state, event) -> state mới`. Sự kiện không hợp lệ
+      (ví dụ `use` khi còn `held`) thì không có trong bảng nên **giữ nguyên trạng thái**:
+
+      ```python
+      TRANS = {("held", "pay"): "paid", ("paid", "use"): "used"}
+      state = TRANS.get((state, event), state)
+      ```
+
+      So với một chuỗi `if` lồng nhau, bảng dễ đọc và thêm trạng thái mới chỉ là thêm một dòng. Khi mỗi trạng thái
+      có hành vi riêng phức tạp hơn thì dùng State pattern (bài trước).
+
+      **Cùng một khung cho nhiều domain**: khách sạn, nhà hàng, rạp phim chỉ khác tên class và quy tắc.
+
+      | Domain | Chỗ | Khóa tranh chấp |
+      |---|---|---|
+      | Rạp phim | `Seat` | (suất chiếu, ghế) |
+      | Khách sạn | `Room` | (phòng, ngày) |
+      | Nhà hàng | `Table` | (bàn, khung giờ) |
+      | Thư viện | `Book` copy | (bản sách), có hạn trả |
+
+      Phần giống nhau: danh sách chỗ, lượt đặt có trạng thái, kiểm tra trống rồi mới ghi, hủy để trả chỗ. Phần khác:
+      khóa, thời lượng, phí phạt hay hạn giữ chỗ. Bắt đầu từ khung chung, rồi thay khóa và quy tắc.
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Đang ở `held`, nhận sự kiện `use`. Với bảng chuyển trạng thái trên, kết quả đúng là gì?"
+    options:
+      - {id: a, text_md: "Vẫn ở `held` vì `(held, use)` không có trong bảng"}
+      - {id: b, text_md: "Chuyển sang `used` vì sự kiện `use` luôn đưa đến `used`"}
+      - {id: c, text_md: "Chuyển sang `paid` cho đủ thứ tự"}
+    answer: [a]
+    explain_md: "Chỉ các cặp `(state, event)` có trong bảng mới đổi trạng thái. Phải thanh toán (`paid`) trước khi dùng."
+  - id: q05
+    type: quiz_mcq
+    prompt_md: "Đặt phòng khách sạn theo ngày. Hai khách đặt phòng 101, một ngày 5 và một ngày 6. Nên coi là trùng không, và khóa kiểm tra là gì?"
+    options:
+      - {id: a, text_md: "Không trùng; khóa kiểm tra là cặp (phòng, ngày)"}
+      - {id: b, text_md: "Trùng vì cùng phòng 101; khóa kiểm tra chỉ là phòng"}
+      - {id: c, text_md: "Trùng vì cùng khách sạn; khóa kiểm tra là tên khách sạn"}
+    answer: [a]
+    explain_md: "Đặt theo khung giờ/ngày thì thứ bị tranh là (chỗ, khung). Khác ngày thì khác khóa nên đặt được cả hai."
+  - id: q06
+    type: predict_output
+    code: |
+      TRANS = {
+          ("held", "pay"): "paid",
+          ("held", "cancel"): "cancelled",
+          ("paid", "use"): "used",
+          ("paid", "cancel"): "cancelled",
+      }
+
+
+      def step(state, event):
+          return TRANS.get((state, event), state)
+
+
+      s = "held"
+      for e in ["use", "pay", "use", "cancel"]:
+          s = step(s, e)
+          print(s)
+    expected_output: |
+      held
+      paid
+      used
+      used
+    explain_md: "`use` khi còn `held` bị bỏ qua. `pay` thành `paid`, `use` thành `used`. `(used, cancel)` không có trong bảng nên giữ `used`."
+  - id: q07
+    type: quiz_fill
+    prompt_md: "Để lấy trạng thái mới mà vẫn giữ trạng thái cũ khi sự kiện không hợp lệ, dùng `TRANS.___((state, event), state)` (tên method của dict, một từ)."
+    blanks: [{accept: ["get", "get()"]}]
+    explain_md: "`dict.get(key, default)` trả giá trị mặc định (trạng thái cũ) khi khóa không có trong bảng."
+  - id: ex_life
+    type: code_exercise
+    md: |
+      `run_lifecycle(events)` bắt đầu ở `"held"`, xử lý lần lượt các sự kiện `"pay"`, `"use"`, `"cancel"` và trả trạng thái cuối.
+      Chỉ chuyển trạng thái khi hợp lệ: `held` + pay thành `paid`; `paid` + use thành `used`; `held` hoặc `paid` + cancel thành `cancelled`.
+      Mọi sự kiện khác giữ nguyên trạng thái. Bản dưới đây cho mọi sự kiện đổi trạng thái bất kể hiện tại. Hãy sửa.
+    entry: run_lifecycle
+    starter: |
+      def run_lifecycle(events):
+          state = "held"
+          for e in events:
+              if e == "pay":
+                  state = "paid"
+              elif e == "use":
+                  state = "used"
+              elif e == "cancel":
+                  state = "cancelled"
+          return state
+    guidance_md: |
+      - Thử `run_lifecycle(["use", "cancel"])`: đáp án `"cancelled"` (`use` bị bỏ qua), nhưng `["pay", "use", "cancel"]` phải ra `"used"`.
+      - Dùng bảng `(state, event) -> state mới` và `get` với mặc định là trạng thái cũ.
+    hints:
+      - level: nudge
+        md: "Sau khi đã `used`, sự kiện `cancel` có được đổi trạng thái không?"
+      - level: approach
+        md: "Khai báo dict `TRANS` các cặp hợp lệ rồi `state = TRANS.get((state, e), state)`."
+      - level: near_solution
+        md: "`TRANS = {('held','pay'):'paid', ('held','cancel'):'cancelled', ('paid','use'):'used', ('paid','cancel'):'cancelled'}`."
+    tests:
+      - {args: [["pay", "use"]], expected: "used"}
+      - {args: [["use", "cancel"]], expected: "cancelled"}
+      - {args: [["pay", "use", "cancel"]], expected: "used"}
+      - {args: [["cancel", "pay"]], expected: "cancelled"}
+      - {args: [[]], expected: "held"}
+    solution: |
+      TRANS = {
+          ("held", "pay"): "paid",
+          ("held", "cancel"): "cancelled",
+          ("paid", "use"): "used",
+          ("paid", "cancel"): "cancelled",
+      }
+
+
+      def run_lifecycle(events):
+          state = "held"
+          for e in events:
+              state = TRANS.get((state, e), state)
+          return state
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Bài booking nào cũng có danh sách chỗ, người dùng và lượt đặt có trạng thái; CRUD lưu bằng dict theo mã để tra cứu O(1)."
+      - "Vòng đời lượt đặt: held, paid, used hoặc cancelled; code bằng bảng chuyển trạng thái, sự kiện sai thì giữ nguyên trạng thái."
+      - "Chặn đặt trùng: kiểm tra chỗ còn trống rồi mới đánh dấu đã đặt; đặt theo khung giờ thì khóa là (chỗ, khung giờ). Nhiều luồng cần lock."
+      - "Khách sạn, nhà hàng, rạp phim, thư viện cùng một khung, chỉ khác tên class, khóa tranh chấp và quy tắc."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X612], l2: [X613], l3: [X614]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"
