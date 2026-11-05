@@ -1,0 +1,201 @@
+id: dsa.dp.dp_strings
+version: 1
+status: published
+title_vi: "DP hai chiều trên chuỗi: LCS và edit distance"
+est_minutes: 14
+objectives_vi:
+  - "Định nghĩa trạng thái dp[i][j] trên hai prefix và đặt đúng chỉ số (i-1), (j-1) khi đọc ký tự."
+  - "Cài LCS (longest common subsequence) và đọc đáp án ở ô dp[n][m]."
+  - "Cài edit distance với ba phép chèn, xóa, thay và các hàng/cột cơ sở."
+  - "Nhận ra khi nào bài chuỗi quy về LCS (ví dụ palindromic subsequence) và tối ưu bảng xuống hai hàng."
+blocks:
+  - id: s_lcs
+    type: section
+    title_vi: "LCS: bảng trên hai prefix"
+    summary_vi: "dp[i][j] là đáp án của i ký tự đầu chuỗi 1 và j ký tự đầu chuỗi 2; chỉ cần nhìn ký tự cuối."
+    exercise_ref: ex_lcs
+  - id: t01
+    type: text
+    md: |
+      Với hai chuỗi, trạng thái tự nhiên là một **cặp prefix**: `dp[i][j]` trả lời câu hỏi cho
+      `a[:i]` và `b[:j]`. Bảng có kích thước `(n+1) x (m+1)`; hàng 0 và cột 0 ứng với **chuỗi rỗng**.
+      Ký tự cuối của prefix `a[:i]` là `a[i-1]` (lỗi lệch chỉ số rất hay gặp).
+
+      **LCS** (longest common subsequence) là dãy con chung dài nhất; dãy con giữ thứ tự nhưng được bỏ ký tự.
+
+      - Nếu `a[i-1] == b[j-1]`: ký tự này nằm trong LCS, nên `dp[i][j] = dp[i-1][j-1] + 1`.
+      - Ngược lại: bỏ một ký tự cuối, `dp[i][j] = max(dp[i-1][j], dp[i][j-1])`.
+
+      Đáp án là `dp[n][m]`. Mỗi ô chỉ phụ thuộc ô phía trên, bên trái và chéo, nên duyệt `i`, `j` tăng dần
+      là đủ. Độ phức tạp O(n*m) thời gian. Vì chỉ cần hàng trước, có thể giữ **hai hàng** để còn O(m) bộ nhớ.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      a, b = "abcde", "ace"
+      n, m = len(a), len(b)
+      dp = [[0] * (m + 1) for _ in range(n + 1)]
+      for i in range(1, n + 1):
+          for j in range(1, m + 1):
+              if a[i - 1] == b[j - 1]:
+                  dp[i][j] = dp[i - 1][j - 1] + 1
+              else:
+                  dp[i][j] = max(dp[i - 1][j], dp[i][j - 1])
+      print(dp[n][m])
+      print(dp[2])
+    expected_output: |
+      3
+      [0, 1, 1, 1]
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Trong LCS, khi `a[i-1] != b[j-1]` thì `dp[i][j]` bằng gì?"
+    options:
+      - {id: a, text_md: "`dp[i-1][j-1] + 1`"}
+      - {id: b, text_md: "`max(dp[i-1][j], dp[i][j-1])`"}
+      - {id: c, text_md: "`min(dp[i-1][j], dp[i][j-1]) + 1`"}
+    answer: [b]
+    explain_md: "Hai ký tự cuối khác nhau nên ít nhất một trong hai không dùng được; lấy tốt hơn của hai cách bỏ. Phương án c là của edit distance, phương án a chỉ đúng khi ký tự khớp."
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Bảng DP của LCS có kích thước (n+1) x (m+1); hàng 0 và cột 0 ứng với chuỗi ___ nên toàn bằng 0."
+    blanks: [{accept: ["rỗng", "rong", "empty"]}]
+    explain_md: "LCS của một chuỗi rỗng với bất kỳ chuỗi nào là 0, nên các ô biên khởi tạo 0."
+  - id: ex_lcs
+    type: code_exercise
+    md: |
+      Viết `lcs_length(a, b)` trả về độ dài LCS của hai chuỗi. Ví dụ `lcs_length("abcde", "ace")` là `3`.
+      Bản dưới đây khi hai ký tự khớp thì không cộng thêm 1 nên luôn trả `0`. Hãy sửa.
+    entry: lcs_length
+    starter: |
+      def lcs_length(a, b):
+          n, m = len(a), len(b)
+          dp = [[0] * (m + 1) for _ in range(n + 1)]
+          for i in range(1, n + 1):
+              for j in range(1, m + 1):
+                  if a[i - 1] == b[j - 1]:
+                      dp[i][j] = dp[i - 1][j - 1]
+                  else:
+                      dp[i][j] = max(dp[i - 1][j], dp[i][j - 1])
+          return dp[n][m]
+    guidance_md: |
+      - Thử `lcs_length("a", "a")`: đáp án là 1, nhưng code trả 0.
+      - Ký tự khớp đóng góp thêm 1 vào độ dài dãy con chung.
+    hints:
+      - level: nudge
+        md: "Khi hai ký tự cuối khớp, độ dài LCS có tăng lên so với ô chéo không?"
+      - level: approach
+        md: "Ô chéo `dp[i-1][j-1]` là LCS của hai prefix ngắn hơn; ký tự vừa khớp mở rộng nó thêm đúng một ký tự."
+      - level: near_solution
+        md: "Ở nhánh ký tự khớp, kết quả phải là giá trị ô chéo cộng thêm 1. Nhánh còn lại giữ nguyên."
+    tests:
+      - {args: ["abcde", "ace"], expected: 3}
+      - {args: ["abc", "def"], expected: 0}
+      - {args: ["", "abc"], expected: 0}
+      - {args: ["abc", "abc"], expected: 3}
+      - {args: ["aggtab", "gxtxayb"], expected: 4}
+    solution: |
+      def lcs_length(a, b):
+          n, m = len(a), len(b)
+          dp = [[0] * (m + 1) for _ in range(n + 1)]
+          for i in range(1, n + 1):
+              for j in range(1, m + 1):
+                  if a[i - 1] == b[j - 1]:
+                      dp[i][j] = dp[i - 1][j - 1] + 1
+                  else:
+                      dp[i][j] = max(dp[i - 1][j], dp[i][j - 1])
+          return dp[n][m]
+  - id: s_edit
+    type: section
+    title_vi: "Edit distance và quy về LCS"
+    summary_vi: "Edit distance thêm hàng/cột cơ sở khác 0 và lấy min ba phép; nhiều bài chuỗi khác quy về LCS."
+    exercise_ref: ex_lps
+  - id: t02
+    type: text
+    md: |
+      **Edit distance** (Levenshtein): số phép ít nhất (chèn, xóa, thay một ký tự) để biến `a` thành `b`.
+      Cùng cấu trúc bảng, nhưng khác ở hai điểm.
+
+      - **Cơ sở**: `dp[i][0] = i` (xóa `i` ký tự) và `dp[0][j] = j` (chèn `j` ký tự).
+      - **Chuyển trạng thái**: nếu `a[i-1] == b[j-1]` thì `dp[i][j] = dp[i-1][j-1]`; ngược lại
+        `dp[i][j] = 1 + min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1])` ứng với xóa, chèn, thay.
+
+      Nhiều bài khác quy về LCS. Ví dụ **longest palindromic subsequence** của `s` chính là
+      `LCS(s, s[::-1])`, vì một dãy con đối xứng đọc xuôi hay ngược đều như nhau. Các bài khớp mẫu
+      (wildcard, regex) và distinct subsequences dùng cùng khung bảng hai chiều, chỉ đổi luật chuyển ô.
+  - id: q03
+    type: predict_output
+    code: |
+      a, b = "ab", "b"
+      n, m = len(a), len(b)
+      dp = [[0] * (m + 1) for _ in range(n + 1)]
+      for i in range(n + 1):
+          dp[i][0] = i
+      for j in range(m + 1):
+          dp[0][j] = j
+      for i in range(1, n + 1):
+          for j in range(1, m + 1):
+              if a[i - 1] == b[j - 1]:
+                  dp[i][j] = dp[i - 1][j - 1]
+              else:
+                  dp[i][j] = 1 + min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1])
+      print(dp)
+    expected_output: |
+      [[0, 1], [1, 1], [2, 1]]
+    explain_md: "Hàng 0 là [0, 1], cột 0 là 0, 1, 2. Ô (1,1): 'a' khác 'b' nên 1 + min(1, 1, 0) = 1. Ô (2,1): 'b' bằng 'b' nên lấy ô chéo dp[1][0] = 1. Cần 1 phép xóa 'a'."
+  - id: ex_lps
+    type: code_exercise
+    md: |
+      Viết `lps_length(s)` trả về độ dài dãy con đối xứng (palindromic subsequence) dài nhất của `s`.
+      Gợi ý: đó là LCS của `s` và chuỗi đảo ngược của nó. Ví dụ `lps_length("bbbab")` là `4`.
+    entry: lps_length
+    starter: |
+      def lps_length(s):
+          t = s[::-1]
+          n = len(s)
+          dp = [[0] * (n + 1) for _ in range(n + 1)]
+          # TODO: điền bảng LCS giữa s và t
+          return 0
+    guidance_md: |
+      - Đây chính là bảng LCS với `a = s` và `b = t`.
+      - Đáp án nằm ở `dp[n][n]`.
+    hints:
+      - level: nudge
+        md: "Một dãy con đối xứng đọc xuôi và đọc ngược đều giống nhau. Điều đó liên quan gì đến `t`?"
+      - level: approach
+        md: "Điền bảng như LCS thông thường giữa `s` và `t`, rồi trả ô cuối."
+      - level: near_solution
+        md: "Hai vòng lặp `i`, `j` từ 1: ký tự khớp thì lấy ô chéo cộng 1, không thì lấy max của ô trên và ô trái. Trả `dp[n][n]`."
+    tests:
+      - {args: ["bbbab"], expected: 4}
+      - {args: ["cbbd"], expected: 2}
+      - {args: ["a"], expected: 1}
+      - {args: [""], expected: 0}
+      - {args: ["abc"], expected: 1}
+    solution: |
+      def lps_length(s):
+          t = s[::-1]
+          n = len(s)
+          dp = [[0] * (n + 1) for _ in range(n + 1)]
+          for i in range(1, n + 1):
+              for j in range(1, n + 1):
+                  if s[i - 1] == t[j - 1]:
+                      dp[i][j] = dp[i - 1][j - 1] + 1
+                  else:
+                      dp[i][j] = max(dp[i - 1][j], dp[i][j - 1])
+          return dp[n][n]
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "dp[i][j] gắn với hai prefix a[:i], b[:j]; ký tự cuối là a[i-1], b[j-1]; hàng/cột 0 là chuỗi rỗng."
+      - "LCS: khớp thì dp[i-1][j-1] + 1, không thì max(trên, trái); đáp án dp[n][m]."
+      - "Edit distance: cơ sở dp[i][0] = i, dp[0][j] = j; khớp thì lấy ô chéo, không thì 1 + min(xóa, chèn, thay)."
+      - "Nhiều bài quy về LCS (palindromic subsequence = LCS với chuỗi đảo); chỉ cần hàng trước nên có thể giữ hai hàng."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X477], l2: [X478], l3: [X479]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

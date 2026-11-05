@@ -1,0 +1,213 @@
+id: dsa.dp.dp_knapsack
+version: 1
+status: published
+title_vi: "Họ bài knapsack: 0/1, unbounded, subset sum"
+est_minutes: 15
+objectives_vi:
+  - "Phân biệt knapsack 0/1 (mỗi món dùng tối đa một lần) và unbounded (dùng nhiều lần tùy ý)."
+  - "Rút bảng DP hai chiều về một mảng và chọn đúng chiều duyệt: giảm dần cho 0/1, tăng dần cho unbounded."
+  - "Giải subset sum, coin change (ít đồng nhất) và đưa Partition Equal Subset Sum về subset sum."
+  - "Phân biệt đếm tổ hợp (combinations) với đếm hoán vị (permutations) qua thứ tự hai vòng lặp."
+blocks:
+  - id: s_knap01
+    type: section
+    title_vi: "Knapsack 0/1 và vòng lặp ngược"
+    summary_vi: "Mỗi món lấy tối đa một lần: dp một chiều phải duyệt sức chứa từ lớn về nhỏ."
+    exercise_ref: ex_knap01
+  - id: t01
+    type: text
+    md: |
+      **Knapsack 0/1**: có các món, mỗi món có `weight` và `value`, ba lô chứa tối đa `cap`. Mỗi món
+      chỉ có hai lựa chọn: bỏ hoặc lấy (đúng một lần). Gọi `dp[w]` là giá trị lớn nhất khi sức chứa
+      là `w`. Với mỗi món `(wt, val)`:
+
+      `dp[w] = max(dp[w], dp[w - wt] + val)`
+
+      Bảng hai chiều `dp[i][w]` chỉ cần dòng `i-1`, nên rút về **một mảng**. Nhưng phải duyệt `w` từ
+      **lớn về nhỏ** (`range(cap, wt - 1, -1)`): khi đó `dp[w - wt]` vẫn là giá trị của "trước khi xét
+      món này", nên món không bị lấy hai lần. Duyệt xuôi thì `dp[w - wt]` có thể đã gồm chính món này
+      và biến bài thành unbounded.
+
+      Cùng khung này giải **subset sum** (`dp[s]` là True/False: chọn được vài số cộng đúng `s`
+      không) và **Partition Equal Subset Sum** (target = tổng / 2). Mảng chỉ có số nguyên nên kết quả
+      hoàn toàn xác định.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      weights = [2, 3, 4]
+      values = [3, 4, 5]
+      cap = 5
+      dp = [0] * (cap + 1)
+      for wt, val in zip(weights, values):
+          for w in range(cap, wt - 1, -1):
+              dp[w] = max(dp[w], dp[w - wt] + val)
+          print(wt, dp)
+      print(dp[cap])
+    expected_output: |
+      2 [0, 0, 3, 3, 3, 3]
+      3 [0, 0, 3, 4, 4, 7]
+      4 [0, 0, 3, 4, 5, 7]
+      7
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Knapsack 0/1 dùng một mảng `dp`. Vì sao vòng lặp sức chứa `w` phải đi từ lớn về nhỏ?"
+    options:
+      - {id: a, text_md: "Để `dp[w - wt]` còn là giá trị trước khi xét món hiện tại, nên món không bị lấy hai lần"}
+      - {id: b, text_md: "Để chạy nhanh hơn duyệt xuôi"}
+      - {id: c, text_md: "Để dùng ít bộ nhớ hơn"}
+    answer: [a]
+    explain_md: "Duyệt ngược thì ô `w - wt` (nhỏ hơn) chưa bị cập nhật trong lượt món này. Duyệt xuôi sẽ dùng lại kết quả vừa cập nhật, tức lấy món nhiều lần."
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Subset sum với target `S` dùng mảng `dp` gồm các chỉ số `0..S`, nên độ dài mảng là `S + ___`."
+    blanks: [{accept: ["1", "một"]}]
+    explain_md: "Cần cả chỉ số 0 (tổng rỗng, luôn đạt được) lẫn chỉ số `S`, nên độ dài `S + 1`."
+  - id: ex_knap01
+    type: code_exercise
+    md: |
+      Viết `knapsack_01(weights, values, cap)`: trả giá trị lớn nhất chọn được, mỗi món dùng tối đa một
+      lần. Ví dụ `weights = [2, 3, 4]`, `values = [3, 4, 5]`, `cap = 5` cho `7` (lấy món 0 và món 1).
+      Bản dưới đây duyệt `w` xuôi nên lấy một món nhiều lần. Hãy sửa.
+    entry: knapsack_01
+    starter: |
+      def knapsack_01(weights, values, cap):
+          dp = [0] * (cap + 1)
+          for wt, val in zip(weights, values):
+              for w in range(wt, cap + 1):
+                  dp[w] = max(dp[w], dp[w - wt] + val)
+          return dp[cap]
+    guidance_md: |
+      - Thử `weights = [2]`, `values = [3]`, `cap = 4`: đáp án đúng là 3 (chỉ một món), code trả 6.
+      - Đổi chiều duyệt `w`: từ `cap` giảm về `wt`.
+    hints:
+      - level: nudge
+        md: "Với một món cân nặng 2 và sức chứa 4, code hiện tại lấy món đó mấy lần?"
+      - level: approach
+        md: "Món chỉ được dùng một lần nên khi cập nhật `dp[w]` cần `dp[w - wt]` của trước món này. Hãy đảo chiều vòng lặp theo `w`."
+      - level: near_solution
+        md: "Thay `range(wt, cap + 1)` bằng `range(cap, wt - 1, -1)`; phần còn lại giữ nguyên."
+    tests:
+      - {args: [[2, 3, 4], [3, 4, 5], 5], expected: 7}
+      - {args: [[], [], 10], expected: 0}
+      - {args: [[2], [3], 4], expected: 3}
+      - {args: [[1, 3, 4], [15, 20, 30], 4], expected: 35}
+      - {args: [[5], [10], 3], expected: 0}
+    solution: |
+      def knapsack_01(weights, values, cap):
+          dp = [0] * (cap + 1)
+          for wt, val in zip(weights, values):
+              for w in range(cap, wt - 1, -1):
+                  dp[w] = max(dp[w], dp[w - wt] + val)
+          return dp[cap]
+  - id: s_unbounded
+    type: section
+    title_vi: "Unbounded, coin change và thứ tự vòng lặp"
+    summary_vi: "Dùng lại món tùy ý thì duyệt xuôi; đếm tổ hợp thì vòng ngoài là món, đếm hoán vị thì vòng ngoài là tổng."
+    exercise_ref: ex_ways
+  - id: t02
+    type: text
+    md: |
+      **Unbounded knapsack**: mỗi món dùng nhiều lần tùy ý. Lần này ta *muốn* dùng lại kết quả vừa
+      cập nhật nên duyệt `w` **từ nhỏ lên lớn**. Điển hình là **coin change** (số đồng ít nhất để tạo
+      tổng `a`):
+
+      `dp[a] = min(dp[a], dp[a - c] + 1)` với `dp[0] = 0`, các ô khác ban đầu là "vô cực". Nếu cuối
+      cùng `dp[amount]` vẫn là vô cực thì không tạo được (trả `-1`).
+
+      **Đếm số cách** (Coin Change II) dùng `dp[s] += dp[s - c]` với `dp[0] = 1`. Thứ tự hai vòng lặp
+      quyết định bạn đếm gì:
+
+      - **Vòng ngoài là mệnh giá**, vòng trong là tổng: đếm **tổ hợp** (`1+2` và `2+1` là một cách).
+      - **Vòng ngoài là tổng**, vòng trong là mệnh giá: đếm **hoán vị** (`1+2` và `2+1` khác nhau).
+
+      Mẹo nhanh trong Python: tập tổng đạt được có thể giữ trong một số nguyên dạng bitset,
+      `bits |= bits << x`.
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      INF = 99
+      coins = [2, 3]
+      dp = [0] + [INF] * 7
+      for a in range(1, 8):
+          for c in coins:
+              if c <= a:
+                  dp[a] = min(dp[a], dp[a - c] + 1)
+      print(dp)
+    expected_output: |
+      [0, 99, 1, 1, 2, 2, 2, 3]
+  - id: q03
+    type: predict_output
+    code: |
+      dp = [0] * 5
+      for s in range(2, 5):
+          dp[s] = max(dp[s], dp[s - 2] + 3)
+      print(dp)
+    expected_output: |
+      [0, 0, 3, 3, 6]
+    explain_md: "Món cân nặng 2, giá 3, duyệt xuôi: `dp[2] = 3`, `dp[3] = dp[1] + 3 = 3`, `dp[4] = dp[2] + 3 = 6`. Món bị lấy hai lần ở `dp[4]`, đúng hành vi unbounded (nhưng là lỗi nếu đề là 0/1)."
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Đếm số cách tạo tổng bằng `dp[s] += dp[s - c]`. Muốn `1+2` và `2+1` chỉ tính là MỘT cách thì vòng lặp ngoài là gì?"
+    options:
+      - {id: a, text_md: "Vòng lặp mệnh giá `c` ở ngoài, tổng `s` ở trong"}
+      - {id: b, text_md: "Vòng lặp tổng `s` ở ngoài, mệnh giá `c` ở trong"}
+      - {id: c, text_md: "Thứ tự không ảnh hưởng"}
+    answer: [a]
+    explain_md: "Mệnh giá ở vòng ngoài thì mỗi mệnh giá được xét theo một thứ tự cố định, nên chỉ đếm tổ hợp. Đảo lại sẽ đếm hoán vị."
+  - id: ex_ways
+    type: code_exercise
+    md: |
+      Viết `count_ways(coins, amount)`: số **tổ hợp** mệnh giá (mỗi mệnh giá dùng tùy ý) có tổng đúng
+      `amount`. Ví dụ `coins = [1, 2, 5]`, `amount = 5` cho `4` (5; 2+2+1; 2+1+1+1; 1+1+1+1+1).
+      Bản dưới đây đếm hoán vị vì đặt sai thứ tự vòng lặp. Hãy sửa.
+    entry: count_ways
+    starter: |
+      def count_ways(coins, amount):
+          dp = [1] + [0] * amount
+          for s in range(1, amount + 1):
+              for c in coins:
+                  if c <= s:
+                      dp[s] += dp[s - c]
+          return dp[amount]
+    guidance_md: |
+      - Với `coins = [1, 2]`, `amount = 3`: đáp án là 2 (1+1+1, 1+2) nhưng code trả 3.
+      - Đưa vòng lặp mệnh giá ra ngoài.
+    hints:
+      - level: nudge
+        md: "Với `[1, 2]` và tổng 3, code đang coi `1+2` và `2+1` là hai cách. Vòng lặp nào quyết định điều này?"
+      - level: approach
+        md: "Để mỗi tổ hợp chỉ đếm một lần, xét từng mệnh giá một: vòng ngoài là mệnh giá, vòng trong là tổng tăng dần."
+      - level: near_solution
+        md: "Đảo hai vòng `for`: ngoài `for c in coins`, trong `for s in range(c, amount + 1)`, thân vòng giữ `dp[s] += dp[s - c]`."
+    tests:
+      - {args: [[1, 2, 5], 5], expected: 4}
+      - {args: [[2], 3], expected: 0}
+      - {args: [[3], 0], expected: 1}
+      - {args: [[1, 2], 3], expected: 2}
+      - {args: [[1, 2, 5], 11], expected: 11}
+    solution: |
+      def count_ways(coins, amount):
+          dp = [1] + [0] * amount
+          for c in coins:
+              for s in range(c, amount + 1):
+                  dp[s] += dp[s - c]
+          return dp[amount]
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "0/1 knapsack một mảng: `dp[w] = max(dp[w], dp[w - wt] + val)`, duyệt `w` giảm dần để mỗi món dùng một lần."
+      - "Unbounded: duyệt `w` tăng dần để dùng lại món; coin change dùng `min` với `dp[0] = 0`, ô vô cực nghĩa là không tạo được."
+      - "Subset sum là `dp[s]` kiểu bool (độ dài target + 1); Partition Equal Subset Sum = subset sum với target tổng / 2, tổng lẻ thì sai ngay."
+      - "Đếm tổ hợp: mệnh giá ở vòng ngoài; đếm hoán vị: tổng ở vòng ngoài."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X474], l2: [X475], l3: [X476]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

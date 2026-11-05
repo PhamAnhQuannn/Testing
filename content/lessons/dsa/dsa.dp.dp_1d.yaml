@@ -1,0 +1,188 @@
+id: dsa.dp.dp_1d
+version: 1
+status: published
+title_vi: "DP một chiều: House Robber, Max Subarray, Decode Ways, Jump Game"
+est_minutes: 14
+objectives_vi:
+  - "Xác định state và transition của DP một chiều: dp[i] chỉ phụ thuộc vài phần tử ngay trước đó."
+  - "Rút gọn bộ nhớ từ O(n) xuống O(1) bằng các biến cuốn chiếu (rolling variables), ví dụ House Robber."
+  - "Cài Kadane cho Max Subarray: tại mỗi vị trí chọn bắt đầu lại hoặc nối tiếp đoạn trước."
+  - "Phân biệt DP đếm (Decode Ways) với Jump Game giải bằng greedy trên vị trí xa nhất có thể tới."
+blocks:
+  - id: s_roll
+    type: section
+    title_vi: "State, transition và biến cuốn chiếu"
+    summary_vi: "Nếu dp[i] chỉ cần dp[i-1] và dp[i-2] thì không cần giữ cả mảng; Kadane là ví dụ điển hình."
+    exercise_ref: ex_max_sub
+  - id: t01
+    type: text
+    md: |
+      **DP một chiều** giải bài toán bằng một mảng `dp` trong đó `dp[i]` là đáp án tối ưu cho phần
+      đầu của input (tới vị trí `i`). Ba bước cố định: định nghĩa **state** (`dp[i]` nghĩa là gì),
+      viết **transition** (tính `dp[i]` từ các ô trước), chọn **base case**.
+
+      **House Robber** (không được lấy hai nhà kề nhau): tại nhà `i` có hai lựa chọn.
+
+      - Bỏ nhà `i`: được `dp[i-1]`.
+      - Lấy nhà `i`: được `dp[i-2] + nums[i]`.
+
+      Vậy `dp[i] = max(dp[i-1], dp[i-2] + nums[i])`. Vì chỉ nhìn lại hai ô, ta thay mảng bằng hai biến
+      cuốn chiếu, bộ nhớ còn **O(1)**, thời gian **O(n)**.
+
+      **Max Subarray (Kadane)**: gọi `cur` là tổng lớn nhất của đoạn **kết thúc tại** `i`. Hoặc bắt đầu
+      đoạn mới từ `nums[i]`, hoặc nối vào đoạn trước: `cur = max(x, cur + x)`. Đáp án là `best` lớn
+      nhất của `cur` trong mọi vị trí. Đừng quên rằng đoạn phải khác rỗng, nên mảng toàn số âm trả về
+      phần tử âm lớn nhất.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      nums = [3, 2, 7, 10]
+      prev2, prev1 = 0, 0
+      for x in nums:
+          prev2, prev1 = prev1, max(prev1, prev2 + x)
+          print(prev1)
+    expected_output: |
+      3
+      3
+      10
+      13
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "House Robber: `dp[i]` là số tiền lớn nhất khi chỉ xét `i + 1` nhà đầu. Công thức chuyển nào đúng?"
+    options:
+      - {id: a, text_md: "`dp[i] = dp[i-1] + nums[i]`"}
+      - {id: b, text_md: "`dp[i] = max(dp[i-1], dp[i-2] + nums[i])`"}
+      - {id: c, text_md: "`dp[i] = max(dp[i-1], dp[i-2]) + nums[i]`"}
+    answer: [b]
+    explain_md: "Bỏ nhà `i` giữ `dp[i-1]`; lấy nhà `i` thì phải bỏ nhà `i-1` nên cộng vào `dp[i-2]`. Chọn max của hai lựa chọn."
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Kadane trên `[-3, -1, -2]` (đoạn phải khác rỗng) cho kết quả ___."
+    blanks: [{accept: ["-1"]}]
+    explain_md: "Mọi đoạn đều âm; đoạn tốt nhất là chỉ phần tử `-1`, nên kết quả là `-1` chứ không phải 0."
+  - id: ex_max_sub
+    type: code_exercise
+    md: |
+      Viết `max_subarray(nums)`: trả về tổng lớn nhất của một đoạn con liên tiếp **khác rỗng** của
+      `nums` (`nums` có ít nhất một phần tử). Ví dụ `[-2, 1, -3, 4, -1, 2, 1, -5, 4]` cho `6` (đoạn
+      `[4, -1, 2, 1]`). Bản dưới đây luôn cộng dồn và không bao giờ bắt đầu lại đoạn. Hãy sửa.
+    entry: max_subarray
+    starter: |
+      def max_subarray(nums):
+          cur = best = nums[0]
+          for x in nums[1:]:
+              cur = cur + x
+              best = max(best, cur)
+          return best
+    guidance_md: |
+      - Thử `[1, -5, 4]`: đáp án là 4 nhưng code trả 1.
+      - Khi tổng đang có nhỏ hơn 0 thì nối vào đoạn cũ chỉ làm xấu đi.
+    hints:
+      - level: nudge
+        md: "Nếu `cur` đang rất âm thì có nên kéo nó theo sang phần tử tiếp theo không?"
+      - level: approach
+        md: "Tại mỗi phần tử có hai lựa chọn: bắt đầu đoạn mới ngay tại `x`, hoặc nối `x` vào đoạn đang có. Lấy lựa chọn lớn hơn."
+      - level: near_solution
+        md: "Đổi dòng cập nhật `cur` để nó là max giữa riêng `x` và tổng cũ cộng `x`. Dòng cập nhật `best` giữ nguyên."
+    tests:
+      - {args: [[1]], expected: 1}
+      - {args: [[-2, 1, -3, 4, -1, 2, 1, -5, 4]], expected: 6}
+      - {args: [[-3, -1, -2]], expected: -1}
+      - {args: [[5, 4, -1, 7, 8]], expected: 23}
+      - {args: [[1, -5, 4]], expected: 4}
+    solution: |
+      def max_subarray(nums):
+          cur = best = nums[0]
+          for x in nums[1:]:
+              cur = max(x, cur + x)
+              best = max(best, cur)
+          return best
+  - id: s_count
+    type: section
+    title_vi: "DP đếm và Jump Game"
+    summary_vi: "Decode Ways cộng số cách từ hai ô trước; Jump Game chỉ cần theo dõi vị trí xa nhất tới được."
+    exercise_ref: ex_jump
+  - id: t02
+    type: text
+    md: |
+      **Decode Ways** là **DP đếm**: `ways[i]` là số cách giải mã `i` ký tự đầu. Transition cộng hai nguồn:
+
+      - Ký tự thứ `i` đứng một mình, hợp lệ nếu khác `'0'`: cộng `ways[i-1]`.
+      - Hai ký tự cuối thành một mã, hợp lệ nếu nằm trong `10..26`: cộng `ways[i-2]`.
+
+      Chữ số `'0'` chỉ dùng được khi ghép thành `10` hoặc `20`; `"06"` và `"0"` đều cho 0 cách. Đề thường
+      yêu cầu lấy modulo `1e9+7` khi đáp án lớn; Python có số nguyên lớn nên chỉ cần `% MOD` ở cuối bước.
+
+      **Jump Game**: `nums[i]` là bước nhảy tối đa từ ô `i`; hỏi có tới được ô cuối không. DP `dp[i]` kiểu
+      "tới được ô i không" tốn O(n^2). **Greedy** nhanh hơn: giữ `reach` là chỉ số xa nhất tới được. Duyệt
+      `i`; nếu `i > reach` thì ô `i` không tới được nên trả `False`; ngược lại cập nhật
+      `reach = max(reach, i + nums[i])`. Thời gian O(n), bộ nhớ O(1).
+  - id: q03
+    type: predict_output
+    code: |
+      nums = [-2, 1, -3, 4, -1, 2, 1, -5, 4]
+      cur = best = nums[0]
+      for x in nums[1:]:
+          cur = max(x, cur + x)
+          best = max(best, cur)
+      print(cur)
+      print(best)
+    expected_output: |
+      5
+      6
+    explain_md: "`cur` qua các bước: -2, 1, -2, 4, 3, 5, 6, 1, 5. Giá trị cuối là 5 còn lớn nhất từng đạt là 6 (đoạn `[4, -1, 2, 1]`), nên `best` là 6."
+  - id: ex_jump
+    type: code_exercise
+    md: |
+      Viết `can_jump(nums)`: bắt đầu ở ô 0, từ ô `i` nhảy được tối đa `nums[i]` ô về phía trước. Trả
+      `True` nếu tới được ô cuối. Ví dụ `[2, 3, 1, 1, 4]` cho `True`, `[3, 2, 1, 0, 4]` cho `False`. Bản dưới
+      đây cập nhật `reach` mà không kiểm tra ô hiện tại có tới được hay không. Hãy sửa.
+    entry: can_jump
+    starter: |
+      def can_jump(nums):
+          reach = 0
+          for i, x in enumerate(nums):
+              reach = max(reach, i + x)
+          return reach >= len(nums) - 1
+    guidance_md: |
+      - Thử `[3, 2, 1, 0, 4]`: đáp án là `False` nhưng code trả `True`.
+      - Ô 4 nằm ngoài tầm với (reach tối đa là 3), vậy mà nó vẫn được dùng để mở rộng `reach`.
+    hints:
+      - level: nudge
+        md: "Một ô nằm xa hơn `reach` hiện tại có đứng được không? Vậy nó có quyền cập nhật `reach` không?"
+      - level: approach
+        md: "Trong vòng lặp, nếu `i` vượt quá `reach` thì dừng và kết luận không tới được. Chỉ khi ô đó tới được mới dùng nó để mở rộng `reach`."
+      - level: near_solution
+        md: "Thêm một nhánh ở đầu thân vòng lặp: nếu `i > reach` thì trả `False` ngay. Phần còn lại giữ nguyên."
+    tests:
+      - {args: [[2, 3, 1, 1, 4]], expected: true}
+      - {args: [[3, 2, 1, 0, 4]], expected: false}
+      - {args: [[0]], expected: true}
+      - {args: [[0, 1]], expected: false}
+      - {args: [[1, 1, 1, 1]], expected: true}
+    solution: |
+      def can_jump(nums):
+          reach = 0
+          for i, x in enumerate(nums):
+              if i > reach:
+                  return False
+              reach = max(reach, i + x)
+          return True
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "DP một chiều: định nghĩa state `dp[i]`, viết transition từ vài ô trước, chọn base case."
+      - "House Robber: `dp[i] = max(dp[i-1], dp[i-2] + nums[i])`; hai biến cuốn chiếu cho O(n) thời gian, O(1) bộ nhớ."
+      - "Kadane: `cur = max(x, cur + x)`, đáp án là max của `cur`; mảng toàn số âm trả phần tử âm lớn nhất."
+      - "Decode Ways cộng `ways[i-1]` nếu chữ số đơn khác '0' và `ways[i-2]` nếu cặp nằm trong 10..26."
+      - "Jump Game: greedy theo `reach` (O(n)) tốt hơn DP O(n^2); `i > reach` nghĩa là bị chặn."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X471], l2: [X472], l3: [X473]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

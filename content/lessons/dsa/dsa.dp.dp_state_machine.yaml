@@ -1,0 +1,211 @@
+id: dsa.dp.dp_state_machine
+version: 1
+status: published
+title_vi: "DP máy trạng thái: cổ phiếu (phí, cooldown, k giao dịch)"
+est_minutes: 14
+objectives_vi:
+  - "Mô hình bài toán thành các trạng thái (hold, cash, cooldown) và các mũi tên chuyển (mua, bán, nghỉ)."
+  - "Viết transition cho từng ngày từ giá trị ngày trước và nén về các biến cuộn (rolling state variables)."
+  - "Mở rộng máy trạng thái cho biến thể có phí giao dịch, cooldown và tối đa k giao dịch."
+  - "Nêu hướng làm bài trò chơi hai người bằng DP minimax (hiệu số điểm tối ưu)."
+blocks:
+  - id: s_states
+    type: section
+    title_vi: "Trạng thái hold / cash và biến cuộn"
+    summary_vi: "Mỗi ngày bạn đang cầm cổ phiếu (hold) hoặc không (cash); giá trị tốt nhất mỗi trạng thái chỉ phụ thuộc ngày trước."
+    exercise_ref: ex_unlimited
+  - id: t01
+    type: text
+    md: |
+      Nhiều bài DP có dạng "mỗi ngày bạn ở một **trạng thái** và chọn hành động để chuyển trạng thái".
+      Với bài cổ phiếu, hai trạng thái cơ bản là:
+
+      - `hold`: lợi nhuận tốt nhất khi **đang cầm** một cổ phiếu cuối ngày.
+      - `cash`: lợi nhuận tốt nhất khi **không cầm** cổ phiếu cuối ngày.
+
+      Với giá `p` của hôm nay, mỗi trạng thái lấy giá trị tốt hơn trong các mũi tên đi vào nó:
+
+      - `cash = max(cash, hold + p)`: giữ nguyên, hoặc bán hôm nay.
+      - `hold = max(hold, cash - p)`: giữ nguyên, hoặc mua hôm nay.
+
+      Khởi tạo `hold = -prices[0]`, `cash = 0`; đáp án là `cash` cuối cùng. Vì ngày `i` chỉ cần ngày `i-1`,
+      ta không cần bảng `dp[n][2]` mà dùng **rolling state variables** (O(1) bộ nhớ). Chú ý thứ tự cập nhật:
+      dùng giá trị **cũ** của biến khác, hoặc gán tuple `hold, cash = ..., ...` (Python tính vế phải trước).
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      prices = [1, 3, 2, 8, 4, 9]
+      fee = 2
+      hold, cash = -prices[0], 0
+      for p in prices[1:]:
+          cash = max(cash, hold + p - fee)
+          hold = max(hold, cash - p)
+          print(p, cash, hold)
+      print(cash)
+    expected_output: |
+      3 0 -1
+      2 0 -1
+      8 5 -1
+      4 5 1
+      9 8 1
+      8
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Với phí giao dịch `fee` cho mỗi lần mua-bán, ta chỉ cần trừ `fee` ở một chỗ trong transition. Đó là chỗ nào?"
+    options:
+      - {id: a, text_md: "`cash = max(cash, hold + p - fee)` (trừ lúc bán)"}
+      - {id: b, text_md: "Trừ `fee` khỏi mọi ngày dù không giao dịch"}
+      - {id: c, text_md: "Chỉ trừ ở kết quả cuối cùng một lần"}
+    answer: [a]
+    explain_md: "Mỗi giao dịch (một cặp mua-bán) trả phí đúng một lần; trừ ở lúc bán (hoặc lúc mua) là đủ. Trừ ở cuối hay mọi ngày đều sai."
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Trong cập nhật `hold, cash = max(hold, cash - p), max(cash, hold + p)`, cả hai vế phải dùng giá trị ___ (trước hay sau khi cập nhật) của `hold` và `cash`."
+    blanks: [{accept: ["trước", "cũ", "truoc", "old"]}]
+    explain_md: "Python tính toàn bộ vế phải bằng giá trị cũ rồi mới gán, nên mỗi ngày không bán và mua lại lẫn nhau trong cùng một bước."
+  - id: ex_unlimited
+    type: code_exercise
+    md: |
+      Viết `max_profit_unlimited(prices)`: được mua bán không giới hạn số lần (mỗi lúc chỉ cầm tối đa 1 cổ phiếu),
+      không phí. Trả về lợi nhuận lớn nhất. Ví dụ `[1, 5, 3, 8]` cho `9` (mua 1 bán 5, mua 3 bán 8).
+      Bản dưới đây chỉ cho phép mua từ tiền gốc 0 nên tối đa một giao dịch. Hãy sửa.
+    entry: max_profit_unlimited
+    starter: |
+      def max_profit_unlimited(prices):
+          if not prices:
+              return 0
+          hold, cash = -prices[0], 0
+          for p in prices[1:]:
+              cash = max(cash, hold + p)
+              hold = max(hold, -p)
+          return cash
+    guidance_md: |
+      - Thử `[1, 5, 3, 8]`: đáp án 9, code trả 7.
+      - Khi mua lại, bạn dùng lợi nhuận đã chốt (`cash`), không phải 0.
+    hints:
+      - level: nudge
+        md: "Sau khi bán lời ở giá 5, lần mua ở giá 3 có được dùng số tiền lời đó không?"
+      - level: approach
+        md: "Mũi tên mua đi từ `cash` sang `hold`: số tiền sau khi mua là `cash - p`, không phải `-p`."
+      - level: near_solution
+        md: "Đổi dòng cập nhật `hold` thành `hold = max(hold, cash - p)` để lợi nhuận đã chốt được mang sang giao dịch kế tiếp."
+    tests:
+      - {args: [[]], expected: 0}
+      - {args: [[7, 1, 5, 3, 6, 4]], expected: 7}
+      - {args: [[1, 5, 3, 8]], expected: 9}
+      - {args: [[5, 4, 3]], expected: 0}
+      - {args: [[1, 2, 3, 4, 5]], expected: 4}
+    solution: |
+      def max_profit_unlimited(prices):
+          if not prices:
+              return 0
+          hold, cash = -prices[0], 0
+          for p in prices[1:]:
+              cash = max(cash, hold + p)
+              hold = max(hold, cash - p)
+          return cash
+  - id: s_variants
+    type: section
+    title_vi: "Cooldown, k giao dịch và trò chơi"
+    summary_vi: "Thêm trạng thái cho mỗi luật mới; trò chơi hai người dùng DP hiệu số điểm tối ưu."
+    exercise_ref: ex_k2
+  - id: t02
+    type: text
+    md: |
+      **Cooldown** (sau khi bán phải nghỉ 1 ngày) cần thêm một trạng thái. Dùng ba trạng thái:
+
+      - `hold`: đang cầm cổ phiếu.
+      - `sold`: vừa bán hôm nay (ngày mai bị cấm mua).
+      - `rest`: không cầm, được phép mua.
+
+      Chuyển trạng thái: `hold = max(hold, rest - p)`, `sold = hold + p`, `rest = max(rest, sold)` (đều dùng giá trị
+      của ngày trước). Đáp án là `max(sold, rest)`. Mũi tên mua chỉ đi từ `rest`, không đi từ `sold`; đó là toàn bộ luật cooldown.
+
+      **Tối đa k giao dịch**: thêm chỉ số giao dịch vào trạng thái, ví dụ với k = 2 có bốn biến `buy1, sell1, buy2, sell2`
+      (`buy2 = max(buy2, sell1 - p)`). Với k tổng quát: `dp[j][i]`, độ phức tạp O(nk), hoặc nén còn hai mảng độ dài k.
+
+      **Trò chơi hai người** (Stone Game, Predict the Winner) dùng minimax: đặt `dp[l][r]` là hiệu số điểm
+      (người đang đi trừ người kia) tối ưu trên đoạn `[l, r]`. Lượt của bạn chọn đầu nào thì lấy `a[l] - dp[l+1][r]`
+      hoặc `a[r] - dp[l][r-1]`, vì đối thủ cũng chơi tối ưu trên phần còn lại.
+  - id: q03
+    type: predict_output
+    code: |
+      prices = [1, 2, 3, 0, 2]
+      hold, sold, rest = -10**9, 0, 0
+      for p in prices:
+          hold, sold, rest = max(hold, rest - p), hold + p, max(rest, sold)
+      print(hold, sold, rest)
+      print(max(sold, rest))
+    expected_output: |
+      1 3 2
+      3
+    explain_md: "Mỗi ngày cả ba biến cập nhật từ giá trị của ngày trước. Sau ngày cuối (giá 2): `hold = 1` (ngày giá 0: mua với lợi nhuận đã chốt 1, tức mua 1 bán 2 rồi nghỉ), `sold = 3` (bán ở giá 2 từ `hold = 1`), `rest = 2`. Đáp án `max(sold, rest) = 3`: mua 1 bán 2, nghỉ, mua 0 bán 2."
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Trong bài cooldown, mũi tên mua (`hold = max(hold, ? - p)`) phải lấy từ trạng thái nào?"
+    options:
+      - {id: a, text_md: "`rest` (không cầm và không bị cấm mua)"}
+      - {id: b, text_md: "`sold` (vừa bán hôm qua)"}
+      - {id: c, text_md: "`hold`"}
+    answer: [a]
+    explain_md: "Ngày vừa bán (`sold`) bị cấm mua nên mũi tên mua chỉ đi từ `rest`."
+  - id: ex_k2
+    type: code_exercise
+    md: |
+      Viết `max_profit_k2(prices)`: tối đa **2** giao dịch (mua rồi bán là một giao dịch, không cầm chồng).
+      Dùng bốn biến `buy1, sell1, buy2, sell2`. `[3, 3, 5, 0, 0, 3, 1, 4]` cho `6`.
+      Bản dưới đây để `buy2` bỏ qua lợi nhuận của giao dịch thứ nhất. Hãy sửa.
+    entry: max_profit_k2
+    starter: |
+      def max_profit_k2(prices):
+          buy1 = buy2 = float("-inf")
+          sell1 = sell2 = 0
+          for p in prices:
+              buy1 = max(buy1, -p)
+              sell1 = max(sell1, buy1 + p)
+              buy2 = max(buy2, -p)
+              sell2 = max(sell2, buy2 + p)
+          return sell2
+    guidance_md: |
+      - `[3, 3, 5, 0, 0, 3, 1, 4]`: đáp án 6 (2 rồi 4), code trả 4.
+      - Giao dịch thứ hai bắt đầu từ lợi nhuận đã chốt của giao dịch thứ nhất.
+    hints:
+      - level: nudge
+        md: "Khi mua lần hai, bạn mang theo gì từ giao dịch thứ nhất?"
+      - level: approach
+        md: "`buy2` đi ra từ `sell1`: số tiền sau khi mua lần hai là `sell1 - p`."
+      - level: near_solution
+        md: "Đổi dòng `buy2` thành `max(buy2, sell1 - p)`. Thứ tự các dòng (buy1, sell1, buy2, sell2) giữ nguyên."
+    tests:
+      - {args: [[]], expected: 0}
+      - {args: [[3, 3, 5, 0, 0, 3, 1, 4]], expected: 6}
+      - {args: [[1, 2, 3, 4, 5]], expected: 4}
+      - {args: [[7, 6, 4, 3, 1]], expected: 0}
+      - {args: [[1, 2, 4, 2, 5, 7, 2, 4, 9, 0]], expected: 13}
+    solution: |
+      def max_profit_k2(prices):
+          buy1 = buy2 = float("-inf")
+          sell1 = sell2 = 0
+          for p in prices:
+              buy1 = max(buy1, -p)
+              sell1 = max(sell1, buy1 + p)
+              buy2 = max(buy2, sell1 - p)
+              sell2 = max(sell2, buy2 + p)
+          return sell2
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Chọn trạng thái (hold/cash, thêm sold/rest khi có cooldown), mỗi ngày mỗi trạng thái lấy max các mũi tên đi vào."
+      - "Rolling state variables cho O(1) bộ nhớ; chú ý dùng giá trị cũ khi cập nhật (gán tuple)."
+      - "Phí trừ một lần mỗi giao dịch; cooldown chặn mũi tên mua từ `sold`; k giao dịch thêm chỉ số vào trạng thái."
+      - "Trò chơi hai người: DP hiệu số điểm tối ưu, `a[l] - dp[l+1][r]` hoặc `a[r] - dp[l][r-1]`."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X483], l2: [X484], l3: [X485]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"
