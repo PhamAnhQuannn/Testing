@@ -1,0 +1,65 @@
+id: check-x540-eval-expr
+subtopic_id: dsa.practical.tokenizer_parser_interpreter
+secondary_subtopics: []
+kind: check
+title: 'Check X540: eval_expr'
+title_vi: 'Kiểm tra X540: eval_expr'
+difficulty: easy
+source:
+  type: original
+statement_en_md: |
+  Write `eval_expr(expr)`: evaluate an integer arithmetic expression made of non-negative integers, the
+  operators `+ - * /`, parentheses and spaces. Usual precedence applies (`*` and `/` bind tighter than `+`
+  and `-`) and all operators are left-associative. `/` is integer division truncating toward zero
+  (`int(a / b)`). Inputs never divide by zero. Return the integer result. Use a recursive-descent parser
+  (or shunting-yard), not Python `eval`. For example `"12+3*(4-5)"` gives `9`.
+statement_vi_md: |
+  Viết `eval_expr(expr)`: tính giá trị biểu thức số học nguyên gồm số nguyên không âm, các phép
+  `+ - * /`, ngoặc và khoảng trắng. Độ ưu tiên thông thường (`*`, `/` trước `+`, `-`), mọi phép đều kết hợp
+  trái. `/` là chia nguyên cắt về 0 (`int(a / b)`). Đầu vào không bao giờ chia cho 0. Trả về kết quả nguyên.
+  Dùng parser đệ quy (recursive descent) hoặc shunting-yard, KHÔNG dùng `eval` của Python. Ví dụ
+  `"12+3*(4-5)"` cho `9`.
+constraints:
+- 1 <= len(expr) <= 200
+- expr hợp lệ, chỉ gồm chữ số, khoảng trắng và các ký tự + - * / ( )
+- không có số âm đứng trước số hay chia cho 0; mọi giá trị trung gian vừa trong số nguyên 64-bit
+examples:
+- input: expr = "12+3*(4-5)"
+  output: '9'
+  explain_vi: '4-5 = -1, 3*(-1) = -3, 12 + (-3) = 9.'
+io:
+  mode: function
+  entry: eval_expr
+  params:
+  - name: expr
+    type: str
+  returns: int
+  compare: exact
+starter:
+  python: |
+    def eval_expr(expr):
+        # TODO: tokenize, rồi parser đệ quy: expr -> term (+|- term)*, term -> factor (*|/ factor)*
+        return 0
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+time_target_min: 10
+hints:
+- Tách thành token trước (số nhiều chữ số là một token). Sau đó viết ba hàm đệ quy theo ngữ pháp expr, term, factor, dùng chung một con trỏ vị trí.
+- "expr: v = term(); while token kế là + hoặc -: lấy dấu, r = term(), cộng hoặc trừ vào v. term làm tương tự với * và / và gọi factor. factor: số thì trả int; '(' thì v = expr(), bỏ ')' rồi trả v."
+- "Chia nguyên cắt về 0 dùng int(a / b), không dùng a // b (làm tròn xuống với số âm). Con trỏ cần nonlocal hoặc để trong list/class để các hàm con cùng cập nhật."
+solution:
+  file: solution.py
+  approach_vi: Tokenize rồi recursive descent ba tầng expr/term/factor; nhân chia nằm sâu hơn nên tính trước, vòng while cho kết hợp trái.
+  complexity: O(n) / O(n)
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x540
+status: validated
+version: 1

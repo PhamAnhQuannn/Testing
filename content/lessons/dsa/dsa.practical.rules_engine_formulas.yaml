@@ -1,0 +1,151 @@
+id: dsa.practical.rules_engine_formulas
+version: 1
+status: published
+title_vi: "Bộ luật và đánh giá biểu thức (rule engines)"
+est_minutes: 14
+objectives_vi:
+  - "Mô tả rule engine: luật là dữ liệu (điều kiện -> hành động), evaluator tách riêng và duyệt luật theo thứ tự."
+  - "Cài ordered rules với first match wins và action mặc định (default)."
+  - "Áp chuỗi luật tuần tự lên một giá trị (pricing engine) và chặn kết quả không âm."
+  - "Đánh giá biểu thức boolean với AND/OR/NOT và ngoặc bằng recursive descent theo độ ưu tiên."
+blocks:
+  - id: s_rules
+    type: section
+    title_vi: "Ordered rules: first match wins"
+    summary_vi: "Luật là dữ liệu; evaluator duyệt theo thứ tự và dừng ở luật khớp đầu tiên, nếu không có thì dùng default."
+    exercise_ref: ex_first_match
+  - id: t01
+    type: text
+    md: |
+      **Rule engine** tách *luật* ra khỏi *code đánh giá*. Mỗi luật là một cặp dữ liệu
+      `(điều kiện, hành động)`; evaluator chỉ lo việc duyệt. Thêm luật mới chỉ là thêm một phần tử vào
+      danh sách, không sửa phần lõi.
+
+      Hai kiểu đánh giá phổ biến:
+
+      - **First match wins**: duyệt luật theo thứ tự, luật nào khớp trước thì trả hành động của nó và
+        dừng. Nếu không luật nào khớp, trả **default**. Thứ tự luật là một phần của ý nghĩa
+        (luật cụ thể hơn phải đứng trước luật chung).
+      - **Pipeline (áp tuần tự)**: mọi luật đều chạy, mỗi luật biến đổi kết quả của luật trước, ví dụ
+        giảm giá: `percent 10` rồi `fixed 50`. Thứ tự vẫn quan trọng vì giảm theo phần trăm rồi trừ tiền cố
+        định khác với làm ngược lại. Dùng số nguyên (cent) và chia nguyên `//` để kết quả xác định
+        (deterministic), sau mỗi luật chặn giá về `max(0, giá)`.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      RULES = [(90, "A"), (80, "B"), (70, "C")]
+
+      def grade(score):
+          for threshold, label in RULES:
+              if score >= threshold:
+                  return label
+          return "F"
+
+      for s in [95, 80, 72, 10]:
+          print(s, grade(s))
+    expected_output: |
+      95 A
+      80 B
+      72 C
+      10 F
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Với danh sách luật `[(10, 'low'), (50, 'mid'), (90, 'high')]` và điều kiện `value >= threshold`, kiểu first match wins, `value = 95` cho kết quả gì?"
+    options:
+      - {id: a, text_md: "`'high'`"}
+      - {id: b, text_md: "`'low'`, vì luật đầu tiên đã khớp"}
+      - {id: c, text_md: "`'default'`"}
+    answer: [b]
+    explain_md: "95 >= 10 nên luật đầu khớp ngay và evaluator dừng. Muốn luật cụ thể (90) thắng thì phải xếp nó lên đầu."
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Trong first match wins, nếu không luật nào khớp thì evaluator trả hành động ___ (mặc định)."
+    blanks: [{accept: ["default", "mặc định", "mac dinh"]}]
+    explain_md: "Luôn cần một hành động `default` để hàm có kết quả xác định khi không luật nào khớp."
+  - id: ex_first_match
+    type: code_exercise
+    md: |
+      Viết `first_match(rules, value)`: `rules` là danh sách luật có thứ tự, mỗi luật là `[threshold, action]`.
+      Trả về `action` của luật **đầu tiên** có `threshold <= value`; nếu không có thì trả `"default"`.
+      Ví dụ `first_match([[10, "a"], [5, "b"]], 12)` cho `"a"`. Bản dưới đây duyệt hết và giữ luật khớp
+      cuối cùng. Hãy sửa.
+    entry: first_match
+    starter: |
+      def first_match(rules, value):
+          result = "default"
+          for threshold, action in rules:
+              if threshold <= value:
+                  result = action
+          return result
+    guidance_md: |
+      - Thử `rules = [[10, "a"], [5, "b"]]`, `value = 12`: đáp án là `"a"` nhưng code trả `"b"`.
+      - Luật khớp đầu tiên phải kết thúc hàm ngay.
+    hints:
+      - level: nudge
+        md: "Khi cả hai luật cùng khớp, luật nào được ưu tiên theo quy tắc first match wins?"
+      - level: approach
+        md: "Không giữ biến kết quả nữa. Gặp luật khớp thì trả hành động ngay; chỉ khi hết luật mới trả default."
+      - level: near_solution
+        md: "Trong nhánh `if threshold <= value:` hãy `return action` thay vì gán vào `result`, và cuối hàm trả thẳng `\"default\"`."
+    tests:
+      - {args: [[], 5], expected: "default"}
+      - {args: [[[10, "a"], [5, "b"]], 12], expected: "a"}
+      - {args: [[[10, "a"], [5, "b"]], 7], expected: "b"}
+      - {args: [[[10, "a"]], 3], expected: "default"}
+      - {args: [[[1, "x"], [1, "y"]], 1], expected: "x"}
+    solution: |
+      def first_match(rules, value):
+          for threshold, action in rules:
+              if threshold <= value:
+                  return action
+          return "default"
+  - id: s_expr
+    type: section
+    title_vi: "Biểu thức boolean và recursive descent"
+    summary_vi: "Mỗi mức ưu tiên là một hàm; hàm mức thấp gọi hàm mức cao hơn, ngoặc đưa về mức thấp nhất."
+  - id: t02
+    type: text
+    md: |
+      Luật thực tế thường là biểu thức như `T AND ( F OR NOT F )`. Độ ưu tiên: **NOT > AND > OR**,
+      `AND`/`OR` kết hợp trái, ngoặc đổi thứ tự. Không dùng `eval`; hãy parse bằng **recursive descent**,
+      mỗi mức ưu tiên là một hàm:
+
+      ```
+      or_expr  := and_expr ( "OR" and_expr )*
+      and_expr := not_expr ( "AND" not_expr )*
+      not_expr := "NOT" not_expr | atom
+      atom     := "T" | "F" | "(" or_expr ")"
+      ```
+
+      Giữ một con trỏ `pos` trên danh sách token. Hàm mức thấp (OR) gọi hàm mức cao hơn (AND, NOT)
+      nên phép gắn chặt hơn tự được tính trước. Thuật toán shunting-yard cho cùng kết quả bằng hai
+      stack; recursive descent thường dễ đọc hơn khi ngữ pháp nhỏ. Toàn bộ chỉ dùng bool nên kết quả
+      xác định.
+  - id: q03
+    type: predict_output
+    code: |
+      print(True or False and False)
+      print(not False and False)
+      print((True or False) and False)
+    expected_output: |
+      True
+      False
+      False
+    explain_md: "`and` ưu tiên hơn `or`: dòng 1 là `True or (False and False)` = True. `not` ưu tiên hơn `and`: dòng 2 là `(not False) and False` = False. Dòng 3 ngoặc buộc `or` chạy trước: `True and False` = False."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Rule engine tách luật (dữ liệu) khỏi evaluator; thêm luật không sửa lõi."
+      - "First match wins: duyệt theo thứ tự, trả hành động của luật khớp đầu tiên, nếu không có thì default."
+      - "Pipeline áp luật tuần tự; thứ tự quan trọng, dùng số nguyên và chặn không âm để xác định."
+      - "Biểu thức boolean: NOT > AND > OR, ngoặc override; recursive descent với một hàm cho mỗi mức ưu tiên, không dùng eval."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X541], l2: [X542], l3: [X543]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

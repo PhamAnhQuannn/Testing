@@ -1,0 +1,61 @@
+id: check-x543-eval-bool
+subtopic_id: dsa.practical.rules_engine_formulas
+secondary_subtopics: []
+kind: check
+title: 'Check X543: eval_bool'
+title_vi: 'Kiểm tra X543: eval_bool'
+difficulty: easy
+source:
+  type: original
+statement_en_md: |
+  Evaluate a boolean expression string whose tokens are separated by single spaces: `T`, `F`, `AND`, `OR`,
+  `NOT`, `(` and `)`. Precedence is `NOT` > `AND` > `OR`; `AND` and `OR` are left-associative and
+  parentheses override precedence. Return a Python `bool`. Implement it with recursive descent (one function
+  per precedence level); do not use `eval`.
+statement_vi_md: |
+  Viết `eval_bool(expr)`: `expr` là biểu thức gồm các token cách nhau bằng khoảng trắng: `T`, `F`, `AND`,
+  `OR`, `NOT`, `(`, `)`. Độ ưu tiên `NOT` > `AND` > `OR`; `AND`/`OR` kết hợp trái; ngoặc đổi thứ tự. Trả về
+  bool. Dùng recursive descent (mỗi mức ưu tiên một hàm), không dùng `eval`.
+constraints:
+- the expression is valid and non-empty; tokens are separated by single spaces
+- at most 200 tokens
+examples:
+- input: expr = "T AND ( F OR NOT F )"
+  output: 'true'
+  explain_vi: NOT F = T, F OR T = T, rồi T AND T = T.
+io:
+  mode: function
+  entry: eval_bool
+  params:
+  - name: expr
+    type: str
+  returns: bool
+  compare: exact
+starter:
+  python: |
+    def eval_bool(expr):
+        # TODO: recursive descent: or_expr -> and_expr -> not_expr -> atom
+        pass
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+time_target_min: 10
+hints:
+- Viết ngữ pháp trước, mỗi mức ưu tiên một hàm. OR gọi AND, AND gọi NOT, NOT gọi atom, atom có thể là T, F hoặc ngoặc quay lại OR.
+- "Tách `tokens = expr.split()` và giữ chỉ số `pos` dùng chung (nonlocal). `or_expr`: `v = and_expr()`, rồi `while tokens[pos] == 'OR'` thì tiến `pos` và `v = v or and_expr()` (nhớ luôn gọi and_expr để tiêu thụ token)."
+- "`and_expr` tương tự với `AND`. `not_expr`: nếu token là `NOT` thì tiến `pos` và trả `not not_expr()`, ngược lại `atom()`. `atom`: `(` thì tiến, gọi `or_expr()`, bỏ qua `)`; còn lại trả `token == 'T'`."
+solution:
+  file: solution.py
+  approach_vi: Recursive descent với một hàm cho mỗi mức ưu tiên (OR, AND, NOT, atom) và con trỏ token dùng chung.
+  complexity: O(n) / O(n)
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x543
+status: validated
+version: 1

@@ -486,6 +486,16 @@ EXTRA_INPUTS: dict[str, list[list]] = {
         [["2026-01-01T12:00 ERROR a", "2026-01-01T12:10 ERROR b", "2026-01-01T13:00 ERROR c"]],
         [["2026-01-01T00:00 ERROR z"]],
     ],
+    # Wave 2 Round 18: simulation_state_machines Game-of-Life step; grids are plain list[list[int]];
+    # first input is the edge case, all distinct from the driver's own call.
+    "Q163": [
+        [[[1]]],
+        [[[0]]],
+        [[[1, 1], [1, 1]]],
+        [[[1, 1, 1]]],
+        [[[0, 1, 0], [0, 1, 0], [0, 1, 0]]],
+        [[[1, 0, 0], [0, 1, 0], [0, 0, 1]]],
+    ],
 }
 
 
