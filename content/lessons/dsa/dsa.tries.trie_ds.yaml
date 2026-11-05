@@ -1,0 +1,230 @@
+id: dsa.tries.trie_ds
+version: 1
+status: published
+title_vi: "Cài đặt Trie (cây tiền tố)"
+est_minutes: 14
+objectives_vi:
+  - "Mô tả node của trie: children (chữ cái -> node con) và cờ kết thúc từ (is_end)."
+  - "Cài insert, search và starts_with bằng dict lồng dict, mỗi thao tác O(L)."
+  - "Phân biệt search (cần cờ kết thúc) với starts_with (chỉ cần đi hết đường)."
+  - "Đếm số từ có chung một tiền tố bằng bộ đếm trên mỗi node."
+blocks:
+  - id: s_trie
+    type: section
+    title_vi: "Node, insert và search"
+    summary_vi: "Mỗi bước đi xuống là một chữ cái; cờ kết thúc cho biết một từ có thật dừng ở node đó hay không."
+    exercise_ref: ex_count
+  - id: t01
+    type: text
+    md: |
+      **Trie** (cây tiền tố) lưu một tập từ sao cho các từ chung phần đầu dùng chung node: "cat" và "car"
+      cùng đi qua `c -> a`, rồi mới rẽ `t` hoặc `r`.
+
+      Mỗi node gồm:
+
+      - `children`: ánh xạ chữ cái -> node con (dict, hoặc mảng 26 phần tử).
+      - cờ **kết thúc từ** (`is_end`): `True` nếu có một từ dừng đúng ở node này. "ca" là tiền tố của "cat"
+        nhưng chưa chắc là một từ.
+
+      Ba thao tác cùng đi dọc chuỗi, nên đều tốn **O(L)** với L là độ dài chuỗi, không phụ thuộc số từ:
+
+      - `insert`: thiếu node con thì tạo, hết từ thì bật cờ kết thúc.
+      - `search`: đi hết chuỗi VÀ node cuối phải có cờ kết thúc.
+      - `starts_with`: chỉ cần đi hết chuỗi.
+
+      Trong Python, dict lồng dict là đủ; ta dùng khóa `"$"` làm cờ kết thúc. Kết quả hoàn toàn xác định.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      trie = {}
+
+      def insert(word):
+          node = trie
+          for ch in word:
+              node = node.setdefault(ch, {})
+          node["$"] = True
+
+      def search(word):
+          node = trie
+          for ch in word:
+              if ch not in node:
+                  return False
+              node = node[ch]
+          return "$" in node
+
+      for w in ["app", "apple", "bat"]:
+          insert(w)
+      print(search("app"), search("appl"), search("bat"))
+      print(sorted(trie))
+      print(sorted(trie["a"]["p"]["p"]))
+    expected_output: |
+      True False True
+      ['a', 'b']
+      ['$', 'l']
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Đã `insert(\"apple\")` và không thêm gì khác. `search(\"app\")` trả về gì, và `starts_with(\"app\")` trả về gì?"
+    options:
+      - {id: a, text_md: "`search` là `False`, `starts_with` là `True`"}
+      - {id: b, text_md: "Cả hai đều `True`"}
+      - {id: c, text_md: "Cả hai đều `False`"}
+    answer: [a]
+    explain_md: "Đường `a-p-p` tồn tại nên `starts_with` đúng, nhưng node `p` thứ hai chưa có cờ kết thúc vì \"app\" chưa từng được thêm, nên `search` sai."
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Một trie có hàng triệu từ. `search(word)` với `word` dài L ký tự tốn thời gian O(___) (theo L)."
+    blanks: [{accept: ["L", "l"]}]
+    explain_md: "Chỉ đi dọc L ký tự, mỗi bước tra dict O(1); số từ trong trie không ảnh hưởng."
+  - id: ex_count
+    type: code_exercise
+    md: |
+      Viết `count_words_with_prefix(words, prefix)`: trả về số từ trong `words` bắt đầu bằng `prefix`
+      (từ lặp tính nhiều lần; `prefix` rỗng khớp mọi từ). Dùng trie, mỗi node giữ bộ đếm `"#"` là số từ đã
+      đi qua node đó. Ví dụ `["apple", "app", "apt", "bat"]` với `"ap"` cho `3`. Bản dưới đây chưa dựng trie. Hãy hoàn thành.
+    entry: count_words_with_prefix
+    starter: |
+      def count_words_with_prefix(words, prefix):
+          root = {"#": 0}
+          for w in words:
+              node = root
+              node["#"] += 1
+              for ch in w:
+                  # TODO: đi xuống (tạo node con nếu thiếu) và tăng bộ đếm "#"
+                  pass
+          # TODO: đi theo prefix rồi trả bộ đếm của node cuối
+          return 0
+    guidance_md: |
+      - Khi insert: `node = node.setdefault(ch, {"#": 0})` rồi `node["#"] += 1`.
+      - Khi tra: đi theo từng chữ của `prefix`; thiếu đường thì trả `0`.
+      - Kết quả là `node["#"]` ở node cuối của `prefix`.
+    hints:
+      - level: nudge
+        md: "Bộ đếm ở node `a-p` cho biết có bao nhiêu từ đi qua đường `a-p`."
+      - level: approach
+        md: "Lúc insert, mỗi node con đi qua được tăng `\"#\"` thêm 1. Lúc tra, đi hết `prefix` và đọc `\"#\"`; nếu mất đường thì trả 0."
+      - level: near_solution
+        md: "Trong vòng `for ch in w`: `node = node.setdefault(ch, {\"#\": 0})` rồi `node[\"#\"] += 1`. Sau đó duyệt `prefix` từ `root`, `if ch not in node: return 0`, cuối cùng `return node[\"#\"]`."
+    tests:
+      - {args: [["apple", "app", "apt", "bat"], "ap"], expected: 3}
+      - {args: [["apple", "app", "apt", "bat"], "b"], expected: 1}
+      - {args: [["apple", "app", "apt", "bat"], "z"], expected: 0}
+      - {args: [["apple", "app"], ""], expected: 2}
+      - {args: [["a", "a"], "a"], expected: 2}
+    solution: |
+      def count_words_with_prefix(words, prefix):
+          root = {"#": 0}
+          for w in words:
+              node = root
+              node["#"] += 1
+              for ch in w:
+                  node = node.setdefault(ch, {"#": 0})
+                  node["#"] += 1
+          node = root
+          for ch in prefix:
+              if ch not in node:
+                  return 0
+              node = node[ch]
+          return node["#"]
+  - id: s_ops
+    type: section
+    title_vi: "Search chính xác và so sánh với hash set"
+    summary_vi: "Search đòi hỏi cờ kết thúc; trie hơn set ở truy vấn theo tiền tố, đổi lại tốn bộ nhớ."
+    exercise_ref: ex_search
+  - id: t02
+    type: text
+    md: |
+      **Trie hay hash set?** Hash set kiểm tra "từ này có không" trong O(L) (băm chuỗi), nhưng muốn biết
+      "có từ nào bắt đầu bằng `pre`" thì phải quét cả tập. Trie trả lời trong O(L) và còn liệt kê được mọi
+      từ chung tiền tố bằng DFS từ node cuối của tiền tố.
+
+      **Chi phí**: bộ nhớ tỉ lệ với tổng số node (tệ nhất là tổng độ dài các từ). Node dùng mảng 26 phần tử
+      nhanh nhưng tốn chỗ khi thưa; dict chỉ giữ nhánh có thật. Autocomplete, word search,
+      longest common prefix đều xoay quanh trie.
+
+      Khi cần ký tự đại diện (ví dụ `.` khớp một chữ cái), `search` chuyển sang DFS: gặp `.` thì thử mọi node con.
+  - id: q03
+    type: predict_output
+    code: |
+      trie = {}
+      for w in ["ab", "abc", "b"]:
+          node = trie
+          for ch in w:
+              node = node.setdefault(ch, {})
+          node["$"] = True
+      print(sorted(trie))
+      print(sorted(trie["a"]["b"]))
+    expected_output: |
+      ['a', 'b']
+      ['$', 'c']
+    explain_md: "Gốc có hai nhánh `a` và `b` (khóa `$` không nằm ở gốc). Node `a-b` vừa kết thúc từ \"ab\" (khóa `$`) vừa có con `c` cho \"abc\", nên các khóa là `['$', 'c']`."
+  - id: ex_search
+    type: code_exercise
+    md: |
+      Viết `trie_search(words, queries)`: dựng trie từ `words`, rồi với mỗi chuỗi trong `queries` trả `True`
+      nếu nó đúng là một từ trong `words` (không chỉ là tiền tố), ngược lại `False`. Trả danh sách bool theo
+      đúng thứ tự `queries`. Ví dụ `trie_search(["car", "cat"], ["ca", "cat"])` cho `[False, True]`.
+    entry: trie_search
+    starter: |
+      def trie_search(words, queries):
+          root = {}
+          for w in words:
+              node = root
+              for ch in w:
+                  node = node.setdefault(ch, {})
+              # TODO: đánh dấu kết thúc từ
+          result = []
+          for q in queries:
+              # TODO: đi theo q, nhớ kiểm tra cờ kết thúc
+              result.append(False)
+          return result
+    guidance_md: |
+      - Sau khi đi hết một từ, đặt `node["$"] = True`.
+      - Với mỗi query, mất đường thì `False`; đi hết thì kết quả là `"$" in node`.
+    hints:
+      - level: nudge
+        md: "\"ca\" đi hết được trong trie nhưng không phải một từ. Cái gì phân biệt hai trường hợp?"
+      - level: approach
+        md: "Bật cờ `\"$\"` ở node cuối của mỗi từ khi insert; khi tra, đi hết query rồi kiểm tra cờ này."
+      - level: near_solution
+        md: "Sau vòng `for ch in w` đặt `node[\"$\"] = True`. Với mỗi `q`, đặt `node = root`, đi từng chữ (thiếu thì `ok = False` và dừng), cuối cùng `ok and \"$\" in node`."
+    tests:
+      - {args: [["car", "cat"], ["ca", "cat"]], expected: [false, true]}
+      - {args: [[], ["a"]], expected: [false]}
+      - {args: [["app", "apple"], ["app", "appl", "apple", "apples"]], expected: [true, false, true, false]}
+      - {args: [["b"], ["a", "b", "ba"]], expected: [false, true, false]}
+    solution: |
+      def trie_search(words, queries):
+          root = {}
+          for w in words:
+              node = root
+              for ch in w:
+                  node = node.setdefault(ch, {})
+              node["$"] = True
+          result = []
+          for q in queries:
+              node = root
+              ok = True
+              for ch in q:
+                  if ch not in node:
+                      ok = False
+                      break
+                  node = node[ch]
+              result.append(ok and "$" in node)
+          return result
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Trie: mỗi node có children và cờ kết thúc; các từ chung tiền tố dùng chung node."
+      - "insert, search, starts_with đều O(L); search cần cờ kết thúc, starts_with chỉ cần đi hết đường."
+      - "Bộ đếm trên node cho phép đếm số từ theo tiền tố trong O(L)."
+      - "Trie hơn hash set ở truy vấn tiền tố, đổi lại tốn bộ nhớ; ký tự đại diện '.' cần DFS qua mọi con."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X492], l2: [X493], l3: [X494]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

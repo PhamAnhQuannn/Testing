@@ -93,6 +93,11 @@ EXTRA_IDS = {
     "dsa.dp.dp_grid",
     "dsa.dp.dp_state_machine",
     "dsa.dp.dp_interval",
+    # Wave 2 Round 12: backtracking (finish recursion_backtracking) + tries module.
+    "dsa.recursion_backtracking.backtracking_core",
+    "dsa.recursion_backtracking.backtracking_constraints",
+    "dsa.tries.trie_ds",
+    "dsa.tries.trie_problems",
 }
 
 # Expected shipped counts, asserted so an upstream tree edit can't silently change the snapshot.
@@ -100,7 +105,7 @@ PLAN_MVP_COUNT = 40
 EXPECTED_SD = 86
 EXPECTED_ML4 = 39
 EXPECTED_EXTRA_IDS = len(EXTRA_IDS)  # Wave 2 additions
-EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 218
+EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 222
 
 # Node fields the app uses (SPEC 4.2); optional ones are skipped when a node lacks them.
 NODE_FIELDS = [

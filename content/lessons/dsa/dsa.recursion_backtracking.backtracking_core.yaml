@@ -1,0 +1,192 @@
+id: dsa.recursion_backtracking.backtracking_core
+version: 1
+status: published
+title_vi: "Quay lui: tập con, hoán vị, tổ hợp (backtracking)"
+est_minutes: 14
+objectives_vi:
+  - "Viết khung backtracking 3 bước: chọn (choose), khám phá (explore), bỏ chọn (unchoose) và giải thích vì sao phải bỏ chọn."
+  - "Sinh mọi tập con bằng cây quyết định 'lấy / không lấy', biết có 2^n kết quả."
+  - "Sinh tổ hợp bằng tham số start để không lặp lại và không quay đầu."
+  - "Nhớ sao chép path (path[:]) khi lưu kết quả và đếm bằng backtracking."
+blocks:
+  - id: s_tpl
+    type: section
+    title_vi: "Khung choose - explore - unchoose"
+    summary_vi: "Cây quyết định, DFS và bước bỏ chọn để trả path về trạng thái cũ."
+  - id: t01
+    type: text
+    md: |
+      **Backtracking** là DFS trên một **cây quyết định (decision tree)**: ở mỗi bước ta chọn một lựa chọn,
+      đi sâu vào, rồi khi quay về thì **hoàn tác** lựa chọn đó để thử lựa chọn khác. Khung gồm 3 bước:
+
+      1. **Choose**: thêm lựa chọn vào `path` (`path.append(x)`).
+      2. **Explore**: gọi đệ quy tiếp (`bt(...)`).
+      3. **Unchoose**: bỏ lựa chọn vừa thêm (`path.pop()`).
+
+      Bước 3 cần thiết vì `path` là **một danh sách dùng chung** cho mọi nhánh: nếu không `pop`, nhánh
+      tiếp theo sẽ thừa phần tử của nhánh trước. Khi gặp lá (đủ điều kiện), phải lưu **bản sao**
+      `res.append(path[:])`; nếu lưu chính `path` thì mọi kết quả cùng trỏ vào một list và cuối cùng đều rỗng.
+
+      **Tập con**: với mỗi phần tử có 2 lựa chọn (lấy / không lấy) nên có `2^n` tập con. **Hoán vị** có `n!` kết quả.
+      Tổng thời gian tỉ lệ với **kích thước đầu ra** nhân độ dài mỗi kết quả.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      nums = [1, 2, 3]
+      res, path = [], []
+
+      def bt(i):
+          if i == len(nums):
+              res.append(path[:])      # lưu bản sao
+              return
+          path.append(nums[i])         # choose: lấy nums[i]
+          bt(i + 1)                    # explore
+          path.pop()                   # unchoose
+          bt(i + 1)                    # không lấy nums[i]
+
+      bt(0)
+      print(res)
+    expected_output: |
+      [[1, 2, 3], [1, 2], [1, 3], [1], [2, 3], [2], [3], []]
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Trong khung backtracking, vì sao phải `path.pop()` sau lời gọi đệ quy?"
+    options:
+      - {id: a, text_md: "Để trả `path` về trạng thái trước khi chọn, nhờ đó nhánh kế tiếp bắt đầu từ trạng thái sạch"}
+      - {id: b, text_md: "Để giải phóng bộ nhớ của lời gọi đệ quy"}
+      - {id: c, text_md: "Để kết quả được sắp xếp tăng dần"}
+    answer: [a]
+    explain_md: "`path` được dùng chung cho mọi nhánh. Không bỏ chọn thì phần tử cũ còn nằm lại và làm sai các nhánh sau."
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Một mảng có 3 phần tử (không trùng) có ___ tập con (kể cả tập rỗng)."
+    blanks: [{accept: ["8", "tám"]}]
+    explain_md: "Mỗi phần tử có 2 lựa chọn (lấy / không lấy) nên có 2^3 = 8 tập con."
+  - id: s_comb
+    type: section
+    title_vi: "Tổ hợp với start index"
+    summary_vi: "Chọn k phần tử, dùng start để chỉ đi tới và không lặp."
+    exercise_ref: ex_choose
+  - id: t02
+    type: text
+    md: |
+      Với **tổ hợp** (chọn `k` phần tử, thứ tự không quan trọng), `[1, 2]` và `[2, 1]` là một. Để tránh lặp ta
+      truyền tham số `start`: ở mỗi tầng chỉ được chọn phần tử có chỉ số `>= start`, và sau khi chọn `i` thì
+      gọi tiếp với `start = i + 1`.
+
+      ```python
+      def bt(start):
+          if len(path) == k:
+              res.append(path[:])
+              return
+          for i in range(start, len(nums)):
+              path.append(nums[i])
+              bt(i + 1)
+              path.pop()
+      ```
+      **Hoán vị** khác ở chỗ mỗi tầng được chọn mọi phần tử chưa dùng (dùng `used` hoặc swap), không có `start`.
+      Khi đầu vào có phần tử trùng, hãy **sort** trước rồi bỏ qua phần tử bằng phần tử đứng trước ở cùng tầng.
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      def pick(nums, k):
+          res, path = [], []
+
+          def bt(start):
+              if len(path) == k:
+                  res.append(path[:])
+                  return
+              for i in range(start, len(nums)):
+                  path.append(nums[i])
+                  bt(i + 1)
+                  path.pop()
+
+          bt(0)
+          return res
+
+      print(pick([1, 2, 3, 4], 2))
+    expected_output: |
+      [[1, 2], [1, 3], [1, 4], [2, 3], [2, 4], [3, 4]]
+  - id: q03
+    type: predict_output
+    code: |
+      nums = [1, 2, 3, 4]
+      target = 5
+      cnt = 0
+
+      def bt(i, s):
+          global cnt
+          if i == len(nums):
+              if s == target:
+                  cnt += 1
+              return
+          bt(i + 1, s + nums[i])
+          bt(i + 1, s)
+
+      bt(0, 0)
+      print(cnt)
+    expected_output: |
+      2
+    explain_md: "Các tập con có tổng 5 là {1, 4} và {2, 3}, nên đếm được 2."
+  - id: ex_choose
+    type: code_exercise
+    md: |
+      Viết `choose_k(nums, k)`: trả danh sách mọi tổ hợp gồm đúng `k` phần tử của `nums`, mỗi tổ hợp giữ thứ tự
+      xuất hiện trong `nums`, và các tổ hợp theo thứ tự sinh ra bởi khung dùng `start`. `k = 0` cho `[[]]`;
+      `k > len(nums)` cho `[]`.
+    entry: choose_k
+    starter: |
+      def choose_k(nums, k):
+          res, path = [], []
+          # TODO: viết bt(start) theo khung choose - explore - unchoose
+          return res
+    guidance_md: |
+      - Điều kiện dừng: `len(path) == k` thì lưu bản sao của `path`.
+      - Lặp `i` từ `start` đến hết, chọn `nums[i]`, đệ quy với `i + 1`, rồi bỏ chọn.
+    hints:
+      - level: nudge
+        md: "Làm sao để `[1, 2]` và `[2, 1]` không cùng xuất hiện? Tham số nào giới hạn vùng được chọn?"
+      - level: approach
+        md: "Viết hàm con nhận `start`. Khi độ dài path bằng k thì lưu một bản sao; nếu chưa thì lặp chỉ số từ start trở đi."
+      - level: near_solution
+        md: "Trong vòng lặp: thêm phần tử, đệ quy với chỉ số kế tiếp, rồi pop. Gọi hàm con lần đầu với start bằng 0 và trả về danh sách kết quả."
+    tests:
+      - {args: [[1, 2, 3, 4], 2], expected: [[1, 2], [1, 3], [1, 4], [2, 3], [2, 4], [3, 4]]}
+      - {args: [[1, 2, 3], 3], expected: [[1, 2, 3]]}
+      - {args: [[1, 2, 3], 0], expected: [[]]}
+      - {args: [[5], 1], expected: [[5]]}
+      - {args: [[1, 2, 3], 4], expected: []}
+    solution: |
+      def choose_k(nums, k):
+          res, path = [], []
+
+          def bt(start):
+              if len(path) == k:
+                  res.append(path[:])
+                  return
+              for i in range(start, len(nums)):
+                  path.append(nums[i])
+                  bt(i + 1)
+                  path.pop()
+
+          bt(0)
+          return res
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Khung backtracking: choose (append), explore (đệ quy), unchoose (pop); bỏ chọn để path trở về trạng thái cũ cho nhánh sau."
+      - "Lưu kết quả bằng path[:] (bản sao), không lưu chính path."
+      - "Tập con: 2^n; hoán vị: n!; tổ hợp dùng start = i + 1 để không lặp. Thời gian tỉ lệ kích thước đầu ra."
+      - "Có phần tử trùng: sort trước và bỏ qua phần tử bằng phần tử trước ở cùng tầng."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [Q118], l2: [Q119], l3: [Q120]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

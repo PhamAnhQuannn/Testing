@@ -1,0 +1,256 @@
+id: dsa.recursion_backtracking.backtracking_constraints
+version: 1
+status: published
+title_vi: "Quay lui có ràng buộc và cắt tỉa (constrained backtracking)"
+est_minutes: 14
+objectives_vi:
+  - "Mô tả khung quay lui có ràng buộc: chọn, kiểm tra luật, đệ quy, hoàn tác (undo)."
+  - "Dùng các tập cột / đường chéo (r - c, r + c) để kiểm tra N-Queens trong O(1) mỗi ô."
+  - "Cắt tỉa (pruning) sớm: dừng nhánh ngay khi chắc chắn vô nghiệm, ví dụ ứng viên đã sắp xếp vượt target."
+  - "Sinh dãy ngoặc hợp lệ bằng cách chỉ thêm ký tự khi còn giữ được tính hợp lệ."
+blocks:
+  - id: s_prune
+    type: section
+    title_vi: "Khung quay lui và cắt tỉa"
+    summary_vi: "Mỗi bước chọn một ứng viên, kiểm tra luật trước khi đi sâu, rồi hoàn tác khi quay lại."
+    exercise_ref: ex_combo
+  - id: t01
+    type: text
+    md: |
+      **Quay lui có ràng buộc** vẫn là duyệt cây lựa chọn, nhưng mỗi bước ta **kiểm tra luật trước khi đi sâu**.
+      Nhánh nào vi phạm thì bỏ ngay (**pruning**) thay vì duyệt hết rồi mới loại.
+
+      Khung chung:
+
+      1. Nếu đã đủ lời giải (`r == n`, `remain == 0`, ...) thì ghi nhận và trả về.
+      2. Với mỗi ứng viên: nếu **vi phạm ràng buộc** thì `continue` (hoặc `break`).
+      3. Ngược lại **chọn** (cập nhật trạng thái), **đệ quy**, rồi **hoàn tác** đúng những gì đã đổi.
+
+      **N-Queens**: mỗi hàng đặt đúng một hậu. Hai ô `(r, c)` và `(r2, c2)` cùng đường chéo khi
+      `r - c == r2 - c2` (chéo chính) hoặc `r + c == r2 + c2` (chéo phụ). Giữ ba tập `cols`, `d1`, `d2`
+      để kiểm tra mỗi ô trong O(1). Với n = 8 chỉ có 92 nghiệm, còn không cắt tỉa thì phải xét `8^8` cách đặt.
+
+      **Combination Sum**: sắp xếp ứng viên tăng dần; khi `candidates[i] > remain` thì mọi ứng viên sau
+      còn lớn hơn nên `break` cả vòng lặp. Cho phép dùng lại một số bằng cách đệ quy với chỉ số `i`
+      (không phải `i + 1`). Kết quả hoàn toàn xác định vì duyệt theo thứ tự cố định.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      def solve(n):
+          cols, d1, d2 = set(), set(), set()
+          path, sols = [], []
+
+          def place(r):
+              if r == n:
+                  sols.append(path[:])
+                  return
+              for c in range(n):
+                  if c in cols or (r - c) in d1 or (r + c) in d2:
+                      continue
+                  cols.add(c)
+                  d1.add(r - c)
+                  d2.add(r + c)
+                  path.append(c)
+                  place(r + 1)
+                  path.pop()
+                  cols.remove(c)
+                  d1.remove(r - c)
+                  d2.remove(r + c)
+
+          place(0)
+          return sols
+
+      s = solve(4)
+      print(len(s))
+      print(s)
+    expected_output: |
+      2
+      [[1, 3, 0, 2], [2, 0, 3, 1]]
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Trong N-Queens, hậu ở `(1, 2)` và hậu ở `(3, 4)` có ăn nhau không?"
+    options:
+      - {id: a, text_md: "Có, vì cùng chéo chính (`r - c` đều bằng -1)"}
+      - {id: b, text_md: "Có, vì cùng chéo phụ (`r + c` bằng nhau)"}
+      - {id: c, text_md: "Không, vì khác hàng và khác cột"}
+    answer: [a]
+    explain_md: "`1 - 2 = -1` và `3 - 4 = -1`, cùng giá trị `r - c` nên hai ô nằm trên cùng một đường chéo chính. Khác hàng, khác cột chưa đủ để an toàn."
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Trong khung quay lui, sau khi đệ quy trả về ta phải ___ (undo) mọi thay đổi trạng thái đã làm khi chọn, để nhánh kế tiếp bắt đầu từ trạng thái sạch."
+    blanks: [{accept: ["hoàn tác", "hoan tac", "undo", "khôi phục", "khoi phuc"]}]
+    explain_md: "Hoàn tác (pop khỏi path, xóa khỏi các tập) giúp mỗi nhánh con thấy đúng trạng thái trước khi chọn; quên hoàn tác là lỗi phổ biến nhất."
+  - id: ex_combo
+    type: code_exercise
+    md: |
+      Viết `combination_sum(candidates, target)`: `candidates` là danh sách số nguyên dương **khác nhau, đã
+      sắp xếp tăng dần**; mỗi số được dùng **nhiều lần**. Trả về mọi tổ hợp có tổng bằng `target`, mỗi tổ hợp
+      là một list tăng dần, các tổ hợp theo thứ tự DFS (ứng viên nhỏ trước).
+      Ví dụ `combination_sum([2, 3, 5], 8)` cho `[[2, 2, 2, 2], [2, 3, 3], [3, 5]]`.
+      Bản dưới đây không cho dùng lại cùng một số. Hãy sửa.
+    entry: combination_sum
+    starter: |
+      def combination_sum(candidates, target):
+          out = []
+
+          def go(start, remain, path):
+              if remain == 0:
+                  out.append(path[:])
+                  return
+              for i in range(start, len(candidates)):
+                  if candidates[i] > remain:
+                      break
+                  path.append(candidates[i])
+                  go(i + 1, remain - candidates[i], path)
+                  path.pop()
+
+          go(0, target, [])
+          return out
+    guidance_md: |
+      - Thử `candidates = [1]`, `target = 3`: đáp án là `[[1, 1, 1]]` nhưng code trả `[]`.
+      - Chỉ số truyền xuống đệ quy quyết định có được chọn lại cùng phần tử hay không.
+    hints:
+      - level: nudge
+        md: "Với `[1]` và `target = 3`, số 1 phải được chọn ba lần. Đối số `start` ở lần gọi đệ quy đang cho phép điều đó không?"
+      - level: approach
+        md: "Để dùng lại phần tử `i`, lần đệ quy kế tiếp vẫn phải được xét từ chính chỉ số `i`. Phần tử nhỏ hơn `i` thì bỏ để tránh tổ hợp trùng thứ tự."
+      - level: near_solution
+        md: "Đổi đối số đầu của lệnh gọi `go` bên trong vòng lặp từ `i + 1` thành `i`. Phần còn lại (cắt tỉa bằng `break`, hoàn tác bằng `pop`) giữ nguyên."
+    tests:
+      - {args: [[2, 3, 6, 7], 7], expected: [[2, 2, 3], [7]]}
+      - {args: [[2, 3, 5], 8], expected: [[2, 2, 2, 2], [2, 3, 3], [3, 5]]}
+      - {args: [[2], 1], expected: []}
+      - {args: [[1], 3], expected: [[1, 1, 1]]}
+      - {args: [[4, 5], 3], expected: []}
+    solution: |
+      def combination_sum(candidates, target):
+          out = []
+
+          def go(start, remain, path):
+              if remain == 0:
+                  out.append(path[:])
+                  return
+              for i in range(start, len(candidates)):
+                  if candidates[i] > remain:
+                      break
+                  path.append(candidates[i])
+                  go(i, remain - candidates[i], path)
+                  path.pop()
+
+          go(0, target, [])
+          return out
+  - id: s_valid
+    type: section
+    title_vi: "Chỉ sinh trạng thái hợp lệ"
+    summary_vi: "Thay vì sinh hết rồi lọc, chỉ thêm lựa chọn khi vẫn giữ được tính hợp lệ."
+    exercise_ref: ex_paren
+  - id: t02
+    type: text
+    md: |
+      Cắt tỉa mạnh nhất là **không bao giờ sinh** trạng thái sai. Với **Generate Parentheses**, một dãy
+      là hợp lệ khi ở mọi tiền tố số `)` không vượt số `(`, và tổng cộng có `n` cặp. Do đó:
+
+      - Thêm `(` chỉ khi `open < n`.
+      - Thêm `)` chỉ khi `close < open`.
+
+      Nhờ vậy không có nhánh nào bị bỏ phí; số kết quả là số Catalan (n = 3 cho 5 dãy).
+
+      **Word Search** (tìm từ trong lưới, mỗi ô dùng một lần) cũng theo mẫu này: đánh dấu ô đang dùng
+      (ví dụ gán `#`), thử bốn hướng, rồi **khôi phục ký tự** khi quay lui. Cắt ngay khi ký tự không khớp
+      hoặc khi từ dài hơn số ô. Cùng ý tưởng cho **Sudoku** (mỗi ô thử các số chưa trùng hàng, cột, khối)
+      và **bitmask**: thay tập bằng số nguyên bit để kiểm tra nhanh hơn.
+  - id: q03
+    type: predict_output
+    code: |
+      used = [False] * 3
+      seen = []
+
+      def perm(path):
+          if len(path) == 3:
+              seen.append(tuple(path))
+              return
+          for i in range(3):
+              if used[i] or (i == 1 and not used[0]):
+                  continue
+              used[i] = True
+              path.append(i)
+              perm(path)
+              path.pop()
+              used[i] = False
+
+      perm([])
+      print(seen)
+      print(len(seen))
+    expected_output: |
+      [(0, 1, 2), (0, 2, 1), (2, 0, 1)]
+      3
+    explain_md: "Luật `i == 1 and not used[0]` bắt số 1 chỉ được đặt sau số 0. Trong 6 hoán vị chỉ 3 thỏa: (0,1,2), (0,2,1), (2,0,1). Thứ tự DFS tăng dần theo i nên in đúng như trên."
+  - id: ex_paren
+    type: code_exercise
+    md: |
+      Viết `generate_parentheses(n)`: trả về list mọi dãy ngoặc hợp lệ gồm `n` cặp, theo thứ tự DFS
+      thử `(` trước `)`. Ví dụ `generate_parentheses(2)` cho `["(())", "()()"]`.
+      Bản dưới đây cho thêm `)` mà không kiểm tra số `(` đang mở, nên sinh cả dãy sai như `")("`. Hãy sửa.
+    entry: generate_parentheses
+    starter: |
+      def generate_parentheses(n):
+          res = []
+
+          def go(s, open_cnt, close_cnt):
+              if len(s) == 2 * n:
+                  res.append(s)
+                  return
+              if open_cnt < n:
+                  go(s + "(", open_cnt + 1, close_cnt)
+              if close_cnt < n:
+                  go(s + ")", open_cnt, close_cnt + 1)
+
+          go("", 0, 0)
+          return res
+    guidance_md: |
+      - Với `n = 1` code trả cả `")("`, trong khi chỉ `"()"` hợp lệ.
+      - Điều kiện thêm `)` phải so với số `(` đã mở, không phải với `n`.
+    hints:
+      - level: nudge
+        md: "Khi nào được phép đóng một ngoặc? Điều đó phụ thuộc vào số ngoặc đang mở chứ không phải tổng `n`."
+      - level: approach
+        md: "Một `)` chỉ hợp lệ khi vẫn còn `(` chưa được đóng, tức số `)` đã dùng phải nhỏ hơn số `(` đã dùng."
+      - level: near_solution
+        md: "Ở nhánh thêm `)`, so sánh `close_cnt` với `open_cnt` thay vì với `n`. Nhánh thêm `(` giữ nguyên."
+    tests:
+      - {args: [1], expected: ["()"]}
+      - {args: [2], expected: ["(())", "()()"]}
+      - {args: [3], expected: ["((()))", "(()())", "(())()", "()(())", "()()()"]}
+      - {args: [4], expected: ["(((())))", "((()()))", "((())())", "((()))()", "(()(()))", "(()()())", "(()())()", "(())(())", "(())()()", "()((()))", "()(()())", "()(())()", "()()(())", "()()()()"]}
+    solution: |
+      def generate_parentheses(n):
+          res = []
+
+          def go(s, open_cnt, close_cnt):
+              if len(s) == 2 * n:
+                  res.append(s)
+                  return
+              if open_cnt < n:
+                  go(s + "(", open_cnt + 1, close_cnt)
+              if close_cnt < open_cnt:
+                  go(s + ")", open_cnt, close_cnt + 1)
+
+          go("", 0, 0)
+          return res
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Khung: kiểm tra luật, chọn, đệ quy, hoàn tác; vi phạm luật thì bỏ nhánh ngay."
+      - "N-Queens dùng ba tập cột, `r - c`, `r + c` để kiểm tra ô trong O(1)."
+      - "Ứng viên đã sắp xếp cho phép `break` khi vượt `remain`; dùng lại phần tử bằng cách đệ quy với chỉ số `i`."
+      - "Tốt nhất là không sinh trạng thái sai (Generate Parentheses); Word Search đánh dấu ô rồi khôi phục khi quay lui."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X489], l2: [X490], l3: [X491]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"
