@@ -1,0 +1,279 @@
+id: lld.patterns.structural_adapter_facade_proxy
+version: 1
+status: published
+title_vi: "Mẫu cấu trúc: Adapter, Facade, Proxy, Bridge, Flyweight"
+est_minutes: 15
+objectives_vi:
+  - "Viết Adapter chuyển interface cũ (cent) sang interface mới (đơn vị tiền)."
+  - "Nhận ra Facade gom nhiều bước của subsystem thành một lời gọi."
+  - "Viết Proxy lazy-load và Proxy kiểm tra quyền; phân biệt Adapter, Facade, Proxy."
+  - "Biết qua Bridge và Flyweight dùng để làm gì và khi nào là thừa."
+blocks:
+  - id: s_adapter
+    type: section
+    title_vi: "Adapter: ổ cắm chuyển đổi"
+    summary_vi: "Bọc class cũ để nó có interface mà code mới mong đợi."
+    exercise_ref: ex_adapter
+  - id: t01
+    type: text
+    md: |
+      **Mẫu cấu trúc (structural pattern)** là cách bọc và ghép class: một object bọc object khác rồi
+      **giao việc** (delegation) cho nó.
+
+      **Adapter** biến interface của class cũ hoặc thư viện ngoài thành interface mà code mới mong đợi,
+      như ổ cắm chuyển đổi. Ví dụ hệ thống cũ có `make_payment(cents)` còn code mới gọi `pay(amount)`
+      tính bằng đồng:
+
+      ```python
+      class Adapter:
+          def __init__(self, cu):
+              self.cu = cu
+
+          def pay(self, amount):
+              self.cu.make_payment(amount * 100)
+      ```
+
+      Bọc API bên thứ ba bằng Adapter còn giúp code của bạn không gắn chặt vào thư viện: sau này đổi
+      thư viện chỉ sửa chỗ bọc.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Class cũ có `make_payment(cents)`, code mới gọi `pay(amount)`. Mẫu nào phù hợp?"
+    options:
+      - {id: a, text_md: "Adapter: bọc class cũ và đổi `pay(amount)` thành `make_payment(amount * 100)`"}
+      - {id: b, text_md: "Flyweight: cho nhiều object dùng chung dữ liệu"}
+      - {id: c, text_md: "Facade: gom nhiều bước thành một lời gọi"}
+    answer: [a]
+    explain_md: "Hai interface không khớp nên cần bộ chuyển đổi: đó là Adapter. Facade làm gọn nhiều bước chứ không đổi hình dạng một interface."
+  - id: q02
+    type: predict_output
+    code: |
+      class Legacy:
+          def __init__(self):
+              self.log = []
+
+          def make_payment(self, cents):
+              self.log.append(cents)
+
+
+      class Adapter:
+          def __init__(self, legacy):
+              self.legacy = legacy
+
+          def pay(self, amount):
+              self.legacy.make_payment(amount * 100)
+
+
+      g = Legacy()
+      a = Adapter(g)
+      a.pay(25)
+      a.pay(7)
+      print(g.log)
+    expected_output: |
+      [2500, 700]
+    explain_md: "Mỗi `pay(amount)` đổi sang cent (`amount * 100`) rồi giao cho `make_payment`: 25 thành 2500, 7 thành 700."
+  - id: ex_adapter
+    type: code_exercise
+    md: |
+      Viết `total_cents(amounts)`: dùng Adapter, mỗi số trong `amounts` là số đồng cho một lần `pay(amount)`;
+      trả về tổng cent mà hệ thống cũ nhận được. Bản dưới đây quên đổi sang cent.
+    entry: total_cents
+    starter: |
+      def total_cents(amounts):
+          total = 0
+          for amount in amounts:
+              total += amount
+          return total
+    guidance_md: |
+      - `total_cents([25, 10])` phải là `3500`, code trả `35`.
+      - Hệ thống cũ chỉ hiểu cent, nên mỗi `amount` phải nhân 100.
+    hints:
+      - level: nudge
+        md: "Hệ thống cũ nhận cent, còn `amount` là đồng."
+      - level: approach
+        md: "Mỗi lần `pay(amount)` cộng `amount * 100` vào tổng."
+      - level: near_solution
+        md: "Đổi `total += amount` thành `total += amount * 100`."
+    tests:
+      - {args: [[25, 10]], expected: 3500}
+      - {args: [[]], expected: 0}
+      - {args: [[1]], expected: 100}
+      - {args: [[3, 0, 7]], expected: 1000}
+    solution: |
+      def total_cents(amounts):
+          total = 0
+          for amount in amounts:
+              total += amount * 100
+          return total
+  - id: s_facade
+    type: section
+    title_vi: "Facade và Proxy"
+    summary_vi: "Facade gom nhiều bước thành một lời gọi; Proxy đứng chắn trước object thật."
+    exercise_ref: ex_proxy
+  - id: t02
+    type: text
+    md: |
+      **Facade** là một class đơn giản che nhiều bước của hệ thống con (subsystem), như quầy lễ tân.
+      Home theater: thay vì gọi riêng loa, đèn, máy chiếu, bạn chỉ gọi `watch()`:
+
+      ```python
+      def watch(self):
+          self.lights.dim()
+          self.projector.on()
+          self.sound.on()
+      ```
+
+      **Proxy** đứng thay object thật và có **cùng interface**, để kiểm soát truy cập:
+
+      - **Virtual / lazy**: chỉ tạo object tốn kém ở lần gọi đầu (`if self.real is None: ...`).
+      - **Protection**: kiểm tra quyền trước khi giao việc (`if not user.admin: raise PermissionError`).
+      - **Caching**: nhớ kết quả để lần sau khỏi tính lại. (Còn có remote proxy đại diện object ở máy khác.)
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class RealImage:
+          def __init__(self, name):
+              print("loading", name)
+              self.name = name
+
+          def show(self):
+              return "show " + self.name
+
+
+      class ProxyImage:
+          def __init__(self, name):
+              self.name = name
+              self.real = None
+
+          def show(self):
+              if self.real is None:  # lazy: chỉ tải ở lần đầu
+                  self.real = RealImage(self.name)
+              return self.real.show()
+
+
+      p = ProxyImage("a.png")
+      print(p.show())
+      print(p.show())
+    expected_output: |
+      loading a.png
+      show a.png
+      show a.png
+  - id: q03
+    type: quiz_fill
+    prompt_md: "Mẫu gom nhiều bước của subsystem thành một lời gọi duy nhất như `watch()` tên là ___."
+    blanks: [{accept: ["Facade", "facade"]}]
+    explain_md: "Facade là quầy một cửa: một hàm đơn giản che nhiều bước bên trong."
+  - id: q04
+    type: predict_output
+    code: |
+      class Real:
+          def read(self):
+              return "secret"
+
+
+      class Guard:
+          def __init__(self, real, admin):
+              self.real = real
+              self.admin = admin
+
+          def read(self):
+              if not self.admin:
+                  return "denied"
+              return self.real.read()
+
+
+      print(Guard(Real(), False).read(), Guard(Real(), True).read())
+    expected_output: |
+      denied secret
+    explain_md: "`Guard` là protection proxy: cùng method `read()` với `Real` nhưng kiểm tra quyền trước. Không phải admin thì trả `denied`, là admin thì giao cho `Real`."
+  - id: ex_proxy
+    type: code_exercise
+    md: |
+      Viết `count_loads(names)`: một lazy proxy chỉ tải mỗi tên **một lần** (lần đầu thấy tên đó). Trả về
+      số lần phải tải khi gọi `show` lần lượt cho các tên trong `names`. Bản dưới đây tải mọi lần.
+    entry: count_loads
+    starter: |
+      def count_loads(names):
+          loads = 0
+          for name in names:
+              loads += 1
+          return loads
+    guidance_md: |
+      - `count_loads(["a", "b", "a"])` phải là `2`, code trả `3`.
+      - Nhớ những tên đã tải (một list hoặc dict) và chỉ tăng đếm khi tên chưa có.
+    hints:
+      - level: nudge
+        md: "Lần thứ hai gọi cùng một tên thì không tải lại."
+      - level: approach
+        md: "Giữ list `loaded`; nếu `name not in loaded` thì thêm vào và tăng `loads`."
+      - level: near_solution
+        md: "Bọc `loads += 1` trong `if name not in loaded:` và `loaded.append(name)`."
+    tests:
+      - {args: [["a", "b", "a"]], expected: 2}
+      - {args: [[]], expected: 0}
+      - {args: [["x", "x", "x"]], expected: 1}
+      - {args: [["a", "b", "c", "b", "a"]], expected: 3}
+    solution: |
+      def count_loads(names):
+          loaded = []
+          loads = 0
+          for name in names:
+              if name not in loaded:
+                  loaded.append(name)
+                  loads += 1
+          return loads
+  - id: s_diff
+    type: section
+    title_vi: "Phân biệt ba mẫu, Bridge và Flyweight"
+    summary_vi: "Adapter đổi interface, Facade làm gọn, Proxy giữ nguyên và kiểm soát."
+  - id: t03
+    type: text
+    md: |
+      | Mẫu | Interface | Mục đích |
+      |---|---|---|
+      | Adapter | **đổi** hình dạng interface | nối hai thứ không khớp |
+      | Facade | làm interface **gọn hơn** | che nhiều bước của subsystem |
+      | Proxy | **giữ nguyên** interface | kiểm soát truy cập (lazy, quyền, cache) |
+
+      Phần nâng cao, chỉ cần biết qua:
+
+      - **Bridge**: tách hai hướng đổi độc lập. Hình (tròn, vuông) x nơi vẽ (màn hình, PDF) bằng kế thừa cần
+        `2 x 2 = 4` class và mỗi thứ mới nhân thêm; với Bridge, Hình giữ một đối tượng nơi vẽ nên thêm hình hay
+        nơi vẽ chỉ thêm 1 class.
+      - **Flyweight**: nhiều object dùng chung phần dữ liệu lặp (intrinsic state) để tiết kiệm bộ nhớ, ví dụ
+        1 triệu ký tự trỏ tới vài object font; phần riêng (extrinsic state) như vị trí truyền vào từ ngoài.
+      - Cả hai thường là **thừa** nếu chỉ có một hướng đổi hoặc ít object; đừng dùng khi chưa cần.
+  - id: q05
+    type: quiz_mcq
+    prompt_md: "Mẫu nào **giữ nguyên interface** của object thật nhưng kiểm soát việc truy cập nó?"
+    options:
+      - {id: a, text_md: "Proxy"}
+      - {id: b, text_md: "Adapter"}
+      - {id: c, text_md: "Facade"}
+    answer: [a]
+    explain_md: "Proxy có cùng interface với object thật (lazy, quyền, cache). Adapter đổi interface, Facade làm interface gọn hơn."
+  - id: q06
+    type: quiz_mcq
+    prompt_md: "Có 2 hình x 2 nơi vẽ, dùng kế thừa cần 4 class. Mẫu nào giúp thêm hình hoặc nơi vẽ mới chỉ tốn 1 class?"
+    options:
+      - {id: a, text_md: "Bridge: Hình giữ một đối tượng nơi vẽ"}
+      - {id: b, text_md: "Flyweight: chia sẻ dữ liệu lặp"}
+      - {id: c, text_md: "Facade: một lời gọi cho subsystem"}
+    answer: [a]
+    explain_md: "Bridge tách hai hướng đổi độc lập (hình và nơi vẽ) nên số class cộng chứ không nhân."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Adapter đổi interface: `pay(amount)` gọi `make_payment(amount * 100)`; còn giúp cô lập thư viện bên thứ ba."
+      - "Facade gom nhiều bước của subsystem thành một lời gọi (`watch()`)."
+      - "Proxy giữ nguyên interface nhưng kiểm soát truy cập: lazy (`if self.real is None`), protection (kiểm tra quyền), caching."
+      - "Biết qua: Bridge tách hai hướng đổi độc lập; Flyweight chia sẻ intrinsic state; cả hai thường thừa khi quy mô nhỏ."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X576], l2: [X577], l3: [X578]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

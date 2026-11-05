@@ -1,0 +1,96 @@
+subtopic_id: lld.patterns.structural_decorator_composite
+items:
+  - id: X579
+    difficulty: 1
+    type: read_code
+    minutes: 3
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Giải thích 1 câu về cách các lớp Decorator xếp chồng.
+    code: |-
+      class Pizza:
+          def price(self):
+              return 100
+
+          def label(self):
+              return "pizza"
+
+
+      class Topping:
+          extra = 0
+          name = ""
+
+          def __init__(self, inner):
+              self.inner = inner
+
+          def price(self):
+              return self.inner.price() + self.extra
+
+          def label(self):
+              return self.inner.label() + "+" + self.name
+
+
+      class Cheese(Topping):
+          extra = 20
+          name = "cheese"
+
+
+      class Mushroom(Topping):
+          extra = 15
+          name = "mushroom"
+
+
+      p = Cheese(Mushroom(Pizza()))
+      print(p.price())
+      print(p.label())
+      print(Mushroom(Mushroom(Pizza())).price())
+    expected_output: |-
+      135
+      pizza+mushroom+cheese
+      130
+    answer_md: '`Cheese` bọc `Mushroom` bọc `Pizza`, mỗi lớp gọi vào lớp trong rồi cộng phần của mình: 100 + 15 + 20 = 135. `label()` đi cùng cách đó nên ghép tên từ trong ra ngoài: `pizza+mushroom+cheese`. Bọc `Mushroom` hai lần cho 100 + 15 + 15 = 130.'
+    rubric_md: "Output khớp từng dòng VÀ nêu đúng mỗi decorator gọi object bên trong rồi cộng thêm phần của mình. Đúng: bằng chứng điểm 1; sai: tối đa điểm 0."
+  - id: X580
+    difficulty: 2
+    type: write_code
+    minutes: 8
+    prompt_md: |
+      Viết hàm `total_size(node)` theo mẫu Composite. Một node là file `["file", name, size]` (`size` là int) hoặc folder `["folder", name, children]` (`children` là list các node). Trả về tổng size của mọi file dưới node đó (int). File trả size của nó, folder cộng size các con, folder rỗng trả 0. Ví dụ `["folder", "root", [["file", "a", 10], ["folder", "sub", [["file", "b", 5]]]]]` cho `15`.
+    problem_id: check-x580-folder-size
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 8 phút: bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X581
+    difficulty: 3
+    type: read_code
+    minutes: 5
+    prompt_md: Chạy tay (không chạy máy), đoạn code Composite dưới in ra gì? Ghi đúng từng dòng và giải thích vì sao `Menu.count()` không cần kiểm tra loại của con.
+    code: |-
+      class Item:
+          def __init__(self, name):
+              self.name = name
+
+          def count(self):
+              return 1
+
+
+      class Menu:
+          def __init__(self, name, children):
+              self.name = name
+              self.children = children
+
+          def count(self):
+              total = 0
+              for child in self.children:
+                  total += child.count()
+              return total
+
+
+      drinks = Menu("drinks", [Item("tea"), Item("coffee")])
+      food = Menu("food", [Item("pho"), Menu("sides", [Item("egg"), Item("herb"), Menu("sauce", [])])])
+      root = Menu("root", [drinks, food, Item("water")])
+      print(drinks.count())
+      print(food.count())
+      print(root.count())
+    expected_output: |-
+      2
+      3
+      6
+    answer_md: '`Item` và `Menu` cùng có `count()`, nên `Menu.count()` chỉ cộng `child.count()` mà không cần `if`. drinks = 2 món; food = pho (1) + sides (egg, herb, sauce rỗng = 2 + 0) = 3; root = 2 + 3 + water (1) = 6.'
+    rubric_md: "Output khớp từng dòng VÀ giải thích lá/nhánh cùng interface nên đệ quy không cần kiểm tra loại. Đúng: bằng chứng điểm 3; sai: tối đa điểm 2."

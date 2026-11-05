@@ -138,6 +138,10 @@ EXTRA_IDS = {
     "lld.oop_principles.pillars",
     "lld.oop_principles.solid",
     "lld.oop_principles.composition_vs_inheritance",
+    # Wave 3 Round 22: LLD design patterns (creational + structural).
+    "lld.patterns.creational_singleton_factory",
+    "lld.patterns.structural_adapter_facade_proxy",
+    "lld.patterns.structural_decorator_composite",
 }
 
 # Expected shipped counts, asserted so an upstream tree edit can't silently change the snapshot.
@@ -145,7 +149,7 @@ PLAN_MVP_COUNT = 40
 EXPECTED_SD = 86
 EXPECTED_ML4 = 39
 EXPECTED_EXTRA_IDS = len(EXTRA_IDS)  # Wave 2 additions
-EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 253
+EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 256
 
 # Node fields the app uses (SPEC 4.2); optional ones are skipped when a node lacks them.
 NODE_FIELDS = [

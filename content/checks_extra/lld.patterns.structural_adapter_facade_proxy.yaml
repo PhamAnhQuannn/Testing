@@ -1,0 +1,89 @@
+subtopic_id: lld.patterns.structural_adapter_facade_proxy
+items:
+  - id: X576
+    difficulty: 1
+    type: read_code
+    minutes: 3
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Giải thích 1 câu về vai trò của Facade.
+    code: |-
+      class Lights:
+          def dim(self):
+              print("lights dim")
+
+
+      class Projector:
+          def on(self):
+              print("projector on")
+
+
+      class Sound:
+          def on(self):
+              print("sound on")
+
+
+      class HomeTheater:
+          def __init__(self):
+              self.lights = Lights()
+              self.projector = Projector()
+              self.sound = Sound()
+
+          def watch(self):
+              self.lights.dim()
+              self.projector.on()
+              self.sound.on()
+
+
+      HomeTheater().watch()
+      print("enjoy")
+    expected_output: |-
+      lights dim
+      projector on
+      sound on
+      enjoy
+    answer_md: '`HomeTheater` là Facade: một lời gọi `watch()` gom ba bước của hệ thống con theo đúng thứ tự (đèn, máy chiếu, loa), rồi dòng `print("enjoy")` bên ngoài in sau cùng.'
+    rubric_md: "Output khớp từng dòng VÀ nêu đúng Facade gom nhiều bước của subsystem thành một lời gọi. Đúng: bằng chứng điểm 1; sai: tối đa điểm 0."
+  - id: X577
+    difficulty: 2
+    type: write_code
+    minutes: 8
+    prompt_md: |
+      Viết `class PaymentAdapter` bọc một hệ thống thanh toán cũ chỉ hiểu **cent**. Constructor `PaymentAdapter()` không tham số, tổng ban đầu là 0 cent. `pay(amount)` nhận số đơn vị tiền nguyên (int), đổi sang cent (`amount * 100`) rồi cộng vào tổng, không trả gì. `total_cents()` trả tổng cent (int). `refund(amount)` trừ `amount * 100` cent nhưng tổng không bao giờ nhỏ hơn 0, không trả gì. Ví dụ `pay(25)`, `pay(10)` rồi `total_cents()` là 3500. Chỉ dùng số nguyên.
+    problem_id: check-x577-payment-adapter
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 8 phút: bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X578
+    difficulty: 3
+    type: read_code
+    minutes: 5
+    prompt_md: Chạy tay (không chạy máy), đoạn code Proxy dưới in ra gì? Ghi đúng từng dòng và giải thích vì sao "loading" chỉ xuất hiện một lần.
+    code: |-
+      class RealImage:
+          def __init__(self, name):
+              print("loading", name)
+              self.name = name
+
+          def show(self):
+              return "show " + self.name
+
+
+      class ProxyImage:
+          def __init__(self, name):
+              self.name = name
+              self.real = None
+
+          def show(self):
+              if self.real is None:
+                  self.real = RealImage(self.name)
+              return self.real.show()
+
+
+      p = ProxyImage("a.png")
+      print("created")
+      print(p.show())
+      print(p.show())
+    expected_output: |-
+      created
+      loading a.png
+      show a.png
+      show a.png
+    answer_md: 'Tạo `ProxyImage` chưa đọc ảnh (`real` là `None`) nên chỉ in `created`. Lần `show()` đầu `real is None` nên tạo `RealImage` (in `loading a.png`) rồi trả `show a.png`. Lần hai `real` đã có nên bỏ qua việc tải và chỉ trả `show a.png`. Đây là lazy-loading (virtual) proxy.'
+    rubric_md: "Output khớp từng dòng VÀ giải thích proxy chỉ tải object thật ở lần gọi đầu rồi giữ lại. Đúng: bằng chứng điểm 3; sai: tối đa điểm 2."

@@ -1,0 +1,67 @@
+id: check-x577-payment-adapter
+subtopic_id: lld.patterns.structural_adapter_facade_proxy
+secondary_subtopics: []
+kind: check
+title: 'Check X577: Payment Adapter'
+title_vi: 'Kiểm tra X577: Adapter thanh toán'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Adapter pattern: a legacy gateway only understands payments in CENTS, but new code wants to call
+  `pay(amount)` with whole currency units. Wrap the legacy gateway so the new interface works.
+  Money is an `int` (no floats).
+
+  Implement `class PaymentAdapter` (constructor takes no arguments, legacy total starts at 0 cents) with:
+
+  - `pay(amount)`: `amount` is a whole number of currency units; converts it to cents (`amount * 100`)
+    and adds it to the legacy total. Returns nothing.
+  - `total_cents()`: returns the accumulated total in cents (an int).
+  - `refund(amount)`: subtracts `amount * 100` cents from the total, but the total never goes below 0.
+    Returns nothing.
+statement_vi_md: |
+  Mẫu Adapter: hệ thống cũ chỉ hiểu thanh toán bằng CENT, còn code mới muốn gọi `pay(amount)` với số
+  đơn vị tiền nguyên. Bọc hệ thống cũ lại để interface mới dùng được. Tiền là `int` (không dùng float).
+
+  Viết `class PaymentAdapter` (constructor không tham số, tổng của hệ thống cũ ban đầu 0 cent) với:
+
+  - `pay(amount)`: `amount` là số đơn vị tiền nguyên; đổi sang cent (`amount * 100`) rồi cộng vào tổng
+    của hệ thống cũ. Không trả gì.
+  - `total_cents()`: trả tổng đã cộng dồn tính bằng cent (int).
+  - `refund(amount)`: trừ `amount * 100` cent khỏi tổng, nhưng tổng không bao giờ nhỏ hơn 0. Không trả gì.
+constraints:
+- 'amount là số nguyên không âm.'
+- 'Không dùng float, thread, time hay random.'
+examples:
+- input: ops = ['PaymentAdapter', 'pay', 'pay', 'total_cents'], args = [[], [25], [10], []]
+  output: '[null, null, null, 3500]'
+  explain_vi: 'pay(25) thành 2500 cent, pay(10) thành 1000 cent; tổng 3500.'
+io:
+  mode: class_ops
+  compare: exact
+starter:
+  python: "class PaymentAdapter:\n    # TODO\n    pass\n"
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+time_target_min: 8
+hints:
+- 'Giữ tổng cent trong một biến int (hoặc một object gateway cũ) bắt đầu từ 0.'
+- '`pay(amount)` cộng `amount * 100`; `total_cents()` chỉ trả tổng ra.'
+- '`refund(amount)` trừ `amount * 100` nhưng dùng `max(0, ...)` để không âm.'
+solution:
+  file: solution.py
+  approach_vi: Adapter bọc gateway cũ (đơn vị cent), đổi amount * 100 rồi giao việc. Mọi thao tác O(1).
+  complexity: O(1) mỗi thao tác
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x577
+status: validated
+version: 1
