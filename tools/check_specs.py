@@ -553,6 +553,239 @@ def queue_tests() -> tuple[list[dict], list[dict]]:
     return calls, extras
 
 
+def hashmap_tests() -> tuple[list[dict], list[dict]]:
+    calls = [
+        sequence(
+            "MyHashMap",
+            step("put", 1, 1),
+            step("put", 98, 2),
+            step("put", 1, 3),
+            step("get", 1),
+            step("get", 98),
+            step("get", 2),
+            step("remove", 1),
+            step("get", 1),
+            step("get", 98),
+        )
+    ]
+    extras = [
+        sequence("MyHashMap", step("get", 5)),
+        sequence(
+            "MyHashMap", step("put", 0, 10), step("get", 0), step("remove", 0), step("get", 0)
+        ),
+        # 2 and 99 collide (both 2 mod 97): chaining must still separate them.
+        sequence(
+            "MyHashMap", step("put", 2, 1), step("put", 99, 2), step("get", 2), step("get", 99)
+        ),
+        sequence("MyHashMap", step("remove", 7), step("get", 7)),
+        sequence(
+            "MyHashMap",
+            step("put", 1, 1),
+            step("put", 2, 2),
+            step("put", 3, 3),
+            step("put", 2, 22),
+            step("get", 2),
+            step("get", 1),
+        ),
+        sequence(
+            "MyHashMap",
+            step("put", 100, 5),
+            step("get", 100),
+            step("remove", 100),
+            step("get", 100),
+        ),
+    ]
+    return calls, extras
+
+
+def timemap_tests() -> tuple[list[dict], list[dict]]:
+    calls = [
+        sequence(
+            "TimeMap",
+            step("set", "foo", "bar", 1),
+            step("set", "foo", "bar2", 4),
+            step("get", "foo", 1),
+            step("get", "foo", 3),
+            step("get", "foo", 4),
+            step("get", "foo", 0),
+            step("get", "x", 5),
+        )
+    ]
+    extras = [
+        sequence("TimeMap", step("get", "missing", 10)),
+        sequence(
+            "TimeMap",
+            step("set", "k", "v", 5),
+            step("get", "k", 5),
+            step("get", "k", 4),
+            step("get", "k", 6),
+        ),
+        sequence(
+            "TimeMap",
+            step("set", "a", "1", 1),
+            step("set", "a", "2", 2),
+            step("set", "a", "3", 3),
+            step("get", "a", 2),
+            step("get", "a", 1),
+        ),
+        sequence("TimeMap", step("set", "x", "first", 10), step("get", "x", 10)),
+        sequence(
+            "TimeMap", step("set", "p", "q", 100), step("get", "p", 50), step("get", "p", 150)
+        ),
+        sequence(
+            "TimeMap",
+            step("set", "m", "1", 1),
+            step("set", "n", "2", 2),
+            step("get", "m", 5),
+            step("get", "n", 5),
+        ),
+    ]
+    return calls, extras
+
+
+def minstack_tests() -> tuple[list[dict], list[dict]]:
+    calls = [
+        sequence(
+            "MinStack",
+            step("push", -2),
+            step("push", 0),
+            step("push", -3),
+            step("get_min"),
+            step("pop"),
+            step("top"),
+            step("get_min"),
+        )
+    ]
+    extras = [
+        sequence("MinStack", step("push", 1), step("top"), step("get_min")),
+        sequence(
+            "MinStack",
+            step("push", 5),
+            step("push", 5),
+            step("push", 5),
+            step("get_min"),
+            step("pop"),
+            step("get_min"),
+        ),
+        sequence(
+            "MinStack",
+            step("push", 3),
+            step("push", 2),
+            step("push", 1),
+            step("get_min"),
+            step("pop"),
+            step("pop"),
+            step("get_min"),
+        ),
+        sequence("MinStack", step("push", 1), step("push", 2), step("push", 3), step("get_min")),
+        sequence(
+            "MinStack",
+            step("push", -1),
+            step("push", -2),
+            step("pop"),
+            step("top"),
+            step("get_min"),
+        ),
+        sequence(
+            "MinStack",
+            step("push", 0),
+            step("push", -1),
+            step("push", 0),
+            step("get_min"),
+            step("pop"),
+            step("get_min"),
+        ),
+    ]
+    return calls, extras
+
+
+def underground_tests() -> tuple[list[dict], list[dict]]:
+    calls = [
+        sequence(
+            "Underground",
+            step("check_in", 45, "A", 3),
+            step("check_in", 32, "A", 8),
+            step("check_out", 45, "B", 15),
+            step("check_out", 32, "B", 22),
+            step("average", "A", "B"),
+            step("check_in", 10, "A", 24),
+            step("check_out", 10, "B", 38),
+            step("average", "A", "B"),
+        )
+    ]
+    extras = [
+        sequence(
+            "Underground",
+            step("check_in", 1, "X", 0),
+            step("check_out", 1, "Y", 10),
+            step("average", "X", "Y"),
+        ),
+        sequence(
+            "Underground",
+            step("check_in", 1, "A", 0),
+            step("check_out", 1, "B", 4),
+            step("check_in", 2, "A", 10),
+            step("check_out", 2, "B", 20),
+            step("average", "A", "B"),
+        ),
+        sequence(
+            "Underground",
+            step("check_in", 5, "P", 5),
+            step("check_out", 5, "Q", 9),
+            step("average", "P", "Q"),
+        ),
+        sequence(
+            "Underground",
+            step("check_in", 1, "A", 0),
+            step("check_in", 2, "C", 0),
+            step("check_out", 1, "B", 5),
+            step("check_out", 2, "D", 10),
+            step("average", "A", "B"),
+            step("average", "C", "D"),
+        ),
+        sequence(
+            "Underground",
+            step("check_in", 7, "M", 2),
+            step("check_out", 7, "N", 8),
+            step("check_in", 7, "M", 10),
+            step("check_out", 7, "N", 14),
+            step("average", "M", "N"),
+        ),
+    ]
+    return calls, extras
+
+
+def ttlcache_tests() -> tuple[list[dict], list[dict]]:
+    """TTLCache's constructor takes the ttl, so the first args entry is [ttl] (not [])."""
+
+    def seq(ttl: int, *steps: tuple[str, list]) -> dict:
+        return {
+            "ops": ["TTLCache", *(op for op, _ in steps)],
+            "args": [[ttl], *(a for _, a in steps)],
+        }
+
+    calls = [
+        seq(
+            5, step("put", "a", 1, 0), step("get", "a", 4), step("get", "a", 5), step("get", "a", 6)
+        )
+    ]
+    extras = [
+        seq(5, step("get", "x", 0)),
+        seq(3, step("put", "k", 9, 0), step("get", "k", 2), step("get", "k", 3)),
+        seq(10, step("put", "a", 1, 0), step("put", "a", 2, 5), step("get", "a", 9)),
+        seq(1, step("put", "p", 7, 100), step("get", "p", 100), step("get", "p", 101)),
+        seq(100, step("put", "m", 1, 0), step("get", "m", 50)),
+        seq(
+            5,
+            step("put", "a", 1, 0),
+            step("put", "b", 2, 1),
+            step("get", "a", 4),
+            step("get", "b", 4),
+        ),
+    ]
+    return calls, extras
+
+
 # Items whose driver cannot be replayed from JSON. Keys:
 #   mode     function (default) | class_ops
 #   target   function name (function) or class name (class_ops)
@@ -870,5 +1103,37 @@ SPECIAL: dict[str, dict] = {
         "target": "MyQueue",
         "keep": ["MyQueue"],
         "tests": queue_tests(),
+    },
+    # Wave 2 Round 14: design_ds. All five are classes whose driver is a method sequence, so they
+    # run as class_ops with the upstream reference class kept as the solution.
+    "Q128": {
+        "mode": "class_ops",
+        "target": "MyHashMap",
+        "keep": ["MyHashMap"],
+        "tests": hashmap_tests(),
+    },
+    "Q129": {
+        "mode": "class_ops",
+        "target": "TimeMap",
+        "keep": ["TimeMap"],
+        "tests": timemap_tests(),
+    },
+    "Q130": {
+        "mode": "class_ops",
+        "target": "MinStack",
+        "keep": ["MinStack"],
+        "tests": minstack_tests(),
+    },
+    "Q131": {
+        "mode": "class_ops",
+        "target": "Underground",
+        "keep": ["Underground"],
+        "tests": underground_tests(),
+    },
+    "W209": {
+        "mode": "class_ops",
+        "target": "TTLCache",
+        "keep": ["TTLCache"],
+        "tests": ttlcache_tests(),
     },
 }

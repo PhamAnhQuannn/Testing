@@ -1,0 +1,227 @@
+id: dsa.design_ds.design_misc
+version: 1
+status: published
+title_vi: "Bài thiết kế khác: rate limiter, browser history"
+est_minutes: 14
+objectives_vi:
+  - "Áp dụng quy trình API-first: liệt kê thao tác, chọn cấu trúc dữ liệu cho từng thao tác rồi mới code."
+  - "Cài rate limiter theo cửa sổ thời gian bằng dict message -> lần in gần nhất (LC 359)."
+  - "Cài browser history bằng danh sách + con trỏ, với visit cắt bỏ lịch sử tiến (LC 1472)."
+  - "Chọn thiết kế xác định (deterministic) và nêu độ phức tạp từng API."
+blocks:
+  - id: s_limiter
+    type: section
+    title_vi: "API-first và rate limiter"
+    summary_vi: "Chọn cấu trúc theo thao tác: tra theo khoá trong O(1) thì dùng dict, ghi lại thời điểm gần nhất."
+    exercise_ref: ex_limiter
+  - id: t01
+    type: text
+    md: |
+      Bài **design** hỏi bạn lắp ghép cấu trúc dữ liệu. Quy trình gọn:
+
+      1. Viết ra các hàm (API) đề yêu cầu và ràng buộc thời gian.
+      2. Với mỗi hàm, chọn cấu trúc làm nó nhanh nhất (dict, list + con trỏ, heap, deque...).
+      3. Nói độ phức tạp trước rồi mới code.
+
+      **Rate limiter / Logger (LC 359)**: `should_print_message(timestamp, message)` chỉ cho in nếu cùng
+      message chưa được in trong 10 giây gần nhất. Cần tra "lần in gần nhất của message" trong O(1), nên
+      dùng `dict[message] -> last_printed`. Điều kiện in được: chưa có khoá, hoặc
+      `timestamp >= last + 10`. Chỉ cập nhật dict khi thực sự in; nếu cập nhật cả lần bị chặn thì cửa sổ
+      bị đẩy lùi sai. Mỗi lần gọi O(1). Thiết kế này không dùng random nên kết quả hoàn toàn xác định.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      last = {}
+
+      def should_print(ts, msg):
+          if msg in last and ts < last[msg] + 10:
+              return False
+          last[msg] = ts
+          return True
+
+      for ts, m in [(1, "a"), (2, "b"), (3, "a"), (11, "a"), (12, "a")]:
+          print(ts, m, should_print(ts, m))
+    expected_output: |
+      1 a True
+      2 b True
+      3 a False
+      11 a True
+      12 a False
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Rate limiter in message tối đa một lần mỗi 10 giây. Message `\"a\"` được in lúc `t = 5`. Lúc `t = 15` gọi lại thì sao?"
+    options:
+      - {id: a, text_md: "Được in, vì `15 >= 5 + 10`"}
+      - {id: b, text_md: "Bị chặn, vì chưa quá 10 giây"}
+      - {id: c, text_md: "Bị chặn, vì `\"a\"` đã từng in"}
+    answer: [a]
+    explain_md: "Điều kiện chặn là `timestamp < last + 10`. Với `15 < 15` sai nên được in; ranh giới đúng 10 giây là được phép."
+  - id: ex_limiter
+    type: code_exercise
+    md: |
+      Viết `rate_limit(events)`: `events` là danh sách `[timestamp, message]` có timestamp không giảm. Trả danh
+      sách bool cùng độ dài: `True` nếu lần này được in (message chưa in trong 10 giây gần nhất), `False`
+      nếu bị chặn. Ví dụ `[[1, "a"], [2, "a"], [11, "a"]]` cho `[True, False, True]`. Bản dưới đây ghi
+      lại thời điểm cả khi bị chặn. Hãy sửa.
+    entry: rate_limit
+    starter: |
+      def rate_limit(events):
+          last = {}
+          out = []
+          for ts, msg in events:
+              ok = msg not in last or ts >= last[msg] + 10
+              last[msg] = ts
+              out.append(ok)
+          return out
+    guidance_md: |
+      - Thử `[[1, "a"], [2, "a"], [11, "a"]]`: đáp án `[True, False, True]`, code trả `[True, False, False]`.
+      - Chỉ ghi `last[msg]` khi lần này được in.
+    hints:
+      - level: nudge
+        md: "Lần gọi lúc `t = 2` bị chặn. Có nên coi nó là lần in gần nhất không?"
+      - level: approach
+        md: "Thời điểm trong dict phải là lần in thật sự gần nhất. Đưa phép gán vào nhánh được in."
+      - level: near_solution
+        md: "Đặt `last[msg] = ts` bên trong `if ok:`. Lần bị chặn thì chỉ thêm `False` vào kết quả mà không đổi dict."
+    tests:
+      - {args: [[]], expected: []}
+      - {args: [[[1, "a"], [2, "a"], [11, "a"]]], expected: [true, false, true]}
+      - {args: [[[0, "x"], [0, "y"], [9, "x"], [10, "x"]]], expected: [true, true, false, true]}
+      - {args: [[[1, "a"], [5, "a"], [9, "a"], [10, "a"], [11, "a"]]], expected: [true, false, false, false, true]}
+    solution: |
+      def rate_limit(events):
+          last = {}
+          out = []
+          for ts, msg in events:
+              ok = msg not in last or ts >= last[msg] + 10
+              if ok:
+                  last[msg] = ts
+              out.append(ok)
+          return out
+  - id: s_history
+    type: section
+    title_vi: "Browser history: list + con trỏ"
+    summary_vi: "back/forward chỉ dịch con trỏ; visit cắt đuôi lịch sử tiến rồi thêm trang mới."
+    exercise_ref: ex_history
+  - id: t02
+    type: text
+    md: |
+      **Browser History (LC 1472)** có `visit(url)`, `back(steps)`, `forward(steps)`. Chọn **list `pages`
+      + chỉ số `i`** là trang hiện tại:
+
+      - `back(k)`: `i = max(0, i - k)`; `forward(k)`: `i = min(len(pages) - 1, i + k)`; cả hai O(1).
+      - `visit(url)`: xoá mọi trang sau `i` (lịch sử tiến), thêm `url`, `i += 1`. Mỗi trang bị xoá tối đa một
+        lần nên khấu hao O(1).
+
+      Lỗi hay gặp: quên cắt lịch sử tiến khi `visit` sau `back`. Hai stack (back/forward) cũng được,
+      nhưng list + con trỏ ngắn hơn và kẹp biên dễ hơn.
+  - id: q02
+    type: predict_output
+    code: |
+      pages = ["a"]
+      i = 0
+
+      def visit(u):
+          global pages, i
+          pages = pages[:i + 1] + [u]
+          i += 1
+
+      def back(k):
+          global i
+          i = max(0, i - k)
+          return pages[i]
+
+      def forward(k):
+          global i
+          i = min(len(pages) - 1, i + k)
+          return pages[i]
+
+      visit("b")
+      visit("c")
+      print(back(1))
+      visit("d")
+      print(forward(5))
+      print(back(9))
+      print(pages)
+    expected_output: |
+      b
+      d
+      a
+      ['a', 'b', 'd']
+    explain_md: "Sau hai visit: a, b, c; back(1) về b. visit(d) cắt c nên lịch sử là a, b, d. forward(5) kẹp ở d; back(9) kẹp ở a."
+  - id: q03
+    type: quiz_fill
+    prompt_md: "Trong browser history list + con trỏ, `visit(url)` phải xoá mọi trang đứng ___ trang hiện tại (lịch sử tiến) trước khi thêm `url`."
+    blanks: [{accept: ["sau", "phía sau", "sau đó"]}]
+    explain_md: "Mở trang mới từ trang hiện tại làm các trang tiến cũ không còn hợp lệ, nên cắt phần đứng sau con trỏ."
+  - id: ex_history
+    type: code_exercise
+    md: |
+      Viết `history_sim(homepage, ops)`: `ops` là danh sách `[tên, đối_số]` với tên là `"visit"` (đối số url),
+      `"back"` hoặc `"forward"` (đối số steps). Trả danh sách URL hiện tại sau mỗi thao tác. Ví dụ
+      `history_sim("a", [["visit", "b"], ["back", 1], ["visit", "c"], ["forward", 1]])` cho
+      `["b", "a", "c", "c"]`. Bản dưới đây không cắt lịch sử tiến khi `visit`. Hãy sửa.
+    entry: history_sim
+    starter: |
+      def history_sim(homepage, ops):
+          pages = [homepage]
+          i = 0
+          out = []
+          for name, arg in ops:
+              if name == "visit":
+                  pages.insert(i + 1, arg)
+                  i += 1
+              elif name == "back":
+                  i = max(0, i - arg)
+              else:
+                  i = min(len(pages) - 1, i + arg)
+              out.append(pages[i])
+          return out
+    guidance_md: |
+      - Với ví dụ trên, sau `visit c` lịch sử phải là `a, c` nên `forward(1)` vẫn ở `c`; code cũ còn `b` ở phía sau.
+      - Cắt `pages` về độ dài `i + 1` trước khi thêm trang mới.
+    hints:
+      - level: nudge
+        md: "Sau `back` rồi `visit`, các trang cũ phía trước còn dùng được không?"
+      - level: approach
+        md: "Trong nhánh `visit`, bỏ toàn bộ phần tử sau chỉ số `i` rồi mới thêm url mới và tăng `i`."
+      - level: near_solution
+        md: "Thay `insert` bằng việc gán `pages = pages[:i + 1]`, sau đó `append(arg)` và `i += 1`. Hai nhánh back/forward giữ nguyên."
+    tests:
+      - {args: ["a", []], expected: []}
+      - {args: ["a", [["visit", "b"], ["back", 1], ["visit", "c"], ["forward", 1]]], expected: ["b", "a", "c", "c"]}
+      - {args: ["h", [["back", 3], ["forward", 3]]], expected: ["h", "h"]}
+      - {args: ["a", [["visit", "b"], ["visit", "c"], ["back", 2], ["visit", "d"], ["forward", 2], ["back", 1]], ], expected: ["b", "c", "a", "d", "d", "a"]}
+    solution: |
+      def history_sim(homepage, ops):
+          pages = [homepage]
+          i = 0
+          out = []
+          for name, arg in ops:
+              if name == "visit":
+                  pages = pages[:i + 1]
+                  pages.append(arg)
+                  i += 1
+              elif name == "back":
+                  i = max(0, i - arg)
+              else:
+                  i = min(len(pages) - 1, i + arg)
+              out.append(pages[i])
+          return out
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Design: liệt kê API, chọn cấu trúc cho từng thao tác, nêu độ phức tạp rồi mới code."
+      - "Rate limiter: dict message -> lần in gần nhất; in khi `timestamp >= last + 10`, chỉ cập nhật khi in; O(1)."
+      - "Browser history: list + con trỏ; back/forward kẹp biên, visit cắt lịch sử tiến."
+      - "Chọn thiết kế xác định, không phụ thuộc random, để kết quả kiểm thử lặp lại được."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X508], l2: [X509], l3: [X510]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

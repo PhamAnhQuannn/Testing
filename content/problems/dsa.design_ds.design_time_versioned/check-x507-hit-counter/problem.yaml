@@ -1,0 +1,56 @@
+id: check-x507-hit-counter
+subtopic_id: dsa.design_ds.design_time_versioned
+secondary_subtopics: []
+kind: check
+title: 'Check X507: HitCounter'
+title_vi: 'Kiểm tra X507: HitCounter'
+difficulty: easy
+source:
+  type: leetcode
+  lc: 362
+  rewrite_required: true
+statement_en_md: |
+  Implement `class HitCounter`. `hit(timestamp)` records one hit at `timestamp` (seconds). `get_hits(timestamp)`
+  returns the number of hits in the past 300 seconds, i.e. hits with time in the half-open window
+  `(timestamp - 300, timestamp]`. Calls arrive with non-decreasing timestamps, and several hits may share
+  the same timestamp.
+statement_vi_md: |
+  Viết `class HitCounter`. `hit(timestamp)` ghi một lượt truy cập tại `timestamp` (giây). `get_hits(timestamp)`
+  trả về số lượt truy cập trong 300 giây gần nhất, tức các hit có thời điểm thuộc nửa khoảng
+  `(timestamp - 300, timestamp]`. Các lời gọi có timestamp không giảm, và nhiều hit có thể cùng timestamp.
+constraints:
+- 1 <= timestamp <= 2 * 10^9
+- timestamp không giảm giữa các lời gọi
+- tối đa 300 lời gọi mỗi test
+examples:
+- input: ops = ['HitCounter', 'hit', 'hit', 'hit', 'get_hits', 'hit', 'get_hits', 'get_hits'], args = [[], [1], [2], [3], [4], [300], [300], [301]]
+  output: '[null, null, null, null, 3, null, 4, 3]'
+  explain_vi: 'Tại 300 cửa sổ là (0, 300] nên đếm cả 1, 2, 3, 300 được 4; tại 301 cửa sổ là (1, 301] nên mất hit ở thời điểm 1, còn 3.'
+io:
+  mode: class_ops
+  compare: exact
+starter:
+  python: "class HitCounter:\n    def __init__(self):\n        # TODO\n        pass\n\n    def hit(self, timestamp):\n        # TODO\n        pass\n\n    def get_hits(self, timestamp):\n        # TODO\n        pass\n"
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+time_target_min: 10
+hints:
+- "Cửa sổ là nửa khoảng (timestamp - 300, timestamp]: hit đúng tại timestamp - 300 đã hết hạn."
+- Lưu các timestamp trong list (hoặc deque). Vì timestamp không giảm nên list luôn được sắp xếp.
+- get_hits có thể popleft các timestamp <= timestamp - 300 rồi trả len, hoặc dùng bisect_right hai lần rồi trừ nhau.
+solution:
+  file: solution.py
+  approach_vi: List timestamp tăng dần; đếm bằng hai lần bisect_right (hoặc deque + popleft).
+  complexity: hit O(1), get_hits O(log n)
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x507
+status: validated
+version: 1

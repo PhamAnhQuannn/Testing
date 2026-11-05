@@ -1,0 +1,218 @@
+id: dsa.design_ds.design_time_versioned
+version: 1
+status: published
+title_vi: "Store theo thời gian và phiên bản (time-based và versioned)"
+est_minutes: 14
+objectives_vi:
+  - "Lưu lịch sử mỗi key dưới dạng danh sách (timestamp hoặc snap_id, value) tăng dần và hỏi \"giá trị tại thời điểm t\" bằng binary search."
+  - "Thiết kế SnapshotArray: snap() chỉ tăng bộ đếm, chỉ ghi lại các index đã thay đổi."
+  - "Đếm sự kiện trong cửa sổ 300 giây (Hit Counter) bằng deque hoặc bisect, chú ý biên nửa khoảng."
+blocks:
+  - id: s_floor
+    type: section
+    title_vi: "Lịch sử theo key và floor lookup"
+    summary_vi: "Mỗi key giữ danh sách (mốc, giá trị) tăng dần; bisect_right trừ 1 cho mốc gần nhất không vượt quá t."
+    exercise_ref: ex_floor
+  - id: t01
+    type: text
+    md: |
+      Nhiều bài design cần **đọc lại quá khứ**: "giá trị của key tại thời điểm `t`" (Time Based Key-Value
+      Store) hay "giá trị của phần tử tại snapshot `s`" (SnapshotArray, LC 1146). Cách chung là lưu cho mỗi
+      key một **danh sách (mốc, giá trị) tăng dần theo mốc**, rồi dùng binary search.
+
+      - Ghi: `append((mốc, giá trị))` vào cuối, O(1), vì mốc không giảm.
+      - Đọc **floor**: tìm mốc lớn nhất `<= t`. Với `h = [(mốc, giá trị), ...]`:
+        `i = bisect_right(h, (t, float("inf"))) - 1`. Nếu `i < 0` thì chưa có dữ liệu tại `t`.
+      - **SnapshotArray**: không copy cả mảng khi `snap()`. Chỉ tăng bộ đếm `snap_id`; mỗi index có lịch sử
+        `(snap_id, val)` bắt đầu bằng `(0, 0)`. `set` ghi đè mục cuối nếu cùng `snap_id` hiện tại, ngược lại
+        append. Lúc đó `set` và `snap` đều O(1), `get` O(log S).
+
+      Mọi thứ chỉ dùng list và bộ đếm nên kết quả hoàn toàn xác định (deterministic).
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      from bisect import bisect_right
+
+      hist = {"x": [(0, 10)]}
+      snap = 0
+
+      def set_(k, v):
+          h = hist[k]
+          if h[-1][0] == snap:
+              h[-1] = (snap, v)
+          else:
+              h.append((snap, v))
+
+      def get(k, sid):
+          h = hist[k]
+          return h[bisect_right(h, (sid, float("inf"))) - 1][1]
+
+      set_("x", 20)
+      snap += 1
+      set_("x", 30)
+      snap += 1
+      print(get("x", 0), get("x", 1))
+      print(hist["x"])
+    expected_output: |
+      20 30
+      [(0, 20), (1, 30)]
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Trong SnapshotArray, vì sao `snap()` không nên copy cả mảng?"
+    options:
+      - {id: a, text_md: "Tốn O(n) thời gian và bộ nhớ mỗi lần `snap()`, trong khi chỉ vài index thật sự thay đổi"}
+      - {id: b, text_md: "Python không cho copy list"}
+      - {id: c, text_md: "Copy làm mất snap id"}
+    answer: [a]
+    explain_md: "Copy tốn O(n) mỗi snapshot. Lưu lịch sử theo từng index chỉ tốn bộ nhớ theo số lần `set`."
+  - id: q02
+    type: predict_output
+    code: |
+      from bisect import bisect_right
+
+      h = [(0, 1), (2, 5), (4, 9)]
+      print(bisect_right(h, (2, float("inf"))) - 1)
+      print(bisect_right(h, (3, float("inf"))) - 1)
+      print(h[bisect_right(h, (4, float("inf"))) - 1][1])
+    expected_output: |
+      1
+      1
+      9
+    explain_md: "Mốc lớn nhất `<= 2` là chỉ số 1; mốc lớn nhất `<= 3` cũng là chỉ số 1 (mốc 2); mốc `<= 4` là chỉ số 2 với giá trị 9."
+  - id: ex_floor
+    type: code_exercise
+    md: |
+      Viết `floor_value(history, t)`: `history` là danh sách `[timestamp, value]` tăng dần theo timestamp.
+      Trả về `value` của timestamp lớn nhất `<= t`, hoặc `None` nếu chưa có mốc nào. Ví dụ
+      `floor_value([[1, "a"], [4, "b"]], 4)` là `"b"`. Bản dưới đây bỏ sót mốc bằng đúng `t`. Hãy sửa.
+    entry: floor_value
+    starter: |
+      def floor_value(history, t):
+          best = None
+          for ts, val in history:
+              if ts < t:
+                  best = val
+          return best
+    guidance_md: |
+      - Thử `history = [[1, "a"], [4, "b"]]`, `t = 4`: đáp án `"b"`, code trả `"a"`.
+      - Mốc bằng đúng `t` vẫn hợp lệ.
+    hints:
+      - level: nudge
+        md: "Mốc có timestamp đúng bằng `t` có được tính là \"không vượt quá t\" không?"
+      - level: approach
+        md: "Điều kiện cần là `ts <= t`. Vì danh sách tăng dần, mốc hợp lệ cuối cùng gặp được chính là đáp án."
+      - level: near_solution
+        md: "Đổi điều kiện trong vòng lặp từ `ts < t` thành `ts <= t`. Phần còn lại giữ nguyên; có thể thoát sớm khi `ts > t`."
+    tests:
+      - {args: [[], 5], expected: null}
+      - {args: [[[1, "a"], [4, "b"]], 4], expected: "b"}
+      - {args: [[[1, "a"], [4, "b"]], 3], expected: "a"}
+      - {args: [[[1, "a"], [4, "b"]], 0], expected: null}
+      - {args: [[[2, 7], [5, 8], [9, 3]], 100], expected: 3}
+    solution: |
+      def floor_value(history, t):
+          best = None
+          for ts, val in history:
+              if ts <= t:
+                  best = val
+              else:
+                  break
+          return best
+  - id: s_window
+    type: section
+    title_vi: "Cửa sổ thời gian và Hit Counter"
+    summary_vi: "Giữ các timestamp trong deque hoặc list; hit hết hạn khi timestamp <= now - 300."
+    exercise_ref: ex_recent
+  - id: t02
+    type: text
+    md: |
+      **Hit Counter** (LC 362): `get_hits(t)` đếm hit trong 300 giây gần nhất, tức khoảng nửa mở
+      `(t - 300, t]`. Hit đúng tại `t - 300` **đã hết hạn**; đây là chỗ hay sai off-by-one.
+
+      Hai cách phổ biến, đều giả định timestamp không giảm:
+
+      - **deque**: `hit` thì `append(t)`; `get_hits` thì `popleft` mọi phần tử `<= t - 300` rồi trả `len`.
+        Mỗi phần tử vào và ra đúng một lần nên khấu hao O(1), đồng thời **dọn bộ nhớ cũ** (memory pruning).
+      - **list + bisect**: `bisect_right(a, t) - bisect_right(a, t - 300)`. O(log n) mỗi truy vấn nhưng
+        giữ toàn bộ lịch sử.
+
+      Khi nhiều hit cùng timestamp thì mỗi hit vẫn là một phần tử riêng. Nếu lưu lượng rất lớn có thể gom
+      theo bucket 300 ô, mỗi ô lưu (timestamp, count), để bộ nhớ cố định.
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      from collections import deque
+
+      q = deque()
+      for t in [1, 2, 3, 300, 301]:
+          q.append(t)
+          while q and q[0] <= t - 300:
+              q.popleft()
+          print(t, list(q))
+    expected_output: |
+      1 [1]
+      2 [1, 2]
+      3 [1, 2, 3]
+      300 [1, 2, 3, 300]
+      301 [2, 3, 300, 301]
+  - id: q03
+    type: quiz_fill
+    prompt_md: "Cửa sổ 300 giây của `get_hits(t)` là `(t - 300, t]`. Một hit tại timestamp 100 còn được tính khi gọi `get_hits(400)` hay không? Trả lời `có` hoặc `không`: ___."
+    blanks: [{accept: ["không", "khong", "no"]}]
+    explain_md: "Cửa sổ là `(100, 400]`, mở ở đầu trái nên timestamp 100 đã hết hạn."
+  - id: ex_recent
+    type: code_exercise
+    md: |
+      Viết `count_recent(timestamps, now)`: `timestamps` là danh sách tăng dần. Trả về số phần tử thuộc
+      `(now - 300, now]`. Ví dụ `count_recent([1, 2, 300], 300)` là `3` còn `count_recent([1, 2, 300], 301)` là `2`.
+      Bản dưới đây coi mốc `now - 300` vẫn còn hạn. Hãy sửa.
+    entry: count_recent
+    starter: |
+      def count_recent(timestamps, now):
+          count = 0
+          for t in timestamps:
+              if now - 300 <= t <= now:
+                  count += 1
+          return count
+    guidance_md: |
+      - Thử `timestamps = [1, 2, 300]`, `now = 301`: đáp án 2 (hit tại 1 đã hết hạn), code trả 3.
+      - Cửa sổ mở ở đầu trái.
+    hints:
+      - level: nudge
+        md: "Hit đúng tại `now - 300` có còn nằm trong 300 giây gần nhất không?"
+      - level: approach
+        md: "Cửa sổ là nửa khoảng `(now - 300, now]`, nên phải so sánh nghiêm ngặt ở đầu trái."
+      - level: near_solution
+        md: "Đổi `now - 300 <= t` thành `now - 300 < t`, giữ nguyên `t <= now`."
+    tests:
+      - {args: [[], 10], expected: 0}
+      - {args: [[1, 2, 300], 300], expected: 3}
+      - {args: [[1, 2, 300], 301], expected: 2}
+      - {args: [[5, 5, 5], 5], expected: 3}
+      - {args: [[10, 50, 120, 310], 320], expected: 3}
+    solution: |
+      def count_recent(timestamps, now):
+          count = 0
+          for t in timestamps:
+              if now - 300 < t <= now:
+                  count += 1
+          return count
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Store có lịch sử: mỗi key giữ list (mốc, giá trị) tăng dần; đọc floor bằng bisect_right trừ 1."
+      - "SnapshotArray: snap() chỉ tăng bộ đếm; chỉ index bị set mới có thêm mục lịch sử."
+      - "Hit Counter: cửa sổ (t - 300, t]; deque + popleft hoặc bisect hai lần."
+      - "Luôn kiểm tra biên: mốc bằng đúng t, hit đúng tại t - 300, nhiều hit cùng timestamp."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X505], l2: [X506], l3: [X507]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"
