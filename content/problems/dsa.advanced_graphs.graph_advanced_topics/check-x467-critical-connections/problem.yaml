@@ -1,0 +1,72 @@
+id: check-x467-critical-connections
+subtopic_id: dsa.advanced_graphs.graph_advanced_topics
+secondary_subtopics: []
+kind: check
+title: 'Check X467: critical_connections'
+title_vi: 'Kiểm tra X467: critical_connections'
+difficulty: easy
+source:
+  type: leetcode
+  lc: 1192
+  rewrite_required: true
+statement_en_md: |
+  An undirected graph has `n` nodes `0..n-1` and edges `connections`, each `[u, v]`. A critical
+  connection (bridge) is an edge whose removal increases the number of connected components. Return all
+  bridges as a sorted list: each edge written as `[min(u, v), max(u, v)]` and the outer list sorted
+  ascending. Use Tarjan's low-link algorithm with an explicit stack instead of recursion (inputs can be
+  long chains). The graph may be disconnected.
+statement_vi_md: |
+  Viết `critical_connections(n, connections)`: đồ thị vô hướng có `n` node `0..n-1`, `connections` là
+  các cạnh `[u, v]`. **Critical connection** (cầu / bridge) là cạnh mà nếu xóa đi thì số thành phần liên
+  thông tăng lên. Trả về mọi cầu, mỗi cạnh viết dạng `[min(u, v), max(u, v)]`, danh sách ngoài sắp xếp
+  tăng dần. Dùng thuật toán Tarjan (disc/low) với stack tường minh thay vì đệ quy vì đồ thị có thể là
+  chuỗi dài. Đồ thị có thể không liên thông.
+constraints:
+- 1 <= n <= 10^4
+- 0 <= u, v < n and u != v
+- No duplicate edges
+examples:
+- input: n = 4, connections = [[0, 1], [1, 2], [2, 0], [1, 3]]
+  output: '[[1, 3]]'
+  explain_vi: Tam giác 0-1-2 không có cầu vì xóa một cạnh vẫn đi vòng được. Cạnh 1-3 là đường duy nhất tới node 3 nên là cầu.
+- input: n = 3, connections = [[0, 1], [1, 2], [2, 0]]
+  output: '[]'
+  explain_vi: Một chu trình thì không có cầu.
+io:
+  mode: function
+  entry: critical_connections
+  params:
+  - name: n
+    type: int
+  - name: connections
+    type: list[list[int]]
+  returns: list[list[int]]
+  compare: exact
+starter:
+  python: |
+    def critical_connections(n, connections):
+        # TODO: Tarjan lặp với disc/low; cạnh (cha, con) là cầu khi low[con] > disc[cha]
+        return []
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+time_target_min: 10
+hints:
+- Cầu là cạnh không nằm trên chu trình nào. Gán disc[v] (thứ tự thăm) và low[v] (disc nhỏ nhất với tới được từ cây con của v qua tối đa một cạnh ngược).
+- Dùng stack tường minh lưu (node, cạnh cha, vị trí hàng xóm kế tiếp) thay vì đệ quy. Bỏ qua đúng cạnh cha theo chỉ số cạnh, không theo node.
+- Khi một node xong và pop khỏi stack, cập nhật low[cha] = min(low[cha], low[con]); nếu low[con] > disc[cha] thì cạnh (cha, con) là cầu. Cuối cùng chuẩn hóa mỗi cạnh thành [min, max] và sắp xếp.
+solution:
+  file: solution.py
+  approach_vi: Tarjan bridge-finding bằng DFS lặp với stack tường minh; cạnh cây (cha, con) là cầu khi low[con] > disc[cha]. Chuẩn hóa và sắp xếp kết quả.
+  complexity: O(V + E) / O(V + E)
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x467
+status: validated
+version: 1

@@ -80,6 +80,11 @@ EXTRA_IDS = {
     "dsa.graphs.bfs_shortest_path",
     "dsa.graphs.topological_sort",
     "dsa.graphs.union_find",
+    # Wave 2 Round 10: DSA breadth - finish the advanced_graphs module.
+    "dsa.advanced_graphs.dijkstra",
+    "dsa.advanced_graphs.bellman_ford_floyd",
+    "dsa.advanced_graphs.mst",
+    "dsa.advanced_graphs.graph_advanced_topics",
 }
 
 # Expected shipped counts, asserted so an upstream tree edit can't silently change the snapshot.
@@ -87,7 +92,7 @@ PLAN_MVP_COUNT = 40
 EXPECTED_SD = 86
 EXPECTED_ML4 = 39
 EXPECTED_EXTRA_IDS = len(EXTRA_IDS)  # Wave 2 additions
-EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 207
+EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 211
 
 # Node fields the app uses (SPEC 4.2); optional ones are skipped when a node lacks them.
 NODE_FIELDS = [

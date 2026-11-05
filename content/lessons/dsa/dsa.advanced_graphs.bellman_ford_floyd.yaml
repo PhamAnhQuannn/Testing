@@ -1,0 +1,223 @@
+id: dsa.advanced_graphs.bellman_ford_floyd
+version: 1
+status: published
+title_vi: "Bellman-Ford, Floyd-Warshall và đường đi trên DAG"
+est_minutes: 14
+objectives_vi:
+  - "Chọn đúng thuật toán đường ngắn nhất theo tính chất đồ thị: Dijkstra, Bellman-Ford, Floyd-Warshall hay DAG theo thứ tự topo."
+  - "Viết Bellman-Ford: nới lỏng (relax) mọi cạnh V-1 vòng, vòng thứ V còn cải thiện được nghĩa là có chu trình âm."
+  - "Giới hạn số cạnh bằng cách relax từ bản sao (snapshot) của dist, mỗi vòng thêm đúng một cạnh."
+  - "Viết Floyd-Warshall O(V^3) với đỉnh trung gian k ở vòng ngoài cùng để lấy khoảng cách mọi cặp."
+blocks:
+  - id: s_bf
+    type: section
+    title_vi: "Bellman-Ford và cạnh âm"
+    summary_vi: "Nới lỏng mọi cạnh V-1 vòng; vòng thứ V còn cải thiện thì có chu trình âm."
+    exercise_ref: ex_negcycle
+  - id: t01
+    type: text
+    md: |
+      **Dijkstra** cần mọi trọng số không âm. Khi có **cạnh âm** hoặc khi đề giới hạn số cạnh được đi,
+      dùng **Bellman-Ford**: giữ `dist[v]` (khởi tạo `dist[src] = 0`, còn lại `float("inf")`) rồi lặp
+      **relax** mọi cạnh `(u, v, w)`: nếu `dist[u] + w < dist[v]` thì cập nhật `dist[v]`.
+
+      - Sau vòng thứ `r`, `dist[v]` không tệ hơn đường ngắn nhất dùng **tối đa r cạnh**.
+      - Đường ngắn nhất đơn giản có tối đa `V - 1` cạnh, nên `V - 1` vòng là đủ. Độ phức tạp **O(V * E)**.
+      - Nếu vòng thứ `V` vẫn cải thiện được thì có **chu trình âm** tới được từ nguồn.
+      - Bài **K stops** (tối đa `k` điểm dừng = `k + 1` cạnh): chạy đúng `k + 1` vòng, mỗi vòng đọc từ
+        bản sao `tmp = dist[:]` rồi ghi vào `tmp`, để một vòng thêm đúng một cạnh.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      INF = float("inf")
+      edges = [(0, 1, 4), (0, 2, 5), (1, 2, -3), (2, 3, 2)]
+      dist = [0, INF, INF, INF]
+      for r in range(3):
+          changed = False
+          for u, v, w in edges:
+              if dist[u] + w < dist[v]:
+                  dist[v] = dist[u] + w
+                  changed = True
+          print(r, dist)
+          if not changed:
+              break
+      print(any(dist[u] + w < dist[v] for u, v, w in edges))
+    expected_output: |
+      0 [0, 4, 1, 3]
+      1 [0, 4, 1, 3]
+      False
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Đồ thị có `V = 5` đỉnh và có cạnh âm nhưng không có chu trình âm. Bellman-Ford cần tối đa bao nhiêu vòng relax để `dist` chính xác?"
+    options:
+      - {id: a, text_md: "`V - 1 = 4` vòng"}
+      - {id: b, text_md: "`V * V = 25` vòng"}
+      - {id: c, text_md: "1 vòng"}
+    answer: [a]
+    explain_md: "Đường ngắn nhất đơn giản có tối đa `V - 1` cạnh và mỗi vòng chốt thêm được ít nhất một cạnh của nó, nên `V - 1` vòng là đủ."
+  - id: ex_negcycle
+    type: code_exercise
+    md: |
+      Viết `has_negative_cycle(n, edges)`: đồ thị có hướng `n` đỉnh `0..n-1`, `edges` là các `[u, v, w]` (w có thể âm).
+      Trả `True` nếu có chu trình âm (ở bất kỳ đâu), ngược lại `False`. Mẹo: khởi tạo `dist = [0] * n` (coi mọi đỉnh
+      là nguồn), relax `n - 1` vòng, rồi thử relax thêm một vòng nữa: còn cải thiện được là có chu trình âm.
+      Bản dưới đây quên vòng kiểm tra cuối. Hãy sửa.
+    entry: has_negative_cycle
+    starter: |
+      def has_negative_cycle(n, edges):
+          dist = [0] * n
+          for _ in range(n - 1):
+              for u, v, w in edges:
+                  if dist[u] + w < dist[v]:
+                      dist[v] = dist[u] + w
+          return False
+    guidance_md: |
+      - Thử `n = 2`, `edges = [[0, 1, -1], [1, 0, -1]]`: đáp án `True`, nhưng code trả `False`.
+      - Sau `n - 1` vòng, nếu một cạnh vẫn relax được thì có chu trình âm.
+    hints:
+      - level: nudge
+        md: "Nếu không có chu trình âm thì sau n - 1 vòng, điều gì xảy ra khi relax thêm một vòng?"
+      - level: approach
+        md: "Thêm một lượt duyệt cạnh sau vòng lặp chính. Chỉ cần kiểm tra điều kiện relax, không cần cập nhật dist."
+      - level: near_solution
+        md: "Sau vòng for chính, duyệt lại toàn bộ `edges`; gặp cạnh nào còn có `dist[u] + w < dist[v]` thì trả `True`. Hết cạnh mà không gặp thì trả `False`."
+    tests:
+      - {args: [1, []], expected: false}
+      - {args: [2, [[0, 1, -1], [1, 0, -1]]], expected: true}
+      - {args: [3, [[0, 1, 4], [1, 2, -3], [0, 2, 5]]], expected: false}
+      - {args: [3, [[0, 1, 1], [1, 2, 1], [2, 0, -3]]], expected: true}
+      - {args: [3, [[0, 1, 1], [1, 2, 1], [2, 0, -2]]], expected: false}
+    solution: |
+      def has_negative_cycle(n, edges):
+          dist = [0] * n
+          for _ in range(n - 1):
+              for u, v, w in edges:
+                  if dist[u] + w < dist[v]:
+                      dist[v] = dist[u] + w
+          for u, v, w in edges:
+              if dist[u] + w < dist[v]:
+                  return True
+          return False
+  - id: s_floyd
+    type: section
+    title_vi: "Floyd-Warshall và chọn thuật toán"
+    summary_vi: "Thử từng đỉnh trung gian k để có khoảng cách mọi cặp trong O(V^3); DAG thì dùng thứ tự topo."
+    exercise_ref: ex_allpairs
+  - id: t02
+    type: text
+    md: |
+      **Floyd-Warshall** tính khoảng cách giữa **mọi cặp** đỉnh bằng quy hoạch động: sau khi xử lý đỉnh trung
+      gian `k`, `dist[i][j]` là đường ngắn nhất chỉ đi qua các đỉnh trung gian `0..k`.
+
+      ```python
+      for k in range(n):
+          for i in range(n):
+              for j in range(n):
+                  dist[i][j] = min(dist[i][j], dist[i][k] + dist[k][j])
+      ```
+
+      Vòng **k phải ở ngoài cùng**; đổi thứ tự vòng lặp sẽ sai. Độ phức tạp **O(V^3)** thời gian, **O(V^2)** bộ nhớ,
+      dùng được với cạnh âm (không có chu trình âm) và cho luôn **transitive closure** (bao đóng bắc cầu).
+
+      **Chọn thuật toán**:
+
+      - Trọng số không âm, một nguồn: **Dijkstra** `O((V + E) log V)`.
+      - Có cạnh âm hoặc giới hạn K cạnh: **Bellman-Ford** `O(V * E)`.
+      - Mọi cặp, V nhỏ (khoảng vài trăm): **Floyd-Warshall** `O(V^3)`.
+      - **DAG**: duyệt theo thứ tự topo và relax cạnh ra của từng đỉnh, `O(V + E)`, chịu được cạnh âm.
+  - id: q02
+    type: predict_output
+    code: |
+      INF = float("inf")
+      n = 4
+      d = [[0, 3, INF, 7],
+           [8, 0, 2, INF],
+           [5, INF, 0, 1],
+           [2, INF, INF, 0]]
+      for k in range(n):
+          for i in range(n):
+              for j in range(n):
+                  d[i][j] = min(d[i][j], d[i][k] + d[k][j])
+      for row in d:
+          print(row)
+    expected_output: |
+      [0, 3, 5, 6]
+      [5, 0, 2, 3]
+      [3, 6, 0, 1]
+      [2, 5, 7, 0]
+    explain_md: "Ví dụ `d[0][2]`: không có cạnh trực tiếp, nhưng qua đỉnh 1 thì `3 + 2 = 5`; `d[0][3]` là `0 -> 1 -> 2 -> 3 = 3 + 2 + 1 = 6`, rẻ hơn cạnh trực tiếp 7."
+  - id: q03
+    type: quiz_fill
+    prompt_md: "Floyd-Warshall có ba vòng lặp lồng nhau; vòng lặp trên đỉnh trung gian ___ phải nằm ngoài cùng."
+    blanks: [{accept: ["k", "K"]}]
+    explain_md: "Phải xét dần từng đỉnh trung gian `k` cho toàn bộ cặp `(i, j)` thì `dist[i][k]` và `dist[k][j]` mới đúng ý nghĩa 'chỉ qua các đỉnh trung gian trước k'."
+  - id: ex_allpairs
+    type: code_exercise
+    md: |
+      Viết `all_pairs_total(n, edges)`: đồ thị có hướng `n` đỉnh `0..n-1`, `edges` là các `[u, v, w]` (w >= 0).
+      Trả về tổng khoảng cách ngắn nhất `dist[i][j]` của mọi cặp có thứ tự `i != j` mà `j` đến được từ `i`
+      (bỏ qua cặp không có đường). Ví dụ `n = 3`, `edges = [[0, 1, 2], [1, 2, 3]]` cho `2 + 3 + 5 = 10`.
+      Bản dưới đây chỉ cộng các cạnh trực tiếp vì chưa có bước Floyd-Warshall. Hãy sửa.
+    entry: all_pairs_total
+    starter: |
+      def all_pairs_total(n, edges):
+          INF = float("inf")
+          dist = [[0 if i == j else INF for j in range(n)] for i in range(n)]
+          for u, v, w in edges:
+              dist[u][v] = min(dist[u][v], w)
+          total = 0
+          for i in range(n):
+              for j in range(n):
+                  if i != j and dist[i][j] != INF:
+                      total += dist[i][j]
+          return total
+    guidance_md: |
+      - Thử `n = 3`, `edges = [[0, 1, 2], [1, 2, 3]]`: đáp án 10, nhưng code trả 5.
+      - Thiếu ba vòng lặp Floyd-Warshall giữa bước khởi tạo và bước cộng.
+    hints:
+      - level: nudge
+        md: "Cặp (0, 2) không có cạnh trực tiếp nhưng vẫn đến được. Bước nào cho phép đi qua đỉnh trung gian?"
+      - level: approach
+        md: "Chèn Floyd-Warshall trước khi cộng tổng: ba vòng lặp lồng nhau, đỉnh trung gian là vòng ngoài cùng."
+      - level: near_solution
+        md: "Sau khi điền các cạnh, thêm `for k in range(n)` bao ngoài `for i` và `for j`; trong cùng cập nhật `dist[i][j]` thành giá trị nhỏ hơn giữa nó và `dist[i][k] + dist[k][j]`. Rồi mới tính `total`."
+    tests:
+      - {args: [1, []], expected: 0}
+      - {args: [3, [[0, 1, 2], [1, 2, 3]]], expected: 10}
+      - {args: [3, [[0, 1, 2], [1, 2, 3], [0, 2, 9]]], expected: 10}
+      - {args: [3, [[0, 1, 1], [1, 2, 1], [2, 0, 1]]], expected: 9}
+      - {args: [4, [[0, 1, 5], [2, 3, 1]]], expected: 6}
+    solution: |
+      def all_pairs_total(n, edges):
+          INF = float("inf")
+          dist = [[0 if i == j else INF for j in range(n)] for i in range(n)]
+          for u, v, w in edges:
+              dist[u][v] = min(dist[u][v], w)
+          for k in range(n):
+              for i in range(n):
+                  for j in range(n):
+                      if dist[i][k] + dist[k][j] < dist[i][j]:
+                          dist[i][j] = dist[i][k] + dist[k][j]
+          total = 0
+          for i in range(n):
+              for j in range(n):
+                  if i != j and dist[i][j] != INF:
+                      total += dist[i][j]
+          return total
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Bellman-Ford: relax mọi cạnh V-1 vòng, O(V*E); cạnh âm được, vòng V còn cải thiện thì có chu trình âm."
+      - "Sau r vòng, dist là đường ngắn nhất dùng tối đa r cạnh; bài K stops chạy k+1 vòng và relax từ bản sao dist."
+      - "Floyd-Warshall: ba vòng lặp với đỉnh trung gian k ngoài cùng, O(V^3), cho khoảng cách mọi cặp."
+      - "Chọn thuật toán: Dijkstra khi không có cạnh âm, Bellman-Ford khi có cạnh âm hoặc giới hạn cạnh, Floyd khi mọi cặp, DAG dùng thứ tự topo."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X459], l2: [X460], l3: [X461]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-04"
