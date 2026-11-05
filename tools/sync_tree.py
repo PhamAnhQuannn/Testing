@@ -107,6 +107,10 @@ EXTRA_IDS = {
     "dsa.design_ds.design_o1_structures",
     "dsa.design_ds.design_time_versioned",
     "dsa.design_ds.design_misc",
+    # Wave 2 Round 15: finish the math_bits module.
+    "dsa.math_bits.number_theory",
+    "dsa.math_bits.bit_basics",
+    "dsa.math_bits.geometry_random",
 }
 
 # Expected shipped counts, asserted so an upstream tree edit can't silently change the snapshot.
@@ -114,7 +118,7 @@ PLAN_MVP_COUNT = 40
 EXPECTED_SD = 86
 EXPECTED_ML4 = 39
 EXPECTED_EXTRA_IDS = len(EXTRA_IDS)  # Wave 2 additions
-EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 229
+EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 232
 
 # Node fields the app uses (SPEC 4.2); optional ones are skipped when a node lacks them.
 NODE_FIELDS = [
