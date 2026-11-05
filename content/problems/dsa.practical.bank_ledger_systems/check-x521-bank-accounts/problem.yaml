@@ -1,0 +1,55 @@
+id: check-x521-bank-accounts
+subtopic_id: dsa.practical.bank_ledger_systems
+secondary_subtopics: []
+kind: check
+title: 'Check X521: Bank accounts'
+title_vi: 'Kiểm tra X521: Tài khoản ngân hàng'
+difficulty: easy
+source:
+  type: original
+statement_en_md: |
+  Implement `class Bank` with `open(account_id)`, `deposit(account_id, amount)`, `withdraw(account_id, amount)`,
+  `transfer(src, dst, amount)` and `balance(account_id)`. Money is integer cents, never float.
+statement_vi_md: |
+  Viết class `Bank` quản lý tài khoản, tiền là **số nguyên xu (cents)**, không dùng float:
+
+  - `open(account_id)`: mở tài khoản với số dư 0 (nếu đã tồn tại thì giữ nguyên). Không trả giá trị.
+  - `deposit(account_id, amount)`: cộng tiền, trả `True`; trả `False` nếu không có tài khoản hoặc `amount <= 0`.
+  - `withdraw(account_id, amount)`: trừ tiền, trả `True`; trả `False` nếu không có tài khoản, `amount <= 0` hoặc không đủ số dư (số dư không đổi).
+  - `transfer(src, dst, amount)`: chuyển `amount` từ `src` sang `dst` **nguyên tử** (atomic): chỉ khi cả hai tài khoản tồn tại, `amount > 0` và `src` đủ tiền thì trừ bên này, cộng bên kia và trả `True`; ngược lại trả `False` và không thay đổi gì.
+  - `balance(account_id)`: số dư hiện tại, hoặc `None` nếu không có tài khoản.
+constraints:
+- 'Mọi số tiền là số nguyên (xu).'
+- 'Số thao tác tối đa 10^4; mỗi thao tác O(1).'
+examples:
+- input: ops = ['Bank', 'open', 'open', 'deposit', 'transfer', 'withdraw', 'balance', 'balance'], args = [[], ['a'], ['b'], ['a', 500], ['a', 'b', 200], ['b', 300], ['a'], ['b']]
+  output: '[null, null, null, true, true, false, 300, 200]'
+  explain_vi: 'Nạp 500 vào a, chuyển 200 sang b, rút 300 từ b thất bại (b chỉ có 200).'
+io:
+  mode: class_ops
+  compare: exact
+starter:
+  python: "class Bank:\n    # TODO\n    pass\n"
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+time_target_min: 8
+hints:
+- Dùng một dict `account_id -> số dư (int)`; mọi hàm đều kiểm tra tài khoản có tồn tại trước.
+- Với `transfer`, kiểm tra TẤT CẢ điều kiện (tồn tại, amount > 0, đủ tiền) trước khi sửa bất kỳ số dư nào.
+- Chỉ sau khi hợp lệ mới trừ `src` và cộng `dst`; `balance` dùng `dict.get` để trả `None` khi thiếu tài khoản.
+solution:
+  file: solution.py
+  approach_vi: Dict số dư (xu); validate toàn bộ điều kiện trước khi đổi, nên transfer nguyên tử.
+  complexity: O(1) mỗi thao tác
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x521
+status: validated
+version: 1

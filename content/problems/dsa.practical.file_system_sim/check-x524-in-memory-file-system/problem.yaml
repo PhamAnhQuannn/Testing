@@ -1,0 +1,61 @@
+id: check-x524-in-memory-file-system
+subtopic_id: dsa.practical.file_system_sim
+secondary_subtopics: []
+kind: check
+title: 'Check X524: In-memory file system'
+title_vi: 'Kiểm tra X524: File system trong bộ nhớ'
+difficulty: easy
+source:
+  type: leetcode
+  lc: 588
+  rewrite_required: true
+statement_en_md: |
+  Implement `class FileSystem` (LeetCode 588 style), an in-memory file system rooted at `/`.
+
+  - `ls(path)`: if `path` is a directory, return the names of its entries (files and sub-directories) sorted lexicographically; if `path` is a file, return a list with only that file's name. `ls("/")` on an empty system is `[]`.
+  - `mkdir(path)`: create the directory and every missing directory along the path (like `mkdir -p`).
+  - `add_content_to_file(path, content)`: create the file if missing (creating parent directories as needed), then append `content` to it.
+  - `read_content_from_file(path)`: return the file's full content as a string.
+statement_vi_md: |
+  Viết `class FileSystem` (kiểu LeetCode 588), một file system trong bộ nhớ có gốc là `/`.
+
+  - `ls(path)`: nếu `path` là thư mục, trả về tên các mục bên trong (file và thư mục con) đã sắp xếp theo thứ tự từ điển; nếu `path` là file, trả về list chỉ gồm tên file đó. `ls("/")` khi hệ thống rỗng là `[]`.
+  - `mkdir(path)`: tạo thư mục và mọi thư mục còn thiếu dọc đường dẫn (như `mkdir -p`).
+  - `add_content_to_file(path, content)`: tạo file nếu chưa có (tạo luôn các thư mục cha cần thiết), rồi nối `content` vào cuối file.
+  - `read_content_from_file(path)`: trả về toàn bộ nội dung file dạng chuỗi.
+constraints:
+- 'Đường dẫn bắt đầu bằng `/`, tên chỉ gồm chữ cái, chữ số, `.`, `_`.'
+- '`ls` và `read_content_from_file` chỉ được gọi với đường dẫn đã tồn tại.'
+- '`mkdir` không được gọi trên đường dẫn đã là file.'
+examples:
+- input: "ops = ['FileSystem', 'ls', 'mkdir', 'add_content_to_file', 'ls', 'read_content_from_file'], args = [[], ['/'], ['/a/b/c'], ['/a/b/c/d', 'hello'], ['/a/b/c'], ['/a/b/c/d']]"
+  output: "[null, [], null, null, ['d'], 'hello']"
+  explain_vi: "`ls('/')` ban đầu rỗng; `mkdir` tạo `/a/b/c`; thêm file `d` vào đó rồi `ls('/a/b/c')` thấy `['d']`; đọc file ra `hello`."
+io:
+  mode: class_ops
+  compare: exact
+starter:
+  python: "class FileSystem:\n    def __init__(self):\n        self._root = {}  # thư mục: dict tên -> node con, file: str\n\n    def ls(self, path):\n        # TODO: tách path, đi từ gốc, trả sorted tên (hoặc [tên file])\n        pass\n\n    def mkdir(self, path):\n        # TODO\n        pass\n\n    def add_content_to_file(self, path, content):\n        # TODO\n        pass\n\n    def read_content_from_file(self, path):\n        # TODO\n        pass\n"
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+time_target_min: 8
+hints:
+- "Tách path bằng `path.split('/')` và bỏ phần tử rỗng; `/` cho danh sách rỗng, tức là chính node gốc."
+- "Biểu diễn thư mục là dict tên -> node con, file là chuỗi nội dung. Dùng `setdefault(name, {})` để vừa đi xuống vừa tạo thư mục thiếu."
+- "`ls`: đi tới node; nếu là `str` thì trả `[tên cuối]`, ngược lại trả `sorted(node)`. `add_content_to_file`: tạo thư mục cha, rồi `node[name] = node.get(name, '') + content`."
+solution:
+  file: solution.py
+  approach_vi: "Cây dict: thư mục là dict, file là str. Mọi thao tác tách path rồi đi từ gốc; ls trả sorted để kết quả xác định."
+  complexity: "O(L + k log k) mỗi ls, O(L) các thao tác còn lại (L = độ dài path, k = số mục)"
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x524
+status: validated
+version: 1

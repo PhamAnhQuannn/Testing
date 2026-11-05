@@ -1,0 +1,64 @@
+id: check-x519-transactional-store
+subtopic_id: dsa.practical.in_memory_store
+secondary_subtopics: []
+kind: check
+title: 'Check X519: Transactional store'
+title_vi: 'Kiểm tra X519: Store có giao dịch lồng nhau'
+difficulty: easy
+source:
+  type: original
+statement_en_md: |
+  Implement `class TxnStore`, an in-memory key-value store with NESTED transactions.
+
+  - `set(key, value)`: store the value (works inside or outside a transaction).
+  - `get(key)`: return the value, or `None` if the key is missing.
+  - `begin()`: open a new (possibly nested) transaction.
+  - `commit()`: close the innermost open transaction keeping its changes; return `True`, or `False` if no transaction is open. Committing a nested transaction keeps its changes only as part of the enclosing transaction: rolling back the outer one still reverts them.
+  - `rollback()`: close the innermost open transaction and revert every `set` made since its matching `begin`; return `True`, or `False` if no transaction is open.
+
+  Hint: keep an undo log (a stack of frames recording each key's previous value).
+statement_vi_md: |
+  Viết `class TxnStore`, key-value store trong bộ nhớ với giao dịch LỒNG NHAU (nested transactions).
+
+  - `set(key, value)`: lưu giá trị (dùng được trong hoặc ngoài transaction).
+  - `get(key)`: trả giá trị, hoặc `None` nếu key không tồn tại.
+  - `begin()`: mở một transaction mới (có thể lồng).
+  - `commit()`: đóng transaction trong cùng đang mở và giữ thay đổi; trả `True`, hoặc `False` nếu không có transaction nào mở. Commit transaction con chỉ giữ thay đổi như một phần của transaction cha: rollback transaction cha vẫn hoàn tác chúng.
+  - `rollback()`: đóng transaction trong cùng và hoàn tác mọi `set` kể từ `begin` tương ứng; trả `True`, hoặc `False` nếu không có transaction nào mở.
+
+  Gợi ý: dùng undo log (stack các frame ghi giá trị cũ của từng key).
+constraints:
+- 'Key là chuỗi, value là giá trị bất kỳ (kể cả số); `None` không được dùng làm value.'
+- Mọi thao tác nên xấp xỉ O(1) (rollback O(số key đổi trong transaction)).
+examples:
+- input: ops = ['TxnStore', 'set', 'begin', 'set', 'get', 'rollback', 'get', 'commit'], args = [[], ['a', 1], [], ['a', 2], ['a'], [], ['a'], []]
+  output: '[null, null, null, null, 2, true, 1, false]'
+  explain_vi: 'Trong transaction `a = 2`; rollback trả `a` về 1; commit cuối không còn transaction nào nên trả false.'
+io:
+  mode: class_ops
+  compare: exact
+starter:
+  python: "class TxnStore:\n    def __init__(self):\n        self._d = {}\n        self._undo = []  # stack các frame: {key: giá trị cũ}\n\n    def set(self, key, value):\n        # TODO: nếu đang trong transaction, ghi giá trị cũ vào frame trên cùng\n        pass\n\n    def get(self, key):\n        # TODO\n        pass\n\n    def begin(self):\n        # TODO\n        pass\n\n    def commit(self):\n        # TODO: trả False nếu không có transaction\n        pass\n\n    def rollback(self):\n        # TODO: hoàn tác frame trên cùng; trả False nếu không có transaction\n        pass\n"
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+time_target_min: 10
+hints:
+- Mỗi begin() đẩy một frame (dict rỗng) lên stack; set() trong transaction ghi giá trị CŨ của key vào frame trên cùng (chỉ lần đầu cho mỗi key). Dùng một sentinel riêng để phân biệt "key chưa tồn tại" với giá trị cũ.
+- rollback() lấy frame trên cùng và khôi phục từng key (xoá key nếu trước đó chưa tồn tại). Cả hai hàm trả False khi stack rỗng.
+- commit() của transaction con phải gộp frame vào frame cha (giữ giá trị cũ nhất, dùng setdefault) để rollback cha vẫn hoàn tác được; commit transaction ngoài cùng thì chỉ cần bỏ frame.
+solution:
+  file: solution.py
+  approach_vi: Stack undo log; set ghi giá trị cũ vào frame trên cùng một lần; commit gộp frame vào cha, rollback khôi phục.
+  complexity: set/get O(1); rollback/commit O(số key đổi trong frame)
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x519
+status: validated
+version: 1

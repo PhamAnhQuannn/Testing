@@ -1,0 +1,47 @@
+subtopic_id: dsa.practical.in_memory_store
+items:
+  - id: X517
+    difficulty: 1
+    type: read_code
+    minutes: 3
+    prompt_md: Chạy tay (không chạy máy), đoạn code in ra gì? Giải thích 1 câu.
+    code: |-
+      store = {}
+
+      def put(k, v, now, ttl):
+          store[k] = (v, now + ttl)
+
+      def get(k, now):
+          item = store.get(k)
+          if item is None:
+              return None
+          v, exp = item
+          if now >= exp:
+              del store[k]
+              return None
+          return v
+
+      put("a", 1, 0, 5)
+      put("b", 2, 0, 10)
+      print(get("a", 4), get("a", 5), get("b", 5))
+      print(sorted(store))
+      print(get("b", 10), len(store))
+    expected_output: "1 None 2\n['b']\nNone 0"
+    answer_md: 'Key `a` hết hạn tại 0 + 5 = 5: ở now = 4 còn sống (1), ở now = 5 đã hết hạn nên `get` xoá nó và trả `None`; `b` ở now = 5 vẫn là 2. Sau đó chỉ còn `b` trong store. Ở now = 10 thì `b` (expiry 10) cũng hết hạn: trả `None` và store rỗng (độ dài 0).'
+    rubric_md: "Output khớp từng ký tự (bỏ khoảng trắng cuối dòng) VÀ giải thích đúng 1 câu. Đúng: bằng chứng điểm 1; sai: tối đa điểm 0."
+  - id: X518
+    difficulty: 2
+    type: write_code
+    minutes: 8
+    prompt_md: |
+      Viết `class TTLStore` với `set(key, value, now, ttl)` (entry hết hạn tại `now + ttl`), `get(key, now)` (trả value, hoặc `None` nếu thiếu hoặc đã hết hạn; hết hạn khi `now >= expiry`, dọn lazy) và `delete(key)`. Thời gian chỉ đến từ tham số `now`, không dùng `time.time()`. Gợi ý: dict `key -> (value, expiry)`.
+    problem_id: check-x518-ttl-store
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 8 phút: bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X519
+    difficulty: 3
+    type: write_code
+    minutes: 10
+    prompt_md: |
+      Viết `class TxnStore` với `set(key, value)`, `get(key)` (hoặc `None`), `begin()`, `commit() -> bool` và `rollback() -> bool` (cả hai trả `False` nếu không có transaction mở). Transaction lồng nhau: `rollback` hoàn tác mọi `set` kể từ `begin` tương ứng; commit transaction con vẫn bị hoàn tác nếu transaction cha rollback. Gợi ý: stack undo log, mỗi frame ghi giá trị cũ của key.
+    problem_id: check-x519-transactional-store
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 10 phút: bằng chứng điểm 3; phải xem gợi ý hoặc quá thời gian: tối đa điểm 2."

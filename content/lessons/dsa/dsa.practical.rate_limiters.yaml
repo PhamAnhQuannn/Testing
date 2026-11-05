@@ -1,0 +1,185 @@
+id: dsa.practical.rate_limiters
+version: 1
+status: published
+title_vi: "Bộ giới hạn tần suất (rate limiters)"
+est_minutes: 15
+objectives_vi:
+  - "Cài fixed window counter và nêu được lỗi burst ở ranh giới hai cửa sổ."
+  - "Cài sliding window (log) bằng deque với cửa sổ nửa mở (now - window, now]."
+  - "Cài token bucket với lazy refill theo thời gian trôi qua, có cost và capacity."
+  - "Tiêm đồng hồ (now là tham số) để test mà không phải chờ thật, kết quả luôn xác định."
+blocks:
+  - id: s_fixed
+    type: section
+    title_vi: "Fixed window và đồng hồ tiêm được"
+    summary_vi: "Chia thời gian thành các ô cố định, đếm request trong ô hiện tại; luôn truyền now vào thay vì đọc giờ hệ thống."
+    exercise_ref: ex_fixed
+  - id: t01
+    type: text
+    md: |
+      **Rate limiter** cho một người gọi (user, IP, API key) tối đa `limit` request trong mỗi khoảng
+      thời gian `window`. Mọi cách cài ở đây đều nhận thời gian làm **tham số** (`now`/`timestamp`),
+      không gọi `time.time()` bên trong. Đó là **injectable clock**: test chỉ cần truyền `0, 1, 2, ...`,
+      không phải `sleep`, và kết quả luôn xác định (deterministic).
+
+      **Fixed window counter**: chia trục thời gian thành các ô `[k*window, (k+1)*window)`. Với mỗi request,
+      tính `k = now // window`, đếm số request trong ô `k`; nếu `< limit` thì cho qua. Chỉ cần một bộ đếm
+      và `start` của ô, nên rất rẻ: O(1) thời gian và bộ nhớ.
+
+      Điểm yếu là **burst ở ranh giới**: `limit` request ở cuối ô trước rồi `limit` request ở đầu ô sau
+      nghĩa là gấp đôi `limit` trong một khoảng ngắn hơn `window`.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      def fixed_window_count(stamps, window, now):
+          start = now // window * window
+          return sum(1 for t in stamps if start <= t <= now)
+
+
+      stamps = [1, 4, 9, 10, 12]
+      for now in (9, 10, 12, 19):
+          print(now, fixed_window_count(stamps, 10, now))
+    expected_output: |
+      9 3
+      10 1
+      12 2
+      19 2
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Fixed window với `limit = 5`, `window = 10`. Người dùng gửi 5 request ở `t = 9` và 5 request ở `t = 10`. Điều gì xảy ra?"
+    options:
+      - {id: a, text_md: "Cả 10 request đều được cho qua dù chỉ cách nhau 1 đơn vị thời gian (burst ở ranh giới)"}
+      - {id: b, text_md: "5 request sau bị từ chối vì cùng một cửa sổ 10 đơn vị"}
+      - {id: c, text_md: "Cả 10 request đều bị từ chối"}
+    answer: [a]
+    explain_md: "`t = 9` thuộc ô `[0, 10)` còn `t = 10` thuộc ô `[10, 20)`, nên bộ đếm được reset. Đây chính là lý do sliding window ra đời."
+  - id: ex_fixed
+    type: code_exercise
+    md: |
+      Viết `fixed_window_allow(stamps, limit, window, now)`: `stamps` là danh sách timestamp của các request
+      **đã được cho qua** (không giảm). Trả về `True` nếu request tại `now` được phép, tức là số timestamp
+      nằm trong ô cố định chứa `now` (từ `now // window * window` đến `now`) ít hơn `limit`.
+      Ví dụ `fixed_window_allow([1, 2], 2, 10, 12)` là `True` vì `12` thuộc ô mới `[10, 20)`.
+      Bản dưới đây đếm toàn bộ lịch sử thay vì chỉ ô hiện tại. Hãy sửa.
+    entry: fixed_window_allow
+    starter: |
+      def fixed_window_allow(stamps, limit, window, now):
+          return len(stamps) < limit
+    guidance_md: |
+      - Thử `stamps = [1, 2]`, `limit = 2`, `window = 10`, `now = 12`: đáp án `True`, nhưng code trả `False`.
+      - Chỉ đếm timestamp trong cùng ô với `now`.
+    hints:
+      - level: nudge
+        md: "Timestamp `1` và `2` có cùng ô cố định với `now = 12` không?"
+      - level: approach
+        md: "Tính `start = now // window * window`, rồi đếm các `t` thỏa `start <= t <= now`."
+      - level: near_solution
+        md: "Đặt `c` là số `t` trong `stamps` với `start <= t <= now`, rồi trả về `c < limit`."
+    tests:
+      - {args: [[], 2, 10, 5], expected: true}
+      - {args: [[1, 2], 2, 10, 5], expected: false}
+      - {args: [[1, 2], 2, 10, 12], expected: true}
+      - {args: [[9, 10], 2, 10, 11], expected: true}
+      - {args: [[0, 1, 2], 3, 5, 4], expected: false}
+    solution: |
+      def fixed_window_allow(stamps, limit, window, now):
+          start = now // window * window
+          c = sum(1 for t in stamps if start <= t <= now)
+          return c < limit
+  - id: s_sliding
+    type: section
+    title_vi: "Sliding window và token bucket"
+    summary_vi: "Sliding window log đếm trong (now - window, now]; token bucket nạp token lười theo thời gian trôi qua."
+    exercise_ref: ex_sliding
+  - id: t02
+    type: text
+    md: |
+      **Sliding window log** lưu timestamp của các request đã cho qua trong một `deque`. Mỗi lần gọi:
+      bỏ khỏi đầu deque mọi `t <= now - window`, rồi nếu `len(q) < limit` thì thêm `now` và cho qua.
+      Cửa sổ là **nửa mở** `(now - window, now]`: request cách đúng `window` đã ra ngoài. Chính xác,
+      không bị burst ranh giới, nhưng tốn O(limit) bộ nhớ mỗi key. (Biến thể **sliding window counter**
+      ước lượng bằng trọng số hai ô fixed liền kề để tiết kiệm bộ nhớ.)
+
+      **Token bucket**: bucket chứa tối đa `capacity` token, nạp `rate` token mỗi đơn vị thời gian. Không cần timer:
+      **lazy refill** ở mỗi lần gọi:
+
+      ```python
+      tokens = min(capacity, tokens + rate * (now - last))
+      last = now
+      if tokens >= cost:
+          tokens -= cost   # cho qua
+      ```
+
+      Token bucket cho phép burst tới `capacity` rồi giới hạn tốc độ trung bình ở `rate`; `cost` cho phép
+      request "nặng" tốn nhiều token. Dùng số nguyên để tránh sai số float. Với nhiều key, dùng dict
+      và dọn các key rảnh lâu.
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Token bucket `capacity = 5`, `rate = 2` token/giây, đang có 0 token ở `t = 0`. Ở `t = 2` bucket có ___ token."
+    blanks: [{accept: ["4", "bốn"]}]
+    explain_md: "Nạp `rate * elapsed = 2 * 2 = 4` token, nhỏ hơn `capacity = 5` nên không bị cắt trần."
+  - id: q03
+    type: predict_output
+    code: |
+      tokens, cap, rate, last = 4, 4, 2, 0
+      res = []
+      for t, cost in [(0, 3), (1, 3), (1, 2), (5, 4)]:
+          tokens = min(cap, tokens + rate * (t - last))
+          last = t
+          if tokens >= cost:
+              tokens -= cost
+              res.append(True)
+          else:
+              res.append(False)
+      print(res)
+      print(tokens)
+    expected_output: |
+      [True, True, False, True]
+      0
+    explain_md: "t=0: còn 4, trừ 3 còn 1. t=1: nạp 2 thành 3, trừ 3 còn 0. t=1 lần nữa: 0 < 2 nên từ chối. t=5: nạp 8 nhưng cắt trần 4, trừ 4 còn 0."
+  - id: ex_sliding
+    type: code_exercise
+    md: |
+      Viết `count_in_window(stamps, window, now)`: đếm số timestamp trong cửa sổ **nửa mở** `(now - window, now]`.
+      Ví dụ `count_in_window([5, 15], 10, 15)` là `1` vì `5` đúng `window` trước nên đã ra ngoài.
+      Bản dưới đây dùng `>=` nên tính cả biên. Hãy sửa.
+    entry: count_in_window
+    starter: |
+      def count_in_window(stamps, window, now):
+          return sum(1 for t in stamps if now - window <= t <= now)
+    guidance_md: |
+      - Thử `stamps = [5, 15]`, `window = 10`, `now = 15`: đáp án `1`, nhưng code trả `2`.
+      - Biên dưới `now - window` phải bị loại.
+    hints:
+      - level: nudge
+        md: "Timestamp `5` cách `now = 15` đúng 10 đơn vị. Nó có còn nằm trong cửa sổ không?"
+      - level: approach
+        md: "Cửa sổ nửa mở nghĩa là biên dưới là bất đẳng thức chặt: `t` phải lớn hơn `now - window`."
+      - level: near_solution
+        md: "Đổi so sánh ở biên dưới từ `<=` thành `<`, giữ nguyên biên trên `t <= now`."
+    tests:
+      - {args: [[1, 2, 3], 10, 11], expected: 2}
+      - {args: [[5, 15], 10, 15], expected: 1}
+      - {args: [[], 5, 3], expected: 0}
+      - {args: [[0, 1, 2], 3, 2], expected: 3}
+      - {args: [[2, 4, 6], 2, 6], expected: 1}
+    solution: |
+      def count_in_window(stamps, window, now):
+          return sum(1 for t in stamps if now - window < t <= now)
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Luôn tiêm đồng hồ (`now` là tham số) để test nhanh và xác định."
+      - "Fixed window: O(1) nhưng burst gấp đôi ở ranh giới hai ô."
+      - "Sliding window log: chính xác với cửa sổ nửa mở (now - window, now], tốn O(limit) bộ nhớ."
+      - "Token bucket: lazy refill `min(capacity, tokens + rate * elapsed)`, cho phép burst và có cost."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X526], l2: [X527], l3: [X528]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

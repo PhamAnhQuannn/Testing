@@ -1,0 +1,48 @@
+subtopic_id: dsa.practical.rate_limiters
+items:
+  - id: X526
+    difficulty: 1
+    type: read_code
+    minutes: 3
+    prompt_md: Chạy tay (không chạy máy), đoạn code in ra gì? Giải thích 1 câu.
+    code: |-
+      class FixedWindow:
+          def __init__(self, limit, window):
+              self.limit = limit
+              self.window = window
+              self.start = 0
+              self.count = 0
+
+          def allow(self, now):
+              w = now // self.window * self.window
+              if w != self.start:
+                  self.start = w
+                  self.count = 0
+              if self.count < self.limit:
+                  self.count += 1
+                  return True
+              return False
+
+
+      rl = FixedWindow(2, 10)
+      print([rl.allow(t) for t in (1, 2, 3, 9, 10, 11, 12)])
+      print(rl.count)
+    expected_output: "[True, True, False, False, True, True, False]\n2"
+    answer_md: 'Ô `[0, 10)` cho qua `t=1, 2` rồi đầy nên `t=3, 9` bị từ chối. Tại `t=10` sang ô mới, bộ đếm reset về 0 nên `t=10, 11` được qua và `t=12` bị từ chối; `count` cuối là 2.'
+    rubric_md: "Output khớp từng ký tự (bỏ khoảng trắng cuối dòng) VÀ giải thích đúng 1 câu. Đúng: bằng chứng điểm 1; sai: tối đa điểm 0."
+  - id: X527
+    difficulty: 2
+    type: write_code
+    minutes: 8
+    prompt_md: |
+      Viết `class SlidingWindowLimiter(limit, window)` với `allow(timestamp) -> bool`: trả `True` khi và chỉ khi số request đã được cho phép trong cửa sổ nửa mở `(timestamp - window, timestamp]` ít hơn `limit`; khi `True` thì ghi lại timestamp. Timestamp không giảm và đồng hồ là tham số (không dùng `time.time()`). Gợi ý: `deque`, bỏ các timestamp `<= timestamp - window` ở đầu.
+    problem_id: check-x527-sliding-window-limiter
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 8 phút: bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X528
+    difficulty: 3
+    type: write_code
+    minutes: 10
+    prompt_md: |
+      Viết `class TokenBucket(capacity, refill_per_sec)` với `allow(timestamp, cost) -> bool`: bucket bắt đầu đầy; mỗi lần gọi nạp `refill_per_sec * (timestamp - last)` token (tối đa `capacity`), rồi nếu `tokens >= cost` thì trừ `cost` và trả `True`, ngược lại `False`. Dùng số nguyên, đồng hồ là tham số. Gợi ý: lazy refill, lần gọi đầu không nạp.
+    problem_id: check-x528-token-bucket
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 10 phút: bằng chứng điểm 3; phải xem gợi ý hoặc quá thời gian: tối đa điểm 2."

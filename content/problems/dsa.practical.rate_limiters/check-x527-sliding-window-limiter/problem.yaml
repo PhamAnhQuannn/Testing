@@ -1,0 +1,50 @@
+id: check-x527-sliding-window-limiter
+subtopic_id: dsa.practical.rate_limiters
+secondary_subtopics: []
+kind: check
+title: 'Check X527: Sliding Window Limiter'
+title_vi: 'Kiểm tra X527: Bộ giới hạn cửa sổ trượt'
+difficulty: easy
+source:
+  type: original
+statement_en_md: |
+  Implement `class SlidingWindowLimiter(limit, window)` with `allow(timestamp) -> bool`. It returns `True` iff fewer than `limit` previously allowed requests fall in the half-open window `(timestamp - window, timestamp]`; a `True` call records the timestamp. Timestamps are non-decreasing. A request made exactly `window` ago is already out of the window. Denied requests are not recorded.
+statement_vi_md: |
+  Viết class `SlidingWindowLimiter(limit, window)` với `allow(timestamp) -> bool`. Trả về `True` khi và chỉ khi số request **đã được cho phép** nằm trong cửa sổ nửa mở `(timestamp - window, timestamp]` ít hơn `limit`; khi trả `True` thì ghi lại `timestamp`. Các `timestamp` không giảm. Request cách đúng `window` đơn vị thời gian đã nằm NGOÀI cửa sổ. Request bị từ chối không được ghi lại.
+
+  Đồng hồ là tham số `timestamp` (không dùng `time.time()`), nên kết quả hoàn toàn xác định.
+constraints:
+- '1 <= limit <= 1000, 1 <= window <= 10^9'
+- 'Số lệnh gọi `allow` tối đa 10^4; timestamp là số nguyên không giảm'
+examples:
+- input: ops = ['SlidingWindowLimiter', 'allow', 'allow', 'allow', 'allow', 'allow'], args = [[2, 10], [1], [2], [3], [11], [12]]
+  output: '[null, true, true, false, true, true]'
+  explain_vi: 'limit=2, window=10. t=3 bị từ chối (đã có 1 và 2 trong (-7, 3]). t=11: cửa sổ (1, 11] chỉ còn 2 nên được phép; t=12: cửa sổ (2, 12] chỉ còn 11 nên cũng được phép.'
+io:
+  mode: class_ops
+  compare: exact
+starter:
+  python: "class SlidingWindowLimiter:\n    def __init__(self, limit, window):\n        # TODO\n        pass\n\n    def allow(self, timestamp):\n        # TODO\n        return False\n"
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+time_target_min: 8
+hints:
+- Lưu timestamp của các request đã được cho phép trong một `deque` (theo thứ tự tăng dần).
+- Trước khi quyết định, bỏ khỏi đầu deque mọi timestamp `<= timestamp - window` (cửa sổ nửa mở, đúng `window` trước là đã ra ngoài).
+- Nếu `len(deque) < limit` thì thêm `timestamp` vào cuối và trả `True`; ngược lại trả `False` và không ghi gì.
+solution:
+  file: solution.py
+  approach_vi: Sliding window log bằng deque. Mỗi lần gọi, đẩy các timestamp cũ ra khỏi đầu deque rồi so kích thước với limit. Mỗi timestamp vào và ra tối đa một lần nên khấu hao O(1).
+  complexity: O(1) khấu hao mỗi lệnh gọi, O(limit) bộ nhớ
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x527
+status: validated
+version: 1

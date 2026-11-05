@@ -1,0 +1,50 @@
+id: check-x528-token-bucket
+subtopic_id: dsa.practical.rate_limiters
+secondary_subtopics: []
+kind: check
+title: 'Check X528: Token Bucket'
+title_vi: 'Kiểm tra X528: Token bucket'
+difficulty: easy
+source:
+  type: original
+statement_en_md: |
+  Implement `class TokenBucket(capacity, refill_per_sec)` with `allow(timestamp, cost) -> bool`. The bucket starts full (`capacity` tokens) and the first call has no refill. On every call first refill `refill_per_sec * (timestamp - last_timestamp)` tokens (capped at `capacity`), where `last_timestamp` is the previous call's timestamp (allowed or denied); then if `tokens >= cost`, consume `cost` and return `True`, else return `False` without consuming. All values are integers. Timestamps are non-decreasing.
+statement_vi_md: |
+  Viết class `TokenBucket(capacity, refill_per_sec)` với `allow(timestamp, cost) -> bool`. Bucket ban đầu **đầy** (`capacity` token) và lệnh gọi đầu tiên không có refill. Mỗi lần gọi, trước hết cộng thêm `refill_per_sec * (timestamp - last_timestamp)` token (tối đa `capacity`), với `last_timestamp` là timestamp của lệnh gọi trước đó (dù được phép hay bị từ chối); sau đó nếu `tokens >= cost` thì trừ `cost` và trả `True`, ngược lại trả `False` và không trừ gì. Mọi giá trị là số nguyên. Timestamp không giảm.
+
+  Đồng hồ là tham số `timestamp` (không dùng `time.time()`), nên kết quả hoàn toàn xác định.
+constraints:
+- '1 <= capacity <= 10^6, 0 <= refill_per_sec <= 10^6, 1 <= cost <= 10^6'
+- 'Số lệnh gọi `allow` tối đa 10^4; timestamp là số nguyên không giảm'
+examples:
+- input: ops = ['TokenBucket', 'allow', 'allow', 'allow', 'allow', 'allow'], args = [[5, 1], [0, 3], [0, 3], [1, 3], [3, 3], [10, 6]]
+  output: '[null, true, false, true, false, false]'
+  explain_vi: 'capacity=5, rate=1. t=0 trừ 3 còn 2; cùng t=0 cần 3 nên bị từ chối. t=1 nạp thêm 1 thành 3 nên được phép, còn 0. t=3 nạp 2 thành 2 < 3 nên từ chối. t=10 cost 6 lớn hơn capacity 5 nên luôn bị từ chối.'
+io:
+  mode: class_ops
+  compare: exact
+starter:
+  python: "class TokenBucket:\n    def __init__(self, capacity, refill_per_sec):\n        # TODO\n        pass\n\n    def allow(self, timestamp, cost):\n        # TODO\n        return False\n"
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+time_target_min: 10
+hints:
+- Lưu `tokens` (số nguyên, bắt đầu bằng `capacity`) và `last` (timestamp lần gọi trước, ban đầu `None`).
+- Mỗi lần gọi, nếu `last` không phải `None` thì `tokens = min(capacity, tokens + refill_per_sec * (timestamp - last))`; rồi đặt `last = timestamp`.
+- Nếu `tokens >= cost` thì `tokens -= cost` và trả `True`; ngược lại trả `False` (không trừ). Chú ý cập nhật `last` cả khi bị từ chối.
+solution:
+  file: solution.py
+  approach_vi: Token bucket với lazy refill. Không cần timer; mỗi lần gọi tính lượng token đã nạp theo thời gian trôi qua, chặn trên bằng capacity, rồi so với cost. Dùng số nguyên để tránh sai số float.
+  complexity: O(1) mỗi lệnh gọi, O(1) bộ nhớ
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x528
+status: validated
+version: 1
