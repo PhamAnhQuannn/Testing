@@ -1,0 +1,287 @@
+id: lld.oop_principles.solid
+version: 1
+status: published
+title_vi: "Nguyên lý SOLID"
+est_minutes: 15
+objectives_vi:
+  - "Nêu và nhận ra năm nguyên lý SRP, OCP, LSP, ISP, DIP bằng một ví dụ ngắn cho mỗi chữ."
+  - "Refactor chuỗi if/else theo loại thành class hoặc bảng tra để thêm loại mới không sửa code cũ (OCP)."
+  - "Phân biệt DIP (nguyên tắc) với dependency injection (cách làm) và giải thích lợi ích khi test."
+  - "Chỉ ra vì sao Square kế thừa Rectangle vi phạm LSP; biết thêm DRY/KISS/YAGNI, coupling/cohesion, Law of Demeter, value object."
+blocks:
+  - id: s_srp_ocp
+    type: section
+    title_vi: "SRP và OCP"
+    summary_vi: "Một class một lý do để đổi; thêm loại mới bằng dữ liệu hoặc class mới, không sửa chuỗi if/else."
+    exercise_ref: ex_ocp
+  - id: t01
+    type: text
+    md: |
+      **SOLID** là năm lời khuyên viết class để sau này thêm tính năng ít phải sửa code cũ.
+
+      - **S - Single Responsibility (SRP)**: mỗi class chỉ có **một lý do để thay đổi**. Class vừa tính tiền vừa gửi
+        email có hai lý do (đổi công thức, đổi nhà cung cấp email) nên tách thành `Invoice` và `Mailer`.
+      - **O - Open/Closed (OCP)**: **mở để thêm, đóng để sửa**. Thêm loại mới bằng class mới hoặc một dòng dữ liệu,
+        không sửa chuỗi `if/elif` trong code cũ.
+
+      Dấu hiệu vi phạm OCP: một hàm có `if kind == "bike" ... elif kind == "car" ...`; mỗi loại mới phải mở hàm đó ra sửa.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      # Trước: mỗi loại mới phải sửa hàm
+      def fee_old(kind, base):
+          if kind == "bike":
+              return base * 1
+          elif kind == "car":
+              return base * 2
+          return base
+
+
+      # Sau (OCP): luật là dữ liệu, thêm loại = thêm một dòng
+      RATES = {"bike": 1, "car": 2}
+
+
+      def fee_new(kind, base):
+          return base * RATES.get(kind, 1)
+
+
+      RATES["truck"] = 3  # thêm loại mới, không sửa fee_new
+      print(fee_old("car", 10), fee_new("car", 10), fee_new("truck", 10))
+    expected_output: |
+      20 20 30
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Class `Report` vừa tính số liệu vừa ghi ra file PDF. Nguyên lý nào bị vi phạm và nên làm gì?"
+    options:
+      - {id: a, text_md: "SRP: tách thành class tính số liệu và class xuất PDF"}
+      - {id: b, text_md: "LSP: cho `Report` kế thừa thêm một class cha"}
+      - {id: c, text_md: "ISP: gộp mọi method vào một interface lớn"}
+    answer: [a]
+    explain_md: "Class có hai lý do để đổi (cách tính và định dạng xuất) vi phạm SRP. Tách ra thì mỗi bên đổi độc lập."
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Nguyên lý ___ nói: thêm loại mới bằng class hoặc dữ liệu mới, không sửa chuỗi if/else cũ (viết tắt 3 chữ cái)."
+    blanks: [{accept: ["OCP", "ocp", "Open/Closed", "open closed"]}]
+    explain_md: "Đó là OCP (Open/Closed Principle): mở để mở rộng, đóng để sửa đổi."
+  - id: ex_ocp
+    type: code_exercise
+    md: |
+      Viết `total_fee(items)`: `items` là list `[kind, base]`. Phí mỗi phần tử là `base * hệ số(kind)` với
+      `bike` = 1, `car` = 2, `truck` = 3; loại lạ dùng hệ số 1. Trả tổng phí. Bản dưới đây dùng chuỗi if/elif
+      và quên `truck`. Hãy chuyển sang dict `RATES` theo OCP.
+    entry: total_fee
+    starter: |
+      def total_fee(items):
+          total = 0
+          for kind, base in items:
+              if kind == "bike":
+                  total += base
+              elif kind == "car":
+                  total += base * 2
+              else:
+                  total += base
+          return total
+    guidance_md: |
+      - Thử `total_fee([["truck", 10]])`: đáp án `30`, code trả `10`.
+      - Dùng `RATES.get(kind, 1)` để loại lạ có hệ số 1.
+    hints:
+      - level: nudge
+        md: "Nếu luật là dữ liệu thì thêm `truck` cần sửa mấy dòng logic?"
+      - level: approach
+        md: "Tạo `RATES = {'bike': 1, 'car': 2, 'truck': 3}`; với mỗi item cộng `base * RATES.get(kind, 1)`."
+      - level: near_solution
+        md: "Vòng `for kind, base in items: total += base * RATES.get(kind, 1)` rồi `return total`."
+    tests:
+      - {args: [[]], expected: 0}
+      - {args: [[["bike", 100], ["car", 50]]], expected: 200}
+      - {args: [[["truck", 10]]], expected: 30}
+      - {args: [[["van", 7], ["truck", 1]]], expected: 10}
+    solution: |
+      def total_fee(items):
+          RATES = {"bike": 1, "car": 2, "truck": 3}
+          total = 0
+          for kind, base in items:
+              total += base * RATES.get(kind, 1)
+          return total
+  - id: s_lisp_did
+    type: section
+    title_vi: "LSP, ISP, DIP và dependency injection"
+    summary_vi: "Class con phải thay được class cha; interface nhỏ; phụ thuộc vào abstraction và nhận qua __init__."
+    exercise_ref: ex_di
+  - id: t02
+    type: text
+    md: |
+      - **L - Liskov Substitution (LSP)**: class con thay class cha thì code cũ vẫn chạy đúng. Ví dụ kinh điển:
+        `Square` kế thừa `Rectangle`. Code cũ đặt `width = 5`, `height = 4` và mong diện tích `20`, nhưng hình vuông
+        đổi cả hai cạnh cùng lúc nên được `16`. Lời giải: đừng cho kế thừa; dùng chung interface `Shape.area()`.
+      - **I - Interface Segregation (ISP)**: đừng bắt class cài method nó không cần. Máy chỉ in mà bị bắt cài
+        `scan()` thì tách thành `Printer` và `Scanner`.
+      - **D - Dependency Inversion (DIP)**: class cấp cao phụ thuộc vào **abstraction** (ví dụ `Payment`), không gọi
+        thẳng class cụ thể (`CreditCard`).
+
+      **Dependency injection (DI)** là cách làm: nhận collaborator qua `__init__` thay vì tự tạo bên trong. DIP là
+      nguyên tắc, DI là cách dễ nhất để theo DIP. Lợi ích lớn: khi test có thể tiêm bản giả (`FakeMailer`).
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class Rectangle:
+          def __init__(self, w, h):
+              self.w = w
+              self.h = h
+
+          def set_width(self, w):
+              self.w = w
+
+          def area(self):
+              return self.w * self.h
+
+
+      class Square(Rectangle):
+          def __init__(self, s):
+              super().__init__(s, s)
+
+          def set_width(self, w):  # vi phạm LSP: đổi cả hai cạnh
+              self.w = w
+              self.h = w
+
+
+      def stretch(rect):
+          rect.set_width(5)
+          return rect.area()
+
+
+      print(stretch(Rectangle(1, 4)), stretch(Square(4)))
+    expected_output: |
+      20 25
+  - id: q03
+    type: predict_output
+    code: |
+      class FakeMailer:
+          def __init__(self):
+              self.sent = []
+
+          def send(self, text):
+              self.sent.append(text)
+
+
+      class Order:
+          def __init__(self, mailer):
+              self.mailer = mailer
+
+          def confirm(self, n):
+              self.mailer.send("order " + str(n))
+
+
+      m = FakeMailer()
+      Order(m).confirm(3)
+      print(m.sent)
+    expected_output: |
+      ['order 3']
+    explain_md: "`Order` nhận `mailer` qua `__init__` (DI), nên test chỉ cần đọc `m.sent`, không gửi email thật."
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Chọn phát biểu đúng về DIP và dependency injection."
+    options:
+      - {id: a, text_md: "DIP là nguyên tắc phụ thuộc vào abstraction; DI là cách làm, ví dụ nhận qua `__init__`"}
+      - {id: b, text_md: "DI và DIP là cùng một thứ, chỉ khác tên"}
+      - {id: c, text_md: "DI nghĩa là tự `new` mọi collaborator bên trong class cho tiện"}
+    answer: [a]
+    explain_md: "DIP nói phụ thuộc vào cái gì (abstraction). DI nói lấy phụ thuộc bằng cách nào (truyền từ ngoài vào)."
+  - id: q05
+    type: quiz_mcq
+    prompt_md: "`Square` kế thừa `Rectangle`, code cũ đặt `width=5`, `height=4` mong `20` nhưng nhận `16`. Đây là vi phạm nguyên lý nào?"
+    options:
+      - {id: a, text_md: "SRP"}
+      - {id: b, text_md: "LSP"}
+      - {id: c, text_md: "ISP"}
+    answer: [b]
+    explain_md: "Class con không thay thế được class cha mà giữ nguyên hành vi mong đợi, nên vi phạm LSP."
+  - id: ex_di
+    type: code_exercise
+    md: |
+      `Notifier` đếm số tin gửi thành công. Hiện nó tự tạo `RealMailer` (luôn thành công) bên trong nên không
+      thay được bản giả. Hãy sửa `Notifier` nhận `mailer` qua `__init__` và sửa `run(allowed, names)` để tiêm
+      `FakeMailer(allowed)`. `run` trả số tên trong `names` mà `send` trả `True`.
+    entry: run
+    starter: |
+      class RealMailer:
+          def send(self, name):
+              return True
+
+
+      class FakeMailer:
+          def __init__(self, allowed):
+              self.allowed = allowed
+
+          def send(self, name):
+              return name in self.allowed
+
+
+      class Notifier:
+          def __init__(self):
+              self.mailer = RealMailer()
+
+          def send_all(self, names):
+              return sum(1 for n in names if self.mailer.send(n))
+
+
+      def run(allowed, names):
+          return Notifier().send_all(names)
+    guidance_md: |
+      - Thử `run(["an"], ["an", "binh"])`: đáp án `1`, code trả `2`.
+      - `Notifier.__init__(self, mailer)` rồi `Notifier(FakeMailer(allowed))`.
+    hints:
+      - level: nudge
+        md: "Ai quyết định `Notifier` dùng mailer nào: chính nó hay nơi tạo ra nó?"
+      - level: approach
+        md: "Đổi `__init__(self, mailer)` gán `self.mailer = mailer`; trong `run` truyền `FakeMailer(allowed)`."
+      - level: near_solution
+        md: "`return Notifier(FakeMailer(allowed)).send_all(names)`."
+    tests:
+      - {args: [["an"], ["an", "binh"]], expected: 1}
+      - {args: [[], ["an"]], expected: 0}
+      - {args: [["a", "b"], ["a", "b", "c", "a"]], expected: 3}
+      - {args: [["x"], []], expected: 0}
+    solution: |
+      class RealMailer:
+          def send(self, name):
+              return True
+
+
+      class FakeMailer:
+          def __init__(self, allowed):
+              self.allowed = allowed
+
+          def send(self, name):
+              return name in self.allowed
+
+
+      class Notifier:
+          def __init__(self, mailer):
+              self.mailer = mailer
+
+          def send_all(self, names):
+              return sum(1 for n in names if self.mailer.send(n))
+
+
+      def run(allowed, names):
+          return Notifier(FakeMailer(allowed)).send_all(names)
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "SRP: một class một lý do để đổi. OCP: thêm loại mới bằng class hoặc dữ liệu, không sửa chuỗi if/else."
+      - "LSP: class con thay được class cha (Square/Rectangle là phản ví dụ). ISP: interface nhỏ theo vai trò."
+      - "DIP: phụ thuộc vào abstraction. DI: nhận collaborator qua `__init__`; dễ test bằng bản giả."
+      - "Thêm: DRY, KISS, YAGNI; coupling thấp, cohesion cao; Law of Demeter và tell-don't-ask; value object bất biến. Đừng áp dụng quá đà khi code còn đơn giản."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X567], l2: [X568], l3: [X569]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

@@ -134,6 +134,10 @@ EXTRA_IDS = {
     "dsa.concurrency_coding.thread_safe_basics",
     "dsa.concurrency_coding.producer_consumer_pool",
     "dsa.concurrency_coding.concurrent_io_async",
+    # Wave 3 Round 21: LLD OOP principles.
+    "lld.oop_principles.pillars",
+    "lld.oop_principles.solid",
+    "lld.oop_principles.composition_vs_inheritance",
 }
 
 # Expected shipped counts, asserted so an upstream tree edit can't silently change the snapshot.
@@ -141,7 +145,7 @@ PLAN_MVP_COUNT = 40
 EXPECTED_SD = 86
 EXPECTED_ML4 = 39
 EXPECTED_EXTRA_IDS = len(EXTRA_IDS)  # Wave 2 additions
-EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 250
+EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 253
 
 # Node fields the app uses (SPEC 4.2); optional ones are skipped when a node lacks them.
 NODE_FIELDS = [

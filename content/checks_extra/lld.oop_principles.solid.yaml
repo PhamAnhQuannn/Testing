@@ -1,0 +1,83 @@
+subtopic_id: lld.oop_principles.solid
+items:
+  - id: X567
+    difficulty: 1
+    type: read_code
+    minutes: 3
+    prompt_md: Chạy tay (không chạy máy), đoạn code tách trách nhiệm (SRP) in ra gì? Giải thích 1 câu.
+    code: |-
+      class Mailer:
+          def __init__(self):
+              self.sent = []
+
+          def send(self, msg):
+              self.sent.append(msg)
+
+
+      class Invoice:
+          def __init__(self, items):
+              self.items = items
+
+          def total(self):
+              return sum(self.items)
+
+
+      inv = Invoice([3, 4, 5])
+      mailer = Mailer()
+      mailer.send("total=" + str(inv.total()))
+      print(len(mailer.sent), mailer.sent[0])
+    expected_output: "1 total=12"
+    answer_md: '`Invoice` chỉ tính tiền, `Mailer` chỉ gửi và lưu tin. `total()` = 3 + 4 + 5 = 12, tin nhắn là `total=12`, danh sách `sent` có 1 phần tử nên in `1 total=12`.'
+    rubric_md: "Output khớp VÀ nêu được mỗi class một trách nhiệm. Đúng: bằng chứng điểm 1; sai: tối đa điểm 0."
+  - id: X568
+    difficulty: 2
+    type: write_code
+    minutes: 8
+    prompt_md: |
+      Viết hàm `total_fee(items)` theo OCP: mỗi phần tử là `[kind, base]`; phí = `base * hệ số(kind)` với `bike` = 1, `car` = 2, `truck` = 3, loại lạ dùng hệ số 1. Trả về tổng phí (int). Dùng bảng tra dict thay vì chuỗi if/elif. Ví dụ `[["bike", 100], ["car", 50]]` cho `200`.
+    problem_id: check-x568-fee-engine
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 8 phút: bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X569
+    difficulty: 3
+    type: read_code
+    minutes: 5
+    prompt_md: Chạy tay (không chạy máy), đoạn code dependency injection in ra gì? Ghi đúng từng dòng và giải thích vì sao `Order` dễ test.
+    code: |-
+      class FakeMailer:
+          def __init__(self):
+              self.sent = []
+
+          def send(self, to, text):
+              self.sent.append(to + ":" + text)
+              return len(self.sent)
+
+
+      class Order:
+          def __init__(self, mailer):
+              self.mailer = mailer
+              self.lines = []
+
+          def add(self, name, qty):
+              self.lines.append((name, qty))
+
+          def checkout(self, to):
+              count = sum(q for _, q in self.lines)
+              return self.mailer.send(to, "items=" + str(count))
+
+
+      m = FakeMailer()
+      o = Order(m)
+      o.add("pen", 2)
+      o.add("ink", 3)
+      print(o.checkout("an"))
+      o.add("cap", 1)
+      print(o.checkout("binh"))
+      print(m.sent)
+      print(Order(m).mailer is m)
+    expected_output: |-
+      1
+      2
+      ['an:items=5', 'binh:items=6']
+      True
+    answer_md: '`Order` nhận `mailer` qua `__init__` (DI) nên dùng được `FakeMailer`. Lần checkout đầu: 2 + 3 = 5 món, tin thứ 1 nên trả `1`. Thêm `cap` thì 6 món, tin thứ 2 nên trả `2`. `sent` giữ cả hai tin. `Order(m).mailer is m` là `True` vì object được tiêm, không bị tạo lại.'
+    rubric_md: "Output khớp từng ký tự VÀ giải thích lợi ích của việc tiêm mailer. Đúng: bằng chứng điểm 3; sai: tối đa điểm 2."

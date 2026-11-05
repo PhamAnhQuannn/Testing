@@ -51,6 +51,7 @@ LEGACY_LEVELS = {"new_grad": "fresher"}  # pre-4-level settings / links still re
 # it so the web does not duplicate it.
 TRACKS: list[dict[str, Any]] = [
     {"key": "foundation", "name_vi": "Nền tảng", "sections": ["py", "cs", "dsa"]},
+    {"key": "lld", "name_vi": "Thiết kế hướng đối tượng (LLD)", "sections": ["lld"]},
     {"key": "system_design", "name_vi": "System Design", "sections": ["sd"]},
     {"key": "ai", "name_vi": "AI engineer (LLM)", "sections": ["ml"]},
 ]
@@ -58,6 +59,7 @@ SECTION_NAMES: dict[str, str] = {
     "py": "Python nền tảng",
     "cs": "Độ phức tạp & CS",
     "dsa": "Thuật toán & CTDL (DSA)",
+    "lld": "Thiết kế hướng đối tượng (LLD)",
     "sd": "System Design",
     "ml": "AI engineer (LLM)",
 }
@@ -87,6 +89,7 @@ MODULE_NAMES: dict[str, str] = {
     "dsa.math_bits": "Toán & bit",
     "dsa.practical": "Bài thực tế",
     "dsa.concurrency_coding": "Lập trình song song",
+    "lld.oop_principles": "Nguyên lý OOP",
     "sd.fundamentals": "Nền tảng thiết kế hệ thống",
     "sd.networking": "Mạng",
     "sd.api": "Thiết kế API",

@@ -13,6 +13,7 @@ const sectionOf = (item: MapSubtopic) => item.id.split(".")[0];
 const TRACK_FILTERS: { key: string; label: string; sections: string[] | null }[] = [
   { key: "all", label: "Tất cả", sections: null },
   { key: "foundation", label: "Nền tảng", sections: ["py", "dsa", "cs"] },
+  { key: "lld", label: "LLD", sections: ["lld"] },
   { key: "sd", label: "System Design", sections: ["sd"] },
   { key: "ai", label: "AI engineer", sections: ["ml"] },
 ];

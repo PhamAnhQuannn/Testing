@@ -1,0 +1,297 @@
+id: lld.oop_principles.pillars
+version: 1
+status: published
+title_vi: "Bốn trụ cột OOP, abstract class và interface"
+est_minutes: 14
+objectives_vi:
+  - "Giải thích bốn trụ cột OOP (encapsulation, abstraction, inheritance, polymorphism) bằng ví dụ ngắn."
+  - "Phân biệt overloading và overriding, biết Python không có overloading thật."
+  - "Chọn interface hay abstract class và nói được lý do."
+  - "Phân biệt association, aggregation, composition và áp dụng 'program to an interface'."
+blocks:
+  - id: s_pillars
+    type: section
+    title_vi: "Bốn trụ cột và overriding"
+    summary_vi: "Đóng gói giấu dữ liệu, trừu tượng giấu cách làm, kế thừa dùng lại code, đa hình cho cùng một lệnh nhiều cách làm."
+    exercise_ref: ex_encap
+  - id: t01
+    type: text
+    md: |
+      **Class** là bản vẽ, **object** là sản phẩm làm từ bản vẽ; mỗi object có dữ liệu riêng.
+      OOP xoay quanh bốn ý chính:
+
+      1. **Encapsulation (đóng gói)**: giấu dữ liệu, chỉ cho đổi qua method để chặn giá trị sai
+         (ví dụ số dư không được âm). Python không có `private` thật; quy ước `_x` nghĩa là "đừng
+         đụng từ ngoài", còn `__x` bị name-mangling.
+      2. **Abstraction (trừu tượng)**: chỉ lộ những gì người dùng cần, giấu cách làm bên trong
+         (gọi `account.withdraw(10)` mà không cần biết số dư lưu thế nào).
+      3. **Inheritance (kế thừa)**: class con dùng lại code của class cha rồi thêm hoặc sửa phần riêng.
+      4. **Polymorphism (đa hình)**: gọi cùng một method trên nhiều loại object, mỗi loại tự làm
+         theo cách của nó.
+
+      **Overloading vs overriding**: *nạp chồng* (overloading) là cùng tên hàm nhưng khác tham số,
+      được chọn lúc compile ở Java/C++; **Python không có overloading** (định nghĩa lại cùng tên thì
+      bản sau đè bản trước, dùng default argument hoặc `*args` thay thế). *Ghi đè* (overriding) là
+      class con viết lại method của cha và được chọn lúc chạy theo loại thật của object.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class Shape:
+          def area(self):
+              return 0
+
+          def describe(self):
+              return "area=" + str(self.area())
+
+
+      class Rect(Shape):
+          def __init__(self, w, h):
+              self.w = w
+              self.h = h
+
+          def area(self):  # overriding
+              return self.w * self.h
+
+
+      for s in [Shape(), Rect(2, 5)]:
+          print(s.describe())
+    expected_output: |
+      area=0
+      area=10
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Trong OOP, trụ cột nào cho phép gọi cùng một method `area()` trên `Rect` và `Circle` và mỗi loại tính theo cách riêng?"
+    options:
+      - {id: a, text_md: "Polymorphism (đa hình)"}
+      - {id: b, text_md: "Encapsulation (đóng gói)"}
+      - {id: c, text_md: "Abstraction (trừu tượng)"}
+    answer: [a]
+    explain_md: "Đa hình: cùng lời gọi, hành vi phụ thuộc loại object. Đóng gói là giấu dữ liệu; trừu tượng là giấu cách làm."
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Class con viết lại method của class cha và việc chọn bản nào xảy ra lúc chạy gọi là ___ (overloading hay overriding)."
+    blanks: [{accept: ["overriding", "Overriding", "ghi đè", "override"]}]
+    explain_md: "Đó là overriding (ghi đè). Overloading là cùng tên khác tham số và Python không hỗ trợ."
+  - id: q03
+    type: predict_output
+    code: |
+      class Account:
+          def __init__(self):
+              self._balance = 0
+
+          def deposit(self, n):
+              if n > 0:
+                  self._balance += n
+
+          def balance(self):
+              return self._balance
+
+
+      a = Account()
+      a.deposit(30)
+      a.deposit(-10)
+      a.deposit(5)
+      print(a.balance())
+    expected_output: |
+      35
+    explain_md: "`deposit(-10)` bị method từ chối nên chỉ còn 30 + 5 = 35. Đó là đóng gói: dữ liệu chỉ đổi qua method có kiểm tra."
+  - id: ex_encap
+    type: code_exercise
+    md: |
+      Viết `safe_withdraw(balance, n)`: trả về số dư mới sau khi rút `n` (int). Chỉ rút khi
+      `0 < n <= balance`; nếu không thì trả về `balance` không đổi. Bản dưới đây trừ thẳng nên có thể
+      ra số âm. Hãy sửa (đây chính là việc một method đóng gói phải làm).
+    entry: safe_withdraw
+    starter: |
+      def safe_withdraw(balance, n):
+          return balance - n
+    guidance_md: |
+      - Thử `safe_withdraw(50, 80)`: đáp án `50`, code trả `-30`.
+      - Thử `safe_withdraw(50, -5)`: đáp án `50`.
+    hints:
+      - level: nudge
+        md: "Khi nào việc rút tiền là hợp lệ? Cần kiểm tra cả `n` dương lẫn không vượt số dư."
+      - level: approach
+        md: "Dùng `if 0 < n <= balance:` để trừ, ngược lại giữ nguyên `balance`."
+      - level: near_solution
+        md: "`if 0 < n <= balance: return balance - n` rồi `return balance`."
+    tests:
+      - {args: [100, 30], expected: 70}
+      - {args: [50, 80], expected: 50}
+      - {args: [50, -5], expected: 50}
+      - {args: [50, 0], expected: 50}
+      - {args: [50, 50], expected: 0}
+    solution: |
+      def safe_withdraw(balance, n):
+          if 0 < n <= balance:
+              return balance - n
+          return balance
+  - id: s_design
+    type: section
+    title_vi: "Interface, abstract class và quan hệ giữa object"
+    summary_vi: "Interface là hợp đồng, abstract class cài sẵn một phần; composition sở hữu và chết theo cha, aggregation chỉ chứa."
+    exercise_ref: ex_poly
+  - id: t02
+    type: text
+    md: |
+      **Interface vs abstract class**:
+
+      | | Interface | Abstract class |
+      |---|---|---|
+      | Nội dung | chỉ liệt kê method phải có (hợp đồng, không state) | có thể viết sẵn một phần code và giữ state |
+      | Số lượng | một class cài **nhiều** interface | thường chỉ kế thừa **một** |
+      | Dùng khi | nhiều loại không liên quan cùng làm một việc | các loại cùng họ, chia sẻ code chung |
+
+      Python dùng `abc.ABC` + `@abstractmethod` cho abstract class, và duck typing (hoặc
+      `typing.Protocol`) cho kiểu interface.
+
+      **Ba quan hệ giữa object**:
+
+      - **Association**: A dùng B, hai bên độc lập (giáo viên dạy học sinh).
+      - **Aggregation**: A *chứa* B nhưng B sống độc lập (Lớp chứa Học sinh; lớp giải thể, học sinh vẫn còn).
+      - **Composition**: A *sở hữu* B và B chết theo A (Nhà và Phòng; phá nhà thì phòng mất).
+
+      **Program to an interface, not an implementation**: code gọi "ai có `pay()`" chứ không gọi
+      "thẻ tín dụng" cụ thể, nên thêm loại thanh toán mới mà không sửa code gọi.
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      from abc import ABC, abstractmethod
+
+
+      class Payment(ABC):  # interface-like contract
+          @abstractmethod
+          def pay(self, amount):
+              ...
+
+
+      class Card(Payment):
+          def pay(self, amount):
+              return "card:" + str(amount)
+
+
+      class Wallet(Payment):
+          def pay(self, amount):
+              return "wallet:" + str(amount)
+
+
+      def checkout(method, amount):  # depends only on Payment.pay
+          return method.pay(amount)
+
+
+      print(checkout(Card(), 100))
+      print(checkout(Wallet(), 100))
+    expected_output: |
+      card:100
+      wallet:100
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Chọn interface hay abstract class khi bạn muốn nhiều class cùng họ dùng chung một phần code cài sẵn và cùng state?"
+    options:
+      - {id: a, text_md: "Abstract class, vì nó có thể giữ state và code cài sẵn"}
+      - {id: b, text_md: "Interface, vì interface luôn chứa code dùng chung"}
+      - {id: c, text_md: "Không loại nào làm được"}
+    answer: [a]
+    explain_md: "Abstract class cài sẵn một phần và giữ state. Interface chỉ là hợp đồng, không state."
+  - id: q05
+    type: quiz_mcq
+    prompt_md: "Nhà có các Phòng; khi nhà bị phá thì các phòng không còn tồn tại. Đây là quan hệ gì?"
+    options:
+      - {id: a, text_md: "Composition"}
+      - {id: b, text_md: "Aggregation"}
+      - {id: c, text_md: "Association"}
+    answer: [a]
+    explain_md: "Phòng chết theo Nhà nên là composition. Lớp và Học sinh (học sinh còn sau khi lớp giải thể) là aggregation."
+  - id: q06
+    type: predict_output
+    code: |
+      class Animal:
+          def speak(self):
+              return "..."
+
+
+      class Dog(Animal):
+          def speak(self):
+              return "woof"
+
+
+      class Fish(Animal):
+          pass
+
+
+      print([a.speak() for a in [Dog(), Fish(), Animal()]])
+    expected_output: |
+      ['woof', '...', '...']
+    explain_md: "`Dog` ghi đè `speak`; `Fish` không ghi đè nên kế thừa bản của `Animal`."
+  - id: ex_poly
+    type: code_exercise
+    md: |
+      Viết `checkout_total(methods, amount)`: `methods` là danh sách tên phương thức thanh toán
+      (`"card"` hoặc `"wallet"`), mỗi phương thức trả một khoản cho đơn `amount` (int). `"wallet"` trả
+      đúng `amount`; `"card"` trả `amount + amount // 50` (phí 2%, chia nguyên). Trả về tổng đã trả.
+      Bản dưới đã có hai class cùng interface `pay(amount)` nhưng hàm cuối bỏ qua phí. Hãy sửa để
+      mỗi object tự tính bằng polymorphism, không `if` theo tên trong vòng lặp.
+    entry: checkout_total
+    starter: |
+      class Card:
+          def pay(self, amount):
+              return amount + amount // 50
+
+
+      class Wallet:
+          def pay(self, amount):
+              return amount
+
+
+      def checkout_total(methods, amount):
+          return amount * len(methods)
+    guidance_md: |
+      - Thử `checkout_total(["card", "wallet"], 100)`: đáp án `202` (102 + 100), code trả `200`.
+      - Dựng object từ tên (dict tên -> class), rồi gọi `.pay(amount)` trên từng object.
+    hints:
+      - level: nudge
+        md: "Mỗi phần tử trong `methods` cần được đổi thành một object có method `pay`."
+      - level: approach
+        md: "Tạo `registry = {'card': Card, 'wallet': Wallet}`, rồi cộng `registry[m]().pay(amount)` cho từng `m`."
+      - level: near_solution
+        md: "`return sum(registry[m]().pay(amount) for m in methods)`."
+    tests:
+      - {args: [[], 100], expected: 0}
+      - {args: [["wallet"], 100], expected: 100}
+      - {args: [["card", "wallet"], 100], expected: 202}
+      - {args: [[ "card", "card"], 49], expected: 98}
+      - {args: [["card", "wallet", "card"], 150], expected: 456}
+    solution: |
+      class Card:
+          def pay(self, amount):
+              return amount + amount // 50
+
+
+      class Wallet:
+          def pay(self, amount):
+              return amount
+
+
+      def checkout_total(methods, amount):
+          registry = {"card": Card, "wallet": Wallet}
+          return sum(registry[m]().pay(amount) for m in methods)
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Bốn trụ cột: encapsulation (giấu dữ liệu, đổi qua method kiểm tra), abstraction (giấu cách làm), inheritance (con dùng lại code của cha), polymorphism (cùng lệnh, mỗi loại làm khác)."
+      - "Overloading = cùng tên khác tham số (compile-time, Python không có); overriding = con viết lại hàm của cha (runtime)."
+      - "Interface là hợp đồng không state, cài được nhiều; abstract class cài sẵn một phần và giữ state, thường chỉ kế thừa một."
+      - "Association = dùng nhau; aggregation = chứa nhưng sống độc lập; composition = sở hữu và chết theo cha."
+      - "Program to an interface: code gọi hợp đồng (`pay()`) chứ không gọi class cụ thể, nên thêm loại mới dễ."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X564], l2: [X565], l3: [X566]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"
