@@ -1,0 +1,327 @@
+id: dsa.advanced_graphs.graph_advanced_topics
+version: 1
+status: published
+title_vi: "Graph nâng cao: SCC, bridges, Euler path, A*, NP-hard"
+est_minutes: 14
+objectives_vi:
+  - "Mô tả SCC (strongly connected component) và kiểm tra hai node cùng SCC bằng reachability hai chiều."
+  - "Dùng disc/low (Tarjan) để nhận ra bridge: cạnh cây (u, v) là cầu khi low[v] > disc[u]."
+  - "Nêu điều kiện Euler path/circuit qua bậc đỉnh và phân biệt Eulerian với Hamiltonian."
+  - "Nhận diện bài toán NP-hard (TSP, Hamiltonian, vertex cover) và biết A* là Dijkstra có heuristic."
+blocks:
+  - id: s_scc
+    type: section
+    title_vi: "SCC và đồ thị đảo chiều"
+    summary_vi: "SCC là nhóm node tới được nhau hai chiều; đảo cạnh giúp trả lời câu hỏi ai tới được mình."
+    exercise_ref: ex_scc
+  - id: t01
+    type: text
+    md: |
+      Trong đồ thị có hướng, **strongly connected component (SCC)** là tập node lớn nhất mà hai node bất kỳ
+      trong đó tới được nhau theo cả hai chiều. Co mỗi SCC thành một node thì ta được một **DAG** (condensation graph).
+
+      Hai thuật toán chuẩn đều chạy O(V + E):
+
+      - **Tarjan**: một lượt DFS với `disc`/`low` và một stack; khi `low[u] == disc[u]` thì `u` là gốc một SCC.
+      - **Kosaraju**: DFS lấy thứ tự kết thúc, rồi DFS trên **đồ thị đảo chiều** theo thứ tự ngược lại.
+
+      Hệ quả quan trọng: node nằm trên chu trình thì thuộc SCC có hơn một node (hoặc có self-loop). Vì vậy
+      **Find Eventual Safe States** (node mà mọi đường đi đều kết thúc ở terminal) chính là các node không
+      chạm tới chu trình. Cách làm gọn: đảo cạnh, rồi chạy **Kahn** từ các terminal (outdeg bằng 0).
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      graph = [[1], [2], [0, 3], []]
+      n = len(graph)
+      rev = [[] for _ in range(n)]
+      outdeg = [len(g) for g in graph]
+      for u in range(n):
+          for v in graph[u]:
+              rev[v].append(u)
+      print(rev)
+      queue = [i for i in range(n) if outdeg[i] == 0]
+      order = []
+      while queue:
+          v = queue.pop(0)
+          order.append(v)
+          for u in rev[v]:
+              outdeg[u] -= 1
+              if outdeg[u] == 0:
+                  queue.append(u)
+      print(order)
+      print(outdeg)
+    expected_output: |
+      [[2], [0], [1], [2]]
+      [3]
+      [1, 1, 1, 0]
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Trong đồ thị có hướng, hai node `a` và `b` cùng một SCC khi nào?"
+    options:
+      - {id: a, text_md: "Có đường đi từ `a` tới `b`"}
+      - {id: b, text_md: "Có đường đi từ `a` tới `b` và từ `b` tới `a`"}
+      - {id: c, text_md: "`a` và `b` có chung một hàng xóm"}
+    answer: [b]
+    explain_md: "SCC đòi hỏi tới được nhau theo cả hai chiều. Chỉ một chiều thì `a` và `b` thuộc hai SCC khác nhau, nối với nhau trong condensation DAG."
+  - id: ex_scc
+    type: code_exercise
+    md: |
+      Viết `same_scc(graph, a, b)`: `graph[i]` là danh sách node mà `i` trỏ tới. Trả `True` nếu `a` và `b`
+      thuộc cùng một SCC, tức `a` tới được `b` **và** `b` tới được `a`. Ví dụ `graph = [[1], [2], [0, 3], []]`:
+      `same_scc(graph, 0, 2)` là `True`, còn `same_scc(graph, 0, 3)` là `False` (0 tới 3 nhưng 3 không quay lại).
+      Bản dưới chỉ kiểm tra một chiều. Hãy sửa.
+    entry: same_scc
+    starter: |
+      def same_scc(graph, a, b):
+          def reaches(src, dst):
+              seen = {src}
+              stack = [src]
+              while stack:
+                  u = stack.pop()
+                  for v in graph[u]:
+                      if v not in seen:
+                          seen.add(v)
+                          stack.append(v)
+              return dst in seen
+
+          return reaches(a, b)
+    guidance_md: |
+      - Thử `graph = [[1], []]`, `a = 0`, `b = 1`: 0 tới 1 nhưng 1 không tới 0, đáp án là `False`.
+      - Cần cả hai chiều.
+    hints:
+      - level: nudge
+        md: "Nếu `a` tới được `b` nhưng `b` không tới được `a` thì hai node đó có cùng SCC không?"
+      - level: approach
+        md: "Gọi hàm `reaches` hai lần, một lần theo chiều `a -> b` và một lần theo chiều `b -> a`, rồi kết hợp hai kết quả."
+      - level: near_solution
+        md: "Câu lệnh cuối hàm phải đòi hỏi cả hai điều kiện cùng đúng: chiều đi `a` sang `b` và chiều ngược lại `b` sang `a`."
+    tests:
+      - {args: [[[1], [2], [0, 3], []], 0, 2], expected: true}
+      - {args: [[[1], [2], [0, 3], []], 0, 3], expected: false}
+      - {args: [[[1], [2], [0, 3], []], 3, 0], expected: false}
+      - {args: [[[1], [2], [0, 3], []], 1, 1], expected: true}
+      - {args: [[[1], []], 0, 1], expected: false}
+    solution: |
+      def same_scc(graph, a, b):
+          def reaches(src, dst):
+              seen = {src}
+              stack = [src]
+              while stack:
+                  u = stack.pop()
+                  for v in graph[u]:
+                      if v not in seen:
+                          seen.add(v)
+                          stack.append(v)
+              return dst in seen
+
+          return reaches(a, b) and reaches(b, a)
+  - id: s_bridge
+    type: section
+    title_vi: "Bridges và articulation points"
+    summary_vi: "disc/low cho biết cạnh hay node nào là điểm nghẽn: bỏ đi là đồ thị tách ra."
+    exercise_ref: ex_bridge
+  - id: t02
+    type: text
+    md: |
+      Trong đồ thị **vô hướng**, **bridge** (cầu) là cạnh mà xóa đi thì số thành phần liên thông tăng lên;
+      **articulation point** (điểm khớp) là node có tính chất tương tự. Bài **Critical Connections in a Network**
+      chính là tìm mọi bridge.
+
+      Tarjan dùng hai mảng khi DFS:
+
+      - `disc[u]`: thứ tự thăm `u`.
+      - `low[u]`: `disc` nhỏ nhất mà cây con của `u` với tới được bằng đúng một cạnh ngược (back edge).
+
+      Với cạnh cây `(u, v)`, `v` là con của `u`: nếu `low[v] > disc[u]` thì cây con của `v` không có đường
+      vòng lên `u` hay tổ tiên, nên `(u, v)` là bridge. Với articulation point, điều kiện là `low[v] >= disc[u]`.
+
+      Lưu ý khi cài đặt: bỏ qua cạnh cha theo **chỉ số cạnh** (để xử lý cạnh lặp) và dùng stack tường minh nếu
+      đồ thị là chuỗi dài, vì đệ quy dễ tràn stack. Độ phức tạp O(V + E).
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      adj = {0: [1, 2], 1: [0, 2], 2: [0, 1, 3], 3: [2]}
+      disc = {}
+      low = {}
+      bridges = []
+      timer = [0]
+
+      def dfs(u, parent):
+          disc[u] = low[u] = timer[0]
+          timer[0] += 1
+          for v in adj[u]:
+              if v == parent:
+                  continue
+              if v in disc:
+                  low[u] = min(low[u], disc[v])
+              else:
+                  dfs(v, u)
+                  low[u] = min(low[u], low[v])
+                  if low[v] > disc[u]:
+                      bridges.append((u, v))
+
+      dfs(0, -1)
+      print(disc)
+      print(low)
+      print(bridges)
+    expected_output: |
+      {0: 0, 1: 1, 2: 2, 3: 3}
+      {0: 0, 1: 0, 2: 0, 3: 3}
+      [(2, 3)]
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Với cạnh cây `(u, v)` trong DFS Tarjan, `(u, v)` là bridge khi `low[v]` ___ `disc[u]` (điền `>` hoặc `>=`)."
+    blanks: [{accept: [">"]}]
+    explain_md: "Bridge cần `low[v] > disc[u]` (nghiêm ngặt): cây con của `v` không với tới được cả `u`. Dấu `>=` là điều kiện của articulation point."
+  - id: q03
+    type: predict_output
+    code: |
+      adj = [[1, 2], [0, 2], [0, 1, 3], [2]]
+      disc = [-1] * 4
+      low = [0] * 4
+      t = 0
+
+      def dfs(u, p):
+          global t
+          disc[u] = low[u] = t
+          t += 1
+          for v in adj[u]:
+              if v == p:
+                  continue
+              if disc[v] == -1:
+                  dfs(v, u)
+                  low[u] = min(low[u], low[v])
+              else:
+                  low[u] = min(low[u], disc[v])
+
+      dfs(3, -1)
+      print(disc)
+      print(low)
+    expected_output: |
+      [2, 3, 1, 0]
+      [1, 1, 1, 0]
+    explain_md: "Bắt đầu từ 3: disc[3]=0, đi 3 -> 2 (disc 1), 2 -> 0 (disc 2), 0 -> 1 (disc 3). Node 1 thấy cạnh ngược về 2 (disc 1) nên low[1]=1, rồi low[0]=1 và low[2]=1. Node 3 là gốc nên low[3]=0, vì vậy `disc = [2, 3, 1, 0]` và `low = [1, 1, 1, 0]`."
+  - id: ex_bridge
+    type: code_exercise
+    md: |
+      Viết `is_bridge(n, edges, i)`: đồ thị vô hướng `n` node, danh sách cạnh `edges`. Trả `True` nếu cạnh
+      `edges[i]` là bridge, tức khi bỏ riêng cạnh đó thì hai đầu của nó không còn tới được nhau.
+      Ví dụ `n = 4`, `edges = [[0, 1], [1, 2], [2, 0], [1, 3]]`: cạnh 3 (`[1, 3]`) là bridge, cạnh 0 thì không.
+      Bản dưới quên bỏ cạnh `i` khi duyệt. Hãy sửa.
+    entry: is_bridge
+    starter: |
+      def is_bridge(n, edges, i):
+          adj = [[] for _ in range(n)]
+          for j, (u, v) in enumerate(edges):
+              adj[u].append(v)
+              adj[v].append(u)
+          src, dst = edges[i]
+          seen = {src}
+          stack = [src]
+          while stack:
+              u = stack.pop()
+              for w in adj[u]:
+                  if w not in seen:
+                      seen.add(w)
+                      stack.append(w)
+          return dst not in seen
+    guidance_md: |
+      - Thử `n = 2`, `edges = [[0, 1]]`, `i = 0`: đáp án là `True`, nhưng code trả `False`.
+      - Khi dựng danh sách kề, bỏ qua cạnh có chỉ số `i`.
+    hints:
+      - level: nudge
+        md: "Cạnh `edges[i]` đang nằm trong danh sách kề lúc duyệt, nên hai đầu luôn tới được nhau. Cần làm gì với cạnh đó?"
+      - level: approach
+        md: "Trong vòng lặp dựng `adj`, bỏ qua cạnh có chỉ số `j == i`. Sau đó duyệt từ `src` và xem `dst` có còn được thăm không."
+      - level: near_solution
+        md: "Thêm vào đầu thân vòng lặp `for j, (u, v) in enumerate(edges)` một kiểm tra: nếu `j == i` thì `continue`. Phần duyệt và `return` giữ nguyên."
+    tests:
+      - {args: [4, [[0, 1], [1, 2], [2, 0], [1, 3]], 3], expected: true}
+      - {args: [4, [[0, 1], [1, 2], [2, 0], [1, 3]], 0], expected: false}
+      - {args: [2, [[0, 1]], 0], expected: true}
+      - {args: [4, [[0, 1], [1, 2], [2, 3]], 1], expected: true}
+      - {args: [3, [[0, 1], [1, 2], [2, 0]], 2], expected: false}
+    solution: |
+      def is_bridge(n, edges, i):
+          adj = [[] for _ in range(n)]
+          for j, (u, v) in enumerate(edges):
+              if j == i:
+                  continue
+              adj[u].append(v)
+              adj[v].append(u)
+          src, dst = edges[i]
+          seen = {src}
+          stack = [src]
+          while stack:
+              u = stack.pop()
+              for w in adj[u]:
+                  if w not in seen:
+                      seen.add(w)
+                      stack.append(w)
+          return dst not in seen
+  - id: s_more
+    type: section
+    title_vi: "Euler path, A* và NP-hard"
+    summary_vi: "Euler đi qua mọi cạnh (dễ, theo bậc đỉnh); Hamiltonian đi qua mọi đỉnh (NP-hard); A* là Dijkstra có heuristic."
+  - id: t03
+    type: text
+    md: |
+      **Euler path** đi qua **mỗi cạnh đúng một lần**. Điều kiện kiểm tra theo bậc đỉnh (và liên thông):
+
+      - Vô hướng: Euler circuit khi mọi node có bậc chẵn; Euler path khi có đúng 0 hoặc 2 node bậc lẻ.
+      - Có hướng: circuit khi `indeg == outdeg` ở mọi node; path khi có đúng một node `out - in = 1` (điểm đầu)
+        và một node `in - out = 1` (điểm cuối).
+
+      Dựng đường đi bằng **Hierholzer** (O(E)); bài **Reconstruct Itinerary** là Euler path trên đồ thị có hướng,
+      lấy tên sân bay nhỏ nhất theo từ điển khi có lựa chọn.
+
+      **Hamiltonian path** (đi qua mỗi *đỉnh* đúng một lần) nghe giống Euler nhưng là **NP-complete**. Cùng họ
+      NP-hard: **TSP**, **vertex cover**, **clique**, graph coloring. Khi gặp chúng, đừng tìm thuật toán đa thức:
+      dùng bitmask DP O(2^n * n^2) cho n nhỏ (n khoảng 20), backtracking có cắt tỉa, hoặc xấp xỉ.
+
+      **A\*** là Dijkstra với khóa ưu tiên `f(n) = g(n) + h(n)`, trong đó `h` là heuristic ước lượng khoảng cách
+      còn lại. Nếu `h` **admissible** (không bao giờ đánh giá quá cao) thì kết quả vẫn tối ưu; `h = 0` suy
+      biến về Dijkstra. Dùng cho bản đồ/lưới có đích rõ ràng.
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Bài nào dưới đây giải được trong thời gian đa thức (O(V + E))?"
+    options:
+      - {id: a, text_md: "Kiểm tra đồ thị có Hamiltonian path hay không"}
+      - {id: b, text_md: "Kiểm tra đồ thị vô hướng liên thông có Euler circuit hay không (đếm bậc đỉnh)"}
+      - {id: c, text_md: "Traveling Salesman Problem tối ưu cho n bất kỳ"}
+    answer: [b]
+    explain_md: "Euler circuit chỉ cần kiểm tra mọi bậc đỉnh chẵn (và liên thông). Hamiltonian path và TSP đều NP-hard."
+  - id: q05
+    type: predict_output
+    code: |
+      from collections import Counter
+      deg = Counter()
+      for u, v in [(0, 1), (1, 2), (2, 0), (2, 3)]:
+          deg[u] += 1
+          deg[v] -= 1
+      print(sorted(deg.items()))
+      print([k for k, d in sorted(deg.items()) if d != 0])
+    expected_output: |
+      [(0, 0), (1, 0), (2, 1), (3, -1)]
+      [2, 3]
+    explain_md: "Mỗi cạnh `(u, v)` cộng 1 vào `out - in` của `u` và trừ 1 của `v`. Node 2 có hai cạnh ra và một cạnh vào nên +1; node 3 chỉ có một cạnh vào nên -1. Đúng một điểm đầu (2) và một điểm cuối (3), nên có Euler path nhưng không có circuit."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "SCC: tới được nhau hai chiều; condensation của đồ thị có hướng là một DAG. Tarjan và Kosaraju đều O(V + E)."
+      - "Eventual safe states: đảo cạnh rồi Kahn từ các terminal; node không bao giờ chạm chu trình là safe."
+      - "Bridge: cạnh cây (u, v) có `low[v] > disc[u]`; articulation point dùng `>=`. Dùng DFS lặp cho đồ thị sâu."
+      - "Euler path đi qua mọi cạnh, kiểm bằng bậc đỉnh (Hierholzer dựng đường); Hamiltonian, TSP, vertex cover là NP-hard."
+      - "A* = Dijkstra với `f = g + h`; heuristic admissible giữ kết quả tối ưu."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X465], l2: [X466], l3: [X467]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-04"

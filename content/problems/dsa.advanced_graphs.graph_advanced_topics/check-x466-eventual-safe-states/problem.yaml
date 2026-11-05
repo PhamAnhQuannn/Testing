@@ -1,0 +1,70 @@
+id: check-x466-eventual-safe-states
+subtopic_id: dsa.advanced_graphs.graph_advanced_topics
+secondary_subtopics: []
+kind: check
+title: 'Check X466: eventual_safe_nodes'
+title_vi: 'Kiểm tra X466: eventual_safe_nodes'
+difficulty: easy
+source:
+  type: leetcode
+  lc: 802
+  rewrite_required: true
+statement_en_md: |
+  A directed graph has `n` nodes `0..n-1`; `graph[i]` lists the nodes that `i` points to. A node is a
+  terminal node if it has no outgoing edge. A node is safe if every path starting from it ends at a
+  terminal node (in particular no path from it can run forever in a cycle). Return the sorted list of
+  all safe nodes. Hint: reverse the edges and run Kahn's topological sort from the terminal nodes,
+  iteratively (no recursion).
+statement_vi_md: |
+  Viết `eventual_safe_nodes(graph)`: đồ thị có hướng gồm `n` node `0..n-1`, `graph[i]` là danh sách các
+  node mà `i` trỏ tới. Node **terminal** là node không có cạnh ra. Node **safe** là node mà mọi đường đi
+  xuất phát từ nó đều kết thúc ở một terminal (không đường nào đi vòng mãi trong chu trình). Trả về danh
+  sách **đã sắp xếp tăng dần** của mọi node safe. Gợi ý: đảo chiều cạnh rồi chạy Kahn từ các terminal,
+  dùng vòng lặp (không đệ quy).
+constraints:
+- 1 <= n <= 10^4
+- 0 <= graph[i][j] < n
+- graph[i] has no duplicate nodes
+examples:
+- input: graph = [[1, 2], [2, 3], [5], [0], [5], [], []]
+  output: '[2, 4, 5, 6]'
+  explain_vi: Node 5 và 6 là terminal. Node 2 và 4 chỉ dẫn tới 5 nên safe. Node 0, 1, 3 nằm trên chu trình 0 -> 1 -> 3 -> 0 nên không safe.
+- input: graph = [[], [0], [1]]
+  output: '[0, 1, 2]'
+  explain_vi: Đồ thị là một đường 2 -> 1 -> 0 kết thúc ở terminal 0, nên mọi node đều safe.
+io:
+  mode: function
+  entry: eventual_safe_nodes
+  params:
+  - name: graph
+    type: list[list[int]]
+  returns: list[int]
+  compare: exact
+starter:
+  python: |
+    def eventual_safe_nodes(graph):
+        # TODO: đảo cạnh, đếm outdeg, Kahn từ các node outdeg == 0
+        return []
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+time_target_min: 8
+hints:
+- Node safe là node không thể chạm tới chu trình. Terminal (không cạnh ra) chắc chắn safe.
+- Đảo chiều mọi cạnh để biết "ai trỏ tới v". Giữ outdeg[u] = số cạnh ra của u trong đồ thị gốc.
+- Bắt đầu hàng đợi/stack với các node outdeg == 0. Khi lấy v ra, đánh dấu safe và giảm outdeg của mọi u trỏ tới v; nếu về 0 thì đẩy u vào. Cuối cùng trả các node safe theo thứ tự tăng dần.
+solution:
+  file: solution.py
+  approach_vi: Đảo đồ thị rồi Kahn lặp từ các terminal; node nào hết cạnh ra chưa an toàn được xử lý thì safe. Trả theo thứ tự chỉ số tăng dần.
+  complexity: O(V + E) / O(V + E)
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x466
+status: validated
+version: 1

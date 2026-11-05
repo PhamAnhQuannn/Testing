@@ -1,0 +1,262 @@
+id: dsa.advanced_graphs.dijkstra
+version: 1
+status: published
+title_vi: "Đường đi ngắn nhất Dijkstra"
+est_minutes: 14
+objectives_vi:
+  - "Giải thích relaxation và vì sao Dijkstra luôn chốt đỉnh có khoảng cách nhỏ nhất chưa chốt."
+  - "Cài Dijkstra bằng min-heap chứa (dist, node) và bỏ qua entry cũ (stale) khi pop."
+  - "Giải thích vì sao cạnh âm làm Dijkstra sai và nêu độ phức tạp O((V+E) log V)."
+  - "Áp dụng Dijkstra cho lưới (grid) và truy vết đường đi bằng mảng prev."
+blocks:
+  - id: s_core
+    type: section
+    title_vi: "Relaxation và heap"
+    summary_vi: "Relax cạnh (u, v, w) khi d[u] + w < d[v]; heap cho ta đỉnh gần nhất chưa chốt."
+    exercise_ref: ex_dist
+  - id: t01
+    type: text
+    md: |
+      **Dijkstra** tìm đường ngắn nhất từ một nguồn tới mọi đỉnh trong đồ thị có trọng số **không âm**.
+      Ý tưởng: giữ `dist[v]` là khoảng cách tốt nhất đã biết (ban đầu `inf`, riêng `dist[src] = 0`),
+      rồi lặp lại việc lấy đỉnh `u` có `dist` nhỏ nhất chưa chốt và **relax** các cạnh ra khỏi `u`:
+
+      - Relax cạnh `(u, v, w)`: nếu `dist[u] + w < dist[v]` thì cập nhật `dist[v] = dist[u] + w`.
+      - Dùng **min-heap** chứa `(dist, node)` để lấy nhanh đỉnh gần nhất; mỗi lần relax thành công thì
+        `heappush` một entry mới.
+      - Một đỉnh có thể nằm trong heap nhiều lần. Khi pop `(d, u)` mà `d > dist[u]` thì entry đó đã
+        **cũ (stale)**, bỏ qua bằng `continue`.
+
+      Mỗi cạnh được relax tối đa một lần theo hướng đã chốt, heap có tối đa E entry, nên tổng chi phí là
+      **O((V + E) log V)**. Python so sánh tuple từng phần tử nên hoàn toàn xác định (deterministic).
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      import heapq
+
+      graph = {0: [(1, 4), (2, 1)], 1: [(3, 1)], 2: [(1, 2), (3, 5)], 3: []}
+      dist = [float("inf")] * 4
+      dist[0] = 0
+      heap = [(0, 0)]
+      while heap:
+          d, u = heapq.heappop(heap)
+          if d > dist[u]:
+              print("skip", d, u)
+              continue
+          for v, w in graph[u]:
+              if d + w < dist[v]:
+                  dist[v] = d + w
+                  heapq.heappush(heap, (d + w, v))
+      print(dist)
+    expected_output: |
+      skip 4 1
+      skip 6 3
+      [0, 3, 1, 4]
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Trong vòng lặp Dijkstra, vì sao cần dòng `if d > dist[u]: continue` sau khi pop?"
+    options:
+      - {id: a, text_md: "Để bỏ qua entry cũ: đỉnh `u` đã được relax tốt hơn bởi một entry khác"}
+      - {id: b, text_md: "Để phát hiện chu trình âm trong đồ thị"}
+      - {id: c, text_md: "Để heap luôn có đúng V phần tử"}
+    answer: [a]
+    explain_md: "Heap không xóa được entry cũ khi `dist[v]` giảm, nên ta để chúng lại và bỏ qua khi pop ra. Nếu không bỏ qua, kết quả vẫn đúng nhưng làm thừa việc."
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Khởi tạo Dijkstra: `dist[src] = ___` còn mọi đỉnh khác là `inf`."
+    blanks: [{accept: ["0", "không"]}]
+    explain_md: "Khoảng cách từ nguồn tới chính nó là 0; các đỉnh khác chưa biết đường nên là vô cực."
+  - id: ex_dist
+    type: code_exercise
+    md: |
+      Viết `shortest_dist(n, edges, src)`: đồ thị có hướng `n` đỉnh `0..n-1`, `edges` là các cạnh
+      `[u, v, w]` với `w >= 0`. Trả về danh sách khoảng cách ngắn nhất từ `src` tới từng đỉnh, đỉnh không
+      tới được thì ghi `-1`. Ví dụ `n = 3`, `edges = [[0, 1, 4], [0, 2, 1], [2, 1, 2]]`, `src = 0` cho
+      `[0, 3, 1]`. Bản dưới đây chỉ relax các cạnh trực tiếp từ nguồn. Hãy hoàn thiện thành Dijkstra.
+    entry: shortest_dist
+    starter: |
+      import heapq
+
+
+      def shortest_dist(n, edges, src):
+          graph = [[] for _ in range(n)]
+          for u, v, w in edges:
+              graph[u].append((v, w))
+          inf = float("inf")
+          dist = [inf] * n
+          dist[src] = 0
+          for v, w in graph[src]:
+              dist[v] = min(dist[v], w)
+          return [-1 if x == inf else x for x in dist]
+    guidance_md: |
+      - Thử `edges = [[0, 1, 1], [1, 2, 1]]`, `src = 0`: đáp án `[0, 1, 2]`, nhưng code chỉ thấy node 1.
+      - Cần một heap `(dist, node)` và vòng `while heap` để đi tiếp từ các đỉnh vừa cập nhật.
+    hints:
+      - level: nudge
+        md: "Sau khi cập nhật `dist[v]`, đỉnh `v` có cần được xét tiếp để relax các cạnh ra khỏi nó không?"
+      - level: approach
+        md: "Đưa `(0, src)` vào heap. Mỗi lần pop `(d, u)`: bỏ qua nếu `d > dist[u]`, ngược lại relax từng cạnh `(v, w)` của `u` và push entry mới khi cải thiện được."
+      - level: near_solution
+        md: "Thay vòng `for` trực tiếp bằng `heap = [(0, src)]` và `while heap:`. Trong thân vòng lặp, pop, `continue` nếu entry cũ, rồi với mỗi `(v, w)` mà `d + w < dist[v]` thì gán `dist[v]` và `heappush`."
+    tests:
+      - {args: [1, [], 0], expected: [0]}
+      - {args: [3, [[0, 1, 4], [0, 2, 1], [2, 1, 2]], 0], expected: [0, 3, 1]}
+      - {args: [4, [[0, 1, 1], [1, 2, 1], [0, 2, 5]], 0], expected: [0, 1, 2, -1]}
+      - {args: [4, [[0, 1, 1]], 2], expected: [-1, -1, 0, -1]}
+      - {args: [4, [[0, 1, 1], [1, 2, 1], [0, 2, 5]], 1], expected: [-1, 0, 1, -1]}
+    solution: |
+      import heapq
+
+
+      def shortest_dist(n, edges, src):
+          graph = [[] for _ in range(n)]
+          for u, v, w in edges:
+              graph[u].append((v, w))
+          inf = float("inf")
+          dist = [inf] * n
+          dist[src] = 0
+          heap = [(0, src)]
+          while heap:
+              d, u = heapq.heappop(heap)
+              if d > dist[u]:
+                  continue
+              for v, w in graph[u]:
+                  if d + w < dist[v]:
+                      dist[v] = d + w
+                      heapq.heappush(heap, (d + w, v))
+          return [-1 if x == inf else x for x in dist]
+  - id: s_apply
+    type: section
+    title_vi: "Cạnh âm, truy vết và lưới"
+    summary_vi: "Dijkstra cần cạnh không âm; lưu prev để truy vết; ô lưới cũng là đỉnh với chi phí riêng."
+    exercise_ref: ex_grid
+  - id: t02
+    type: text
+    md: |
+      **Vì sao cạnh âm làm hỏng Dijkstra?** Thuật toán giả định khi một đỉnh được chốt (pop với `dist`
+      nhỏ nhất) thì không có đường nào khác ngắn hơn. Với cạnh âm, một đường đi vòng sau này có thể làm
+      `dist` của đỉnh đã chốt nhỏ hơn nữa. Khi có cạnh âm hãy dùng Bellman-Ford.
+
+      **Truy vết đường đi**: mỗi lần relax thành công, lưu `prev[v] = u`. Cuối cùng đi ngược từ đích
+      bằng `prev` tới nguồn rồi đảo danh sách.
+
+      **Dijkstra trên lưới / đồ thị trạng thái**: mỗi ô `(r, c)` là một đỉnh, hàng xóm là 4 ô kề, trọng
+      số là chi phí di chuyển. Heap chứa `(dist, r, c)`. Đồ thị trạng thái (ví dụ `(node, số lần dừng còn
+      lại)`) dùng cùng khuôn mẫu, chỉ khác định nghĩa đỉnh.
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      import heapq
+
+      graph = {"A": [("B", 2), ("C", 5)], "B": [("C", 1), ("D", 4)], "C": [("D", 1)], "D": []}
+      dist = {"A": 0}
+      prev = {}
+      heap = [(0, "A")]
+      while heap:
+          d, u = heapq.heappop(heap)
+          if d > dist.get(u, 99):
+              continue
+          for v, w in graph[u]:
+              if d + w < dist.get(v, 99):
+                  dist[v] = d + w
+                  prev[v] = u
+                  heapq.heappush(heap, (d + w, v))
+      path = ["D"]
+      while path[-1] != "A":
+          path.append(prev[path[-1]])
+      print(dist["D"], path[::-1])
+    expected_output: |
+      4 ['A', 'B', 'C', 'D']
+  - id: q03
+    type: predict_output
+    code: |
+      import heapq
+
+      heap = []
+      for item in [(5, "a"), (2, "b"), (9, "c"), (2, "a")]:
+          heapq.heappush(heap, item)
+      print(heapq.heappop(heap))
+      print(heapq.heappop(heap))
+      print(len(heap))
+    expected_output: |
+      (2, 'a')
+      (2, 'b')
+      2
+    explain_md: "Tuple so sánh phần tử đầu trước (đều là 2), hòa thì so tiếp chuỗi: `'a' < 'b'` nên `(2, 'a')` ra trước. Sau hai lần pop còn 2 phần tử."
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Đồ thị có cạnh trọng số âm và không có chu trình âm. Dijkstra có đảm bảo đúng không?"
+    options:
+      - {id: a, text_md: "Có, vì heap luôn lấy đỉnh nhỏ nhất"}
+      - {id: b, text_md: "Không, vì đỉnh đã chốt vẫn có thể được cải thiện qua cạnh âm"}
+      - {id: c, text_md: "Chỉ đúng khi dùng thêm mảng prev"}
+    answer: [b]
+    explain_md: "Giả định 'đỉnh đã chốt là tối ưu' chỉ đúng khi mọi trọng số không âm. Với cạnh âm cần Bellman-Ford."
+  - id: ex_grid
+    type: code_exercise
+    md: |
+      Viết `cheapest_path_cost(grid)`: `grid` là lưới `m x n` số nguyên dương, đi từ góc trên-trái tới góc
+      dưới-phải, mỗi bước sang một trong 4 ô kề. Chi phí đường đi là tổng giá trị các ô đã đi qua (tính cả ô
+      đầu và ô cuối). Trả về chi phí nhỏ nhất. Ví dụ `[[1, 2], [1, 1]]` cho `3`. Bản dưới đây chỉ đi dọc
+      hàng đầu rồi cột cuối. Hãy thay bằng Dijkstra.
+    entry: cheapest_path_cost
+    starter: |
+      def cheapest_path_cost(grid):
+          return sum(grid[0]) + sum(row[-1] for row in grid[1:])
+    guidance_md: |
+      - Với `[[1, 2], [1, 1]]`, đi xuống rồi sang phải tốn `1 + 1 + 1 = 3`, rẻ hơn đi ngang trước (4).
+      - Heap chứa `(cost, r, c)`; ô kề `(nr, nc)` nhận chi phí `cost + grid[nr][nc]`.
+    hints:
+      - level: nudge
+        md: "Mỗi ô là một đỉnh. Chi phí để bước vào ô kề là giá trị của chính ô đó."
+      - level: approach
+        md: "Tạo `dist` kích thước `m x n` toàn `inf`, `dist[0][0] = grid[0][0]`, heap bắt đầu `(grid[0][0], 0, 0)`. Pop, bỏ qua entry cũ, rồi relax 4 ô kề nằm trong lưới."
+      - level: near_solution
+        md: "Với mỗi hướng tính `nr, nc`; nếu trong lưới và `cost + grid[nr][nc] < dist[nr][nc]` thì cập nhật và push. Kết quả là `dist` ở ô góc dưới-phải."
+    tests:
+      - {args: [[[5]]], expected: 5}
+      - {args: [[[1, 2], [1, 1]]], expected: 3}
+      - {args: [[[1, 3, 1], [1, 5, 1], [4, 2, 1]]], expected: 7}
+      - {args: [[[1, 9, 1], [1, 9, 1], [1, 1, 1]]], expected: 5}
+      - {args: [[[1, 1, 9], [9, 1, 9], [9, 1, 1]]], expected: 5}
+    solution: |
+      import heapq
+
+
+      def cheapest_path_cost(grid):
+          rows, cols = len(grid), len(grid[0])
+          inf = float("inf")
+          dist = [[inf] * cols for _ in range(rows)]
+          dist[0][0] = grid[0][0]
+          heap = [(grid[0][0], 0, 0)]
+          while heap:
+              cost, r, c = heapq.heappop(heap)
+              if cost > dist[r][c]:
+                  continue
+              for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                  nr, nc = r + dr, c + dc
+                  if 0 <= nr < rows and 0 <= nc < cols:
+                      nxt = cost + grid[nr][nc]
+                      if nxt < dist[nr][nc]:
+                          dist[nr][nc] = nxt
+                          heapq.heappush(heap, (nxt, nr, nc))
+          return dist[rows - 1][cols - 1]
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Relax cạnh (u, v, w): nếu dist[u] + w < dist[v] thì cập nhật dist[v]."
+      - "Dùng min-heap (dist, node); pop ra entry cũ (d > dist[u]) thì bỏ qua."
+      - "Độ phức tạp O((V + E) log V); chỉ đúng khi mọi trọng số không âm (cạnh âm dùng Bellman-Ford)."
+      - "Lưu prev[v] để truy vết; lưới và đồ thị trạng thái dùng cùng khuôn mẫu Dijkstra."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X456], l2: [X457], l3: [X458]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-04"

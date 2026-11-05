@@ -1,0 +1,46 @@
+subtopic_id: dsa.advanced_graphs.graph_advanced_topics
+items:
+  - id: X465
+    difficulty: 1
+    type: read_code
+    minutes: 3
+    prompt_md: Chạy tay (không chạy máy), đoạn code in ra gì? Giải thích 1 câu.
+    code: |-
+      graph = [[1], [2], [0, 3], []]
+      n = len(graph)
+      rev = [[] for _ in range(n)]
+      outdeg = [len(g) for g in graph]
+      for u in range(n):
+          for v in graph[u]:
+              rev[v].append(u)
+      print(rev)
+      queue = [i for i in range(n) if outdeg[i] == 0]
+      order = []
+      while queue:
+          v = queue.pop(0)
+          order.append(v)
+          for u in rev[v]:
+              outdeg[u] -= 1
+              if outdeg[u] == 0:
+                  queue.append(u)
+      print(order)
+      print(outdeg)
+    expected_output: "[[2], [0], [1], [2]]\n[3]\n[1, 1, 1, 0]"
+    answer_md: 'Đồ thị đảo `rev` cho biết ai trỏ tới mỗi node. Chỉ node 3 là terminal (outdeg 0) nên Kahn chỉ xử lý được `[3]`; outdeg của 2 giảm từ 2 xuống 1 nhưng không về 0, nên 0, 1, 2 (nằm trên chu trình 0 -> 1 -> 2 -> 0) không bao giờ được xử lý và `outdeg` còn `[1, 1, 1, 0]`.'
+    rubric_md: "Output khớp từng ký tự (bỏ khoảng trắng cuối dòng) VÀ giải thích đúng 1 câu. Đúng: bằng chứng điểm 1; sai: tối đa điểm 0."
+  - id: X466
+    difficulty: 2
+    type: write_code
+    minutes: 8
+    prompt_md: |
+      Viết `eventual_safe_nodes(graph)`: `graph[i]` là danh sách node mà `i` trỏ tới (đồ thị có hướng). Node terminal không có cạnh ra; node safe là node mà mọi đường đi từ nó đều kết thúc ở terminal. Trả về danh sách mọi node safe, sắp xếp tăng dần. `eventual_safe_nodes([[1, 2], [2, 3], [5], [0], [5], [], []])` là `[2, 4, 5, 6]`. Gợi ý: đảo cạnh rồi Kahn từ các node outdeg 0, dùng vòng lặp (không đệ quy).
+    problem_id: check-x466-eventual-safe-states
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 8 phút: bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X467
+    difficulty: 3
+    type: write_code
+    minutes: 10
+    prompt_md: |
+      Viết `critical_connections(n, connections)`: đồ thị vô hướng `n` node `0..n-1`, `connections` là các cạnh `[u, v]`. Trả về mọi bridge (cạnh mà xóa đi làm đồ thị mất liên thông), mỗi cạnh dạng `[min(u, v), max(u, v)]`, danh sách sắp xếp tăng dần. `critical_connections(4, [[0, 1], [1, 2], [2, 0], [1, 3]])` là `[[1, 3]]`. Gợi ý: Tarjan disc/low với DFS lặp (stack tường minh), bridge khi `low[con] > disc[cha]`.
+    problem_id: check-x467-critical-connections
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 10 phút: bằng chứng điểm 3; phải xem gợi ý hoặc quá thời gian: tối đa điểm 2."

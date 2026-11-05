@@ -1,0 +1,278 @@
+id: dsa.advanced_graphs.mst
+version: 1
+status: published
+title_vi: "Cây khung nhỏ nhất (MST): Kruskal và Prim"
+est_minutes: 15
+objectives_vi:
+  - "Mô tả cây khung nhỏ nhất (MST): n đỉnh, đúng n - 1 cạnh, không chu trình, tổng trọng số nhỏ nhất."
+  - "Cài Kruskal: sắp xếp cạnh tăng dần rồi dùng DSU để bỏ cạnh tạo chu trình."
+  - "Cài Prim với heap: mở rộng cây từ một đỉnh bằng cạnh rẻ nhất đi ra ngoài."
+  - "Phân biệt MST với cây đường đi ngắn nhất và chọn Kruskal hay Prim theo độ phức tạp."
+blocks:
+  - id: s_mst
+    type: section
+    title_vi: "MST và tính chất cắt"
+    summary_vi: "MST nối mọi đỉnh bằng n - 1 cạnh với tổng nhỏ nhất; cạnh nhẹ nhất qua một lát cắt luôn an toàn."
+  - id: t01
+    type: text
+    md: |
+      **Cây khung (spanning tree)** của đồ thị vô hướng liên thông là tập cạnh nối **tất cả** đỉnh mà
+      không tạo chu trình; với `n` đỉnh nó có đúng `n - 1` cạnh. Khi cạnh có trọng số, **cây khung nhỏ
+      nhất (MST)** là cây khung có tổng trọng số nhỏ nhất, như kéo dây điện nối mọi nhà với ít dây nhất.
+
+      **Tính chất cắt (cut property)**: chia đỉnh thành hai nhóm bất kỳ; cạnh nhẹ nhất nối hai nhóm đó
+      luôn thuộc một MST nào đó. Cả Kruskal và Prim chỉ là hai cách chọn lát cắt khác nhau, đều tham lam.
+
+      - **Kruskal**: sắp xếp mọi cạnh tăng dần, duyệt từng cạnh, nhận nếu hai đầu ở hai tập DSU khác nhau.
+        Độ phức tạp `O(E log E)`.
+      - **Prim**: giữ một cây đang lớn, mỗi lần lấy cạnh rẻ nhất từ cây ra đỉnh chưa thăm (dùng heap).
+        Độ phức tạp `O(E log V)`.
+
+      Lưu ý: MST **không** phải cây đường đi ngắn nhất. MST tối thiểu tổng cạnh, còn đường đi ngắn nhất
+      (Dijkstra) tối thiểu khoảng cách từ một nguồn.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      parent = list(range(4))
+
+      def find(x):
+          while parent[x] != x:
+              parent[x] = parent[parent[x]]
+              x = parent[x]
+          return x
+
+      edges = [(4, 0, 1), (1, 1, 2), (3, 0, 2), (2, 2, 3), (5, 1, 3)]
+      total = 0
+      for w, u, v in sorted(edges):
+          ru, rv = find(u), find(v)
+          if ru != rv:
+              parent[ru] = rv
+              total += w
+              print("take", u, v, w)
+          else:
+              print("skip", u, v, w)
+      print(total)
+    expected_output: |
+      take 1 2 1
+      take 2 3 2
+      take 0 2 3
+      skip 0 1 4
+      skip 1 3 5
+      6
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Đồ thị liên thông có 7 đỉnh. Một cây khung nhỏ nhất của nó có bao nhiêu cạnh?"
+    options:
+      - {id: a, text_md: "6"}
+      - {id: b, text_md: "7"}
+      - {id: c, text_md: "Tùy trọng số các cạnh"}
+    answer: [a]
+    explain_md: "Mọi cây khung của `n` đỉnh có đúng `n - 1` cạnh (ít hơn thì không liên thông, nhiều hơn thì có chu trình), nên 7 đỉnh cho 6 cạnh."
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Trong Kruskal, sau khi sắp xếp cạnh tăng dần, một cạnh bị bỏ qua khi hai đầu của nó đã có cùng ___ trong DSU."
+    blanks: [{accept: ["root", "gốc", "đại diện", "tập"]}]
+    explain_md: "Hai đầu cùng root nghĩa là đã liên thông; thêm cạnh sẽ tạo chu trình nên Kruskal bỏ qua."
+  - id: s_kruskal
+    type: section
+    title_vi: "Kruskal với DSU"
+    summary_vi: "Sắp xếp cạnh theo trọng số, nhận cạnh khi union thành công; đủ n - 1 cạnh nghĩa là đồ thị liên thông."
+    exercise_ref: ex_kruskal
+  - id: t02
+    type: text
+    md: |
+      Cài đặt Kruskal gồm ba bước: (1) sắp xếp cạnh theo trọng số, (2) duyệt và `union` bằng DSU,
+      (3) đếm số cạnh nhận được. Nếu đồ thị **không liên thông** thì không bao giờ đủ `n - 1` cạnh, nên
+      đếm cạnh cho phép phát hiện trường hợp này (trả `-1` hoặc báo "không tồn tại MST").
+
+      Trong Python, cạnh thường là tuple `(w, u, v)` để `sorted(edges)` sắp theo trọng số trước; khi hai cạnh
+      cùng trọng số, so sánh tiếp `u`, `v` nên thứ tự luôn xác định (deterministic).
+  - id: q03
+    type: predict_output
+    code: |
+      import heapq
+
+      heap = [(0, 0)]
+      seen = set()
+      total = 0
+      graph = {0: [(5, 1), (2, 2)], 1: [(5, 0), (1, 2)], 2: [(2, 0), (1, 1)]}
+      while heap:
+          w, u = heapq.heappop(heap)
+          if u in seen:
+              continue
+          seen.add(u)
+          total += w
+          for ww, v in graph[u]:
+              heapq.heappush(heap, (ww, v))
+      print(total)
+      print(sorted(seen))
+    expected_output: |
+      3
+      [0, 1, 2]
+    explain_md: "Pop (0,0): tổng 0, đẩy (5,1) và (2,2). Pop (2,2): tổng 2, đẩy (2,0) và (1,1). Pop (1,1): tổng 3. Các phần tử còn lại thuộc đỉnh đã thăm nên bị bỏ. Kết quả `3` và `[0, 1, 2]`."
+  - id: ex_kruskal
+    type: code_exercise
+    md: |
+      Viết `kruskal_cost(n, edges)`: đồ thị vô hướng có `n` đỉnh đánh số `0..n-1`, `edges` là danh sách
+      `[u, v, w]`. Trả về tổng trọng số của MST, hoặc `-1` nếu đồ thị không liên thông.
+      Ví dụ `n = 3`, `edges = [[0, 1, 4], [1, 2, 1], [0, 2, 2]]` cho `3`. Bản dưới đây duyệt cạnh theo
+      thứ tự input mà chưa sắp xếp. Hãy sửa.
+    entry: kruskal_cost
+    starter: |
+      def kruskal_cost(n, edges):
+          parent = list(range(n))
+
+          def find(x):
+              while parent[x] != x:
+                  parent[x] = parent[parent[x]]
+                  x = parent[x]
+              return x
+
+          total = 0
+          used = 0
+          for u, v, w in edges:
+              ru, rv = find(u), find(v)
+              if ru != rv:
+                  parent[ru] = rv
+                  total += w
+                  used += 1
+          return total if used == n - 1 else -1
+    guidance_md: |
+      - Thử `n = 3`, `edges = [[0, 1, 4], [1, 2, 1], [0, 2, 2]]`: đáp án là 3, nhưng code trả 5.
+      - Cạnh phải được xét theo trọng số tăng dần.
+    hints:
+      - level: nudge
+        md: "Kruskal luôn xét cạnh rẻ nhất trước. Vòng lặp hiện tại xét theo thứ tự nào?"
+      - level: approach
+        md: "Sắp xếp `edges` theo trọng số (phần tử thứ 3) trước khi duyệt; phần còn lại của DSU giữ nguyên."
+      - level: near_solution
+        md: "Đổi vòng lặp thành duyệt `sorted(edges, key=lambda e: e[2])` thay vì `edges`. Điều kiện `ru != rv` và phép đếm `used` đã đúng."
+    tests:
+      - {args: [3, [[0, 1, 4], [1, 2, 1], [0, 2, 2]]], expected: 3}
+      - {args: [1, []], expected: 0}
+      - {args: [4, [[0, 1, 1], [2, 3, 1]]], expected: -1}
+      - {args: [4, [[0, 1, 5], [1, 2, 3], [2, 3, 4], [0, 3, 1], [0, 2, 2]]], expected: 6}
+      - {args: [2, [[0, 1, 9], [0, 1, 2]]], expected: 2}
+    solution: |
+      def kruskal_cost(n, edges):
+          parent = list(range(n))
+
+          def find(x):
+              while parent[x] != x:
+                  parent[x] = parent[parent[x]]
+                  x = parent[x]
+              return x
+
+          total = 0
+          used = 0
+          for u, v, w in sorted(edges, key=lambda e: e[2]):
+              ru, rv = find(u), find(v)
+              if ru != rv:
+                  parent[ru] = rv
+                  total += w
+                  used += 1
+          return total if used == n - 1 else -1
+  - id: s_prim
+    type: section
+    title_vi: "Prim với heap"
+    summary_vi: "Mở rộng cây từ đỉnh 0: pop cạnh rẻ nhất, bỏ nếu đỉnh đã thăm, nếu chưa thì nhận và đẩy các cạnh mới."
+    exercise_ref: ex_prim
+  - id: t03
+    type: text
+    md: |
+      **Prim** bắt đầu từ một đỉnh bất kỳ (ở đây là 0) và giữ một heap các cặp `(trọng số, đỉnh)`:
+
+      1. Pop cặp nhỏ nhất `(w, u)`. Nếu `u` đã thăm thì bỏ qua (cạnh lỗi thời).
+      2. Ngược lại đánh dấu `u`, cộng `w` vào tổng, rồi đẩy mọi cạnh `(w2, v)` tới đỉnh `v` chưa thăm.
+      3. Dừng khi heap rỗng; đã thăm đủ `n` đỉnh thì đồ thị liên thông.
+
+      **Chọn thuật toán**: đồ thị thưa (E nhỏ) dùng Kruskal hoặc Prim đều tốt; đồ thị đầy đủ như bài
+      "nối các điểm trên mặt phẳng" thì dùng Prim thẳng trên `n` điểm, tránh tạo `n^2` cạnh.
+      Bước bỏ qua đỉnh đã thăm là chỗ dễ quên nhất, thiếu nó tổng sẽ bị cộng thừa.
+  - id: ex_prim
+    type: code_exercise
+    md: |
+      Viết `prim_cost(n, edges)` với cùng đầu vào như `kruskal_cost` (đỉnh `0..n-1`, cạnh `[u, v, w]`):
+      trả về tổng trọng số MST, hoặc `-1` nếu không liên thông. Bản dưới đây quên bỏ qua đỉnh đã
+      thăm khi pop khỏi heap nên cộng thừa. Hãy sửa.
+    entry: prim_cost
+    starter: |
+      import heapq
+
+
+      def prim_cost(n, edges):
+          adj = [[] for _ in range(n)]
+          for u, v, w in edges:
+              adj[u].append((w, v))
+              adj[v].append((w, u))
+          seen = [False] * n
+          heap = [(0, 0)]
+          total = 0
+          count = 0
+          while heap:
+              w, u = heapq.heappop(heap)
+              seen[u] = True
+              total += w
+              count += 1
+              for w2, v in adj[u]:
+                  if not seen[v]:
+                      heapq.heappush(heap, (w2, v))
+          return total if count == n else -1
+    guidance_md: |
+      - Thử `n = 3`, `edges = [[0, 1, 1], [1, 2, 1], [0, 2, 1]]`: đáp án là 2, nhưng code trả 3.
+      - Cùng một đỉnh có thể nằm trong heap nhiều lần.
+    hints:
+      - level: nudge
+        md: "Một đỉnh có thể được đẩy vào heap từ nhiều đỉnh khác. Điều gì xảy ra khi nó được pop lần thứ hai?"
+      - level: approach
+        md: "Ngay sau khi pop, kiểm tra đỉnh đã thăm chưa; nếu rồi thì `continue` để không cộng trọng số và không đếm lại."
+      - level: near_solution
+        md: "Thêm `if seen[u]: continue` ngay sau dòng `heappop`, trước khi gán `seen[u] = True`. Phần còn lại giữ nguyên."
+    tests:
+      - {args: [3, [[0, 1, 1], [1, 2, 1], [0, 2, 1]]], expected: 2}
+      - {args: [1, []], expected: 0}
+      - {args: [4, [[0, 1, 1], [2, 3, 1]]], expected: -1}
+      - {args: [4, [[0, 1, 5], [1, 2, 3], [2, 3, 4], [0, 3, 1], [0, 2, 2]]], expected: 6}
+      - {args: [2, [[0, 1, 9], [0, 1, 2]]], expected: 2}
+    solution: |
+      import heapq
+
+
+      def prim_cost(n, edges):
+          adj = [[] for _ in range(n)]
+          for u, v, w in edges:
+              adj[u].append((w, v))
+              adj[v].append((w, u))
+          seen = [False] * n
+          heap = [(0, 0)]
+          total = 0
+          count = 0
+          while heap:
+              w, u = heapq.heappop(heap)
+              if seen[u]:
+                  continue
+              seen[u] = True
+              total += w
+              count += 1
+              for w2, v in adj[u]:
+                  if not seen[v]:
+                      heapq.heappush(heap, (w2, v))
+          return total if count == n else -1
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "MST của đồ thị liên thông n đỉnh có đúng n - 1 cạnh, không chu trình, tổng trọng số nhỏ nhất."
+      - "Cut property: cạnh nhẹ nhất qua một lát cắt luôn thuộc một MST; Kruskal và Prim đều dựa vào đó."
+      - "Kruskal: sắp xếp cạnh + DSU, O(E log E); không đủ n - 1 cạnh nghĩa là không liên thông."
+      - "Prim: heap (w, v), bỏ đỉnh đã thăm khi pop, O(E log V); hợp với đồ thị đầy đủ."
+      - "MST khác cây đường đi ngắn nhất: MST tối thiểu tổng cạnh, Dijkstra tối thiểu khoảng cách từ nguồn."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X462], l2: [X463], l3: [X464]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-04"
