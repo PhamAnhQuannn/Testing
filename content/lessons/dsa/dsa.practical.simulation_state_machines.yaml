@@ -1,0 +1,185 @@
+id: dsa.practical.simulation_state_machines
+version: 1
+status: published
+title_vi: "Mô phỏng và state machine: state, rules, loop (simulation and state machines)"
+est_minutes: 14
+objectives_vi:
+  - "Tách một bài mô phỏng thành ba phần: state (dữ liệu), rules (hàm chuyển thuần) và loop (vòng lặp thời gian) để dễ test."
+  - "Mô tả state machine bằng bảng (trạng thái, sự kiện) -> trạng thái mới thay vì chuỗi if lồng nhau."
+  - "Dùng double buffer khi cập nhật lưới đồng thời (Game of Life) và giải thích lỗi sửa tại chỗ."
+  - "Tự trace tay một ví dụ nhỏ để kiểm tra luật trước khi chạy."
+blocks:
+  - id: s_split
+    type: section
+    title_vi: "Tách state, rules, loop"
+    summary_vi: "Hàm chuyển thuần nhận state cũ, trả state mới; vòng lặp chỉ gọi hàm đó."
+  - id: t01
+    type: text
+    md: |
+      Bài **mô phỏng (simulation)** là dịch luật đề thành code thật sát. Cách dễ test nhất là tách ba phần:
+      **state** (dữ liệu mô tả hệ thống tại một thời điểm, ví dụ lưới 0/1 hay trạng thái máy bán hàng),
+      **rules** (một hàm thuần `step(state) -> state mới`, không đọc biến toàn cục, không in) và **loop**
+      (vòng `for _ in range(steps)` chỉ gọi `step`). Nhờ vậy bạn test từng luật bằng một state nhỏ, và khi sai
+      chỉ cần in state sau mỗi bước để so với bản trace tay.
+
+      **State machine (máy trạng thái)** là trường hợp riêng: có tập trạng thái hữu hạn và bảng
+      `(trạng thái, sự kiện) -> trạng thái mới`. Viết bảng thành `dict` rõ hơn chuỗi `if/elif` lồng nhau, và
+      thiếu cặp nào thì thấy ngay `KeyError` thay vì lặng lẽ sai.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      TABLE = {
+          ("locked", "coin"): "unlocked",
+          ("locked", "push"): "locked",
+          ("unlocked", "coin"): "unlocked",
+          ("unlocked", "push"): "locked",
+      }
+
+      def next_state(state, event):
+          return TABLE[(state, event)]
+
+      s = "locked"
+      for e in ["push", "coin", "coin", "push", "push"]:
+          s = next_state(s, e)
+          print(e, "->", s)
+    expected_output: |
+      push -> locked
+      coin -> unlocked
+      coin -> unlocked
+      push -> locked
+      push -> locked
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Lợi ích chính của việc viết luật chuyển thành hàm thuần `next_state(state, event)` tách khỏi vòng lặp là gì?"
+    options:
+      - {id: a, text_md: "Test được từng luật riêng bằng state nhỏ, không phụ thuộc vòng lặp hay biến toàn cục"}
+      - {id: b, text_md: "Hàm thuần luôn chạy nhanh hơn vòng lặp"}
+      - {id: c, text_md: "Tránh được việc phải định nghĩa trạng thái ban đầu"}
+    answer: [a]
+    explain_md: "Hàm thuần nhận state, trả state: dễ gọi với ví dụ nhỏ và so với kết quả trace tay."
+  - id: s_grid
+    type: section
+    title_vi: "Mô phỏng lưới và double buffer"
+    summary_vi: "Mỗi thế hệ đọc bảng cũ, ghi bảng mới; đếm hàng xóm có kiểm tra biên."
+    exercise_ref: ex_nb
+  - id: t02
+    type: text
+    md: |
+      **Game of Life** là mô phỏng lưới điển hình: ô sống có 2 hoặc 3 hàng xóm sống thì sống tiếp, ô chết có đúng
+      3 hàng xóm sống thì hồi sinh, còn lại chết. Điểm mấu chốt là mọi ô cập nhật **đồng thời** từ trạng thái
+      cũ. Nếu bạn sửa trực tiếp bảng đang đọc, ô đến sau sẽ đếm hàng xóm đã đổi và kết quả sai. Cách chữa là
+      **double buffer**: đọc `board`, ghi vào `nxt` (bảng mới cùng kích thước), xong thế hệ mới gán lại.
+
+      Việc đếm 8 hàng xóm nên tách thành hàm riêng, nhớ kiểm tra biên `0 <= r+dr < rows`, và loại ô chính nó
+      (`dr == dc == 0`). Cách này lặp lại cho mọi bài lây lan trên lưới.
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      def wrong_step(board):
+          rows, cols = len(board), len(board[0])
+          for r in range(rows):
+              for c in range(cols):
+                  n = sum(board[r + dr][c + dc]
+                          for dr in (-1, 0, 1) for dc in (-1, 0, 1)
+                          if (dr or dc) and 0 <= r + dr < rows and 0 <= c + dc < cols)
+                  board[r][c] = 1 if n == 3 or (board[r][c] and n == 2) else 0
+          return board
+
+      # blinker dọc: đúng ra phải thành hàng ngang [[0,0,0],[1,1,1],[0,0,0]]
+      print(wrong_step([[0, 1, 0], [0, 1, 0], [0, 1, 0]]))
+    expected_output: |
+      [[0, 0, 0], [0, 0, 0], [0, 0, 0]]
+  - id: ex_nb
+    type: code_exercise
+    md: |
+      Viết `count_live_neighbors(board, r, c)`: trả số ô sống (giá trị 1) trong 8 ô quanh `(r, c)`, **không**
+      tính chính ô `(r, c)`, bỏ qua các ô nằm ngoài bảng.
+    entry: count_live_neighbors
+    starter: |
+      def count_live_neighbors(board, r, c):
+          # TODO: duyệt dr, dc trong (-1, 0, 1), bỏ (0, 0), kiểm tra biên
+          return 0
+    guidance_md: |
+      - Hai vòng lặp `dr` và `dc` chạy qua `(-1, 0, 1)`.
+      - Bỏ trường hợp `dr == 0 and dc == 0`.
+      - Chỉ cộng khi `0 <= r+dr < số hàng` và `0 <= c+dc < số cột`.
+    hints:
+      - level: nudge
+        md: "Có tất cả 9 ô trong khối 3x3 quanh (r, c); ô nào không được tính?"
+      - level: approach
+        md: "Duyệt 9 độ lệch (dr, dc), bỏ (0, 0), kiểm tra biên rồi cộng giá trị ô đó vào bộ đếm."
+      - level: near_solution
+        md: "Khởi tạo bộ đếm n = 0, hai vòng for qua (-1, 0, 1); nếu độ lệch khác (0, 0) và r+dr, c+dc nằm trong bảng thì cộng board ở ô đó vào n; cuối cùng trả n."
+    tests:
+      - {args: [[[0, 1, 0], [0, 1, 0], [0, 1, 0]], 1, 1], expected: 2}
+      - {args: [[[0, 1, 0], [0, 1, 0], [0, 1, 0]], 0, 0], expected: 2}
+      - {args: [[[1]], 0, 0], expected: 0}
+      - {args: [[[1, 1, 1], [1, 1, 1], [1, 1, 1]], 1, 1], expected: 8}
+      - {args: [[[1, 1, 1], [1, 1, 1], [1, 1, 1]], 2, 2], expected: 3}
+    solution: |
+      def count_live_neighbors(board, r, c):
+          n = 0
+          for dr in (-1, 0, 1):
+              for dc in (-1, 0, 1):
+                  if (dr or dc) and 0 <= r + dr < len(board) and 0 <= c + dc < len(board[0]):
+                      n += board[r + dr][c + dc]
+          return n
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Khi cập nhật mọi ô của lưới đồng thời, ta đọc từ bảng cũ và ghi vào bảng mới; kỹ thuật này gọi là double ___."
+    blanks: [{accept: ["buffer", "buffering"]}]
+    explain_md: "Double buffer: một bảng để đọc, một bảng để ghi, nên các ô không ảnh hưởng nhau trong cùng thế hệ."
+  - id: q03
+    type: predict_output
+    code: |
+      state = "idle"
+      log = []
+      for ev in ["coin", "cancel", "coin", "select", "take"]:
+          if state == "idle" and ev == "coin":
+              state = "ready"
+          elif state == "ready" and ev == "select":
+              state = "dispensing"
+          elif state == "ready" and ev == "cancel":
+              state = "idle"
+          elif state == "dispensing" and ev == "take":
+              state = "idle"
+          log.append(state)
+      print(log)
+    expected_output: |
+      ['ready', 'idle', 'ready', 'dispensing', 'idle']
+    explain_md: "coin: idle->ready; cancel: ready->idle; coin: idle->ready; select: ready->dispensing; take: dispensing->idle."
+  - id: q04
+    type: predict_output
+    code: |
+      def count_live_neighbors(board, r, c):
+          n = 0
+          for dr in (-1, 0, 1):
+              for dc in (-1, 0, 1):
+                  if (dr or dc) and 0 <= r + dr < len(board) and 0 <= c + dc < len(board[0]):
+                      n += board[r + dr][c + dc]
+          return n
+
+      b = [[0, 1, 0], [0, 1, 0], [0, 1, 0]]
+      print(count_live_neighbors(b, 1, 0))
+    expected_output: |
+      3
+    explain_md: "Ô (1,0) có hàng xóm (0,1), (1,1), (2,1) đều sống; các ô còn lại ngoài biên hoặc chết nên tổng là 3."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Tách mô phỏng thành state, rules (hàm thuần `step`) và loop để test từng luật bằng state nhỏ."
+      - "State machine: bảng `(state, event) -> state mới` bằng dict rõ hơn if lồng nhau và lộ ngay cặp thiếu."
+      - "Cập nhật lưới đồng thời phải dùng double buffer: đọc bảng cũ, ghi bảng mới; sửa tại chỗ làm ô sau đếm sai."
+      - "Đếm hàng xóm: duyệt 8 độ lệch, bỏ (0, 0), kiểm tra biên; luôn trace tay một ví dụ nhỏ (blinker) để đối chiếu."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [Q162], l2: [Q163], l3: [X547]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

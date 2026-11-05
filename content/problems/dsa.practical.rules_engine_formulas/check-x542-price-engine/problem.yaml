@@ -1,0 +1,64 @@
+id: check-x542-price-engine
+subtopic_id: dsa.practical.rules_engine_formulas
+secondary_subtopics: []
+kind: check
+title: 'Check X542: price_after'
+title_vi: 'Kiểm tra X542: price_after'
+difficulty: easy
+source:
+  type: original
+statement_en_md: |
+  A pricing engine applies discount rules, in order, to an integer price in cents. Each rule is a string:
+  `"percent P"` subtracts `price * P // 100` (integer floor division) and `"fixed F"` subtracts `F`.
+  After every rule the price is clamped so it never goes below 0. Return the final integer price. With no
+  rules the price is unchanged.
+statement_vi_md: |
+  Viết `price_after(price, rules)`: `price` là giá nguyên (cent), `rules` là danh sách chuỗi áp dụng theo
+  thứ tự. `"percent P"` trừ `price * P // 100` (chia nguyên), `"fixed F"` trừ `F`. Sau mỗi luật chặn giá
+  không nhỏ hơn 0. Trả về giá cuối (int). Không có luật thì giữ nguyên giá.
+constraints:
+- 0 <= price <= 10^9
+- 0 <= len(rules) <= 100
+- each rule is "percent P" with 0 <= P <= 100, or "fixed F" with 0 <= F <= 10^9
+examples:
+- input: price = 1000, rules = ["percent 10", "fixed 50"]
+  output: '850'
+  explain_vi: Giảm 10% còn 900 (trừ 100), rồi trừ cố định 50 còn 850.
+io:
+  mode: function
+  entry: price_after
+  params:
+  - name: price
+    type: int
+  - name: rules
+    type: list[str]
+  returns: int
+  compare: exact
+starter:
+  python: |
+    def price_after(price, rules):
+        # TODO: duyệt rules theo thứ tự; percent trừ price * P // 100, fixed trừ F; chặn >= 0 sau mỗi luật
+        pass
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+time_target_min: 8
+hints:
+- "Đây là pipeline, mỗi luật biến đổi giá do luật trước để lại, nên thứ tự duyệt quan trọng."
+- "Với mỗi chuỗi, `kind, value = rule.split()` và `amount = int(value)`. Nếu kind là `percent` thì `price -= price * amount // 100`, ngược lại `price -= amount`."
+- "Ngay sau mỗi luật, nếu `price < 0` thì đặt `price = 0` (chặn từng bước, không chỉ ở cuối). Cuối cùng trả price."
+solution:
+  file: solution.py
+  approach_vi: Duyệt luật theo thứ tự, áp từng luật bằng số nguyên và chặn giá về 0 sau mỗi luật.
+  complexity: O(len(rules)) / O(1)
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x542
+status: validated
+version: 1

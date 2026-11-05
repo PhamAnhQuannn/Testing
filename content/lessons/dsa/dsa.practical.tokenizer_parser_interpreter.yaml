@@ -1,0 +1,270 @@
+id: dsa.practical.tokenizer_parser_interpreter
+version: 1
+status: published
+title_vi: "Tokenizer, parser và interpreter nhỏ"
+est_minutes: 15
+objectives_vi:
+  - "Viết tokenizer quét một lượt: gom chữ số liên tiếp thành một token (longest match), dấu và ngoặc là token đơn."
+  - "Đọc ngữ pháp expr / term / factor và giải thích vì sao nhân chia được tính trước cộng trừ."
+  - "Cài recursive-descent parser kết hợp trái và chia nguyên cắt về 0 để tính biểu thức có ngoặc."
+  - "Kiểm tra ngoặc cân bằng và tính biểu thức postfix (RPN) bằng stack."
+blocks:
+  - id: s_scan
+    type: section
+    title_vi: "Tokenizer: từ chuỗi sang token"
+    summary_vi: "Tokenizer quét từ trái sang phải, gom chữ số liền nhau thành một token và bỏ khoảng trắng."
+    exercise_ref: ex_balanced
+  - id: t01
+    type: text
+    md: |
+      Xử lý một biểu thức như `"12+3*(4-5)"` gồm ba tầng:
+
+      1. **Tokenizer (lexer)**: cắt chuỗi thành các mảnh: số, dấu, ngoặc.
+      2. **Parser**: ghép token thành cấu trúc theo ngữ pháp (cây cú pháp, AST).
+      3. **Interpreter**: đi trên cấu trúc đó để ra kết quả.
+
+      Tokenizer dùng **longest match**: gặp chữ số thì đọc hết dãy chữ số liền nhau, nên `12` là một token
+      chứ không phải `1` rồi `2`. Dấu `+ - * / ( )` mỗi ký tự là một token; khoảng trắng bị bỏ qua.
+      Chỉ cần một con trỏ `i` chạy một lượt nên độ phức tạp O(n), và kết quả hoàn toàn xác định
+      (deterministic) vì chỉ xử lý chuỗi.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      def tokenize(s):
+          toks = []
+          i = 0
+          while i < len(s):
+              if s[i].isdigit():
+                  j = i
+                  while j < len(s) and s[j].isdigit():
+                      j += 1
+                  toks.append(s[i:j])
+                  i = j
+              elif s[i] in "+-*/()":
+                  toks.append(s[i])
+                  i += 1
+              else:
+                  i += 1
+          return toks
+
+      def evaluate(s):
+          toks = tokenize(s)
+          pos = [0]
+
+          def peek():
+              return toks[pos[0]] if pos[0] < len(toks) else None
+
+          def take():
+              pos[0] += 1
+              return toks[pos[0] - 1]
+
+          def expr():
+              v = term()
+              while peek() in ("+", "-"):
+                  op = take()
+                  r = term()
+                  v = v + r if op == "+" else v - r
+              return v
+
+          def term():
+              v = factor()
+              while peek() in ("*", "/"):
+                  op = take()
+                  r = factor()
+                  v = v * r if op == "*" else int(v / r)
+              return v
+
+          def factor():
+              t = take()
+              if t == "(":
+                  v = expr()
+                  take()
+                  return v
+              return int(t)
+
+          return expr()
+
+      print(tokenize("12+3*(4-5)"))
+      print(evaluate("12+3*(4-5)"))
+      print(evaluate("2+3*4"), evaluate("(2+3)*4"), evaluate("7/2-10/3"))
+    expected_output: |
+      ['12', '+', '3', '*', '(', '4', '-', '5', ')']
+      9
+      14 20 0
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Tokenizer longest match cắt `\"100+25\"` thành bao nhiêu token?"
+    options:
+      - {id: a, text_md: "3 token: `100`, `+`, `25`"}
+      - {id: b, text_md: "5 token: `1`, `0`, `0`, `+`, `2`, `5` rồi ghép lại"}
+      - {id: c, text_md: "6 token, mỗi ký tự một token"}
+    answer: [a]
+    explain_md: "Dãy chữ số liên tiếp được gom thành MỘT token (`100`, `25`), cộng với token `+` là 3 token."
+  - id: ex_balanced
+    type: code_exercise
+    md: |
+      Viết `is_balanced(expr)`: trả `True` nếu các dấu ngoặc tròn `(` `)` trong chuỗi khớp nhau đúng thứ tự,
+      ngược lại `False`. Các ký tự khác bỏ qua. Ví dụ `"(1+2)*3"` là `True`, `")("` là `False`.
+      Bản dưới đây chỉ so sánh số lượng `(` và `)` nên sai ở những chuỗi như `")("`. Hãy sửa.
+    entry: is_balanced
+    starter: |
+      def is_balanced(expr):
+          return expr.count("(") == expr.count(")")
+    guidance_md: |
+      - Đếm độ sâu `depth`: gặp `(` thì cộng 1, gặp `)` thì trừ 1.
+      - Nếu `depth` âm ở bất kỳ lúc nào thì có `)` thừa, trả `False` ngay.
+      - Cuối chuỗi `depth` phải bằng 0.
+    hints:
+      - level: nudge
+        md: "Với `\")(\"` số lượng bằng nhau nhưng vẫn sai. Thứ tự xuất hiện quan trọng."
+      - level: approach
+        md: "Giữ biến `depth`. Mỗi `)` phải có một `(` mở trước đó chưa đóng, tức `depth` không bao giờ được âm."
+      - level: near_solution
+        md: "Duyệt từng ký tự; `(` thì `depth += 1`; `)` thì `depth -= 1` rồi nếu `depth < 0` trả `False`. Sau vòng lặp trả `depth == 0`."
+    tests:
+      - {args: ["(1+2)*3"], expected: true}
+      - {args: ["((1)"], expected: false}
+      - {args: [")("], expected: false}
+      - {args: [""], expected: true}
+      - {args: ["(()())"], expected: true}
+    solution: |
+      def is_balanced(expr):
+          depth = 0
+          for c in expr:
+              if c == "(":
+                  depth += 1
+              elif c == ")":
+                  depth -= 1
+                  if depth < 0:
+                      return False
+          return depth == 0
+  - id: s_eval
+    type: section
+    title_vi: "Parser đệ quy và postfix"
+    summary_vi: "Mỗi luật ngữ pháp là một hàm; luật sâu hơn được tính trước. Postfix dùng stack và không cần ngoặc."
+    exercise_ref: ex_postfix
+  - id: t02
+    type: text
+    md: |
+      Ngữ pháp của biểu thức số học:
+
+      ```
+      expr   = term   (("+" | "-") term)*
+      term   = factor (("*" | "/") factor)*
+      factor = số | "(" expr ")"
+      ```
+
+      Ký hiệu `*` ở đây là "lặp 0 hay nhiều lần", `|` là "hoặc". **Recursive descent**: mỗi luật là một hàm;
+      `expr` gọi `term`, `term` gọi `factor`, và `factor` gặp ngoặc thì gọi lại `expr`. Vì `*` và `/` nằm
+      sâu hơn nên được tính trước `+` và `-`; vòng `while` làm các phép **kết hợp trái**
+      (`8-3-2` là `(8-3)-2 = 3`).
+
+      Chia nguyên theo đề thường là **cắt về 0**: dùng `int(a / b)`, không dùng `a // b` vì `//` làm tròn xuống
+      (`-7 // 2 == -4` còn `int(-7 / 2) == -3`).
+
+      Cách khác là **postfix (RPN)**: `3 4 + 2 *` nghĩa là `(3+4)*2`. Đọc token từ trái sang phải; số thì đẩy vào
+      stack, toán tử thì lấy hai số trên cùng (số lấy ra đầu tiên là vế phải), tính và đẩy kết quả lại.
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Trong ngữ pháp trên, để `*` được tính trước `+`, hàm xử lý `*` và `/` (tên là ___) được `expr` gọi bên trong."
+    blanks: [{accept: ["term"]}]
+    explain_md: "`expr` gọi `term`; `term` xử lý `*` và `/` và gọi `factor`. Luật càng sâu thì ràng buộc càng chặt."
+  - id: q03
+    type: predict_output
+    code: |
+      vals = [8, 3, 2]
+      r = vals[0]
+      for v in vals[1:]:
+          r -= v
+      print(r)
+      print(int(-7 / 2), -7 // 2, 7 // 2)
+    expected_output: |
+      3
+      -3 -4 3
+    explain_md: "Trừ kết hợp trái: 8 - 3 = 5, rồi 5 - 2 = 3. `int(-7 / 2)` cắt về 0 cho -3, còn `-7 // 2` làm tròn xuống thành -4; `7 // 2` là 3."
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Tính postfix `5 1 2 + 4 * +`: kết quả là bao nhiêu?"
+    options:
+      - {id: a, text_md: "17"}
+      - {id: b, text_md: "21"}
+      - {id: c, text_md: "9"}
+    answer: [a]
+    explain_md: "Gặp `+` đầu tiên: 1 + 2 = 3, stack là 5 3. Đẩy 4, gặp `*`: 3 * 4 = 12, stack là 5 12. Gặp `+` cuối: 5 + 12 = 17."
+  - id: ex_postfix
+    type: code_exercise
+    md: |
+      Viết `eval_postfix(tokens)`: `tokens` là danh sách chuỗi của biểu thức postfix gồm số nguyên không âm và
+      `+ - * /`. Trả về kết quả nguyên, `/` cắt về 0. Ví dụ `["3", "4", "+"]` cho `7`,
+      `["10", "2", "8", "*", "+", "3", "-"]` cho `23`. Bản dưới đây lấy hai toán hạng sai thứ tự nên `-` và `/` sai.
+      Hãy sửa.
+    entry: eval_postfix
+    starter: |
+      def eval_postfix(tokens):
+          st = []
+          for t in tokens:
+              if t in ("+", "-", "*", "/"):
+                  a = st.pop()
+                  b = st.pop()
+                  if t == "+":
+                      st.append(a + b)
+                  elif t == "-":
+                      st.append(a - b)
+                  elif t == "*":
+                      st.append(a * b)
+                  else:
+                      st.append(int(a / b))
+              else:
+                  st.append(int(t))
+          return st[-1]
+    guidance_md: |
+      - Với `["7", "2", "/"]` đáp án là 3 (7 / 2), nhưng code tính 2 / 7.
+      - Số lấy ra đầu tiên từ stack là toán hạng phải.
+    hints:
+      - level: nudge
+        md: "Phép `+` và `*` giao hoán nên không lộ lỗi. Thử `-` hoặc `/`: toán hạng nào đứng trước?"
+      - level: approach
+        md: "Stack là LIFO: số được đẩy vào sau cùng là vế phải. Lấy `b = st.pop()` trước, rồi `a = st.pop()`, và tính `a op b`."
+      - level: near_solution
+        md: "Hoán đổi hai dòng `a = st.pop()` và `b = st.pop()` cho nhau: lấy `b` trước rồi mới lấy `a`. Phần tính toán giữ nguyên."
+    tests:
+      - {args: [["3", "4", "+"]], expected: 7}
+      - {args: [["2", "3", "4", "*", "+"]], expected: 14}
+      - {args: [["10", "2", "8", "*", "+", "3", "-"]], expected: 23}
+      - {args: [["7", "2", "/"]], expected: 3}
+      - {args: [["0", "7", "-", "2", "/"]], expected: -3}
+    solution: |
+      def eval_postfix(tokens):
+          st = []
+          for t in tokens:
+              if t in ("+", "-", "*", "/"):
+                  b = st.pop()
+                  a = st.pop()
+                  if t == "+":
+                      st.append(a + b)
+                  elif t == "-":
+                      st.append(a - b)
+                  elif t == "*":
+                      st.append(a * b)
+                  else:
+                      st.append(int(a / b))
+              else:
+                  st.append(int(t))
+          return st[-1]
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Tokenizer quét một lượt O(n): dãy chữ số liền nhau là một token (longest match), khoảng trắng bỏ qua."
+      - "Ngữ pháp expr / term / factor: luật sâu hơn được tính trước, vòng while cho kết hợp trái."
+      - "Chia nguyên cắt về 0 dùng `int(a / b)`; `a // b` làm tròn xuống nên khác với số âm."
+      - "Ngoặc cân bằng và postfix đều dùng stack/độ sâu; toán hạng phải được pop trước."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X538], l2: [X539], l3: [X540]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

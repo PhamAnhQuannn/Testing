@@ -1,0 +1,65 @@
+id: check-x546-evaluate-sheet
+subtopic_id: dsa.practical.spreadsheet_formulas
+secondary_subtopics: []
+kind: check
+title: 'Check X546: evaluate_sheet'
+title_vi: 'Kiểm tra X546: evaluate_sheet'
+difficulty: easy
+source:
+  type: original
+statement_en_md: |
+  A spreadsheet is a dict `cells` mapping a cell name to either an integer literal or a formula string
+  `"=X+Y+..."` (only `+` and cell names; the value is the sum of the referenced cells). The sheet MAY
+  contain reference cycles. Return a dict mapping every cell name to its integer value, or to the string
+  `"#CYCLE"` for any cell that lies on a cycle or depends (transitively) on a cell that does. Detect cycles
+  with a DFS using visiting / done states.
+statement_vi_md: |
+  Một bảng tính là dict `cells` ánh xạ tên ô sang một số nguyên hoặc chuỗi công thức `"=X+Y+..."` (chỉ có `+`
+  và tên ô; giá trị là tổng các ô tham chiếu). Bảng tính CÓ THỂ có vòng tham chiếu. Viết
+  `evaluate_sheet(cells)` trả về dict gồm mọi ô với giá trị nguyên của nó, hoặc chuỗi `"#CYCLE"` nếu ô đó nằm
+  trên một vòng hoặc phụ thuộc (gián tiếp) vào ô nằm trên vòng. Gợi ý: DFS với trạng thái đang thăm / đã xong.
+constraints:
+- 1 <= number of cells <= 100
+- every referenced cell exists in `cells`
+- chain depth at most 100
+- values fit in a 64-bit integer
+examples:
+- input: 'cells = {"A": "=B", "B": "=A", "C": 5}'
+  output: '{"A": "#CYCLE", "B": "#CYCLE", "C": 5}'
+  explain_vi: A và B tham chiếu lẫn nhau tạo vòng nên cả hai là "#CYCLE"; C là số 5 độc lập.
+io:
+  mode: function
+  entry: evaluate_sheet
+  params:
+  - name: cells
+    type: any
+  returns: any
+  compare: exact
+starter:
+  python: |
+    def evaluate_sheet(cells):
+        # TODO: DFS với trạng thái visiting/done; gặp ô đang visiting thì là vòng -> "#CYCLE"
+        return {}
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+time_target_min: 10
+hints:
+- "Dùng DFS tính từng ô. Giữ trạng thái mỗi ô: chưa thăm, đang thăm (visiting), đã xong (done)."
+- Nếu trong lúc DFS gặp lại một ô đang visiting thì đó là vòng tham chiếu; trả "#CYCLE" cho ô đó.
+- "Nếu bất kỳ ô tham chiếu nào trả \"#CYCLE\" thì ô hiện tại cũng là \"#CYCLE\" (phụ thuộc vào vòng). Lưu kết quả đã xong vào memo, cuối cùng trả dict của mọi ô."
+solution:
+  file: solution.py
+  approach_vi: DFS tô màu (visiting/done) có memo; "#CYCLE" lan ngược lên mọi ô phụ thuộc.
+  complexity: O(V + E) / O(V)
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x546
+status: validated
+version: 1

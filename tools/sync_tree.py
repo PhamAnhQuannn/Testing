@@ -121,6 +121,11 @@ EXTRA_IDS = {
     "dsa.practical.api_http_json",
     "dsa.practical.stream_iterator_processing",
     "dsa.practical.practical_format",
+    # Wave 2 Round 18: practical eval engines.
+    "dsa.practical.tokenizer_parser_interpreter",
+    "dsa.practical.rules_engine_formulas",
+    "dsa.practical.spreadsheet_formulas",
+    "dsa.practical.simulation_state_machines",
 }
 
 # Expected shipped counts, asserted so an upstream tree edit can't silently change the snapshot.
@@ -128,7 +133,7 @@ PLAN_MVP_COUNT = 40
 EXPECTED_SD = 86
 EXPECTED_ML4 = 39
 EXPECTED_EXTRA_IDS = len(EXTRA_IDS)  # Wave 2 additions
-EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 240
+EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 244
 
 # Node fields the app uses (SPEC 4.2); optional ones are skipped when a node lacks them.
 NODE_FIELDS = [

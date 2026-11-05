@@ -1,0 +1,214 @@
+id: dsa.practical.spreadsheet_formulas
+version: 1
+status: published
+title_vi: "Engine công thức bảng tính (spreadsheet formula engine)"
+est_minutes: 14
+objectives_vi:
+  - "Mô hình bảng tính như đồ thị phụ thuộc: mỗi ô là một đỉnh, mỗi tham chiếu là một cạnh."
+  - "Tính giá trị ô bằng đệ quy có memo, mỗi ô chỉ tính đúng một lần."
+  - "Phát hiện vòng tham chiếu (circular reference) bằng DFS với trạng thái visiting/done."
+  - "Lan lỗi #CYCLE tới mọi ô phụ thuộc vào vòng."
+blocks:
+  - id: s_eval
+    type: section
+    title_vi: "Ô, tham chiếu và tính đệ quy"
+    summary_vi: "Ô là số hoặc công thức; giá trị công thức tính đệ quy từ các ô nó tham chiếu và được memo lại."
+    exercise_ref: ex_refs
+  - id: t01
+    type: text
+    md: |
+      Trong bảng tính, mỗi **ô** chứa một số hoặc một **công thức** như `=A+B` tham chiếu ô khác.
+      Coi mỗi ô là một đỉnh và mỗi tham chiếu là một cạnh `B -> A` ("B phụ thuộc A") thì bảng tính là
+      một **đồ thị phụ thuộc (dependency graph)**.
+
+      Để tính giá trị một ô, ta tính đệ quy các ô nó tham chiếu rồi cộng lại. Nếu một ô được tham chiếu
+      nhiều lần (`=A+A`), nếu không nhớ kết quả thì cùng một ô bị tính lặp, có thể nổ theo cấp số nhân.
+      Vì vậy dùng **memo**: tính xong thì lưu vào dict, lần sau lấy ra ngay. Khi đó mỗi ô chỉ tính một lần,
+      tổng chi phí O(V + E). Đây chính là duyệt theo thứ tự topo (các ô được tham chiếu tính trước).
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      cells = {"A": 3, "B": "=A+A", "C": "=A+B"}
+      memo = {}
+
+      def value(name):
+          if name in memo:
+              return memo[name]
+          c = cells[name]
+          if isinstance(c, int):
+              r = c
+          else:
+              r = sum(value(x) for x in c[1:].split("+"))
+          memo[name] = r
+          return r
+
+      print(value("B"))
+      print(value("C"))
+      print(sorted(memo.items()))
+    expected_output: |
+      6
+      9
+      [('A', 3), ('B', 6), ('C', 9)]
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Vì sao khi tính giá trị ô nên dùng memo (lưu kết quả từng ô)?"
+    options:
+      - {id: a, text_md: "Để mỗi ô chỉ tính một lần, tránh tính lặp khi một ô được tham chiếu nhiều lần"}
+      - {id: b, text_md: "Để bảng tính có thể chứa vòng tham chiếu"}
+      - {id: c, text_md: "Để công thức chạy nhanh hơn bằng cách bỏ qua các ô con"}
+    answer: [a]
+    explain_md: "Memo làm mỗi ô được tính đúng một lần nên tổng chi phí O(V + E); nó không giúp xử lý vòng và không bỏ qua ô con nào."
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Với `cells = {\"A\": 2, \"B\": \"=A+A\", \"C\": \"=B+A\"}`, giá trị của ô `C` là ___."
+    blanks: [{accept: ["6"]}]
+    explain_md: "A = 2, B = A + A = 4, C = B + A = 4 + 2 = 6."
+  - id: ex_refs
+    type: code_exercise
+    md: |
+      Viết `refs_of(formula)`: nhận công thức dạng `"=A+B+C"` và trả về danh sách tên ô được tham chiếu theo
+      thứ tự xuất hiện (giữ cả tên lặp). Ví dụ `refs_of("=A+B+C")` là `["A", "B", "C"]`.
+      Bản dưới đây quên bỏ dấu `=` ở đầu. Hãy sửa.
+    entry: refs_of
+    starter: |
+      def refs_of(formula):
+          return formula.split("+")
+    guidance_md: |
+      - Thử `refs_of("=A+B")`: code trả `["=A", "B"]` thay vì `["A", "B"]`.
+      - Bỏ ký tự đầu tiên (`=`) trước khi `split`.
+    hints:
+      - level: nudge
+        md: "Phần tử đầu tiên của kết quả đang có thêm ký tự nào?"
+      - level: approach
+        md: "Công thức luôn bắt đầu bằng `=`. Cắt bỏ ký tự này trước, rồi tách phần còn lại theo dấu `+`."
+      - level: near_solution
+        md: "Dùng lát cắt `formula[1:]` để bỏ dấu `=`, sau đó gọi `.split(\"+\")` trên kết quả đó và trả về."
+    tests:
+      - {args: ["=A+B+C"], expected: ["A", "B", "C"]}
+      - {args: ["=A"], expected: ["A"]}
+      - {args: ["=A+A"], expected: ["A", "A"]}
+      - {args: ["=X1+Y22+Z3"], expected: ["X1", "Y22", "Z3"]}
+    solution: |
+      def refs_of(formula):
+          return formula[1:].split("+")
+  - id: s_cycle
+    type: section
+    title_vi: "Vòng tham chiếu và lan #CYCLE"
+    summary_vi: "Gặp lại ô đang visiting là vòng; mọi ô phụ thuộc vào vòng cũng báo #CYCLE."
+    exercise_ref: ex_cycle
+  - id: t02
+    type: text
+    md: |
+      Nếu `A = B` và `B = A` thì không thể tính: đồ thị phụ thuộc có **chu trình (cycle)**. Phát hiện bằng DFS
+      với ba trạng thái mỗi ô:
+
+      - **chưa thăm**,
+      - **visiting** (đang nằm trên đường đệ quy hiện tại),
+      - **done** (đã tính xong).
+
+      Khi đang DFS mà gặp lại một ô **visiting**, ta vừa đi vòng về chính nó, tức là có vòng tham chiếu.
+      Ô nào trả `"#CYCLE"` thì mọi ô tham chiếu tới nó cũng là `"#CYCLE"` (lan ngược lên các ô phụ thuộc),
+      còn ô độc lập vẫn tính bình thường. Chi phí vẫn O(V + E) và kết quả không phụ thuộc thứ tự duyệt dict,
+      nên hoàn toàn xác định (deterministic).
+  - id: q03
+    type: predict_output
+    code: |
+      state = {}
+      deps = {"A": ["B"], "B": ["C"], "C": ["A"], "D": ["A"]}
+
+      def dfs(n):
+          state[n] = 1
+          for m in deps[n]:
+              if state.get(m) == 1:
+                  return True
+              if m not in state and dfs(m):
+                  return True
+          state[n] = 2
+          return False
+
+      print(dfs("D"))
+      print(sorted(state.items()))
+    expected_output: |
+      True
+      [('A', 1), ('B', 1), ('C', 1), ('D', 1)]
+    explain_md: "DFS đi D -> A -> B -> C, rồi C tham chiếu A đang visiting (state 1) nên trả `True`. Hàm thoát sớm nên không ô nào được đặt lên 2; cả bốn ô còn state 1."
+  - id: ex_cycle
+    type: code_exercise
+    md: |
+      Viết `has_cycle(deps)`: `deps` là dict tên ô sang danh sách tên ô nó tham chiếu (có thể có tên chỉ xuất
+      hiện trong danh sách mà không là khóa, coi như không tham chiếu gì). Trả `True` nếu đồ thị có vòng,
+      ngược lại `False`. Dùng DFS với trạng thái visiting/done. Ví dụ `has_cycle({"A": ["B"], "B": ["A"]})`
+      là `True`.
+    entry: has_cycle
+    starter: |
+      def has_cycle(deps):
+          color = {}
+
+          def dfs(n):
+              # TODO: đánh dấu visiting, duyệt các ô tham chiếu, gặp ô visiting thì là vòng
+              return False
+
+          return False
+    guidance_md: |
+      - `color[n] = 1` khi bắt đầu thăm, `color[n] = 2` khi xong.
+      - Gặp ô có `color == 1` thì trả `True`.
+      - Ô có `color == 2` đã xử lý xong, bỏ qua.
+      - Gọi `dfs` cho mọi khóa của `deps`, vì đồ thị có thể không liên thông.
+    hints:
+      - level: nudge
+        md: "Khi nào ta biết mình vừa đi vòng về một ô nằm trên đường đệ quy hiện tại?"
+      - level: approach
+        md: "Dùng hai trạng thái: 1 là đang nằm trên đường đệ quy, 2 là đã xong. Gặp ô trạng thái 1 là vòng; ô chưa thăm thì đệ quy tiếp."
+      - level: pseudocode
+        md: |
+          dfs(n):
+              color[n] = 1
+              với mỗi m trong deps.get(n, []):
+                  nếu color.get(m) == 1: trả True
+                  nếu m chưa thăm và dfs(m): trả True
+              color[n] = 2
+              trả False
+          trả True nếu có khóa n chưa thăm mà dfs(n) là True
+      - level: near_solution
+        md: "Viết `dfs` đúng như pseudocode, bên ngoài lặp `for n in list(deps)` và chỉ gọi `dfs(n)` khi `n not in color`; nếu một lần trả `True` thì trả `True` ngay, hết vòng lặp thì trả `False`."
+    tests:
+      - {args: [{}], expected: false}
+      - {args: [{"A": ["A"]}], expected: true}
+      - {args: [{"A": ["B"], "B": ["A"]}], expected: true}
+      - {args: [{"A": ["B", "C"], "B": ["C"], "C": []}], expected: false}
+      - {args: [{"A": [], "B": ["C"], "C": ["D"], "D": ["B"]}], expected: true}
+    solution: |
+      def has_cycle(deps):
+          color = {}
+
+          def dfs(n):
+              color[n] = 1
+              for m in deps.get(n, []):
+                  if color.get(m) == 1:
+                      return True
+                  if m not in color and dfs(m):
+                      return True
+              color[n] = 2
+              return False
+
+          for n in list(deps):
+              if n not in color and dfs(n):
+                  return True
+          return False
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Bảng tính là đồ thị phụ thuộc: ô là đỉnh, tham chiếu là cạnh."
+      - "Tính ô bằng đệ quy có memo: mỗi ô một lần, tổng O(V + E)."
+      - "Vòng tham chiếu: DFS ba trạng thái; gặp lại ô visiting là có vòng."
+      - "`#CYCLE` lan ngược lên mọi ô phụ thuộc vào vòng; ô độc lập vẫn tính bình thường."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X544], l2: [X545], l3: [X546]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"
