@@ -366,6 +366,32 @@ EXTRA_INPUTS: dict[str, list[list]] = {
         [4, [[1, 0], [2, 1], [3, 2]]],
         [5, [[1, 0], [2, 1], [0, 2]]],
     ],
+    # Wave 2 Round 12: backtracking_core. References already return canonical-sorted lists, so plain
+    # JSON inputs replay fine; first input is the edge case, all distinct from the driver's calls.
+    "Q119": [
+        [[]],
+        [[1]],
+        [[1, 2]],
+        [[5, 7, 9]],
+        [[1, 2, 3, 4]],
+        [[2, 4, 6, 8, 10]],
+    ],
+    "Q120": [
+        [0],
+        [1],
+        [2],
+        [5],
+        [6],
+        [7],
+    ],
+    "W205": [
+        [[]],
+        [[1]],
+        [[1, 2]],
+        [[3, 5, 7]],
+        [[9, 8, 7, 6, 5]],
+        [[2, 4, 6, 8]],
+    ],
 }
 
 

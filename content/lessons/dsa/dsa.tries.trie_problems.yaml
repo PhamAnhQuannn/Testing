@@ -1,0 +1,254 @@
+id: dsa.tries.trie_problems
+version: 1
+status: published
+title_vi: "Bài toán trie: thay từ, gợi ý, từ dài nhất"
+est_minutes: 14
+objectives_vi:
+  - "Nhận ra khi nào trie phù hợp: tra nhiều từ theo tiền tố cùng lúc."
+  - "Đi dọc trie theo từng ký tự và dừng sớm ngay khi gặp cờ kết thúc từ hoặc hết đường."
+  - "Lưu thêm dữ liệu trên node (đếm số từ đi qua) để trả lời truy vấn tiền tố trong O(độ dài tiền tố)."
+  - "Dùng DFS trên trie theo thứ tự ký tự để sinh gợi ý (autocomplete) có thứ tự xác định."
+blocks:
+  - id: s_walk
+    type: section
+    title_vi: "Đi dọc trie và lưu dữ liệu trên node"
+    summary_vi: "Một lần đi dọc trie trả lời được câu hỏi tiền tố; thêm bộ đếm trên node để đếm nhanh."
+    exercise_ref: ex_count
+  - id: t01
+    type: text
+    md: |
+      Trie (cây tiền tố) lưu các từ sao cho các từ chung tiền tố dùng chung một đường đi. Với Python,
+      cách gọn nhất là dict lồng dict: mỗi node là một dict `ký tự -> node con`, và khóa đặc biệt
+      `"$"` đánh dấu "có từ kết thúc ở đây".
+
+      Hầu hết bài toán trie đều là biến thể của **một lần đi dọc theo từ**:
+
+      - **Replace Words**: đi theo từng ký tự của một từ; gặp `"$"` đầu tiên thì đó là root ngắn nhất,
+        dừng ngay. Hết đường (ký tự không có trong node) thì giữ nguyên từ.
+      - **Đếm tiền tố**: mỗi node giữ `cnt` là số từ đi qua nó; truy vấn chỉ cần đi hết tiền tố
+        rồi đọc `cnt`.
+      - **Longest word / autocomplete**: duyệt DFS trie theo ký tự đã sắp xếp để thứ tự kết quả
+        xác định (deterministic), không phụ thuộc thứ tự chèn.
+
+      Chi phí mỗi truy vấn là O(độ dài từ), không phụ thuộc số từ trong từ điển. Nhớ kiểm tra
+      "có node con ký tự này không" trước khi đi tiếp, nếu không sẽ gặp `KeyError`.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      def build(words):
+          root = {}
+          for w in words:
+              node = root
+              for ch in w:
+                  node = node.setdefault(ch, {})
+              node["$"] = True
+          return root
+
+      def shortest_root(root, word):
+          node = root
+          for i, ch in enumerate(word):
+              if ch not in node:
+                  break
+              node = node[ch]
+              if "$" in node:
+                  return word[:i + 1]
+          return word
+
+      root = build(["cat", "bat", "rat"])
+      for w in ["the", "cattle", "was", "rattled"]:
+          print(w, "->", shortest_root(root, w))
+    expected_output: |
+      the -> the
+      cattle -> cat
+      was -> was
+      rattled -> rat
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Trong Replace Words, từ điển có root `a` và `ab`. Từ `abc` nên được thay bằng gì, và trie dừng ở đâu?"
+    options:
+      - {id: a, text_md: "`a`; dừng ngay tại cờ `\"$\"` đầu tiên gặp được"}
+      - {id: b, text_md: "`ab`; đi tới cờ `\"$\"` sâu nhất"}
+      - {id: c, text_md: "`abc`; không root nào khớp"}
+    answer: [a]
+    explain_md: "Đề yêu cầu root NGẮN nhất. Đi dọc trie, gặp cờ kết thúc từ lần đầu (sau ký tự `a`) thì trả luôn, không cần xét `ab`."
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Một lần tra tiền tố trên trie tốn thời gian tỉ lệ với ___ của tiền tố, không phụ thuộc số từ đã chèn."
+    blanks: [{accept: ["độ dài", "do dai", "chiều dài", "length"]}]
+    explain_md: "Mỗi ký tự là một bước đi xuống node con, nên chi phí là O(độ dài tiền tố)."
+  - id: ex_count
+    type: code_exercise
+    md: |
+      Viết `count_prefix(words, prefix)`: trả về số từ trong `words` bắt đầu bằng `prefix`
+      (từ trùng nhau tính nhiều lần). Ví dụ `count_prefix(["app", "apple", "bat"], "ap")` là `2`.
+      Gợi ý: mỗi node giữ bộ đếm số từ đi qua. Bản dưới đây chỉ cộng bộ đếm ở node cuối của từ.
+      Hãy sửa.
+    entry: count_prefix
+    starter: |
+      def count_prefix(words, prefix):
+          root = {"cnt": 0, "kids": {}}
+          for w in words:
+              node = root
+              for ch in w:
+                  node = node["kids"].setdefault(ch, {"cnt": 0, "kids": {}})
+              node["cnt"] += 1
+          node = root
+          for ch in prefix:
+              if ch not in node["kids"]:
+                  return 0
+              node = node["kids"][ch]
+          return node["cnt"]
+    guidance_md: |
+      - Thử `words = ["app", "apple"]`, `prefix = "ap"`: đáp án 2, nhưng code trả 0.
+      - Node của `"ap"` nằm giữa hai từ nên không phải node cuối của từ nào.
+    hints:
+      - level: nudge
+        md: "Node ứng với tiền tố `ap` có phải node cuối của từ nào không? Vậy bộ đếm của nó đang tăng ở đâu?"
+      - level: approach
+        md: "Bộ đếm phải tăng tại MỌI node trên đường đi của từ, không chỉ node cuối."
+      - level: near_solution
+        md: "Đưa lệnh tăng `cnt` vào bên trong vòng lặp qua ký tự, ngay sau khi đã đi xuống node con; phần truy vấn giữ nguyên."
+    tests:
+      - {args: [[], "a"], expected: 0}
+      - {args: [["app", "apple", "bat"], "ap"], expected: 2}
+      - {args: [["a", "a", "ab"], "a"], expected: 3}
+      - {args: [["app", "bat"], "c"], expected: 0}
+      - {args: [["app", "bat"], "apple"], expected: 0}
+    solution: |
+      def count_prefix(words, prefix):
+          root = {"cnt": 0, "kids": {}}
+          for w in words:
+              node = root
+              for ch in w:
+                  node = node["kids"].setdefault(ch, {"cnt": 0, "kids": {}})
+                  node["cnt"] += 1
+          node = root
+          for ch in prefix:
+              if ch not in node["kids"]:
+                  return 0
+              node = node["kids"][ch]
+          return node["cnt"]
+  - id: s_dfs
+    type: section
+    title_vi: "DFS trên trie và từ dài nhất"
+    summary_vi: "DFS theo ký tự đã sắp xếp cho gợi ý có thứ tự; từ xây dần được kiểm tra bằng tập tiền tố."
+    exercise_ref: ex_auto
+  - id: t02
+    type: text
+    md: |
+      **Autocomplete**: đi hết tiền tố để tới node `p`, rồi DFS từ `p`. Duyệt con theo
+      `sorted(node)` thì danh sách trả về đã theo thứ tự từ điển, bất kể thứ tự chèn.
+
+      **Longest Word in Dictionary** (từ dài nhất xây được từng ký tự một từ các từ khác): sắp xếp
+      các từ rồi duyệt; một từ `w` hợp lệ nếu `w[:-1]` đã hợp lệ (hoặc `w` có 1 ký tự). Vì sắp xếp
+      từ điển nên tiền tố luôn đứng trước, và khi chiều dài bằng nhau thì từ đầu tiên gặp là từ nhỏ nhất
+      theo thứ tự từ điển, nên chỉ cập nhật đáp án khi **dài hơn hẳn**. Cách tương đương là DFS trên
+      trie, chỉ đi xuống những node có cờ `"$"`.
+
+      Cẩn thận: duyệt `set` hoặc dict theo thứ tự không xác định sẽ làm kết quả có thể khác khi hòa.
+      Luôn sắp xếp trước khi chọn.
+  - id: q03
+    type: predict_output
+    code: |
+      words = ["w", "wo", "wor", "worl", "world", "wx"]
+      built = {""}
+      best = ""
+      for w in sorted(words):
+          if w[:-1] in built:
+              built.add(w)
+              if len(w) > len(best):
+                  best = w
+      print(best)
+      print(sorted(built))
+    expected_output: |
+      world
+      ['', 'w', 'wo', 'wor', 'worl', 'world', 'wx']
+    explain_md: "Duyệt theo thứ tự `w, wo, wor, worl, world, wx`: mỗi từ có tiền tố bỏ ký tự cuối đã nằm trong `built` nên đều được thêm. `best` đổi mỗi lần dài hơn, kết thúc là `world`; `wx` dài 2 nên không thay. `built` in ra gồm chuỗi rỗng và cả 6 từ."
+  - id: ex_auto
+    type: code_exercise
+    md: |
+      Viết `autocomplete(words, prefix)`: trả về danh sách các từ khác nhau trong `words` bắt đầu bằng
+      `prefix`, sắp xếp theo thứ tự từ điển. Ví dụ `autocomplete(["car", "cat", "dog", "cart"], "ca")`
+      là `["car", "cart", "cat"]`. Dùng trie (dict lồng dict, khóa `"$"` đánh dấu hết từ) và DFS.
+      Bản dưới đây mới dựng trie, chưa duyệt.
+    entry: autocomplete
+    starter: |
+      def autocomplete(words, prefix):
+          root = {}
+          for w in words:
+              node = root
+              for ch in w:
+                  node = node.setdefault(ch, {})
+              node["$"] = True
+          node = root
+          for ch in prefix:
+              if ch not in node:
+                  return []
+              node = node[ch]
+          # TODO: DFS từ node, thu thập các từ
+          return []
+    guidance_md: |
+      - Viết hàm DFS nhận `node` và chuỗi `path` hiện tại.
+      - Nếu `"$"` có trong `node` thì thêm `path` vào kết quả.
+      - Với mỗi ký tự trong `sorted(node)` (bỏ qua `"$"`), đệ quy xuống con với `path + ch`.
+    hints:
+      - level: nudge
+        md: "Sau khi đã tới node của tiền tố, bạn cần liệt kê mọi từ nằm dưới node đó. Duyệt kiểu gì?"
+      - level: approach
+        md: "DFS đệ quy mang theo chuỗi đang xây. Gặp cờ kết thúc thì ghi nhận chuỗi; duyệt con theo thứ tự ký tự."
+      - level: pseudocode
+        md: |
+          dfs(node, path):
+              nếu "$" trong node: thêm path vào kết quả
+              với mỗi ch trong sorted(node), ch khác "$":
+                  dfs(node[ch], path + ch)
+          gọi dfs(node_của_prefix, prefix)
+      - level: near_solution
+        md: "Định nghĩa hàm lồng `dfs(node, path)` ghi vào danh sách `out`, bỏ qua khóa `\"$\"` khi lặp con, rồi gọi nó với node tiền tố và chính `prefix`. Từ trùng chỉ xuất hiện một lần vì trie dùng chung đường đi."
+    tests:
+      - {args: [[], "a"], expected: []}
+      - {args: [["car", "cat", "dog", "cart"], "ca"], expected: ["car", "cart", "cat"]}
+      - {args: [["b", "a", "b"], ""], expected: ["a", "b"]}
+      - {args: [["app", "apple"], "apple"], expected: ["apple"]}
+      - {args: [["app", "bat"], "z"], expected: []}
+    solution: |
+      def autocomplete(words, prefix):
+          root = {}
+          for w in words:
+              node = root
+              for ch in w:
+                  node = node.setdefault(ch, {})
+              node["$"] = True
+          node = root
+          for ch in prefix:
+              if ch not in node:
+                  return []
+              node = node[ch]
+          out = []
+
+          def dfs(cur, path):
+              if "$" in cur:
+                  out.append(path)
+              for ch in sorted(cur):
+                  if ch != "$":
+                      dfs(cur[ch], path + ch)
+
+          dfs(node, prefix)
+          return out
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Trie dict lồng dict với khóa `\"$\"` đánh dấu hết từ; mỗi truy vấn tốn O(độ dài từ)."
+      - "Replace Words: đi dọc từ, trả root ngay tại cờ `\"$\"` đầu tiên; hết đường thì giữ từ gốc."
+      - "Lưu `cnt` trên mọi node đi qua để đếm tiền tố; DFS theo `sorted` cho gợi ý có thứ tự xác định."
+      - "Longest word: sắp xếp rồi chỉ chấp nhận từ có `w[:-1]` hợp lệ; chỉ cập nhật khi dài hơn hẳn."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X495], l2: [X496], l3: [X497]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"
