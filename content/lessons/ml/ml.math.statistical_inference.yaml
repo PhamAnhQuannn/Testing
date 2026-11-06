@@ -1,0 +1,172 @@
+id: ml.math.statistical_inference
+version: 1
+status: published
+title_vi: "Ước lượng, khoảng tin cậy và kiểm định giả thuyết"
+est_minutes: 15
+objectives_vi:
+  - "Phân biệt mẫu (sample) và quần thể (population); tính sai số chuẩn SE = √(p̂(1−p̂)/n) và 95% CI = p̂ ± 1,96·SE."
+  - "Diễn giải đúng null hypothesis, p-value (không phải xác suất giả thuyết đúng), α, lỗi loại I/II và power."
+  - "Nhận ra khi nào dùng z/t/chi-square và xử lý nhiều lần kiểm định bằng Bonferroni (α/m)."
+blocks:
+  - id: s_ci
+    type: section
+    title_vi: "Sai số chuẩn và khoảng tin cậy"
+    summary_vi: "Từ một mẫu nhỏ ước lượng tỉ lệ của cả quần thể kèm độ bất định."
+    exercise_ref: ex_se
+  - id: t01
+    type: text
+    md: |
+      **Quần thể (population)** là cái ta muốn biết; **mẫu (sample)** là phần quan sát được. Hai nút bấm cho CTR 5% và 5,4%
+      trên một mẫu: khác biệt đó là thật hay do ngẫu nhiên? Đó là việc của suy luận thống kê.
+
+      **Sai số chuẩn (standard error)** đo độ dao động của ước lượng; mẫu càng lớn SE càng nhỏ. Với tỉ lệ `p̂`:
+
+      ```
+      SE = √(p̂(1−p̂)/n)        95% CI = p̂ ± 1,96·SE
+      ```
+
+      Nhóm A: 500 click trên 10.000 lượt, `p̂ = 0,05`, `SE = √(0,05·0,95/10000) ≈ 0,0022`, CI ≈ `[0,0457; 0,0543]`.
+      Số `1,96` là z mà 95% đường chuông nằm trong `±z`. Muốn SE giảm một nửa cần gấp 4 lần `n`.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      import math
+      p_hat, n = 0.05, 10000
+      se = math.sqrt(p_hat * (1 - p_hat) / n)
+      print(round(se, 4))
+      print(round(p_hat - 1.96 * se, 4), round(p_hat + 1.96 * se, 4))
+    expected_output: |
+      0.0022
+      0.0457 0.0543
+  - id: q01
+    type: quiz_fill
+    prompt_md: "p̂ = 0,5 và n = 100 thì SE = √(0,5·0,5/100) = ___ (một số)."
+    blanks: [{accept: ["0.05", "0,05", ".05"]}]
+    explain_md: "SE = √(0,25/100) = √0,0025 = 0,05; 95% CI = 0,5 ± 1,96·0,05 ≈ [0,402; 0,598]."
+  - id: q02
+    type: predict_output
+    code: |
+      import math
+      p_hat, n = 0.5, 400
+      se = math.sqrt(p_hat * (1 - p_hat) / n)
+      print(round(se, 3))
+      print(round(p_hat - 1.96 * se, 3), round(p_hat + 1.96 * se, 3))
+    expected_output: |
+      0.025
+      0.451 0.549
+    explain_md: "SE = √(0,25/400) = 0,025; 1,96·0,025 = 0,049 nên CI = [0,451; 0,549]. Gấp 4 lần n so với 100 làm SE giảm một nửa."
+  - id: ex_se
+    type: code_exercise
+    md: |
+      `se_prop(p_hat, n)` trả sai số chuẩn `√(p̂(1−p̂)/n)` làm tròn 6 chữ số. Bản dưới quên lấy căn bậc hai nên trả phương sai
+      thay vì SE. Hãy sửa.
+    entry: se_prop
+    starter: |
+      import math
+
+
+      def se_prop(p_hat, n):
+          return round(p_hat * (1 - p_hat) / n, 6)
+    guidance_md: |
+      - Thử `se_prop(0.2, 100)`: đáp án `0.04`, code trả `0.0016`.
+    hints:
+      - level: nudge
+        md: "SE là độ lệch chuẩn, không phải phương sai."
+      - level: approach
+        md: "Bọc phần `p_hat * (1 - p_hat) / n` trong `math.sqrt`."
+      - level: near_solution
+        md: "`round(math.sqrt(p_hat * (1 - p_hat) / n), 6)`."
+    tests:
+      - {args: [0.2, 100], expected: 0.04}
+      - {args: [0.5, 100], expected: 0.05}
+      - {args: [0.05, 10000], expected: 0.002179}
+      - {args: [0.0, 50], expected: 0.0}
+    solution: |
+      import math
+
+
+      def se_prop(p_hat, n):
+          return round(math.sqrt(p_hat * (1 - p_hat) / n), 6)
+  - id: s_test
+    type: section
+    title_vi: "p-value, lỗi và kiểm định nhiều lần"
+    summary_vi: "Đọc đúng p-value, hiểu lỗi loại I/II và chia α khi thử nhiều lần."
+    exercise_ref: ex_bonf
+  - id: t02
+    type: text
+    md: |
+      **Giả thuyết không (null)**: "không có khác biệt". **p-value** là xác suất thấy kết quả lạ như vậy (hoặc lạ hơn) *nếu
+      null đúng*; nó **không** phải xác suất giả thuyết đúng. **α** (thường 0,05) là ngưỡng bác bỏ null, cũng là xác suất
+      **lỗi loại I** (báo có khác biệt khi không có). **Lỗi loại II** là bỏ sót khác biệt thật; **power = 1 − P(lỗi loại II)**.
+
+      So sánh CTR: A 500/10.000, B 540/10.000. `SE chênh ≈ 0,0031`, `z = 0,004/0,0031 ≈ 1,27`, bảng z cho p hai phía ≈ 0,20 >
+      0,05 nên chưa đủ bằng chứng. Chọn kiểm định: **z-test** cho tỉ lệ, **t-test** so trung bình hai nhóm, **chi-square**
+      so số đếm theo nhóm.
+
+      **Kiểm định nhiều lần**: thử 20 biến thể ở α = 0,05 thì `P(ít nhất một dương tính giả) = 1 − 0,95²⁰ ≈ 0,64`.
+      **Bonferroni** dùng `α/m = 0,05/20 = 0,0025` cho mỗi lần thử.
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Một thử nghiệm cho p-value = 0,03. Phát biểu nào đúng?"
+    options:
+      - {id: a, text_md: "Nếu không có khác biệt thật, khoảng 3% khả năng thấy kết quả lạ như vậy hoặc lạ hơn"}
+      - {id: b, text_md: "Xác suất giả thuyết không đúng là 3%"}
+      - {id: c, text_md: "Có 97% khả năng khác biệt là thật"}
+    answer: [a]
+    explain_md: "p-value được tính với điều kiện null đúng; nó không phải xác suất của giả thuyết."
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Một A/B test không phát hiện được khác biệt CTR thật vì mẫu quá nhỏ. Đó là lỗi gì?"
+    options:
+      - {id: a, text_md: "Lỗi loại II (power thấp)"}
+      - {id: b, text_md: "Lỗi loại I"}
+      - {id: c, text_md: "Không phải lỗi, vì p-value lớn nghĩa là null đúng"}
+    answer: [a]
+    explain_md: "Bỏ sót khác biệt thật là lỗi loại II; tăng n hoặc kích thước hiệu ứng làm tăng power."
+  - id: q05
+    type: quiz_fill
+    prompt_md: "Thử m = 10 giả thuyết ở α = 0,05, ngưỡng Bonferroni cho mỗi lần là ___ (một số)."
+    blanks: [{accept: ["0.005", "0,005"]}]
+    explain_md: "α/m = 0,05/10 = 0,005."
+  - id: ex_bonf
+    type: code_exercise
+    md: |
+      `bonferroni_alpha(alpha, m)` trả ngưỡng cho mỗi lần thử `α/m`, làm tròn 6 chữ số. Bản dưới nhân thay vì chia. Hãy sửa.
+    entry: bonferroni_alpha
+    starter: |
+      def bonferroni_alpha(alpha, m):
+          return round(alpha * m, 6)
+    guidance_md: |
+      - Thử `bonferroni_alpha(0.05, 20)`: đáp án `0.0025`, code trả `1.0`.
+    hints:
+      - level: nudge
+        md: "Thử càng nhiều lần thì ngưỡng mỗi lần càng nghiêm ngặt (nhỏ hơn)."
+      - level: approach
+        md: "Chia `alpha` cho `m`."
+      - level: near_solution
+        md: "`round(alpha / m, 6)`."
+    tests:
+      - {args: [0.05, 20], expected: 0.0025}
+      - {args: [0.01, 5], expected: 0.002}
+      - {args: [0.05, 1], expected: 0.05}
+      - {args: [0.1, 4], expected: 0.025}
+    solution: |
+      def bonferroni_alpha(alpha, m):
+          return round(alpha / m, 6)
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Mẫu ước lượng quần thể; SE = √(p̂(1−p̂)/n) giảm theo √n, 95% CI = p̂ ± 1,96·SE."
+      - "p-value = P(kết quả lạ như vậy | null đúng), KHÔNG phải xác suất giả thuyết đúng; α là ngưỡng và là xác suất lỗi loại I."
+      - "Lỗi loại II = bỏ sót khác biệt thật; power = 1 − P(lỗi loại II). z/t/chi-square: tỉ lệ / trung bình / số đếm."
+      - "Thử m lần: Bonferroni dùng α/m cho mỗi lần để kiểm soát dương tính giả."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X659], l2: [X660], l3: [X661]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"
