@@ -1,0 +1,190 @@
+id: ml.math.probability_basics
+version: 1
+status: published
+title_vi: "Xác suất cơ bản và bài toán đếm"
+est_minutes: 15
+objectives_vi:
+  - "Tính P(A) = số kết quả thuận lợi / tổng số kết quả đồng khả năng và dùng C(n,k) để đếm."
+  - "Tính xác suất có điều kiện, phân biệt độc lập với xung khắc, dùng xác suất toàn phần."
+  - "Giải bài Bayes (xét nghiệm bệnh) bằng công thức và bằng bảng 10.000 người, nhận ra base-rate fallacy."
+blocks:
+  - id: s_count
+    type: section
+    title_vi: "Không gian mẫu, đếm và xác suất có điều kiện"
+    summary_vi: "Đếm kết quả thuận lợi trên tổng, rồi thu hẹp không gian mẫu khi biết thêm thông tin."
+    exercise_ref: ex_comb
+  - id: t01
+    type: text
+    md: |
+      **Không gian mẫu (sample space)** là mọi kết quả có thể; **biến cố (event)** là nhóm kết quả ta quan tâm. Khi các
+      kết quả đồng khả năng:
+
+      ```
+      P(A) = số kết quả của A / tổng số kết quả      (0 ≤ P ≤ 1)
+      ```
+
+      Tung xúc xắc: `P(chẵn) = 3/6 = 1/2`. **Tổ hợp** `C(n,k) = n!/(k!(n−k)!)` đếm cách chọn `k` từ `n` không quan tâm
+      thứ tự; **hoán vị** `n!` đếm cách xếp thứ tự. Rút 2 lá từ 52 lá có `C(52,2) = 1326` cách, trong đó 2 át có
+      `C(4,2) = 6` cách, nên `P(2 át) = 6/1326 = 1/221 ≈ 0,0045`.
+
+      **Xác suất có điều kiện**: `P(A|B) = P(A∩B) / P(B)`, tức thu hẹp không gian mẫu về B rồi đếm lại.
+
+      **Độc lập (independent)**: `P(A∩B) = P(A)·P(B)`, biết B không đổi gì về A (hai lần tung đồng xu). **Xung khắc
+      (mutually exclusive)**: không xảy ra cùng lúc, `P(A∩B) = 0`. Hai khái niệm khác nhau: nếu cả hai có xác suất
+      dương thì xung khắc kéo theo **phụ thuộc** (biết B xảy ra thì chắc chắn A không xảy ra).
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      from math import comb
+      print(comb(52, 2))
+      print(comb(4, 2))
+      print(round(comb(4, 2) / comb(52, 2), 6))
+    expected_output: |
+      1326
+      6
+      0.004525
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Tung một xúc xắc. A = \"ra số chẵn\", B = \"ra số lẻ\". Nhận định nào đúng?"
+    options:
+      - {id: a, text_md: "A và B xung khắc nhưng không độc lập, vì `P(A∩B) = 0 ≠ P(A)·P(B) = 1/4`"}
+      - {id: b, text_md: "A và B độc lập vì chúng xung khắc"}
+      - {id: c, text_md: "A và B độc lập vì `P(A) = P(B)`"}
+    answer: [a]
+    explain_md: "Chẵn và lẻ không thể cùng xảy ra nên `P(A∩B) = 0`, còn `P(A)·P(B) = 1/4`. Xung khắc với xác suất dương luôn là phụ thuộc."
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Biết `P(B) = 0,5` và `P(A∩B) = 0,2`. Khi đó `P(A|B)` bằng ___ (một số thập phân)."
+    blanks: [{accept: ["0.4", "0,4", ".4"]}]
+    explain_md: "P(A|B) = P(A∩B) / P(B) = 0,2 / 0,5 = 0,4."
+  - id: q03
+    type: quiz_fill
+    prompt_md: "Số cách chọn 2 người từ nhóm 5 người (không quan tâm thứ tự) là `C(5,2)` = ___."
+    blanks: [{accept: ["10"]}]
+    explain_md: "C(5,2) = 5!/(2!·3!) = 20/2 = 10."
+  - id: ex_comb
+    type: code_exercise
+    md: |
+      `all_good(n, g, k)` trả xác suất rút `k` phần tử **không hoàn lại** từ `n` phần tử (trong đó có `g` phần tử "tốt")
+      mà cả `k` đều tốt, làm tròn 6 chữ số. Bản dưới đây dùng `g**k / n**k` (có hoàn lại) nên sai. Hãy sửa bằng tổ hợp.
+    entry: all_good
+    starter: |
+      from math import comb
+
+      def all_good(n, g, k):
+          return round(g ** k / n ** k, 6)
+    guidance_md: |
+      - `all_good(52, 4, 2)` phải ra `0.004525` (= 1/221), code đang trả `0.005917`.
+      - Thuận lợi: chọn `k` từ `g` phần tử tốt; tổng: chọn `k` từ `n`.
+    hints:
+      - level: nudge
+        md: "Rút không hoàn lại thì thứ tự không quan trọng. Dùng công cụ đếm nào?"
+      - level: approach
+        md: "Số cách thuận lợi là `comb(g, k)`, tổng số cách là `comb(n, k)`."
+      - level: near_solution
+        md: "`return round(comb(g, k) / comb(n, k), 6)`; `comb(g, k) = 0` khi `k > g`."
+    tests:
+      - {args: [52, 4, 2], expected: 0.004525}
+      - {args: [10, 5, 1], expected: 0.5}
+      - {args: [5, 2, 3], expected: 0.0}
+      - {args: [6, 6, 3], expected: 1.0}
+    solution: |
+      from math import comb
+
+      def all_good(n, g, k):
+          return round(comb(g, k) / comb(n, k), 6)
+  - id: s_bayes
+    type: section
+    title_vi: "Xác suất toàn phần, Bayes và base rate"
+    summary_vi: "Gộp các trường hợp, rồi đảo điều kiện bằng Bayes; bệnh hiếm thì dương tính vẫn thường là báo nhầm."
+    exercise_ref: ex_total
+  - id: t02
+    type: text
+    md: |
+      **Xác suất toàn phần (law of total probability)**: nếu `B₁…Bₙ` chia hết mọi trường hợp (không chồng nhau, tổng
+      bằng 1) thì `P(A) = Σ P(A|Bᵢ)·P(Bᵢ)`. Ví dụ 3 máy A/B/C sản xuất 50%/30%/20% với tỉ lệ lỗi 1%/2%/5%:
+      `P(lỗi) = 0,5·0,01 + 0,3·0,02 + 0,2·0,05 = 0,021`.
+
+      **Bayes**: đảo điều kiện, `P(A|B) = P(B|A)·P(A) / P(B)`, với `P(B)` lấy từ xác suất toàn phần. Với bệnh:
+
+      ```
+      P(bệnh | dương) = tpr·prior / (tpr·prior + fpr·(1 − prior))
+      ```
+
+      Bệnh 1% dân số (`prior = 0,01`), xét nghiệm đúng 99% với người bệnh (`tpr`), báo nhầm 5% người khoẻ (`fpr`):
+      `0,0099 / (0,0099 + 0,0495) ≈ 0,167`. Kiểm bằng bảng 10.000 người: 100 người bệnh (99 dương), 9.900 người khoẻ
+      (495 dương nhầm), nên trong 594 ca dương chỉ 99 ca thật, tức 1/6.
+
+      **Base-rate fallacy**: bỏ qua tỉ lệ nền. Bệnh càng hiếm thì số báo nhầm (từ nhóm khoẻ rất đông) càng áp đảo, dù
+      xét nghiệm "chính xác 99%". Mô phỏng Monte Carlo (chạy ngẫu nhiên nhiều lần rồi đếm tỉ lệ) là cách kiểm lại đáp án.
+  - id: q04
+    type: predict_output
+    code: |
+      pop = 10000
+      sick = pop * 1 // 100
+      tp = sick * 99 // 100
+      fp = (pop - sick) * 5 // 100
+      print(tp, fp)
+      print(round(tp / (tp + fp), 4))
+    expected_output: |
+      99 495
+      0.1667
+    explain_md: "Có 100 người bệnh nên 99 dương thật; 9.900 người khoẻ nên 495 dương nhầm. Posterior = 99/594 ≈ 0,1667."
+  - id: q05
+    type: quiz_mcq
+    prompt_md: "Vì sao xét nghiệm đúng 99% mà người dương tính với bệnh hiếm (1%) vẫn chỉ có xác suất bệnh khoảng 17%?"
+    options:
+      - {id: a, text_md: "Nhóm người khoẻ rất đông nên báo nhầm 5% của họ nhiều hơn số dương thật (bỏ qua base rate)"}
+      - {id: b, text_md: "Vì xét nghiệm thật ra chỉ đúng 17%"}
+      - {id: c, text_md: "Vì P(bệnh | dương) luôn bằng P(dương | bệnh)"}
+    answer: [a]
+    explain_md: "495 dương nhầm so với 99 dương thật. `P(dương | bệnh) = 0,99` khác `P(bệnh | dương) ≈ 0,167`; nhầm hai điều kiện này là sai lầm kinh điển."
+  - id: q06
+    type: quiz_fill
+    prompt_md: "Ba máy A/B/C cho 50%/30%/20% sản lượng, tỉ lệ lỗi 1%/2%/5%. `P(lỗi)` bằng ___ (số thập phân)."
+    blanks: [{accept: ["0.021", "0,021", ".021"]}]
+    explain_md: "0,5·0,01 + 0,3·0,02 + 0,2·0,05 = 0,005 + 0,006 + 0,01 = 0,021."
+  - id: ex_total
+    type: code_exercise
+    md: |
+      `p_total(priors, likes)` trả xác suất toàn phần `Σ P(Bᵢ)·P(A|Bᵢ)` (làm tròn 6 chữ số), với `priors[i] = P(Bᵢ)` và
+      `likes[i] = P(A|Bᵢ)`. Bản dưới đây chỉ cộng các `likes` mà quên nhân trọng số `priors`. Hãy sửa.
+    entry: p_total
+    starter: |
+      def p_total(priors, likes):
+          return round(sum(likes), 6)
+    guidance_md: |
+      - `p_total([0.5, 0.3, 0.2], [0.01, 0.02, 0.05])` phải ra `0.021`, code đang trả `0.08`.
+      - Mỗi trường hợp đóng góp `P(Bᵢ)·P(A|Bᵢ)`.
+    hints:
+      - level: nudge
+        md: "Trường hợp xảy ra càng hiếm thì càng đóng góp ít. Điều đó thể hiện ở đâu trong công thức?"
+      - level: approach
+        md: "Nhân từng cặp `(prior, like)` rồi cộng lại, ví dụ bằng `zip`."
+      - level: near_solution
+        md: "`sum(p * l for p, l in zip(priors, likes))`."
+    tests:
+      - {args: [[0.5, 0.3, 0.2], [0.01, 0.02, 0.05]], expected: 0.021}
+      - {args: [[1.0], [0.3]], expected: 0.3}
+      - {args: [[0.5, 0.5], [0.2, 0.4]], expected: 0.3}
+      - {args: [[0.25, 0.75], [1.0, 0.0]], expected: 0.25}
+    solution: |
+      def p_total(priors, likes):
+          return round(sum(p * l for p, l in zip(priors, likes)), 6)
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "P(A) = thuận lợi / tổng khi đồng khả năng; C(n,k) = n!/(k!(n−k)!) đếm cách chọn không thứ tự."
+      - "P(A|B) = P(A∩B)/P(B); độc lập là P(A∩B) = P(A)·P(B); xung khắc (xác suất dương) thì phụ thuộc."
+      - "Xác suất toàn phần P(A) = Σ P(A|Bᵢ)·P(Bᵢ) là mẫu số của Bayes."
+      - "Bayes: P(bệnh|dương) = tpr·prior / (tpr·prior + fpr·(1−prior)); bệnh hiếm thì dương tính vẫn thường là báo nhầm."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X642], l2: [X643], l3: [X644]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"
