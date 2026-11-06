@@ -1,0 +1,69 @@
+id: check-x719-live-objects
+subtopic_id: py.runtime.memory_gc
+secondary_subtopics: []
+kind: check
+title: 'Check X719: live objects'
+title_vi: 'Kiểm tra X719: object còn sống sau GC'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Implement `live_objects(refs, roots)`. `refs` is a dict mapping an object id (int) to the list of ids it
+  references (the object graph). `roots` is a list of ids reachable directly (the GC roots). Return the sorted
+  list of every id reachable from `roots` by following references (roots included), i.e. the objects that
+  survive garbage collection. The graph may contain cycles. An id that is referenced but is not a key of `refs`
+  is still live (it has no outgoing references).
+  For `refs = {1: [2], 2: [1], 3: []}` and `roots = [1]` the result is `[1, 2]` (3 is garbage).
+statement_vi_md: |
+  Cài `live_objects(refs, roots)`. `refs` là dict ánh xạ id object (số nguyên) sang list id mà nó tham chiếu (đồ thị
+  object). `roots` là list id gốc. Trả về list đã sắp xếp mọi id với tới được từ `roots` bằng cách đi theo tham chiếu
+  (gồm cả root), tức các object sống sót sau GC. Đồ thị có thể có cycle. Id chỉ được tham chiếu mà không là key của
+  `refs` vẫn tính là sống (không trỏ đi đâu). Với `refs = {1: [2], 2: [1], 3: []}` và `roots = [1]` kết quả là
+  `[1, 2]` (3 là rác).
+constraints:
+- 'Mọi id là số nguyên; refs có thể rỗng, roots có thể rỗng (kết quả [])'
+- 'Có thể có cycle và self-loop; dùng visited set'
+- 'Khoá của refs có thể đến dưới dạng chuỗi (JSON); hãy ép về int'
+examples:
+- input: 'refs = {"1": [2], "2": [1], "3": []}, roots = [1]'
+  output: '[1, 2]'
+  explain_vi: 'Từ root 1 với tới 2 (và 2 trỏ lại 1); 3 không với tới được nên là rác.'
+io:
+  mode: function
+  entry: live_objects
+  params:
+  - name: refs
+    type: dict
+  - name: roots
+    type: list
+  returns: list
+  compare: exact
+starter:
+  python: |
+    def live_objects(refs, roots):
+        # TODO: duyệt từ roots theo refs với visited set, trả sorted list các id còn sống
+        pass
+time_target_min: 6
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+hints:
+- Đây là duyệt đồ thị từ nhiều nguồn (mark phase); cần nhớ id đã thăm để cycle không lặp mãi.
+- "Đặt `graph = {int(k): v for k, v in refs.items()}`, dùng stack khởi tạo từ roots và set `seen`."
+- "Dùng `graph.get(n, [])` vì id có thể không là key; cuối cùng trả `sorted(seen)`."
+solution:
+  file: solution.py
+  approach_vi: Duyệt DFS bằng stack từ các root theo refs, dùng visited set để xử lý cycle, rồi trả danh sách đã sắp xếp.
+  complexity: O(V + E) / O(V)
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x719
+status: validated
+version: 1

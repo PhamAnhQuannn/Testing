@@ -1,0 +1,152 @@
+id: py.runtime.performance
+version: 1
+status: published
+title_vi: "Tối ưu hiệu năng và profiling"
+est_minutes: 14
+objectives_vi:
+  - "Nêu quy trình đúng: đo trước (timeit cho đoạn nhỏ, cProfile cho cả chương trình), sửa chỗ có tottime lớn nhất, rồi đo lại."
+  - "Chọn cấu trúc dữ liệu hợp lý: set/dict tra cứu O(1) thay vì list O(n); dùng ''.join thay cho += trong vòng lặp."
+  - "Dùng built-in (sum, sorted, min), comprehension và generator thay cho vòng lặp tay khi phù hợp."
+  - "Cài unique_in_order: bỏ trùng giữ thứ tự xuất hiện đầu tiên trong O(n) bằng một set `seen`."
+blocks:
+  - id: s_measure
+    type: section
+    title_vi: "Đo trước, tối ưu sau"
+    summary_vi: "timeit, cProfile, đọc bảng ncalls / tottime / cumtime và các thói quen chọn cấu trúc dữ liệu."
+  - id: t01
+    type: text
+    md: |
+      Quy tắc số một: **đo trước khi tối ưu**. Đoán sai chỗ chậm thì công sức bỏ ra không đổi được gì.
+
+      - **`timeit`** đo một đoạn nhỏ (chạy lặp nhiều lần rồi lấy trung bình), hợp để so hai cách viết.
+      - **`cProfile`** đo cả chương trình và in bảng theo từng hàm. Các cột chính: **ncalls** (số lần gọi),
+        **tottime** (thời gian trong chính hàm đó, không tính hàm con), **cumtime** (tính cả hàm con).
+        Cách đọc: sắp theo `tottime`, **sửa dòng có tottime lớn nhất trước**; `cumtime` lớn mà `tottime` nhỏ nghĩa là
+        thời gian nằm ở hàm con. Con số thời gian thay đổi theo máy nên không dùng để so sánh cứng, hãy xem tỉ lệ.
+      - Công cụ nâng cao: `py-spy` (lấy mẫu process đang chạy), `line_profiler` (đo từng dòng), `numba` / Cython / PyPy
+        (biên dịch hoặc JIT).
+
+      Các thói quen thường mang lại lợi lớn nhất (đổi thuật toán trước, vi tối ưu sau):
+
+      ```
+      x in some_list      # O(n): quét từng phần tử
+      x in some_set       # O(1) trung bình: băm
+      d[key]              # O(1) trung bình với dict
+      s += piece          # trong vòng lặp: chuỗi bất biến, mỗi lần tạo chuỗi mới
+      "".join(pieces)     # gom rồi nối một lần
+      ```
+
+      - **Chuỗi bất biến** nên `s += x` trong loop có thể sao chép lại chuỗi nhiều lần; gom vào list rồi `''.join(...)`.
+      - Dùng **built-in** (`sum`, `sorted`, `min`, `max`) và **comprehension**: chạy bằng code C nên nhanh hơn vòng lặp tay.
+      - **Generator** (`(x * x for x in data)`) tiết kiệm bộ nhớ vì sinh từng phần tử khi cần, không dựng cả list.
+      - Dữ liệu số lớn: **vectorization** bằng NumPy thay vòng lặp Python (xem bài numpy_basics).
+      - Nâng cao: biến cục bộ nhanh hơn thuộc tính (attribute) trong hot loop; `__slots__` giảm bộ nhớ mỗi object;
+        việc **CPU-bound** thì dùng `multiprocessing` (thread bị GIL giới hạn). Độ phức tạp cần nhớ: list `append` O(1),
+        `insert(0, x)` và `in` O(n); dict/set `in` O(1) trung bình; nối chuỗi bằng `+=` lặp lại có thể thành O(n^2).
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Trong bảng cProfile, nên sửa hàm nào trước?"
+    options:
+      - {id: a, text_md: "Hàm có tottime lớn nhất, vì thời gian nằm ngay trong thân hàm đó"}
+      - {id: b, text_md: "Hàm có ncalls nhỏ nhất"}
+      - {id: c, text_md: "Hàm ngắn nhất về số dòng code"}
+    answer: [a]
+    explain_md: "tottime là thời gian tự thân của hàm (không tính hàm con), nên tottime lớn nhất là chỗ đáng sửa nhất. Luôn đo lại sau khi sửa."
+  - id: q02
+    type: predict_output
+    code: |
+      s = ""
+      for w in ["a", "b", "c"]:
+          s += w
+      print(s)
+      print("".join(["a", "b", "c"]) == s)
+    expected_output: |
+      abc
+      True
+    explain_md: "Hai cách cho cùng kết quả 'abc'. Khác biệt chỉ nằm ở hiệu năng: += tạo chuỗi mới mỗi vòng, join nối một lần."
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Cần kiểm tra `x in collection` hàng triệu lần trên cùng một tập giá trị. Nên dùng gì?"
+    options:
+      - {id: a, text_md: "set (hoặc dict): tra cứu O(1) trung bình"}
+      - {id: b, text_md: "list: tra cứu O(1)"}
+      - {id: c, text_md: "string nối bằng +=: nhanh nhất"}
+    answer: [a]
+    explain_md: "`in` trên list quét O(n); trên set/dict dùng băm nên O(1) trung bình. Đổi list thành set là tối ưu rẻ mà hiệu quả."
+  - id: s_unique
+    type: section
+    title_vi: "Bỏ trùng giữ thứ tự bằng set"
+    summary_vi: "Dùng set `seen` để kiểm tra O(1) thay cho `in list` O(n)."
+    exercise_ref: ex_unique
+  - id: t02
+    type: text
+    md: |
+      Bài toán quen thuộc: bỏ phần tử trùng nhưng **giữ thứ tự xuất hiện đầu tiên**. Cách ngây thơ dùng `if x not in out`
+      trên list nên mỗi lần kiểm tra là O(n), cả bài thành O(n^2). Cách tốt: giữ thêm một set `seen`.
+
+      ```
+      seen = set()
+      out = []
+      for x in items:
+          if x not in seen:     # O(1)
+              seen.add(x)
+              out.append(x)
+      ```
+
+      Tổng chỉ O(n) thời gian và O(n) bộ nhớ phụ. `set(items)` một mình cũng bỏ trùng nhưng **mất thứ tự**, nên cần
+      vòng lặp trên. Đây chính là ví dụ "đổi cấu trúc dữ liệu" thay vì vi tối ưu.
+  - id: ex_unique
+    type: code_exercise
+    md: |
+      Cài `unique_in_order(items)` trả về list các phần tử của `items` đã bỏ trùng, **giữ thứ tự xuất hiện đầu tiên**.
+      Dùng một set `seen` để kiểm tra trùng trong O(1). `items` là list số nguyên.
+      Ví dụ `[3, 1, 3, 2, 1]` cho `[3, 1, 2]`; `[]` cho `[]`.
+    entry: unique_in_order
+    starter: |
+      def unique_in_order(items):
+          # TODO: duyệt items, dùng set seen để chỉ giữ lần xuất hiện đầu tiên của mỗi giá trị
+          pass
+    guidance_md: |
+      - Khởi tạo `seen = set()` và `out = []`.
+      - Với mỗi `x`: nếu `x not in seen` thì thêm vào `seen` và `out`.
+    hints:
+      - level: nudge
+        md: "Cần nhớ những giá trị đã gặp để kiểm tra nhanh."
+      - level: approach
+        md: "Dùng `seen = set()`; chỉ `append` vào kết quả khi `x not in seen`."
+      - level: near_solution
+        md: "`for x in items: if x not in seen: seen.add(x); out.append(x)`; cuối cùng `return out`."
+    tests:
+      - {args: [[3, 1, 3, 2, 1]], expected: [3, 1, 2]}
+      - {args: [[]], expected: []}
+      - {args: [[5, 5, 5]], expected: [5]}
+      - {args: [[-1, 2, -1, 0, 2]], expected: [-1, 2, 0]}
+    solution: |
+      def unique_in_order(items):
+          seen = set()
+          out = []
+          for x in items:
+              if x not in seen:
+                  seen.add(x)
+                  out.append(x)
+          return out
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Muốn nối nhiều chuỗi nhỏ nhanh thay cho += trong vòng lặp, ta gom vào list rồi gọi ''.___(...) (điền tên phương thức)."
+    blanks: [{accept: ["join"]}]
+    explain_md: "''.join(pieces) nối tất cả một lần, tránh tạo nhiều chuỗi trung gian."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Đo trước khi tối ưu: timeit cho đoạn nhỏ, cProfile cho cả chương trình; đọc ncalls / tottime / cumtime và sửa tottime lớn nhất trước."
+      - "set/dict tra cứu O(1) trung bình, list là O(n); đổi cấu trúc dữ liệu thường hiệu quả hơn vi tối ưu."
+      - "Chuỗi bất biến: dùng ''.join(...) thay cho += trong loop; ưu tiên built-in, comprehension, generator."
+      - "unique_in_order: set seen + list kết quả cho O(n) và giữ thứ tự xuất hiện đầu tiên."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X724], l2: [X725], l3: [X726]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-06"

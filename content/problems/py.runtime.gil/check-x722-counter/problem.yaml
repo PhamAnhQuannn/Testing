@@ -1,0 +1,66 @@
+id: check-x722-counter
+subtopic_id: py.runtime.gil
+secondary_subtopics: []
+kind: check
+title: 'Check X722: simulate counter'
+title_vi: 'Kiểm tra X722: mô phỏng bộ đếm đa luồng'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Implement `simulate_counter(schedule)` modelling the non-atomic `counter += 1` under a chosen thread
+  interleaving. There is one shared integer `shared` starting at 0, and every thread has its own local
+  register starting at 0. `schedule` is a list of `[action, thread_id]` pairs. `"R"` means the thread reads
+  (`local[thread_id] = shared`); `"W"` means the thread writes (`shared = local[thread_id] + 1`). Process the
+  schedule in order and return the final `shared` as an int.
+  For `[["R", 0], ["R", 1], ["W", 0], ["W", 1]]` the result is `1` (a lost update).
+statement_vi_md: |
+  Cài `simulate_counter(schedule)` mô phỏng `counter += 1` không nguyên tử khi các thread xen kẽ. Có một số nguyên
+  dùng chung `shared` bắt đầu bằng 0, mỗi thread có thanh ghi cục bộ riêng bắt đầu bằng 0. `schedule` là list các cặp
+  `[action, thread_id]`. `"R"`: thread đọc (`local[thread_id] = shared`); `"W"`: thread ghi
+  (`shared = local[thread_id] + 1`). Xử lý theo thứ tự và trả `shared` cuối cùng (số nguyên).
+  Với `[["R", 0], ["R", 1], ["W", 0], ["W", 1]]` kết quả là `1` (lost update).
+constraints:
+- 'Mỗi phần tử là [action, thread_id] với action là "R" hoặc "W", thread_id là số nguyên'
+- 'schedule có thể rỗng (kết quả 0); thread chưa đọc thì local mặc định 0'
+examples:
+- input: 'schedule = [["R", 0], ["R", 1], ["W", 0], ["W", 1]]'
+  output: '1'
+  explain_vi: 'Cả hai thread đọc 0 rồi cùng ghi 0 + 1 = 1, một lần cộng bị mất.'
+io:
+  mode: function
+  entry: simulate_counter
+  params:
+  - name: schedule
+    type: list
+  returns: int
+  compare: exact
+starter:
+  python: |
+    def simulate_counter(schedule):
+        # TODO: giữ shared và dict local theo thread_id; "R": local[tid] = shared, "W": shared = local[tid] + 1
+        pass
+time_target_min: 6
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+hints:
+- Cần một biến shared và một dict lưu giá trị local của từng thread.
+- Duyệt từng cặp (action, tid); "R" thì gán local[tid] = shared.
+- "Với \"W\" thì shared = local.get(tid, 0) + 1; cuối hàm trả shared."
+solution:
+  file: solution.py
+  approach_vi: Duyệt lịch theo thứ tự, "R" chép shared vào local của thread, "W" ghi local + 1 lên shared.
+  complexity: O(N) / O(T)
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x722
+status: validated
+version: 1

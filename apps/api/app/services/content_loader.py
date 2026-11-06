@@ -65,6 +65,7 @@ SECTION_NAMES: dict[str, str] = {
 }
 MODULE_NAMES: dict[str, str] = {
     "py.core": "Cốt lõi Python",
+    "py.runtime": "Thực thi & bộ nhớ",
     "py.datastructs": "Cấu trúc dữ liệu Python",
     "py.functions": "Hàm",
     "py.oop": "Hướng đối tượng",
