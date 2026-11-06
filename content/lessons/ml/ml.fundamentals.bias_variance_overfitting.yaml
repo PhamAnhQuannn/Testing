@@ -1,0 +1,165 @@
+id: ml.fundamentals.bias_variance_overfitting
+version: 1
+status: published
+title_vi: "Bias-variance, overfitting và regularization"
+est_minutes: 15
+objectives_vi:
+  - "Phân biệt underfitting và overfitting qua lỗi train và lỗi validation, giải thích bias-variance tradeoff."
+  - "Đọc learning curve để chẩn đoán và chọn cách chữa: thêm dữ liệu, mô hình đơn giản hơn, regularization, early stopping, ensembling."
+  - "Tính tay loss có phạt L2 (λΣw²) và L1 (λΣ|w|) và giải thích vì sao L1 cho trọng số thưa (sparse)."
+blocks:
+  - id: s_diag
+    type: section
+    title_vi: "Underfit, overfit và bias-variance"
+    summary_vi: "So lỗi train với lỗi validation để biết mô hình quá đơn giản hay học vẹt."
+  - id: t01
+    type: text
+    md: |
+      **Overfitting** là học thuộc dữ liệu train (kể cả nhiễu) nên lỗi train rất thấp nhưng lỗi **validation** cao.
+      **Underfitting** là mô hình quá đơn giản nên cả lỗi train lẫn lỗi validation đều cao.
+
+      | Lỗi train | Lỗi val | Chẩn đoán |
+      |---|---|---|
+      | cao | cao | underfit (bias cao) |
+      | rất thấp | cao hơn nhiều | overfit (variance cao) |
+      | thấp | thấp, sát train | vừa khớp |
+
+      **Bias** là lệch có hệ thống do mô hình quá đơn giản (như bắn lệch tâm bia). **Variance** là độ nhạy với dữ liệu
+      train: train lại trên mẫu khác thì kết quả tản mát. Lỗi kỳ vọng ≈ `bias² + variance + nhiễu không giảm được`.
+
+      **Đánh đổi (tradeoff)**: mô hình phức tạp hơn (capacity lớn hơn) giảm bias nhưng tăng variance; ta chọn mức vừa
+      sao cho lỗi validation thấp nhất.
+
+      **Learning curve** vẽ lỗi train và lỗi val theo lượng dữ liệu. Hai đường đều cao và gần nhau: underfit, thêm
+      dữ liệu không giúp, cần mô hình mạnh hơn. Khoảng cách lớn giữa hai đường: overfit, thêm dữ liệu hoặc regularization
+      sẽ giúp.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Lỗi train 2%, lỗi validation 15%. Chẩn đoán nào hợp lý nhất?"
+    options:
+      - {id: a, text_md: "Overfit (variance cao)"}
+      - {id: b, text_md: "Underfit (bias cao)"}
+      - {id: c, text_md: "Mô hình đã vừa khớp"}
+    answer: [a]
+    explain_md: "Train rất thấp nhưng val cao hơn nhiều: khoảng cách lớn là dấu hiệu overfit."
+  - id: q02
+    type: quiz_mcq
+    prompt_md: "Lỗi train 30% và lỗi validation 32%. Cách chữa nào hợp lý?"
+    options:
+      - {id: a, text_md: "Dùng mô hình phức tạp hơn hoặc thêm feature"}
+      - {id: b, text_md: "Tăng mạnh regularization"}
+      - {id: c, text_md: "Chỉ thu thêm dữ liệu giống cũ"}
+    answer: [a]
+    explain_md: "Cả hai lỗi đều cao và sát nhau là underfit (bias cao): cần tăng capacity. Regularization hay thêm dữ liệu không giải quyết bias."
+  - id: q03
+    type: quiz_fill
+    prompt_md: "Mô hình càng phức tạp thì bias càng ___ và variance càng tăng (điền: giảm hoặc tăng)."
+    blanks: [{accept: ["giảm", "giam", "giảm xuống"]}]
+    explain_md: "Capacity lớn hơn khớp dữ liệu tốt hơn nên bias giảm, đổi lại variance tăng."
+  - id: s_reg
+    type: section
+    title_vi: "Cách chữa và regularization"
+    summary_vi: "Phạt trọng số lớn (L2, L1), dừng sớm, thêm dữ liệu và ensembling để giảm variance."
+    exercise_ref: ex_l2
+  - id: t02
+    type: text
+    md: |
+      **Cách chữa overfit**: thêm dữ liệu, mô hình đơn giản hơn, regularization, early stopping, ensembling.
+
+      **Regularization** thêm một số hạng phạt trọng số vào loss, `λ` càng lớn mô hình càng đơn giản:
+
+      ```
+      loss_L2 = base + λ · Σ w²      (ridge, weight decay: co trọng số)
+      loss_L1 = base + λ · Σ |w|     (lasso: nhiều trọng số về đúng 0)
+      ```
+
+      Ví dụ loss gốc 0,5, `w = [1, −2]`, `λ = 0,1`: `loss_L2 = 0,5 + 0,1·(1 + 4) = 1,0`;
+      `loss_L1 = 0,5 + 0,1·(1 + 2) = 0,8`.
+
+      **Vì sao L1 thưa**: hình phạt L1 có góc nhọn trên các trục, nên nghiệm tối ưu hay rơi đúng vào trục (w = 0).
+      L2 chỉ co đều trọng số về gần 0 mà hiếm khi bằng 0. **Elastic net** cộng cả hai.
+
+      **Early stopping**: dừng huấn luyện khi lỗi validation bắt đầu tăng, giữ mô hình ở epoch có val thấp nhất.
+      **Ensembling** (trung bình nhiều mô hình) giảm variance mà gần như không tăng bias.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      base = 0.5
+      w = [1, -2]
+      lam = 0.1
+      l2 = base + lam * sum(v * v for v in w)
+      l1 = base + lam * sum(abs(v) for v in w)
+      print(round(l2, 6), round(l1, 6))
+    expected_output: |
+      1.0 0.8
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Regularization nào hay đẩy nhiều trọng số về đúng 0 (mô hình thưa)?"
+    options:
+      - {id: a, text_md: "L1 (λΣ|w|)"}
+      - {id: b, text_md: "L2 (λΣw²)"}
+      - {id: c, text_md: "Cả hai như nhau"}
+    answer: [a]
+    explain_md: "L1 có góc nhọn trên trục nên sinh trọng số bằng 0; L2 chỉ co nhỏ trọng số."
+  - id: q05
+    type: predict_output
+    code: |
+      w = [3, -1]
+      lam = 0.5
+      print(lam * sum(abs(v) for v in w))
+    expected_output: |
+      2.0
+    explain_md: "L1: 0,5·(|3| + |−1|) = 0,5·4 = 2,0."
+  - id: q06
+    type: quiz_mcq
+    prompt_md: "Lỗi validation giảm đến epoch 12 rồi tăng dần trong khi lỗi train vẫn giảm. Nên làm gì?"
+    options:
+      - {id: a, text_md: "Early stopping: dừng và giữ mô hình ở epoch 12"}
+      - {id: b, text_md: "Train tiếp cho lỗi train về 0"}
+      - {id: c, text_md: "Giảm λ về 0"}
+    answer: [a]
+    explain_md: "Val tăng trở lại nghĩa là bắt đầu overfit; dừng ở điểm val thấp nhất."
+  - id: ex_l2
+    type: code_exercise
+    md: |
+      `l2_penalty(weights, lam)` trả phần phạt L2 `lam * Σ w²` (làm tròn 6 chữ số). Bản dưới đây dùng trị tuyệt đối
+      (đó là L1) nên sai. Hãy sửa thành L2.
+    entry: l2_penalty
+    starter: |
+      def l2_penalty(weights, lam):
+          return round(lam * sum(abs(w) for w in weights), 6)
+    guidance_md: |
+      - Thử `l2_penalty([3], 0.5)`: đáp án `4.5`, code trả `1.5`.
+      - L2 là tổng bình phương, không phải trị tuyệt đối.
+    hints:
+      - level: nudge
+        md: "Với w = 3, L2 cho 9 còn L1 cho 3. Công thức đang dùng cái nào?"
+      - level: approach
+        md: "Thay `abs(w)` bằng `w * w`."
+      - level: near_solution
+        md: "`lam * sum(w * w for w in weights)`."
+    tests:
+      - {args: [[1, -2], 0.1], expected: 0.5}
+      - {args: [[3], 0.5], expected: 4.5}
+      - {args: [[], 1.0], expected: 0.0}
+      - {args: [[0.5, 0.5], 2], expected: 1.0}
+    solution: |
+      def l2_penalty(weights, lam):
+          return round(lam * sum(w * w for w in weights), 6)
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Train cao và val cao: underfit (bias cao). Train thấp, val cao hơn nhiều: overfit (variance cao)."
+      - "Mô hình phức tạp hơn giảm bias, tăng variance; learning curve cho thấy cần thêm dữ liệu hay thêm capacity."
+      - "Chữa overfit: thêm dữ liệu, mô hình đơn giản hơn, regularization, early stopping, ensembling."
+      - "L2 = λΣw² co trọng số; L1 = λΣ|w| cho trọng số thưa (sparse). Ví dụ base 0,5, w=[1,−2], λ=0,1: L2 1,0; L1 0,8."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [Q246], l2: [X669], l3: [X670]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

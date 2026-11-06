@@ -1,0 +1,161 @@
+id: ml.fundamentals.classification_metrics
+version: 1
+status: published
+title_vi: "Metric phân loại và calibration"
+est_minutes: 15
+objectives_vi:
+  - "Dựng confusion matrix (TP/FP/FN/TN) và tính precision, recall, F1 bằng tay."
+  - "Nhận ra accuracy paradox khi một nhóm hiếm và chọn ngưỡng (threshold) theo chi phí lỗi."
+  - "Phân biệt ROC-AUC với PR-AUC, macro với micro averaging, và biết calibration để làm gì."
+blocks:
+  - id: s_prf
+    type: section
+    title_vi: "Confusion matrix, precision, recall, F1"
+    summary_vi: "Đếm bốn ô TP/FP/FN/TN rồi suy ra precision, recall, F1; accuracy dễ đánh lừa khi nhóm dương hiếm."
+    exercise_ref: ex_pr
+  - id: t01
+    type: text
+    md: |
+      **Confusion matrix** là bảng 2×2 đếm kết quả của mô hình với nhãn thật:
+
+      | | Dự đoán dương | Dự đoán âm |
+      |---|---|---|
+      | **Thật dương** | TP (dương đúng) | FN (bỏ sót) |
+      | **Thật âm** | FP (báo nhầm) | TN (âm đúng) |
+
+      ```
+      precision = TP / (TP + FP)    trong số báo dương, bao nhiêu đúng
+      recall    = TP / (TP + FN)    trong số dương thật, bắt được bao nhiêu
+      F1        = 2·P·R / (P + R)   trung bình điều hoà của precision và recall
+      accuracy  = (TP + TN) / tổng
+      ```
+
+      **Accuracy paradox**: 1.000 giao dịch có 10 gian lận, mô hình luôn đoán "không gian lận" đạt accuracy 99% nhưng
+      recall = 0. Ví dụ khác: `TP=6, FP=14, FN=4` cho `precision = 6/20 = 0,3`, `recall = 6/10 = 0,6`,
+      `F1 = 2·0,3·0,6/0,9 = 0,4`. Khi mẫu số bằng 0 (không báo dương nào) quy ước trả 0.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Bộ dữ liệu 1.000 giao dịch có 10 gian lận. Mô hình luôn đoán \"không gian lận\". Nhận định nào đúng?"
+    options:
+      - {id: a, text_md: "Accuracy 99% nhưng recall của lớp gian lận bằng 0, nên mô hình vô dụng"}
+      - {id: b, text_md: "Accuracy 99% nên mô hình rất tốt"}
+      - {id: c, text_md: "Precision bằng 1 vì không báo nhầm lần nào, nên mô hình hoàn hảo"}
+    answer: [a]
+    explain_md: "Mô hình bỏ sót cả 10 ca gian lận (TP = 0 nên recall = 0). Accuracy cao chỉ vì nhóm âm quá đông (accuracy paradox)."
+  - id: q02
+    type: quiz_fill
+    prompt_md: "`TP=6, FP=14, FN=4`. Precision bằng ___ (số thập phân)."
+    blanks: [{accept: ["0.3", "0,3", ".3", "0.30", "0,30"]}]
+    explain_md: "precision = TP/(TP+FP) = 6/20 = 0,3."
+  - id: q03
+    type: quiz_fill
+    prompt_md: "`TP=6, FP=14, FN=4`. F1 bằng ___ (số thập phân)."
+    blanks: [{accept: ["0.4", "0,4", ".4", "0.40", "0,40"]}]
+    explain_md: "recall = 6/10 = 0,6; F1 = 2·0,3·0,6/(0,3+0,6) = 0,36/0,9 = 0,4."
+  - id: ex_pr
+    type: code_exercise
+    md: |
+      `precision_recall(y_true, y_pred)` nhận hai list nhãn 0/1 và trả list `[precision, recall]`, mỗi số làm tròn 4
+      chữ số; trả `0.0` cho số nào có mẫu số bằng 0. Bản dưới đây lẫn FP với FN nên sai. Hãy sửa.
+    entry: precision_recall
+    starter: |
+      def precision_recall(y_true, y_pred):
+          tp = sum(1 for t, p in zip(y_true, y_pred) if t == 1 and p == 1)
+          fp = sum(1 for t, p in zip(y_true, y_pred) if t == 1 and p == 0)
+          fn = sum(1 for t, p in zip(y_true, y_pred) if t == 0 and p == 1)
+          precision = tp / (tp + fp) if tp + fp else 0.0
+          recall = tp / (tp + fn) if tp + fn else 0.0
+          return [round(precision, 4), round(recall, 4)]
+    guidance_md: |
+      - `precision_recall([1,0,1,0], [1,1,0,0])` phải ra `[0.5, 0.5]`.
+      - FP là mẫu thật âm nhưng bị báo dương; FN là mẫu thật dương nhưng bị báo âm.
+    hints:
+      - level: nudge
+        md: "So lại điều kiện của `fp` và `fn` với bảng confusion matrix."
+      - level: approach
+        md: "FP: `t == 0 and p == 1`. FN: `t == 1 and p == 0`."
+      - level: near_solution
+        md: "Đổi chỗ hai điều kiện: `fp` đếm `t == 0 and p == 1`, `fn` đếm `t == 1 and p == 0`."
+    tests:
+      - {args: [[1, 0, 1, 0], [1, 1, 0, 0]], expected: [0.5, 0.5]}
+      - {args: [[1, 1, 1, 0, 0], [1, 1, 0, 0, 0]], expected: [1.0, 0.6667]}
+      - {args: [[1, 0, 0, 0, 0, 1], [1, 1, 1, 1, 0, 0]], expected: [0.25, 0.5]}
+      - {args: [[1, 1], [0, 0]], expected: [0.0, 0.0]}
+      - {args: [[0, 0], [0, 0]], expected: [0.0, 0.0]}
+    solution: |
+      def precision_recall(y_true, y_pred):
+          tp = sum(1 for t, p in zip(y_true, y_pred) if t == 1 and p == 1)
+          fp = sum(1 for t, p in zip(y_true, y_pred) if t == 0 and p == 1)
+          fn = sum(1 for t, p in zip(y_true, y_pred) if t == 1 and p == 0)
+          precision = tp / (tp + fp) if tp + fp else 0.0
+          recall = tp / (tp + fn) if tp + fn else 0.0
+          return [round(precision, 4), round(recall, 4)]
+  - id: s_thr
+    type: section
+    title_vi: "Ngưỡng, ROC-AUC vs PR-AUC, averaging, calibration"
+    summary_vi: "Hạ ngưỡng thì recall tăng, precision thường giảm; PR-AUC đáng tin hơn khi nhóm dương hiếm."
+  - id: t02
+    type: text
+    md: |
+      Mô hình thường cho **xác suất**; ta chọn **ngưỡng (threshold)** để thành nhãn. **Hạ ngưỡng** thì báo dương nhiều
+      hơn: recall tăng, precision thường giảm. Chọn ngưỡng theo chi phí lỗi: bỏ sót gian lận đắt hơn báo nhầm thì ưu tiên
+      recall (ngưỡng thấp).
+
+      **ROC** vẽ recall (TPR) theo `FPR = FP/(FP+TN)` khi quét ngưỡng; **PR** vẽ precision theo recall. **AUC** là diện
+      tích dưới đường. Khi nhóm dương rất hiếm, TN khổng lồ làm FPR luôn nhỏ nên ROC-AUC trông đẹp dù precision tệ;
+      **PR-AUC** nhạy với nhóm dương hơn nên đáng tin hơn.
+
+      **Đa lớp**: **macro** tính metric từng lớp rồi lấy trung bình (mọi lớp nặng như nhau, lớp hiếm có tiếng nói);
+      **micro** gộp TP/FP/FN của mọi lớp rồi tính một lần (lớp đông áp đảo).
+
+      **Calibration** (nhận biết): xác suất 0,8 có nên đúng khoảng 80% số lần? Kiểm bằng reliability diagram; sửa bằng
+      Platt scaling hoặc isotonic regression. Ranking tốt (AUC cao) chưa chắc đã calibrated.
+  - id: q04
+    type: predict_output
+    code: |
+      probs = [0.9, 0.6, 0.4, 0.2]
+      y = [1, 0, 1, 0]
+      for th in (0.5, 0.3):
+          pred = [1 if p >= th else 0 for p in probs]
+          tp = sum(1 for t, q in zip(y, pred) if t == 1 and q == 1)
+          fp = sum(1 for t, q in zip(y, pred) if t == 0 and q == 1)
+          fn = sum(1 for t, q in zip(y, pred) if t == 1 and q == 0)
+          print(round(tp / (tp + fp), 4), round(tp / (tp + fn), 4))
+    expected_output: |
+      0.5 0.5
+      0.6667 1.0
+    explain_md: "Ngưỡng 0,5: dự đoán [1,1,0,0] nên TP=1, FP=1, FN=1. Ngưỡng 0,3: dự đoán [1,1,1,0] nên TP=2, FP=1, FN=0. Recall tăng từ 0,5 lên 1,0; precision ở ví dụ nhỏ này tăng nhẹ nhưng nói chung thường giảm khi hạ ngưỡng."
+  - id: q05
+    type: quiz_mcq
+    prompt_md: "Nhóm dương rất hiếm (0,1%). Metric tổng hợp nào đáng tin hơn để so sánh hai mô hình?"
+    options:
+      - {id: a, text_md: "PR-AUC, vì nó tập trung vào precision/recall của nhóm dương"}
+      - {id: b, text_md: "Accuracy, vì nó đếm mọi mẫu"}
+      - {id: c, text_md: "ROC-AUC luôn tốt hơn PR-AUC trong mọi trường hợp"}
+    answer: [a]
+    explain_md: "TN rất lớn làm FPR nhỏ và ROC-AUC lạc quan; PR-AUC phản ánh chất lượng trên lớp dương hiếm."
+  - id: q06
+    type: quiz_mcq
+    prompt_md: "Bỏ sót ca ung thư đắt hơn nhiều so với báo nhầm. Nên làm gì với ngưỡng?"
+    options:
+      - {id: a, text_md: "Hạ ngưỡng để tăng recall, chấp nhận precision thấp hơn"}
+      - {id: b, text_md: "Nâng ngưỡng lên 0,99 để precision cao"}
+      - {id: c, text_md: "Giữ 0,5 vì đó là ngưỡng \"chuẩn\""}
+    answer: [a]
+    explain_md: "Chi phí FN lớn thì ưu tiên recall: hạ ngưỡng. 0,5 không có gì đặc biệt, ngưỡng nên chọn theo chi phí lỗi."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Confusion matrix: TP, FP, FN, TN; precision = TP/(TP+FP), recall = TP/(TP+FN), F1 = 2PR/(P+R)."
+      - "Accuracy paradox: nhóm hiếm làm accuracy cao mà recall bằng 0."
+      - "Hạ ngưỡng thì recall tăng, precision thường giảm; chọn ngưỡng theo chi phí lỗi."
+      - "PR-AUC đáng tin hơn ROC-AUC khi nhóm dương hiếm; macro coi mọi lớp ngang nhau, micro gộp mọi mẫu."
+      - "Calibration: xác suất dự đoán có khớp tần suất thật không (reliability diagram, Platt, isotonic)."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [Q254], l2: [Q253], l3: [X671]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"
