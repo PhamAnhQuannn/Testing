@@ -1,0 +1,141 @@
+id: py.core.io_input
+version: 1
+status: published
+title_vi: "Nhập xuất console và file cơ bản"
+est_minutes: 13
+objectives_vi:
+  - "Nhớ rằng input() luôn trả str, và đổi sang số bằng int(input()) hoặc nhiều số một dòng bằng input().split()."
+  - "Dùng print với sep, end và f-string để định dạng đầu ra."
+  - "Mở file đúng mode (r/w/a) bằng with open(..., encoding='utf-8'), đọc từng dòng và strip() bỏ ký tự xuống dòng."
+  - "Cài parse_ints: tách một chuỗi nhiều số cách nhau bởi khoảng trắng tuỳ ý thành list int."
+blocks:
+  - id: s_console
+    type: section
+    title_vi: "Nhập xuất console"
+    summary_vi: "input() trả str, print với sep/end/f-string."
+  - id: t01
+    type: text
+    md: |
+      **`input()`** đọc một dòng từ bàn phím và **luôn trả về `str`**, kể cả khi người dùng gõ số. Muốn tính toán
+      phải đổi kiểu: `n = int(input())`. Khi một dòng chứa nhiều số, dùng `input().split()`:
+
+      ```
+      a, b = input().split()                 # "3 4"  -> '3', '4' (vẫn là str)
+      nums = [int(t) for t in input().split()]
+      ```
+
+      `split()` không đối số tách theo **mọi chuỗi khoảng trắng** (space, tab, xuống dòng) và bỏ khoảng trắng ở hai
+      đầu, nên `"  10   -2 ".split()` cho `['10', '-2']`.
+
+      **`print`** có hai tham số hay dùng: `sep` (chuỗi chèn giữa các đối số, mặc định là một dấu cách) và `end`
+      (chuỗi in cuối, mặc định là `"\n"`). **f-string** nhúng biểu thức vào chuỗi:
+
+      ```
+      print(1, 2, 3, sep="-")          # 1-2-3
+      print("a", end="")               # không xuống dòng
+      print(f"tong = {3 + 4}")         # tong = 7
+      ```
+
+      Với online judge đọc nhiều dòng, `sys.stdin.readline()` nhanh hơn `input()` (nhớ `.strip()` vì nó giữ lại `\n`).
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Sau `x = input()` và người dùng gõ `42`, `type(x)` là gì?"
+    options:
+      - {id: a, text_md: "`str`, phải dùng int(x) mới tính toán được"}
+      - {id: b, text_md: "`int`, vì 42 là số"}
+      - {id: c, text_md: "`float`"}
+    answer: [a]
+    explain_md: "input() luôn trả về str. Phải đổi bằng int() hoặc float()."
+  - id: q02
+    type: predict_output
+    code: |
+      line = "3 4 5"
+      parts = line.split()
+      print(parts)
+      print(sum(int(p) for p in parts))
+      print(1, 2, 3, sep="-")
+    expected_output: |
+      ['3', '4', '5']
+      12
+      1-2-3
+    explain_md: "split() cho list str ['3', '4', '5']; đổi int rồi cộng được 12; sep='-' nối các đối số bằng dấu gạch."
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "`print('a', end='')` rồi `print('b')` in ra gì trên màn hình?"
+    options:
+      - {id: a, text_md: "`ab` trên cùng một dòng"}
+      - {id: b, text_md: "`a` và `b` trên hai dòng"}
+      - {id: c, text_md: "Lỗi cú pháp"}
+    answer: [a]
+    explain_md: "end='' bỏ ký tự xuống dòng mặc định, nên b nối ngay sau a."
+  - id: s_parse
+    type: section
+    title_vi: "File và tách số từ một dòng"
+    summary_vi: "open/with, đọc từng dòng, strip, rồi cài parse_ints."
+    exercise_ref: ex_parse_ints
+  - id: t02
+    type: text
+    md: |
+      **Mở file** bằng `open(path, mode, encoding=...)`: `"r"` đọc (mặc định), `"w"` ghi đè (tạo mới nếu chưa có),
+      `"a"` ghi nối thêm vào cuối. Luôn dùng **`with`** để file tự đóng dù có lỗi, và đặt
+      `encoding="utf-8"` để đọc/ghi tiếng Việt đúng:
+
+      ```
+      with open("data.txt", encoding="utf-8") as f:
+          for line in f:                 # đọc từng dòng, tiết kiệm bộ nhớ
+              nums = line.split()        # split() bỏ luôn "\n" ở cuối
+      # f.read() trả cả file thành một str
+      ```
+
+      Mỗi dòng đọc từ file còn **`\n` ở cuối**, nên dùng `strip()` (hoặc `split()` không đối số) trước khi xử lý.
+      Kỹ năng gắn với cả hai nguồn nhập (bàn phím và file) là biến **một dòng chữ thành list số**:
+      `[int(t) for t in line.split()]`. Dòng rỗng hoặc chỉ có khoảng trắng cho list rỗng `[]`.
+  - id: ex_parse_ints
+    type: code_exercise
+    md: |
+      Cài `parse_ints(line)` nhận một chuỗi chứa các số nguyên cách nhau bởi khoảng trắng tuỳ ý và trả về
+      **list int** theo đúng thứ tự. Chuỗi rỗng hoặc chỉ gồm khoảng trắng cho `[]`.
+      Ví dụ `"3 4 5"` cho `[3, 4, 5]`; `"  10   -2 "` cho `[10, -2]`. Không gọi `input()` thật.
+    entry: parse_ints
+    starter: |
+      def parse_ints(line):
+          # TODO: tách line theo khoảng trắng rồi đổi từng phần tử sang int
+          pass
+    guidance_md: |
+      - `line.split()` không đối số đã xử lý khoảng trắng thừa và chuỗi rỗng.
+      - Đừng quên đổi từng token sang `int`.
+    hints:
+      - level: nudge
+        md: "Dùng `split()` để tách chuỗi thành các token."
+      - level: approach
+        md: "Duyệt các token và đổi từng cái bằng `int(tok)`, gom vào list."
+      - level: near_solution
+        md: "`return [int(tok) for tok in line.split()]`"
+    tests:
+      - {args: ["3 4 5"], expected: [3, 4, 5]}
+      - {args: ["  10   -2 "], expected: [10, -2]}
+      - {args: [""], expected: []}
+      - {args: ["7"], expected: [7]}
+    solution: |
+      def parse_ints(line):
+          return [int(tok) for tok in line.split()]
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Mode mở file để ghi nối thêm vào cuối file mà không xoá nội dung cũ là ___ (điền một ký tự)."
+    blanks: [{accept: ["a", "'a'", "\"a\""]}]
+    explain_md: "Mode 'a' (append) ghi vào cuối file; 'w' sẽ xoá nội dung cũ."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "input() luôn trả str; dùng int(input()) cho một số và [int(t) for t in input().split()] cho nhiều số một dòng."
+      - "print có sep và end; f-string nhúng biểu thức. Online judge hay dùng sys.stdin.readline() cho nhanh."
+      - "Mode r/w/a; luôn dùng with open(..., encoding='utf-8') để file tự đóng và tiếng Việt đúng."
+      - "Dòng đọc từ file còn \\n ở cuối: strip() hoặc split() không đối số; chuỗi rỗng cho []."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [Q014], l2: [X727], l3: [X728]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-06"

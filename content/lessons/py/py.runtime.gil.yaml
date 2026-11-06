@@ -1,0 +1,159 @@
+id: py.runtime.gil
+version: 1
+status: published
+title_vi: "GIL và hệ quả đa luồng"
+est_minutes: 14
+objectives_vi:
+  - "Giải thích GIL là ổ khóa chỉ cho một thread chạy bytecode Python mỗi lúc, và vì sao CPython có nó (refcount không thread-safe)."
+  - "Phân biệt IO-bound (thread giúp được vì chờ thì nhả GIL) với CPU-bound (thread không nhanh hơn; cần multiprocessing, C extension hoặc NumPy)."
+  - "Hiểu x += 1 gồm đọc, cộng, ghi nên vẫn cần lock dù có GIL, và mô phỏng lost update bằng một lịch xen kẽ xác định."
+blocks:
+  - id: s_what
+    type: section
+    title_vi: "Thread, process và GIL"
+    summary_vi: "Thread dùng chung bộ nhớ, GIL chỉ cho một thread chạy bytecode, IO nhả GIL còn CPU thì không."
+  - id: t01
+    type: text
+    md: |
+      **Thread** giống nhiều "cánh tay" cùng làm việc trên **chung một bộ nhớ**; **process** thì mỗi cái có bộ nhớ riêng.
+      Cú pháp tối thiểu của `threading`:
+
+      ```
+      import threading
+
+      t = threading.Thread(target=work, args=(1,))
+      t.start()   # bắt đầu chạy
+      t.join()    # chờ thread kết thúc
+      ```
+
+      Trong CPython có **GIL** (Global Interpreter Lock): một ổ khóa toàn cục, mỗi lúc **chỉ một thread được chạy bytecode
+      Python**. Lý do tồn tại: bộ đếm tham chiếu (**refcount**) của object không thread-safe; một ổ khóa chung đơn giản và
+      nhanh hơn khoá từng object.
+
+      Hệ quả:
+
+      - **IO-bound** (chờ mạng, đọc file, `sleep`): khi chờ, thread **nhả GIL** nên thread khác chạy được, vì vậy thread
+        giúp chương trình nhanh hơn.
+      - **CPU-bound** (tính toán thuần Python): hai thread vẫn thay nhau giữ GIL, **không nhanh hơn** (thậm chí chậm hơn
+        chút do chuyển ngữ cảnh).
+      - Muốn dùng nhiều lõi: **`multiprocessing`** (mỗi process một GIL riêng), **C extension** hoặc **NumPy** (code C nhả
+        GIL khi tính).
+
+      Nâng cao: interpreter chuyển thread sau mỗi khoảng `sys.getswitchinterval()` (mặc định **5 ms**, chỉnh bằng
+      `setswitchinterval`). Bản **free-threaded** (3.13t, 3.14) bỏ GIL, nhưng vẫn là build riêng, không phải mặc định.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Chương trình tải 100 URL (chủ yếu chờ mạng). Vì sao dùng nhiều thread vẫn nhanh hơn dù có GIL?"
+    options:
+      - {id: a, text_md: "Khi chờ IO, thread nhả GIL nên thread khác chạy được"}
+      - {id: b, text_md: "GIL chỉ áp dụng cho process, không áp dụng cho thread"}
+      - {id: c, text_md: "Mỗi thread chạy trên một lõi CPU riêng"}
+    answer: [a]
+    explain_md: "Thread đang chờ IO không giữ GIL. Còn code Python thuần CPU thì tại một thời điểm chỉ một thread chạy."
+  - id: q02
+    type: predict_output
+    code: |
+      shared = 0
+      local_a = shared
+      local_b = shared
+      shared = local_a + 1
+      shared = local_b + 1
+      print(local_a, local_b)
+      print(shared)
+    expected_output: |
+      0 0
+      1
+    explain_md: "Cả hai đọc 0 trước khi ai ghi; mỗi bên ghi 0 + 1 = 1 nên một lần cộng bị mất. Đây là lost update."
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Muốn tăng tốc việc tính toán CPU-bound thuần Python bằng nhiều lõi, nên chọn gì?"
+    options:
+      - {id: a, text_md: "Thêm nhiều threading.Thread"}
+      - {id: b, text_md: "Dùng multiprocessing (mỗi process có GIL riêng)"}
+      - {id: c, text_md: "Gọi setswitchinterval(0)"}
+    answer: [b]
+    explain_md: "Thread bị GIL chặn. Process riêng có interpreter và GIL riêng nên chạy song song trên nhiều lõi."
+  - id: s_gate
+    type: section
+    title_vi: "x += 1 không nguyên tử: mô phỏng lost update"
+    summary_vi: "Đọc, cộng, ghi là ba bước; xen kẽ thì mất cập nhật. Mô phỏng bằng một lịch xác định."
+    exercise_ref: ex_counter
+  - id: t02
+    type: text
+    md: |
+      Dòng `counter += 1` thật ra gồm **đọc** giá trị, **cộng** 1, rồi **ghi** lại. GIL chỉ đảm bảo từng lệnh bytecode
+      không bị cắt ngang, **không** đảm bảo cả chuỗi ba bước liền nhau. Nếu thread A đọc, rồi thread B cũng đọc trước khi
+      A ghi, cả hai ghi cùng một kết quả và **một lần cộng bị mất** (lost update). Vì vậy vẫn cần
+      `threading.Lock` quanh đoạn read-modify-write.
+
+      Lưu ý: từ Python 3.10, vòng lặp đơn giản rất khó tái hiện lỗi này, nhưng đó chỉ là chi tiết cài đặt, **không phải
+      đảm bảo**; code đúng vẫn phải dùng lock.
+
+      Để học một cách xác định (không chạy thread thật), ta mô phỏng bằng **lịch xen kẽ**:
+
+      ```
+      shared = 0; locals = {}
+      for action, tid in schedule:
+          if action == "R":   locals[tid] = shared
+          else:               shared = locals.get(tid, 0) + 1
+      ```
+
+      `"R"` là thread đọc `shared` vào biến cục bộ của nó, `"W"` là thread ghi `local + 1` lên `shared`.
+  - id: ex_counter
+    type: code_exercise
+    md: |
+      Cài `simulate_counter(schedule)`. `schedule` là list các cặp `[action, thread_id]`, `action` là `"R"` hoặc `"W"`.
+      Có một số nguyên dùng chung `shared` bắt đầu bằng 0; mỗi thread có biến cục bộ riêng, ban đầu 0.
+      `"R"`: `local[thread_id] = shared`. `"W"`: `shared = local[thread_id] + 1`.
+      Xử lý theo thứ tự và trả `shared` cuối cùng.
+      Ví dụ `[["R",0],["R",1],["W",0],["W",1]]` cho `1` (lost update), còn `[["R",0],["W",0],["R",1],["W",1]]` cho `2`.
+    entry: simulate_counter
+    starter: |
+      def simulate_counter(schedule):
+          # TODO: giữ shared và dict local theo thread_id; xử lý lần lượt "R" và "W"
+          pass
+    guidance_md: |
+      - Dùng một dict `local` ánh xạ `thread_id` sang giá trị đã đọc.
+      - Thread chưa từng đọc thì local mặc định là 0 (`local.get(tid, 0)`).
+    hints:
+      - level: nudge
+        md: "Cần hai thứ: `shared` và một dict lưu local của từng thread."
+      - level: approach
+        md: "Duyệt `for action, tid in schedule`; nếu `action == \"R\"` thì `local[tid] = shared`, ngược lại `shared = local.get(tid, 0) + 1`."
+      - level: near_solution
+        md: "Khởi tạo `shared = 0`, `local = {}`; cuối hàm `return shared`."
+    tests:
+      - {args: [[]], expected: 0}
+      - {args: [[["R", 0], ["R", 1], ["W", 0], ["W", 1]]], expected: 1}
+      - {args: [[["R", 0], ["W", 0], ["R", 1], ["W", 1]]], expected: 2}
+      - {args: [[["R", 0], ["W", 0], ["R", 0], ["W", 0], ["R", 1], ["W", 1]]], expected: 3}
+    solution: |
+      def simulate_counter(schedule):
+          shared = 0
+          local = {}
+          for action, tid in schedule:
+              if action == "R":
+                  local[tid] = shared
+              else:
+                  shared = local.get(tid, 0) + 1
+          return shared
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Dù có GIL, `counter += 1` vẫn cần ___ quanh nó vì gồm đọc, cộng, ghi (điền: lock)."
+    blanks: [{accept: ["lock", "threading.Lock", "mutex"]}]
+    explain_md: "GIL không làm cả chuỗi read-modify-write thành nguyên tử; dùng threading.Lock để bảo vệ."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Thread dùng chung bộ nhớ, process chạy riêng; threading.Thread, start, join là cú pháp tối thiểu."
+      - "GIL: mỗi lúc chỉ một thread chạy bytecode Python, vì refcount không thread-safe."
+      - "IO-bound: thread giúp được (chờ thì nhả GIL). CPU-bound: không nhanh hơn; dùng multiprocessing, C extension hoặc NumPy."
+      - "x += 1 là đọc, cộng, ghi nên vẫn cần lock; từ 3.10 khó tái hiện lỗi nhưng không phải đảm bảo. Nâng cao: switch interval 5 ms, free-threaded 3.13t/3.14."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X721], l2: [X722], l3: [X723]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-06"

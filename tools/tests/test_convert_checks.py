@@ -167,4 +167,4 @@ def test_every_mvp_write_code_item_has_inputs():
     assert len(mvp_code) == 117
     assert [i for i in mvp_code if i not in EXTRA_INPUTS and i not in SPECIAL] == []
     # non-write_code (read_code + concept) upstream items for the shipped MVP subtopics
-    assert sum(1 for i in ITEMS if i["subtopic_id"] in MVP and i["type"] != "write_code") == 98
+    assert sum(1 for i in ITEMS if i["subtopic_id"] in MVP and i["type"] != "write_code") == 100

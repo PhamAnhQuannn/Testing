@@ -1,0 +1,166 @@
+id: py.runtime.memory_gc
+version: 1
+status: published
+title_vi: "Cách chạy code, quản lý bộ nhớ và GC"
+est_minutes: 14
+objectives_vi:
+  - "Giải thích CPython dịch .py sang bytecode (.pyc trong __pycache__) rồi VM chạy, nên 'thông dịch' chỉ đúng một phần."
+  - "Mô tả refcount: mọi object có bộ đếm, về 0 thì bị xoá ngay; vòng tham chiếu (cycle) cần generational GC (module gc) dọn."
+  - "Nhận diện memory leak do cache, biến global hay closure giữ tham chiếu; biết sys.getsizeof và tracemalloc dùng để làm gì."
+  - "Cài mark phase thuần Python: tìm tập object còn sống từ các root bằng visited set."
+blocks:
+  - id: s_model
+    type: section
+    title_vi: "Từ .py đến bytecode, refcount và GC"
+    summary_vi: "CPython biên dịch ra bytecode, đếm tham chiếu, và dùng GC cho vòng tham chiếu."
+  - id: t01
+    type: text
+    md: |
+      **CPython** (bản Python chuẩn) không chạy thẳng file `.py`. Nó **biên dịch** mã nguồn thành **bytecode**
+      (chuỗi lệnh cho máy ảo), rồi **VM** chạy bytecode đó. Bytecode được cache trong thư mục `__pycache__` dưới dạng
+      file `.pyc` để lần import sau khỏi biên dịch lại; module `dis` cho bạn xem bytecode. Vì vậy nói Python
+      "thông dịch" chỉ đúng một phần: có bước biên dịch, rồi mới thông dịch bytecode.
+
+      Code **top-level** của một module chạy **một lần** khi module được import lần đầu; các lần import sau lấy lại
+      object trong `sys.modules`.
+
+      **Bộ nhớ.** Mọi object nằm trên **heap** và có **refcount** (số tham chiếu đang trỏ tới nó). Gán thêm tên,
+      đưa vào list thì refcount tăng; xoá tên, ra khỏi scope thì giảm. **Refcount về 0 thì object bị giải phóng ngay.**
+
+      ```
+      a = [1, 2]
+      b = a          # cùng một object, refcount tăng
+      del a          # object vẫn sống vì b còn trỏ
+      del b          # refcount về 0: giải phóng ngay
+      ```
+
+      Điểm yếu: **vòng tham chiếu** (cycle). Hai object trỏ lẫn nhau (hoặc một object tự trỏ vào mình) có refcount
+      không bao giờ về 0 dù chương trình không còn dùng tới. Khi đó **generational GC** (module `gc`) quét theo
+      từng thế hệ, đi từ các root để đánh dấu object còn với tới được (**mark**), phần còn lại là rác và bị dọn.
+      `gc.collect()` ép chạy một lượt.
+
+      **Memory leak** trong Python thường không phải bug của GC mà là bạn **vô tình giữ tham chiếu**: cache dict phình
+      mãi, list global, closure bắt biến lớn. Công cụ: `sys.getsizeof(obj)` cho kích thước của riêng object (không
+      tính object nó trỏ tới), `tracemalloc` chụp snapshot để tìm dòng code cấp phát nhiều.
+
+      Nâng cao: **pymalloc** là allocator riêng cho object nhỏ; **weakref** trỏ tới object mà không tăng refcount
+      (hợp cho cache); `__del__` chạy khi object bị giải phóng nhưng thời điểm khó đoán nên tránh dựa vào nó;
+      CPython (chuẩn), PyPy (JIT) và Cython (biên dịch sang C) là các cách chạy khác nhau.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "CPython làm gì với file `.py` trước khi chạy?"
+    options:
+      - {id: a, text_md: "Biên dịch thành bytecode (cache trong `__pycache__/*.pyc`) rồi VM chạy bytecode"}
+      - {id: b, text_md: "Biên dịch thẳng ra mã máy native và chạy"}
+      - {id: c, text_md: "Đọc và chạy từng ký tự của mã nguồn, không có bước trung gian"}
+    answer: [a]
+    explain_md: "CPython biên dịch ra bytecode, lưu `.pyc` để import nhanh hơn, rồi máy ảo thông dịch bytecode. Nên 'thông dịch' chỉ đúng một phần."
+  - id: q02
+    type: predict_output
+    code: |
+      a = [1, 2]
+      b = a
+      b.append(3)
+      print(a)
+      print(a is b)
+      c = list(a)
+      print(c is a)
+    expected_output: |
+      [1, 2, 3]
+      True
+      False
+    explain_md: "`b = a` chỉ thêm một tên trỏ cùng object nên `append` qua b thấy được qua a và `a is b` là True. `list(a)` tạo object mới nên `c is a` là False."
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Vì sao hai object trỏ lẫn nhau (cycle) cần generational GC mà refcount một mình không dọn được?"
+    options:
+      - {id: a, text_md: "Mỗi object trong cycle vẫn được object kia trỏ tới nên refcount không bao giờ về 0"}
+      - {id: b, text_md: "Vì refcount chỉ đếm được số nguyên"}
+      - {id: c, text_md: "Vì cycle luôn nằm trong file .pyc"}
+    answer: [a]
+    explain_md: "Trong cycle mỗi object giữ cho object kia sống nên refcount luôn lớn hơn 0. GC đi từ root, object không với tới được thì là rác."
+  - id: s_gate
+    type: section
+    title_vi: "Mark phase: object nào còn sống"
+    summary_vi: "Đi từ root theo tham chiếu với visited set, phần không với tới là rác."
+    exercise_ref: ex_live
+  - id: t02
+    type: text
+    md: |
+      GC tư duy theo **khả năng với tới** (reachability): bắt đầu từ các **root** (biến global, biến đang dùng trên
+      stack), đi theo mọi tham chiếu, **mark** mọi object gặp. Object không được mark là **rác**.
+
+      ```
+      seen = set()
+      stack = list(roots)
+      while stack:
+          n = stack.pop()
+          if n in seen:          # visited set: chặn lặp vô hạn khi có cycle
+              continue
+          seen.add(n)
+          stack.extend(refs.get(n, []))
+      ```
+
+      Ba chi tiết: (1) cycle và self-loop không làm vòng lặp treo vì có `seen`; (2) một cycle **không** nối tới root
+      thì cả cycle là rác dù refcount của nó khác 0; (3) id được tham chiếu nhưng không có key trong `refs` vẫn
+      sống, chỉ là không trỏ đi đâu.
+  - id: ex_live
+    type: code_exercise
+    md: |
+      Cài `live_objects(refs, roots)`. `refs` là dict ánh xạ id object (số nguyên) sang list id mà nó tham chiếu;
+      `roots` là list id gốc. Trả về list **đã sắp xếp** mọi id với tới được từ `roots` (gồm cả root).
+      Có thể có cycle; id chỉ xuất hiện trong list tham chiếu mà không là key vẫn tính là sống.
+      Ví dụ `refs = {1: [2], 2: [1], 3: []}`, `roots = [1]` cho `[1, 2]` (3 là rác).
+    entry: live_objects
+    starter: |
+      def live_objects(refs, roots):
+          # TODO: duyệt từ roots theo refs với visited set, trả sorted list các id còn sống
+          pass
+    guidance_md: |
+      - Dùng `set` để nhớ id đã thăm và một stack (list) các id cần xử lý.
+      - Dùng `refs.get(n, [])` vì id có thể không là key. Cuối cùng `sorted(...)`.
+    hints:
+      - level: nudge
+        md: "Đây là duyệt đồ thị từ nhiều nguồn; cần nhớ id nào đã thăm để cycle không lặp mãi."
+      - level: approach
+        md: "Stack khởi tạo bằng roots; pop một id, bỏ qua nếu đã thăm, ngược lại thêm vào `seen` rồi đẩy các id nó trỏ tới."
+      - level: near_solution
+        md: "`graph = {int(k): v for k, v in refs.items()}`; vòng `while stack:` như trong bài; cuối cùng `return sorted(seen)`."
+    tests:
+      - {args: [{1: [2], 2: [1], 3: []}, [1]], expected: [1, 2]}
+      - {args: [{1: [2], 2: [3], 3: [1], 4: [4]}, [4]], expected: [4]}
+      - {args: [{1: [5], 2: []}, [1]], expected: [1, 5]}
+      - {args: [{1: [2]}, []], expected: []}
+    solution: |
+      def live_objects(refs, roots):
+          graph = {int(k): v for k, v in refs.items()}
+          seen = set()
+          stack = [int(r) for r in roots]
+          while stack:
+              n = stack.pop()
+              if n in seen:
+                  continue
+              seen.add(n)
+              for m in graph.get(n, []):
+                  stack.append(int(m))
+          return sorted(seen)
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Refcount của một object về ___ thì CPython giải phóng nó ngay (điền một số)."
+    blanks: [{accept: ["0", "không", "khong", "zero"]}]
+    explain_md: "Khi không còn tham chiếu nào (refcount = 0), object bị xoá ngay lập tức; chỉ cycle mới cần GC."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "CPython biên dịch .py thành bytecode (.pyc trong __pycache__) rồi VM chạy; code top-level của module chạy một lần khi import đầu."
+      - "Mọi object trên heap có refcount; về 0 thì giải phóng ngay. Cycle không về 0 nên cần generational GC (module gc)."
+      - "Leak thật sự thường là giữ tham chiếu (cache, global, closure); dùng sys.getsizeof và tracemalloc để điều tra."
+      - "Mark phase: từ root đi theo tham chiếu với visited set; object không với tới được là rác, kể cả khi nằm trong cycle."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X718], l2: [X719], l3: [X720]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-06"
