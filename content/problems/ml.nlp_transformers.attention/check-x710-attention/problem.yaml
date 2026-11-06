@@ -1,0 +1,69 @@
+id: check-x710-attention
+subtopic_id: ml.nlp_transformers.attention
+secondary_subtopics: []
+kind: check
+title: 'Check X710: attention weights'
+title_vi: 'Kiểm tra X710: trọng số attention'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Implement `attention_weights(query, keys)` returning the attention weights of one query over a list of keys.
+  For each key compute `score = dot(query, key)` (no division by `sqrt(d_k)` in this exercise), then apply a softmax
+  over the scores. Round every weight to 6 decimals. Use a numerically stable softmax (subtract the max score first).
+  For `query = [1.0, 0.0]`, `keys = [[1.0, 0.0], [0.0, 1.0]]` the scores are `[1, 0]` and the result is
+  `[0.731059, 0.268941]`.
+statement_vi_md: |
+  Cài `attention_weights(query, keys)` trả trọng số attention của một query trên danh sách key.
+  Với mỗi key tính `score = dot(query, key)` (bài này không chia `sqrt(d_k)`), rồi softmax các điểm.
+  Làm tròn mỗi trọng số 6 chữ số; nên dùng softmax ổn định (trừ điểm lớn nhất trước khi `exp`).
+  Với `query = [1.0, 0.0]`, `keys = [[1.0, 0.0], [0.0, 1.0]]` điểm là `[1, 0]` và kết quả là `[0.731059, 0.268941]`.
+constraints:
+- 1 <= len(keys) <= 1000
+- Mọi vector cùng độ dài, phần tử là số thực hữu hạn
+examples:
+- input: query = [1.0, 0.0], keys = [[1.0, 0.0], [0.0, 1.0]]
+  output: '[0.731059, 0.268941]'
+  explain_vi: Điểm [1, 0], softmax cho exp(1)/(exp(1)+1) = 0.731059 và 0.268941.
+io:
+  mode: function
+  entry: attention_weights
+  params:
+  - name: query
+    type: list
+  - name: keys
+    type: list
+  returns: list
+  compare: float_tol
+starter:
+  python: |
+    import math
+
+
+    def attention_weights(query, keys):
+        # TODO: scores = dot(query, key); softmax ổn định (trừ max); trả list làm tròn 6 chữ số
+        pass
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+time_target_min: 6
+hints:
+- Điểm của mỗi key là sum(q * k for q, k in zip(query, key)).
+- Trừ max(scores) trước khi math.exp để softmax ổn định, rồi chia cho tổng các exp.
+- Trả [round(e / total, 6) for e in exps].
+solution:
+  file: solution.py
+  approach_vi: Tính dot score cho từng key, softmax ổn định bằng cách trừ max, chia cho tổng.
+  complexity: O(n * d) / O(n)
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x710
+status: validated
+version: 1

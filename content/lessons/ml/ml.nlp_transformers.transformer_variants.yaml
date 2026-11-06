@@ -1,0 +1,126 @@
+id: ml.nlp_transformers.transformer_variants
+version: 1
+status: published
+title_vi: "Biến thể Transformer"
+est_minutes: 13
+objectives_vi:
+  - "Phân biệt ba họ Transformer: encoder-only (BERT), decoder-only (GPT) và encoder-decoder (T5, BART), cùng bài toán điển hình của từng họ."
+  - "Giải thích masked language modeling (hai chiều) khác next-token prediction (một chiều, autoregressive) ở chỗ nào."
+  - "Hiểu causal mask là khác biệt cơ học giữa self-attention của encoder và decoder, rồi cài hàm tạo mask thuần Python."
+blocks:
+  - id: s_families
+    type: section
+    title_vi: "Ba họ Transformer"
+    summary_vi: "Encoder-only, decoder-only, encoder-decoder: kiến trúc, mục tiêu huấn luyện và ứng dụng."
+  - id: t01
+    type: text
+    md: |
+      Transformer gốc có hai nửa: **encoder** (đọc toàn bộ input) và **decoder** (sinh output từng token). Các mô hình
+      hiện đại thường chỉ giữ một nửa hoặc cả hai, tạo thành ba họ:
+
+      - **Encoder-only** (BERT, RoBERTa): mỗi token nhìn được **cả hai phía** (bidirectional). Huấn luyện bằng
+        **masked language modeling (MLM)**: che ngẫu nhiên một số token rồi đoán lại. Mạnh ở **classification, NER,
+        embeddings**; không sinh văn bản tự do.
+      - **Decoder-only** (GPT, Llama): mỗi token chỉ nhìn **chính nó và các token trước** (causal). Huấn luyện bằng
+        **next-token prediction** (autoregressive): đoán token kế tiếp. Mạnh ở **generation**, chat, code.
+      - **Encoder-decoder** (T5, BART): encoder đọc input hai chiều, decoder sinh output và dùng **cross-attention**
+        nhìn vào output của encoder. Hợp với **seq2seq**: dịch máy, tóm tắt.
+
+      Khác biệt cơ học nằm ở **attention mask**. Encoder cho phép mọi cặp (i, j). Decoder dùng **causal mask**: vị trí
+      `i` chỉ được attend tới `j <= i`, nên ma trận cho phép là **tam giác dưới (gồm đường chéo)**. Lý do: lúc huấn luyện
+      ta đưa cả câu vào một lần, nếu token `i` thấy được token `i+1` thì mô hình "gian lận" vì đã biết đáp án cần đoán.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Mô hình nào hợp nhất cho bài toán phân loại cảm xúc câu và tạo embedding?"
+    options:
+      - {id: a, text_md: "Encoder-only như BERT (hai chiều, huấn luyện MLM)"}
+      - {id: b, text_md: "Decoder-only, vì chỉ decoder mới có attention"}
+      - {id: c, text_md: "Không họ nào dùng được"}
+    answer: [a]
+    explain_md: "BERT nhìn hai phía nên biểu diễn ngữ cảnh đầy đủ, rất hợp classification và embeddings. GPT sinh văn bản, T5 / BART cho seq2seq."
+  - id: q02
+    type: quiz_mcq
+    prompt_md: "Dịch máy hoặc tóm tắt văn bản (input dài, output khác hẳn) thường dùng họ nào?"
+    options:
+      - {id: a, text_md: "Encoder-decoder như T5 hoặc BART (seq2seq)"}
+      - {id: b, text_md: "Chỉ encoder-only"}
+      - {id: c, text_md: "Chỉ lookup table"}
+    answer: [a]
+    explain_md: "Encoder đọc input, decoder sinh output qua cross-attention. (Decoder-only lớn như GPT cũng làm được bằng prompt, nhưng T5 / BART là đại diện seq2seq cổ điển.)"
+  - id: q03
+    type: predict_output
+    code: |
+      n = 3
+      allowed = [[1 if j <= i else 0 for j in range(n)] for i in range(n)]
+      print(allowed[0])
+      print(allowed[2])
+    expected_output: |
+      [1, 0, 0]
+      [1, 1, 1]
+    explain_md: "Hàng i cho phép các cột j <= i. Hàng 0 chỉ thấy chính nó; hàng cuối (token cuối) thấy cả ba vị trí."
+  - id: s_mask
+    type: section
+    title_vi: "Causal mask"
+    summary_vi: "Xây ma trận n x n: 1 nếu j <= i, ngược lại 0."
+    exercise_ref: ex_causal_mask
+  - id: t02
+    type: text
+    md: |
+      **Causal mask** cho chuỗi dài `n` là ma trận `n x n` với `mask[i][j] = 1` nếu `j <= i` (vị trí `i` được nhìn `j`),
+      ngược lại `0`. Trong code thật, các ô `0` được đổi thành `-inf` rồi cộng vào attention score **trước softmax**,
+      nên xác suất tại các vị trí tương lai bằng 0.
+
+      ```
+      mask = [[1 if j <= i else 0 for j in range(n)] for i in range(n)]
+      # n = 3 -> [[1, 0, 0], [1, 1, 0], [1, 1, 1]]
+      ```
+
+      Số ô được phép là `1 + 2 + ... + n = n(n+1)/2`. Encoder không dùng mask này (toàn ma trận 1), nên mỗi token thấy cả
+      câu; chỉ cần padding mask để bỏ qua token đệm.
+  - id: ex_causal_mask
+    type: code_exercise
+    md: |
+      Cài `causal_mask(n)` trả về list `n` hàng, mỗi hàng `n` số nguyên: phần tử `[i][j]` là `1` nếu `j <= i`,
+      ngược lại `0`. Ví dụ `causal_mask(3)` cho `[[1, 0, 0], [1, 1, 0], [1, 1, 1]]`.
+    entry: causal_mask
+    starter: |
+      def causal_mask(n):
+          # TODO: trả về ma trận n x n, 1 nếu j <= i, ngược lại 0
+          pass
+    guidance_md: |
+      - Dùng hai vòng lặp lồng nhau: `i` là hàng (token đang xét), `j` là cột (token được nhìn).
+      - Điều kiện cho phép là `j <= i`, gồm cả đường chéo.
+    hints:
+      - level: nudge
+        md: "Mỗi hàng i là một list dài n; phần tử thứ j phụ thuộc vào việc j có nhỏ hơn hoặc bằng i hay không."
+      - level: approach
+        md: "Dùng list comprehension lồng nhau: ngoài lặp `i in range(n)`, trong lặp `j in range(n)`."
+      - level: near_solution
+        md: "`[[1 if j <= i else 0 for j in range(n)] for i in range(n)]`"
+    tests:
+      - {args: [1], expected: [[1]]}
+      - {args: [2], expected: [[1, 0], [1, 1]]}
+      - {args: [3], expected: [[1, 0, 0], [1, 1, 0], [1, 1, 1]]}
+      - {args: [4], expected: [[1, 0, 0, 0], [1, 1, 0, 0], [1, 1, 1, 0], [1, 1, 1, 1]]}
+    solution: |
+      def causal_mask(n):
+          return [[1 if j <= i else 0 for j in range(n)] for i in range(n)]
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Decoder-only được huấn luyện bằng dự đoán ___ kế tiếp (điền: token hoặc từ kế tiếp)."
+    blanks: [{accept: ["token", "next token", "next-token"]}]
+    explain_md: "Next-token prediction (autoregressive): mỗi vị trí đoán token ngay sau nó, nên cần causal mask để không nhìn trước."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Encoder-only (BERT): hai chiều, MLM, hợp classification và embeddings. Decoder-only (GPT): causal, next-token, hợp generation. Encoder-decoder (T5, BART): seq2seq như dịch và tóm tắt."
+      - "Khác biệt cơ học là causal mask: vị trí i chỉ attend tới j <= i."
+      - "Mask là ma trận tam giác dưới gồm đường chéo, n(n+1)/2 ô được phép; trong thực tế ô bị cấm được đặt -inf trước softmax."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X715], l2: [X716], l3: [X717]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-06"

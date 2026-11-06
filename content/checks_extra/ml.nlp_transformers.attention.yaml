@@ -1,0 +1,41 @@
+subtopic_id: ml.nlp_transformers.attention
+items:
+  - id: X709
+    difficulty: 1
+    type: read_code
+    minutes: 3
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng.
+    code: |-
+      q = [1, 2]
+      keys = [[3, 0], [1, 1], [0, 2]]
+      scores = [sum(a * b for a, b in zip(q, k)) for k in keys]
+      total = sum(scores)
+      print(scores)
+      print(total)
+      print([s / total for s in scores])
+    expected_output: "[3, 3, 4]\n10\n[0.3, 0.3, 0.4]"
+    answer_md: "Dot với q = [1, 2]: [3,0] cho 3; [1,1] cho 3; [0,2] cho 4. scores = [3, 3, 4], tổng 10, chia từng điểm cho 10 được [0.3, 0.3, 0.4]."
+    rubric_md: "Output khớp từng dòng. Đúng: bằng chứng điểm 1; sai: tối đa điểm 0."
+  - id: X710
+    difficulty: 2
+    type: write_code
+    minutes: 6
+    prompt_md: |
+      Viết hàm `attention_weights(query, keys)` trả danh sách trọng số attention: với mỗi key tính điểm `score = query · key` (tích vô hướng, **không chia sqrt(d_k)**), rồi softmax các điểm (nên trừ điểm lớn nhất trước khi `exp` cho ổn định). Mỗi trọng số làm tròn 6 chữ số. `keys` khác rỗng, mọi vector cùng độ dài. Ví dụ `query = [1.0, 0.0]`, `keys = [[1.0, 0.0], [0.0, 1.0]]` cho `[0.731059, 0.268941]`.
+    problem_id: check-x710-attention
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 6 phút: bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X711
+    difficulty: 3
+    type: read_code
+    minutes: 5
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng và giải thích output của attention được tạo từ trọng số và value như thế nào.
+    code: |-
+      weights = [0.2, 0.3, 0.5]
+      values = [[10, 0], [0, 10], [10, 10]]
+      out = [sum(w * v[j] for w, v in zip(weights, values)) for j in range(2)]
+      print(round(sum(weights), 2))
+      print([round(x, 2) for x in out])
+      print(out.index(max(out)))
+    expected_output: "1.0\n[7.0, 8.0]\n1"
+    answer_md: "Tổng trọng số 1.0. Chiều 0: 0.2·10 + 0.3·0 + 0.5·10 = 7.0. Chiều 1: 0.2·0 + 0.3·10 + 0.5·10 = 8.0. Max là 8.0 ở index 1. Output attention là tổng có trọng số của các value, theo từng chiều: value có trọng số lớn đóng góp nhiều hơn."
+    rubric_md: "Output khớp từng dòng VÀ giải thích đúng: output = tổng các value nhân trọng số, tính theo từng chiều. Đúng: bằng chứng điểm 3; sai: tối đa điểm 2."
