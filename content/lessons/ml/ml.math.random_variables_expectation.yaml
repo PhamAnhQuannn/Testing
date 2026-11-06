@@ -1,0 +1,154 @@
+id: ml.math.random_variables_expectation
+version: 1
+status: published
+title_vi: "Biến ngẫu nhiên, kỳ vọng và phương sai"
+est_minutes: 15
+objectives_vi:
+  - "Đọc bảng xác suất (PMF) và tính E[X] = Σ x·P(x), Var = E[X²] − E[X]², độ lệch chuẩn √Var."
+  - "Dùng linearity of expectation (kể cả khi biến phụ thuộc) và biến chỉ thị để giải bài đếm nhỏ."
+  - "Biết covariance/correlation ở mức nhận biết và kỳ vọng 1/p của phân phối hình học."
+blocks:
+  - id: s_ev
+    type: section
+    title_vi: "PMF, kỳ vọng và phương sai"
+    summary_vi: "Kỳ vọng là trung bình có trọng số xác suất; phương sai đo độ tản mát quanh kỳ vọng."
+    exercise_ref: ex_var
+  - id: t01
+    type: text
+    md: |
+      **Biến ngẫu nhiên (random variable)** là một con số phụ thuộc kết quả của phép thử, ví dụ `X` = số chấm xúc xắc.
+      **PMF** liệt kê `P(X = x)` cho từng giá trị; tổng các xác suất bằng 1.
+
+      ```
+      E[X]   = Σ x · P(x)
+      Var(X) = E[X²] − E[X]²  = Σ P(x)·(x − E[X])²
+      std    = √Var
+      ```
+
+      Ví dụ `X ∈ {0, 1, 2}` với `P = 0,5; 0,25; 0,25`: `E = 0 + 0,25 + 0,5 = 0,75`; `E[X²] = 0 + 0,25 + 1 = 1,25`;
+      `Var = 1,25 − 0,5625 = 0,6875`; `std ≈ 0,829`. Xúc xắc đều: `E = 3,5`, `E[X²] = 91/6`, `Var ≈ 2,92`.
+
+      `Var` không bao giờ âm vì là trung bình của bình phương độ lệch; std cùng đơn vị với `X`.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      xs = [0, 1, 2]
+      ps = [0.5, 0.25, 0.25]
+      e = sum(x * p for x, p in zip(xs, ps))
+      e2 = sum(x * x * p for x, p in zip(xs, ps))
+      print(e, e2 - e * e)
+    expected_output: |
+      0.75 0.6875
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "`X ∈ {0, 1, 2}` với `P(X) = 0,2; 0,5; 0,3`. `E[X]` bằng bao nhiêu?"
+    options:
+      - {id: a, text_md: "1,1"}
+      - {id: b, text_md: "1,0"}
+      - {id: c, text_md: "0,5"}
+    answer: [a]
+    explain_md: "E = 0·0,2 + 1·0,5 + 2·0,3 = 0,5 + 0,6 = 1,1."
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Biết `E[X] = 3` và `E[X²] = 10`. Khi đó `Var(X) =` ___ (một số)."
+    blanks: [{accept: ["1", "1.0"]}]
+    explain_md: "Var = E[X²] − E[X]² = 10 − 9 = 1."
+  - id: q03
+    type: predict_output
+    code: |
+      xs = [1, 2, 3]
+      ps = [0.5, 0.25, 0.25]
+      print(round(sum(x * p for x, p in zip(xs, ps)), 4))
+    expected_output: |
+      1.75
+    explain_md: "E = 1·0,5 + 2·0,25 + 3·0,25 = 0,5 + 0,5 + 0,75 = 1,75."
+  - id: ex_var
+    type: code_exercise
+    md: |
+      `variance(xs, ps)` trả phương sai (làm tròn 6 chữ số) của biến ngẫu nhiên có giá trị `xs` và xác suất `ps`.
+      Bản dưới đây dùng `E[X²] + E[X]²` thay vì trừ nên sai. Hãy sửa.
+    entry: variance
+    starter: |
+      def variance(xs, ps):
+          e = sum(x * p for x, p in zip(xs, ps))
+          e2 = sum(x * x * p for x, p in zip(xs, ps))
+          return round(e2 + e * e, 6)
+    guidance_md: |
+      - Thử `variance([0, 1], [0.5, 0.5])`: đáp án `0.25`, code trả `0.75`.
+      - Công thức đúng là `E[X²] − E[X]²`.
+    hints:
+      - level: nudge
+        md: "Phương sai là trung bình bình phương trừ bình phương trung bình."
+      - level: approach
+        md: "Đổi dấu cộng thành dấu trừ ở dòng return."
+      - level: near_solution
+        md: "`return round(e2 - e * e, 6)`."
+    tests:
+      - {args: [[0, 1], [0.5, 0.5]], expected: 0.25}
+      - {args: [[1, 2, 3, 4], [0.25, 0.25, 0.25, 0.25]], expected: 1.25}
+      - {args: [[5], [1.0]], expected: 0.0}
+      - {args: [[0, 10], [0.9, 0.1]], expected: 9.0}
+    solution: |
+      def variance(xs, ps):
+          e = sum(x * p for x, p in zip(xs, ps))
+          e2 = sum(x * x * p for x, p in zip(xs, ps))
+          return round(e2 - e * e, 6)
+  - id: s_lin
+    type: section
+    title_vi: "Linearity, biến chỉ thị, hình học"
+    summary_vi: "Cộng kỳ vọng từng phần, đếm bằng biến chỉ thị, và nhận biết covariance."
+  - id: t02
+    type: text
+    md: |
+      **Linearity of expectation**: `E[X + Y] = E[X] + E[Y]` và `E[aX + b] = a·E[X] + b`, đúng **kể cả khi X, Y phụ thuộc nhau**.
+      (Phương sai thì chỉ cộng được `Var(X+Y) = Var X + Var Y` khi độc lập.)
+
+      **Biến chỉ thị (indicator)**: `I = 1` nếu sự kiện xảy ra, `0` nếu không, nên `E[I] = P(sự kiện)`. Muốn đếm, cộng các
+      indicator rồi cộng kỳ vọng. Bài những chiếc mũ: `n` người lấy ngẫu nhiên một mũ, `Xᵢ = 1` nếu người `i` lấy đúng
+      mũ mình, `E[Xᵢ] = 1/n`, nên kỳ vọng số người đúng = `n·(1/n) = 1`, với mọi `n`.
+
+      **Phân phối hình học (geometric)**: số lần thử đến lần thành công đầu tiên, xác suất mỗi lần `p`, kỳ vọng `1/p`
+      (tung xúc xắc đến khi ra 6: `1/(1/6) = 6` lần).
+
+      **Nhận biết**: `Cov(X,Y) = E[(X−E[X])(Y−E[Y])]`; correlation là Cov chuẩn hoá về `[−1, 1]`. Không tương quan
+      (Cov = 0) chưa chắc độc lập.
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "`X` và `Y` phụ thuộc nhau, `E[X] = 2`, `E[Y] = 5`. Giá trị của `E[X + Y]`?"
+    options:
+      - {id: a, text_md: "7, linearity đúng kể cả khi phụ thuộc"}
+      - {id: b, text_md: "Không xác định được vì X, Y phụ thuộc"}
+      - {id: c, text_md: "10"}
+    answer: [a]
+    explain_md: "Linearity of expectation không cần độc lập: E[X+Y] = 2 + 5 = 7."
+  - id: q05
+    type: predict_output
+    code: |
+      n = 50
+      indicators = [1 / n for _ in range(n)]
+      print(round(sum(indicators), 6))
+    expected_output: |
+      1.0
+    explain_md: "Mỗi E[Xᵢ] = 1/50, cộng 50 số được 1: kỳ vọng số người lấy đúng mũ luôn là 1."
+  - id: q06
+    type: quiz_fill
+    prompt_md: "Mỗi lần thử thành công với xác suất `p = 0,25`. Số lần thử kỳ vọng đến lần thành công đầu tiên (phân phối hình học) là ___."
+    blanks: [{accept: ["4", "4.0"]}]
+    explain_md: "Kỳ vọng hình học = 1/p = 1/0,25 = 4."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "PMF liệt kê P(X = x), tổng bằng 1; E[X] = Σ x·P(x)."
+      - "Var = E[X²] − E[X]² = Σ P(x)(x − E)² ≥ 0; std = √Var."
+      - "Linearity: E[X+Y] = E[X] + E[Y] kể cả khi phụ thuộc; E[aX+b] = aE[X] + b."
+      - "Biến chỉ thị có E = xác suất sự kiện; đếm bằng cách cộng indicator. Geometric có E = 1/p; Cov = 0 chưa chắc độc lập."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [Q230], l2: [X645], l3: [X646]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

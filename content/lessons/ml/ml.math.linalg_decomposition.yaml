@@ -1,0 +1,188 @@
+id: ml.math.linalg_decomposition
+version: 1
+status: published
+title_vi: "Trị riêng, SVD và phép chiếu"
+est_minutes: 15
+objectives_vi:
+  - "Hiểu trị riêng và vectơ riêng (Av = λv), tìm trị riêng của ma trận 2×2 bằng định thức và phương trình đặc trưng det(A − λI) = 0."
+  - "Giải thích hạng (rank) và SVD bằng ảnh 'xoay, kéo dãn, xoay', nối xấp xỉ hạng thấp với LoRA."
+  - "Nối ma trận hiệp phương sai, trực giao và phép chiếu với PCA (mức khái niệm)."
+blocks:
+  - id: s_eigen
+    type: section
+    title_vi: "Trị riêng và phương trình đặc trưng"
+    summary_vi: "Vectơ riêng chỉ bị kéo dãn khi nhân với A; với ma trận 2×2, trị riêng là nghiệm của λ² − tr·λ + det = 0."
+    exercise_ref: ex_det
+  - id: t01
+    type: text
+    md: |
+      **Vectơ riêng** (eigenvector) `v` của ma trận vuông `A` là vectơ khác 0 mà `A` chỉ **kéo dãn, không xoay**:
+      `A·v = λ·v`. Hệ số `λ` là **trị riêng** (eigenvalue). Ví dụ `A = [[2,0],[0,1]]`, `v = (1,0)`:
+      `A·v = (2,0) = 2·v` nên `λ = 2`. Còn `u = (1,1)` cho `A·u = (2,1)`, không cùng hướng với `u`, nên `u` không phải vectơ riêng.
+
+      **Định thức** của `[[a,b],[c,d]]` là `det = a·d − b·c`. Trị riêng là các `λ` làm `det(A − λI) = 0`
+      (`I` là ma trận đơn vị). Với 2×2, khai triển ra phương trình bậc hai:
+      `λ² − (a+d)·λ + (a·d − b·c) = 0`, tức `λ² − tr·λ + det = 0` (`tr = a + d` là **vết**, tổng đường chéo).
+      Giải bằng công thức nghiệm với `disc = tr² − 4·det`: nếu `disc < 0` thì trị riêng là số phức (không có nghiệm thực).
+
+      Ví dụ `A = [[2,1],[1,2]]`: `tr = 4`, `det = 3`, `disc = 4`, `λ = (4 ∓ 2)/2 = 1` hoặc `3`.
+      Kiểm tra: `A·(1,1) = (3,3) = 3·(1,1)`.
+
+      **Hạng** (rank) là số hướng độc lập trong ma trận. `[[1,2],[2,4]]` có hàng 2 = 2 × hàng 1 nên hạng 1 và `det = 0`.
+      Với ma trận vuông, `det = 0` nghĩa là hạng thấp hơn số chiều.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      A = [[2, 1], [1, 2]]
+      v = [1, 1]
+      Av = [A[0][0] * v[0] + A[0][1] * v[1], A[1][0] * v[0] + A[1][1] * v[1]]
+      det = A[0][0] * A[1][1] - A[0][1] * A[1][0]
+      print(Av)
+      print(det)
+    expected_output: |
+      [3, 3]
+      3
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "`A·v = 3·v` với `v ≠ 0`. Phát biểu nào đúng?"
+    options:
+      - {id: a, text_md: "`v` là vectơ riêng của `A` ứng với trị riêng `λ = 3`"}
+      - {id: b, text_md: "`A` xoay `v` đi 3 radian"}
+      - {id: c, text_md: "`det(A) = 3`"}
+    answer: [a]
+    explain_md: "Đó đúng là định nghĩa `A·v = λ·v` với `λ = 3`: `A` chỉ kéo dãn `v` gấp 3 lần, không đổi hướng. `det(A)` nói chung không bằng `λ`."
+  - id: q02
+    type: quiz_fill
+    prompt_md: "`A = [[3,1],[0,2]]` có `tr = 5` và `det = 6`. Phương trình `λ² − 5λ + 6 = 0` có hai nghiệm là 2 và ___ . Điền một số."
+    blanks: [{accept: ["3"]}]
+    explain_md: "`λ² − 5λ + 6 = (λ − 2)(λ − 3)`, nên nghiệm là 2 và 3. Ma trận tam giác có trị riêng nằm ngay trên đường chéo."
+  - id: q03
+    type: predict_output
+    code: |
+      A = [[2, 1], [1, 2]]
+      v = [1, -1]
+      Av = [A[0][0] * v[0] + A[0][1] * v[1], A[1][0] * v[0] + A[1][1] * v[1]]
+      print(Av)
+    expected_output: |
+      [1, -1]
+    explain_md: "`Av = (2·1 + 1·(−1), 1·1 + 2·(−1)) = (1, −1) = 1·v`, nên `v` là vectơ riêng ứng với `λ = 1`."
+  - id: ex_det
+    type: code_exercise
+    md: |
+      `det2(A)` trả định thức của ma trận 2×2 `[[a, b], [c, d]]`, bằng `a·d − b·c`. Bản dưới đây cộng thay vì trừ. Hãy sửa.
+    entry: det2
+    starter: |
+      def det2(A):
+          return A[0][0] * A[1][1] + A[0][1] * A[1][0]
+    guidance_md: |
+      - Thử `det2([[1, 2], [3, 4]])`: đáp án `-2`, code trả `10`.
+      - Định thức là tích đường chéo chính trừ tích đường chéo phụ.
+    hints:
+      - level: nudge
+        md: "Công thức là `a·d − b·c`. Code đang dùng dấu nào ở giữa?"
+      - level: approach
+        md: "Đổi dấu `+` giữa hai tích thành dấu `-`."
+      - level: near_solution
+        md: "`return A[0][0] * A[1][1] - A[0][1] * A[1][0]`."
+    tests:
+      - {args: [[[1, 2], [3, 4]]], expected: -2}
+      - {args: [[[2, 0], [0, 1]]], expected: 2}
+      - {args: [[[1, 2], [2, 4]]], expected: 0}
+      - {args: [[[0, -1], [1, 0]]], expected: 1}
+    solution: |
+      def det2(A):
+          return A[0][0] * A[1][1] - A[0][1] * A[1][0]
+  - id: s_svd
+    type: section
+    title_vi: "SVD, hạng thấp, hiệp phương sai và PCA"
+    summary_vi: "SVD tách ma trận thành xoay, kéo dãn, xoay; giữ k giá trị lớn nhất cho xấp xỉ hạng thấp; PCA dùng vectơ riêng của ma trận hiệp phương sai."
+    exercise_ref: ex_eig
+  - id: t02
+    type: text
+    md: |
+      **SVD** (singular value decomposition) tách mọi ma trận thành `A = U·Σ·Vᵀ`: **xoay** (`Vᵀ`), **kéo dãn** dọc các trục
+      (`Σ` đường chéo, các **singular value** `σ₁ ≥ σ₂ ≥ …`), rồi **xoay** lần nữa (`U`). Singular value cho biết độ quan trọng
+      của từng hướng; chúng là căn bậc hai của trị riêng của `AᵀA`. Thực tế dùng thư viện, tính tay chỉ cho ma trận nhỏ
+      (ở đây ta chỉ dạy khái niệm, bài tập tính trị riêng 2×2 bằng tay).
+
+      **Xấp xỉ hạng thấp** (low-rank approximation): chỉ giữ `k` singular value lớn nhất,
+      `A ≈ Σᵢ σᵢ·uᵢ·vᵢᵀ` (`i = 1..k`, mỗi `uᵢvᵢᵀ` là ma trận hạng 1). Ma trận gần giống mà cần ít số hơn (như nén ảnh).
+      **LoRA** dùng cùng ý tưởng: cập nhật trọng số `ΔW = B·A` với hạng nhỏ `r`, nên chỉ học `r·(m+n)` số thay vì `m·n`.
+
+      **Trực giao** (orthogonal): hai vectơ vuông góc, tích vô hướng bằng 0. **Phép chiếu** của `x` lên hướng `u` là "cái bóng"
+      `(x·u / u·u)·u`.
+
+      **Ma trận hiệp phương sai** (covariance matrix) của dữ liệu đã trừ trung bình cho biết các cột biến thiên cùng nhau ra sao.
+      Nó đối xứng nên có trị riêng thực và vectơ riêng trực giao; vectơ riêng là **trục chính** của **PCA**, trị riêng là phương sai
+      dọc trục đó. PCA cũng chính là SVD của ma trận dữ liệu đã trừ trung bình, và matrix factorization trong gợi ý sản phẩm
+      cũng dựa trên hạng thấp.
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "SVD `A = U·Σ·Vᵀ` có thể hiểu hình học là gì?"
+    options:
+      - {id: a, text_md: "Xoay, kéo dãn dọc các trục, rồi xoay"}
+      - {id: b, text_md: "Chỉ tịnh tiến điểm đi một đoạn cố định"}
+      - {id: c, text_md: "Sắp xếp lại các hàng theo thứ tự tăng dần"}
+    answer: [a]
+    explain_md: "`Vᵀ` và `U` là phép xoay (trực giao), `Σ` kéo dãn theo các singular value. Đây là lý do giữ vài singular value lớn là đủ để xấp xỉ."
+  - id: q05
+    type: quiz_fill
+    prompt_md: "Hạng của ma trận `[[1,2],[2,4]]` (hàng 2 = 2 × hàng 1) là ___ . Điền một số."
+    blanks: [{accept: ["1"]}]
+    explain_md: "Chỉ có một hướng độc lập vì hàng 2 là bội của hàng 1; `det = 1·4 − 2·2 = 0` cũng xác nhận hạng nhỏ hơn 2."
+  - id: q06
+    type: predict_output
+    code: |
+      x = [3, 4]
+      u = [1, 0]
+      s = sum(a * b for a, b in zip(x, u)) / sum(b * b for b in u)
+      print([s * b for b in u])
+    expected_output: |
+      [3.0, 0.0]
+    explain_md: "Chiếu `(3,4)` lên trục x: hệ số `3/1 = 3.0`, bóng là `(3.0, 0.0)`; phần còn lại `(0,4)` vuông góc với `u`."
+  - id: ex_eig
+    type: code_exercise
+    md: |
+      `is_eigen(A, v, lam)` trả `True` nếu `A·v = lam·v` (A là 2×2, v là list 2 số), ngược lại `False`. Bản dưới đây quên nhân với `lam`.
+      Hãy sửa.
+    entry: is_eigen
+    starter: |
+      def is_eigen(A, v, lam):
+          Av = [A[0][0] * v[0] + A[0][1] * v[1], A[1][0] * v[0] + A[1][1] * v[1]]
+          return Av == [x for x in v]
+    guidance_md: |
+      - Thử `is_eigen([[2, 1], [1, 2]], [1, 1], 3)`: đáp án `True`, code trả `False`.
+      - Vế phải của `Av = λv` là `v` nhân với `lam`.
+    hints:
+      - level: nudge
+        md: "So sánh `Av` với `λ·v`, không phải với `v`. Code hiện đang bỏ `lam` ở đâu?"
+      - level: approach
+        md: "Trong list comprehension phía phải, nhân mỗi `x` với `lam`."
+      - level: near_solution
+        md: "`return Av == [lam * x for x in v]`."
+    tests:
+      - {args: [[[2, 1], [1, 2]], [1, 1], 3], expected: true}
+      - {args: [[[2, 1], [1, 2]], [1, 1], 1], expected: false}
+      - {args: [[[2, 0], [0, 1]], [1, 0], 2], expected: true}
+      - {args: [[[2, 0], [0, 1]], [1, 1], 2], expected: false}
+    solution: |
+      def is_eigen(A, v, lam):
+          Av = [A[0][0] * v[0] + A[0][1] * v[1], A[1][0] * v[0] + A[1][1] * v[1]]
+          return Av == [lam * x for x in v]
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Vectơ riêng: Av = λv, chỉ bị kéo dãn không xoay. Với 2×2, λ là nghiệm của λ² − tr·λ + det = 0, tức det(A − λI) = 0; disc < 0 thì trị riêng phức."
+      - "Định thức 2×2 là a·d − b·c; hạng là số hướng độc lập, det = 0 nghĩa là hạng thấp hơn số chiều."
+      - "SVD A = UΣVᵀ (xoay, kéo dãn, xoay); giữ k singular value lớn nhất cho xấp xỉ hạng thấp, ý tưởng của LoRA."
+      - "Ma trận hiệp phương sai đối xứng; vectơ riêng của nó là trục chính của PCA, trị riêng là phương sai dọc trục."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X650], l2: [X651], l3: [X652]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

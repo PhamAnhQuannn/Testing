@@ -168,6 +168,11 @@ EXTRA_IDS = {
     "ml.math.linear_algebra_basics",
     "ml.math.derivatives_gradients",
     "ml.math.gradient_descent",
+    # Wave 4 Round 28: ML foundations - math B (probability + distributions + eigen).
+    "ml.math.probability_basics",
+    "ml.math.random_variables_expectation",
+    "ml.math.distributions",
+    "ml.math.linalg_decomposition",
 }
 
 # Expected shipped counts, asserted so an upstream tree edit can't silently change the snapshot.
@@ -175,7 +180,7 @@ PLAN_MVP_COUNT = 40
 EXPECTED_SD = 86
 EXPECTED_ML4 = 39
 EXPECTED_EXTRA_IDS = len(EXTRA_IDS)  # Wave 2 additions
-EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 277
+EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 281
 
 # Node fields the app uses (SPEC 4.2); optional ones are skipped when a node lacks them.
 NODE_FIELDS = [

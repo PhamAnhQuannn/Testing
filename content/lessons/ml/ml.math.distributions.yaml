@@ -1,0 +1,193 @@
+id: ml.math.distributions
+version: 1
+status: published
+title_vi: "Phân phối thường gặp và định lý giới hạn"
+est_minutes: 15
+objectives_vi:
+  - "Tính xác suất binomial P(k) = C(n,k)·pᵏ·(1−p)ⁿ⁻ᵏ và kỳ vọng E = n·p; nhận ra phân phối đều và Poisson/exponential."
+  - "Dùng quy tắc 68-95-99,7 và z-score z = (x − μ)/σ cùng bảng z rút gọn để đặt một giá trị vào vị trí của nó."
+  - "Phát biểu luật số lớn (LLN) và định lý giới hạn trung tâm (CLT) với độ lệch σ/√n."
+blocks:
+  - id: s_disc
+    type: section
+    title_vi: "Bernoulli và binomial"
+    summary_vi: "Đếm số lần thành công trong n lần thử độc lập bằng công thức tổ hợp."
+    exercise_ref: ex_binom
+  - id: t01
+    type: text
+    md: |
+      **Phân phối (distribution)** cho biết mỗi giá trị của biến ngẫu nhiên có xác suất bao nhiêu; tổng xác suất luôn bằng 1.
+
+      **Bernoulli**: một lần thử có/không với xác suất thành công `p` (tung 1 xu). **Binomial**: số lần thành công trong `n`
+      lần thử độc lập, mỗi lần xác suất `p`:
+
+      ```
+      P(k) = C(n,k) · pᵏ · (1−p)ⁿ⁻ᵏ        E = n·p
+      ```
+
+      Ví dụ đúng 2 mặt ngửa trong 3 lần tung: `C(3,2)·0,5²·0,5¹ = 3·0,125 = 0,375`. Cộng `P(0..n)` luôn ra 1.
+      Tung 10 lần với `p = 0,3` thì kỳ vọng `E = 10·0,3 = 3` lần thành công.
+
+      **Uniform (đều)**: mọi giá trị trong khoảng có khả năng như nhau, như `random()` trong `[0,1]` (kỳ vọng 0,5).
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      import math
+      n, p = 3, 0.5
+      pmf = [math.comb(n, k) * p**k * (1 - p) ** (n - k) for k in range(n + 1)]
+      print(pmf)
+      print(sum(pmf))
+    expected_output: |
+      [0.125, 0.375, 0.375, 0.125]
+      1.0
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Tung xu công bằng 4 lần. Xác suất đúng 2 mặt ngửa là bao nhiêu?"
+    options:
+      - {id: a, text_md: "`C(4,2)·0,5⁴ = 6/16 = 0,375`"}
+      - {id: b, text_md: "`0,5² = 0,25`"}
+      - {id: c, text_md: "`2/4 = 0,5`"}
+    answer: [a]
+    explain_md: "Có C(4,2) = 6 cách chọn vị trí 2 mặt ngửa, mỗi cách xác suất 0,5⁴ = 1/16, nên 6/16 = 0,375."
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Binomial với n = 20, p = 0,25 có kỳ vọng E = n·p = ___ (một số)."
+    blanks: [{accept: ["5", "5.0"]}]
+    explain_md: "E = 20·0,25 = 5."
+  - id: ex_binom
+    type: code_exercise
+    md: |
+      `binomial_pmf(n, k, p)` trả xác suất đúng `k` thành công trong `n` lần thử, làm tròn 6 chữ số. Bản dưới quên hệ số tổ
+      hợp `C(n,k)` nên kết quả quá nhỏ. Hãy sửa.
+    entry: binomial_pmf
+    starter: |
+      import math
+
+
+      def binomial_pmf(n, k, p):
+          return round(p**k * (1 - p) ** (n - k), 6)
+    guidance_md: |
+      - Thử `binomial_pmf(3, 2, 0.5)`: đáp án `0.375`, code trả `0.125`.
+      - Nhân thêm `math.comb(n, k)`.
+    hints:
+      - level: nudge
+        md: "Có bao nhiêu cách chọn vị trí của k lần thành công?"
+      - level: approach
+        md: "Nhân với `math.comb(n, k)`."
+      - level: near_solution
+        md: "`round(math.comb(n, k) * p**k * (1 - p) ** (n - k), 6)`."
+    tests:
+      - {args: [3, 2, 0.5], expected: 0.375}
+      - {args: [5, 0, 0.2], expected: 0.32768}
+      - {args: [10, 3, 0.3], expected: 0.266828}
+      - {args: [4, 4, 1.0], expected: 1.0}
+    solution: |
+      import math
+
+
+      def binomial_pmf(n, k, p):
+          return round(math.comb(n, k) * p**k * (1 - p) ** (n - k), 6)
+  - id: s_gauss
+    type: section
+    title_vi: "Gaussian, z-score và các định lý giới hạn"
+    summary_vi: "Đường chuông, đổi giá trị thành z, và vì sao trung bình mẫu có dạng chuông."
+    exercise_ref: ex_z
+  - id: t02
+    type: text
+    md: |
+      **Gaussian (chuẩn)**: đường chuông với trung bình `μ`, độ lệch chuẩn `σ`. Khoảng **68%** giá trị nằm trong `±1σ`,
+      **95%** trong `±2σ`, **99,7%** trong `±3σ`.
+
+      **z-score**: `z = (x − μ)/σ` cho biết `x` cách trung bình bao nhiêu `σ`. Điểm thi trung bình 70, `σ = 10`: điểm 90
+      có `z = 2`. Bảng z rút gọn `P(Z ≤ z)`: 0 → 50%; 0,5 → 69,1%; 1 → 84,1%; 1,5 → 93,3%; 2 → 97,7%; 2,5 → 99,4%;
+      3 → 99,9%. Với z âm lấy 100% trừ giá trị của `|z|` (z = −1 → 15,9%). Vậy điểm 90 cao hơn khoảng 97,7% thí sinh.
+
+      **Luật số lớn (LLN)**: trung bình mẫu tiến về kỳ vọng khi mẫu đủ lớn. **CLT**: trung bình của `n` quan sát độc lập có
+      dạng chuông dù phân phối gốc ra sao, với độ lệch chuẩn `σ/√n`. Ví dụ xúc xắc `σ ≈ 1,71`, trung bình 30 lần tung có
+      độ lệch `1,71/√30 ≈ 0,31`; muốn độ lệch giảm một nửa cần gấp 4 lần `n`.
+
+      **Awareness**: Poisson mô hình số sự kiện mỗi khoảng thời gian cố định (3 khách mỗi giờ); exponential mô hình thời
+      gian chờ giữa hai sự kiện, trung bình `1/λ`.
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      mu, sigma = 70, 10
+      for x in [90, 70, 60]:
+          print((x - mu) / sigma)
+    expected_output: |
+      2.0
+      0.0
+      -1.0
+  - id: q03
+    type: predict_output
+    code: |
+      mu, sigma = 100, 15
+      print(round((130 - mu) / sigma, 2))
+      print(round((85 - mu) / sigma, 2))
+    expected_output: |
+      2.0
+      -1.0
+    explain_md: "(130 − 100)/15 = 2; (85 − 100)/15 = −1, tức thấp hơn trung bình đúng 1σ (khoảng 15,9% phía dưới)."
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Trung bình mẫu của n = 25 quan sát độc lập có σ = 2. Độ lệch chuẩn của trung bình mẫu theo CLT là bao nhiêu?"
+    options:
+      - {id: a, text_md: "`σ/√n = 2/5 = 0,4`"}
+      - {id: b, text_md: "`σ/n = 0,08`"}
+      - {id: c, text_md: "`σ = 2`"}
+    answer: [a]
+    explain_md: "Độ lệch của trung bình mẫu là σ/√n = 2/√25 = 0,4, nhỏ hơn σ gốc."
+  - id: q05
+    type: quiz_mcq
+    prompt_md: "Điều nào nói đúng về CLT?"
+    options:
+      - {id: a, text_md: "Trung bình của nhiều quan sát độc lập có dạng chuông dù phân phối gốc không phải Gaussian"}
+      - {id: b, text_md: "Mọi dữ liệu thực tế đều là Gaussian"}
+      - {id: c, text_md: "Trung bình mẫu luôn bằng đúng kỳ vọng"}
+    answer: [a]
+    explain_md: "CLT nói về phân phối của trung bình mẫu; LLN mới nói trung bình tiến về kỳ vọng, và vẫn có sai số σ/√n."
+  - id: ex_z
+    type: code_exercise
+    md: |
+      `z_score(x, mu, sigma)` trả `z = (x − μ)/σ` làm tròn 6 chữ số. Bản dưới trừ ngược thứ tự (`mu − x`), nên dấu bị ngược.
+      Hãy sửa.
+    entry: z_score
+    starter: |
+      def z_score(x, mu, sigma):
+          return round((mu - x) / sigma, 6)
+    guidance_md: |
+      - Thử `z_score(90, 70, 10)`: đáp án `2.0`, code trả `-2.0`.
+    hints:
+      - level: nudge
+        md: "z dương khi x lớn hơn trung bình."
+      - level: approach
+        md: "Tử số là `x - mu`."
+      - level: near_solution
+        md: "`round((x - mu) / sigma, 6)`."
+    tests:
+      - {args: [90, 70, 10], expected: 2.0}
+      - {args: [60, 70, 10], expected: -1.0}
+      - {args: [172, 160, 8], expected: 1.5}
+      - {args: [55, 50, 4], expected: 1.25}
+    solution: |
+      def z_score(x, mu, sigma):
+          return round((x - mu) / sigma, 6)
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Binomial: P(k) = C(n,k)·pᵏ·(1−p)ⁿ⁻ᵏ, E = n·p, tổng P(0..n) = 1; uniform: mọi giá trị đều khả năng."
+      - "Gaussian: 68-95-99,7 cho ±1σ/2σ/3σ; z = (x − μ)/σ rồi tra bảng z (z âm: 100% − giá trị |z|)."
+      - "LLN: trung bình mẫu tiến về kỳ vọng; CLT: trung bình mẫu có dạng chuông với độ lệch σ/√n."
+      - "Poisson: số sự kiện mỗi khoảng thời gian; exponential: thời gian chờ giữa hai sự kiện (trung bình 1/λ)."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X647], l2: [X648], l3: [X649]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

@@ -20,14 +20,14 @@ EXTRA_MODULES = {"ml.llm", "ml.rag_agents", "ml.llm_eval_serving", "ml.system_de
 
 def test_index_starts_with_the_40_subtopics_of_spec_4_1():
     ids = [s["id"] for s in SUBTOPICS]
-    assert len(ids) == 277  # 40 plan + 86 sd + 39 ml + 112 Wave-2/3/4 py+dsa+lld+ml (EXTRA_IDS)
+    assert len(ids) == 281  # 40 plan + 86 sd + 39 ml + 116 Wave-2/3/4 py+dsa+lld+ml (EXTRA_IDS)
     assert ids[:40] == spec_table_ids()
 
 
 def test_extra_track_section_counts():
     sections = [s["section"] for s in SUBTOPICS]
     assert sections.count("sd") == 86
-    assert sections.count("ml") == 43  # 39 LLM track + 4 Wave-4 ml.math (EXTRA_IDS)
+    assert sections.count("ml") == 47  # 39 LLM track + 8 Wave-4 ml.math (EXTRA_IDS)
     assert sum(1 for s in SUBTOPICS if s["module"] in EXTRA_MODULES) == 39
 
 
