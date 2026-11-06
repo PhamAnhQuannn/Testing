@@ -1,0 +1,273 @@
+id: lld.problems.logger_notification
+version: 1
+status: published
+title_vi: "Logger, thông báo và đề lạ"
+est_minutes: 12
+objectives_vi:
+  - "Dùng log level (DEBUG < INFO < ERROR, so sánh bằng số) để quyết định một handler có ghi dòng log hay không."
+  - "Dựng chuỗi handler kiểu Chain of Responsibility luôn chuyển tiếp: mỗi handler tự quyết ghi theo ngưỡng của mình rồi vẫn đẩy dòng log cho handler kế."
+  - "Thiết kế kênh thông báo bằng Strategy/Factory để thêm kênh mới chỉ cần thêm một class; thêm thử lại (retry) và ưu tiên bằng heap."
+  - "Áp quy trình (hỏi yêu cầu, tìm danh từ, chọn mẫu, code, mở rộng) vào một đề lạ như scheduler."
+blocks:
+  - id: s_logger
+    type: section
+    title_vi: "Log level và chuỗi handler"
+    summary_vi: "Mỗi handler có ngưỡng; dòng log đi qua mọi handler, handler nào đủ mức thì ghi."
+    exercise_ref: ex_visible
+  - id: t01
+    type: text
+    md: |
+      Logger là bài kinh điển: mỗi dòng log có một **mức độ** (level) và đi qua nhiều nơi ghi (màn hình, file, email).
+
+      **Log level** là thứ tự `DEBUG < INFO < ERROR`. Để so sánh, ánh xạ sang số: `DEBUG=0`, `INFO=1`, `ERROR=2`.
+      Một handler có **ngưỡng** (threshold): nó chỉ ghi dòng log có mức **lớn hơn hoặc bằng** ngưỡng. Handler mức `INFO` nhận `INFO` và `ERROR`, bỏ `DEBUG`.
+
+      **Chain of Responsibility kiểu luôn chuyển tiếp**: mỗi handler tự quyết có ghi không, rồi **vẫn** đẩy dòng log cho handler kế (`self.tiep`).
+      Khác với ATM (chỉ chuyển phần dư), ở đây không handler nào "nuốt" dòng log: ConsoleHandler ghi xong thì FileHandler vẫn được hỏi.
+
+      Thêm handler mới (email, network) chỉ là thêm một class hoặc một phần tử vào chuỗi, **không sửa** `Logger` (OCP).
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      MUC = {"DEBUG": 0, "INFO": 1, "ERROR": 2}
+
+
+      class Handler:
+          def __init__(self, name, level, tiep=None):
+              self.name = name
+              self.level = level
+              self.tiep = tiep
+
+          def log(self, level, msg):
+              if MUC[level] >= MUC[self.level]:
+                  print(f"{self.name}: {msg}")
+              if self.tiep:
+                  self.tiep.log(level, msg)
+
+
+      chain = Handler("console", "DEBUG", Handler("file", "ERROR"))
+      chain.log("INFO", "boot")
+      chain.log("ERROR", "crash")
+    expected_output: |
+      console: boot
+      console: crash
+      file: crash
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Trong chuỗi handler của Logger, vì sao mỗi handler vẫn gọi `self.tiep.log(...)` kể cả khi nó đã ghi dòng log?"
+    options:
+      - {id: a, text_md: "Vì handler kế có ngưỡng riêng và có thể cũng cần ghi dòng đó (màn hình và file đều ghi)"}
+      - {id: b, text_md: "Vì handler kế chỉ xử lý phần dư mà handler trước chưa xử lý"}
+      - {id: c, text_md: "Vì Python bắt buộc gọi hết mọi hàm trong một class"}
+    answer: [a]
+    explain_md: "Logger là chuỗi luôn chuyển tiếp: mỗi handler tự quyết theo ngưỡng của mình. Kiểu chỉ chuyển phần dư là của ATM, không phải Logger."
+  - id: q02
+    type: predict_output
+    code: |
+      MUC = {"DEBUG": 0, "INFO": 1, "ERROR": 2}
+
+
+      class Handler:
+          def __init__(self, name, level, tiep=None):
+              self.name = name
+              self.level = level
+              self.tiep = tiep
+
+          def log(self, level, msg):
+              if MUC[level] >= MUC[self.level]:
+                  print(f"{self.name}: {msg}")
+              if self.tiep:
+                  self.tiep.log(level, msg)
+
+
+      chain = Handler("a", "INFO", Handler("b", "DEBUG", Handler("c", "ERROR")))
+      chain.log("DEBUG", "d")
+      chain.log("INFO", "i")
+      chain.log("ERROR", "e")
+    expected_output: |
+      b: d
+      a: i
+      b: i
+      a: e
+      b: e
+      c: e
+    explain_md: "Mức DEBUG chỉ vượt ngưỡng của b. Mức INFO qua a và b nhưng không qua c (ngưỡng ERROR). Mức ERROR qua cả ba. Thứ tự in theo thứ tự handler trong chuỗi."
+  - id: q03
+    type: quiz_fill
+    prompt_md: "Handler có ngưỡng `INFO` ghi dòng mức INFO và mức `___`, nhưng bỏ dòng mức DEBUG."
+    blanks: [{accept: ["ERROR", "error"]}]
+    explain_md: "Thứ tự là DEBUG(0) < INFO(1) < ERROR(2); ngưỡng INFO nhận mọi mức có số >= 1, tức INFO và ERROR."
+  - id: ex_visible
+    type: code_exercise
+    md: |
+      `visible(handlers, level)` nhận list `[tên, ngưỡng]` (theo thứ tự thêm vào) và mức của dòng log; trả list **tên** các handler sẽ ghi dòng đó
+      (ngưỡng <= mức dòng log, theo thứ tự đầu vào). Bản dưới đây so sánh ngược chiều. Hãy sửa.
+    entry: visible
+    starter: |
+      LV = {"DEBUG": 0, "INFO": 1, "ERROR": 2}
+
+
+      def visible(handlers, level):
+          out = []
+          for name, thr in handlers:
+              if LV[thr] >= LV[level]:
+                  out.append(name)
+          return out
+    guidance_md: |
+      - Thử `visible([["console", "DEBUG"], ["file", "ERROR"]], "INFO")`: đáp án `["console"]`, code trả `["file"]`.
+      - Handler ghi khi mức dòng log **lớn hơn hoặc bằng** ngưỡng của nó.
+    hints:
+      - level: nudge
+        md: "Handler ghi khi dòng log đủ mức. Dòng log đủ mức nghĩa là mức dòng log so với ngưỡng thế nào?"
+      - level: approach
+        md: "Điều kiện đúng là `LV[level] >= LV[thr]`."
+      - level: near_solution
+        md: "Đổi dòng `if` thành `if LV[level] >= LV[thr]:`."
+    tests:
+      - {args: [[["console", "DEBUG"], ["file", "ERROR"]], "INFO"], expected: ["console"]}
+      - {args: [[["a", "INFO"], ["b", "INFO"]], "ERROR"], expected: ["a", "b"]}
+      - {args: [[["a", "ERROR"]], "DEBUG"], expected: []}
+      - {args: [[], "INFO"], expected: []}
+    solution: |
+      LV = {"DEBUG": 0, "INFO": 1, "ERROR": 2}
+
+
+      def visible(handlers, level):
+          out = []
+          for name, thr in handlers:
+              if LV[level] >= LV[thr]:
+                  out.append(name)
+          return out
+  - id: s_notify
+    type: section
+    title_vi: "Kênh thông báo, retry, ưu tiên và đề lạ"
+    summary_vi: "Strategy/Factory cho kênh; retry bằng vòng lặp; ưu tiên bằng heap; đề lạ vẫn theo quy trình."
+    exercise_ref: ex_retry
+  - id: t02
+    type: text
+    md: |
+      **Notification service**: gửi tin qua email, SMS, push. Mỗi kênh là một **Strategy** cùng interface `send(msg)`;
+      một **Factory** (bảng tra tên -> class) tạo kênh theo cấu hình. Thêm kênh mới (ví dụ Zalo) chỉ là **thêm một class** và một mục trong bảng, không sửa chỗ gọi.
+
+      **Thử lại (retry)**: kênh có thể lỗi tạm thời, nên thử tối đa vài lần:
+
+      ```python
+      for lan in range(3):
+          if kenh.send(tin):
+              break
+      ```
+
+      **Ưu tiên**: đẩy tin vào **heap** `heapq.heappush(hang, (muc_uu_tien, tin))`; số nhỏ gửi trước.
+      Dùng tuple có phần ưu tiên đứng đầu; hai tin cùng ưu tiên sẽ so tiếp phần sau nên kết quả vẫn xác định.
+
+      **Đề lạ** (scheduler, calendar, music player): vẫn theo quy trình: hỏi yêu cầu, gạch danh từ thành class, chọn mẫu
+      (scheduler = heap theo giờ chạy; việc lặp lại thì chạy xong đẩy lại với giờ mới), code, rồi hỏi "thêm X thì sửa chỗ nào?".
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class Email:
+          def send(self, msg):
+              return f"email:{msg}"
+
+
+      class Sms:
+          def send(self, msg):
+              return f"sms:{msg}"
+
+
+      CHANNELS = {"email": Email, "sms": Sms}
+
+
+      def make(name):
+          return CHANNELS[name]()
+
+
+      print(make("email").send("hi"), make("sms").send("hi"))
+
+
+      class Push:
+          def send(self, msg):
+              return f"push:{msg}"
+
+
+      CHANNELS["push"] = Push
+      print(make("push").send("hi"))
+    expected_output: |
+      email:hi sms:hi
+      push:hi
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Cần thêm kênh Zalo vào notification service đang chạy với email, SMS. Cách nào đúng tinh thần 'thêm class, không sửa lõi'?"
+    options:
+      - {id: a, text_md: "Viết class `Zalo` có `send(msg)` và đăng ký vào bảng Factory"}
+      - {id: b, text_md: "Thêm nhánh `elif kind == 'zalo'` vào hàm gửi trung tâm"}
+      - {id: c, text_md: "Sao chép toàn bộ service thành `ZaloService`"}
+    answer: [a]
+    explain_md: "Với Strategy + Factory, kênh mới chỉ là một class mới cùng interface. Thêm nhánh if hoặc nhân bản service làm lõi phình ra."
+  - id: q05
+    type: predict_output
+    code: |
+      import heapq
+
+      q = []
+      heapq.heappush(q, (2, "sms"))
+      heapq.heappush(q, (1, "email"))
+      heapq.heappush(q, (3, "push"))
+      heapq.heappush(q, (1, "alert"))
+      print([heapq.heappop(q)[1] for _ in range(4)])
+    expected_output: |
+      ['alert', 'email', 'sms', 'push']
+    explain_md: "Số ưu tiên nhỏ ra trước. Hai tin cùng ưu tiên 1 so tiếp theo chuỗi: 'alert' < 'email'. Sau đó 2 (sms) rồi 3 (push)."
+  - id: ex_retry
+    type: code_exercise
+    md: |
+      `send_with_retry(results, max_tries)` mô phỏng gửi tin: `results[i]` là `True` nếu lần thử thứ `i+1` thành công.
+      Trả **số thứ tự lần thử** (tính từ 1) thành công đầu tiên trong tối đa `max_tries` lần, hoặc `-1` nếu thất bại hết.
+      Bản dưới đây trả chỉ số tính từ 0. Hãy sửa.
+    entry: send_with_retry
+    starter: |
+      def send_with_retry(results, max_tries):
+          for i in range(min(max_tries, len(results))):
+              if results[i]:
+                  return i
+          return -1
+    guidance_md: |
+      - Thử `send_with_retry([False, False, True], 3)`: đáp án `3`, code trả `2`.
+      - Lần thử đầu tiên là lần 1, không phải lần 0.
+    hints:
+      - level: nudge
+        md: "Chỉ số `i` bắt đầu từ 0 còn lần thử đếm từ 1. Cần chỉnh gì ở giá trị trả về?"
+      - level: approach
+        md: "Trả `i + 1` khi `results[i]` là True."
+      - level: near_solution
+        md: "`return i + 1` trong nhánh `if results[i]:`."
+    tests:
+      - {args: [[false, false, true], 3], expected: 3}
+      - {args: [[false, false, true], 2], expected: -1}
+      - {args: [[true], 3], expected: 1}
+      - {args: [[], 3], expected: -1}
+    solution: |
+      def send_with_retry(results, max_tries):
+          for i in range(min(max_tries, len(results))):
+              if results[i]:
+                  return i + 1
+          return -1
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Log level DEBUG < INFO < ERROR so sánh bằng số (0, 1, 2); handler ghi khi mức dòng log >= ngưỡng của nó."
+      - "Logger là chuỗi Chain of Responsibility luôn chuyển tiếp: mỗi handler tự quyết ghi rồi vẫn đẩy cho handler kế; thêm handler không sửa Logger."
+      - "Notification: mỗi kênh là một Strategy, Factory tạo theo tên; thêm kênh = thêm một class. Retry bằng vòng lặp có giới hạn lần."
+      - "Ưu tiên bằng heap (số nhỏ trước); scheduler cũng là heap theo giờ chạy. Đề lạ vẫn theo quy trình: yêu cầu, danh từ, mẫu, code, mở rộng."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X624], l2: [X625], l3: [X626]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

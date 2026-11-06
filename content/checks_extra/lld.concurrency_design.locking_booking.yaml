@@ -1,0 +1,66 @@
+subtopic_id: lld.concurrency_design.locking_booking
+items:
+  - id: X627
+    difficulty: 1
+    type: read_code
+    minutes: 3
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Giải thích 1 câu vì sao lần `write("binh", v2)` bị từ chối.
+    code: |-
+      seat = {"version": 3, "owner": None}
+
+
+      def write(who, expected):
+          if seat["version"] != expected:
+              return False
+          seat["owner"] = who
+          seat["version"] += 1
+          return True
+
+
+      v1 = seat["version"]
+      v2 = seat["version"]
+      print(write("an", v1))
+      print(write("binh", v2))
+      print(seat["owner"])
+      print(seat["version"])
+    expected_output: "True\nFalse\nan\n4"
+    answer_md: 'Cả hai client cùng đọc version 3. `an` ghi trước nên version thành 4. `binh` vẫn cầm version 3 (đã cũ) nên điều kiện `version != expected` đúng và bị từ chối, chủ ghế vẫn là `an`.'
+    rubric_md: "Output khớp VÀ nêu đúng việc version đã đổi nên ghi với version cũ bị từ chối (optimistic lock). Đúng: bằng chứng điểm 1; sai: tối đa điểm 0."
+  - id: X628
+    difficulty: 2
+    type: write_code
+    minutes: 8
+    prompt_md: |
+      Viết `class SeatStore` mô hình khóa lạc quan (optimistic locking) bằng version, không dùng thread và không ném lỗi. Constructor không tham số. `add(seat)` đăng ký ghế với version `0`, chưa đặt; ghế đã có thì bỏ qua (không trả gì). `version(seat)` trả version hiện tại (`int`), hoặc `-1` nếu ghế lạ. `book(seat, expected_version)` là compare-and-set: nếu ghế tồn tại, chưa đặt VÀ version hiện tại bằng `expected_version` thì đánh dấu đã đặt, tăng version thêm 1 và trả `True`; ngược lại (version cũ, ghế lạ hoặc đã đặt) trả `False` và không đổi gì. `is_booked(seat)` trả `bool` (ghế lạ là `False`). Ví dụ: `add("a1")`, `book("a1", 0)` là `True`, `book("a1", 0)` lần hai là `False`, `version("a1")` là `1`.
+    problem_id: check-x628-optimistic-seat
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 8 phút: bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X629
+    difficulty: 3
+    type: read_code
+    minutes: 5
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng và giải thích vì sao `binh` thua ở ghế `a` nhưng vẫn đặt được ghế `b`, còn lần `book("b", 0, "an")` thất bại.
+    code: |-
+      class Store:
+          def __init__(self):
+              self.ver = {"a": 0, "b": 0}
+              self.owner = {}
+
+          def book(self, seat, expected, who):
+              if seat in self.owner or self.ver[seat] != expected:
+                  return False
+              self.owner[seat] = who
+              self.ver[seat] += 1
+              return True
+
+
+      st = Store()
+      v = st.ver["a"]
+      print(st.book("a", v, "an"))
+      print(st.book("a", v, "binh"))
+      print(st.book("b", st.ver["b"], "binh"))
+      print(st.book("b", 0, "an"))
+      print(st.ver)
+      print(sorted(st.owner.items()))
+    expected_output: "True\nFalse\nTrue\nFalse\n{'a': 1, 'b': 1}\n[('a', 'an'), ('b', 'binh')]"
+    answer_md: 'Version được giữ riêng cho từng ghế. Hai client cùng đọc `v = 0` của `a`: `an` thắng và version `a` thành 1, `binh` cầm version cũ nên bị từ chối. Ghế `b` độc lập: `binh` đọc version mới của `b` nên thắng, version `b` thành 1. Lần `book("b", 0, "an")` thất bại vì `b` đã có chủ (và version 0 cũng đã cũ). Cuối cùng cả hai ghế có version 1.'
+    rubric_md: "Output khớp từng dòng VÀ giải thích đúng version theo từng ghế, người cầm version cũ bị từ chối, ghế khác không bị ảnh hưởng. Đúng: bằng chứng điểm 3; sai: tối đa điểm 2."

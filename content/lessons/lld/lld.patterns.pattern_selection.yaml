@@ -1,0 +1,217 @@
+id: lld.patterns.pattern_selection
+version: 1
+status: published
+title_vi: "Chọn pattern đúng và anti-pattern"
+est_minutes: 15
+objectives_vi:
+  - "Đọc dấu hiệu trong đề để chọn mẫu: nhiều cách tính → Strategy, hoàn tác → Command, báo nhiều bên → Observer, tạo theo loại → Factory."
+  - "Nhận ra khi nào không cần mẫu (YAGNI) và vì sao 4 mẫu cho bài 20 dòng là over-engineering."
+  - "Kết hợp mẫu (Factory chọn Strategy) và nhận diện anti-pattern: god class, lạm dụng Singleton, anemic model."
+  - "Biết trong Python hàm là giá trị thứ nhất nên dict các hàm thường thay được Strategy/Command."
+blocks:
+  - id: s_signals
+    type: section
+    title_vi: "Dấu hiệu trong đề → mẫu"
+    summary_vi: "Đọc dấu hiệu, chọn mẫu, rồi tự hỏi mẫu đó có thật sự cần ngay bây giờ không."
+  - id: t01
+    type: text
+    md: |
+      Chọn mẫu bắt đầu từ **dấu hiệu (signal)** trong yêu cầu, không phải từ việc "mẫu nào nghe hay":
+
+      | Dấu hiệu trong đề | Mẫu |
+      |---|---|
+      | Nhiều **cách tính/làm** cùng một việc, sẽ thêm nữa | **Strategy** |
+      | Hành vi đổi theo **trạng thái**, tự chuyển khi có sự kiện | **State** |
+      | Cần **hoàn tác**, xếp hàng, ghi log thao tác | **Command** |
+      | **Nhiều bên** cần được báo khi có thay đổi | **Observer** |
+      | Tạo object **theo loại/mã** | **Factory** |
+      | **Đổi giao diện** của thư viện ngoài cho khớp code mình | **Adapter** |
+      | Thêm tính năng **chồng nhau** (nén + mã hoá + log) | **Decorator** |
+
+      Khi trình bày, nói to lý do: "Em dùng Strategy vì có nhiều cách tính giá và sẽ thêm nữa; nếu chỉ một cách
+      thì dùng hàm thường."
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Đề: 'Trình soạn thảo cần Ctrl+Z hoàn tác nhiều bước'. Dấu hiệu nào quyết định mẫu?"
+    options:
+      - {id: a, text_md: "Hoàn tác nhiều bước, nên mỗi thao tác là một object Command có `execute` và `undo`"}
+      - {id: b, text_md: "Có nhiều bên nghe, nên Observer"}
+      - {id: c, text_md: "Chỉ một editor duy nhất, nên Singleton"}
+    answer: [a]
+    explain_md: "Hoàn tác = lưu thao tác như dữ liệu rồi chạy ngược lại: Command. Singleton chỉ nói về số lượng object, không giải quyết undo."
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Cần tạo object `TaxPolicy` khác nhau theo mã quốc gia `\"VN\"`, `\"SG\"`. Mẫu tạo object theo loại là ___ (một từ tiếng Anh)."
+    blanks: [{accept: ["factory", "Factory"]}]
+    explain_md: "**Factory** nhận mã/loại và trả đúng object; caller không phải biết class cụ thể."
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Thư viện thanh toán ngoài có method `pay_now(cents)` nhưng code của bạn gọi `charge(amount)`. Mẫu nào hợp?"
+    options:
+      - {id: a, text_md: "Adapter: bọc thư viện để lộ ra `charge(amount)`"}
+      - {id: b, text_md: "Decorator"}
+      - {id: c, text_md: "State"}
+    answer: [a]
+    explain_md: "Đổi giao diện của thứ có sẵn cho khớp giao diện mình cần là Adapter. Decorator thêm tính năng mà giữ nguyên interface."
+  - id: s_combo
+    type: section
+    title_vi: "Kết hợp mẫu, over-engineering và anti-pattern"
+    summary_vi: "Hai mẫu đi cùng nhau là bình thường; nhưng mẫu thừa và các anti-pattern làm code tệ hơn."
+    exercise_ref: ex_dispatch
+  - id: t02
+    type: text
+    md: |
+      **Kết hợp mẫu**: tax engine nhiều quy tắc theo quốc gia = **Strategy** cho từng quy tắc + **Factory**
+      chọn quy tắc theo mã quốc gia. Hai mẫu cùng dùng là chuyện bình thường.
+
+      **Over-engineering và YAGNI** (You Aren't Gonna Need It): dùng Strategy + Factory + Observer cho bài chỉ
+      tính tổng là sai. Hỏi: "có hai biến thể thật chưa? có ai khác cần được báo chưa?" Chưa thì dùng hàm thường.
+
+      **Anti-pattern** hay gặp:
+      - **God class**: một class làm hết (nhập liệu, tính, lưu, gửi mail), sửa chỗ nào cũng sợ vỡ.
+      - **Lạm dụng Singleton**: biến mọi thứ thành toàn cục ẩn nên rất khó test; chỉ dùng khi thật sự chỉ cần một object.
+      - **Anemic model**: class chỉ giữ dữ liệu, mọi logic nằm ở class "Service" khác, nên object không tự bảo vệ quy tắc của mình.
+
+      **First-class function**: trong Python hàm là giá trị, nên nhiều khi truyền thẳng một hàm hoặc dict tên → hàm
+      thay cho cả class Strategy hay Command.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class Percent:
+          def __init__(self, p):
+              self.p = p
+
+          def apply(self, amt):
+              return amt + amt * self.p // 100
+
+
+      class Flat:
+          def apply(self, amt):
+              return amt
+
+
+      REGISTRY = {"VN": lambda: Percent(10)}
+
+
+      def make_policy(code):
+          return REGISTRY.get(code, Flat)()  # Factory chọn Strategy
+
+
+      print(make_policy("VN").apply(200))
+      print(make_policy("XX").apply(200))
+    expected_output: |
+      220
+      200
+  - id: q04
+    type: predict_output
+    code: |
+      class Percent:
+          def __init__(self, p):
+              self.p = p
+
+          def apply(self, amt):
+              return amt + amt * self.p // 100
+
+
+      class Fixed:
+          def __init__(self, fee):
+              self.fee = fee
+
+          def apply(self, amt):
+              return amt + self.fee
+
+
+      REGISTRY = {"VN": lambda: Percent(10), "SG": lambda: Fixed(7)}
+
+
+      def make_policy(code):
+          return REGISTRY.get(code, lambda: Fixed(0))()
+
+
+      print(make_policy("SG").apply(50))
+      print(make_policy("VN").apply(99))
+      print(make_policy("US").apply(30))
+    expected_output: |
+      57
+      108
+      30
+    explain_md: "`SG` tạo `Fixed(7)`: 50 + 7 = 57. `VN` tạo `Percent(10)`: 99 + 99*10//100 = 99 + 9 = 108. `US` không có trong registry nên dùng `Fixed(0)`: 30."
+  - id: q05
+    type: quiz_mcq
+    prompt_md: "Một class `OrderManager` vừa validate, tính giá, lưu DB, gửi email và in hoá đơn. Đây là anti-pattern nào và hướng sửa?"
+    options:
+      - {id: a, text_md: "God class; tách theo trách nhiệm (SRP) thành các class nhỏ"}
+      - {id: b, text_md: "Anemic model; thêm nhiều getter/setter"}
+      - {id: c, text_md: "Singleton abuse; biến `OrderManager` thành singleton"}
+    answer: [a]
+    explain_md: "Một class ôm quá nhiều trách nhiệm là god class. Biến nó thành singleton chỉ làm khó test hơn."
+  - id: q06
+    type: quiz_mcq
+    prompt_md: "Đề chỉ cần hàm `total(prices)` trả tổng. Lựa chọn nào hợp lý nhất?"
+    options:
+      - {id: a, text_md: "Một hàm `sum(prices)`; chưa có biến thể nào nên không cần mẫu (YAGNI)"}
+      - {id: b, text_md: "Strategy cho cách cộng + Factory tạo strategy + Observer báo kết quả"}
+      - {id: c, text_md: "Singleton `Calculator` giữ tổng"}
+    answer: [a]
+    explain_md: "Chưa có nhiều cách tính, chưa có bên nghe: mẫu chỉ thêm class thừa. Khi biến thể thật xuất hiện mới refactor."
+  - id: q07
+    type: quiz_fill
+    prompt_md: "Class chỉ chứa dữ liệu, mọi logic nằm ở class Service khác, gọi là ___ model (một từ tiếng Anh)."
+    blanks: [{accept: ["anemic", "Anemic"]}]
+    explain_md: "**Anemic model**: object không tự giữ quy tắc của nó; hành vi nên nằm cạnh dữ liệu mà nó bảo vệ."
+  - id: ex_dispatch
+    type: code_exercise
+    md: |
+      Viết `calc(op, a, b)`: `add` trả `a + b`, `mul` trả `a * b`, `max` trả số lớn hơn; `op` lạ trả `0`. Bản dưới dùng
+      chuỗi if/elif và quên `mul`. Hãy chuyển sang dict tên → hàm (Strategy dạng dữ liệu).
+    entry: calc
+    starter: |
+      def calc(op, a, b):
+          if op == "add":
+              return a + b
+          elif op == "max":
+              return a if a >= b else b
+          return 0
+    guidance_md: |
+      - Thử `calc("mul", 3, 4)`: đáp án `12`, code trả `0`.
+      - `OPS = {"mul": lambda a, b: a * b, ...}` rồi `OPS.get(op, lambda a, b: 0)(a, b)`.
+    hints:
+      - level: nudge
+        md: "Nếu mỗi phép là một hàm trong dict, thêm `mul` cần sửa mấy dòng logic?"
+      - level: approach
+        md: "Tạo dict tên → hàm; tra dict, op lạ dùng hàm trả 0."
+      - level: near_solution
+        md: "`return OPS.get(op, lambda a, b: 0)(a, b)` với ba khoá `add`, `mul`, `max`."
+    tests:
+      - {args: ["add", 3, 4], expected: 7}
+      - {args: ["mul", 3, 4], expected: 12}
+      - {args: ["max", 2, 9], expected: 9}
+      - {args: ["max", 5, 5], expected: 5}
+      - {args: ["pow", 2, 3], expected: 0}
+    solution: |
+      OPS = {
+          "add": lambda a, b: a + b,
+          "mul": lambda a, b: a * b,
+          "max": lambda a, b: a if a >= b else b,
+      }
+
+
+      def calc(op, a, b):
+          return OPS.get(op, lambda a, b: 0)(a, b)
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Chọn mẫu từ dấu hiệu: nhiều cách tính → Strategy, đổi theo trạng thái → State, hoàn tác → Command, báo nhiều bên → Observer, tạo theo loại → Factory, đổi giao diện → Adapter, chồng tính năng → Decorator."
+      - "Kết hợp mẫu là bình thường (Factory chọn Strategy); nhưng hỏi YAGNI: chưa có biến thể thật thì dùng hàm thường."
+      - "Anti-pattern: god class (ôm mọi việc), lạm dụng Singleton (toàn cục ẩn, khó test), anemic model (logic rời khỏi dữ liệu)."
+      - "Trong Python, dict tên → hàm hoặc truyền hàm thường thay được Strategy/Command mà không cần class."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X630], l2: [X631], l3: [X632]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

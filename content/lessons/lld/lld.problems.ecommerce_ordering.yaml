@@ -1,0 +1,279 @@
+id: lld.problems.ecommerce_ordering
+version: 1
+status: published
+title_vi: "Giỏ hàng và đơn hàng"
+est_minutes: 15
+objectives_vi:
+  - "Xác định entity Product/Cart/OrderLine/Order/Inventory và tính tổng giỏ = cộng đơn giá x số lượng của từng dòng."
+  - "Giải thích vì sao tiền phải là số nguyên (đồng/xu) chứ không phải float, và viết phép giảm giá bằng số nguyên."
+  - "Tách giảm giá thành Strategy và nói rõ thứ tự áp (giảm % trước hay trừ tiền trước) vì kết quả khác nhau."
+  - "Mô tả vòng đời đơn placed -> paid -> shipped/cancelled, chặn chuyển sai, và trừ/cộng lại tồn kho khi đặt/hủy."
+blocks:
+  - id: s_cart
+    type: section
+    title_vi: "Entity, tổng giỏ và tiền số nguyên"
+    summary_vi: "Cart giữ các dòng hàng; tổng = cộng price*qty; tiền là int, không phải float."
+    exercise_ref: ex_total
+  - id: t01
+    type: text
+    md: |
+      Đề chuẩn: thêm sản phẩm vào giỏ, tính tổng, áp giảm giá, đặt hàng rồi theo dõi trạng thái đơn. Tách **entity** theo trách nhiệm:
+
+      - `Product`: tên (hoặc id) và đơn giá.
+      - `OrderLine`: một dòng hàng = sản phẩm x số lượng (`qty`).
+      - `Cart`: giữ list `OrderLine`, biết tính tổng.
+      - `Order`: giỏ đã chốt, có **trạng thái** (`placed`, `paid`, `shipped`, `cancelled`).
+      - `Inventory`: số tồn kho của từng sản phẩm.
+
+      Tổng giỏ = cộng `price * qty` của **mọi** dòng (giỏ rỗng là 0). Quên nhân số lượng là lỗi hay gặp nhất.
+
+      **Tiền không dùng `float`.** Float lưu số nhị phân gần đúng nên `0.1 + 0.2` ra `0.30000000000000004`; cộng nhiều dòng thì sai số tích lại và so sánh bằng `==` thất bại.
+      Hai cách đúng: lưu **số nguyên đơn vị nhỏ nhất** (ví dụ đồng, xu), hoặc dùng `Decimal`. Ở các bài chấm tự động ta dùng `int`, và khi chia phải chọn cách làm tròn rõ ràng (ví dụ `//`).
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class Cart:
+          def __init__(self):
+              self.lines = []
+
+          def add(self, name, price, qty):
+              self.lines.append((name, price, qty))
+
+          def subtotal(self):
+              return sum(price * qty for _, price, qty in self.lines)
+
+
+      c = Cart()
+      c.add("ao", 100, 2)
+      c.add("non", 50, 1)
+      print(c.subtotal())
+      print(0.1 + 0.2 == 0.3, 10 + 20 == 30)
+    expected_output: |
+      250
+      False True
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Vì sao tiền trong giỏ hàng nên lưu bằng số nguyên (đồng/xu) thay vì `float`?"
+    options:
+      - {id: a, text_md: "Float không biểu diễn chính xác nhiều số thập phân (`0.1 + 0.2` lệch), sai số tích lại khi cộng nhiều dòng"}
+      - {id: b, text_md: "Float không dùng được trong `sum()`"}
+      - {id: c, text_md: "Số nguyên luôn cho kết quả đúng khi chia, không cần làm tròn"}
+    answer: [a]
+    explain_md: "Sai số nhị phân của float làm tổng tiền lệch và `==` thất bại. Số nguyên cộng/nhân chính xác; còn khi chia vẫn phải chọn cách làm tròn (ví dụ `//`)."
+  - id: q02
+    type: predict_output
+    code: |
+      lines = [("ao", 120, 2), ("non", 35, 3)]
+      print(sum(p * q for _, p, q in lines))
+      lines.pop(0)
+      print(sum(p * q for _, p, q in lines))
+      print(0.1 + 0.2)
+      print(10 + 20)
+    expected_output: |
+      345
+      105
+      0.30000000000000004
+      30
+    explain_md: "120*2 + 35*3 = 240 + 105 = 345; bỏ dòng đầu còn 35*3 = 105. Float cho `0.30000000000000004` còn số nguyên cho đúng 30."
+  - id: ex_total
+    type: code_exercise
+    md: |
+      `total(lines)` nhận list `[đơn giá, số lượng]` của từng dòng và trả tổng tiền (số nguyên); giỏ rỗng trả `0`.
+      Bản dưới đây quên nhân số lượng. Hãy sửa.
+    entry: total
+    starter: |
+      def total(lines):
+          s = 0
+          for price, qty in lines:
+              s += price
+          return s
+    guidance_md: |
+      - Thử `total([[100, 2], [50, 1]])`: đáp án `250`, code trả `150`.
+      - Mỗi dòng đóng góp `price * qty`.
+    hints:
+      - level: nudge
+        md: "Mỗi dòng có hai số. Dòng 100 x 2 phải đóng góp bao nhiêu vào tổng?"
+      - level: approach
+        md: "Cộng `price * qty` thay vì chỉ `price`."
+      - level: near_solution
+        md: "`s += price * qty` trong vòng lặp, giữ `return s` ở cuối."
+    tests:
+      - {args: [[[100, 2], [50, 1]]], expected: 250}
+      - {args: [[[7, 3]]], expected: 21}
+      - {args: [[]], expected: 0}
+      - {args: [[[0, 5], [10, 0]]], expected: 0}
+    solution: |
+      def total(lines):
+          s = 0
+          for price, qty in lines:
+              s += price * qty
+          return s
+  - id: s_rules
+    type: section
+    title_vi: "Giảm giá, vòng đời đơn và tồn kho"
+    summary_vi: "Giảm giá là Strategy với thứ tự áp rõ ràng; đơn có state machine; kho trừ khi đặt, cộng lại khi hủy."
+    exercise_ref: ex_stack
+  - id: t02
+    type: text
+    md: |
+      **Giảm giá và thuế bằng Strategy.** Mỗi quy tắc là một strategy cùng interface (ví dụ `apply(amount) -> int`); `Cart.total()` chỉ gọi strategy hiện tại, nên thêm mã mới không sửa hàm tính tiền (đúng OCP).
+
+      ```python
+      class Percent10:
+          def apply(self, x): return x * 90 // 100
+
+      class Fixed50:
+          def apply(self, x): return max(0, x - 50)
+      ```
+
+      `max(0, ...)` chặn tổng không âm. Dùng `//` để giữ số nguyên.
+
+      **Discount stacking** (nhiều mã cùng áp) phải quy định **thứ tự**, vì kết quả khác nhau. Giỏ 100, mã A giảm 10%, mã B trừ 20:
+
+      - Giảm % trước: `100*90//100 = 90`, rồi trừ 20 ra **70**.
+      - Trừ tiền trước: `100 - 20 = 80`, rồi giảm 10% ra **72**.
+
+      **Vòng đời đơn** là một **state machine**: `placed -> paid -> shipped`, và `placed`/`paid` có thể sang `cancelled`. Lưu bảng các bước hợp lệ (`ALLOWED`) và chặn mọi bước khác (đã `shipped` thì không `cancelled` được). Bước sai trả `False`, không đổi state.
+
+      **Tồn kho**: đặt hàng thì trừ tồn, **không bán quá số có** (thiếu thì từ chối, không đổi gì); hủy đơn thì cộng lại đúng số đã trừ.
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      def pct(x):
+          return x * 90 // 100
+
+
+      def fixed(x):
+          return max(0, x - 20)
+
+
+      print(fixed(pct(100)), pct(fixed(100)))
+
+      stock = {"ao": 3}
+
+
+      def place(name, qty):
+          if stock[name] < qty:
+              return False
+          stock[name] -= qty
+          return True
+
+
+      print(place("ao", 2), place("ao", 2), stock["ao"])
+      stock["ao"] += 2
+      print(stock["ao"])
+    expected_output: |
+      70 72
+      True False 1
+      3
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Giỏ 100, mã A giảm 10%, mã B trừ 20. Hai mã cho cùng một kết quả không?"
+    options:
+      - {id: a, text_md: "Không: giảm % trước ra 70, trừ tiền trước ra 72, nên phải quy định thứ tự áp"}
+      - {id: b, text_md: "Có: luôn ra 70 vì phép toán giao hoán"}
+      - {id: c, text_md: "Có: luôn ra 72 vì trừ tiền luôn áp trước"}
+    answer: [a]
+    explain_md: "Giảm % rồi trừ: 90 - 20 = 70. Trừ rồi giảm %: 80*90//100 = 72. Hai phép không giao hoán, nên discount stacking cần thứ tự rõ ràng."
+  - id: q04
+    type: predict_output
+    code: |
+      ALLOWED = {
+          "placed": ("paid", "cancelled"),
+          "paid": ("shipped", "cancelled"),
+          "shipped": (),
+          "cancelled": (),
+      }
+      state = "placed"
+
+
+      def go(nxt):
+          global state
+          if nxt not in ALLOWED[state]:
+              return False
+          state = nxt
+          return True
+
+
+      print(go("paid"))
+      print(go("shipped"))
+      print(go("cancelled"))
+      print(state)
+    expected_output: |
+      True
+      True
+      False
+      shipped
+    explain_md: "`placed -> paid -> shipped` đều hợp lệ. Ở `shipped` bảng `ALLOWED` rỗng nên `cancelled` bị chặn (`False`) và state giữ nguyên `shipped`."
+  - id: q05
+    type: quiz_fill
+    prompt_md: "Giỏ 200, giảm 10% trước (`x*90//100`) rồi trừ 30: tổng cuối là `___`."
+    blanks: [{accept: ["150"]}]
+    explain_md: "200*90//100 = 180, rồi 180 - 30 = 150. (Trừ 30 trước rồi giảm 10% sẽ ra 153.)"
+  - id: q06
+    type: quiz_mcq
+    prompt_md: "Kho còn 1 áo, đơn đặt 2 áo. `place` nên làm gì, và khi hủy một đơn đã đặt 2 áo thì sao?"
+    options:
+      - {id: a, text_md: "Từ chối (trả `False`) và không đổi tồn; khi hủy thì cộng lại đúng 2"}
+      - {id: b, text_md: "Cho đặt và để tồn kho âm (-1)"}
+      - {id: c, text_md: "Cho đặt 1 áo và âm thầm bỏ qua phần còn lại"}
+    answer: [a]
+    explain_md: "Không bán quá số có: thiếu hàng thì từ chối và giữ nguyên trạng thái. Hủy đơn phải hoàn đúng số lượng đã trừ."
+  - id: ex_stack
+    type: code_exercise
+    md: |
+      `stacked(subtotal, steps)` nhận tổng tiền (số nguyên) và list tên giảm giá áp **lần lượt theo thứ tự**:
+      `"percent10"` là `x * 90 // 100`, `"fixed50"` là `max(0, x - 50)`. Trả tổng cuối cùng (số nguyên).
+      Bản dưới đây bỏ qua thứ tự: luôn áp percent10 trước. Hãy sửa.
+    entry: stacked
+    starter: |
+      def stacked(subtotal, steps):
+          x = subtotal
+          if "percent10" in steps:
+              x = x * 90 // 100
+          if "fixed50" in steps:
+              x = max(0, x - 50)
+          return x
+    guidance_md: |
+      - Thử `stacked(200, ["fixed50", "percent10"])`: đáp án `135`, code trả `130`.
+      - Duyệt `steps` theo thứ tự và áp từng bước.
+    hints:
+      - level: nudge
+        md: "Code hiện tại kiểm tra `in steps` nên không quan tâm thứ tự. Làm sao áp theo đúng thứ tự trong list?"
+      - level: approach
+        md: "Dùng `for s in steps:` rồi `if s == \"percent10\": ... elif s == \"fixed50\": ...`."
+      - level: near_solution
+        md: "Trong vòng lặp: `x = x * 90 // 100` cho percent10, `x = max(0, x - 50)` cho fixed50; cuối cùng `return x`."
+    tests:
+      - {args: [200, ["percent10", "fixed50"]], expected: 130}
+      - {args: [200, ["fixed50", "percent10"]], expected: 135}
+      - {args: [40, ["fixed50", "percent10"]], expected: 0}
+      - {args: [100, []], expected: 100}
+    solution: |
+      def stacked(subtotal, steps):
+          x = subtotal
+          for s in steps:
+              if s == "percent10":
+                  x = x * 90 // 100
+              elif s == "fixed50":
+                  x = max(0, x - 50)
+          return x
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Entity: Product, OrderLine (sản phẩm x qty), Cart (list dòng, tính tổng), Order (có state), Inventory (tồn kho); tổng = cộng price*qty."
+      - "Tiền là số nguyên (đồng/xu) hoặc Decimal, không float vì 0.1 + 0.2 lệch; chia thì chọn cách làm tròn rõ ràng (//) và chặn dưới ở 0 bằng max."
+      - "Giảm giá và thuế là Strategy; discount stacking phải quy định thứ tự (giảm % trước ra 70, trừ tiền trước ra 72 với giỏ 100, 10% và 20)."
+      - "Vòng đời placed -> paid -> shipped/cancelled bằng bảng bước hợp lệ, bước sai trả False; kho trừ khi đặt (không bán quá số có) và cộng lại khi hủy."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X615], l2: [X616], l3: [X617]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

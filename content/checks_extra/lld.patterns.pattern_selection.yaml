@@ -1,0 +1,75 @@
+subtopic_id: lld.patterns.pattern_selection
+items:
+  - id: X630
+    difficulty: 1
+    type: read_code
+    minutes: 3
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Giải thích 1 câu vì sao (dict dispatch là Strategy dạng data-driven).
+    code: |-
+      OPS = {"add": lambda a, b: a + b, "mul": lambda a, b: a * b, "max": max}
+
+
+      def run(op, a, b):
+          return OPS.get(op, lambda a, b: 0)(a, b)
+
+
+      print(run("add", 2, 3))
+      print(run("mul", 4, 5))
+      print(run("max", 7, 9))
+      print(run("pow", 2, 3))
+    expected_output: "5\n20\n9\n0"
+    answer_md: 'Mỗi tên phép tra ra một hàm trong dict: `add` cho 5, `mul` cho 20, `max` cho 9. `pow` không có khoá nên dùng hàm mặc định trả 0. Dict tên → hàm là Strategy dạng dữ liệu, thay chuỗi if/elif.'
+    rubric_md: "Output khớp VÀ nêu dict tra hàm thay if/elif (Strategy). Đúng: bằng chứng điểm 1; sai: tối đa điểm 0."
+  - id: X631
+    difficulty: 2
+    type: write_code
+    minutes: 6
+    prompt_md: |
+      Viết `apply_op(op, a, b)` thay chuỗi if/elif theo loại bằng dict các hàm (dạng Strategy/Factory). `op` là chuỗi trong `"add"` (a+b), `"sub"` (a-b), `"mul"` (a*b), `"max"` (số lớn hơn), `"min"` (số nhỏ hơn); `op` khác trả `0`. Trả int. Ví dụ `apply_op("sub", 3, 10)` là `-7`, `apply_op("pow", 2, 3)` là `0`.
+    problem_id: check-x631-dispatch
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 6 phút và dùng dict, không dùng if/elif: bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X632
+    difficulty: 3
+    type: read_code
+    minutes: 5
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng và chỉ ra chỗ nào là Factory, chỗ nào là Strategy.
+    code: |-
+      class Flat:
+          def apply(self, amt):
+              return amt
+
+
+      class Percent:
+          def __init__(self, p):
+              self.p = p
+
+          def apply(self, amt):
+              return amt + amt * self.p // 100
+
+
+      class Fixed:
+          def __init__(self, fee):
+              self.fee = fee
+
+          def apply(self, amt):
+              return amt + self.fee
+
+
+      REGISTRY = {"VN": lambda: Percent(10), "SG": lambda: Fixed(7)}
+
+
+      def make_policy(code):
+          return REGISTRY.get(code, Flat)()
+
+
+      total = 0
+      for code, amt in [("VN", 200), ("SG", 50), ("XX", 30), ("VN", 99)]:
+          policy = make_policy(code)
+          result = policy.apply(amt)
+          total += result
+          print(f"{code}:{result}")
+      print(total)
+      print(type(make_policy("XX")).__name__)
+    expected_output: "VN:220\nSG:57\nXX:30\nVN:108\n415\nFlat"
+    answer_md: '`make_policy` là Factory: chọn object theo mã quốc gia, mã lạ rơi về `Flat`. Mỗi policy là một Strategy có cùng `apply`. VN: 200 + 20 = 220; SG: 50 + 7 = 57; XX: 30; VN: 99 + 9 = 108 (99*10//100 = 9). Tổng 415.'
+    rubric_md: "Output khớp từng dòng VÀ chỉ đúng Factory chọn Strategy. Đúng: bằng chứng điểm 3; sai: tối đa điểm 2."

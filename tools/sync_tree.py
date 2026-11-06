@@ -156,6 +156,13 @@ EXTRA_IDS = {
     "lld.problems.vending_atm",
     "lld.problems.elevator",
     "lld.problems.library_booking_domain",
+    # Wave 3 Round 26: LLD problems B + concurrency design + pattern selection (closes LLD).
+    "lld.problems.ecommerce_ordering",
+    "lld.problems.ride_hailing",
+    "lld.problems.games",
+    "lld.problems.logger_notification",
+    "lld.concurrency_design.locking_booking",
+    "lld.patterns.pattern_selection",
 }
 
 # Expected shipped counts, asserted so an upstream tree edit can't silently change the snapshot.
@@ -163,7 +170,7 @@ PLAN_MVP_COUNT = 40
 EXPECTED_SD = 86
 EXPECTED_ML4 = 39
 EXPECTED_EXTRA_IDS = len(EXTRA_IDS)  # Wave 2 additions
-EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 267
+EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 273
 
 # Node fields the app uses (SPEC 4.2); optional ones are skipped when a node lacks them.
 NODE_FIELDS = [

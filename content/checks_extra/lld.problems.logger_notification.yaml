@@ -1,0 +1,79 @@
+subtopic_id: lld.problems.logger_notification
+items:
+  - id: X624
+    difficulty: 1
+    type: read_code
+    minutes: 3
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Giải thích 1 câu vì sao.
+    code: |-
+      LV = {"DEBUG": 0, "INFO": 1, "ERROR": 2}
+
+
+      class Handler:
+          def __init__(self, name, level):
+              self.name = name
+              self.level = level
+
+          def write(self, level, msg):
+              if LV[level] >= LV[self.level]:
+                  print(f"[{self.name}] {msg}")
+
+
+      h = Handler("file", "INFO")
+      h.write("DEBUG", "a")
+      h.write("INFO", "b")
+      h.write("ERROR", "c")
+    expected_output: "[file] b\n[file] c"
+    answer_md: "Handler có ngưỡng INFO (1) nên bỏ dòng DEBUG (0 < 1) và ghi INFO và ERROR (>= 1)."
+    rubric_md: "Output khớp VÀ nêu handler chỉ ghi khi mức dòng log >= ngưỡng. Đúng: bằng chứng điểm 1; sai: tối đa điểm 0."
+  - id: X625
+    difficulty: 2
+    type: write_code
+    minutes: 8
+    prompt_md: |
+      Viết `class Logger` mô hình các handler lọc theo mức. Mức: `DEBUG=0`, `INFO=1`, `ERROR=2`.
+      `Logger()` khởi tạo rỗng; `add_handler(name, level)` đăng ký handler tên `name` với ngưỡng `level` (chuỗi `"DEBUG"`, `"INFO"` hoặc `"ERROR"`), giữ theo thứ tự thêm vào;
+      `log(level, msg)` trả **list tên** các handler (theo thứ tự thêm vào) có ngưỡng <= mức dòng log, tức handler sẽ ghi dòng đó;
+      `handler_count()` trả số handler (`int`). Không handler thì `log` trả `[]`. Ví dụ ngưỡng `console=DEBUG`, `file=ERROR`, `log("INFO", "hi")` trả `["console"]`.
+    problem_id: check-x625-logger
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 8 phút: bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X626
+    difficulty: 3
+    type: read_code
+    minutes: 5
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng và giải thích thứ tự gửi (heap ưu tiên) cùng cách retry hoạt động.
+    code: |-
+      import heapq
+
+
+      class Channel:
+          def __init__(self, name, fails):
+              self.name = name
+              self.fails = fails
+
+          def send(self, msg):
+              if self.fails > 0:
+                  self.fails -= 1
+                  return False
+              return True
+
+
+      def deliver(ch, msg, tries):
+          for n in range(1, tries + 1):
+              if ch.send(msg):
+                  print(f"{ch.name} ok after {n}")
+                  return True
+          print(f"{ch.name} gave up")
+          return False
+
+
+      plan = []
+      heapq.heappush(plan, (2, "sms", 1))
+      heapq.heappush(plan, (1, "email", 3))
+      heapq.heappush(plan, (3, "push", 0))
+      while plan:
+          _, name, fails = heapq.heappop(plan)
+          deliver(Channel(name, fails), "hi", 3)
+    expected_output: "email gave up\nsms ok after 2\npush ok after 1"
+    answer_md: "Heap lấy ưu tiên nhỏ trước: email (1), sms (2), push (3). Email lỗi 3 lần mà chỉ thử 3 lần nên bỏ cuộc; sms lỗi 1 lần rồi thành công ở lần 2; push thành công ngay lần 1."
+    rubric_md: "Output khớp từng dòng VÀ giải thích thứ tự theo ưu tiên và retry giới hạn lần. Đúng: bằng chứng điểm 3; sai: tối đa điểm 2."

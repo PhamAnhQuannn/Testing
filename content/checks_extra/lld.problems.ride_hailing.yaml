@@ -1,0 +1,95 @@
+subtopic_id: lld.problems.ride_hailing
+items:
+  - id: X618
+    difficulty: 1
+    type: read_code
+    minutes: 4
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Giải thích 1 câu vì sao lần `request(6)` thứ hai trả 1 chứ không phải 2, và vì sao `request(0)` trả -1.
+    code: |-
+      class RideSystem:
+          def __init__(self):
+              self.pos = {}
+              self.free = {}
+
+          def add_driver(self, did, pos):
+              self.pos[did] = pos
+              self.free[did] = True
+
+          def request(self, rider):
+              best = -1
+              for did in sorted(self.pos):
+                  if not self.free[did]:
+                      continue
+                  if best == -1 or abs(self.pos[did] - rider) < abs(self.pos[best] - rider):
+                      best = did
+              if best != -1:
+                  self.free[best] = False
+              return best
+
+          def complete(self, did):
+              self.free[did] = True
+
+
+      rs = RideSystem()
+      rs.add_driver(3, 10)
+      rs.add_driver(1, 4)
+      rs.add_driver(2, 7)
+      print(rs.request(6))
+      print(rs.request(6))
+      print(rs.request(9))
+      print(rs.request(0))
+      rs.complete(2)
+      print(rs.request(100))
+    expected_output: "2\n1\n3\n-1\n2"
+    answer_md: 'Tài xế ở vị trí 4, 7, 10 (id 1, 2, 3). Khách ở 6: tài xế 2 cách 1 nên được chọn và bận. Lần hai chỉ còn 1 (cách 2) và 3 (cách 4) nên chọn 1. Khách ở 9 chỉ còn tài xế 3. Khách ở 0 không còn ai rảnh nên trả -1 và không đổi gì. Sau `complete(2)` tài xế 2 rảnh lại và là người duy nhất, nên khách ở 100 được 2.'
+    rubric_md: "Output khớp VÀ nêu tài xế 2 đã bận nên lần hai chọn 1, và không còn tài xế rảnh thì trả -1. Đúng: bằng chứng điểm 1; sai: tối đa điểm 0."
+  - id: X619
+    difficulty: 2
+    type: write_code
+    minutes: 8
+    prompt_md: |
+      Viết `class RideSystem` là lõi ghép cặp đặt xe trên một trục số, báo thất bại bằng giá trị trả về (không ném lỗi). Constructor `RideSystem()` không có tham số. `add_driver(driver_id, pos)` đăng ký một tài xế rảnh (id số nguyên) ở vị trí nguyên `pos`. `request(rider_pos)` chọn tài xế rảnh có `|pos - rider_pos|` nhỏ nhất (hòa thì lấy `driver_id` nhỏ hơn), đánh dấu tài xế đó bận và trả id của họ; không có ai rảnh thì trả `-1`. `complete(driver_id)` trả tài xế về rảnh. `available_count()` trả số tài xế đang rảnh. Ví dụ: thêm tài xế `(1, 10)` và `(2, 5)`, `request(6)` là `2`, `available_count()` là `1`.
+    problem_id: check-x619-ride-match
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 8 phút: bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X620
+    difficulty: 3
+    type: read_code
+    minutes: 5
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng. Giải thích vì sao `move("completed")` đầu tiên thất bại, vì sao `fare(5, 4)` là 3750 chứ không phải 2500, và vì sao chuyến `u` có giá 0 dù khách chờ nhiều hơn tài xế.
+    code: |-
+      class Trip:
+          NEXT = {
+              "requested": ("accepted", "cancelled"),
+              "accepted": ("ongoing", "cancelled"),
+              "ongoing": ("completed",),
+          }
+
+          def __init__(self, km):
+              self.km = km
+              self.state = "requested"
+
+          def move(self, nxt):
+              if nxt in self.NEXT.get(self.state, ()):
+                  self.state = nxt
+                  return True
+              return False
+
+          def fare(self, waiting, free):
+              if self.state == "cancelled":
+                  return 0
+              fare = 1000 + 500 * self.km
+              if waiting > free:
+                  fare = fare * 3 // 2
+              return fare
+
+
+      t = Trip(3)
+      print(t.move("accepted"), t.move("completed"), t.move("ongoing"))
+      print(t.fare(4, 4), t.fare(5, 4))
+      print(t.move("completed"), t.move("cancelled"), t.state)
+      u = Trip(1)
+      u.move("cancelled")
+      print(u.fare(9, 0), u.move("accepted"), u.state)
+    expected_output: "True False True\n2500 3750\nTrue False completed\n0 False cancelled"
+    answer_md: 'Từ `requested` chỉ được sang `accepted` hoặc `cancelled`: `accepted` thành công, `completed` bị từ chối vì phải qua `ongoing`, rồi `ongoing` thành công. Giá cơ bản 1000 + 500*3 = 2500; surge chỉ áp khi khách chờ lớn hơn tài xế rảnh: (4, 4) không đủ điều kiện nên 2500, (5, 4) thì 2500*3//2 = 3750 (số nguyên, không float). `completed` không có đường ra nên `cancelled` bị từ chối và trạng thái giữ `completed`. Chuyến `u` đã `cancelled` nên giá 0 bất kể surge, và từ trạng thái cuối không chuyển tiếp được nữa.'
+    rubric_md: "Output khớp từng dòng VÀ giải thích đúng thứ tự chuyển trạng thái, điều kiện surge và trạng thái cuối. Đúng: bằng chứng điểm 3; sai: tối đa điểm 2."
