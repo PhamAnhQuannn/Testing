@@ -1,0 +1,171 @@
+id: ml.math.mle_map
+version: 1
+status: published
+title_vi: "Ước lượng hợp lý cực đại và MAP"
+est_minutes: 15
+objectives_vi:
+  - "Phân biệt probability với likelihood, tìm MLE của đồng xu (p̂ = heads/n) và dùng log-likelihood/NLL."
+  - "Giải thích vì sao nhiễu Gaussian cho MSE và Bernoulli cho log loss."
+  - "Hiểu MAP = MLE + prior, và prior Gaussian tương đương L2 regularization, Laplace tương đương L1."
+blocks:
+  - id: s_mle
+    type: section
+    title_vi: "Likelihood, MLE và negative log-likelihood"
+    summary_vi: "Chọn tham số làm dữ liệu đã thấy 'dễ xảy ra nhất'; lấy log để biến tích thành tổng."
+    exercise_ref: ex_coin
+  - id: t01
+    type: text
+    md: |
+      **Probability** cố định tham số rồi hỏi về dữ liệu (đồng xu công bằng, xác suất 7 ngửa?). **Likelihood** làm
+      ngược lại: dữ liệu đã quan sát cố định, xem xác suất của nó như **hàm của tham số** `θ`: `L(θ) = P(data | θ)`.
+
+      **MLE (maximum likelihood estimation)** chọn `θ` làm `L(θ)` lớn nhất. Tung xu 10 lần được 7 ngửa:
+
+      ```
+      L(p) = p⁷ · (1−p)³        →  lớn nhất tại p̂ = 7/10 = 0,7
+      ```
+
+      Tổng quát `p̂ = heads / n`. Với `n` mẫu độc lập, `L` là một tích rất nhỏ, nên ta lấy **log-likelihood**
+      `ℓ(θ) = Σ log P(xᵢ | θ)` (tích thành tổng, dễ đạo hàm). Vì `log` tăng dần, tối đa `ℓ` cho cùng nghiệm; quy ước
+      ML là **tối thiểu NLL (negative log-likelihood) = −ℓ(θ)**.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      heads, n = 7, 10
+      for p in (0.5, 0.7):
+          print(p, round(p ** heads * (1 - p) ** (n - heads), 6))
+    expected_output: |
+      0.5 0.000977
+      0.7 0.002224
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Tung xu 10 lần được 7 ngửa. MLE của xác suất ngửa `p` là bao nhiêu?"
+    options:
+      - {id: a, text_md: "`p̂ = 0,7`, vì nó làm `p⁷(1−p)³` lớn nhất"}
+      - {id: b, text_md: "`p̂ = 0,5`, vì đồng xu luôn công bằng"}
+      - {id: c, text_md: "`p̂ = 0,3`, vì còn lại 3 lần sấp"}
+    answer: [a]
+    explain_md: "Đạo hàm log-likelihood `7·log p + 3·log(1−p)` bằng 0 cho `p = 7/10`. Giá trị 0,5 cho likelihood nhỏ hơn (0,000977 so với 0,002224)."
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Tung xu 4 lần được 3 ngửa. MLE `p̂` bằng ___ (số thập phân)."
+    blanks: [{accept: ["0.75", "0,75", ".75"]}]
+    explain_md: "p̂ = heads / n = 3/4 = 0,75."
+  - id: ex_coin
+    type: code_exercise
+    md: |
+      `coin_mle(flips)` trả MLE xác suất ngửa từ danh sách `flips` (1 là ngửa, 0 là sấp), làm tròn 6 chữ số. Bản dưới
+      chia cho `n + 1` nên sai. Hãy sửa.
+    entry: coin_mle
+    starter: |
+      def coin_mle(flips):
+          return round(sum(flips) / (len(flips) + 1), 6)
+    guidance_md: |
+      - `coin_mle([1, 1, 0, 1])` phải ra `0.75`, code đang trả `0.6`.
+      - MLE là tỉ lệ ngửa trên tổng số lần tung.
+    hints:
+      - level: nudge
+        md: "MLE của Bernoulli là gì theo `heads` và `n`?"
+      - level: approach
+        md: "`heads = sum(flips)` và `n = len(flips)`."
+      - level: near_solution
+        md: "`return round(sum(flips) / len(flips), 6)`."
+    tests:
+      - {args: [[1, 1, 0, 1]], expected: 0.75}
+      - {args: [[0, 0, 0]], expected: 0.0}
+      - {args: [[1, 0]], expected: 0.5}
+      - {args: [[1, 1, 1, 0, 0, 0, 1]], expected: 0.571429}
+    solution: |
+      def coin_mle(flips):
+          return round(sum(flips) / len(flips), 6)
+  - id: s_loss
+    type: section
+    title_vi: "MSE, log loss và MAP"
+    summary_vi: "Nhiễu Gaussian cho MSE, Bernoulli cho log loss, prior Gaussian cho L2."
+    exercise_ref: ex_map
+  - id: t02
+    type: text
+    md: |
+      **Gaussian noise cho MSE**: giả sử `y = f(x; θ) + ε`, `ε ~ N(0, σ²)`. Khi đó
+      `−log P(y | x, θ) = (y − f)² / (2σ²) + hằng số không chứa θ`, nên **MLE = tối thiểu tổng bình phương sai số
+      (MSE)**.
+
+      **Bernoulli cho log loss**: nhãn `y ∈ {0,1}`, dự đoán `p`, thì
+      `NLL = −Σ [ y·log p + (1−y)·log(1−p) ]`, chính là **log loss / cross-entropy** của logistic regression. Dự đoán
+      tự tin mà sai (`p` gần 0 khi `y = 1`) bị phạt rất nặng: `−log 0,8 ≈ 0,223` nhưng `−log 0,1 ≈ 2,303`.
+
+      **MAP (maximum a posteriori)** thêm niềm tin có trước (**prior**) `P(θ)`: cực đại `P(θ | data) ∝ P(data | θ)·P(θ)`,
+      tức tối thiểu `NLL(θ) − log P(θ)`.
+
+      - Prior **Gaussian** `θ ~ N(0, τ²)` cho `−log P(θ) = θ²/(2τ²) + c`, tức phạt **L2** (ridge, weight decay).
+      - Prior **Laplace** cho phạt `|θ|`, tức **L1** (lasso, tạo nghiệm thưa).
+      - Khi dữ liệu càng nhiều, likelihood át prior và MAP tiến về MLE.
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Trong MAP, đặt prior Gaussian lên trọng số `w` tương đương thêm gì vào loss?"
+    options:
+      - {id: a, text_md: "Phạt L2: `λ·w²`"}
+      - {id: b, text_md: "Phạt L1: `λ·|w|`"}
+      - {id: c, text_md: "Không thêm gì, vì prior không ảnh hưởng nghiệm"}
+    answer: [a]
+    explain_md: "`−log` của mật độ Gaussian là `w²/(2τ²)` cộng hằng số: đó là phạt L2. Laplace mới cho L1."
+  - id: q04
+    type: predict_output
+    code: |
+      import math
+      print(round(-math.log(0.8), 4))
+      print(round(-math.log(0.1), 4))
+    expected_output: |
+      0.2231
+      2.3026
+    explain_md: "Log loss cho nhãn đúng với `p = 0,8` là 0,2231, còn `p = 0,1` là 2,3026: dự đoán tự tin mà sai bị phạt nặng."
+  - id: q05
+    type: quiz_fill
+    prompt_md: "Nhiễu Gaussian thì MLE tối thiểu loss nào (viết tắt 3 chữ cái)? ___"
+    blanks: [{accept: ["MSE", "mse"]}]
+    explain_md: "−log mật độ Gaussian là (y − f)²/(2σ²) + hằng số, nên MLE tối thiểu tổng bình phương sai số, tức MSE."
+  - id: ex_map
+    type: code_exercise
+    md: |
+      `map_loss(xs, ys, w, lam)` trả `sse + lam·w²` với `sse = Σ (y − w·x)²`, làm tròn 6 chữ số (NLL của MAP với
+      prior Gaussian, bỏ hằng số). Bản dưới quên phạt L2. Hãy sửa.
+    entry: map_loss
+    starter: |
+      def map_loss(xs, ys, w, lam):
+          sse = sum((y - w * x) ** 2 for x, y in zip(xs, ys))
+          return round(sse, 6)
+    guidance_md: |
+      - `map_loss([1, 2, 3], [2, 4, 7], 2.0, 0.5)` phải ra `3.0`, code đang trả `1.0`.
+      - Thêm phạt `lam * w * w`.
+    hints:
+      - level: nudge
+        md: "Prior Gaussian trên `w` đóng góp số hạng nào vào loss?"
+      - level: approach
+        md: "Cộng `lam * w ** 2` vào tổng bình phương sai số."
+      - level: near_solution
+        md: "`return round(sse + lam * w * w, 6)`."
+    tests:
+      - {args: [[1, 2, 3], [2, 4, 7], 2.0, 0.5], expected: 3.0}
+      - {args: [[1, 2], [1, 2], 1.0, 0.0], expected: 0.0}
+      - {args: [[1], [3], 1.0, 2.0], expected: 6.0}
+    solution: |
+      def map_loss(xs, ys, w, lam):
+          sse = sum((y - w * x) ** 2 for x, y in zip(xs, ys))
+          return round(sse + lam * w * w, 6)
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Likelihood L(θ) = P(data | θ) là hàm của θ; MLE chọn θ làm L lớn nhất (đồng xu: p̂ = heads/n)."
+      - "Tối đa log-likelihood = tối thiểu NLL; log biến tích thành tổng."
+      - "Nhiễu Gaussian cho MSE; Bernoulli cho log loss (cross-entropy)."
+      - "MAP = MLE + prior: prior Gaussian là phạt L2, Laplace là phạt L1; dữ liệu nhiều thì MAP tiến về MLE."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X653], l2: [X654], l3: [X655]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

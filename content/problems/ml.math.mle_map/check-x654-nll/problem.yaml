@@ -1,0 +1,71 @@
+id: check-x654-nll
+subtopic_id: ml.math.mle_map
+secondary_subtopics: []
+kind: check
+title: 'Check X654: Bernoulli negative log-likelihood'
+title_vi: 'Kiểm tra X654: negative log-likelihood Bernoulli (log loss)'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Implement `nll_bernoulli(ys, ps)`: the Bernoulli negative log-likelihood (log loss, summed, not averaged).
+  `ys` is a list of labels (each `0` or `1`) and `ps` a list of predicted probabilities of the same length
+  (each in `(0, 1)`). Return
+  `-sum(y*ln(p) + (1-y)*ln(1-p))` over matching pairs, using natural log (`math.log`).
+  To avoid `log(0)`, clamp each `p` to `[1e-12, 1 - 1e-12]` before taking the log.
+  Return a float `round(result, 6)`.
+statement_vi_md: |
+  Cài `nll_bernoulli(ys, ps)`: negative log-likelihood Bernoulli (log loss, tổng chứ không lấy trung bình).
+  `ys` là danh sách nhãn (mỗi phần tử `0` hoặc `1`), `ps` là danh sách xác suất dự đoán cùng độ dài (mỗi phần tử
+  trong `(0, 1)`). Trả `-sum(y*ln(p) + (1-y)*ln(1-p))` theo từng cặp, dùng log tự nhiên (`math.log`).
+  Để tránh `log(0)`, kẹp mỗi `p` vào `[1e-12, 1 - 1e-12]` trước khi lấy log. Trả float `round(kết_quả, 6)`.
+constraints:
+- len(ys) == len(ps)
+- ys[i] in {0, 1}
+- 0 < ps[i] < 1 (clamp to [1e-12, 1 - 1e-12])
+examples:
+- input: ys = [1, 0, 1], ps = [0.9, 0.2, 0.6]
+  output: '0.83933'
+  explain_vi: '-(ln 0.9 + ln 0.8 + ln 0.6) = 0.105361 + 0.223144 + 0.510826 = 0.83933.'
+io:
+  mode: function
+  entry: nll_bernoulli
+  params:
+  - name: ys
+    type: list
+  - name: ps
+    type: list
+  returns: float
+  compare: float_tol
+starter:
+  python: |
+    import math
+
+
+    def nll_bernoulli(ys, ps):
+        # TODO: -sum(y*ln(p) + (1-y)*ln(1-p)); kẹp p vào [1e-12, 1-1e-12]; round 6
+        pass
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+time_target_min: 6
+hints:
+- "Mỗi mẫu đóng góp y*ln(p) + (1-y)*ln(1-p); chỉ một trong hai số hạng khác 0 vì y là 0 hoặc 1."
+- "Kẹp p bằng min(max(p, 1e-12), 1 - 1e-12) trước khi gọi math.log."
+- "Cộng tất cả rồi đảo dấu: return round(-total, 6)."
+solution:
+  file: solution.py
+  approach_vi: Duyệt từng cặp (y, p), kẹp p, cộng y*ln(p)+(1-y)*ln(1-p), đảo dấu và làm tròn 6 chữ số.
+  complexity: O(n) / O(1)
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x654
+status: validated
+version: 1

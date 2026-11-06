@@ -1,0 +1,204 @@
+id: ml.math.ab_testing
+version: 1
+status: published
+title_vi: "A/B testing và thiết kế thí nghiệm"
+est_minutes: 15
+objectives_vi:
+  - "Chọn đơn vị ngẫu nhiên hoá (randomization unit) đúng và tính cỡ mẫu mỗi nhóm bằng quy tắc n ≈ 16·p(1−p)/δ²."
+  - "Giải thích MDE, power, guardrail metric và đổi cỡ mẫu thành số ngày chạy (làm tròn trọn tuần)."
+  - "Nhận ra SRM, peeking, hiệu ứng mới lạ và hiệu ứng mạng trong một thí nghiệm cho trước."
+blocks:
+  - id: s_size
+    type: section
+    title_vi: "Đơn vị chia nhóm, cỡ mẫu và MDE"
+    summary_vi: "Chia theo người dùng, rồi tính cần bao nhiêu người mỗi nhóm để thấy được thay đổi nhỏ nhất đáng quan tâm."
+    exercise_ref: ex_size
+  - id: t01
+    type: text
+    md: |
+      **A/B test** chia ngẫu nhiên người dùng thành nhóm A (bản cũ) và nhóm B (bản mới) rồi so chỉ số chính.
+
+      **Đơn vị ngẫu nhiên hoá (randomization unit)**: chia theo **người dùng** (user id), không theo lượt xem, để một người
+      luôn thấy cùng một bản. Chia theo lượt xem khiến một người thấy cả hai bản, kết quả lẫn lộn.
+
+      **MDE** (minimum detectable effect, `δ`) là mức cải thiện nhỏ nhất đáng phát hiện; **power** 80% nghĩa là nếu
+      hiệu ứng thật bằng MDE thì ta bắt được nó 80% số lần. Quy tắc nhanh (α = 0,05, power 80%), `p` là tỉ lệ nền:
+
+      ```
+      n ≈ 16 · p · (1 − p) / δ²      (mỗi nhóm)
+      ```
+
+      Ví dụ `p = 0,05`, `δ = 0,005`: `16·0,05·0,95/0,005² = 0,76/0,000025 = 30.400` người mỗi nhóm. Giảm MDE một nửa thì `δ²`
+      giảm 4 lần nên cần gấp 4 lần người. `p(1−p)` lớn nhất ở `p = 0,5`.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      p, mde = 0.05, 0.005
+      print(round(16 * p * (1 - p) / (mde * mde)))
+      print(round(16 * p * (1 - p) / ((mde / 2) ** 2)))
+    expected_output: |
+      30400
+      121600
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Nên chọn đơn vị ngẫu nhiên hoá nào cho thử nghiệm đổi giao diện trang chủ?"
+    options:
+      - {id: a, text_md: "Theo người dùng (user id): mỗi người luôn thấy cùng một bản"}
+      - {id: b, text_md: "Theo lượt xem trang: cho nhanh đủ mẫu"}
+      - {id: c, text_md: "Theo giờ trong ngày: giờ chẵn bản A, giờ lẻ bản B"}
+    answer: [a]
+    explain_md: "Chia theo người dùng giữ trải nghiệm nhất quán và quan sát độc lập. Chia theo lượt xem hoặc theo giờ trộn lẫn hai bản trong cùng một người hoặc gây nhiễu theo thời gian."
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Baseline p = 0,5, MDE δ = 0,02. Cỡ mẫu mỗi nhóm n ≈ 16·p(1−p)/δ² = ___ (một số, không dấu chấm phân cách)."
+    blanks: [{accept: ["10000", "10000.0"]}]
+    explain_md: "16·0,25/0,0004 = 4/0,0004 = 10.000."
+  - id: q03
+    type: predict_output
+    code: |
+      p = 0.05
+      for mde in [0.01, 0.005]:
+          print(round(16 * p * (1 - p) / (mde * mde)))
+    expected_output: |
+      7600
+      30400
+    explain_md: "MDE giảm một nửa (0,01 thành 0,005) thì n tăng 4 lần: 7600 thành 30400."
+  - id: ex_size
+    type: code_exercise
+    md: |
+      `sample_size(p, mde)` trả cỡ mẫu mỗi nhóm `ceil(16·p·(1−p)/mde²)`. Bản dưới quên thừa số `(1 − p)` nên cỡ mẫu quá lớn.
+      Hãy sửa.
+    entry: sample_size
+    starter: |
+      import math
+
+
+      def sample_size(p, mde):
+          return math.ceil(16 * p / (mde * mde))
+    guidance_md: |
+      - Thử `sample_size(0.05, 0.005)`: đáp án `30400`, code trả `32000`.
+    hints:
+      - level: nudge
+        md: "Phương sai của một tỉ lệ là p(1 − p), không chỉ p."
+      - level: approach
+        md: "Nhân thêm `(1 - p)` ở tử số."
+      - level: near_solution
+        md: "`math.ceil(16 * p * (1 - p) / (mde * mde))`."
+    tests:
+      - {args: [0.05, 0.005], expected: 30400}
+      - {args: [0.5, 0.01], expected: 40000}
+      - {args: [0.02, 0.004], expected: 19600}
+      - {args: [0.25, 0.025], expected: 4800}
+    solution: |
+      import math
+
+
+      def sample_size(p, mde):
+          return math.ceil(16 * p * (1 - p) / (mde * mde))
+  - id: s_pitfalls
+    type: section
+    title_vi: "Guardrail, SRM, peeking và các hiệu ứng nhiễu"
+    summary_vi: "Chạy bao lâu và những lỗi thiết kế làm kết quả không đáng tin."
+    exercise_ref: ex_srm
+  - id: t02
+    type: text
+    md: |
+      **Guardrail metric**: chỉ số không được xấu đi (tốc độ tải, tỉ lệ lỗi, doanh thu) dù chỉ số chính tốt lên. Nút Mua
+      tăng click nhưng làm trang chậm hơn thì vẫn không nên ship.
+
+      **Chạy bao lâu**: cỡ mẫu chia cho số người mỗi nhóm mỗi ngày, rồi làm tròn lên **trọn tuần** vì hành vi khác nhau giữa
+      các ngày trong tuần. 30.400 người mỗi nhóm với 1.500 người mỗi nhóm mỗi ngày cần `ceil(30400/1500) = 21` ngày = 3 tuần.
+
+      **SRM** (sample ratio mismatch): tỉ lệ người hai nhóm lệch so với thiết kế, vd kỳ vọng 48.500 mỗi nhóm nhưng thấy
+      50.000 và 47.000. Đó là lỗi hệ thống khi chia nhóm (bot, redirect, logging lỗi); kết quả thí nghiệm không đáng tin cho
+      đến khi tìm ra nguyên nhân.
+
+      **Peeking**: nhìn kết quả giữa chừng rồi dừng khi thấy `p < 0,05` làm tăng dương tính giả. Hãy chốt cỡ mẫu và thời
+      gian trước, hoặc dùng sequential testing.
+
+      **Hiệu ứng mới lạ (novelty)**: người dùng tò mò lúc đầu nên hiệu ứng giảm dần theo thời gian. **Hiệu ứng mạng
+      (network effect)**: người nhóm A bị ảnh hưởng bởi người nhóm B (chợ, mạng xã hội), nên chia theo cụm hoặc theo vùng.
+
+      **Awareness**: CUPED dùng dữ liệu trước thí nghiệm để giảm nhiễu; bandit dồn dần lưu lượng cho bản tốt hơn.
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      import math
+      print(math.ceil(30400 / 1500))
+      a, b = 50000, 47000
+      print((a + b) / 2)
+    expected_output: |
+      21
+      48500.0
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Một thí nghiệm dự kiến chia 50/50 nhưng thấy 50.000 và 47.000 người. Đây là dấu hiệu gì?"
+    options:
+      - {id: a, text_md: "SRM: lỗi hệ thống khi chia nhóm, cần điều tra trước khi tin kết quả"}
+      - {id: b, text_md: "Bình thường, nhóm nào nhiều người hơn thì thắng"}
+      - {id: c, text_md: "Hiệu ứng mới lạ"}
+    answer: [a]
+    explain_md: "Lệch 3.000 người ở cỡ mẫu này không phải ngẫu nhiên: đó là SRM. Nguyên nhân thường là bot, redirect hoặc lỗi logging."
+  - id: q05
+    type: quiz_mcq
+    prompt_md: "Vì sao dừng thí nghiệm ngay khi thấy p < 0,05 giữa chừng là sai?"
+    options:
+      - {id: a, text_md: "Nhìn nhiều lần rồi dừng khi có ý nghĩa làm tăng tỉ lệ dương tính giả (peeking)"}
+      - {id: b, text_md: "Vì p luôn tăng theo thời gian"}
+      - {id: c, text_md: "Vì cỡ mẫu càng lớn thì power càng nhỏ"}
+    answer: [a]
+    explain_md: "Mỗi lần nhìn là một cơ hội ngẫu nhiên cho p < 0,05, nên sai lầm loại I vượt mức 5%. Chốt cỡ mẫu và thời gian trước."
+  - id: q06
+    type: quiz_mcq
+    prompt_md: "Chỉ số chính (click) tăng 3% nhưng thời gian tải trang tăng gấp đôi. Chỉ số thời gian tải đóng vai trò gì?"
+    options:
+      - {id: a, text_md: "Guardrail metric: không được xấu đi nên không nên ship"}
+      - {id: b, text_md: "Chỉ số chính"}
+      - {id: c, text_md: "Đơn vị ngẫu nhiên hoá"}
+    answer: [a]
+    explain_md: "Guardrail bảo vệ trải nghiệm tổng thể; nó xấu đi thì thắng ở chỉ số chính cũng không đủ để ship."
+  - id: ex_srm
+    type: code_exercise
+    md: |
+      `srm_gap(a, b)` trả độ lệch giữa hai nhóm theo phần trăm tổng số: `|a − b| / (a + b) · 100`, làm tròn 4 chữ số. Bản dưới
+      chia cho `a` thay vì `a + b`. Hãy sửa.
+    entry: srm_gap
+    starter: |
+      def srm_gap(a, b):
+          return round(abs(a - b) / a * 100, 4)
+    guidance_md: |
+      - Thử `srm_gap(52000, 48000)`: đáp án `4.0`, code trả `7.6923`.
+    hints:
+      - level: nudge
+        md: "Độ lệch được so với tổng số người của cả hai nhóm."
+      - level: approach
+        md: "Mẫu số là `a + b`."
+      - level: near_solution
+        md: "`round(abs(a - b) / (a + b) * 100, 4)`."
+    tests:
+      - {args: [52000, 48000], expected: 4.0}
+      - {args: [50500, 49500], expected: 1.0}
+      - {args: [50000, 50000], expected: 0.0}
+      - {args: [10300, 9700], expected: 3.0}
+    solution: |
+      def srm_gap(a, b):
+          return round(abs(a - b) / (a + b) * 100, 4)
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Chia nhóm theo người dùng (randomization unit), không theo lượt xem."
+      - "Cỡ mẫu mỗi nhóm n ≈ 16·p(1−p)/δ² (α = 0,05, power 80%); MDE giảm một nửa thì n tăng 4 lần."
+      - "Số ngày = cỡ mẫu / người mỗi nhóm mỗi ngày, làm tròn lên trọn tuần; guardrail metric không được xấu đi."
+      - "SRM = tỉ lệ nhóm lệch thiết kế (lỗi chia nhóm); không peeking; coi chừng hiệu ứng mới lạ và hiệu ứng mạng."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X662], l2: [X663], l3: [X664]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

@@ -1,0 +1,179 @@
+id: ml.math.entropy_kl
+version: 1
+status: published
+title_vi: "Entropy, cross-entropy và KL divergence"
+est_minutes: 15
+objectives_vi:
+  - "Tính độ bất ngờ −log2(p) và entropy H = −Σ p·log2(p) của một phân phối rời rạc nhỏ (xu công bằng = 1 bit, chắc chắn = 0)."
+  - "Tính information gain, cross-entropy H(p,q) = −Σ p·log2(q) và KL(p‖q) = H(p,q) − H(p) ≥ 0, nhớ KL không đối xứng."
+  - "Hiểu perplexity = 2^(cross-entropy theo bit) và vì sao cross-entropy là loss của phân loại."
+blocks:
+  - id: s_ent
+    type: section
+    title_vi: "Bất ngờ, entropy và information gain"
+    summary_vi: "Đo mức khó đoán của một phân phối bằng số bit."
+    exercise_ref: ex_ent
+  - id: t01
+    type: text
+    md: |
+      **Độ bất ngờ (surprise)** của sự kiện xác suất `p` là `−log2(p)` bit. Xác suất 1/2 là 1 bit (một câu hỏi có/không),
+      1/8 là 3 bit; sự kiện chắc chắn (`p = 1`) có 0 bit.
+
+      **Entropy** là bất ngờ trung bình của cả phân phối:
+
+      ```
+      H(p) = −Σ pᵢ · log2(pᵢ)
+      ```
+
+      Xu công bằng `H = 1` bit; xu thiên lệch `[0,9; 0,1]` có `H = 0,9·0,152 + 0,1·3,322 ≈ 0,469` bit; chắc chắn thì `H = 0`.
+      Số hạng `p = 0` bỏ qua (quy ước `0·log2(0) = 0`).
+
+      **Information gain** là mức giảm entropy sau khi chia dữ liệu (cây quyết định): 10 mẫu 5 dương 5 âm có `H = 1`;
+      chia thành hai nhóm `[4 dương, 1 âm]` và `[1 dương, 4 âm]`, mỗi nhóm `H ≈ 0,722`, nên gain `= 1 − 0,722 ≈ 0,278`.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      import math
+      for probs in [[0.5, 0.5], [0.9, 0.1], [0.25] * 4]:
+          print(round(-sum(p * math.log2(p) for p in probs), 3))
+    expected_output: |
+      1.0
+      0.469
+      2.0
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Sự kiện có xác suất 1/8 mang bao nhiêu bit bất ngờ?"
+    options:
+      - {id: a, text_md: "`−log2(1/8) = 3` bit"}
+      - {id: b, text_md: "`1/8 = 0,125` bit"}
+      - {id: c, text_md: "`8` bit"}
+    answer: [a]
+    explain_md: "−log2(1/8) = log2(8) = 3 bit: cần 3 câu hỏi có/không để xác định 1 trong 8 khả năng đều nhau."
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Entropy (bit) của phân phối đều trên 4 giá trị `[0,25; 0,25; 0,25; 0,25]` là ___ (một số)."
+    blanks: [{accept: ["2", "2.0"]}]
+    explain_md: "H = −4·0,25·log2(0,25) = 4·0,25·2 = 2 bit."
+  - id: ex_ent
+    type: code_exercise
+    md: |
+      `entropy(probs)` trả entropy (bit) làm tròn 6 chữ số, bỏ qua `p == 0`. Bản dưới cộng `p·log2(p)` mà quên dấu trừ nên kết
+      quả âm. Hãy sửa.
+    entry: entropy
+    starter: |
+      import math
+
+
+      def entropy(probs):
+          total = 0.0
+          for p in probs:
+              if p == 0:
+                  continue
+              total += p * math.log2(p)
+          return round(total, 6)
+    guidance_md: |
+      - Thử `entropy([0.5, 0.5])`: đáp án `1.0`, code trả `-1.0`.
+    hints:
+      - level: nudge
+        md: "`log2(p)` với p < 1 luôn âm, nên tổng cần đổi dấu."
+      - level: approach
+        md: "Trừ thay vì cộng: `total -= p * math.log2(p)`."
+      - level: near_solution
+        md: "Đổi dòng cộng thành `total -= p * math.log2(p)`."
+    tests:
+      - {args: [[0.5, 0.5]], expected: 1.0}
+      - {args: [[0.9, 0.1]], expected: 0.468996}
+      - {args: [[0.25, 0.25, 0.25, 0.25]], expected: 2.0}
+      - {args: [[0.5, 0.5, 0.0]], expected: 1.0}
+    solution: |
+      import math
+
+
+      def entropy(probs):
+          total = 0.0
+          for p in probs:
+              if p == 0:
+                  continue
+              total -= p * math.log2(p)
+          return round(total, 6)
+  - id: s_ce
+    type: section
+    title_vi: "Cross-entropy, KL và perplexity"
+    summary_vi: "So sánh hai phân phối và đo mô hình ngôn ngữ."
+  - id: t02
+    type: text
+    md: |
+      **Cross-entropy** `p` là phân phối thật, `q` là dự đoán của mô hình:
+
+      ```
+      H(p, q) = −Σ pᵢ · log2(qᵢ)
+      ```
+
+      Nó phạt mô hình gán `q` thấp cho điều thật sự xảy ra. Nếu nhãn đúng là lớp `c` thì `H(p, q) = −log q_c`, chính là
+      negative log-likelihood (loss của phân loại; chỉ khác đơn vị: log2 là bit, ln là nat). Ví dụ `p = [1, 0]`,
+      `q = [0,8; 0,2]`: `H(p,q) = −log2(0,8) ≈ 0,322` bit.
+
+      **KL divergence**: `KL(p‖q) = H(p, q) − H(p) ≥ 0`, bằng 0 khi `q = p`. KL **không đối xứng**: với `p = [0,5; 0,5]`,
+      `q = [0,9; 0,1]` ta có `KL(p‖q) ≈ 0,737` nhưng `KL(q‖p) ≈ 0,531`.
+
+      **Perplexity** `= 2^(cross-entropy theo bit)`: mô hình phân vân như chọn đều giữa ngần ấy lựa chọn. Cross-entropy 2 bit
+      mỗi từ cho perplexity `2² = 4`; 4,32 bit cho `≈ 20`.
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      import math
+      p = [0.5, 0.5]
+      q = [0.9, 0.1]
+      def kl(a, b):
+          return sum(x * math.log2(x / y) for x, y in zip(a, b) if x > 0)
+      print(round(kl(p, q), 3))
+      print(round(kl(q, p), 3))
+    expected_output: |
+      0.737
+      0.531
+  - id: q03
+    type: predict_output
+    code: |
+      import math
+      p = [1.0, 0.0]
+      q = [0.5, 0.5]
+      ce = -sum(a * math.log2(b) for a, b in zip(p, q) if a > 0)
+      print(ce)
+      print(2 ** ce)
+    expected_output: |
+      1.0
+      2.0
+    explain_md: "H(p,q) = −1·log2(0,5) = 1 bit; perplexity = 2¹ = 2, tức mô hình phân vân như chọn đều giữa 2 lớp."
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Điều nào đúng về KL divergence?"
+    options:
+      - {id: a, text_md: "`KL(p‖q) = H(p,q) − H(p) ≥ 0` và nói chung `KL(p‖q) ≠ KL(q‖p)`"}
+      - {id: b, text_md: "KL luôn đối xứng và có thể âm"}
+      - {id: c, text_md: "KL bằng entropy của q"}
+    answer: [a]
+    explain_md: "Cross-entropy không bao giờ nhỏ hơn entropy của p nên KL ≥ 0; KL là độ lệch có hướng, không đối xứng (0,737 so với 0,531 ở ví dụ trên)."
+  - id: q05
+    type: quiz_fill
+    prompt_md: "Mô hình ngôn ngữ có cross-entropy 3 bit mỗi từ thì perplexity = 2^3 = ___ (một số)."
+    blanks: [{accept: ["8", "8.0"]}]
+    explain_md: "2³ = 8: mô hình phân vân như chọn đều giữa 8 từ."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Bất ngờ −log2(p) bit; entropy H = −Σ p·log2(p): xu công bằng 1 bit, chắc chắn 0, bỏ qua số hạng p = 0."
+      - "Information gain = entropy trước chia − entropy trung bình có trọng số sau chia."
+      - "Cross-entropy H(p,q) = −Σ p·log2(q); với nhãn lớp c thì bằng −log q_c (NLL, loss phân loại)."
+      - "KL(p‖q) = H(p,q) − H(p) ≥ 0, không đối xứng; perplexity = 2^(cross-entropy theo bit)."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X656], l2: [X657], l3: [X658]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

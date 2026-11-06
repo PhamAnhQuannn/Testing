@@ -27363,6 +27363,479 @@
       "plan_hours": 5
     },
     {
+      "id": "ml.math.mle_map",
+      "section": "ml",
+      "module": "ml.classical",
+      "name_vi": "Ước lượng hợp lý cực đại và MAP (MLE, MAP)",
+      "order": 11,
+      "summary_vi": "MLE (maximum likelihood estimation, ước lượng hợp lý cực đại) chọn tham số làm cho dữ liệu đã quan sát 'dễ xảy ra nhất'. Học xong bạn thấy MSE và cross-entropy không tự nhiên mà ra, và regularization chính là thêm niềm tin có trước (prior).",
+      "mastery_bar_vi": "Mức 3: suy ra MSE từ MLE Gaussian và log loss từ MLE Bernoulli, rồi giải thích vì sao prior Gaussian tương đương L2 regularization.",
+      "prerequisites": [
+        "ml.math.distributions",
+        "ml.math.derivatives_gradients",
+        "ml.fundamentals.loss_functions",
+        "ml.fundamentals.bias_variance_overfitting",
+        "ml.classical.logistic_regression"
+      ],
+      "lang_prereqs": {
+        "python": [],
+        "java": null
+      },
+      "key_concepts": [
+        "likelihood vs probability",
+        "MLE derivation: Gaussian noise gives MSE",
+        "MLE derivation: Bernoulli gives log loss",
+        "log-likelihood and why we maximise it",
+        "MAP estimation and priors",
+        "Gaussian prior equals L2 regularization, Laplace prior equals L1",
+        "bias and consistency of estimators",
+        "MLE vs MAP vs full Bayesian inference"
+      ],
+      "concepts_vi": [
+        {
+          "text": "Tham số θ và likelihood: θ (đọc 'théta') là các số cần ước lượng; likelihood L(θ) là xác suất của dữ liệu quan sát khi cho trước θ, xem như hàm của θ.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "MLE: chọn θ làm L(θ) lớn nhất; tung xu 10 lần được 7 ngửa thì p̂ = 0,7 làm p⁷(1−p)³ lớn nhất.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Log-likelihood: lấy log để biến tích thành tổng, dễ đạo hàm; tối đa log-likelihood = tối thiểu negative log-likelihood (NLL, đảo dấu).",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Mật độ Gaussian N(μ, σ²): f(y) = (1/√(2πσ²))·exp(−(y − μ)²/(2σ²)) (xem distributions); khi lấy −log chỉ còn (y − μ)²/(2σ²) + hằng số không chứa tham số cần tìm.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Nhiễu Gaussian cho ra MSE: nếu nhiễu có dạng chuông N(0, σ²) (trung bình 0, độ lệch σ) thì MLE chính là tối thiểu tổng bình phương sai số.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Bernoulli cho ra log loss: nhãn 0/1 thì NLL = −Σ[y·log p + (1−y)·log(1−p)], đúng là loss của logistic regression.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "MAP và prior: thêm niềm tin trước P(θ) về θ; tối đa log L(θ) + log P(θ) (xác suất sau ∝ likelihood × prior, ∝ là 'tỉ lệ với').",
+          "level": "nang_cao"
+        },
+        {
+          "text": "L2 và L1 (đã học ở bias_variance_overfitting): L2 cộng λ·Σw² vào loss, L1 cộng λ·Σ|w|; cả hai là cách regularization phạt trọng số lớn.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Prior Gaussian ↔ L2, prior Laplace ↔ L1: prior w ~ N(0, τ²) (τ là độ lệch chuẩn của prior) cho −log P(w) = w²/(2τ²) + hằng số, tức L2; phân phối Laplace P(w) ∝ exp(−|w|/b) (nhọn ở 0, đuôi dày hơn Gaussian) cho |w|/b, tức L1. Cả hai tin rằng trọng số nhỏ khả dĩ hơn.",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "MLE của đồng xu bằng tay",
+          "vi": "Tung 10 lần được 7 ngửa: L(p) = p⁷(1−p)³. Tính L(0,5) = 0,5¹⁰ ≈ 0,00098; L(0,7) = 0,7⁷·0,3³ ≈ 0,0022; L(0,9) = 0,9⁷·0,1³ ≈ 0,00048. Cao nhất ở p = 0,7.",
+          "starter_code_vi": {
+            "lang": "python",
+            "code": "import numpy as np\np = np.linspace(0.01, 0.99, 99)\nL = ...   # TODO: p**7 * (1 - p)**3\nprint(p[np.argmax(L)])   # kỳ vọng ≈ 0,70"
+          }
+        },
+        {
+          "title": "Suy ra MSE từ MLE Gaussian",
+          "vi": "Giả sử yᵢ = w·xᵢ + nhiễu với nhiễu ~ N(0, σ²), nên P(yᵢ) = (1/√(2πσ²))·exp(−(yᵢ − w·xᵢ)²/(2σ²)). Bước 1: các mẫu độc lập nên L = tích các P(yᵢ). Bước 2: −log L = Σ(yᵢ − w·xᵢ)²/(2σ²) + n·log√(2πσ²). Bước 3: số hạng sau không chứa w, và 1/(2σ²) là hằng dương không đổi chỗ cực tiểu, nên tối đa L chính là tối thiểu Σ(yᵢ − w·xᵢ)², tức MSE."
+        },
+        {
+          "title": "Suy ra log loss",
+          "vi": "Với yᵢ ∈ {0,1}: P(yᵢ) = p^y·(1−p)^(1−y) (y = 1 cho p, y = 0 cho 1−p). −log L = −Σ[y·log p + (1−y)·log(1−p)]. Thử với 3 mẫu y = [1,0,1], p = [0,9; 0,2; 0,6] và tính NLL ≈ 0,105 + 0,223 + 0,511 = 0,84."
+        },
+        {
+          "title": "L2 như prior Gaussian",
+          "vi": "Prior w ~ N(0, τ²) (τ là độ lệch chuẩn của prior) thêm số hạng w²/(2τ²) vào −log (từ −log P(w)); số hạng này chính là L2 regularization với λ = 1/(2τ²). Prior hẹp (τ nhỏ) thì phạt mạnh hay yếu?"
+        }
+      ],
+      "beginner_note_vi": "Học sau ml.classical.logistic_regression. Intern và fresher có thể bỏ qua.",
+      "example_problems": [
+        "Derive MSE from Gaussian MLE",
+        "Derive logistic loss from Bernoulli MLE",
+        "Why is L2 regularization a Gaussian prior?"
+      ],
+      "bank_topics": [
+        "ml_ai.stats_probability",
+        "ml_ai.ml_fundamentals"
+      ],
+      "bank_counts": {
+        "ml_ai.stats_probability": {
+          "total": 64,
+          "y2026": 31
+        },
+        "ml_ai.ml_fundamentals": {
+          "total": 126,
+          "y2026": 58
+        }
+      },
+      "target_swe": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 0,
+        "senior": 0
+      },
+      "target_ai": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 2,
+        "senior": 3
+      },
+      "est_hours": 3,
+      "plan_order": 243,
+      "plan_day": null,
+      "plan_hours": 3
+    },
+    {
+      "id": "ml.math.entropy_kl",
+      "section": "ml",
+      "module": "ml.classical",
+      "name_vi": "Entropy, cross-entropy và KL divergence (information theory)",
+      "order": 12,
+      "summary_vi": "Entropy đo mức 'bất ngờ' trung bình của một phân phối: đồng xu công bằng khó đoán hơn đồng xu thiên lệch. Cross-entropy và KL đo hai phân phối khác nhau ra sao. Học xong bạn hiểu vì sao cross-entropy là loss của bài phân loại.",
+      "mastery_bar_vi": "Mức 3: tính tay entropy, cross-entropy và KL cho hai phân phối rời rạc nhỏ và giải thích vì sao cross-entropy là loss của phân loại.",
+      "prerequisites": [
+        "ml.math.random_variables_expectation",
+        "ml.fundamentals.loss_functions",
+        "ml.classical.decision_trees"
+      ],
+      "lang_prereqs": {
+        "python": [],
+        "java": null
+      },
+      "key_concepts": [
+        "entropy as expected surprise",
+        "cross-entropy and its link to negative log-likelihood",
+        "KL divergence and its asymmetry",
+        "perplexity as exp of cross-entropy",
+        "mutual information",
+        "information gain for decision trees",
+        "computing entropy of a small distribution by hand"
+      ],
+      "concepts_vi": [
+        {
+          "text": "Độ bất ngờ và bit: sự kiện xác suất p có độ bất ngờ −log₂ p bit; xác suất 1/2 là 1 bit (một câu hỏi có/không), 1/8 là 3 bit.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Entropy: H(p) = −Σ pᵢ·log₂ pᵢ, bất ngờ trung bình; xu công bằng H = 1 bit, càng thiên lệch càng thấp, chắc chắn thì H = 0.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Information gain: mức giảm entropy sau khi chia dữ liệu (xem decision_trees).",
+          "level": "co_ban"
+        },
+        {
+          "text": "Cross-entropy: H(p, q) = −Σ pᵢ·log qᵢ; phạt mô hình gán xác suất q thấp cho điều thật sự xảy ra (p).",
+          "level": "co_ban"
+        },
+        {
+          "text": "Cross-entropy và NLL: nếu nhãn đúng là lớp c thì cross-entropy = −log q_c, chính là loss ở mục loss_functions (chỉ khác đơn vị: log₂ cho bit, ln cho nat).",
+          "level": "co_ban"
+        },
+        {
+          "text": "KL divergence: KL(p‖q) = H(p, q) − H(p) ≥ 0, đo q lệch p bao nhiêu; không đối xứng, tức KL(p‖q) ≠ KL(q‖p).",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Perplexity: 2^(cross-entropy theo bit); 'mô hình phân vân như chọn đều giữa ngần ấy lựa chọn'; dùng đánh giá mô hình ngôn ngữ.",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "Entropy của đồng xu thiên lệch",
+          "vi": "p = 0,5: H = −(0,5·log₂0,5 + 0,5·log₂0,5) = 1 bit; p = 0,9: H = −(0,9·log₂0,9 + 0,1·log₂0,1) = 0,9·0,152 + 0,1·3,322 ≈ 0,469 bit (log₂ bấm bằng log(x)/log(2))."
+        },
+        {
+          "title": "Information gain bằng tay",
+          "vi": "10 mẫu (5 dương, 5 âm): H = 1 bit. Chia thành nhóm trái [4 dương, 1 âm] và nhóm phải [1 dương, 4 âm]: mỗi nhóm H(0,8; 0,2) ≈ 0,722 bit, trung bình có trọng số 0,722 (hai nhóm cùng 5 mẫu nên mỗi nhóm trọng số 5/10); information gain = 1 − 0,722 ≈ 0,278."
+        },
+        {
+          "title": "Cross-entropy và KL",
+          "vi": "p = [1, 0] (đáp án là lớp 1), q = [0,8; 0,2]: H(p,q) = −log₂0,8 ≈ 0,322 bit; vì H(p) = 0 nên KL(p‖q) = 0,322. Tính lại với q = [0,5; 0,5]."
+        },
+        {
+          "title": "KL không đối xứng",
+          "vi": "p = [0,5; 0,5], q = [0,9; 0,1]: KL(p‖q) = 0,5·log₂(0,5/0,9) + 0,5·log₂(0,5/0,1) ≈ 0,5·(−0,848) + 0,5·2,322 ≈ 0,737; KL(q‖p) ≈ 0,531. Hai số khác nhau."
+        },
+        {
+          "title": "Viết hàm entropy",
+          "vi": "Viết hàm entropy(probs) 5 dòng Python và thử [0,5; 0,5] (1 bit), [0,9; 0,1] (≈ 0,469) và [0,25]*4 (2 bit).",
+          "starter_code_vi": {
+            "lang": "python",
+            "code": "import numpy as np\ndef entropy(probs):\n    probs = np.array(probs)\n    return ...   # TODO: -sum(p * log2(p))\nprint(entropy([0.5, 0.5]), entropy([0.9, 0.1]), entropy([0.25]*4))"
+          }
+        },
+        {
+          "title": "Perplexity 20",
+          "vi": "Mô hình có cross-entropy 4,32 bit mỗi từ thì perplexity = 2^4,32 ≈ 20, tức phân vân như chọn đều giữa 20 từ."
+        }
+      ],
+      "beginner_note_vi": "Học sau ml.classical.decision_trees; fresher cần phần Cơ bản (entropy, cross-entropy), KL và perplexity dành cho junior.",
+      "example_problems": [
+        "Compute the entropy of a biased coin",
+        "Why is cross-entropy the loss for classification?",
+        "What does perplexity 20 mean for a language model?"
+      ],
+      "bank_topics": [
+        "ml_ai.stats_probability",
+        "ml_ai.ml_fundamentals"
+      ],
+      "bank_counts": {
+        "ml_ai.stats_probability": {
+          "total": 64,
+          "y2026": 31
+        },
+        "ml_ai.ml_fundamentals": {
+          "total": 126,
+          "y2026": 58
+        }
+      },
+      "target_swe": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 0,
+        "senior": 0
+      },
+      "target_ai": {
+        "intern": 0,
+        "fresher": 2,
+        "junior": 3,
+        "senior": 3
+      },
+      "est_hours": 3,
+      "plan_order": 244,
+      "plan_day": null,
+      "plan_hours": 3
+    },
+    {
+      "id": "ml.math.statistical_inference",
+      "section": "ml",
+      "module": "ml.classical",
+      "name_vi": "Ước lượng, khoảng tin cậy và kiểm định giả thuyết (inference)",
+      "order": 13,
+      "summary_vi": "Suy luận thống kê là rút kết luận về cả quần thể từ một mẫu nhỏ, ví dụ hai nút bấm cho tỉ lệ click 5% và 5,4%: khác biệt đó là thật hay chỉ do ngẫu nhiên? Học xong bạn đọc đúng khoảng tin cậy và p-value.",
+      "mastery_bar_vi": "Mức 3: tính khoảng tin cậy và p-value cho hai tỉ lệ click, diễn giải đúng p-value và xử lý bài toán so sánh nhiều lần.",
+      "prerequisites": [
+        "ml.math.distributions"
+      ],
+      "lang_prereqs": {
+        "python": [],
+        "java": null
+      },
+      "key_concepts": [
+        "sampling, bias of estimators",
+        "standard error & confidence interval",
+        "null/alternative, p-value meaning",
+        "type I/II error, power",
+        "t-test, chi-square, z-test",
+        "multiple testing (Bonferroni, FDR)",
+        "bootstrap",
+        "OLS inference basics"
+      ],
+      "concepts_vi": [
+        {
+          "text": "Mẫu và quần thể (sample, population): mẫu là phần quan sát được, quần thể là cái ta muốn biết.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Sai số chuẩn (standard error): SE = σ/√n, mẫu càng lớn SE càng nhỏ; với tỉ lệ p̂ thì SE = √(p̂(1−p̂)/n).",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Khoảng tin cậy (confidence interval): khoảng ước lượng, vd 95% CI ≈ trung bình ± 1,96·SE (1,96 là z mà 95% đường chuông nằm trong ±z, tra bảng chuẩn).",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Bảng z → p hai phía (đuôi trái và đuôi phải cộng lại): z = 1,0 → 0,32; 1,27 → 0,20; 1,5 → 0,13; 1,96 → 0,05; 2,58 → 0,01; 3,0 → 0,003. Cùng nguồn với bảng z ở distributions.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Giả thuyết không (null): 'không có khác biệt'; kiểm định xem dữ liệu có đủ lạ để bác bỏ nó không.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "α (alpha, mức ý nghĩa): ngưỡng p-value để bác bỏ giả thuyết không, thường 0,05; cũng là xác suất báo có khác biệt khi thực ra không có (lỗi loại I).",
+          "level": "nang_cao"
+        },
+        {
+          "text": "p-value: xác suất thấy kết quả lạ như vậy (hoặc lạ hơn) nếu giả thuyết không đúng; KHÔNG phải xác suất giả thuyết đúng.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Lỗi loại I và II: báo có khác biệt khi không có / bỏ sót khác biệt thật; power = 1 − xác suất lỗi loại II, khả năng bắt được khác biệt thật.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "t-test và chi-square: so sánh trung bình hai nhóm / so sánh số đếm theo nhóm.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Kiểm định nhiều lần (multiple testing): thử 20 lần sẽ có khoảng 1 lần 'có ý nghĩa' do tình cờ; Bonferroni chia mức α cho số lần thử.",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "Khoảng tin cậy cho một tỉ lệ",
+          "vi": "Nhóm A: 500 click trên 10.000 lượt, p̂ = 0,05. SE = √(0,05·0,95/10.000) ≈ 0,0022; 95% CI = 0,05 ± 1,96·0,0022 ≈ [0,0457; 0,0543]. Tính CI cho nhóm B (540/10.000)."
+        },
+        {
+          "title": "So sánh CTR hai nút",
+          "vi": "A: 500/10.000 (5%), B: 540/10.000 (5,4%). SE chênh = √(0,05·0,95/10.000 + 0,054·0,946/10.000) ≈ 0,0031; z = 0,004/0,0031 ≈ 1,27 nên p ≈ 0,20 (tra bảng: z = 1,27 ứng với đuôi hai phía 0,20): chưa đủ bằng chứng."
+        },
+        {
+          "title": "Giải thích p-value",
+          "vi": "Giải thích p = 0,03 cho quản lý không biết thống kê trong 2 câu, không dùng cụm 'xác suất giả thuyết đúng'."
+        },
+        {
+          "title": "Kiểm định nhiều lần",
+          "vi": "Thử 20 biến thể ở mức α = 0,05: P(ít nhất một dương tính giả) = 1 − 0,95²⁰ ≈ 0,64; Bonferroni dùng α = 0,05/20 = 0,0025."
+        }
+      ],
+      "beginner_note_vi": "Học sau ml.classical. Intern và fresher có thể bỏ qua; mục này cần bảng z-score ở ml.math.distributions.",
+      "example_problems": [
+        "Explain a p-value to a PM",
+        "Handling multiple hypothesis testing",
+        "Batteries in 5 groups with pass/fail tests: choose a test"
+      ],
+      "bank_topics": [
+        "ml_ai.stats_probability"
+      ],
+      "bank_counts": {
+        "ml_ai.stats_probability": {
+          "total": 64,
+          "y2026": 31
+        }
+      },
+      "target_swe": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 0,
+        "senior": 0
+      },
+      "target_ai": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 2,
+        "senior": 3
+      },
+      "est_hours": 6,
+      "plan_order": 245,
+      "plan_day": null,
+      "plan_hours": 6
+    },
+    {
+      "id": "ml.math.ab_testing",
+      "section": "ml",
+      "module": "ml.classical",
+      "name_vi": "A/B testing và thiết kế thí nghiệm (A/B testing)",
+      "order": 14,
+      "summary_vi": "A/B test chia ngẫu nhiên người dùng thành hai nhóm, nhóm A dùng bản cũ, nhóm B dùng bản mới, rồi so kết quả để biết bản mới có thật sự tốt hơn. Học xong bạn thiết kế được một thí nghiệm và chỉ ra các lỗi thường gặp.",
+      "mastery_bar_vi": "Mức 3: thiết kế A/B test đầy đủ (mục tiêu, nhóm, cỡ mẫu theo MDE, thời gian) và chỉ ra ít nhất 3 lỗi thiết kế trong một thí nghiệm cho trước.",
+      "prerequisites": [
+        "ml.math.statistical_inference"
+      ],
+      "lang_prereqs": {
+        "python": [],
+        "java": null
+      },
+      "key_concepts": [
+        "randomization unit",
+        "sample size / MDE / power",
+        "guardrail metrics",
+        "SRM check",
+        "novelty & network effects",
+        "peeking and sequential testing",
+        "CUPED variance reduction",
+        "interleaving for ranking",
+        "multi-armed bandits"
+      ],
+      "concepts_vi": [
+        {
+          "text": "Đơn vị ngẫu nhiên hoá (randomization unit): chia theo người dùng, không theo lượt xem, để một người luôn thấy cùng một bản.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Cỡ mẫu, MDE, power: MDE (minimum detectable effect) là mức cải thiện nhỏ nhất đáng phát hiện; muốn bắt thay đổi nhỏ cần nhiều người hơn mỗi nhóm.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Chỉ số bảo vệ (guardrail metric): chỉ số không được xấu đi (tốc độ, tỉ lệ lỗi) dù chỉ số chính tốt lên.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "SRM (sample ratio mismatch): tỉ lệ người hai nhóm lệch so với thiết kế (50/50 thành 52/48), báo hiệu lỗi hệ thống trong việc chia nhóm.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Peeking: nhìn kết quả giữa chừng rồi dừng khi thấy 'có ý nghĩa' làm tăng dương tính giả; phải chốt cỡ mẫu và thời gian trước.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Hiệu ứng mới lạ và hiệu ứng mạng: người dùng tò mò lúc đầu nên kết quả giảm dần; người nhóm A bị ảnh hưởng bởi người nhóm B (vd chợ, mạng xã hội).",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "Cỡ mẫu cho thử nghiệm nút bấm",
+          "vi": "Quy tắc nhanh (α = 0,05, power 80%): n ≈ 16·p(1−p)/δ² mỗi nhóm (16 ≈ 2·(1,96 + 0,84)² ≈ 15,7, từ công thức so sánh hai tỉ lệ), δ là MDE. Tỉ lệ nền 5% (p = 0,05), muốn phát hiện tăng 0,5 điểm phần trăm (δ = 0,005): n ≈ 16·0,05·0,95/0,005² = 0,76/0,000025 ≈ 30.400 người mỗi nhóm."
+        },
+        {
+          "title": "Chạy bao lâu",
+          "vi": "Có 3.000 người mới mỗi ngày chia đều hai nhóm (1.500 mỗi nhóm), cần 30.400/1.500 ≈ 21 ngày để đủ mẫu; vì sao nên làm tròn lên 3 tuần? (Gợi ý: hành vi khác nhau giữa các ngày trong tuần, nên chạy trọn số tuần.)"
+        },
+        {
+          "title": "Tìm lỗi thiết kế",
+          "vi": "Thí nghiệm có 50.000 và 47.000 người ở hai nhóm (kỳ vọng 48.500 mỗi nhóm), dừng sau 2 ngày khi p < 0,05: nêu ít nhất 3 lỗi (SRM, peeking, chưa đủ chu kỳ tuần)."
+        },
+        {
+          "title": "Checklist thiết kế A/B",
+          "vi": "Điền 6 bước cho thí nghiệm đổi màu nút Mua: (1) mục tiêu, (2) chỉ số chính, (3) guardrail, (4) đơn vị chia nhóm, (5) cỡ mẫu theo MDE, (6) thời gian chạy."
+        }
+      ],
+      "beginner_note_vi": "Học sau ml.classical. Intern và fresher có thể bỏ qua; mục này cần khái niệm p-value ở ml.math.statistical_inference.",
+      "example_problems": [
+        "Design an online experiment for a new ranker",
+        "How long to run the test?",
+        "Explain Multi-Armed Bandit principles"
+      ],
+      "bank_topics": [
+        "ml_ai.stats_probability",
+        "ml_ai.mlops"
+      ],
+      "bank_counts": {
+        "ml_ai.stats_probability": {
+          "total": 64,
+          "y2026": 31
+        },
+        "ml_ai.mlops": {
+          "total": 61,
+          "y2026": 32
+        }
+      },
+      "target_swe": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 0,
+        "senior": 0
+      },
+      "target_ai": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 2,
+        "senior": 3
+      },
+      "est_hours": 4,
+      "plan_order": 246,
+      "plan_day": null,
+      "plan_hours": 4
+    },
+    {
       "id": "ml.llm.llm_basics_pretraining",
       "section": "ml",
       "module": "ml.llm",
@@ -27473,7 +27946,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 243,
+      "plan_order": 247,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -27590,7 +28063,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 244,
+      "plan_order": 248,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -27713,7 +28186,7 @@
         "senior": 3
       },
       "est_hours": 2,
-      "plan_order": 245,
+      "plan_order": 249,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -27841,7 +28314,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 246,
+      "plan_order": 250,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -27961,7 +28434,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 247,
+      "plan_order": 251,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -28075,7 +28548,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 248,
+      "plan_order": 252,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -28197,7 +28670,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 249,
+      "plan_order": 253,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -28323,7 +28796,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 250,
+      "plan_order": 254,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -28443,7 +28916,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 251,
+      "plan_order": 255,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -28560,7 +29033,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 252,
+      "plan_order": 256,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -28679,7 +29152,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 253,
+      "plan_order": 257,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -28791,7 +29264,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 254,
+      "plan_order": 258,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -28913,7 +29386,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 255,
+      "plan_order": 259,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -29038,7 +29511,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 256,
+      "plan_order": 260,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -29155,7 +29628,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 257,
+      "plan_order": 261,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -29266,7 +29739,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 258,
+      "plan_order": 262,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -29378,7 +29851,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 259,
+      "plan_order": 263,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -29485,7 +29958,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 260,
+      "plan_order": 264,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -29605,7 +30078,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 261,
+      "plan_order": 265,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -29728,7 +30201,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 262,
+      "plan_order": 266,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -29838,7 +30311,7 @@
         "senior": 3
       },
       "est_hours": 2,
-      "plan_order": 263,
+      "plan_order": 267,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -29948,7 +30421,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 264,
+      "plan_order": 268,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -30064,7 +30537,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 265,
+      "plan_order": 269,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -30189,7 +30662,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 266,
+      "plan_order": 270,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -30303,7 +30776,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 267,
+      "plan_order": 271,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -30420,7 +30893,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 268,
+      "plan_order": 272,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -30518,7 +30991,7 @@
         "senior": 3
       },
       "est_hours": 2,
-      "plan_order": 269,
+      "plan_order": 273,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -30636,7 +31109,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 270,
+      "plan_order": 274,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -30760,7 +31233,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 271,
+      "plan_order": 275,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -30885,7 +31358,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 272,
+      "plan_order": 276,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -31013,7 +31486,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 273,
+      "plan_order": 277,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -31129,7 +31602,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 274,
+      "plan_order": 278,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -31233,7 +31706,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 275,
+      "plan_order": 279,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -31350,7 +31823,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 276,
+      "plan_order": 280,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -31462,7 +31935,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 277,
+      "plan_order": 281,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -31562,7 +32035,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 278,
+      "plan_order": 282,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -31696,7 +32169,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 279,
+      "plan_order": 283,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -31832,7 +32305,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 280,
+      "plan_order": 284,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -31977,7 +32450,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 281,
+      "plan_order": 285,
       "plan_day": null,
       "plan_hours": 6
     }
