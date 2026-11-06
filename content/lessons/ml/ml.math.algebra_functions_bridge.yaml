@@ -1,0 +1,209 @@
+id: ml.math.algebra_functions_bridge
+version: 1
+status: published
+title_vi: "Cầu nối đại số và hàm số cho ML"
+est_minutes: 15
+objectives_vi:
+  - "Dùng log(a·b) = log a + log b để giải thích vì sao ML cộng log xác suất thay vì nhân."
+  - "Đọc ký hiệu Σ và vector (list) và viết lại bằng sum, range, phép tính từng phần tử."
+  - "Tính được sigmoid, ReLU, softmax tại vài điểm và nói được khoảng giá trị của chúng."
+blocks:
+  - id: s_explog
+    type: section
+    title_vi: "Hàm số, exp và log"
+    summary_vi: "Hàm biến đầu vào thành đầu ra; exp và log ngược nhau, log biến tích thành tổng."
+    exercise_ref: ex_sum
+  - id: t01
+    type: text
+    md: |
+      **Hàm số** `f` là quy tắc biến mỗi `x` thành một `f(x)`. **Ghép hàm** `f(g(x))` lấy kết quả của `g` làm đầu vào
+      của `f`. **Độ dốc** (slope) là mức `f` đổi khi `x` tăng 1: đường thẳng có độ dốc không đổi (tuyến tính),
+      đường cong thì không.
+
+      **exp và log**: `exp(x) = eˣ` với `e ≈ 2,718`; `log` (ở đây là log tự nhiên, `math.log`) là phép ngược của `exp`,
+      nên `exp(log(x)) = x`. Tính chất quan trọng nhất:
+
+      - `log(a·b) = log a + log b` (log biến **tích** thành **tổng**)
+      - `log(a/b) = log a − log b`
+
+      **Vì sao ML cộng log xác suất**: xác suất của cả dữ liệu là tích của nhiều xác suất nhỏ. Nhân 0,001 hai trăm
+      lần trong Python ra `0.0` (số quá nhỏ, máy làm tròn về 0, gọi là underflow). Nhưng `200 · log(0,001) ≈ −1381,6`
+      vẫn là một số bình thường. Cộng log xác suất vừa an toàn về số học, vừa cho cùng thứ tự lớn nhỏ vì `log` tăng dần.
+  - id: t02
+    type: text
+    md: |
+      **Ký hiệu tổng Σ**: `Σ (i=1..4) i²` nghĩa là `1 + 4 + 9 + 16 = 30`. Trong Python là
+      `sum(i**2 for i in range(1, 5))` (nhớ `range` bỏ số cuối). **Vector** là một dãy số có thứ tự như list `[2, 5, 1]`;
+      cộng hoặc nhân hai vector là làm từng cặp cùng vị trí (element-wise): `[a + b for a, b in zip(u, v)]`.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Điều nào đúng với log tự nhiên (`math.log`)?"
+    options:
+      - {id: a, text_md: "`log(a·b) = log a + log b`"}
+      - {id: b, text_md: "`log(a·b) = log a · log b`"}
+      - {id: c, text_md: "`log(a + b) = log a + log b`"}
+    answer: [a]
+    explain_md: "Log biến tích thành tổng, không phải ngược lại. `log(a + b)` không tách được thành hai log."
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Cộng log xác suất thay vì nhân để tránh số quá nhỏ bị làm tròn về 0. Hiện tượng này gọi là ___ (một từ tiếng Anh, tên kiểu lỗi của số nhỏ)."
+    blanks: [{accept: ["underflow", "Underflow"]}]
+    explain_md: "Underflow: tích nhiều số nhỏ nhỏ hơn mức máy biểu diễn được nên thành 0.0; tổng các log thì không."
+  - id: q03
+    type: predict_output
+    code: |
+      import math
+
+      print(round(math.log(2) + math.log(3), 6) == round(math.log(6), 6))
+      print(round(math.exp(math.log(5)), 6))
+      print(sum(i for i in range(1, 5)))
+    expected_output: |
+      True
+      5.0
+      10
+    explain_md: "`log 2 + log 3 = log 6`; `exp(log 5) = 5.0`; `range(1, 5)` là 1,2,3,4 nên tổng 10."
+  - id: ex_sum
+    type: code_exercise
+    md: |
+      `sum_squares(n)` trả `Σ (i=1..n) i²` bằng `sum` và `range`. Bản dưới đây dùng `range(1, n)` nên thiếu số hạng cuối.
+      Hãy sửa.
+    entry: sum_squares
+    starter: |
+      def sum_squares(n):
+          return sum(i ** 2 for i in range(1, n))
+    guidance_md: |
+      - `sum_squares(4)` phải ra `30`, code đang ra `14`.
+      - `range(a, b)` không gồm `b`.
+    hints:
+      - level: nudge
+        md: "Số hạng cuối `i = n` có được đưa vào không?"
+      - level: approach
+        md: "`range(1, n + 1)` gồm cả `n`."
+      - level: near_solution
+        md: "`return sum(i ** 2 for i in range(1, n + 1))`."
+    tests:
+      - {args: [4], expected: 30}
+      - {args: [0], expected: 0}
+      - {args: [1], expected: 1}
+      - {args: [10], expected: 385}
+    solution: |
+      def sum_squares(n):
+          return sum(i ** 2 for i in range(1, n + 1))
+  - id: s_act
+    type: section
+    title_vi: "Sigmoid, ReLU, tanh, softmax"
+    summary_vi: "Các hàm kích hoạt: sigmoid ép vào (0,1), ReLU cắt số âm, softmax biến dãy số thành xác suất."
+    exercise_ref: ex_sigmoid
+  - id: t03
+    type: text
+    md: |
+      - **Sigmoid** `σ(z) = 1 / (1 + e⁻ᶻ)`: đồ thị chữ S, ép mọi số vào `(0, 1)`; `σ(0) = 0,5`, `σ(2) ≈ 0,88`,
+        `σ(−2) ≈ 0,12`. Dùng làm xác suất của câu trả lời có/không.
+      - **ReLU** `max(0, z)`: số âm thành 0, số dương giữ nguyên.
+      - **tanh** giống sigmoid nhưng ép vào `(−1, 1)`, tâm ở 0.
+      - **Softmax** `softmax(zᵢ) = e^zᵢ / Σ e^zⱼ`: biến dãy số thành các xác suất cộng lại bằng 1. Với `[1, 2, 3]`:
+        `e¹≈2,718; e²≈7,389; e³≈20,086`, tổng `≈30,19`, kết quả `≈ [0,09; 0,24; 0,67]`.
+
+      **Ổn định số học**: `e^1000` tràn số. Vì `softmax(z) = softmax(z − c)` với mọi hằng `c`, ta trừ `max(z)` trước khi
+      `exp`: số mũ lớn nhất là 0 nên không tràn, kết quả không đổi.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      import math
+
+      z = [1, 2, 3]
+      m = max(z)
+      e = [math.exp(v - m) for v in z]
+      s = sum(e)
+      p = [round(v / s, 2) for v in e]
+      print(p)
+      print(round(sum(v / s for v in e), 6))
+    expected_output: |
+      [0.09, 0.24, 0.67]
+      1.0
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Sigmoid có thể cho giá trị nào sau đây?"
+    options:
+      - {id: a, text_md: "`0.73`"}
+      - {id: b, text_md: "`-0.5`"}
+      - {id: c, text_md: "`1.8`"}
+    answer: [a]
+    explain_md: "Sigmoid luôn nằm trong khoảng mở (0, 1). `-0.5` hợp với tanh, còn `1.8` thì cả hai đều không cho."
+  - id: q05
+    type: quiz_mcq
+    prompt_md: "Vì sao trừ `max(z)` trước khi `exp` trong softmax?"
+    options:
+      - {id: a, text_md: "Tránh tràn số mà không đổi kết quả"}
+      - {id: b, text_md: "Để tổng các xác suất bằng 1"}
+      - {id: c, text_md: "Để loại các số âm"}
+    answer: [a]
+    explain_md: "Trừ một hằng cho mọi phần tử làm tử và mẫu cùng nhân một thừa số, kết quả giữ nguyên; tổng bằng 1 đã đúng từ công thức."
+  - id: q06
+    type: predict_output
+    code: |
+      import math
+
+      def relu(z):
+          return max(0, z)
+
+      def sigmoid(z):
+          return 1 / (1 + math.exp(-z))
+
+      print(relu(-3), relu(2.5))
+      print(round(sigmoid(0), 6), round(sigmoid(2), 6))
+      print([a * b for a, b in zip([1, 2, 3], [4, 5, 6])])
+    expected_output: |
+      0 2.5
+      0.5 0.880797
+      [4, 10, 18]
+    explain_md: "ReLU cắt -3 về 0. `σ(0) = 0,5`, `σ(2) ≈ 0,880797`. Nhân từng cặp: 1·4, 2·5, 3·6."
+  - id: ex_sigmoid
+    type: code_exercise
+    md: |
+      `sigmoid(z)` trả `1 / (1 + e⁻ᶻ)` làm tròn 6 chữ số bằng `round(v, 6)`. Bản dưới đây quên dấu trừ trong số mũ.
+      Hãy sửa.
+    entry: sigmoid
+    starter: |
+      import math
+
+
+      def sigmoid(z):
+          return round(1 / (1 + math.exp(z)), 6)
+    guidance_md: |
+      - `sigmoid(2)` phải ra `0.880797`, code đang ra `0.119203`.
+    hints:
+      - level: nudge
+        md: "Công thức có `e⁻ᶻ`; trong code, dấu trừ ở đâu?"
+      - level: approach
+        md: "Dùng `math.exp(-z)`."
+      - level: near_solution
+        md: "`round(1 / (1 + math.exp(-z)), 6)`."
+    tests:
+      - {args: [0], expected: 0.5}
+      - {args: [2], expected: 0.880797}
+      - {args: [-2], expected: 0.119203}
+      - {args: [10], expected: 0.999955}
+    solution: |
+      import math
+
+
+      def sigmoid(z):
+          return round(1 / (1 + math.exp(-z)), 6)
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "log(a·b) = log a + log b: ML cộng log xác suất để tránh underflow khi nhân nhiều số nhỏ."
+      - "Σ là sum; vector là list, phép cộng/nhân là từng cặp cùng vị trí; range bỏ số cuối."
+      - "Sigmoid vào (0,1), tanh vào (−1,1), ReLU = max(0, z)."
+      - "Softmax: e^zᵢ chia tổng, cộng bằng 1; trừ max(z) trước khi exp để ổn định."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X633], l2: [X634], l3: [X635]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

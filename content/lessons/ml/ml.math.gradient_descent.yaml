@@ -1,0 +1,172 @@
+id: ml.math.gradient_descent
+version: 1
+status: published
+title_vi: "Gradient descent và tối ưu cơ bản"
+est_minutes: 15
+objectives_vi:
+  - "Viết và chạy tay quy tắc cập nhật w ← w − lr·grad cho mô hình ŷ = w·x với loss MSE."
+  - "Giải thích learning rate quá nhỏ, vừa, quá lớn (phân kỳ) và phân biệt batch / mini-batch / SGD, epoch."
+  - "Phân biệt hàm lồi và không lồi, nghiệm đóng và nghiệm lặp, biết vì sao cần chuẩn hoá feature."
+blocks:
+  - id: s_rule
+    type: section
+    title_vi: "Quy tắc cập nhật và learning rate"
+    summary_vi: "Mỗi bước đi ngược gradient một đoạn lr; lr quá lớn làm loss tăng và phân kỳ."
+    exercise_ref: ex_gd
+  - id: t01
+    type: text
+    md: |
+      **Gradient descent** tìm tham số làm **loss** nhỏ: tính gradient (hướng loss tăng nhanh nhất) rồi bước **ngược** hướng đó.
+
+      ```
+      w ← w − lr · ∂L/∂w
+      ```
+
+      `lr` (learning rate) là độ dài mỗi bước. Với mô hình `ŷ = w·x` và `L = mean((w·x − y)²)`, gradient là
+      `mean(2·(w·x − y)·x)`.
+
+      Ví dụ 3 điểm `(1,2), (2,4), (3,6)`, `w = 0`, `lr = 0,05`: gradient bằng `−2·28/3 ≈ −18,67`, nên
+      `w ← 0 + 0,05·18,67 ≈ 0,933`. Lặp 20 vòng thì `w` tiến sát 2.
+
+      **Learning rate**: quá nhỏ thì học rất chậm; vừa thì hội tụ đều; quá lớn thì bước nhảy qua đáy, dao động và loss
+      **tăng dần** (phân kỳ, divergence). Với bài trên, mốc là `lr ≈ 0,21`: `lr = 0,3` làm `w` đi 0 → 5,6 → −4,48 → 13,66.
+
+      **Hội tụ (convergence)**: dừng khi loss giảm dưới ngưỡng, hoặc sau số bước cố định.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      xs = [1, 2, 3]
+      ys = [2, 4, 6]
+      w = 0.0
+      for _ in range(3):
+          grad = sum(2 * (w * x - y) * x for x, y in zip(xs, ys)) / 3
+          w -= 0.1 * grad
+      print(round(w, 4))
+    expected_output: |
+      1.9994
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Gradient tại `w` hiện tại là dương (loss tăng khi `w` tăng). Bước cập nhật `w ← w − lr·grad` làm gì với `w`?"
+    options:
+      - {id: a, text_md: "Giảm `w`, đi ngược hướng loss tăng"}
+      - {id: b, text_md: "Tăng `w`"}
+      - {id: c, text_md: "Giữ nguyên `w`"}
+    answer: [a]
+    explain_md: "Gradient dương nghĩa là tăng `w` làm loss tăng, nên trừ `lr·grad` để `w` giảm và loss giảm."
+  - id: q02
+    type: quiz_mcq
+    prompt_md: "Chạy gradient descent, loss tăng dần sau mỗi bước và `w` đổi dấu liên tục. Nguyên nhân hợp lý nhất?"
+    options:
+      - {id: a, text_md: "Learning rate quá lớn nên bước nhảy qua đáy (phân kỳ)"}
+      - {id: b, text_md: "Learning rate quá nhỏ"}
+      - {id: c, text_md: "Dữ liệu có quá ít epoch"}
+    answer: [a]
+    explain_md: "Mỗi bước vượt quá đáy và xa hơn lần trước, nên loss tăng. Giảm `lr` (ở đây dưới ≈ 0,21) để hội tụ."
+  - id: q03
+    type: predict_output
+    code: |
+      x = 5.0
+      for _ in range(2):
+          x -= 0.1 * 2 * x
+      print(round(x, 4))
+    expected_output: |
+      3.2
+    explain_md: "Gradient của x² là 2x. Bước 1: 5 − 0,1·10 = 4. Bước 2: 4 − 0,1·8 = 3,2."
+  - id: ex_gd
+    type: code_exercise
+    md: |
+      `gd_w(w0, lr, steps)` chạy gradient descent cho dữ liệu `(1,2), (2,4), (3,6)` với `ŷ = w·x`, loss MSE, và trả `w`
+      cuối (làm tròn 6 chữ số). Bản dưới đây cộng gradient thay vì trừ nên `w` đi sai hướng. Hãy sửa.
+    entry: gd_w
+    starter: |
+      def gd_w(w0, lr, steps):
+          xs = [1, 2, 3]
+          ys = [2, 4, 6]
+          w = w0
+          for _ in range(steps):
+              grad = sum(2 * (w * x - y) * x for x, y in zip(xs, ys)) / 3
+              w = w + lr * grad
+          return round(w, 6)
+    guidance_md: |
+      - Thử `gd_w(0, 0.05, 1)`: đáp án `0.933333`, code trả `-0.933333`.
+      - Quy tắc là `w ← w − lr·grad`.
+    hints:
+      - level: nudge
+        md: "Gradient chỉ hướng loss tăng. Ta muốn đi hướng nào?"
+      - level: approach
+        md: "Đổi dấu cập nhật: trừ `lr * grad`."
+      - level: near_solution
+        md: "`w = w - lr * grad`."
+    tests:
+      - {args: [0, 0.05, 1], expected: 0.933333}
+      - {args: [0, 0.1, 5], expected: 1.999997}
+      - {args: [1, 0.1, 0], expected: 1.0}
+      - {args: [0, 0.3, 2], expected: -4.48}
+    solution: |
+      def gd_w(w0, lr, steps):
+          xs = [1, 2, 3]
+          ys = [2, 4, 6]
+          w = w0
+          for _ in range(steps):
+              grad = sum(2 * (w * x - y) * x for x, y in zip(xs, ys)) / 3
+              w = w - lr * grad
+          return round(w, 6)
+  - id: s_scale
+    type: section
+    title_vi: "Batch, epoch, hàm lồi, nghiệm đóng"
+    summary_vi: "Chọn lượng dữ liệu mỗi bước, hiểu hình dạng loss và khi nào không cần lặp."
+  - id: t02
+    type: text
+    md: |
+      **Batch / mini-batch / SGD**: gradient tính trên toàn bộ dữ liệu (batch, ổn định nhưng chậm), trên một nhóm nhỏ
+      như 32 mẫu (mini-batch, mặc định), hoặc trên một mẫu (SGD, nhanh nhưng nhiễu). **Epoch** là một lượt đi hết toàn bộ
+      dữ liệu train; với 1000 mẫu và mini-batch 100 thì một epoch có 10 bước cập nhật.
+
+      **Lồi và không lồi (convex)**: hàm lồi chỉ có một đáy nên gradient descent (lr hợp lý) luôn tới đáy toàn cục; loss
+      của mạng nơ-ron là không lồi, có nhiều đáy cục bộ (local minimum) và điểm yên ngựa (saddle point).
+
+      **Nghiệm đóng và nghiệm lặp**: với bài `ŷ = w·x` có công thức thẳng `w = Σxy / Σx² = 28/14 = 2`, không cần lặp
+      (closed-form). Bài lớn hoặc không có công thức thì dùng gradient descent.
+
+      **Chuẩn hoá feature**: nếu các cột chênh thang đo, mặt loss bị dẹt, gradient descent đi chậm và zigzag; chuẩn hoá
+      (trung bình 0, độ lệch chuẩn 1) giúp hội tụ nhanh và cho phép lr lớn hơn.
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Tập train có 1000 mẫu, mini-batch 100. Một epoch gồm bao nhiêu bước cập nhật?"
+    options:
+      - {id: a, text_md: "10"}
+      - {id: b, text_md: "100"}
+      - {id: c, text_md: "1000"}
+    answer: [a]
+    explain_md: "Một epoch đi hết 1000 mẫu, mỗi bước dùng 100 mẫu nên có 1000/100 = 10 bước."
+  - id: q05
+    type: quiz_mcq
+    prompt_md: "Điều nào đúng về hàm loss lồi so với không lồi?"
+    options:
+      - {id: a, text_md: "Lồi chỉ có một đáy; không lồi (như mạng nơ-ron) có nhiều đáy cục bộ và saddle point"}
+      - {id: b, text_md: "Lồi có nhiều đáy cục bộ"}
+      - {id: c, text_md: "Gradient descent không chạy được trên hàm không lồi"}
+    answer: [a]
+    explain_md: "Hàm lồi có một đáy toàn cục. Với hàm không lồi, gradient descent vẫn chạy nhưng có thể kẹt ở đáy cục bộ."
+  - id: q06
+    type: quiz_fill
+    prompt_md: "Với dữ liệu `(1,2), (2,4), (3,6)` và `ŷ = w·x`, nghiệm đóng `w = Σxy / Σx²` bằng ___ (một số)."
+    blanks: [{accept: ["2", "2.0"]}]
+    explain_md: "Σxy = 2+8+18 = 28, Σx² = 1+4+9 = 14, nên w = 2."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Cập nhật w ← w − lr·grad; với ŷ = w·x và MSE, grad = mean(2(wx − y)x)."
+      - "lr quá nhỏ thì chậm, quá lớn thì phân kỳ (loss tăng); dừng khi loss ngừng giảm hoặc sau số bước cố định."
+      - "Batch dùng cả dữ liệu, mini-batch một nhóm nhỏ, SGD một mẫu; epoch là một lượt hết dữ liệu train."
+      - "Hàm lồi một đáy, mạng nơ-ron không lồi; bài đơn giản có nghiệm đóng; chuẩn hoá feature giúp hội tụ nhanh."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [Q233], l2: [X640], l3: [X641]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

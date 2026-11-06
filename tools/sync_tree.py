@@ -163,6 +163,11 @@ EXTRA_IDS = {
     "lld.problems.logger_notification",
     "lld.concurrency_design.locking_booking",
     "lld.patterns.pattern_selection",
+    # Wave 4 Round 27: ML foundations - math A (pure-Python, by-hand on lists).
+    "ml.math.algebra_functions_bridge",
+    "ml.math.linear_algebra_basics",
+    "ml.math.derivatives_gradients",
+    "ml.math.gradient_descent",
 }
 
 # Expected shipped counts, asserted so an upstream tree edit can't silently change the snapshot.
@@ -170,7 +175,7 @@ PLAN_MVP_COUNT = 40
 EXPECTED_SD = 86
 EXPECTED_ML4 = 39
 EXPECTED_EXTRA_IDS = len(EXTRA_IDS)  # Wave 2 additions
-EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 273
+EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 277
 
 # Node fields the app uses (SPEC 4.2); optional ones are skipped when a node lacks them.
 NODE_FIELDS = [
