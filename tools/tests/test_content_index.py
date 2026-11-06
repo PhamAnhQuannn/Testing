@@ -27,7 +27,7 @@ def test_index_starts_with_the_40_subtopics_of_spec_4_1():
 def test_extra_track_section_counts():
     sections = [s["section"] for s in SUBTOPICS]
     assert sections.count("sd") == 86
-    assert sections.count("ml") == 69  # 39 LLM + 12 math + 8 fundamentals + 7 classical + 3 nlp (EXTRA_IDS)
+    assert sections.count("ml") == 69  # 39 LLM + 12 math + 8 fund + 7 classical + 3 nlp (EXTRA_IDS)
     assert sum(1 for s in SUBTOPICS if s["module"] in EXTRA_MODULES) == 39
 
 
