@@ -1,0 +1,135 @@
+id: ml.classical.linear_regression
+version: 1
+status: published
+title_vi: "Linear regression"
+est_minutes: 13
+objectives_vi:
+  - "Suy ra nghiệm đóng (slope, intercept) của hồi quy tuyến tính đơn biến từ việc cực tiểu hoá MSE."
+  - "Cài đặt OLS bằng Python thuần (sum và vòng lặp) và dự đoán bằng y = slope·x + intercept."
+  - "Nêu các giả định (linearity, independent errors, homoscedasticity) và kiểm tra bằng residual."
+blocks:
+  - id: s_ols
+    type: section
+    title_vi: "OLS và normal equation"
+    summary_vi: "Cost MSE và nghiệm đóng cho slope, intercept của đường thẳng."
+  - id: t01
+    type: text
+    md: |
+      **Linear regression** mô hình hoá `y ≈ slope·x + intercept`. Với mỗi điểm, **residual** là `r = y − ŷ`
+      (giá trị thật trừ giá trị dự đoán). **OLS** (ordinary least squares) chọn đường làm cực tiểu hoá cost
+
+      `MSE = (1/n) · Σ (y − ŷ)²`
+
+      Đặt đạo hàm theo `slope` và `intercept` bằng 0 (đó là **normal equation**), ta được nghiệm đóng với `n` điểm:
+
+      ```
+      slope     = (n·Sxy − Sx·Sy) / (n·Sxx − Sx·Sx)
+      intercept = (Sy − slope·Sx) / n
+      ```
+
+      trong đó `Sx = sum(xs)`, `Sy = sum(ys)`, `Sxx = sum(x*x)`, `Sxy = sum(x*y)`. Chỉ cần vài tổng và vòng lặp, không cần thư viện.
+      Mẫu số bằng 0 khi mọi `x` giống nhau: khi đó không có đường duy nhất.
+
+      Dạng tương đương: `slope = Σ(x−x̄)(y−ȳ) / Σ(x−x̄)²` và `intercept = ȳ − slope·x̄`, nên đường OLS luôn đi qua điểm trung bình `(x̄, ȳ)`.
+  - id: q01
+    type: predict_output
+    code: |
+      xs = [0, 1, 2]
+      ys = [1, 2, 6]
+      mx = sum(xs) / 3
+      my = sum(ys) / 3
+      slope = sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / sum((x - mx) ** 2 for x in xs)
+      b = my - slope * mx
+      print(slope, b)
+      print([y - (slope * x + b) for x, y in zip(xs, ys)])
+    expected_output: "2.5 0.5\n[0.5, -1.0, 0.5]"
+    explain_md: "mx = 1, my = 3; tử số = (−1)(−2) + 0·(−1) + 1·3 = 5, mẫu số = 2 nên slope = 2.5, intercept = 3 − 2.5 = 0.5. Dự đoán 0.5, 3.0, 5.5 nên residual 0.5, −1.0, 0.5 (tổng bằng 0)."
+  - id: q02
+    type: quiz_mcq
+    prompt_md: "Cost mà OLS cực tiểu hoá là gì?"
+    options:
+      - {id: a, text_md: "Tổng bình phương residual (tương đương MSE)"}
+      - {id: b, text_md: "Tổng residual (có dấu)"}
+      - {id: c, text_md: "Residual lớn nhất"}
+    answer: [a]
+    explain_md: "OLS cực tiểu hoá Σ(y − ŷ)², tức MSE nhân n. Tổng residual có dấu bị triệt tiêu nên không dùng được."
+  - id: s_assume
+    type: section
+    title_vi: "Giả định và kiểm tra residual"
+    summary_vi: "Linearity, sai số độc lập, homoscedasticity và cách soi residual; luyện dự đoán."
+    exercise_ref: ex_predict
+  - id: t02
+    type: text
+    md: |
+      OLS cho kết quả đáng tin khi các **giả định** sau xấp xỉ đúng:
+      - **Linearity**: quan hệ giữa `x` và `y` là tuyến tính.
+      - **Independent errors**: sai số của các điểm độc lập nhau (chuỗi thời gian thường vi phạm vì sai số tự tương quan).
+      - **Homoscedasticity**: phương sai sai số không đổi theo `x` (nếu residual loe ra khi `x` tăng là heteroscedasticity).
+      - Sai số xấp xỉ chuẩn (cần cho khoảng tin cậy, không cần để tính nghiệm).
+
+      **Kiểm tra bằng residual**: tính `r = y − ŷ` rồi xem residual theo `ŷ` hoặc `x`. Nếu phân bố ngẫu nhiên quanh 0 thì ổn;
+      nếu cong hình chữ U thì thiếu tính tuyến tính (cần feature phi tuyến); nếu loe hình phễu thì phương sai không đều.
+
+      ```
+      pred = [slope * x + intercept for x in xs]
+      res  = [y - p for y, p in zip(ys, pred)]
+      mse  = sum(r * r for r in res) / len(res)
+      ```
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Đồ thị residual theo giá trị dự đoán có hình phễu (càng về phải càng loe). Điều này cho thấy gì?"
+    options:
+      - {id: a, text_md: "Vi phạm homoscedasticity: phương sai sai số tăng theo giá trị dự đoán"}
+      - {id: b, text_md: "Mô hình hoàn hảo"}
+      - {id: c, text_md: "Vi phạm giả định sai số có trung bình dương"}
+    answer: [a]
+    explain_md: "Residual có độ phân tán thay đổi theo ŷ nghĩa là phương sai không hằng số (heteroscedasticity)."
+  - id: q04
+    type: predict_output
+    code: |
+      res = [0.5, -1.0, 0.5]
+      print(sum(r * r for r in res) / len(res))
+    expected_output: "0.5"
+    explain_md: "0.25 + 1.0 + 0.25 = 1.5, chia 3 được MSE = 0.5."
+  - id: ex_predict
+    type: code_exercise
+    md: |
+      Viết `predict(slope, intercept, x)` trả `slope * x + intercept` làm tròn 6 chữ số.
+      Bản dưới đây quên cộng intercept nên sai. Hãy sửa.
+    entry: predict
+    starter: |
+      def predict(slope, intercept, x):
+          return round(slope * x, 6)
+    guidance_md: |
+      - Thử `predict(2, 1, 3)`: đáp án `7.0`, code trả `6`.
+      - Đường thẳng là `slope * x + intercept`.
+    hints:
+      - level: nudge
+        md: "Công thức đường thẳng có hai tham số; code đang dùng mấy tham số?"
+      - level: approach
+        md: "Dự đoán là `slope * x + intercept`."
+      - level: near_solution
+        md: "`return round(slope * x + intercept, 6)`."
+    tests:
+      - {args: [2, 1, 3], expected: 7.0}
+      - {args: [0.5, -1, 4], expected: 1.0}
+      - {args: [-1, 10, 2.5], expected: 7.5}
+      - {args: [3, 0, 0], expected: 0.0}
+    solution: |
+      def predict(slope, intercept, x):
+          return round(slope * x + intercept, 6)
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "OLS cực tiểu hoá MSE = (1/n)·Σ(y − ŷ)²; residual r = y − ŷ."
+      - "Nghiệm đóng: slope = (n·Sxy − Sx·Sy)/(n·Sxx − Sx²), intercept = (Sy − slope·Sx)/n; đường đi qua (x̄, ȳ)."
+      - "Giả định: linearity, sai số độc lập, homoscedasticity (và sai số xấp xỉ chuẩn cho suy diễn)."
+      - "Soi residual: ngẫu nhiên quanh 0 là ổn, hình chữ U là thiếu phi tuyến, hình phễu là phương sai không đều."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [Q236], l2: [X683], l3: [X684]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

@@ -188,6 +188,13 @@ EXTRA_IDS = {
     "ml.fundamentals.regression_ranking_metrics",
     "ml.fundamentals.validation_tuning",
     "ml.fundamentals.interpretability_fairness",
+    # Wave 4 Round 32: ML foundations - classical A (OLS/logistic/trees/ensembles). knn_nb_svm and
+    # unsupervised deferred: their assessment write_code (Q240/Q241) references use numpy, which the
+    # stdlib-only Pyodide harness cannot run as a generated check solution.
+    "ml.classical.linear_regression",
+    "ml.classical.logistic_regression",
+    "ml.classical.decision_trees",
+    "ml.classical.ensembles",
 }
 
 # Expected shipped counts, asserted so an upstream tree edit can't silently change the snapshot.
@@ -195,7 +202,7 @@ PLAN_MVP_COUNT = 40
 EXPECTED_SD = 86
 EXPECTED_ML4 = 39
 EXPECTED_EXTRA_IDS = len(EXTRA_IDS)  # Wave 2 additions
-EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 293
+EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 297
 
 # Node fields the app uses (SPEC 4.2); optional ones are skipped when a node lacks them.
 NODE_FIELDS = [
