@@ -106,6 +106,7 @@ MODULE_NAMES: dict[str, str] = {
     "sd.technologies": "Công nghệ thường gặp",
     "sd.archetypes": "Bài toán thiết kế mẫu",
     "ml.math": "Toán cho ML",
+    "ml.fundamentals": "Nền tảng ML",
     "ml.llm": "LLM cơ bản",
     "ml.rag_agents": "RAG & agent",
     "ml.llm_eval_serving": "Đánh giá & triển khai LLM",

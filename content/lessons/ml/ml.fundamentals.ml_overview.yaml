@@ -1,0 +1,159 @@
+id: ml.fundamentals.ml_overview
+version: 1
+status: published
+title_vi: "Các dạng học máy và quy trình ML"
+est_minutes: 15
+objectives_vi:
+  - "Chỉ ra feature, nhãn, mô hình, tham số và hyperparameter trong một bài toán như đoán giá nhà."
+  - "Phân biệt supervised / unsupervised / self-supervised, phân loại và hồi quy, AI ⊃ ML ⊃ DL."
+  - "Giải thích vai trò train / validation / test, ERM và vì sao phải làm baseline trước."
+blocks:
+  - id: s_concepts
+    type: section
+    title_vi: "Dữ liệu, mô hình và các dạng học"
+    summary_vi: "Feature, nhãn, tham số; có nhãn hay không nhãn; phân loại hay hồi quy."
+  - id: t01
+    type: text
+    md: |
+      **Machine learning (ML)** là cách để máy tự rút quy tắc từ dữ liệu thay vì lập trình từng luật bằng tay.
+
+      Bảng nhà: `50 m² → 1 tỷ`, `70 m² → 1,4 tỷ`, `100 m² → 2 tỷ`.
+
+      - **Feature**: cột đầu vào `x` (diện tích). **Nhãn (label)**: đáp án cần đoán `y` (giá).
+      - **Mô hình**: hàm `ŷ = f(x)`, ví dụ `ŷ = w·x`. **Tham số** là số bên trong do máy tìm (`w`); với `w = 0,02`
+        thì nhà 80 m² được đoán `0,02·80 = 1,6` tỷ.
+      - **Loss** đo mô hình sai bao nhiêu. **ERM** (empirical risk minimization): huấn luyện là giảm loss trung bình
+        trên dữ liệu đã có (empirical = từ dữ liệu quan sát), hy vọng loss thật trên dữ liệu mới cũng nhỏ.
+
+      **Supervised**: có nhãn (đoán giá, đoán spam). **Unsupervised**: không nhãn (gom khách hàng giống nhau).
+      **Self-supervised**: máy tự tạo nhãn từ chính dữ liệu (vd đoán từ bị che trong câu).
+
+      **Hồi quy (regression)**: đoán một con số (giá nhà). **Phân loại (classification)**: đoán một nhóm (spam hay không).
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Đoán nhà có đắt hơn 2 tỷ hay không (có / không) từ diện tích và số phòng là bài toán gì?"
+    options:
+      - {id: a, text_md: "Phân loại (supervised)"}
+      - {id: b, text_md: "Hồi quy (supervised)"}
+      - {id: c, text_md: "Unsupervised clustering"}
+    answer: [a]
+    explain_md: "Có nhãn thật (đắt hay không) và đầu ra là một nhóm, nên là phân loại. Nếu đoán chính con số giá thì mới là hồi quy."
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Với `ŷ = w·x`, `w = 0,02` và `x = 80` (m²), giá đoán là ___ (tỷ, một số)."
+    blanks: [{accept: ["1.6", "1,6"]}]
+    explain_md: "ŷ = 0,02 · 80 = 1,6 tỷ."
+  - id: s_workflow
+    type: section
+    title_vi: "Quy trình: split, hyperparameter, baseline"
+    summary_vi: "Học trên train, chọn trên validation, thi trên test; luôn làm baseline trước."
+    exercise_ref: ex_base
+  - id: t02
+    type: text
+    md: |
+      **Chia dữ liệu**: ví dụ 1.000 mẫu thành 700 **train** / 150 **validation** / 150 **test**.
+      Học trên train, chọn mô hình và chỉnh hyperparameter trên validation, còn **test chỉ dùng một lần cuối**.
+      Nếu chọn mô hình dựa trên test thì test không còn là bài thi thật: điểm bị lạc quan giả.
+
+      **Tham số vs hyperparameter**: tham số do máy học (`w`); hyperparameter do người chọn trước khi huấn luyện
+      (learning rate 0,01, số cây).
+
+      **Baseline-first**: mô hình đơn giản nhất, vd luôn đoán giá trung bình của train. Làm trước để có mốc so sánh;
+      mô hình phức tạp phải thắng được baseline mới đáng dùng.
+
+      **AI ⊃ ML ⊃ DL**: AI là mọi cách làm máy có hành vi thông minh (kể cả luật if-else viết tay), ML là phần học từ dữ liệu
+      (hồi quy tuyến tính), DL là phần ML dùng mạng nơ-ron nhiều lớp.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      train = [1.0, 2.0, 3.0]
+      test = [2.0, 4.0]
+      pred = sum(train) / len(train)
+      print(pred)
+      print(sum((y - pred) ** 2 for y in test) / len(test))
+    expected_output: |
+      2.0
+      2.0
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Vì sao không được chọn mô hình (hay hyperparameter) dựa trên điểm test?"
+    options:
+      - {id: a, text_md: "Vì test sẽ bị dùng để chọn, nên điểm trên test lạc quan và không còn phản ánh dữ liệu mới"}
+      - {id: b, text_md: "Vì test quá nhỏ để tính điểm"}
+      - {id: c, text_md: "Vì test dùng để huấn luyện tham số"}
+    answer: [a]
+    explain_md: "Chọn trên validation, giữ test nguyên vẹn đến cuối để đo đúng khả năng trên dữ liệu chưa từng thấy."
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Trong huấn luyện `ŷ = w·x` với learning rate 0,01, đâu là hyperparameter?"
+    options:
+      - {id: a, text_md: "`w`"}
+      - {id: b, text_md: "Learning rate 0,01"}
+      - {id: c, text_md: "`ŷ`"}
+    answer: [b]
+    explain_md: "Learning rate do người chọn trước; `w` do máy học nên là tham số."
+  - id: q05
+    type: predict_output
+    code: |
+      n = 1000
+      n_train = int(n * 0.7)
+      n_val = int(n * 0.15)
+      print(n_train, n_val, n - n_train - n_val)
+    expected_output: |
+      700 150 150
+    explain_md: "700 train, 150 validation, phần còn lại 1000 − 700 − 150 = 150 là test."
+  - id: q06
+    type: quiz_mcq
+    prompt_md: "Xếp hồi quy tuyến tính vào sơ đồ AI ⊃ ML ⊃ DL."
+    options:
+      - {id: a, text_md: "ML (nằm trong AI, không phải DL)"}
+      - {id: b, text_md: "DL"}
+      - {id: c, text_md: "Ngoài AI"}
+    answer: [a]
+    explain_md: "Hồi quy tuyến tính học từ dữ liệu nên là ML; chưa dùng mạng nơ-ron nhiều lớp nên không phải DL."
+  - id: ex_base
+    type: code_exercise
+    md: |
+      `baseline_mse(train_y, test_y)` dự đoán mọi mẫu test bằng **trung bình của train** rồi trả MSE trên test
+      (làm tròn 6 chữ số). Bản dưới đây lấy trung bình của test, tức là rò rỉ test. Hãy sửa.
+    entry: baseline_mse
+    starter: |
+      def baseline_mse(train_y, test_y):
+          pred = sum(test_y) / len(test_y)
+          return round(sum((y - pred) ** 2 for y in test_y) / len(test_y), 6)
+    guidance_md: |
+      - `baseline_mse([1, 2, 3], [2, 4])` phải ra `2.0` (đoán 2.0), code hiện tại trả `1.0`.
+      - Baseline chỉ được nhìn train.
+    hints:
+      - level: nudge
+        md: "Baseline được phép dùng dữ liệu nào để tính trung bình?"
+      - level: approach
+        md: "Tính `pred` từ `train_y`."
+      - level: near_solution
+        md: "`pred = sum(train_y) / len(train_y)`."
+    tests:
+      - {args: [[1, 2, 3], [2, 4]], expected: 2.0}
+      - {args: [[10], [10, 12]], expected: 2.0}
+      - {args: [[1, 3], [2]], expected: 0.0}
+      - {args: [[0, 6], [1, 2, 3]], expected: 1.666667}
+    solution: |
+      def baseline_mse(train_y, test_y):
+          pred = sum(train_y) / len(train_y)
+          return round(sum((y - pred) ** 2 for y in test_y) / len(test_y), 6)
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Mẫu có feature (đầu vào) và nhãn (đáp án); mô hình ŷ = f(x) có tham số do máy học."
+      - "Supervised có nhãn, unsupervised không nhãn, self-supervised tự tạo nhãn; phân loại đoán nhóm, hồi quy đoán số."
+      - "ERM: giảm loss trung bình trên dữ liệu có sẵn; train để học, validation để chọn, test chỉ chấm cuối."
+      - "Hyperparameter do người chọn; luôn làm baseline trước; AI ⊃ ML ⊃ DL."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [Q225], l2: [X665], l3: [X666]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

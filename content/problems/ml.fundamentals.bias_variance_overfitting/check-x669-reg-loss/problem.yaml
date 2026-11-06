@@ -1,0 +1,73 @@
+id: check-x669-reg-loss
+subtopic_id: ml.fundamentals.bias_variance_overfitting
+secondary_subtopics: []
+kind: check
+title: 'Check X669: regularized loss'
+title_vi: 'Kiểm tra X669: loss có regularization'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Implement `reg_loss(base, weights, lam, kind)`: the regularized loss. `base` is the base loss (float),
+  `weights` a list of numbers, `lam` the regularization strength (float) and `kind` a string.
+  If `kind == "l2"` add `lam * sum(w^2)`; if `kind == "l1"` add `lam * sum(|w|)`; for `"none"` (or any
+  other kind) add nothing. Return `round(base + penalty, 6)` as a float. An empty `weights` list has
+  penalty 0.
+statement_vi_md: |
+  Cài `reg_loss(base, weights, lam, kind)`: loss có regularization. `base` là loss gốc (float), `weights` là
+  danh sách trọng số, `lam` là độ mạnh phạt (float), `kind` là chuỗi. Nếu `kind == "l2"` cộng
+  `lam * sum(w²)`; nếu `kind == "l1"` cộng `lam * sum(|w|)`; `"none"` (hoặc kind lạ) không cộng gì. Trả
+  `round(base + penalty, 6)` dạng float. `weights` rỗng thì phạt bằng 0.
+constraints:
+- 0 <= len(weights) <= 100
+- kind is any string; only "l2" and "l1" add a penalty
+examples:
+- input: base = 0.5, weights = [1, -2], lam = 0.1, kind = "l2"
+  output: '1.0'
+  explain_vi: 0,5 + 0,1·(1² + 2²) = 1,0.
+- input: base = 0.5, weights = [1, -2], lam = 0.1, kind = "l1"
+  output: '0.8'
+  explain_vi: 0,5 + 0,1·(|1| + |−2|) = 0,8.
+io:
+  mode: function
+  entry: reg_loss
+  params:
+  - name: base
+    type: float
+  - name: weights
+    type: list
+  - name: lam
+    type: float
+  - name: kind
+    type: str
+  returns: float
+  compare: float_tol
+starter:
+  python: |
+    def reg_loss(base, weights, lam, kind):
+        # TODO: l2 -> lam*sum(w*w), l1 -> lam*sum(abs(w)), else 0; trả round(base + penalty, 6)
+        pass
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+time_target_min: 6
+hints:
+- L2 là tổng bình phương trọng số, L1 là tổng trị tuyệt đối.
+- "penalty = lam * sum(w * w for w in weights) cho l2, lam * sum(abs(w) for w in weights) cho l1."
+- "kind khác l1/l2 (kể cả none) thì penalty = 0; chỉ round ở kết quả cuối."
+solution:
+  file: solution.py
+  approach_vi: Chọn công thức phạt theo kind rồi cộng vào loss gốc, làm tròn ở cuối.
+  complexity: O(n) / O(1)
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x669
+status: validated
+version: 1

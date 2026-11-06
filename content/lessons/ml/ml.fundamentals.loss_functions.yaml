@@ -1,0 +1,163 @@
+id: ml.fundamentals.loss_functions
+version: 1
+status: published
+title_vi: "Hàm mất mát"
+est_minutes: 14
+objectives_vi:
+  - "Tính tay MSE và MAE, giải thích vì sao MSE nhạy với outlier hơn MAE."
+  - "Tính cross-entropy = −ln(p đáp án đúng) và log loss cho bài có/không."
+  - "Giải thích vì sao cross-entropy hợp phân loại hơn MSE và tác dụng của softmax temperature."
+blocks:
+  - id: s_reg
+    type: section
+    title_vi: "MSE, MAE và cross-entropy"
+    summary_vi: "Loss là điểm phạt: MSE/MAE cho đoán số, cross-entropy cho đoán nhóm."
+    exercise_ref: ex_mae
+  - id: t01
+    type: text
+    md: |
+      **Loss** là một con số đo mô hình sai bao nhiêu trên một mẫu; loss của cả tập là trung bình loss từng mẫu.
+      Huấn luyện là tìm tham số làm loss trung bình nhỏ nhất.
+
+      **Bài đoán số**
+      ```
+      MSE = (1/n) · Σ (ŷᵢ − yᵢ)²
+      MAE = (1/n) · Σ |ŷᵢ − yᵢ|
+      ```
+      Với `ŷ = [2, 4, 6]`, `y = [3, 4, 9]`: sai số `−1, 0, −3`, nên MSE = (1 + 0 + 9)/3 ≈ 3,33 và MAE = (1 + 0 + 3)/3 ≈ 1,33.
+      MSE bình phương nên sai số lớn bị phạt rất nặng (nhạy với outlier); MAE ít nhạy hơn.
+
+      **Bài đoán nhóm**: mô hình cho xác suất mỗi nhóm, **cross-entropy** = `−ln(p đáp án đúng)`.
+      Ví dụ p = [0,1; 0,7; 0,2], đáp án là nhóm 2: loss = −ln 0,7 ≈ 0,357. Nếu p₂ = 0,1 thì loss = −ln 0,1 ≈ 2,30.
+      Với 2 nhóm (log loss): `−[y·ln p + (1−y)·ln(1−p)]`.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      import math
+      y_hat = [2, 4, 6]
+      y = [3, 4, 9]
+      n = len(y)
+      print(round(sum((a - b) ** 2 for a, b in zip(y_hat, y)) / n, 4))
+      print(round(sum(abs(a - b) for a, b in zip(y_hat, y)) / n, 4))
+      print(round(-math.log(0.7), 4))
+    expected_output: |
+      3.3333
+      1.3333
+      0.3567
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Dữ liệu có một outlier rất lớn. Loss nào bị outlier chi phối nhiều hơn?"
+    options:
+      - {id: a, text_md: "MSE, vì sai số được bình phương"}
+      - {id: b, text_md: "MAE, vì có giá trị tuyệt đối"}
+      - {id: c, text_md: "Hai loss ảnh hưởng như nhau"}
+    answer: [a]
+    explain_md: "Sai số 10 đóng góp 100 vào MSE nhưng chỉ 10 vào MAE."
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Với `ŷ = [2, 4, 6]` và `y = [3, 4, 9]`, MSE (làm tròn 2 chữ số) bằng ___."
+    blanks: [{accept: ["3.33", "3,33", "3.3333", "10/3"]}]
+    explain_md: "Sai số bình phương: 1, 0, 9; trung bình = 10/3 ≈ 3,33."
+  - id: q03
+    type: predict_output
+    code: |
+      import math
+      print(round(-math.log(0.5), 4))
+    expected_output: |
+      0.6931
+    explain_md: "Cross-entropy = −ln(p đúng) = −ln 0,5 ≈ 0,6931."
+  - id: ex_mae
+    type: code_exercise
+    md: |
+      `mae(y_true, y_pred)` trả MAE `(1/n)·Σ|ŷ − y|` làm tròn 6 chữ số (danh sách rỗng trả `0.0`).
+      Bản dưới quên giá trị tuyệt đối nên các sai số triệt tiêu nhau. Hãy sửa.
+    entry: mae
+    starter: |
+      def mae(y_true, y_pred):
+          n = len(y_true)
+          if n == 0:
+              return 0.0
+          return round(sum(p - t for t, p in zip(y_true, y_pred)) / n, 6)
+    guidance_md: |
+      - Thử `mae([0, 0], [-1, 1])`: đáp án `1.0`, code trả `0.0`.
+    hints:
+      - level: nudge
+        md: "Sai số âm và dương đang bù trừ nhau. Cần dạng nào của sai số?"
+      - level: approach
+        md: "Dùng `abs(p - t)` cho từng cặp."
+      - level: near_solution
+        md: "`sum(abs(p - t) for t, p in zip(y_true, y_pred)) / n`."
+    tests:
+      - {args: [[2, 4, 6], [3, 4, 9]], expected: 1.333333}
+      - {args: [[1, 2], [1, 2]], expected: 0.0}
+      - {args: [[5], [2]], expected: 3.0}
+      - {args: [[0, 0], [-1, 1]], expected: 1.0}
+      - {args: [[], []], expected: 0.0}
+    solution: |
+      def mae(y_true, y_pred):
+          n = len(y_true)
+          if n == 0:
+              return 0.0
+          return round(sum(abs(p - t) for t, p in zip(y_true, y_pred)) / n, 6)
+  - id: s_cls
+    type: section
+    title_vi: "Vì sao cross-entropy, và softmax temperature"
+    summary_vi: "Cross-entropy phạt tự tin sai không giới hạn; temperature làm xác suất đều hơn hoặc nhọn hơn."
+  - id: t02
+    type: text
+    md: |
+      **Vì sao không dùng MSE cho phân loại**: nhãn y = 1, mô hình cho p = 0,01. MSE `(1−p)² ≈ 0,98` (tối đa chỉ 1),
+      còn cross-entropy `−ln 0,01 ≈ 4,6` và tăng vô hạn khi p → 0. Cross-entropy phạt nặng việc tự tin sai nên
+      gradient lớn, mô hình sửa nhanh hơn.
+
+      **Softmax temperature**: logit là điểm thô; `softmax(z/T)`. T lớn thì xác suất đều hơn, T nhỏ thì nhọn hơn.
+      Với `z = [2, 0]`: T = 1 cho p₀ ≈ 0,8808; T = 2 cho p₀ ≈ 0,7311.
+
+      **Awareness**: hinge loss (SVM), focal loss (giảm trọng số mẫu dễ khi mất cân bằng lớp), triplet loss
+      `max(0, d(a,p) − d(a,n) + m)`, label smoothing (nhãn 1 thành 0,9 để bớt quá tự tin).
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Nhãn đúng có p = 0,01. Loss nào phạt nặng hơn?"
+    options:
+      - {id: a, text_md: "Cross-entropy (≈ 4,6) nặng hơn MSE (≈ 0,98)"}
+      - {id: b, text_md: "MSE nặng hơn cross-entropy"}
+      - {id: c, text_md: "Bằng nhau"}
+    answer: [a]
+    explain_md: "−ln 0,01 ≈ 4,6 còn (1−0,01)² ≈ 0,98; cross-entropy không bị chặn trên."
+  - id: q05
+    type: quiz_mcq
+    prompt_md: "Tăng temperature T khi softmax thì phân phối xác suất thay đổi thế nào?"
+    options:
+      - {id: a, text_md: "Đều hơn (bớt nhọn)"}
+      - {id: b, text_md: "Nhọn hơn"}
+      - {id: c, text_md: "Không đổi"}
+    answer: [a]
+    explain_md: "Chia logit cho T lớn làm các logit gần nhau hơn nên xác suất gần đều."
+  - id: q06
+    type: predict_output
+    code: |
+      import math
+      z = [2.0, 0.0]
+      T = 2
+      e = [math.exp(v / T) for v in z]
+      print(round(e[0] / sum(e), 4))
+    expected_output: |
+      0.7311
+    explain_md: "e¹/(e¹+e⁰) = 2,718/3,718 ≈ 0,7311 (T = 1 cho 0,8808)."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "MSE = (1/n)Σ(ŷ−y)² nhạy outlier; MAE = (1/n)Σ|ŷ−y| bền hơn."
+      - "Cross-entropy = −ln(p đáp án đúng); log loss là trường hợp 2 nhóm."
+      - "Cross-entropy phạt tự tin sai không giới hạn nên hợp phân loại hơn MSE."
+      - "Softmax temperature: T lớn thì đều hơn, T nhỏ thì nhọn hơn; hinge/focal/triplet/label smoothing là kiến thức mở rộng."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [Q227], l2: [X667], l3: [X668]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

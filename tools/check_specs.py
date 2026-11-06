@@ -16,6 +16,14 @@ callbacks) and so need an explicit entry point and explicit calls.
 # item id -> list of argument lists
 EXTRA_INPUTS: dict[str, list[list]] = {
     "Q006": [[7], [10], [99999], [1000000007], [505]],
+    # Wave 4 Round 30: ml.fundamentals.classification_metrics prf(y_true, y_pred) -> (p, r, f).
+    "Q253": [
+        [[1, 1, 1], [1, 1, 1]],
+        [[0, 0, 0], [1, 1, 1]],
+        [[1, 0, 1, 0], [0, 1, 0, 1]],
+        [[1, 1, 0, 0], [1, 0, 0, 0]],
+        [[1], [1]],
+    ],
     "Q008": [[1], [0], [3], [30], [16]],
     "Q010": [[""], ["bcdfg"], ["Programming Language"], ["queueing"], ["AeIoU xyz"]],
     "Q012": [["a"], ["0P"], ["ab_a"], ["Was it a car or a cat I saw?"], ["No 'x' in Nixon"]],
