@@ -1,0 +1,151 @@
+id: ml.classical.ensembles
+version: 1
+status: published
+title_vi: "Bagging, random forest và gradient boosting"
+est_minutes: 14
+objectives_vi:
+  - "Giải thích bagging (bootstrap + bỏ phiếu/trung bình) và random forest (thêm lấy mẫu feature) giảm variance thế nào."
+  - "Giải thích boosting: mô hình xây tuần tự, mỗi cây khớp residual, giảm bias; so sánh với bagging qua bias-variance."
+  - "Chỉnh 3 tham số chính của GBDT: n_estimators, learning_rate, max_depth."
+blocks:
+  - id: s_bag
+    type: section
+    title_vi: "Bagging và random forest"
+    summary_vi: "Huấn luyện nhiều mô hình trên mẫu bootstrap rồi gộp kết quả để giảm variance."
+  - id: t01
+    type: text
+    md: |
+      **Ensemble** là gộp nhiều mô hình yếu thành một mô hình mạnh hơn.
+
+      **Bagging** (bootstrap aggregating):
+      - Mỗi mô hình train trên một **bootstrap sample**: lấy ngẫu nhiên **có hoàn lại** `n` dòng từ `n` dòng gốc.
+      - Gộp dự đoán: **bỏ phiếu đa số** (phân loại) hoặc **trung bình** (hồi quy).
+      - Tác dụng chính: **giảm variance**. Mô hình đơn như cây sâu có variance cao, trung bình nhiều cây làm nhiễu triệt tiêu nhau.
+
+      **Random forest** = bagging các cây quyết định + **lấy mẫu feature**: mỗi lần tách nút chỉ xét một tập con ngẫu nhiên
+      feature (ví dụ `sqrt(số feature)`). Việc này làm các cây **ít giống nhau** hơn, nên trung bình giảm variance tốt hơn.
+
+      Ví dụ bỏ phiếu: 3 mô hình độc lập, mỗi mô hình đúng với xác suất 0,7. Bỏ phiếu đa số đúng khi ít nhất 2 trong 3 đúng:
+      `3 · 0,7² · 0,3 + 0,7³ = 0,441 + 0,343 = 0,784`, cao hơn 0,7 của từng mô hình.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Bagging chủ yếu cải thiện điều gì?"
+    options:
+      - {id: a, text_md: "Giảm variance bằng cách trung bình nhiều mô hình train trên các bootstrap sample"}
+      - {id: b, text_md: "Giảm bias bằng cách khớp residual của mô hình trước"}
+      - {id: c, text_md: "Giảm số feature"}
+    answer: [a]
+    explain_md: "Bagging train các mô hình độc lập rồi gộp; nhiễu của từng mô hình triệt tiêu nên variance giảm. Khớp residual là boosting."
+  - id: q02
+    type: quiz_mcq
+    prompt_md: "Random forest khác bagging cây thuần ở điểm nào?"
+    options:
+      - {id: a, text_md: "Mỗi lần tách nút chỉ xét một tập con ngẫu nhiên feature, làm các cây bớt tương quan"}
+      - {id: b, text_md: "Các cây được train tuần tự, cây sau sửa lỗi cây trước"}
+      - {id: c, text_md: "Dùng toàn bộ dữ liệu, không có bootstrap"}
+    answer: [a]
+    explain_md: "Lấy mẫu feature làm các cây khác nhau hơn, nên trung bình của chúng giảm variance nhiều hơn."
+  - id: q03
+    type: predict_output
+    code: |
+      p = 0.7
+      print(round(3 * p * p * (1 - p) + p ** 3, 3))
+    expected_output: |
+      0.784
+    explain_md: "3·0,49·0,3 = 0,441 và 0,343; tổng 0,784: đúng khi 2 hoặc 3 trong 3 mô hình đúng."
+  - id: s_boost
+    type: section
+    title_vi: "Boosting, bias-variance và tham số GBDT"
+    summary_vi: "Boosting thêm cây tuần tự khớp residual; chỉnh n_estimators, learning_rate, max_depth."
+    exercise_ref: ex_boost
+  - id: t02
+    type: text
+    md: |
+      **Boosting** xây mô hình **tuần tự**: bắt đầu từ dự đoán cơ sở `F0` (ví dụ mean của `y`), mỗi vòng thêm một cây nhỏ
+      **khớp residual** (`y − dự đoán hiện tại`) rồi cộng vào với hệ số `learning_rate`:
+
+      ```
+      F = F0
+      for tree in trees:
+          F = F + learning_rate * tree(x)     # tree dự đoán residual của F
+      ```
+
+      Ví dụ `y = 10`, `F0 = 0`, `lr = 0,5`: residual 10 → F = 5; residual 5 → F = 7,5; sai số giảm dần.
+
+      **Bagging và boosting qua bias-variance**:
+      - Bagging: cây **sâu** (bias thấp, variance cao), gộp song song để **giảm variance**.
+      - Boosting: cây **nông** (bias cao, variance thấp), cộng dần để **giảm bias**. Boosting quá nhiều vòng có thể overfit.
+
+      **3 tham số chính của GBDT** (gradient boosted decision trees):
+      - `n_estimators`: số cây. Nhiều cây khớp train tốt hơn nhưng dễ overfit; dùng early stopping trên validation.
+      - `learning_rate`: mỗi cây đóng góp bao nhiêu. Nhỏ hơn thì ổn định hơn nhưng cần **nhiều cây hơn** (đánh đổi với `n_estimators`).
+      - `max_depth`: độ sâu mỗi cây. Cây sâu bắt được tương tác feature nhưng tăng variance; GBDT thường dùng 3 đến 8.
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Cây trong boosting thường nông còn trong random forest thường sâu. Lý do?"
+    options:
+      - {id: a, text_md: "Boosting giảm bias bằng cách cộng nhiều cây nông; random forest giảm variance nên cây sâu (bias thấp) vẫn ổn"}
+      - {id: b, text_md: "Cây nông luôn chính xác hơn cây sâu"}
+      - {id: c, text_md: "Random forest không thể dùng cây nông"}
+    answer: [a]
+    explain_md: "Boosting cần cây yếu (bias cao) để cộng dần; bagging cần cây bias thấp, variance cao để trung bình giảm variance."
+  - id: q05
+    type: quiz_mcq
+    prompt_md: "Giảm `learning_rate` từ 0,1 xuống 0,01 thì thường cần làm gì?"
+    options:
+      - {id: a, text_md: "Tăng n_estimators (nhiều cây hơn) để bù"}
+      - {id: b, text_md: "Giảm n_estimators"}
+      - {id: c, text_md: "Không cần đổi gì"}
+    answer: [a]
+    explain_md: "Mỗi cây đóng góp ít hơn nên cần nhiều cây hơn để đạt cùng mức khớp; đổi lại mô hình ổn định hơn."
+  - id: q06
+    type: quiz_fill
+    prompt_md: "Mỗi cây mới trong boosting khớp ___ của mô hình hiện tại (điền: residual)."
+    blanks: [{accept: ["residual", "residuals", "phần dư", "phan du", "sai số", "sai so"]}]
+    explain_md: "Residual là y trừ dự đoán hiện tại; khớp nó là cách boosting giảm bias từng bước."
+  - id: ex_boost
+    type: code_exercise
+    md: |
+      `boost_predict(base, tree_preds, lr)` trả dự đoán GBDT cho từng mẫu: `base + lr * tổng dự đoán của các cây`,
+      làm tròn 6 chữ số. `tree_preds[t][j]` là dự đoán của cây `t` cho mẫu `j` (mọi cây cùng độ dài, ít nhất 1 cây).
+      Bản dưới đây quên `learning_rate`. Hãy sửa.
+    entry: boost_predict
+    starter: |
+      def boost_predict(base, tree_preds, lr):
+          n = len(tree_preds[0])
+          return [round(base + sum(t[j] for t in tree_preds), 6) for j in range(n)]
+    guidance_md: |
+      - Thử `boost_predict(0.0, [[2, 4], [2, 4]], 0.5)`: đáp án `[2.0, 4.0]` (0,5·(2+2), 0,5·(4+4)), code trả `[4.0, 8.0]`.
+      - Tổng dự đoán của các cây phải nhân với `lr`.
+    hints:
+      - level: nudge
+        md: "Hệ số `lr` đang dùng ở đâu trong công thức?"
+      - level: approach
+        md: "Nhân tổng dự đoán của các cây với `lr` trước khi cộng `base`."
+      - level: near_solution
+        md: "`round(base + lr * sum(t[j] for t in tree_preds), 6)`."
+    tests:
+      - {args: [0.0, [[2, 4], [2, 4]], 0.5], expected: [2.0, 4.0]}
+      - {args: [10, [[1, -1]], 0.1], expected: [10.1, 9.9]}
+      - {args: [1.0, [[4], [4], [4]], 0.25], expected: [4.0]}
+      - {args: [0, [[3, 6]], 1], expected: [3, 6]}
+    solution: |
+      def boost_predict(base, tree_preds, lr):
+          n = len(tree_preds[0])
+          return [round(base + lr * sum(t[j] for t in tree_preds), 6) for j in range(n)]
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Bagging: bootstrap sample, train song song, bỏ phiếu hoặc trung bình; giảm variance."
+      - "Random forest = bagging cây + lấy mẫu feature mỗi lần tách; các cây bớt tương quan."
+      - "Boosting: tuần tự, mỗi cây khớp residual, cộng với learning_rate; giảm bias (cây nông)."
+      - "Bagging dùng cây sâu giảm variance; boosting dùng cây nông giảm bias."
+      - "GBDT: n_estimators, learning_rate (nhỏ thì cần nhiều cây), max_depth; early stopping chống overfit."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X689], l2: [X690], l3: [X691]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

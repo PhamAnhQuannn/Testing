@@ -1,0 +1,167 @@
+id: ml.classical.logistic_regression
+version: 1
+status: published
+title_vi: "Logistic regression & GLMs"
+est_minutes: 14
+objectives_vi:
+  - "Tính xác suất bằng sigmoid của điểm tuyến tính, hiểu log-odds (logit) là link function của logistic regression."
+  - "Tính tay log loss và gradient x·(p − y) cho một mẫu; hiểu L2 regularization kéo trọng số về 0."
+  - "Diễn giải hệ số: exp(w) là hệ số nhân của odds khi feature tăng 1 đơn vị."
+blocks:
+  - id: s_model
+    type: section
+    title_vi: "Sigmoid và log-odds"
+    summary_vi: "Điểm tuyến tính z đi qua sigmoid thành xác suất; log-odds của xác suất đó lại tuyến tính theo feature."
+  - id: t01
+    type: text
+    md: |
+      **Logistic regression** dự đoán xác suất lớp dương `p = P(y = 1 | x)`. Trước hết tính điểm tuyến tính
+      `z = b + w·x`, rồi đưa qua **sigmoid**:
+
+      `p = σ(z) = 1 / (1 + e^(−z))`
+
+      - `z = 0` cho `p = 0,5`; `z` rất lớn cho `p ≈ 1`; `z` rất âm cho `p ≈ 0`.
+      - **Odds** = `p / (1 − p)`. **Log-odds** (logit) = `ln(p / (1 − p))` và đúng bằng `z`. Nói cách khác, mô hình
+        là hồi quy tuyến tính trên log-odds: logit là **link function** trong họ **GLM** (generalized linear model;
+        linear regression dùng link đồng nhất, Poisson regression dùng link log).
+      - Ví dụ `p = 0,8` thì odds = 4 (tức 4 : 1), log-odds = `ln 4 ≈ 1,386`.
+
+      Cẩn thận số học: `math.exp(-z)` tràn số khi `z` rất âm (ví dụ `z = -1000`). Bản ổn định: nếu `z >= 0` dùng
+      `1 / (1 + e^(−z))`, còn nếu `z < 0` dùng `e^z / (1 + e^z)`.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Một mẫu có điểm tuyến tính z = 0. Xác suất lớp dương mô hình dự đoán là bao nhiêu?"
+    options:
+      - {id: a, text_md: "0,5"}
+      - {id: b, text_md: "0"}
+      - {id: c, text_md: "1"}
+    answer: [a]
+    explain_md: "σ(0) = 1 / (1 + e^0) = 1/2. Ranh giới quyết định (p = 0,5) nằm đúng tại z = 0."
+  - id: q02
+    type: quiz_mcq
+    prompt_md: "Link function (logit) của logistic regression biến xác suất p thành đại lượng nào, tuyến tính theo feature?"
+    options:
+      - {id: a, text_md: "ln(p / (1 − p)), tức log-odds"}
+      - {id: b, text_md: "p², bình phương xác suất"}
+      - {id: c, text_md: "ln(p), log xác suất"}
+    answer: [a]
+    explain_md: "Logit(p) = ln(p / (1 − p)) = b + w·x. Sigmoid là hàm ngược của logit."
+  - id: q03
+    type: predict_output
+    code: |
+      import math
+      p = 0.8
+      print(round(p / (1 - p), 1))
+      print(round(math.log(p / (1 - p)), 3))
+    expected_output: "4.0\n1.386"
+    explain_md: "Odds = 0,8 / 0,2 = 4,0; log-odds = ln 4 ≈ 1,386."
+  - id: s_loss
+    type: section
+    title_vi: "Log loss, gradient, regularization và hệ số"
+    summary_vi: "Log loss một mẫu, gradient x·(p − y), L2 kéo trọng số về 0, và exp(w) là hệ số nhân của odds."
+    exercise_ref: ex_sigmoid
+  - id: t02
+    type: text
+    md: |
+      **Log loss** (binary cross-entropy) cho một mẫu với nhãn `y ∈ {0, 1}` và xác suất dự đoán `p`:
+
+      `L = −[ y·ln(p) + (1 − y)·ln(1 − p) ]`
+
+      Dự đoán đúng và tự tin thì loss nhỏ, sai mà tự tin thì loss rất lớn. Ví dụ `y = 1`, `p = 0,8`: `L = −ln 0,8 ≈ 0,2231`.
+
+      **Gradient** theo trọng số cực kỳ gọn: `∂L/∂w = x·(p − y)` và `∂L/∂b = p − y`. Ví dụ `x = 2`, `p = 0,8`, `y = 1`
+      cho `∂L/∂w = 2·(0,8 − 1) = −0,4` (âm nên gradient descent tăng `w`, kéo `p` lên gần 1).
+
+      ```
+      w -= lr * x * (p - y)
+      b -= lr * (p - y)
+      ```
+
+      **L2 regularization** cộng `λ·Σ w²` vào loss (không phạt bias). Gradient thêm `2λ·w` (hoặc `λ·w` tuỳ quy ước), nên mỗi bước
+      trọng số bị kéo nhẹ về 0 (weight decay). Tác dụng: giảm overfitting, và với dữ liệu tách tuyến tính hoàn toàn thì
+      trọng số không phình ra vô hạn. `λ` lớn: mô hình đơn giản hơn (bias lớn, variance nhỏ). Nhớ chuẩn hoá feature trước khi dùng L2.
+
+      **Diễn giải hệ số**: tăng feature `x_j` thêm 1 đơn vị (các feature khác giữ nguyên) làm log-odds tăng `w_j`, tức odds
+      nhân với `exp(w_j)`. Ví dụ `w_j = ln 3 ≈ 1,1` thì odds nhân 3; `w_j < 0` thì `exp(w_j) < 1` nên odds giảm. Đây là
+      thay đổi của odds, chưa phải của xác suất.
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Hệ số w = ln 3 ≈ 1,1 của một feature có nghĩa gì khi feature đó tăng 1 đơn vị (các feature khác giữ nguyên)?"
+    options:
+      - {id: a, text_md: "Odds của lớp dương nhân với 3"}
+      - {id: b, text_md: "Xác suất của lớp dương nhân với 3"}
+      - {id: c, text_md: "Xác suất của lớp dương tăng thêm 1,1"}
+    answer: [a]
+    explain_md: "Log-odds tăng w nên odds nhân exp(w) = 3. Xác suất không nhân 3: nó bị chặn trong [0, 1]."
+  - id: q05
+    type: predict_output
+    code: |
+      import math
+      x, y, p = 2, 1, 0.8
+      print(round(-math.log(p), 4))
+      print(round(x * (p - y), 2))
+    expected_output: "0.2231\n-0.4"
+    explain_md: "Log loss = −ln 0,8 ≈ 0,2231; gradient theo w = 2·(0,8 − 1) = −0,4."
+  - id: q06
+    type: quiz_mcq
+    prompt_md: "Tăng hệ số L2 regularization λ thì điều gì thường xảy ra?"
+    options:
+      - {id: a, text_md: "Trọng số bị kéo về gần 0 hơn, mô hình bớt overfit"}
+      - {id: b, text_md: "Trọng số phình to hơn để khớp train"}
+      - {id: c, text_md: "Sigmoid đổi thành hàm khác"}
+    answer: [a]
+    explain_md: "L2 phạt Σ w², nên cùng độ khớp thì trọng số nhỏ hơn được ưu tiên: variance giảm, bias tăng."
+  - id: ex_sigmoid
+    type: code_exercise
+    md: |
+      `sigmoid(z)` trả `σ(z) = 1 / (1 + e^(−z))` làm tròn 6 chữ số. Bản dưới đây bị tràn số (`OverflowError`) khi `z` rất âm,
+      ví dụ `z = -1000`. Hãy sửa thành bản ổn định số học: với `z >= 0` dùng công thức cũ; với `z < 0` dùng `e^z / (1 + e^z)`.
+    entry: sigmoid
+    starter: |
+      import math
+
+
+      def sigmoid(z):
+          return round(1.0 / (1.0 + math.exp(-z)), 6)
+    guidance_md: |
+      - `sigmoid(0)` phải là `0.5`, `sigmoid(2)` là `0.880797`, `sigmoid(-2)` là `0.119203`.
+      - `sigmoid(-1000)` phải trả `0.0` thay vì báo lỗi.
+    hints:
+      - level: nudge
+        md: "`math.exp(-z)` với z = -1000 là `exp(1000)`. Số đó có biểu diễn được không?"
+      - level: approach
+        md: "Tách hai nhánh theo dấu của z để chỉ bao giờ gọi `exp` với đối số không dương."
+      - level: near_solution
+        md: "Nếu `z >= 0`: `p = 1 / (1 + exp(-z))`; ngược lại `e = exp(z)` rồi `p = e / (1 + e)`; trả `round(p, 6)`."
+    tests:
+      - {args: [0], expected: 0.5}
+      - {args: [2], expected: 0.880797}
+      - {args: [-2], expected: 0.119203}
+      - {args: [-1000], expected: 0.0}
+    solution: |
+      import math
+
+
+      def sigmoid(z):
+          if z >= 0:
+              p = 1.0 / (1.0 + math.exp(-z))
+          else:
+              e = math.exp(z)
+              p = e / (1.0 + e)
+          return round(p, 6)
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "p = σ(z) = 1 / (1 + e^(−z)) với z = b + w·x; z = 0 cho p = 0,5. Cài sigmoid ổn định: tách nhánh theo dấu z."
+      - "Logit là link function: ln(p / (1 − p)) = b + w·x, tuyến tính theo feature (một GLM)."
+      - "Log loss một mẫu: −[y·ln p + (1 − y)·ln(1 − p)]; gradient theo w là x·(p − y), theo b là p − y."
+      - "L2 regularization cộng λ·Σ w² (không phạt bias), kéo trọng số về 0, giảm overfitting; chuẩn hoá feature trước."
+      - "Hệ số w_j: tăng x_j một đơn vị thì odds nhân exp(w_j); đây là odds, không phải xác suất."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [Q237], l2: [X685], l3: [X686]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"
