@@ -199,6 +199,10 @@ EXTRA_IDS = {
     "ml.classical.dimensionality_reduction",
     "ml.classical.recsys_algorithms",
     "ml.classical.time_series_anomaly",
+    # Wave 4 Round 34: ML foundations - NLP & Transformers A (opens ml.nlp_transformers).
+    "ml.nlp_transformers.classic_nlp",
+    "ml.nlp_transformers.tokenization",
+    "ml.nlp_transformers.embeddings",
 }
 
 # Expected shipped counts, asserted so an upstream tree edit can't silently change the snapshot.
@@ -206,7 +210,7 @@ PLAN_MVP_COUNT = 40
 EXPECTED_SD = 86
 EXPECTED_ML4 = 39
 EXPECTED_EXTRA_IDS = len(EXTRA_IDS)  # Wave 2 additions
-EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 300
+EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 303
 
 # Node fields the app uses (SPEC 4.2); optional ones are skipped when a node lacks them.
 NODE_FIELDS = [

@@ -1,0 +1,165 @@
+id: ml.nlp_transformers.embeddings
+version: 1
+status: published
+title_vi: "Embedding văn bản"
+est_minutes: 14
+objectives_vi:
+  - "Giải thích embedding là vector sao cho nghĩa gần thì vector gần, và phân biệt static (word2vec, GloVe) với contextual embedding."
+  - "Chọn đúng thước đo cosine, dot hay L2; biết khi vector đã chuẩn hoá độ dài 1 thì cosine bằng dot."
+  - "Cài retrieval thuần Python: tìm index của item có cosine similarity cao nhất với query."
+blocks:
+  - id: s_what
+    type: section
+    title_vi: "Embedding là gì và đo độ gần thế nào"
+    summary_vi: "Bản đồ ý nghĩa, static vs contextual, cosine / dot / L2 và chuẩn hoá."
+  - id: t01
+    type: text
+    md: |
+      **Embedding** là một vector số (ví dụ 384 hoặc 1024 chiều) đại diện cho một từ, câu, đoạn văn hay ảnh sao cho
+      **nghĩa gần nhau thì vector gần nhau**. Hình dung như toạ độ trên một **bản đồ ý nghĩa**: "mèo" nằm gần "chó",
+      xa "thuế".
+
+      - **Static embedding** (word2vec, GloVe): mỗi từ có đúng một vector cố định, học từ việc từ nào hay xuất hiện
+        cạnh từ nào. Nhược điểm: "bank" (ngân hàng / bờ sông) chỉ có một vector.
+      - **Contextual embedding** (BERT và các mô hình transformer): vector của một từ phụ thuộc cả câu quanh nó, nên
+        hai nghĩa của "bank" cho hai vector khác nhau.
+      - **Sentence / text embedding model** thường là **bi-encoder**: query và document được mã hoá **độc lập** thành
+        vector, nên có thể tính trước vector của cả kho tài liệu. Mô hình được huấn luyện bằng **contrastive loss**:
+        kéo cặp liên quan lại gần, đẩy cặp không liên quan ra xa, thường dùng **in-batch negatives** (các mẫu khác
+        trong cùng batch làm mẫu âm).
+      - **Embedding model khác generative model**: embedding model chỉ trả vector để so sánh và tìm kiếm; generative
+        model sinh ra văn bản.
+
+      Ba thước đo độ gần:
+
+      ```
+      dot(a, b)    = sum(x * y)
+      cosine(a, b) = dot(a, b) / (|a| * |b|)     # chỉ xét hướng, không xét độ dài
+      L2(a, b)     = sqrt(sum((x - y) ** 2))      # khoảng cách, càng nhỏ càng gần
+      ```
+
+      **Chuẩn hoá** vector về độ dài 1 (chia cho `|v|`) thì `|a| = |b| = 1` nên **cosine = dot**, và xếp hạng theo L2
+      cũng trùng với xếp hạng theo cosine. Vì vậy hệ thống thật thường lưu vector đã chuẩn hoá rồi dùng dot cho nhanh.
+      Số chiều càng lớn càng giữ được nhiều ngữ nghĩa nhưng tốn bộ nhớ; embedding kiểu **Matryoshka** cho phép cắt bớt
+      chỉ giữ các chiều đầu (rồi chuẩn hoá lại) mà vẫn dùng được. Với đa ngôn ngữ hoặc domain chuyên ngành (y tế, luật)
+      cần mô hình multilingual hoặc **domain adaptation** (fine-tune thêm).
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Vì sao word2vec / GloVe bị coi là static embedding?"
+    options:
+      - {id: a, text_md: "Mỗi từ có đúng một vector cố định, không phụ thuộc câu chứa nó"}
+      - {id: b, text_md: "Vector không bao giờ được huấn luyện"}
+      - {id: c, text_md: "Chỉ dùng được cho ảnh"}
+    answer: [a]
+    explain_md: "Static nghĩa là một từ, một vector. Contextual embedding (BERT) mới cho vector khác nhau tuỳ ngữ cảnh."
+  - id: q02
+    type: predict_output
+    code: |
+      a = [3, 4]
+      b = [6, 8]
+      dot = sum(x * y for x, y in zip(a, b))
+      print(dot)
+      print(dot / (5 * 10))
+    expected_output: |
+      50
+      1.0
+    explain_md: "dot = 3·6 + 4·8 = 50; |a| = 5, |b| = 10 nên cosine = 50 / 50 = 1.0: hai vector cùng hướng dù khác độ dài."
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Khi cả hai vector đã chuẩn hoá về độ dài 1, điều nào đúng?"
+    options:
+      - {id: a, text_md: "Cosine similarity bằng đúng tích vô hướng (dot)"}
+      - {id: b, text_md: "Cosine luôn bằng 0"}
+      - {id: c, text_md: "Dot luôn bằng khoảng cách L2"}
+    answer: [a]
+    explain_md: "cosine = dot / (|a|·|b|) và |a| = |b| = 1, nên cosine = dot."
+  - id: s_retrieval
+    type: section
+    title_vi: "Retrieval: tìm item gần query nhất"
+    summary_vi: "Cosine rồi argmax trả về index; xử lý vector 0, hoà và danh sách rỗng."
+    exercise_ref: ex_nearest
+  - id: t02
+    type: text
+    md: |
+      **Retrieval** là kỹ năng cốt lõi của embedding: mã hoá query thành vector, so với embedding của từng item, rồi
+      lấy item có **cosine cao nhất** (argmax). Kết quả thường là **index** của item trong danh sách.
+
+      ```
+      best, best_score = -1, None
+      for i, v in enumerate(items):
+          s = cosine(query, v)
+          if best_score is None or s > best_score:   # strict >: hoà thì giữ index nhỏ hơn
+              best, best_score = i, s
+      ```
+
+      Ba chi tiết hay sai: (1) vector toàn 0 có độ dài 0 nên chia cho 0, quy ước cosine = `0.0`; (2) khi hai item hoà,
+      dùng `>` chặt để giữ index nhỏ hơn; (3) danh sách rỗng thì không có kết quả, trả `-1`.
+      Kho tài liệu lớn thì dùng index xấp xỉ (ANN) thay vì quét hết, nhưng ý tưởng vẫn là "gần nhất theo cosine".
+  - id: ex_nearest
+    type: code_exercise
+    md: |
+      Cài `nearest_index(query, items)` trả **index** của item có cosine similarity cao nhất với `query`.
+      `cosine(u, v) = dot / (|u| * |v|)`; nếu `|u|` hoặc `|v|` bằng 0 thì coi cosine là `0.0`.
+      Hoà thì lấy index nhỏ hơn; `items` rỗng thì trả `-1`.
+      Ví dụ `query = [1.0, 0.0]`, `items = [[0.0, 1.0], [1.0, 0.0], [1.0, 1.0]]` cho `1`.
+    entry: nearest_index
+    starter: |
+      import math
+
+
+      def nearest_index(query, items):
+          # TODO: tính cosine của query với từng item, trả index có cosine lớn nhất (hoà: index nhỏ hơn; rỗng: -1)
+          pass
+    guidance_md: |
+      - Viết một hàm phụ tính cosine, nhớ trường hợp độ dài bằng 0.
+      - Duyệt `enumerate(items)`, chỉ cập nhật khi cosine **lớn hơn hẳn** giá trị tốt nhất hiện có.
+    hints:
+      - level: nudge
+        md: "Cần cosine của query với từng item, rồi nhớ index có điểm cao nhất."
+      - level: approach
+        md: "Khởi tạo `best = -1`, `best_s = None`; với mỗi `i, v`, nếu `best_s is None or s > best_s` thì cập nhật."
+      - level: near_solution
+        md: "`na = math.sqrt(sum(x * x for x in query))`; với mỗi item tính `nb`; nếu `na == 0 or nb == 0` thì `s = 0.0`, ngược lại `s = dot / (na * nb)`."
+    tests:
+      - {args: [[1.0, 0.0], [[0.0, 1.0], [1.0, 0.0], [1.0, 1.0]]], expected: 1}
+      - {args: [[1.0, 2.0], [[2.0, 4.0], [1.0, 0.0]]], expected: 0}
+      - {args: [[0.0, 1.0], [[1.0, 0.0], [3.0, 3.0], [0.0, 5.0]]], expected: 2}
+      - {args: [[1.0, 1.0], []], expected: -1}
+    solution: |
+      import math
+
+
+      def nearest_index(query, items):
+          na = math.sqrt(sum(x * x for x in query))
+          best = -1
+          best_s = None
+          for i, v in enumerate(items):
+              nb = math.sqrt(sum(x * x for x in v))
+              if na == 0 or nb == 0:
+                  s = 0.0
+              else:
+                  s = sum(x * y for x, y in zip(query, v)) / (na * nb)
+              if best_s is None or s > best_s:
+                  best = i
+                  best_s = s
+          return best
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Embedding model chỉ trả về ___ để so sánh và tìm kiếm, còn generative model thì sinh văn bản (điền: vector hoặc văn bản)."
+    blanks: [{accept: ["vector", "vectơ", "vec to"]}]
+    explain_md: "Embedding model biến đầu vào thành vector số; việc sinh văn bản là của generative model."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Embedding là vector số sao cho nghĩa gần thì vector gần; static (word2vec, GloVe) một từ một vector, contextual (BERT) phụ thuộc ngữ cảnh."
+      - "Sentence embedding thường là bi-encoder huấn luyện bằng contrastive loss và in-batch negatives."
+      - "Cosine chỉ xét hướng; chuẩn hoá độ dài 1 thì cosine = dot. Matryoshka cho phép cắt bớt chiều rồi chuẩn hoá lại."
+      - "Retrieval: cosine với từng item rồi argmax; vector 0 coi cosine 0.0, hoà lấy index nhỏ hơn, rỗng trả -1."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X706], l2: [X707], l3: [X708]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-06"

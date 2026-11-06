@@ -108,6 +108,7 @@ MODULE_NAMES: dict[str, str] = {
     "ml.math": "Toán cho ML",
     "ml.fundamentals": "Nền tảng ML",
     "ml.classical": "ML cổ điển",
+    "ml.nlp_transformers": "NLP & Transformer",
     "ml.llm": "LLM cơ bản",
     "ml.rag_agents": "RAG & agent",
     "ml.llm_eval_serving": "Đánh giá & triển khai LLM",

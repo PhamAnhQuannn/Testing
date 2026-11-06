@@ -1,0 +1,53 @@
+subtopic_id: ml.nlp_transformers.tokenization
+items:
+  - id: X703
+    difficulty: 1
+    type: read_code
+    minutes: 3
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng.
+    code: |-
+      tokens = ["a", "b", "a", "b", "c"]
+      pairs = {}
+      for x, y in zip(tokens, tokens[1:]):
+          pairs[(x, y)] = pairs.get((x, y), 0) + 1
+      print(pairs[("a", "b")])
+      print(len(pairs))
+      print(max(pairs, key=lambda p: (pairs[p], p)))
+    expected_output: "2\n3\n('a', 'b')"
+    answer_md: "Các cặp kề nhau: (a,b), (b,a), (a,b), (b,c). Đếm: (a,b) = 2, (b,a) = 1, (b,c) = 1 nên có 3 cặp khác nhau. Cặp nhiều nhất là ('a', 'b')."
+    rubric_md: "Output khớp từng dòng. Đúng: bằng chứng điểm 1; sai: tối đa điểm 0."
+  - id: X704
+    difficulty: 2
+    type: write_code
+    minutes: 6
+    prompt_md: |
+      Viết hàm `apply_merge(tokens, pair)` thực hiện một bước merge của BPE. `tokens` là list string, `pair` là list 2 phần tử `[a, b]`. Quét trái sang phải; khi hai token liền nhau lần lượt bằng `a` và `b` thì thay bằng token `a + b` và bỏ qua cả hai (các lần gộp không chồng lấn). Trả list mới. Ví dụ `["l", "o", "w", "e", "r"]` với `["l", "o"]` cho `["lo", "w", "e", "r"]`; `["a", "a", "a"]` với `["a", "a"]` cho `["aa", "a"]`.
+    problem_id: check-x704-bpe-merge
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 6 phút: bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X705
+    difficulty: 3
+    type: read_code
+    minutes: 5
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng và giải thích vì sao BPE chọn cặp đó rồi gộp thành token dài dần.
+    code: |-
+      tokens = list("aabaab")
+      for _ in range(2):
+          counts = {}
+          for x, y in zip(tokens, tokens[1:]):
+              counts[(x, y)] = counts.get((x, y), 0) + 1
+          best = max(counts, key=lambda p: (counts[p], p))
+          out = []
+          i = 0
+          while i < len(tokens):
+              if i + 1 < len(tokens) and (tokens[i], tokens[i + 1]) == best:
+                  out.append(tokens[i] + tokens[i + 1])
+                  i += 2
+              else:
+                  out.append(tokens[i])
+                  i += 1
+          tokens = out
+          print(best, tokens)
+      print(len(tokens))
+    expected_output: "('a', 'b') ['a', 'ab', 'a', 'ab']\n('a', 'ab') ['aab', 'aab']\n2"
+    answer_md: "Vòng 1: các cặp (a,a) = 2, (a,b) = 2, (b,a) = 1. Hoà count nên max theo (count, pair) chọn ('a', 'b'); gộp được ['a', 'ab', 'a', 'ab']. Vòng 2: (a,ab) = 2, (ab,a) = 1 nên chọn ('a', 'ab') và gộp thành ['aab', 'aab']. Còn 2 token. Mỗi vòng BPE gộp cặp phổ biến nhất nên token mới là mảnh ghép dài hơn, chuỗi ngắn đi."
+    rubric_md: "Output khớp từng dòng VÀ giải thích đúng BPE chọn cặp kề nhau có tần suất cao nhất (hoà thì theo quy tắc phá hoà) rồi gộp thành token mới. Đúng: bằng chứng điểm 3; sai: tối đa điểm 2."
