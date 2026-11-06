@@ -1,0 +1,152 @@
+id: ml.fundamentals.interpretability_fairness
+version: 1
+status: published
+title_vi: "Khả năng giải thích, công bằng và ML có trách nhiệm"
+est_minutes: 14
+objectives_vi:
+  - "Giải thích một mô hình bằng permutation importance và nêu ý tưởng của SHAP, LIME."
+  - "Nhận ra các nguồn thiên lệch (bias) và tính demographic parity, equalized odds từ số liệu."
+  - "Nêu trade-off công bằng với độ chính xác, nội dung model card và cách xử lý PII."
+blocks:
+  - id: s_xai
+    type: section
+    title_vi: "Giải thích mô hình"
+    summary_vi: "Permutation importance đo mức giảm điểm khi xáo một cột; SHAP chia đóng góp từng feature; LIME xấp xỉ cục bộ."
+  - id: t01
+    type: text
+    md: |
+      **Permutation importance**: xáo trộn một cột của tập validation rồi đo điểm giảm bao nhiêu. Giảm nhiều thì
+      cột quan trọng; giảm gần 0 thì mô hình không dựa vào cột đó.
+
+      **SHAP** chia dự đoán của một mẫu thành phần đóng góp của từng feature (cộng lại ra dự đoán, dựa trên giá trị
+      Shapley). **LIME** xấp xỉ mô hình quanh một dự đoán bằng mô hình đơn giản dễ đọc (vd hồi quy tuyến tính cục bộ).
+      Cả hai là giải thích **post-hoc**; mô hình tự nhiên dễ đọc (linear, cây nông) không cần chúng.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Xáo trộn cột `income` của tập validation làm điểm giảm mạnh, xáo cột `zip` thì điểm gần như không đổi. Kết luận nào đúng?"
+    options:
+      - {id: a, text_md: "Mô hình dựa nhiều vào `income` và gần như không dựa vào `zip`"}
+      - {id: b, text_md: "`zip` quan trọng nhất vì xáo nó không làm hỏng gì"}
+      - {id: c, text_md: "Hai cột quan trọng như nhau"}
+    answer: [a]
+    explain_md: "Điểm giảm càng nhiều khi xáo thì mô hình càng phụ thuộc vào cột đó. Lưu ý: cột tương quan với nhau có thể che lẫn nhau."
+  - id: q02
+    type: quiz_mcq
+    prompt_md: "LIME khác SHAP ở điểm nào?"
+    options:
+      - {id: a, text_md: "LIME xấp xỉ mô hình quanh một dự đoán bằng mô hình đơn giản; SHAP chia đóng góp của từng feature"}
+      - {id: b, text_md: "LIME huấn luyện lại mô hình gốc trên dữ liệu mới"}
+      - {id: c, text_md: "LIME chỉ dùng được cho cây quyết định"}
+    answer: [a]
+    explain_md: "LIME là surrogate cục bộ; SHAP dựa trên giá trị Shapley để phân bổ đóng góp. Cả hai đều giải thích một dự đoán cụ thể."
+  - id: s_fair
+    type: section
+    title_vi: "Thiên lệch và các tiêu chí công bằng"
+    summary_vi: "Demographic parity so tỉ lệ duyệt; equalized odds so recall và tỉ lệ duyệt nhầm giữa các nhóm."
+    exercise_ref: ex_gap
+  - id: t02
+    type: text
+    md: |
+      **Nguồn thiên lệch**: *sampling bias* (mẫu không đại diện người dùng thật), *label bias* (nhãn do người gán
+      mang thiên kiến), *measurement bias* (đo lường lệch giữa các nhóm).
+
+      **Demographic parity**: tỉ lệ được duyệt bằng nhau giữa các nhóm. Nhóm A duyệt 60/100, nhóm B duyệt 30/100
+      thì gap = `0,6 − 0,3 = 0,3`.
+
+      **Equalized odds**: giữa các nhóm bằng nhau cả **recall** (`TP/(TP+FN)`, trong số người thật sự trả được nợ,
+      tỉ lệ được duyệt) lẫn **FPR** (`FP/(FP+TN)`, trong số người không trả được nợ, tỉ lệ vẫn được duyệt).
+
+      Hai tiêu chí thường mâu thuẫn nhau và với accuracy: nếu tỉ lệ người trả được nợ khác nhau giữa các nhóm, mô
+      hình hoàn hảo thoả equalized odds nhưng parity vẫn lệch. Phải chọn tiêu chí theo bối cảnh.
+  - id: q03
+    type: quiz_fill
+    prompt_md: "Nhóm A duyệt 60/100, nhóm B duyệt 30/100. Demographic parity gap bằng ___ (số thập phân)."
+    blanks: [{accept: ["0.3", "0,3", ".3", "0.30", "0,30"]}]
+    explain_md: "|0,6 − 0,3| = 0,3."
+  - id: q04
+    type: predict_output
+    code: |
+      for tp, fn, fp, tn in ((45, 5, 15, 35), (27, 23, 3, 47)):
+          print(tp / (tp + fn), fp / (fp + tn))
+    expected_output: |
+      0.9 0.3
+      0.54 0.06
+    explain_md: "Nhóm A: recall 45/50 = 0,9, FPR 15/50 = 0,3. Nhóm B: recall 27/50 = 0,54, FPR 3/50 = 0,06. Cả hai chỉ số đều lệch nên equalized odds không thoả."
+  - id: q05
+    type: quiz_mcq
+    prompt_md: "Nhóm A có 80/100 người trả được nợ, nhóm B có 40/100. Mô hình duyệt đúng những người trả được ở cả hai nhóm (80 và 40). Nhận định nào đúng?"
+    options:
+      - {id: a, text_md: "Equalized odds đạt (recall 1, FPR 0 ở cả hai nhóm) nhưng demographic parity lệch 0,4"}
+      - {id: b, text_md: "Cả hai tiêu chí đều đạt"}
+      - {id: c, text_md: "Cả hai tiêu chí đều không đạt"}
+    answer: [a]
+    explain_md: "Tỉ lệ duyệt là 0,8 và 0,4 nên parity lệch 0,4, nhưng mô hình không sai lần nào nên recall và FPR đều bằng nhau. Cho thấy hai tiêu chí có thể mâu thuẫn."
+  - id: ex_gap
+    type: code_exercise
+    md: |
+      `parity_gap(a_approved, a_total, b_approved, b_total)` trả chênh lệch tuyệt đối tỉ lệ duyệt giữa hai nhóm,
+      làm tròn 6 chữ số; nhóm có tổng 0 thì tỉ lệ là `0.0`. Bản dưới quên lấy trị tuyệt đối. Hãy sửa.
+    entry: parity_gap
+    starter: |
+      def parity_gap(a_approved, a_total, b_approved, b_total):
+          rate_a = a_approved / a_total if a_total > 0 else 0.0
+          rate_b = b_approved / b_total if b_total > 0 else 0.0
+          return round(rate_a - rate_b, 6)
+    guidance_md: |
+      - `parity_gap(60, 100, 30, 100)` phải ra `0.3` và `parity_gap(30, 100, 60, 100)` cũng ra `0.3`.
+    hints:
+      - level: nudge
+        md: "Thử đổi chỗ hai nhóm: kết quả có còn dương không?"
+      - level: approach
+        md: "Gap là khoảng cách nên không âm: dùng `abs`."
+      - level: near_solution
+        md: "Đổi dòng cuối thành `return round(abs(rate_a - rate_b), 6)`."
+    tests:
+      - {args: [60, 100, 30, 100], expected: 0.3}
+      - {args: [30, 100, 60, 100], expected: 0.3}
+      - {args: [1, 3, 2, 7], expected: 0.047619}
+      - {args: [0, 0, 5, 10], expected: 0.5}
+      - {args: [5, 10, 5, 10], expected: 0.0}
+    solution: |
+      def parity_gap(a_approved, a_total, b_approved, b_total):
+          rate_a = a_approved / a_total if a_total > 0 else 0.0
+          rate_b = b_approved / b_total if b_total > 0 else 0.0
+          return round(abs(rate_a - rate_b), 6)
+  - id: s_resp
+    type: section
+    title_vi: "ML có trách nhiệm: model card và PII"
+    summary_vi: "Model card ghi mục đích, dữ liệu, giới hạn; PII cần được bảo vệ."
+  - id: t03
+    type: text
+    md: |
+      **Model card** là tài liệu ngắn ghi: mục đích và phạm vi dùng, dữ liệu huấn luyện, metric chính (kể cả theo
+      từng nhóm), giới hạn và nhóm cần theo dõi. **Data sheet** làm tương tự cho dữ liệu.
+
+      **PII** (personally identifiable information: tên, email, số điện thoại, địa chỉ...) cần được bảo vệ: chỉ thu
+      thập phần cần thiết, ẩn danh hoá hoặc xoá khi không cần, kiểm soát truy cập. *Differential privacy* thêm nhiễu
+      có kiểm soát để kết quả không lộ dữ liệu của từng người.
+  - id: q06
+    type: quiz_mcq
+    prompt_md: "Mục nào KHÔNG thuộc nội dung chính của một model card?"
+    options:
+      - {id: a, text_md: "Mật khẩu của người quản trị cơ sở dữ liệu"}
+      - {id: b, text_md: "Giới hạn và trường hợp không nên dùng mô hình"}
+      - {id: c, text_md: "Metric đánh giá, kể cả theo từng nhóm người dùng"}
+    answer: [a]
+    explain_md: "Model card mô tả mục đích, dữ liệu, metric, giới hạn. Thông tin bí mật như mật khẩu không bao giờ nằm trong đó."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Permutation importance: xáo một cột validation, điểm giảm nhiều thì cột quan trọng; SHAP chia đóng góp, LIME xấp xỉ cục bộ."
+      - "Bias đến từ mẫu (sampling), nhãn (label) và đo lường (measurement)."
+      - "Demographic parity: tỉ lệ duyệt bằng nhau; equalized odds: recall và FPR bằng nhau giữa các nhóm."
+      - "Các tiêu chí công bằng thường mâu thuẫn nhau và với accuracy; chọn theo bối cảnh."
+      - "Model card ghi mục đích, dữ liệu, giới hạn; PII phải được thu thập tối thiểu và bảo vệ."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X680], l2: [X681], l3: [X682]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

@@ -1,0 +1,44 @@
+subtopic_id: ml.fundamentals.interpretability_fairness
+items:
+  - id: X680
+    difficulty: 1
+    type: read_code
+    minutes: 3
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Giải thích con số này đo điều gì.
+    code: |-
+      a = [1, 1, 0, 1, 0]
+      b = [0, 1, 0, 0, 0]
+      rate_a = sum(a) / len(a)
+      rate_b = sum(b) / len(b)
+      print(round(abs(rate_a - rate_b), 6))
+    expected_output: "0.4"
+    answer_md: 'Nhóm A duyệt 3/5 = 0,6; nhóm B duyệt 1/5 = 0,2; chênh lệch tuyệt đối 0,4. Đó là demographic parity gap: khoảng cách tỉ lệ được duyệt giữa hai nhóm.'
+    rubric_md: "Output đúng và nêu được đây là chênh lệch tỉ lệ duyệt (demographic parity): bằng chứng điểm 1; sai: điểm 0."
+  - id: X681
+    difficulty: 2
+    type: write_code
+    minutes: 5
+    prompt_md: |
+      Viết hàm `parity_gap(a_approved, a_total, b_approved, b_total)` trả chênh lệch demographic parity tuyệt đối giữa hai nhóm: `|a_approved / a_total - b_approved / b_total|`. Cả bốn tham số là số nguyên; nhóm có tổng 0 thì tỉ lệ duyệt là `0.0`. Trả `round(kết quả, 6)` dạng float. Ví dụ: A duyệt 60/100, B duyệt 30/100 cho `0.3`.
+    problem_id: check-x681-parity
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 5 phút: bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X682
+    difficulty: 3
+    type: read_code
+    minutes: 6
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng, rồi nói hai nhóm có thoả equalized odds không và nhóm nào bị thiệt.
+    code: |-
+      data = {
+          "A": ([1, 1, 1, 0, 0, 0], [1, 1, 0, 1, 0, 0]),
+          "B": ([1, 1, 1, 0, 0, 0], [1, 0, 0, 0, 0, 0]),
+      }
+      for g in ("A", "B"):
+          y, p = data[g]
+          tp = sum(1 for t, q in zip(y, p) if t == 1 and q == 1)
+          fn = sum(1 for t, q in zip(y, p) if t == 1 and q == 0)
+          fp = sum(1 for t, q in zip(y, p) if t == 0 and q == 1)
+          tn = sum(1 for t, q in zip(y, p) if t == 0 and q == 0)
+          print(g, round(tp / (tp + fn), 4), round(fp / (fp + tn), 4))
+    expected_output: "A 0.6667 0.3333\nB 0.3333 0.0"
+    answer_md: 'Nhóm A: TP=2, FN=1, FP=1, TN=2 nên recall = 2/3 = 0,6667 và FPR = 1/3 = 0,3333. Nhóm B: TP=1, FN=2, FP=0, TN=3 nên recall = 1/3 = 0,3333 và FPR = 0. Cả recall lẫn FPR đều lệch giữa hai nhóm nên equalized odds KHÔNG thoả. Nhóm B bị thiệt về recall (người thật sự trả được nợ ở B ít được duyệt hơn), dù ít bị duyệt nhầm hơn.'
+    rubric_md: "Output khớp từng dòng VÀ tính đúng recall/FPR từng nhóm, kết luận equalized odds không thoả. Đúng: bằng chứng điểm 3; sai: tối đa điểm 2."

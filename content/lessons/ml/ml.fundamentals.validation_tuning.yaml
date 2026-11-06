@@ -1,0 +1,150 @@
+id: ml.fundamentals.validation_tuning
+version: 1
+status: published
+title_vi: "Validation, cross-validation và tuning"
+est_minutes: 14
+objectives_vi:
+  - "Chia dữ liệu đúng cách: hold-out, k-fold, stratified, group và theo thời gian (không xáo trộn chuỗi thời gian)."
+  - "Giữ kỷ luật test set và nhận ra data leakage: scaler fit trên toàn bộ dữ liệu, feature chỉ biết sau sự kiện."
+  - "So sánh grid search và random search, biết nested CV và Bayesian optimization dùng để làm gì."
+blocks:
+  - id: s_split
+    type: section
+    title_vi: "Cách chia dữ liệu"
+    summary_vi: "Hold-out, k-fold, stratified, group và time split: mỗi loại hợp với một tình huống."
+  - id: t01
+    type: text
+    md: |
+      **Validation** là cách thi thử: giữ lại phần dữ liệu mô hình chưa từng thấy để đo khả năng tổng quát và để chỉnh
+      hyperparameter.
+
+      - **Hold-out**: chia một lần, ví dụ 70% train / 15% validation / 15% test. Nhanh nhưng điểm phụ thuộc vào lần chia.
+      - **k-fold CV**: chia thành `k` fold, lần lượt dùng 1 fold làm validation và `k−1` fold còn lại để train, rồi lấy trung bình
+        `k` điểm (ví dụ k = 5). Ổn định hơn nhưng tốn `k` lần train.
+      - **Stratified**: giữ tỉ lệ các lớp trong mỗi fold (quan trọng khi lớp hiếm, ví dụ 2% gian lận).
+      - **Group k-fold**: mọi dòng của cùng một người (hoặc bệnh nhân) nằm cùng một fold, nếu không mô hình "nhận ra người".
+      - **Time split**: train trên quá khứ, validation trên tương lai. **Không xáo trộn** dữ liệu chuỗi thời gian, vì xáo trộn
+        để tương lai lọt vào train.
+
+      Chia n = 10 mẫu thành k = 3 fold liền kề: kích thước 4, 3, 3 (`n % k = 1` nên fold đầu có thêm một phần tử).
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Dữ liệu doanh số theo ngày, cần dự đoán tuần sau. Cách chia nào đúng?"
+    options:
+      - {id: a, text_md: "Sắp theo ngày, train trên các ngày đầu, validation trên các ngày cuối"}
+      - {id: b, text_md: "Xáo trộn ngẫu nhiên rồi chia 80/20"}
+      - {id: c, text_md: "Stratified theo doanh số"}
+    answer: [a]
+    explain_md: "Dự đoán thật luôn đi từ quá khứ sang tương lai; xáo trộn để thông tin tương lai lọt vào train nên điểm quá lạc quan."
+  - id: q02
+    type: quiz_mcq
+    prompt_md: "Mỗi bệnh nhân có nhiều ảnh X-quang. Dùng k-fold thường thì rủi ro gì, và nên dùng gì?"
+    options:
+      - {id: a, text_md: "Ảnh của cùng một bệnh nhân lọt vào cả train lẫn validation; dùng group k-fold"}
+      - {id: b, text_md: "Không có rủi ro nào"}
+      - {id: c, text_md: "Fold quá đều; dùng hold-out"}
+    answer: [a]
+    explain_md: "Mô hình có thể nhớ đặc điểm riêng của bệnh nhân. Group k-fold giữ cả nhóm trong cùng một fold."
+  - id: q03
+    type: predict_output
+    code: |
+      n, k = 7, 3
+      print([n // k + (1 if i < n % k else 0) for i in range(k)])
+    expected_output: |
+      [3, 2, 2]
+    explain_md: "7 = 3·2 + 1: n // k = 2, n % k = 1 nên fold đầu có 3 phần tử, hai fold sau có 2."
+  - id: s_leak
+    type: section
+    title_vi: "Test set, leakage và tuning"
+    summary_vi: "Test dùng một lần, tránh rò thông tin, và tìm hyperparameter bằng grid hoặc random search."
+    exercise_ref: ex_scale
+  - id: t02
+    type: text
+    md: |
+      **Kỷ luật test set**: test chỉ dùng **một lần ở cuối**. Chỉnh theo điểm test là tự gian lận: điểm test khi đó
+      không còn đo mô hình trên dữ liệu mới. Mọi lựa chọn (feature, hyperparameter) dùng validation hoặc CV trên train.
+
+      **Data leakage** là thông tin không có lúc dự đoán thật lọt vào train:
+      - **Preprocessing trên toàn bộ dữ liệu**: fit scaler (mean, std) trên cả train và test rồi mới chia. Đúng: chia trước,
+        chỉ `fit` trên train, rồi `transform` cả train và test.
+      - **Feature rò rỉ**: ví dụ "đã hoàn tiền" hoặc "số khiếu nại sau giao dịch" để dự đoán gian lận (chỉ biết sau sự kiện).
+      - **Chia sai**: không theo nhóm hoặc theo thời gian, như phần trên.
+
+      ```
+      mean_train = sum(train) / len(train)        # chỉ lấy từ train
+      test_scaled = [x - mean_train for x in test]
+      ```
+
+      **Tuning**: **grid search** thử mọi tổ hợp trên lưới; **random search** thử các tổ hợp ngẫu nhiên trong cùng ngân sách và
+      thường hiệu quả hơn khi chỉ vài tham số thật sự quan trọng (mỗi lần thử cho một giá trị mới của tham số quan trọng, còn
+      lưới lặp lại cùng vài giá trị). **Bayesian optimization** chọn cấu hình tiếp theo dựa trên các lần thử trước.
+      **Nested CV**: vòng trong chọn hyperparameter, vòng ngoài đo điểm, để điểm không bị lạc quan.
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Cách nào đúng khi chuẩn hoá feature bằng StandardScaler?"
+    options:
+      - {id: a, text_md: "Chia train/test trước, fit scaler chỉ trên train, rồi transform cả hai"}
+      - {id: b, text_md: "Fit scaler trên toàn bộ dữ liệu rồi mới chia"}
+      - {id: c, text_md: "Fit một scaler riêng trên test"}
+    answer: [a]
+    explain_md: "Fit trên toàn bộ dữ liệu làm mean/std của test rò vào bước train: đó là leakage."
+  - id: q05
+    type: quiz_fill
+    prompt_md: "Dự đoán gian lận bằng feature 'đã hoàn tiền' là ví dụ của data ___ (điền: leakage)."
+    blanks: [{accept: ["leakage", "data leakage", "rò rỉ", "ro ri"]}]
+    explain_md: "Feature chỉ có sau sự kiện nên không tồn tại lúc dự đoán thật: đó là leakage."
+  - id: q06
+    type: quiz_mcq
+    prompt_md: "Chỉ 2 trong 6 hyperparameter thực sự ảnh hưởng điểm, ngân sách 30 lần thử. Chọn gì?"
+    options:
+      - {id: a, text_md: "Random search: 30 giá trị khác nhau cho mỗi tham số quan trọng"}
+      - {id: b, text_md: "Grid search: lưới lặp lại vài giá trị của tham số quan trọng"}
+      - {id: c, text_md: "Chỉnh theo điểm test cho nhanh"}
+    answer: [a]
+    explain_md: "Random search khám phá nhiều giá trị của tham số quan trọng hơn trong cùng ngân sách; chỉnh theo test là phạm quy."
+  - id: ex_scale
+    type: code_exercise
+    md: |
+      `center_by_train(train, test)` trừ mean **của train** khỏi từng giá trị test và trả list đã làm tròn 6 chữ số.
+      Bản dưới đây tính mean trên cả train và test (leakage) nên sai. Hãy sửa.
+    entry: center_by_train
+    starter: |
+      def center_by_train(train, test):
+          data = train + test
+          mean = sum(data) / len(data)
+          return [round(x - mean, 6) for x in test]
+    guidance_md: |
+      - Thử `center_by_train([1, 2, 3], [4, 6])`: đáp án `[2.0, 4.0]` (mean train = 2), code trả số khác.
+      - Mean phải chỉ lấy từ `train`.
+    hints:
+      - level: nudge
+        md: "Dòng nào cho test góp mặt vào việc tính mean?"
+      - level: approach
+        md: "Tính mean chỉ từ `train`: `sum(train) / len(train)`."
+      - level: near_solution
+        md: "Bỏ biến `data`; `mean = sum(train) / len(train)`."
+    tests:
+      - {args: [[1, 2, 3], [4, 6]], expected: [2.0, 4.0]}
+      - {args: [[10, 20], [15]], expected: [0.0]}
+      - {args: [[0, 0, 6], [2, 3]], expected: [0.0, 1.0]}
+      - {args: [[5], []], expected: []}
+    solution: |
+      def center_by_train(train, test):
+          mean = sum(train) / len(train)
+          return [round(x - mean, 6) for x in test]
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Hold-out chia một lần; k-fold lấy trung bình k lần validation. Stratified giữ tỉ lệ lớp, group giữ cùng nhóm trong một fold."
+      - "Chuỗi thời gian: chia theo thời gian, train quá khứ, validation tương lai, không xáo trộn."
+      - "Test set dùng một lần ở cuối; chỉnh theo test là tự gian lận."
+      - "Leakage: scaler fit trên toàn bộ dữ liệu, feature chỉ biết sau sự kiện. Chia trước, fit chỉ trên train."
+      - "Random search thường tốt hơn grid khi vài tham số quan trọng; Bayesian chọn cấu hình dựa trên lần thử trước; nested CV để điểm không lạc quan."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [Q248], l2: [X678], l3: [X679]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

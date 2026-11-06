@@ -1,0 +1,175 @@
+id: ml.fundamentals.regression_ranking_metrics
+version: 1
+status: published
+title_vi: "Metric hồi quy, ranking và retrieval"
+est_minutes: 15
+objectives_vi:
+  - "Tính tay MAE, MSE, RMSE và R² = 1 − SS_res/SS_tot cho một danh sách nhỏ."
+  - "Tính precision@k, recall@k, MRR và hiểu NDCG; biết MAPE hỏng khi y gần 0."
+  - "Nêu vì sao metric offline có thể lệch với metric online (A/B test)."
+blocks:
+  - id: s_reg
+    type: section
+    title_vi: "Metric hồi quy: MAE, MSE, RMSE, R², MAPE"
+    summary_vi: "Đo sai số giữa số dự đoán và số thật, và so với việc luôn đoán trung bình."
+    exercise_ref: ex_r2
+  - id: t01
+    type: text
+    md: |
+      ```
+      MAE  = (1/n) · Σ |y − ŷ|
+      MSE  = (1/n) · Σ (y − ŷ)²
+      RMSE = √MSE            (cùng đơn vị với y)
+      R²   = 1 − SS_res / SS_tot
+      SS_res = Σ (y − ŷ)²,   SS_tot = Σ (y − ȳ)²,   ȳ = trung bình của y
+      ```
+      Với `y = [3, 5, 7]`, `ŷ = [2, 5, 9]`: sai số −1, 0, 2 nên MSE = 5/3 ≈ 1,67, RMSE ≈ 1,29.
+      ȳ = 5 nên SS_tot = 4 + 0 + 4 = 8, SS_res = 5, **R² = 1 − 5/8 = 0,375**.
+      R² = 1 là hoàn hảo, 0 là không hơn việc luôn đoán ȳ, âm là còn tệ hơn.
+
+      **MAPE** = trung bình `|y − ŷ| / |y|`. Hỏng khi y gần 0: y = 0,01, ŷ = 1 cho 99 (9.900%).
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      import math
+      y = [3, 5, 7]
+      p = [2, 5, 9]
+      mse = sum((a - b) ** 2 for a, b in zip(y, p)) / 3
+      mean = sum(y) / 3
+      ss_tot = sum((a - mean) ** 2 for a in y)
+      print(round(mse, 4))
+      print(round(math.sqrt(mse), 4))
+      print(round(1 - 5 / ss_tot, 4))
+    expected_output: |
+      1.6667
+      1.291
+      0.375
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "R² âm nghĩa là gì?"
+    options:
+      - {id: a, text_md: "Mô hình tệ hơn việc luôn đoán trung bình của y"}
+      - {id: b, text_md: "Mô hình hoàn hảo"}
+      - {id: c, text_md: "Chắc chắn có lỗi tính toán"}
+    answer: [a]
+    explain_md: "R² = 1 − SS_res/SS_tot; SS_res lớn hơn SS_tot thì R² âm, tức tệ hơn đoán ȳ."
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Với `y = [3, 5, 7]`, `ŷ = [2, 5, 9]`, R² bằng ___."
+    blanks: [{accept: ["0.375", "0,375", "3/8"]}]
+    explain_md: "SS_res = 5, SS_tot = 8, R² = 1 − 5/8 = 0,375."
+  - id: ex_r2
+    type: code_exercise
+    md: |
+      `r_squared(y_true, y_pred)` trả `1 − SS_res/SS_tot` làm tròn 6 chữ số (`SS_tot == 0` trả `0.0`).
+      Bản dưới dùng nhầm SS_tot = Σ(y − ŷ)² nên luôn ra 0. Hãy sửa SS_tot thành độ lệch so với trung bình.
+    entry: r_squared
+    starter: |
+      def r_squared(y_true, y_pred):
+          n = len(y_true)
+          if n == 0:
+              return 0.0
+          mean = sum(y_true) / n
+          ss_tot = sum((t - p) ** 2 for t, p in zip(y_true, y_pred))
+          if ss_tot == 0:
+              return 0.0
+          ss_res = sum((t - p) ** 2 for t, p in zip(y_true, y_pred))
+          return round(1 - ss_res / ss_tot, 6)
+    guidance_md: |
+      - Thử `r_squared([3, 5, 7], [2, 5, 9])`: đáp án `0.375`, code trả `0.0`.
+    hints:
+      - level: nudge
+        md: "SS_tot đo độ phân tán của y quanh trung bình, không liên quan đến ŷ."
+      - level: approach
+        md: "Dùng `(t - mean) ** 2` cho SS_tot."
+      - level: near_solution
+        md: "`ss_tot = sum((t - mean) ** 2 for t in y_true)`."
+    tests:
+      - {args: [[3, 5, 7], [2, 5, 9]], expected: 0.375}
+      - {args: [[1, 2, 3], [1, 2, 3]], expected: 1.0}
+      - {args: [[4, 4, 4], [3, 4, 5]], expected: 0.0}
+      - {args: [[1, 2, 3], [3, 1, 0]], expected: -6.0}
+    solution: |
+      def r_squared(y_true, y_pred):
+          n = len(y_true)
+          if n == 0:
+              return 0.0
+          mean = sum(y_true) / n
+          ss_tot = sum((t - mean) ** 2 for t in y_true)
+          if ss_tot == 0:
+              return 0.0
+          ss_res = sum((t - p) ** 2 for t, p in zip(y_true, y_pred))
+          return round(1 - ss_res / ss_tot, 6)
+  - id: s_rank
+    type: section
+    title_vi: "Ranking và retrieval"
+    summary_vi: "Chỉ xét top k: precision@k, recall@k, MRR, NDCG; rồi offline vs online."
+  - id: t02
+    type: text
+    md: |
+      **Top-k** là k kết quả đầu tiên hệ thống trả về. Danh sách `[✓, ✗, ✗, ✓, ✗]` (đúng ở vị trí 1 và 4, tổng 2 đúng):
+      ```
+      precision@k = số đúng trong top k / k
+      recall@k    = số đúng trong top k / tổng số đúng
+      ```
+      k = 3: precision@3 = 1/3, recall@3 = 1/2.
+
+      **MRR** = trung bình của `1/(vị trí đúng đầu tiên)`: vị trí 1 cho 1, vị trí 4 cho 0,25.
+      (MAP lấy trung bình precision tại từng vị trí đúng.)
+
+      **NDCG** (nâng cao): `DCG = Σ rel_i / log₂(i+1)`, vị trí càng thấp càng bị chia nhiều; NDCG = DCG / DCG lý tưởng.
+      Với `[✓, ✗, ✗, ✓, ✗]`: DCG@3 = 1, DCG lý tưởng = 1 + 1/log₂3 ≈ 1,63, NDCG@3 ≈ 0,61.
+
+      **Offline vs online**: offline đo trên dữ liệu cũ, online đo với người dùng thật bằng A/B test; hai loại có thể lệch nhau
+      (ví dụ NDCG tăng nhưng người dùng không click nhiều hơn).
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Danh sách `[✓, ✗, ✗, ✓, ✗]`, k = 3. Recall@3 bằng bao nhiêu?"
+    options:
+      - {id: a, text_md: "1/2, vì 1 trong 2 kết quả đúng nằm trong top 3"}
+      - {id: b, text_md: "1/3, vì chia cho k"}
+      - {id: c, text_md: "1"}
+    answer: [a]
+    explain_md: "Recall chia cho tổng số kết quả đúng (2); chia cho k là precision."
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Kết quả đúng đầu tiên nằm ở vị trí 4 thì reciprocal rank bằng ___."
+    blanks: [{accept: ["0.25", "0,25", "1/4"]}]
+    explain_md: "RR = 1/4 = 0,25; MRR là trung bình RR trên nhiều truy vấn."
+  - id: q05
+    type: predict_output
+    code: |
+      rel = [1, 0, 0, 1, 0]
+      k = 3
+      print(round(sum(rel[:k]) / sum(rel), 4))
+      print(round(sum(rel[:k]) / k, 4))
+    expected_output: |
+      0.5
+      0.3333
+    explain_md: "recall@3 = 1/2, precision@3 = 1/3."
+  - id: q06
+    type: quiz_mcq
+    prompt_md: "Vì sao MAPE không hợp khi y có nhiều giá trị gần 0?"
+    options:
+      - {id: a, text_md: "Chia cho |y| rất nhỏ làm sai số phần trăm phình to"}
+      - {id: b, text_md: "MAPE luôn âm"}
+      - {id: c, text_md: "MAPE không tính được với số dương"}
+    answer: [a]
+    explain_md: "y = 0,01, ŷ = 1 cho |y − ŷ|/|y| = 99; chỉ vài mẫu như vậy đã chi phối metric."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "RMSE = √MSE cùng đơn vị với y; MAE bền với outlier hơn MSE."
+      - "R² = 1 − SS_res/SS_tot: 1 hoàn hảo, 0 bằng đoán trung bình, âm là tệ hơn."
+      - "precision@k chia cho k, recall@k chia cho tổng số kết quả đúng; MRR = trung bình 1/vị trí đúng đầu tiên."
+      - "NDCG chiết khấu theo log₂(i+1); MAPE hỏng khi y gần 0; offline có thể lệch online nên cần A/B test."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X675], l2: [X676], l3: [X677]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

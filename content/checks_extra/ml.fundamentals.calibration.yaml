@@ -1,0 +1,42 @@
+subtopic_id: ml.fundamentals.calibration
+items:
+  - id: X672
+    difficulty: 1
+    type: read_code
+    minutes: 3
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Cho biết mô hình quá tự tin hay quá rụt rè.
+    code: |-
+      n = 100
+      conf = 0.9
+      positives = 70
+      acc = positives / n
+      gap = abs(acc - conf)
+      print(round(gap, 3))
+    expected_output: "0.2"
+    answer_md: 'acc = 70/100 = 0,7 còn conf = 0,9 nên gap = |0,7 − 0,9| = 0,2. Mô hình báo 0,9 nhưng chỉ đúng 70% nên quá tự tin (overconfident).'
+    rubric_md: "Output đúng VÀ nhận ra conf > acc là quá tự tin. Đúng: bằng chứng điểm 1; sai: 0."
+  - id: X673
+    difficulty: 2
+    type: write_code
+    minutes: 6
+    prompt_md: |
+      Viết hàm `ece(bins)` với `bins` là danh sách các bộ ba `[n, conf, acc]` (n = số mẫu trong nhóm, conf = xác suất dự đoán trung bình, acc = tỉ lệ dương thật). Trả Expected Calibration Error `Σ (n_b / N) · |acc_b − conf_b|` với `N = Σ n_b`, dạng float `round(·, 6)`; nếu `N == 0` trả `0.0`. Ví dụ: `[[100,0.2,0.1],[200,0.5,0.4],[100,0.8,0.6]]` cho `0.125`.
+    problem_id: check-x673-ece
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 6 phút: bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X674
+    difficulty: 3
+    type: read_code
+    minutes: 5
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng và giải thích vì sao ECE lớn dù nhóm giữa chỉ lệch 0,1.
+    code: |-
+      bins = [(50, 0.1, 0.2), (150, 0.6, 0.5), (100, 0.9, 0.7)]
+      total = sum(n for n, _, _ in bins)
+      ece = 0.0
+      for n, conf, acc in bins:
+          gap = acc - conf
+          print("over" if gap < 0 else "under", round(abs(gap), 2))
+          ece += n / total * abs(gap)
+      print(round(ece, 4))
+    expected_output: "under 0.1\nover 0.1\nover 0.2\n0.1333"
+    answer_md: 'N = 300. Nhóm 1: acc − conf = +0,1 nên under (rụt rè); nhóm 2: −0,1 nên over; nhóm 3: −0,2 nên over. ECE = (50/300)·0,1 + (150/300)·0,1 + (100/300)·0,2 ≈ 0,0167 + 0,05 + 0,0667 = 0,1333. Nhóm cuối vừa lệch lớn nhất vừa có trọng số đáng kể nên đóng góp nhiều nhất.'
+    rubric_md: "Output khớp từng dòng VÀ giải thích ECE là trung bình có trọng số theo số mẫu. Đúng: bằng chứng điểm 3; sai: tối đa điểm 2."
