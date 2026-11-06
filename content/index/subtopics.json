@@ -28625,6 +28625,354 @@
       "plan_hours": 5
     },
     {
+      "id": "ml.classical.dimensionality_reduction",
+      "section": "ml",
+      "module": "ml.classical",
+      "name_vi": "Giảm chiều: PCA, t-SNE, UMAP (dimensionality reduction)",
+      "order": 7,
+      "summary_vi": "Giảm chiều (dimensionality reduction) nén dữ liệu nhiều cột xuống ít cột nhưng giữ phần thông tin chính, như chụp ảnh một đám điểm từ góc nhìn thấy rõ nhất. Học xong bạn chạy PCA để nén và vẽ dữ liệu, và biết t-SNE/UMAP chỉ để nhìn.",
+      "mastery_bar_vi": "Mức 3: chạy PCA trên dữ liệu thật, chọn số thành phần theo phương sai giải thích và giải thích vì sao không đọc khoảng cách trong ảnh t-SNE.",
+      "prerequisites": [
+        "ml.math.linear_algebra_basics",
+        "ml.math.random_variables_expectation"
+      ],
+      "lang_prereqs": {
+        "python": [],
+        "java": null
+      },
+      "key_concepts": [
+        "why reduce dimension",
+        "PCA principal components and explained variance",
+        "centering and scaling before PCA",
+        "PCA via covariance eigen-decomposition or SVD",
+        "t-SNE and UMAP uses and caveats",
+        "feature selection vs feature extraction",
+        "whitening and PCA before clustering"
+      ],
+      "concepts_vi": [
+        {
+          "text": "Vì sao giảm chiều: để vẽ được (2D/3D), chạy nhanh hơn, bớt nhiễu và tránh lời nguyền chiều cao.",
+          "level": "co_ban"
+        },
+        {
+          "text": "PCA (principal component analysis): tìm hướng mà dữ liệu tản mát (phương sai) lớn nhất, gọi là thành phần chính, rồi chiếu dữ liệu lên vài hướng đầu.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Chiếu lên một hướng: với mỗi điểm lấy 'cái bóng' của nó trên đường thẳng theo hướng đó, mỗi điểm còn một con số.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Phương sai giải thích (explained variance): phần trăm biến thiên mỗi thành phần giữ lại; chọn số thành phần để cộng lại đủ vd 95%.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Chuẩn bị cho PCA: trừ trung bình từng cột và đưa các cột về cùng thang đo trước khi chạy.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Ma trận hiệp phương sai (covariance matrix): bảng k×k cho k cột, ô (i, j) = TB của (cột i − TB_i)(cột j − TB_j), đường chéo là phương sai; PCA dùng bảng này.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "t-SNE và UMAP: vẽ dữ liệu nhiều chiều ra 2D giữ các láng giềng gần; khoảng cách giữa cụm và kích cỡ cụm trong hình không đáng tin.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Chọn feature và trích xuất feature: giữ một số cột gốc / tạo cột mới là tổ hợp của các cột cũ (PCA thuộc loại này).",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "PCA bằng tay trong 2D",
+          "vi": "3 điểm (1,1), (2,2), (3,3): trung bình (2,2), sau khi trừ còn (−1,−1), (0,0), (1,1). Các điểm nằm dọc đường chéo nên hướng chính là (1,1)/√2: chiếu lên hướng này được −1,41; 0; 1,41 (phương sai ≈ 1,33 nếu chia cho n = 3; sklearn chia cho n − 1 nên ra 2). Chiếu lên một hướng là lấy tích vô hướng với vector hướng đó. Chiếu lên hướng vuông góc (1,−1)/√2 thì mọi điểm đều bằng 0 (phương sai 0): nén xuống 1 chiều không mất gì."
+        },
+        {
+          "title": "Cần bao nhiêu thành phần",
+          "vi": "explained_variance_ratio_ = [0,72; 0,23; 0,04; 0,01]: cộng dồn 0,72 → 0,95 → 0,99 → 1,00; cần 2 thành phần để giữ ít nhất 95%. Nếu muốn giữ 99% thì cần mấy thành phần?"
+        },
+        {
+          "title": "Chạy PCA trên iris",
+          "vi": "Chạy PCA(n_components=2) trên dữ liệu iris (150 hoa, 4 cột), vẽ 2 thành phần đầu tô theo loài và in explained_variance_ratio_ (tổng khoảng 0,98).",
+          "starter_code_vi": {
+            "lang": "python",
+            "code": "from sklearn.datasets import load_iris\nfrom sklearn.decomposition import PCA\nX = load_iris().data   # 150 hoa, 4 cột\npca = PCA(n_components=2)\nZ = ...   # TODO: pca.fit_transform(X)\nprint(...)   # TODO: in pca.explained_variance_ratio_"
+          }
+        },
+        {
+          "title": "Lưu ý với t-SNE",
+          "vi": "Giải thích vì sao không nên suy ra hai cụm 'xa nhau' trong ảnh t-SNE là thật sự khác nhau nhiều."
+        }
+      ],
+      "beginner_note_vi": "Fresher cần phần Cơ bản (PCA, explained variance); ma trận hiệp phương sai và t-SNE dành cho junior.",
+      "example_problems": [
+        "Run PCA and plot two components",
+        "How many components to keep 95% variance",
+        "Why not interpret t-SNE distances?"
+      ],
+      "bank_topics": [],
+      "bank_counts": {},
+      "target_swe": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 0,
+        "senior": 0
+      },
+      "target_ai": {
+        "intern": 0,
+        "fresher": 2,
+        "junior": 2,
+        "senior": 3
+      },
+      "est_hours": 3,
+      "est_hours_beginner": 4,
+      "plan_order": 254,
+      "plan_day": null,
+      "plan_hours": 3
+    },
+    {
+      "id": "ml.classical.recsys_algorithms",
+      "section": "ml",
+      "module": "ml.classical",
+      "name_vi": "Thuật toán gợi ý (recommender algorithms)",
+      "order": 8,
+      "summary_vi": "Hệ gợi ý (recommender) đoán bạn sẽ thích gì dựa trên điều bạn và những người giống bạn đã xem. Học xong bạn dựng được baseline phổ biến, hiểu collaborative filtering, matrix factorization và cách xử lý người dùng mới (cold start).",
+      "mastery_bar_vi": "Mức 3: dựng baseline phổ biến, mô tả matrix factorization bằng ví dụ số nhỏ và nêu cách xử lý cold start và implicit feedback.",
+      "prerequisites": [
+        "ml.math.linear_algebra_basics",
+        "ml.fundamentals.regression_ranking_metrics"
+      ],
+      "lang_prereqs": {
+        "python": [],
+        "java": null
+      },
+      "key_concepts": [
+        "content-based vs collaborative filtering",
+        "user-item matrix, implicit vs explicit feedback",
+        "matrix factorization (ALS/SGD)",
+        "two-tower retrieval",
+        "negative sampling",
+        "cold start",
+        "popularity baseline",
+        "exploration/bandits"
+      ],
+      "concepts_vi": [
+        {
+          "text": "Ma trận người dùng × món (user-item matrix): hàng là người, cột là phim; ô là điểm chấm hoặc có xem; phần lớn ô để trống.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Explicit và implicit feedback: explicit là chấm sao; implicit là hành vi (xem, click), phổ biến hơn nhiều.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Baseline phổ biến (popularity): gợi ý món được nhiều người xem nhất; luôn làm trước.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Content-based và collaborative filtering: dựa trên đặc điểm của món / dựa trên những người có hành vi giống nhau.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Cold start: người hoặc món mới chưa có dữ liệu; dùng popularity hoặc thông tin mô tả.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Matrix factorization: xấp xỉ R ≈ U·Vᵀ, mỗi người và mỗi món là vector k chiều 'sở thích ẩn'; học bằng SGD hoặc ALS (alternating least squares: cố định V rồi giải U, rồi cố định U giải V, lặp lại).",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Two-tower: hai mạng nơ-ron tạo vector cho người và cho món, so bằng dot product để chọn ứng viên nhanh (học sau deep learning).",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Negative sampling: với implicit, lấy ngẫu nhiên món chưa tương tác làm ví dụ 'không thích'.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Exploration và bandit: thỉnh thoảng gợi ý món mới để học thêm.",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "Fill the matrix",
+          "vi": "A chấm (5, 4, ?), B chấm (5, 5, 1), C chấm (1, 2, 5): A giống B hơn C nên đoán ô trống của A (phim 3) thấp, khoảng 1."
+        },
+        {
+          "title": "Dot-product prediction",
+          "vi": "Vector ẩn người u = [1; 0,5], phim v = [2; 1]: điểm dự đoán = u·v = 2 + 0,5 = 2,5. Ô trống được đoán đúng bằng cách này: học vector u cho người và v cho phim sao cho u·v gần các điểm đã biết, rồi tính u·v cho ô chưa biết."
+        },
+        {
+          "title": "Popularity baseline",
+          "vi": "Từ danh sách views = [(user, phim), …] viết baseline gợi ý 2 phim được xem nhiều nhất (Counter của collections); sau đó thử đo recall@k trên dữ liệu giữ lại.",
+          "starter_code_vi": {
+            "lang": "python",
+            "code": "from collections import Counter\nviews = [(1, \"A\"), (1, \"B\"), (2, \"A\"), (3, \"A\"), (3, \"C\"), (2, \"B\"), (4, \"A\")]   # (user, phim)\ntop = ...   # TODO: Counter(m for _, m in views).most_common(2)\nprint(top)   # [('A', 4), ('B', 2)]"
+          }
+        },
+        {
+          "title": "Handle cold start",
+          "vi": "Nêu 3 cách xử lý người dùng mới chưa có lịch sử."
+        }
+      ],
+      "example_problems": [
+        "Explain matrix factorization for recs",
+        "Handling cold start",
+        "Recommend similar products"
+      ],
+      "bank_topics": [
+        "ml_ai.ml_system_design",
+        "ml_ai.classical_ml"
+      ],
+      "bank_counts": {
+        "ml_ai.ml_system_design": {
+          "total": 313,
+          "y2026": 168
+        },
+        "ml_ai.classical_ml": {
+          "total": 60,
+          "y2026": 17
+        }
+      },
+      "target_swe": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 0,
+        "senior": 0
+      },
+      "target_ai": {
+        "intern": 0,
+        "fresher": 1,
+        "junior": 2,
+        "senior": 3
+      },
+      "est_hours": 5,
+      "plan_order": 255,
+      "plan_day": null,
+      "plan_hours": 5
+    },
+    {
+      "id": "ml.classical.time_series_anomaly",
+      "section": "ml",
+      "module": "ml.classical",
+      "name_vi": "Chuỗi thời gian và phát hiện bất thường (time series, anomaly detection)",
+      "order": 9,
+      "summary_vi": "Chuỗi thời gian (time series) là dữ liệu sắp theo thời gian, như doanh số mỗi ngày. Học xong bạn dự báo bằng baseline đơn giản rồi GBDT với feature trễ, đánh giá đúng theo thời gian và phát hiện điểm bất thường (anomaly).",
+      "mastery_bar_vi": "Mức 3: dựng pipeline dự báo có baseline hợp lý và backtest theo thời gian, nêu được ít nhất 2 cách rò rỉ dữ liệu trong chuỗi thời gian.",
+      "prerequisites": [
+        "ml.fundamentals.validation_tuning",
+        "ml.classical.ensembles"
+      ],
+      "lang_prereqs": {
+        "python": [],
+        "java": null
+      },
+      "key_concepts": [
+        "trend, seasonality, stationarity",
+        "naive/seasonal baselines",
+        "ARIMA/exponential smoothing",
+        "lag & rolling features with GBDT",
+        "chronological validation, backtesting",
+        "multi-step forecasting strategies",
+        "anomaly detection: statistical, isolation forest, autoencoder",
+        "leakage in time series"
+      ],
+      "concepts_vi": [
+        {
+          "text": "Xu hướng và mùa vụ (trend, seasonality): tăng/giảm dài hạn / lặp theo chu kỳ (cuối tuần bán chạy hơn, tháng 12 bán nhiều).",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Baseline: đoán bằng giá trị hôm qua (naive) hoặc cùng ngày tuần trước (seasonal naive); mô hình phức tạp phải thắng được hai cách này.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Feature trễ và cửa sổ (lag, rolling): thêm cột 'doanh số hôm qua' (lag_1), 'tuần trước' (lag_7), trung bình 7 ngày trước (rolling mean) để GBDT (gradient boosted decision trees, tức XGBoost/LightGBM ở mục ensembles) dự báo.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Chia theo thời gian và backtesting: train trên quá khứ, test trên tương lai, lặp nhiều mốc cắt để kiểm tra độ ổn định.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Rò rỉ trong chuỗi thời gian: dùng feature từ tương lai (vd trung bình gồm cả ngày cần đoán) hoặc xáo trộn ngẫu nhiên các ngày khi chia train/test.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Phát hiện bất thường (anomaly detection): điểm lệch xa mức bình thường; cách đơn giản nhất là z-score vượt ngưỡng (vd |z| > 3).",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "MAE của baseline naive",
+          "vi": "Doanh số 5 ngày [10, 12, 11, 13, 15]: đoán ngày t bằng ngày t−1 cho ngày 2..5 được sai số 2, 1, 2, 2 nên MAE = (2 + 1 + 2 + 2)/4 = 1,75."
+        },
+        {
+          "title": "Feature trễ bằng tay",
+          "vi": "Doanh số [10, 12, 11, 13, 15]. Với ngày 4 (giá trị 13): lag_1 = 11 và trung bình 3 ngày trước = (10+12+11)/3 = 11. Với ngày 5 (giá trị 15): lag_1 = 13 và trung bình 3 ngày trước = (12+11+13)/3 = 12. Vì sao không được dùng giá trị của chính ngày 4 trong feature của ngày 4?"
+        },
+        {
+          "title": "Tạo feature trễ bằng pandas",
+          "vi": "Dùng shift (dịch cột xuống n dòng) và rolling (cửa sổ trượt) để tạo lag_1 và rolling_mean_3 cho chuỗi trên, rồi train GBDT trên 60 ngày dữ liệu và so MAE với baseline.",
+          "starter_code_vi": {
+            "lang": "python",
+            "code": "import pandas as pd\ndf = pd.DataFrame({\"y\": [10, 12, 11, 13, 15, 14, 16]})\ndf[\"lag_1\"] = ...    # TODO: df[\"y\"].shift(1)\ndf[\"mean_3\"] = ...   # TODO: df[\"y\"].shift(1).rolling(3).mean()\nprint(df)"
+          }
+        },
+        {
+          "title": "Z-score phát hiện bất thường",
+          "vi": "Dữ liệu trung bình 100, σ = 10: giá trị 145 có z = (145 − 100)/10 = 4,5, bất thường nếu ngưỡng là 3; giá trị 120 có z = 2, bình thường."
+        },
+        {
+          "title": "Vì sao chia ngẫu nhiên thất bại",
+          "vi": "Giải thích vì sao chia ngẫu nhiên các ngày làm điểm đẹp giả (mô hình đã 'thấy' ngày hôm sau khi train) và chia đúng thế nào."
+        }
+      ],
+      "example_problems": [
+        "Forecast next H steps of timestamped series",
+        "Detect fraud anomalies unsupervised",
+        "Why random split fails?"
+      ],
+      "bank_topics": [
+        "ml_ai.other",
+        "ml_ai.ml_coding",
+        "ml_ai.classical_ml"
+      ],
+      "bank_counts": {
+        "ml_ai.other": {
+          "total": 5,
+          "y2026": 3
+        },
+        "ml_ai.ml_coding": {
+          "total": 145,
+          "y2026": 87
+        },
+        "ml_ai.classical_ml": {
+          "total": 60,
+          "y2026": 17
+        }
+      },
+      "target_swe": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 0,
+        "senior": 0
+      },
+      "target_ai": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 2,
+        "senior": 2
+      },
+      "est_hours": 4,
+      "plan_order": 256,
+      "plan_day": null,
+      "plan_hours": 4
+    },
+    {
       "id": "ml.math.linalg_decomposition",
       "section": "ml",
       "module": "ml.classical",
@@ -28747,7 +29095,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 254,
+      "plan_order": 257,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -28873,7 +29221,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 255,
+      "plan_order": 258,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -28996,7 +29344,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 256,
+      "plan_order": 259,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -29113,7 +29461,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 257,
+      "plan_order": 260,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -29220,7 +29568,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 258,
+      "plan_order": 261,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -29335,7 +29683,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 259,
+      "plan_order": 262,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -29452,7 +29800,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 260,
+      "plan_order": 263,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -29575,7 +29923,7 @@
         "senior": 3
       },
       "est_hours": 2,
-      "plan_order": 261,
+      "plan_order": 264,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -29703,7 +30051,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 262,
+      "plan_order": 265,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -29823,7 +30171,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 263,
+      "plan_order": 266,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -29937,7 +30285,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 264,
+      "plan_order": 267,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -30059,7 +30407,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 265,
+      "plan_order": 268,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -30185,7 +30533,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 266,
+      "plan_order": 269,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -30305,7 +30653,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 267,
+      "plan_order": 270,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -30422,7 +30770,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 268,
+      "plan_order": 271,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -30541,7 +30889,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 269,
+      "plan_order": 272,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -30653,7 +31001,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 270,
+      "plan_order": 273,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -30775,7 +31123,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 271,
+      "plan_order": 274,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -30900,7 +31248,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 272,
+      "plan_order": 275,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -31017,7 +31365,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 273,
+      "plan_order": 276,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -31128,7 +31476,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 274,
+      "plan_order": 277,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -31240,7 +31588,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 275,
+      "plan_order": 278,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -31347,7 +31695,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 276,
+      "plan_order": 279,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -31467,7 +31815,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 277,
+      "plan_order": 280,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -31590,7 +31938,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 278,
+      "plan_order": 281,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -31700,7 +32048,7 @@
         "senior": 3
       },
       "est_hours": 2,
-      "plan_order": 279,
+      "plan_order": 282,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -31810,7 +32158,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 280,
+      "plan_order": 283,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -31926,7 +32274,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 281,
+      "plan_order": 284,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -32051,7 +32399,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 282,
+      "plan_order": 285,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -32165,7 +32513,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 283,
+      "plan_order": 286,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -32282,7 +32630,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 284,
+      "plan_order": 287,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -32380,7 +32728,7 @@
         "senior": 3
       },
       "est_hours": 2,
-      "plan_order": 285,
+      "plan_order": 288,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -32498,7 +32846,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 286,
+      "plan_order": 289,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -32622,7 +32970,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 287,
+      "plan_order": 290,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -32747,7 +33095,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 288,
+      "plan_order": 291,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -32875,7 +33223,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 289,
+      "plan_order": 292,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -32991,7 +33339,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 290,
+      "plan_order": 293,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -33095,7 +33443,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 291,
+      "plan_order": 294,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -33212,7 +33560,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 292,
+      "plan_order": 295,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -33324,7 +33672,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 293,
+      "plan_order": 296,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -33424,7 +33772,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 294,
+      "plan_order": 297,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -33558,7 +33906,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 295,
+      "plan_order": 298,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -33694,7 +34042,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 296,
+      "plan_order": 299,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -33839,7 +34187,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 297,
+      "plan_order": 300,
       "plan_day": null,
       "plan_hours": 6
     }

@@ -1,0 +1,153 @@
+id: ml.classical.dimensionality_reduction
+version: 1
+status: published
+title_vi: "Dimensionality reduction: PCA, t-SNE và UMAP"
+est_minutes: 14
+objectives_vi:
+  - "Giải thích vì sao giảm chiều: curse of dimensionality, trực quan hoá và lọc nhiễu."
+  - "Chạy PCA bằng các phép tổng thuần Python: center, covariance, explained variance ratio, chọn số thành phần theo phương sai tích luỹ."
+  - "Hiểu t-SNE và UMAP chỉ để trực quan hoá: không đọc khoảng cách hay kích thước cụm trong ảnh 2-D."
+blocks:
+  - id: s_why
+    type: section
+    title_vi: "Vì sao giảm chiều và PCA hoạt động thế nào"
+    summary_vi: "Curse of dimensionality, center dữ liệu, covariance, principal component và explained variance ratio."
+    exercise_ref: ex_cumvar
+  - id: t01
+    type: text
+    md: |
+      **Giảm chiều** là biến dữ liệu `d` feature thành `k < d` feature mà vẫn giữ phần lớn thông tin. Ba lý do chính:
+
+      - **Curse of dimensionality**: số chiều càng lớn, dữ liệu càng thưa; khoảng cách giữa các điểm gần như bằng nhau
+        nên các mô hình dựa trên khoảng cách (kNN, clustering) yếu đi và cần nhiều mẫu hơn.
+      - **Trực quan hoá**: con người chỉ nhìn được 2-D hoặc 3-D.
+      - **Lọc nhiễu và nén**: chiều có phương sai rất nhỏ thường chỉ là nhiễu.
+
+      **PCA** (Principal Component Analysis) là phép chiếu **tuyến tính**. Các bước, viết bằng tổng thuần Python:
+
+      ```
+      mean = sum(col) / n                       # 1. center từng feature
+      centered = [v - mean for v in col]
+      var = sum(c * c for c in centered) / n    # 2. phương sai (đường chéo của covariance)
+      cov = sum(a * b for a, b in zip(ca, cb)) / n   # 3. covariance giữa hai feature
+      ```
+
+      Các **principal component** là những hướng (trực giao nhau) có phương sai lớn nhất của dữ liệu đã center; chúng là
+      eigenvector của ma trận covariance, còn eigenvalue chính là phương sai dọc theo hướng đó.
+      **Explained variance ratio** của thành phần `i` là `eigenvalue_i / tổng eigenvalue`.
+      Chọn `k` nhỏ nhất sao cho **phương sai tích luỹ** (cumulative variance) đạt ngưỡng, ví dụ 95%.
+      Phải **center** (thường cũng scale) trước, nếu không thành phần đầu chỉ hướng về phía mean.
+
+      Ví dụ: ratio `[0.6, 0.25, 0.1, 0.05]` cho tích luỹ `[0.6, 0.85, 0.95, 1.0]`, nên cần 3 thành phần để đạt 95%.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Principal component đầu tiên của PCA là hướng nào?"
+    options:
+      - {id: a, text_md: "Hướng có phương sai lớn nhất của dữ liệu đã center"}
+      - {id: b, text_md: "Hướng có nhiều nhãn lớp nhất"}
+      - {id: c, text_md: "Hướng của feature đầu tiên trong bảng"}
+    answer: [a]
+    explain_md: "PCA không dùng nhãn; thành phần đầu là hướng giữ nhiều phương sai nhất, các thành phần sau trực giao với nó."
+  - id: q02
+    type: predict_output
+    code: |
+      ratios = [0.5, 0.25, 0.25]
+      acc = 0.0
+      for r in ratios:
+          acc += r
+          print(acc)
+    expected_output: |
+      0.5
+      0.75
+      1.0
+    explain_md: "Phương sai tích luỹ cộng dồn từng ratio: 0.5, rồi 0.75, rồi 1.0 (tổng các ratio luôn bằng 1)."
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Vì sao phải center dữ liệu (trừ mean) trước khi PCA?"
+    options:
+      - {id: a, text_md: "Để covariance đo độ lan quanh mean; không center thì thành phần đầu bị kéo về phía mean"}
+      - {id: b, text_md: "Để dữ liệu có nhãn cân bằng"}
+      - {id: c, text_md: "Để giảm số mẫu"}
+    answer: [a]
+    explain_md: "PCA tìm hướng có phương sai lớn nhất quanh mean. Không center thì hướng tìm được phản ánh vị trí của mean."
+  - id: ex_cumvar
+    type: code_exercise
+    md: |
+      Cài `cumulative_variance(ratios)`: nhận list explained variance ratio và trả list phương sai tích luỹ
+      (tổng chạy), mỗi giá trị làm tròn 6 chữ số. Ví dụ `[0.5, 0.3, 0.2]` cho `[0.5, 0.8, 1.0]`.
+    entry: cumulative_variance
+    starter: |
+      def cumulative_variance(ratios):
+          # TODO: cộng dồn từng ratio và làm tròn 6 chữ số
+          pass
+    guidance_md: |
+      - Duyệt từng ratio, giữ một biến tổng chạy `acc`.
+      - Mỗi bước: `acc += r`, rồi thêm `round(acc, 6)` vào kết quả.
+    hints:
+      - level: nudge
+        md: "Cần một biến nhớ tổng các ratio đã duyệt."
+      - level: approach
+        md: "Khởi tạo `acc = 0.0`; với mỗi `r` cộng vào `acc` rồi append `round(acc, 6)`."
+      - level: near_solution
+        md: "`out = []`, `for r in ratios: acc += r; out.append(round(acc, 6))`, rồi `return out`."
+    tests:
+      - {args: [[0.5, 0.3, 0.2]], expected: [0.5, 0.8, 1.0]}
+      - {args: [[1.0]], expected: [1.0]}
+      - {args: [[0.6, 0.25, 0.1, 0.05]], expected: [0.6, 0.85, 0.95, 1.0]}
+      - {args: [[]], expected: []}
+    solution: |
+      def cumulative_variance(ratios):
+          out = []
+          acc = 0.0
+          for r in ratios:
+              acc += r
+              out.append(round(acc, 6))
+          return out
+  - id: s_viz
+    type: section
+    title_vi: "t-SNE và UMAP: chỉ để trực quan hoá"
+    summary_vi: "Hai phương pháp phi tuyến, ngẫu nhiên, giữ láng giềng gần nhưng không giữ khoảng cách."
+  - id: t02
+    type: text
+    md: |
+      **t-SNE** và **UMAP** là phương pháp **phi tuyến** đưa dữ liệu về 2-D để **nhìn**. Chúng giữ cấu trúc **láng giềng
+      gần** (điểm gần nhau trong không gian gốc nằm gần nhau trên bản đồ), nhưng:
+
+      - **Khoảng cách giữa các cụm** trên ảnh **không có nghĩa**: hai cụm xa nhau chưa chắc khác nhau nhiều.
+      - **Kích thước và mật độ cụm** cũng không đo được (t-SNE co giãn cục bộ).
+      - **Ngẫu nhiên**: đổi seed hoặc tham số (`perplexity` của t-SNE, `n_neighbors` của UMAP) là ảnh đổi.
+      - Không có phép chiếu tuyến tính nên **không dùng làm feature** cho mô hình một cách tuỳ tiện; không có
+        explained variance ratio.
+
+      Quy tắc thực hành: dùng **PCA** để nén, lọc nhiễu, làm feature (xác định, nhanh, có thể giải thích). Dùng
+      **t-SNE/UMAP** để khám phá cụm bằng mắt, thường chạy trên đầu ra của PCA (ví dụ 50 chiều). UMAP thường nhanh hơn
+      và giữ cấu trúc toàn cục tốt hơn t-SNE, nhưng vẫn không đọc được khoảng cách.
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Trên ảnh t-SNE, cụm A cách cụm B xa gấp 3 lần cụm C. Kết luận nào đúng?"
+    options:
+      - {id: a, text_md: "Không kết luận được về mức khác biệt: khoảng cách giữa cụm không có nghĩa trong t-SNE"}
+      - {id: b, text_md: "A khác B gấp 3 lần so với A khác C"}
+      - {id: c, text_md: "Cụm càng to thì càng nhiều dữ liệu"}
+    answer: [a]
+    explain_md: "t-SNE chỉ bảo toàn láng giềng gần. Khoảng cách giữa cụm và kích thước cụm là sản phẩm của thuật toán."
+  - id: q05
+    type: quiz_fill
+    prompt_md: "PCA là phép chiếu ___ (điền: tuyến tính hoặc phi tuyến), còn t-SNE là phi tuyến."
+    blanks: [{accept: ["tuyến tính", "tuyen tinh", "linear"]}]
+    explain_md: "PCA chiếu dữ liệu lên các hướng thẳng nên tuyến tính; t-SNE và UMAP là phi tuyến."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Giảm chiều đối phó curse of dimensionality, giúp trực quan hoá và lọc nhiễu."
+      - "PCA: center dữ liệu, tính covariance, principal component là hướng phương sai lớn nhất (eigenvector), phương sai là eigenvalue."
+      - "Explained variance ratio = eigenvalue / tổng eigenvalue; chọn k nhỏ nhất để phương sai tích luỹ đạt ngưỡng (ví dụ 95%)."
+      - "t-SNE và UMAP phi tuyến, ngẫu nhiên, chỉ để trực quan hoá: không đọc khoảng cách giữa cụm hay kích thước cụm."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [Q242], l2: [X692], l3: [X693]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-06"

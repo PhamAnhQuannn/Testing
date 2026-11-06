@@ -20,14 +20,14 @@ EXTRA_MODULES = {"ml.llm", "ml.rag_agents", "ml.llm_eval_serving", "ml.system_de
 
 def test_index_starts_with_the_40_subtopics_of_spec_4_1():
     ids = [s["id"] for s in SUBTOPICS]
-    assert len(ids) == 297  # 40 plan + 86 sd + 39 ml + 132 Wave-2/3/4 py+dsa+lld+ml (EXTRA_IDS)
+    assert len(ids) == 300  # 40 plan + 86 sd + 39 ml + 135 Wave-2/3/4 py+dsa+lld+ml (EXTRA_IDS)
     assert ids[:40] == spec_table_ids()
 
 
 def test_extra_track_section_counts():
     sections = [s["section"] for s in SUBTOPICS]
     assert sections.count("sd") == 86
-    assert sections.count("ml") == 63  # 39 LLM + 12 math + 8 fundamentals + 4 classical (EXTRA_IDS)
+    assert sections.count("ml") == 66  # 39 LLM + 12 math + 8 fundamentals + 7 classical (EXTRA_IDS)
     assert sum(1 for s in SUBTOPICS if s["module"] in EXTRA_MODULES) == 39
 
 
@@ -42,7 +42,7 @@ def test_every_plan_subtopic_has_a_lesson_file_named_after_it():
 def test_assumed_prerequisites():
     assumed = load_json(CONTENT / "index/assumed.json")["assumed"]
     shipped = {s["id"] for s in SUBTOPICS}
-    assert len(assumed) == 38  # prereqs of sd + ml + Wave-2/3/4 py/dsa/lld/ml that are not shipped
+    assert len(assumed) == 35  # prereqs of sd + ml + Wave-2/3/4 py/dsa/lld/ml that are not shipped
     assert "cs.onramp.computer_programming_model" in assumed
     assert set(assumed).isdisjoint(shipped)
     assert assumed == sorted(assumed)
