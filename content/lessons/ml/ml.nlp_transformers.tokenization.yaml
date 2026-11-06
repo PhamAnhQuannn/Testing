@@ -1,0 +1,193 @@
+id: ml.nlp_transformers.tokenization
+version: 1
+status: published
+title_vi: "Tokenization: BPE, WordPiece, SentencePiece"
+est_minutes: 14
+objectives_vi:
+  - "Giải thích vì sao LLM dùng subword token thay vì từ nguyên hay ký tự, và token ảnh hưởng thế nào tới chi phí."
+  - "Chạy tay thuật toán BPE: đếm cặp kề nhau, gộp cặp phổ biến nhất thành token mới."
+  - "Phân biệt BPE, WordPiece, Unigram, byte-level BPE, SentencePiece và nhận ra các lỗi do tokenizer gây ra."
+blocks:
+  - id: s_why
+    type: section
+    title_vi: "Token là gì và vì sao dùng subword"
+    summary_vi: "Whole-word, character-level và subword; vocabulary, token id và chi phí theo token."
+  - id: t01
+    type: text
+    md: |
+      **Token** là mảnh văn bản mà mô hình xử lý như một đơn vị. Mô hình không đọc chữ, nó đọc dãy **token id** (số nguyên).
+      **Tokenizer** biến chuỗi thành list token rồi tra **vocabulary** (bảng token ↔ id, cỡ khoảng 30k đến 200k mục).
+
+      Ba cách chia:
+
+      - **Whole-word**: mỗi từ một token. Vocabulary phải rất lớn và gặp từ lạ là **OOV** (out-of-vocabulary).
+      - **Character-level**: không bao giờ OOV, nhưng chuỗi rất dài, attention tốn kém và mô hình khó học nghĩa từ.
+      - **Subword**: từ phổ biến giữ nguyên (`the`), từ hiếm bị tách thành mảnh (`unhappiness` thành `un`, `happi`, `ness`).
+        Cân bằng giữa độ dài chuỗi và kích thước vocabulary, và hầu như không có OOV.
+
+      **Chi phí**: API tính tiền và giới hạn context theo **token**, không theo ký tự hay từ. Tiếng Việt (nhiều dấu, ít
+      xuất hiện trong dữ liệu train của tokenizer) thường bị tách thành nhiều token hơn tiếng Anh cho cùng một nội dung,
+      nên tốn tiền và tốn context hơn.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Vì sao tokenizer của LLM thường dùng subword thay vì mỗi từ một token?"
+    options:
+      - {id: a, text_md: "Vocabulary gọn hơn và từ lạ vẫn biểu diễn được bằng các mảnh nhỏ, không bị OOV"}
+      - {id: b, text_md: "Vì subword luôn cho chuỗi ngắn hơn character-level và từ nguyên cùng lúc"}
+      - {id: c, text_md: "Vì mô hình không đọc được từ nguyên"}
+    answer: [a]
+    explain_md: "Whole-word cần vocabulary khổng lồ và bị OOV; subword giữ từ hay gặp, tách từ hiếm thành mảnh nên vừa gọn vừa phủ mọi chuỗi."
+  - id: q02
+    type: quiz_fill
+    prompt_md: "API LLM tính tiền theo số ___ (điền một từ tiếng Anh), không phải theo số ký tự."
+    blanks: [{accept: ["token", "tokens"]}]
+    explain_md: "Chi phí và giới hạn context đều đo bằng token; tiếng Việt thường tốn nhiều token hơn tiếng Anh."
+  - id: s_bpe
+    type: section
+    title_vi: "BPE: gộp cặp phổ biến nhất"
+    summary_vi: "Thuật toán Byte-Pair Encoding, ví dụ chạy tay và hàm apply_merge."
+    exercise_ref: ex_merge
+  - id: t03
+    type: text
+    md: |
+      **BPE** (Byte-Pair Encoding) học vocabulary từ corpus bằng vòng lặp:
+
+      1. Bắt đầu: mỗi từ là list **ký tự**; vocabulary ban đầu là các ký tự.
+      2. Đếm mọi **cặp kề nhau** trong toàn corpus (có nhân theo tần suất từ).
+      3. Chọn cặp xuất hiện nhiều nhất, **gộp** thành một token mới và lưu luật merge.
+      4. Lặp lại tới khi đủ vocabulary size mong muốn. Khi encode, áp lại các luật merge theo đúng thứ tự học.
+
+      Ví dụ corpus: `low` ×3, `lower` ×1, `lowest` ×1. Ban đầu `l o w`, `l o w e r`, `l o w e s t`.
+      Cặp `(l, o)` xuất hiện 5 lần, `(o, w)` cũng 5 lần; hoà thì lấy theo thứ tự chữ cái nên chọn `(l, o)` và được token `lo`.
+      Sau merge: `lo w`, `lo w e r`, `lo w e s t`. Vòng sau `(lo, w)` có 5 lần, thành token `low`.
+      Từ hiếm `lowest` cuối cùng là `low`, `e`, `s`, `t`: mảnh nhỏ vẫn biểu diễn được.
+
+      Bộ khung vòng lặp (chỉ để đọc):
+
+      ```
+      while len(vocab) < target:
+          counts = đếm cặp kề nhau trong mọi từ
+          best = cặp có count lớn nhất
+          words = [apply_merge(w, best) for w in words]
+          vocab.add(best[0] + best[1])
+      ```
+
+      Phần lõi là `apply_merge`: quét trái sang phải, gặp đúng cặp thì gộp và **nhảy qua 2 phần tử**, nên các lần gộp
+      **không chồng lấn**. Với `a a a` và cặp `(a, a)` kết quả là `aa a`, không phải `aa aa`.
+  - id: q03
+    type: predict_output
+    code: |
+      tokens = ["l", "o", "w", "l", "o"]
+      counts = {}
+      for x, y in zip(tokens, tokens[1:]):
+          counts[(x, y)] = counts.get((x, y), 0) + 1
+      print(counts[("l", "o")])
+      print(len(counts))
+    expected_output: |
+      2
+      3
+    explain_md: "Các cặp kề nhau: (l,o), (o,w), (w,l), (l,o). Cặp (l,o) xuất hiện 2 lần; có 3 cặp khác nhau."
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Một bước BPE gộp cặp `(a, a)` trên `[a, a, a]`. Kết quả đúng là gì?"
+    options:
+      - {id: a, text_md: "`[aa, a]`: gộp hai phần tử đầu rồi nhảy qua, phần tử thứ ba giữ nguyên"}
+      - {id: b, text_md: "`[aa, aa]`: gộp chồng lấn"}
+      - {id: c, text_md: "`[aaa]`"}
+    answer: [a]
+    explain_md: "Mỗi lần gộp tiêu thụ 2 phần tử liền nhau và không dùng lại, nên chỉ gộp được một cặp trong `a a a`."
+  - id: ex_merge
+    type: code_exercise
+    md: |
+      Cài `apply_merge(tokens, pair)`: `tokens` là list string, `pair` là list 2 phần tử `[a, b]`.
+      Quét trái sang phải; mỗi khi hai token liền nhau bằng `a` rồi `b` thì thay bằng token `a + b` và bỏ qua cả hai.
+      Các lần gộp không chồng lấn. Trả list mới. Ví dụ `["l", "o", "w"]` với `["l", "o"]` cho `["lo", "w"]`.
+    entry: apply_merge
+    starter: |
+      def apply_merge(tokens, pair):
+          # TODO: quét trái sang phải, gộp cặp (pair[0], pair[1]) không chồng lấn
+          pass
+    guidance_md: |
+      - Dùng chỉ số `i` và vòng `while i < len(tokens)`.
+      - Nếu `i + 1 < len(tokens)` và hai token khớp pair thì append `pair[0] + pair[1]` và `i += 2`.
+      - Ngược lại append `tokens[i]` và `i += 1`.
+    hints:
+      - level: nudge
+        md: "Dùng vòng `while` với chỉ số tự quản, vì có lúc phải nhảy 2 bước."
+      - level: approach
+        md: "Tại vị trí i: nếu tokens[i] == pair[0] và tokens[i+1] == pair[1] thì ghi token gộp rồi i += 2."
+      - level: near_solution
+        md: "Nhớ kiểm tra `i + 1 < len(tokens)` trước khi đọc `tokens[i + 1]`; nhánh còn lại append tokens[i] và i += 1."
+    tests:
+      - {args: [["l", "o", "w"], ["l", "o"]], expected: ["lo", "w"]}
+      - {args: [["a", "a", "a"], ["a", "a"]], expected: ["aa", "a"]}
+      - {args: [["a", "a", "a", "a"], ["a", "a"]], expected: ["aa", "aa"]}
+      - {args: [["x", "y"], ["a", "b"]], expected: ["x", "y"]}
+    solution: |
+      def apply_merge(tokens, pair):
+          out = []
+          i = 0
+          while i < len(tokens):
+              if i + 1 < len(tokens) and tokens[i] == pair[0] and tokens[i + 1] == pair[1]:
+                  out.append(pair[0] + pair[1])
+                  i += 2
+              else:
+                  out.append(tokens[i])
+                  i += 1
+          return out
+  - id: s_var
+    type: section
+    title_vi: "Biến thể, special token và lỗi thường gặp"
+    summary_vi: "WordPiece, Unigram, byte-level BPE, SentencePiece, chat template và các failure mode."
+  - id: t05
+    type: text
+    md: |
+      **Biến thể** (chỉ cần nhận ra):
+
+      - **WordPiece** (BERT): giống BPE nhưng chọn cặp gộp theo điểm likelihood thay vì tần suất thô; mảnh nối tiếp có tiền tố `##`.
+      - **Unigram**: bắt đầu từ vocabulary lớn rồi **cắt bớt** token ít hữu ích; một chuỗi có thể có nhiều cách tách.
+      - **Byte-level BPE** (GPT): chạy BPE trên **byte** UTF-8 nên không bao giờ OOV, kể cả emoji hay chữ lạ.
+      - **SentencePiece**: thư viện coi văn bản thô là dòng ký tự (khoảng trắng thành `▁`), không cần tách từ trước,
+        hợp với tiếng Nhật, Trung hay Việt; có thể huấn luyện BPE hoặc Unigram.
+
+      **Special token**: `<bos>`, `<eos>`, `<pad>`, `<unk>`... cùng các token đánh dấu vai trò. **Chat template** ghép
+      các lượt hội thoại (system, user, assistant) thành một chuỗi với special token đúng định dạng của từng mô hình; dùng sai template là mô hình trả lời kém.
+
+      **Vocab-size trade-off**: vocabulary lớn thì chuỗi ngắn (rẻ attention, ít token) nhưng embedding table lớn và token hiếm
+      được học ít; vocabulary nhỏ thì ngược lại.
+
+      **Lỗi do tokenizer**: LLM thấy token chứ không thấy ký tự, nên kém ở việc đếm chữ cái trong từ, so sánh số, đảo ngược chuỗi,
+      và xử lý code hay khoảng trắng (cùng một số có thể bị tách thành các mảnh bất ngờ).
+  - id: q05
+    type: quiz_mcq
+    prompt_md: "Vì sao LLM hay đếm sai số chữ `r` trong một từ?"
+    options:
+      - {id: a, text_md: "Mô hình nhìn từ dưới dạng token (mảnh), không thấy từng ký tự riêng lẻ"}
+      - {id: b, text_md: "Vì vocabulary không chứa chữ `r`"}
+      - {id: c, text_md: "Vì API chặn đếm ký tự"}
+    answer: [a]
+    explain_md: "Token là đơn vị nhỏ nhất mô hình thấy; ranh giới ký tự bên trong token bị che, nên các tác vụ cấp ký tự khó."
+  - id: q06
+    type: quiz_mcq
+    prompt_md: "Tăng vocabulary size lên rất lớn thì đánh đổi nào đúng?"
+    options:
+      - {id: a, text_md: "Chuỗi token ngắn hơn nhưng embedding table lớn hơn và token hiếm được học ít hơn"}
+      - {id: b, text_md: "Chuỗi dài hơn và embedding nhỏ hơn"}
+      - {id: c, text_md: "Không có đánh đổi nào"}
+    answer: [a]
+    explain_md: "Vocabulary lớn nén văn bản thành ít token hơn, nhưng tốn tham số embedding và nhiều token chỉ xuất hiện vài lần."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Token là đơn vị mô hình xử lý; subword cân bằng giữa vocabulary nhỏ, chuỗi ngắn và không OOV."
+      - "BPE: bắt đầu từ ký tự, lặp lại việc gộp cặp kề nhau phổ biến nhất thành token mới; một bước merge quét trái sang phải, không chồng lấn."
+      - "Biến thể: WordPiece, Unigram, byte-level BPE, SentencePiece; special token và chat template định dạng hội thoại."
+      - "Tiền và context tính theo token (tiếng Việt tốn hơn); LLM kém tác vụ cấp ký tự vì thấy token, không thấy ký tự."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X703], l2: [X704], l3: [X705]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-06"
