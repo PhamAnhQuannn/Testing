@@ -16242,6 +16242,676 @@
       "plan_hours": 5
     },
     {
+      "id": "lld.problems.ecommerce_ordering",
+      "section": "lld",
+      "module": "lld.problems",
+      "name_vi": "Giỏ hàng và đơn hàng (shopping cart & orders)",
+      "order": 5,
+      "summary_vi": "Bài giỏ hàng và đơn hàng: sản phẩm, dòng hàng, giảm giá, thuế và trạng thái đơn. Học xong bạn thiết kế được luồng mua sắm, tính tiền đúng và thêm quy tắc giảm giá mới dễ dàng.",
+      "mastery_bar_vi": "Mức 3: thiết kế giỏ hàng/đơn hàng với giảm giá mở rộng được, tiền tính đúng và vòng đời đơn rõ ràng.",
+      "prerequisites": [
+        "lld.process.apis_code",
+        "lld.patterns.behavioral_strategy_state"
+      ],
+      "lang_prereqs": {
+        "python": [],
+        "java": []
+      },
+      "key_concepts": [
+        "Product/Cart/Order/OrderLine/Inventory entities",
+        "pricing: discount stacking and tax via strategy/decorator",
+        "order state lifecycle (placed, paid, shipped, cancelled)",
+        "inventory reservation and stock decrement",
+        "money as decimal type, never float",
+        "receipt/billing generation",
+        "menu customization via decorator or builder (pizza)",
+        "Rider/Driver/Trip entities",
+        "matching strategy (nearest driver), surge pricing strategy",
+        "trip state machine; observer for location updates"
+      ],
+      "concepts_vi": [
+        {
+          "text": "Class chính: Product (sản phẩm), Cart (giỏ hàng), OrderLine (dòng hàng: sản phẩm x số lượng), Order (đơn hàng), Inventory (kho, số tồn của từng sản phẩm).",
+          "level": "co_ban"
+        },
+        {
+          "text": "Giỏ hàng đơn giản: Cart giữ list OrderLine; tổng tiền = cộng (đơn giá x số lượng) của từng dòng.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Tiền: dùng Decimal (from decimal import Decimal; Decimal(\"0.1\") + Decimal(\"0.2\") ra đúng 0.3) hoặc số nguyên đồng/xu, không dùng float vì sai số (0.1 + 0.2 ra 0.30000000000000004).",
+          "level": "co_ban"
+        },
+        {
+          "text": "Giảm giá và thuế viết bằng Strategy hoặc Decorator, thêm quy tắc không sửa hàm tính tiền.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Discount stacking: nhiều mã cùng áp thì phải nói rõ thứ tự. Giỏ 100k, mã A giảm 10%, mã B trừ 20k: giảm % trước ra 90 rồi 70k; trừ tiền trước ra 80 rồi 72k.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Vòng đời đơn: đã đặt -> đã trả tiền -> đã giao hoặc đã hủy; chặn chuyển sai (đã giao thì không hủy được).",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Kho: đặt hàng thì trừ tồn kho, hủy đơn thì cộng lại; không bán quá số có.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Tạo hóa đơn (receipt: phiếu ghi món đã mua và tổng tiền): in từng dòng hàng, tổng, thuế, giảm giá; món tùy biến (pizza topping) dùng Decorator như ở structural_decorator_composite.",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "Design an online shopping cart",
+          "vi": "Thêm, xóa sản phẩm, tính tổng, đặt hàng và in hóa đơn. Mẫu: thêm (Ao, 100, 2) và (Non, 50, 1) thì tổng 250.",
+          "starter_code_vi": {
+            "lang": "python",
+            "code": "class Cart:\n    def __init__(self): self.dong = []          # mỗi dòng: (ten, don_gia, so_luong)\n    def them(self, ten, don_gia, sl): self.dong.append((ten, don_gia, sl))\n    def tong(self):\n        return ...   # TODO: cộng don_gia * sl của mọi dòng"
+          }
+        },
+        {
+          "title": "Design a supermarket checkout system",
+          "vi": "Quét mã tính tiền, áp hai loại giảm giá và thuế, trừ tồn kho."
+        },
+        {
+          "title": "Order state machine",
+          "vi": "Vẽ và code các trạng thái đơn hàng, chặn chuyển trạng thái sai (đã giao thì không hủy được)."
+        }
+      ],
+      "beginner_note_vi": "Intern bỏ qua; fresher làm phần giỏ hàng đơn giản (Cơ bản); giảm giá nhiều tầng là mức junior.",
+      "example_problems": [
+        "Design a supermarket checkout system",
+        "Design a cash register with inventory and profit tracking",
+        "Design an online shopping cart",
+        "Design a pizza ordering system",
+        "Design Uber (LLD)"
+      ],
+      "bank_topics": [
+        "lld.ood_problems"
+      ],
+      "bank_counts": {
+        "lld.ood_problems": {
+          "total": 211,
+          "y2026": 114
+        }
+      },
+      "target_swe": {
+        "intern": 0,
+        "fresher": 1,
+        "junior": 2,
+        "senior": 3
+      },
+      "target_ai": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 0,
+        "senior": 0
+      },
+      "est_hours": 6,
+      "plan_order": 143,
+      "plan_day": null,
+      "plan_hours": 6
+    },
+    {
+      "id": "lld.problems.ride_hailing",
+      "section": "lld",
+      "module": "lld.problems",
+      "name_vi": "Ứng dụng đặt xe và giao đồ ăn (ride-hailing & delivery)",
+      "order": 6,
+      "summary_vi": "Bài đặt xe: khách gọi xe, hệ thống ghép với tài xế gần nhất, chuyến đi chuyển qua nhiều trạng thái. Học xong bạn thiết kế được ghép cặp và vòng đời chuyến đi.",
+      "mastery_bar_vi": "Mức 3: thiết kế được ghép cặp và vòng đời chuyến đi mở rộng được, giá tính đúng.",
+      "prerequisites": [
+        "lld.process.apis_code",
+        "lld.patterns.behavioral_strategy_state",
+        "lld.patterns.behavioral_observer_command"
+      ],
+      "lang_prereqs": {
+        "python": [],
+        "java": []
+      },
+      "key_concepts": [
+        "Rider/Driver/Trip entities",
+        "matching strategy (nearest driver), surge pricing strategy",
+        "trip state machine; observer for location updates"
+      ],
+      "concepts_vi": [
+        {
+          "text": "Class chính: Rider (khách), Driver (tài xế), Trip (chuyến đi), Location (vị trí).",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Ghép cặp (matching) bằng Strategy: chọn tài xế gần nhất, hoặc đánh giá cao nhất; đổi thuật toán không sửa lõi.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Vòng đời chuyến đi: đã gọi -> tài xế nhận -> đang chạy -> hoàn thành hoặc hủy; vẽ như state machine.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Giá chuyến đi: giá cơ bản + theo km; surge pricing (nhân hệ số giờ cao điểm) viết bằng Strategy.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Observer: app khách nhận cập nhật vị trí tài xế mỗi lần tài xế di chuyển.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Tiền dùng Decimal hoặc số nguyên đồng, không dùng float.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Giao đồ ăn là bài tương tự: thêm Nhà hàng và Đơn món, trạng thái thêm 'đang nấu'.",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "Design Uber (LLD)",
+          "vi": "Khách gọi xe, hệ thống chọn tài xế rảnh gần nhất, chuyến đi chạy qua các trạng thái."
+        },
+        {
+          "title": "Matching strategy",
+          "vi": "Viết hai cách chọn tài xế (gần nhất, đánh giá cao nhất) và đổi giữa hai cách."
+        },
+        {
+          "title": "Surge pricing",
+          "vi": "Nhân giá với hệ số 1.5 khi số khách chờ lớn hơn số tài xế."
+        }
+      ],
+      "beginner_note_vi": "Intern và fresher có thể bỏ qua; đây là mức junior.",
+      "example_problems": [
+        "Design Uber (LLD)"
+      ],
+      "bank_topics": [
+        "lld.design_patterns"
+      ],
+      "bank_counts": {
+        "lld.design_patterns": {
+          "total": 34,
+          "y2026": 21
+        }
+      },
+      "target_swe": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 2,
+        "senior": 3
+      },
+      "target_ai": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 0,
+        "senior": 0
+      },
+      "est_hours": 3,
+      "plan_order": 144,
+      "plan_day": null,
+      "plan_hours": 3
+    },
+    {
+      "id": "lld.problems.games",
+      "section": "lld",
+      "module": "lld.problems",
+      "name_vi": "Game bàn cờ và bài (board & card games)",
+      "order": 7,
+      "summary_vi": "Game bàn cờ và game bài: có Bàn, Người chơi, Nước đi và Game quản lý lượt, kiểm tra thắng. Học xong bạn đổi kích thước bàn hay luật mà không phải viết lại.",
+      "mastery_bar_vi": "Mức 3: cài một game đầy đủ luật và đổi kích thước bàn hoặc luật mà không viết lại logic.",
+      "prerequisites": [
+        "lld.process.apis_code",
+        "lld.patterns.behavioral_observer_command"
+      ],
+      "lang_prereqs": {
+        "python": [],
+        "java": []
+      },
+      "key_concepts": [
+        "Board/Player/Move/Game entities",
+        "move validation per piece (polymorphism)",
+        "win detection",
+        "game state & turn management",
+        "undo with Command",
+        "k-in-a-row generalization",
+        "deck of cards: shuffle (Fisher-Yates), deal, hand ranking/comparator"
+      ],
+      "concepts_vi": [
+        {
+          "text": "Class chính: Board (lưới), Player, Move, Game (quản lý lượt).",
+          "level": "co_ban"
+        },
+        {
+          "text": "Phát hiện thắng: sau mỗi nước chỉ kiểm tra hàng r, cột c, và đường chéo của ô vừa đánh (chéo chính nếu r == c, chéo phụ nếu r + c == 2 với bàn 3x3), không quét cả bàn.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Lượt chơi và trạng thái game: đang chơi, thắng, hòa; đổi lượt sau mỗi nước hợp lệ.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Kiểm tra nước đi: mỗi loại quân là một class con có hàm 'nước đi hợp lệ' riêng, thay vì if theo loại quân (đa hình).",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Tổng quát hóa k-in-a-row: bàn NxN, thắng khi k quân liên tiếp; tic-tac-toe là N=3, k=3.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Game bài: bộ bài, xáo, chia bài, so sánh tay bài bằng hàm so sánh. Fisher-Yates xáo từ cuối về đầu, mỗi ô đổi chỗ với một ô ngẫu nhiên phía trước.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Undo bằng Command: lưu từng nước vào stack để lùi lại.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Chess đầy đủ luật rất lớn; trong phỏng vấn chỉ cần cấu trúc và vài quân.",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "Design tic-tac-toe",
+          "vi": "Hai người chơi lần lượt đánh X và O trên bàn 3x3, báo thắng, thua hoặc hòa. Bắt đầu từ hàm kiểm tra thắng sau nước vừa đánh.",
+          "starter_code_vi": {
+            "lang": "python",
+            "code": "def thang(bang, r, c, quan):   # bang: list 3x3; (r, c) là ô vừa đánh\n    hang = all(bang[r][j] == quan for j in range(3))\n    cot = ...    # TODO: kiểm tra cột c\n    cheo = ...   # TODO: đường chéo chính khi r == c, chéo phụ khi r + c == 2\n    return hang or cot or cheo"
+          }
+        },
+        {
+          "title": "Snake and ladder",
+          "vi": "Bàn 100 ô có thang và rắn, mỗi lượt tung xúc xắc di chuyển, ai tới ô 100 trước thắng."
+        },
+        {
+          "title": "Card game: shuffle, deal, compare hands",
+          "vi": "Tạo bộ 52 lá, xáo, chia 5 lá cho mỗi người và so sánh tay bài theo luật đơn giản: tổng điểm cao hơn thắng (A = 1, lá 2-10 theo số, J/Q/K = 10)."
+        }
+      ],
+      "beginner_note_vi": "Intern bỏ qua; fresher làm tic-tac-toe (Cơ bản); chess và game bài phức tạp là mức junior.",
+      "example_problems": [
+        "Design tic-tac-toe",
+        "Design chess",
+        "Card game: shuffle, deal, compare hands (poker/blackjack)",
+        "Snake and ladder"
+      ],
+      "bank_topics": [
+        "lld.ood_problems"
+      ],
+      "bank_counts": {
+        "lld.ood_problems": {
+          "total": 211,
+          "y2026": 114
+        }
+      },
+      "target_swe": {
+        "intern": 0,
+        "fresher": 1,
+        "junior": 3,
+        "senior": 3
+      },
+      "target_ai": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 0,
+        "senior": 0
+      },
+      "est_hours": 5,
+      "plan_order": 145,
+      "plan_day": null,
+      "plan_hours": 5
+    },
+    {
+      "id": "lld.problems.logger_notification",
+      "section": "lld",
+      "module": "lld.problems",
+      "name_vi": "Logger, thông báo và đề lạ (logger, notification & unfamiliar domains)",
+      "order": 8,
+      "summary_vi": "Logger là bài kinh điển: mỗi dòng log có mức độ và đi qua dãy người xử lý (in màn hình, ghi file). Học xong bạn thêm được mức log hay kênh thông báo mới mà không sửa lõi, và biết áp quy trình vào một đề lạ (lĩnh vực chưa gặp).",
+      "mastery_bar_vi": "Mức 3: thiết kế logger hoặc thông báo thêm được mức/kênh mới mà không sửa lõi, và áp quy trình vào một domain lạ.",
+      "prerequisites": [
+        "lld.patterns.behavioral_observer_command",
+        "lld.patterns.behavioral_template_chain_iterator",
+        "dsa.heap.heap_ds"
+      ],
+      "lang_prereqs": {
+        "python": [],
+        "java": []
+      },
+      "key_concepts": [
+        "log levels and appenders/handlers",
+        "Chain of Responsibility / Observer",
+        "notification channels via strategy/factory",
+        "retry and priority",
+        "async delivery queue (see dsa producer-consumer)",
+        "configuration extensibility",
+        "task scheduler: priority queue, delayed and recurring jobs",
+        "todo/project/task ownership and status transitions",
+        "calendar events: overlap detection, recurrence",
+        "alert/monitoring system: thresholds, observers",
+        "music player: playlist, queue, shuffle, iterator",
+        "applying the process to an unfamiliar domain"
+      ],
+      "concepts_vi": [
+        {
+          "text": "Log level: DEBUG < INFO < ERROR; chỉ ghi các dòng đủ mức độ.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Logger dùng Chain of Responsibility kiểu luôn chuyển tiếp: mỗi handler (màn hình, file, email) tự quyết có ghi không rồi vẫn đẩy dòng log cho handler kế. ATM thì khác: handler xử lý xong phần của mình và chỉ chuyển phần còn dư (xem behavioral_template_chain_iterator).",
+          "level": "co_ban"
+        },
+        {
+          "text": "Notification: nhiều kênh (email, SMS, push) bằng Strategy hoặc Factory; thêm kênh mới chỉ thêm class.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Thử lại: for lan in range(3): try: kenh.gui(tin); break; except LoiGui: pass. Ưu tiên: đẩy tin vào heap (heapq.heappush(hang, (muc_uu_tien, tin))), số nhỏ gửi trước.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Cấu hình mở rộng: đọc danh sách kênh từ file cấu hình thay vì viết cứng.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Scheduler (bộ lập lịch): chạy việc đúng giờ hẹn bằng heap theo thời gian chạy; việc lặp lại thì chạy xong đẩy lại vào heap với giờ mới.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Calendar: hai khoảng [a,b) và [c,d) chồng nhau khi a < d và c < b. Alert: Observer cộng ngưỡng, nhiệt độ vượt 40 độ thì notify() cho người đăng ký.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Music player: danh sách phát = queue; xáo trộn và lặp lại bằng Iterator. Đề lạ vẫn làm theo quy trình: hỏi yêu cầu, tìm danh từ, chọn mẫu, code, mở rộng.",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "Design a logger with independent handlers",
+          "vi": "Logger với ba mức; ConsoleHandler và FileHandler độc lập, thêm handler mới không sửa Logger. Mẫu: handler mức INFO nhận INFO và ERROR nhưng bỏ DEBUG.",
+          "starter_code_vi": {
+            "lang": "python",
+            "code": "MUC = {\"DEBUG\": 0, \"INFO\": 1, \"ERROR\": 2}\nclass Handler:\n    def __init__(self, muc, tiep=None): self.muc, self.tiep = muc, tiep\n    def log(self, muc, tin):\n        if MUC[muc] >= MUC[self.muc]:\n            self.ghi(tin)            # ConsoleHandler/FileHandler ghi đè hàm này\n        # TODO: nếu có self.tiep thì chuyển tiếp log cho nó"
+          }
+        },
+        {
+          "title": "Design a notification service",
+          "vi": "Gửi thông báo qua email hoặc SMS theo cấu hình; kênh lỗi thì thử lại 3 lần."
+        },
+        {
+          "title": "Task scheduler",
+          "vi": "Chạy các việc theo thời gian hẹn dùng heap; hỗ trợ việc lặp lại (chạy xong đẩy lại với giờ mới)."
+        }
+      ],
+      "beginner_note_vi": "Intern bỏ qua; fresher đọc phần Cơ bản (log level, chain handler, kênh thông báo); phần còn lại là mức junior.",
+      "example_problems": [
+        "Design a logger with independent handlers",
+        "Design a notification service",
+        "Design a pub/sub system"
+      ],
+      "bank_topics": [
+        "lld.ood_problems"
+      ],
+      "bank_counts": {
+        "lld.ood_problems": {
+          "total": 211,
+          "y2026": 114
+        }
+      },
+      "target_swe": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 3,
+        "senior": 3
+      },
+      "target_ai": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 0,
+        "senior": 0
+      },
+      "est_hours": 6,
+      "plan_order": 146,
+      "plan_day": null,
+      "plan_hours": 6
+    },
+    {
+      "id": "lld.patterns.pattern_selection",
+      "section": "lld",
+      "module": "lld.problems",
+      "name_vi": "Chọn pattern đúng và anti-pattern (pattern selection)",
+      "order": 9,
+      "summary_vi": "Chọn mẫu bằng cách đọc dấu hiệu trong đề: có nhiều cách tính -> Strategy, cần hoàn tác -> Command, nhiều bên cần được báo -> Observer. Quan trọng không kém là biết khi nào một hàm bình thường đã đủ và đừng dùng mẫu.",
+      "mastery_bar_vi": "Mức 3: với một đề, chọn 2-3 mẫu phù hợp, nói to vì sao chọn và chỗ nào không cần dùng mẫu.",
+      "prerequisites": [
+        "lld.patterns.behavioral_strategy_state",
+        "lld.patterns.behavioral_observer_command",
+        "lld.problems.parking_lot",
+        "lld.problems.vending_atm"
+      ],
+      "lang_prereqs": {
+        "python": [],
+        "java": []
+      },
+      "key_concepts": [
+        "mapping requirement signals to patterns",
+        "pattern combinations (Factory + Strategy)",
+        "over-engineering and YAGNI",
+        "anti-patterns: god object, singleton abuse, anemic model",
+        "patterns inside frameworks and standard libraries",
+        "pattern vs language feature (first-class functions replace Strategy/Command)",
+        "functional vs OOP design trade-offs",
+        "explaining a pattern choice aloud"
+      ],
+      "concepts_vi": [
+        {
+          "text": "Bảng dấu hiệu -> mẫu: nhiều cách tính -> Strategy; trạng thái đổi theo sự kiện -> State; hoàn tác -> Command; báo nhiều bên -> Observer.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Thêm vài dấu hiệu: tạo object theo loại -> Factory; đổi giao diện thư viện ngoài -> Adapter; thêm tính năng chồng nhau -> Decorator.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Over-engineering (thiết kế quá đà): dùng 4 mẫu cho bài 20 dòng là sai; hỏi 'có cần ngay bây giờ không?' (YAGNI).",
+          "level": "co_ban"
+        },
+        {
+          "text": "Nói to lựa chọn: 'Em dùng Strategy vì có nhiều cách tính giá và sẽ thêm nữa; nếu chỉ một cách thì dùng hàm thường.'",
+          "level": "co_ban"
+        },
+        {
+          "text": "Kết hợp mẫu: Factory chọn Strategy phù hợp; hai mẫu dùng cùng nhau là chuyện bình thường.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Anti-pattern: god class (một class làm hết) và anemic model (class chỉ chứa dữ liệu, mọi logic nằm ở class khác).",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Lạm dụng Singleton: biến mọi thứ thành toàn cục ẩn nên khó test; dùng khi thật sự chỉ cần một object.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Hàm là giá trị thứ nhất (first-class function) trong Python: nhiều khi truyền thẳng một hàm thay cho class Strategy hay Command.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Mẫu trong framework và thư viện chuẩn: nhận ra mẫu có sẵn trong code người khác.",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "Pick patterns for a tax policy engine",
+          "vi": "Hệ thống tính thuế với nhiều quy tắc theo quốc gia, có thể thêm mới; chọn 2 mẫu và giải thích. Gợi ý để tự kiểm: Strategy cho từng quy tắc thuế + Factory chọn quy tắc theo mã quốc gia."
+        },
+        {
+          "title": "Refactor a chatbot into clean OO components",
+          "vi": "Chatbot (chương trình tự trả lời tin nhắn) có if/else dài cho từng lệnh; tách bằng mẫu phù hợp và nói to lý do."
+        },
+        {
+          "title": "Over-engineering example",
+          "vi": "Cho đề chỉ cần hàm tính tổng, chỉ ra vì sao dùng Strategy và Factory là thừa."
+        }
+      ],
+      "beginner_note_vi": "Mục tiêu bắt đầu từ junior: intern và fresher có thể bỏ qua, hoặc chỉ đọc phần Cơ bản nếu còn thời gian. Đọc sau khi làm xong parking_lot và vending_atm.",
+      "example_problems": [
+        "Design extensible tax policy engine - which patterns?",
+        "Design a JSON merge API with pluggable behaviours",
+        "Refactor a chatbot into clean OO components",
+        "Compare functional and OOP design of the same problem"
+      ],
+      "bank_topics": [
+        "lld.design_patterns",
+        "python.oop"
+      ],
+      "bank_counts": {
+        "lld.design_patterns": {
+          "total": 34,
+          "y2026": 21
+        },
+        "python.oop": {
+          "total": 7,
+          "y2026": 2
+        }
+      },
+      "target_swe": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 2,
+        "senior": 3
+      },
+      "target_ai": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 0,
+        "senior": 0
+      },
+      "est_hours": 4,
+      "plan_order": 147,
+      "plan_day": null,
+      "plan_hours": 4
+    },
+    {
+      "id": "lld.concurrency_design.locking_booking",
+      "section": "lld",
+      "module": "lld.concurrency_design",
+      "name_vi": "Đặt chỗ đồng thời và chiến lược khóa (locking)",
+      "order": 1,
+      "summary_vi": "Hai người cùng bấm đặt một ghế có thể cùng thấy 'còn trống' rồi cùng đặt được. Học xong bạn chặn được lỗi này bằng khóa bi quan hoặc lạc quan và giữ ghế tạm có hạn.",
+      "mastery_bar_vi": "Mức 3: thiết kế luồng giữ ghế và thanh toán an toàn khi nhiều người đặt cùng lúc, so sánh khóa bi quan với lạc quan và nêu đánh đổi.",
+      "prerequisites": [
+        "cs.databases.locking_mvcc"
+      ],
+      "lang_prereqs": {
+        "python": [
+          "py.concurrency.threading"
+        ],
+        "java": [
+          "java.concurrency.synchronization",
+          "java.concurrency.explicit_locks"
+        ]
+      },
+      "key_concepts": [
+        "double booking race (check-then-act)",
+        "pessimistic locking per seat/room",
+        "optimistic locking with version",
+        "atomic compare-and-set",
+        "temporary seat hold with expiry",
+        "lock ordering across multiple seats",
+        "DB transaction vs in-memory lock"
+      ],
+      "concepts_vi": [
+        {
+          "text": "Thread (luồng) là một dòng chạy việc trong chương trình; nhiều thread chạy xen kẽ nhau nên có thể chen vào giữa hai dòng code của nhau.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Check-then-act: kiểm tra 'còn trống' rồi ghi; giữa hai bước thread khác chen vào, hai bên cùng đặt được ghế A1.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Khóa (lock): with lock: chỉ cho một thread vào đoạn code bên trong, thread khác chờ; bọc cả 'kiểm tra' lẫn 'ghi' trong cùng một khóa thì hết lỗi.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Khóa bi quan (pessimistic): khóa ghế trước khi kiểm tra và ghi; người thứ hai chờ.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Khóa lạc quan (optimistic): mỗi ghế có thêm trường version; ghi kèm điều kiện \"chỉ khi version vẫn như lúc đọc\" rồi tăng version lên 1; version đã đổi thì từ chối và thử lại.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Khóa theo từng ghế (dict ghế -> lock) thay vì khóa cả hệ thống để nhiều người đặt ghế khác nhau cùng lúc.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Giữ ghế có hạn: lưu thời điểm hết hạn, quá giờ mà chưa thanh toán thì nhả ghế.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Đặt nhiều ghế: luôn khóa theo thứ tự cố định (ví dụ theo số ghế) để tránh deadlock.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Khóa trong chương trình hay trong database: nhiều máy chủ thì phải để database hoặc kho chung lo khóa; compare-and-set là một lệnh nguyên tử (chạy trọn vẹn, không ai chen vào giữa) \"nếu còn là X thì đổi thành Y\".",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "Prevent two users booking the same movie seat",
+          "vi": "Hai luồng cùng đặt ghế A1; chỉ một thành công bằng khóa. Sửa hàm dưới để lần gọi thứ hai trả False.",
+          "starter_code_vi": {
+            "lang": "python",
+            "code": "import threading\nghe = {\"A1\": \"trong\"}\nlock = threading.Lock()\ndef dat(ten, ma_ghe):\n    # TODO: bọc kiểm tra + ghi bằng `with lock:`\n    if ghe[ma_ghe] == \"trong\":\n        ghe[ma_ghe] = ten\n        return True\n    return False"
+          }
+        },
+        {
+          "title": "Hold seats for 5 minutes",
+          "vi": "Giữ ghế 5 phút, quá hạn tự nhả, thanh toán kịp thì chốt."
+        },
+        {
+          "title": "Book two seats without deadlock",
+          "vi": "Hai người đặt cặp ghế theo thứ tự ngược nhau; dùng thứ tự khóa cố định để tránh kẹt."
+        }
+      ],
+      "beginner_note_vi": "Intern bỏ qua; fresher đọc phần Cơ bản. Ý thread và lock được giải thích ngay dưới đây; đã học py.concurrency.threading thì dễ hơn, chưa cần dsa.concurrency_coding.",
+      "example_problems": [
+        "Prevent two users booking the same movie seat",
+        "Hold seats for 5 minutes",
+        "Hotel room reservation under concurrency"
+      ],
+      "bank_topics": [
+        "lld.ood_problems"
+      ],
+      "bank_counts": {
+        "lld.ood_problems": {
+          "total": 211,
+          "y2026": 114
+        }
+      },
+      "target_swe": {
+        "intern": 0,
+        "fresher": 1,
+        "junior": 3,
+        "senior": 3
+      },
+      "target_ai": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 0,
+        "senior": 0
+      },
+      "est_hours": 5,
+      "plan_order": 148,
+      "plan_day": null,
+      "plan_hours": 5
+    },
+    {
       "id": "sd.fundamentals.scalability",
       "section": "sd",
       "module": "sd.fundamentals",
@@ -16346,7 +17016,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 143,
+      "plan_order": 149,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -16454,7 +17124,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 144,
+      "plan_order": 150,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -16561,7 +17231,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 145,
+      "plan_order": 151,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -16671,7 +17341,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 146,
+      "plan_order": 152,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -16782,7 +17452,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 147,
+      "plan_order": 153,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -16899,7 +17569,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 148,
+      "plan_order": 154,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -17011,7 +17681,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 149,
+      "plan_order": 155,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -17111,7 +17781,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 150,
+      "plan_order": 156,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -17217,7 +17887,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 151,
+      "plan_order": 157,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -17326,7 +17996,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 152,
+      "plan_order": 158,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -17471,7 +18141,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 153,
+      "plan_order": 159,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -17584,7 +18254,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 154,
+      "plan_order": 160,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -17697,7 +18367,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 155,
+      "plan_order": 161,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -17802,7 +18472,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 156,
+      "plan_order": 162,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -17910,7 +18580,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 157,
+      "plan_order": 163,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -18027,7 +18697,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 158,
+      "plan_order": 164,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -18135,7 +18805,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 159,
+      "plan_order": 165,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -18239,7 +18909,7 @@
         "senior": 0
       },
       "est_hours": 3,
-      "plan_order": 160,
+      "plan_order": 166,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -18351,7 +19021,7 @@
         "senior": 1
       },
       "est_hours": 3,
-      "plan_order": 161,
+      "plan_order": 167,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -18468,7 +19138,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 162,
+      "plan_order": 168,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -18577,7 +19247,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 163,
+      "plan_order": 169,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -18683,7 +19353,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 164,
+      "plan_order": 170,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -18818,7 +19488,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 165,
+      "plan_order": 171,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -18937,7 +19607,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 166,
+      "plan_order": 172,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -19065,7 +19735,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 167,
+      "plan_order": 173,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -19170,7 +19840,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 168,
+      "plan_order": 174,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -19283,7 +19953,7 @@
         "senior": 0
       },
       "est_hours": 2,
-      "plan_order": 169,
+      "plan_order": 175,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -19407,7 +20077,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 170,
+      "plan_order": 176,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -19515,7 +20185,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 171,
+      "plan_order": 177,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -19632,7 +20302,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 172,
+      "plan_order": 178,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -19737,7 +20407,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 173,
+      "plan_order": 179,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -19846,7 +20516,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 174,
+      "plan_order": 180,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -19982,7 +20652,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 175,
+      "plan_order": 181,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -20101,7 +20771,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 176,
+      "plan_order": 182,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -20226,7 +20896,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 177,
+      "plan_order": 183,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -20323,7 +20993,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 178,
+      "plan_order": 184,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -20445,7 +21115,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 179,
+      "plan_order": 185,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -20562,7 +21232,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 180,
+      "plan_order": 186,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -20671,7 +21341,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 181,
+      "plan_order": 187,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -20781,7 +21451,7 @@
         "senior": 1
       },
       "est_hours": 4,
-      "plan_order": 182,
+      "plan_order": 188,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -20886,7 +21556,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 183,
+      "plan_order": 189,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -20996,7 +21666,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 184,
+      "plan_order": 190,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -21101,7 +21771,7 @@
         "senior": 0
       },
       "est_hours": 3,
-      "plan_order": 185,
+      "plan_order": 191,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -21226,7 +21896,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 186,
+      "plan_order": 192,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -21349,7 +22019,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 187,
+      "plan_order": 193,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -21454,7 +22124,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 188,
+      "plan_order": 194,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -21556,7 +22226,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 189,
+      "plan_order": 195,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -21659,7 +22329,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 190,
+      "plan_order": 196,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -21777,7 +22447,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 191,
+      "plan_order": 197,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -21882,7 +22552,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 192,
+      "plan_order": 198,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -21974,7 +22644,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 193,
+      "plan_order": 199,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -22086,7 +22756,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 194,
+      "plan_order": 200,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -22204,7 +22874,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 195,
+      "plan_order": 201,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -22313,7 +22983,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 196,
+      "plan_order": 202,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -22423,7 +23093,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 197,
+      "plan_order": 203,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -22533,7 +23203,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 198,
+      "plan_order": 204,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -22641,7 +23311,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 199,
+      "plan_order": 205,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -22750,7 +23420,7 @@
         "senior": 1
       },
       "est_hours": 4,
-      "plan_order": 200,
+      "plan_order": 206,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -22860,7 +23530,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 201,
+      "plan_order": 207,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -22959,7 +23629,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 202,
+      "plan_order": 208,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -23063,7 +23733,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 203,
+      "plan_order": 209,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -23171,7 +23841,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 204,
+      "plan_order": 210,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -23281,7 +23951,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 205,
+      "plan_order": 211,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -23380,7 +24050,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 206,
+      "plan_order": 212,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -23483,7 +24153,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 207,
+      "plan_order": 213,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -23585,7 +24255,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 208,
+      "plan_order": 214,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -23689,7 +24359,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 209,
+      "plan_order": 215,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -23795,7 +24465,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 210,
+      "plan_order": 216,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -23899,7 +24569,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 211,
+      "plan_order": 217,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -23999,7 +24669,7 @@
         "senior": 0
       },
       "est_hours": 3,
-      "plan_order": 212,
+      "plan_order": 218,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -24104,7 +24774,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 213,
+      "plan_order": 219,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -24215,7 +24885,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 214,
+      "plan_order": 220,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -24322,7 +24992,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 215,
+      "plan_order": 221,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -24433,7 +25103,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 216,
+      "plan_order": 222,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -24543,7 +25213,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 217,
+      "plan_order": 223,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -24646,7 +25316,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 218,
+      "plan_order": 224,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -24750,7 +25420,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 219,
+      "plan_order": 225,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -24864,7 +25534,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 220,
+      "plan_order": 226,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -24983,7 +25653,7 @@
         "senior": 0
       },
       "est_hours": 6,
-      "plan_order": 221,
+      "plan_order": 227,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -25092,7 +25762,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 222,
+      "plan_order": 228,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -25193,7 +25863,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 223,
+      "plan_order": 229,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -25298,7 +25968,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 224,
+      "plan_order": 230,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -25404,7 +26074,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 225,
+      "plan_order": 231,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -25515,7 +26185,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 226,
+      "plan_order": 232,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -25621,7 +26291,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 227,
+      "plan_order": 233,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -25723,7 +26393,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 228,
+      "plan_order": 234,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -25838,7 +26508,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 229,
+      "plan_order": 235,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -25955,7 +26625,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 230,
+      "plan_order": 236,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -26078,7 +26748,7 @@
         "senior": 3
       },
       "est_hours": 2,
-      "plan_order": 231,
+      "plan_order": 237,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -26206,7 +26876,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 232,
+      "plan_order": 238,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -26326,7 +26996,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 233,
+      "plan_order": 239,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -26440,7 +27110,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 234,
+      "plan_order": 240,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -26562,7 +27232,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 235,
+      "plan_order": 241,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -26688,7 +27358,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 236,
+      "plan_order": 242,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -26808,7 +27478,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 237,
+      "plan_order": 243,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -26925,7 +27595,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 238,
+      "plan_order": 244,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -27044,7 +27714,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 239,
+      "plan_order": 245,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -27156,7 +27826,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 240,
+      "plan_order": 246,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -27278,7 +27948,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 241,
+      "plan_order": 247,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -27403,7 +28073,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 242,
+      "plan_order": 248,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -27520,7 +28190,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 243,
+      "plan_order": 249,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -27631,7 +28301,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 244,
+      "plan_order": 250,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -27743,7 +28413,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 245,
+      "plan_order": 251,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -27850,7 +28520,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 246,
+      "plan_order": 252,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -27970,7 +28640,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 247,
+      "plan_order": 253,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -28093,7 +28763,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 248,
+      "plan_order": 254,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -28203,7 +28873,7 @@
         "senior": 3
       },
       "est_hours": 2,
-      "plan_order": 249,
+      "plan_order": 255,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -28313,7 +28983,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 250,
+      "plan_order": 256,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -28429,7 +29099,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 251,
+      "plan_order": 257,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -28554,7 +29224,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 252,
+      "plan_order": 258,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -28668,7 +29338,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 253,
+      "plan_order": 259,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -28785,7 +29455,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 254,
+      "plan_order": 260,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -28883,7 +29553,7 @@
         "senior": 3
       },
       "est_hours": 2,
-      "plan_order": 255,
+      "plan_order": 261,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -29001,7 +29671,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 256,
+      "plan_order": 262,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -29125,7 +29795,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 257,
+      "plan_order": 263,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -29250,7 +29920,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 258,
+      "plan_order": 264,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -29378,7 +30048,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 259,
+      "plan_order": 265,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -29494,7 +30164,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 260,
+      "plan_order": 266,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -29598,7 +30268,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 261,
+      "plan_order": 267,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -29715,7 +30385,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 262,
+      "plan_order": 268,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -29827,7 +30497,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 263,
+      "plan_order": 269,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -29927,7 +30597,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 264,
+      "plan_order": 270,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -30061,7 +30731,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 265,
+      "plan_order": 271,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -30197,7 +30867,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 266,
+      "plan_order": 272,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -30342,7 +31012,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 267,
+      "plan_order": 273,
       "plan_day": null,
       "plan_hours": 6
     }

@@ -1,0 +1,274 @@
+id: lld.problems.games
+version: 1
+status: published
+title_vi: "Game bàn cờ và bài"
+est_minutes: 15
+objectives_vi:
+  - "Xác định entity Board/Player/Move/Game và trách nhiệm của từng class; Game giữ lượt và trạng thái (playing, won, draw)."
+  - "Phát hiện thắng bằng cách chỉ kiểm tra hàng, cột và hai đường chéo đi qua ô vừa đánh, không quét cả bàn."
+  - "Kiểm tra nước đi bằng đa hình: mỗi loại quân là một class con có can_move riêng, không if theo loại quân."
+  - "Tổng quát hóa sang bàn NxN thắng khi k quân liên tiếp (tic-tac-toe là N=3, k=3) và nhắc undo bằng Command."
+blocks:
+  - id: s_win
+    type: section
+    title_vi: "Entity, lượt chơi và phát hiện thắng"
+    summary_vi: "Board, Player, Move, Game; sau mỗi nước chỉ kiểm tra các đường đi qua ô vừa đánh."
+    exercise_ref: ex_win
+  - id: t01
+    type: text
+    md: |
+      Đề chuẩn: tic-tac-toe, hai người lần lượt đánh `X` và `O` trên bàn 3x3, báo thắng, hòa hoặc đang chơi.
+      Tách **entity** theo trách nhiệm:
+
+      - `Board`: lưới ô, biết ô nào trống, đặt quân vào ô.
+      - `Player`: tên và ký hiệu quân (`X` hoặc `O`).
+      - `Move`: một nước đi (người chơi, hàng `r`, cột `c`). Lưu thành đối tượng thì mới undo được.
+      - `Game`: giữ `Board`, lượt hiện tại và **trạng thái** `playing`, `won`, `draw`.
+
+      Mỗi nước hợp lệ: đặt quân, kiểm tra thắng, nếu chưa thắng mà bàn đầy thì `draw`, ngược lại đổi lượt.
+      Nước không hợp lệ (ô đã có quân, game đã kết thúc) trả `False` và **không đổi gì**, kể cả lượt.
+
+      **Phát hiện thắng**: quân vừa đánh ở `(r, c)` chỉ có thể tạo đường thắng đi qua ô đó. Nên chỉ kiểm tra:
+
+      1. hàng `r`;
+      2. cột `c`;
+      3. chéo chính, chỉ khi `r == c`;
+      4. chéo phụ, chỉ khi `r + c == 2` (bàn 3x3).
+
+      Cách này tốn O(N) mỗi nước thay vì quét cả bàn O(N^2).
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class Game:
+          def __init__(self):
+              self.board = [["."] * 3 for _ in range(3)]
+              self.turn = "X"
+              self.state = "playing"
+              self.moves = 0
+
+          def play(self, r, c):
+              if self.state != "playing" or self.board[r][c] != ".":
+                  return False
+              self.board[r][c] = self.turn
+              self.moves += 1
+              if self._wins(r, c):
+                  self.state = "won"
+              elif self.moves == 9:
+                  self.state = "draw"
+              else:
+                  self.turn = "O" if self.turn == "X" else "X"
+              return True
+
+          def _wins(self, r, c):
+              m = self.board[r][c]
+              row = all(self.board[r][j] == m for j in range(3))
+              col = all(self.board[i][c] == m for i in range(3))
+              diag = r == c and all(self.board[i][i] == m for i in range(3))
+              anti = r + c == 2 and all(self.board[i][2 - i] == m for i in range(3))
+              return row or col or diag or anti
+
+
+      g = Game()
+      for r, c in [(0, 0), (0, 1), (1, 1), (0, 2), (2, 2)]:
+          g.play(r, c)
+      print(g.state, g.turn)
+      print(g.play(2, 0))
+    expected_output: |
+      won X
+      False
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Vừa đánh quân ở ô `(0, 2)` trên bàn 3x3. Cần kiểm tra những đường nào để biết có thắng không?"
+    options:
+      - {id: a, text_md: "Hàng 0, cột 2 và chéo phụ (vì `0 + 2 == 2`); không cần chéo chính"}
+      - {id: b, text_md: "Cả 3 hàng, 3 cột và 2 chéo, để chắc chắn"}
+      - {id: c, text_md: "Chỉ hàng 0"}
+    answer: [a]
+    explain_md: "Đường thắng mới chỉ có thể đi qua ô vừa đánh. Ô (0,2) không nằm trên chéo chính (r != c) nhưng nằm trên chéo phụ (r + c == 2). Quét cả bàn là thừa."
+  - id: q02
+    type: predict_output
+    code: |
+      board = [
+          ["X", "O", "."],
+          [".", "X", "O"],
+          [".", ".", "."],
+      ]
+      r, c = 2, 2
+      board[r][c] = "X"
+      m = board[r][c]
+      row = all(board[r][j] == m for j in range(3))
+      col = all(board[i][c] == m for i in range(3))
+      diag = r == c and all(board[i][i] == m for i in range(3))
+      anti = r + c == 2 and all(board[i][2 - i] == m for i in range(3))
+      print(row, col, diag, anti)
+      print(r + c == 2)
+    expected_output: |
+      False False True False
+      False
+    explain_md: "Hàng 2 chỉ có một X, cột 2 là `.`, O, X nên không thắng. Chéo chính (0,0), (1,1), (2,2) toàn X nên `diag` là True. `r + c` là 4 nên không xét chéo phụ."
+  - id: q03
+    type: quiz_fill
+    prompt_md: "Sau một nước hợp lệ mà chưa ai thắng, bàn đã đầy thì trạng thái game là `___`."
+    blanks: [{accept: ["draw"]}]
+    explain_md: "Ba trạng thái là playing, won, draw. Bàn đầy mà không có đường thắng là draw; còn ô trống thì vẫn playing và đổi lượt."
+  - id: ex_win
+    type: code_exercise
+    md: |
+      `completes_line(board, r, c)` nhận bàn 3x3 (các ô `"X"`, `"O"`, `"."`) và ô vừa đánh `(r, c)`, trả `True` nếu quân ở ô đó
+      vừa tạo ba ô thẳng hàng (hàng, cột, hoặc chéo đi qua ô). Bản dưới đây chỉ kiểm tra hàng. Hãy sửa.
+    entry: completes_line
+    starter: |
+      def completes_line(board, r, c):
+          m = board[r][c]
+          return all(board[r][j] == m for j in range(3))
+    guidance_md: |
+      - Thử bàn có cột 0 toàn X, ô cuối `(2, 0)`: đáp án `True`, code trả `False`.
+      - Thêm cột `c`; chéo chính khi `r == c`; chéo phụ khi `r + c == 2`.
+    hints:
+      - level: nudge
+        md: "Mới có hàng. Ô vừa đánh còn nằm trên cột nào và có thể nằm trên chéo nào?"
+      - level: approach
+        md: "Tính thêm `col = all(board[i][c] == m for i in range(3))`, rồi `diag` (chỉ khi `r == c`) và `anti` (chỉ khi `r + c == 2`)."
+      - level: near_solution
+        md: "`return row or col or (r == c and all(board[i][i] == m for i in range(3))) or (r + c == 2 and all(board[i][2 - i] == m for i in range(3)))`."
+    tests:
+      - {args: [[["X", "X", "X"], ["O", "O", "."], [".", ".", "."]], 0, 2], expected: true}
+      - {args: [[["X", "O", "."], ["X", "O", "."], ["X", ".", "."]], 2, 0], expected: true}
+      - {args: [[["X", "O", "O"], [".", "X", "."], [".", ".", "X"]], 2, 2], expected: true}
+      - {args: [[[".", "O", "X"], [".", "X", "O"], ["X", ".", "."]], 0, 2], expected: true}
+      - {args: [[["X", "O", "."], [".", "X", "."], [".", ".", "."]], 1, 1], expected: false}
+    solution: |
+      def completes_line(board, r, c):
+          m = board[r][c]
+          row = all(board[r][j] == m for j in range(3))
+          col = all(board[i][c] == m for i in range(3))
+          diag = r == c and all(board[i][i] == m for i in range(3))
+          anti = r + c == 2 and all(board[i][2 - i] == m for i in range(3))
+          return row or col or diag or anti
+  - id: s_poly
+    type: section
+    title_vi: "Đa hình cho quân cờ và k-in-a-row"
+    summary_vi: "Mỗi loại quân tự biết đi hợp lệ; tổng quát hóa thắng thành k quân liên tiếp trên bàn NxN."
+    exercise_ref: ex_run
+  - id: t02
+    type: text
+    md: |
+      **Kiểm tra nước đi bằng đa hình.** Với cờ vua, đừng viết `if piece == "rook" ... elif piece == "knight" ...` trong `Game`.
+      Tạo lớp cha `Piece` với hàm `can_move(dr, dc)`, mỗi quân là một lớp con cài hàm đó:
+
+      - `Rook`: đi thẳng, tức đúng một trong hai độ dời `dr`, `dc` bằng 0.
+      - `Knight`: độ dời tuyệt đối là `{1, 2}`.
+
+      `Game` chỉ gọi `piece.can_move(dr, dc)`; thêm quân mới là thêm class mới, **không sửa** `Game` (đúng OCP).
+      Trong phỏng vấn cờ vua đầy đủ luật quá lớn, chỉ cần dựng cấu trúc và vài quân. Luật chung (ô đích có quân mình, bị chắn đường) nằm ở `Game` hoặc `Board`.
+
+      **k-in-a-row.** Bàn `NxN`, thắng khi có `k` quân liên tiếp. Tic-tac-toe là `N = 3, k = 3`. Cách làm: từ ô vừa đánh, với mỗi
+      trong 4 hướng (ngang, dọc, hai chéo), đếm quân cùng loại về hai phía, cộng 1; nếu `>= k` thì thắng. `N` và `k` là tham số của `Board`,
+      đổi kích thước bàn không phải viết lại logic.
+
+      **Undo bằng Command.** Mỗi nước là một `Move` có `apply()` và `undo()`; `Game` giữ stack các `Move` đã đi. Undo là pop, gọi `undo()`,
+      trả lại lượt trước và đặt trạng thái về `playing`.
+
+      Game bài (xáo, chia, so tay bài) dùng số ngẫu nhiên nên ở đây không chấm tự động; phần cần nhớ là so tay bài bằng hàm so sánh tách riêng.
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class Piece:
+          def __init__(self, color):
+              self.color = color
+
+          def can_move(self, dr, dc):
+              raise NotImplementedError
+
+
+      class Rook(Piece):
+          def can_move(self, dr, dc):
+              return (dr == 0) != (dc == 0)
+
+
+      class Knight(Piece):
+          def can_move(self, dr, dc):
+              return sorted([abs(dr), abs(dc)]) == [1, 2]
+
+
+      pieces = [Rook("w"), Knight("w")]
+      print([p.can_move(0, 3) for p in pieces])
+      print([p.can_move(2, 1) for p in pieces])
+    expected_output: |
+      [True, False]
+      [False, True]
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Thêm quân Bishop vào game cờ mà không sửa `Game`. Thiết kế nào cho phép?"
+    options:
+      - {id: a, text_md: "Lớp con `Bishop(Piece)` cài `can_move`; `Game` chỉ gọi `piece.can_move(...)`"}
+      - {id: b, text_md: "Thêm nhánh `elif kind == 'bishop'` vào hàm kiểm tra nước đi của `Game`"}
+      - {id: c, text_md: "Dùng một chuỗi `if` dài theo tên quân trong mỗi hàm của `Board`"}
+    answer: [a]
+    explain_md: "Đa hình đẩy luật đi vào từng class quân, nên quân mới là code mới chứ không phải sửa code cũ. Hai phương án còn lại làm lõi phình ra mỗi khi thêm quân."
+  - id: q05
+    type: predict_output
+    code: |
+      def run_len(line, mark):
+          best = cur = 0
+          for x in line:
+              cur = cur + 1 if x == mark else 0
+              best = max(best, cur)
+          return best
+
+
+      row = list("XXOXXX.")
+      print(run_len(row, "X"), run_len(row, "O"), run_len(row, "X") >= 4)
+    expected_output: |
+      3 1 False
+    explain_md: "Chuỗi X bị O cắt: đoạn đầu dài 2, đoạn sau dài 3 nên dài nhất là 3. O chỉ có một. Với k = 4 thì 3 chưa đủ thắng nên `False`."
+  - id: ex_run
+    type: code_exercise
+    md: |
+      `longest_run(line, mark)` trả độ dài đoạn **liên tiếp** dài nhất của `mark` trong list `line` (nền tảng của k-in-a-row).
+      Bản dưới đây đếm tổng số quân, không đòi liên tiếp. Hãy sửa.
+    entry: longest_run
+    starter: |
+      def longest_run(line, mark):
+          return sum(1 for x in line if x == mark)
+    guidance_md: |
+      - Thử `longest_run(["X", "X", "O", "X", "X", "X", "."], "X")`: đáp án `3`, code trả `5`.
+      - Giữ bộ đếm hiện tại, gặp quân khác thì về 0, và nhớ giá trị lớn nhất.
+    hints:
+      - level: nudge
+        md: "Tổng quân không phân biệt đoạn liền hay bị cắt. Cần theo dõi đoạn đang chạy."
+      - level: approach
+        md: "Dùng `cur` và `best`: nếu `x == mark` thì `cur += 1` rồi cập nhật `best`, ngược lại `cur = 0`."
+      - level: near_solution
+        md: "`cur = cur + 1 if x == mark else 0` rồi `best = max(best, cur)`; trả `best`."
+    tests:
+      - {args: [["X", "X", "O", "X", "X", "X", "."], "X"], expected: 3}
+      - {args: [["X", "X", "O", "X", "X", "X", "."], "O"], expected: 1}
+      - {args: [[".", "."], "X"], expected: 0}
+      - {args: [[], "X"], expected: 0}
+    solution: |
+      def longest_run(line, mark):
+          best = cur = 0
+          for x in line:
+              cur = cur + 1 if x == mark else 0
+              best = max(best, cur)
+          return best
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Entity: Board (lưới), Player (ký hiệu quân), Move (một nước, để undo), Game (lượt và trạng thái playing/won/draw)."
+      - "Nước không hợp lệ trả False và không đổi gì. Nước hợp lệ: đặt quân, kiểm tra thắng, bàn đầy thì draw, nếu không thì đổi lượt."
+      - "Phát hiện thắng chỉ xét hàng r, cột c, chéo chính nếu r == c, chéo phụ nếu r + c == 2 (3x3): O(N) mỗi nước."
+      - "Đa hình cho quân (Piece.can_move) thay if theo loại; k-in-a-row trên NxN đếm quân liên tiếp theo 4 hướng; undo bằng stack Command."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X621], l2: [X622], l3: [X623]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

@@ -93,6 +93,7 @@ MODULE_NAMES: dict[str, str] = {
     "lld.patterns": "Mẫu thiết kế",
     "lld.process": "Quy trình thiết kế LLD",
     "lld.problems": "Bài LLD kinh điển",
+    "lld.concurrency_design": "Thiết kế đồng thời",
     "sd.fundamentals": "Nền tảng thiết kế hệ thống",
     "sd.networking": "Mạng",
     "sd.api": "Thiết kế API",

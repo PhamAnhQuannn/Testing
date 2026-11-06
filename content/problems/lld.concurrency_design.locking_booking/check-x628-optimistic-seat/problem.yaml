@@ -1,0 +1,63 @@
+id: check-x628-optimistic-seat
+subtopic_id: lld.concurrency_design.locking_booking
+secondary_subtopics: []
+kind: check
+title: 'Check X628: Optimistic seat locking'
+title_vi: 'Kiểm tra X628: Khóa lạc quan theo version'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  A deterministic model of optimistic locking for seat booking (no threads: the "race" is simulated by calls that reuse a stale version). Failures are reported through return values (never raise).
+
+  Implement `class SeatStore` (constructor takes no arguments) with:
+
+  - `add(seat)`: registers a seat with version `0`, not booked. Duplicates are ignored (an existing seat is left unchanged). Returns nothing.
+  - `version(seat)`: returns the current version as an `int`, or `-1` if the seat is unknown.
+  - `book(seat, expected_version)`: compare-and-set. If the seat exists, is currently not booked, AND its current version equals `expected_version`, mark it booked, increment its version by 1 and return `True`. Otherwise (stale version, unknown seat, or already booked) return `False` and change nothing.
+  - `is_booked(seat)`: returns `True` if the seat is booked, else `False` (`False` for an unknown seat).
+statement_vi_md: |
+  Mô hình xác định (deterministic) của khóa lạc quan khi đặt ghế (không dùng thread: "tranh chấp" được mô phỏng bằng các lời gọi dùng lại version cũ). Thất bại được báo qua giá trị trả về (không ném lỗi).
+
+  Viết `class SeatStore` (constructor không tham số) với:
+
+  - `add(seat)`: đăng ký ghế với version `0`, chưa đặt. Trùng thì bỏ qua (ghế đã có giữ nguyên). Không trả gì.
+  - `version(seat)`: trả version hiện tại (`int`), hoặc `-1` nếu ghế lạ.
+  - `book(seat, expected_version)`: compare-and-set. Nếu ghế tồn tại, chưa đặt VÀ version hiện tại bằng `expected_version` thì đánh dấu đã đặt, tăng version thêm 1 và trả `True`. Ngược lại (version cũ, ghế lạ hoặc đã đặt) trả `False` và không đổi gì.
+  - `is_booked(seat)`: trả `True` nếu ghế đã đặt, ngược lại `False` (ghế lạ cũng `False`).
+constraints:
+- 'Mã ghế là chuỗi ASCII; expected_version là số nguyên.'
+- 'Không dùng thread, time hay random.'
+examples:
+- input: ops = ['SeatStore', 'add', 'book', 'book', 'is_booked', 'version'], args = [[], ['a1'], ['a1', 0], ['a1', 0], ['a1'], ['a1']]
+  output: '[null, null, true, false, true, 1]'
+  explain_vi: 'Hai client cùng đọc version 0; client đầu thắng và version thành 1, client hai còn cầm version cũ nên bị từ chối.'
+io:
+  mode: class_ops
+  compare: exact
+starter:
+  python: "class SeatStore:\n    # TODO\n    pass\n"
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+time_target_min: 8
+hints:
+- 'Dùng dict seat -> [version, booked] để tra cứu O(1).'
+- 'book: trả False sớm nếu ghế lạ, đã đặt, hoặc version khác expected_version.'
+- 'Chỉ khi qua cả ba điều kiện mới đánh dấu đã đặt và tăng version thêm 1.'
+solution:
+  file: solution.py
+  approach_vi: Dict seat -> [version, booked]; book là compare-and-set trên version; mỗi thao tác O(1).
+  complexity: O(1) mỗi thao tác
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x628
+status: validated
+version: 1

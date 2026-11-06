@@ -1,0 +1,69 @@
+subtopic_id: lld.problems.games
+items:
+  - id: X621
+    difficulty: 1
+    type: read_code
+    minutes: 3
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Giải thích 1 câu vì sao lệnh `wins(board, 2, 1)` trả `True` dù hàng 2 không có đủ ba X.
+    code: |-
+      board = [
+          ["O", "X", "O"],
+          ["X", "X", "."],
+          [".", "O", "."],
+      ]
+
+
+      def wins(board, r, c):
+          m = board[r][c]
+          row = all(board[r][j] == m for j in range(3))
+          col = all(board[i][c] == m for i in range(3))
+          return row or col
+
+
+      print(wins(board, 1, 1))
+      board[1][2] = "X"
+      print(wins(board, 1, 2))
+      board[2][1] = "X"
+      print(wins(board, 2, 1))
+      print(wins(board, 0, 0))
+    expected_output: "False\nTrue\nTrue\nFalse"
+    answer_md: 'Lần đầu hàng 1 là X, X, `.` và cột 1 là X, X, O nên `False`. Gán `board[1][2] = "X"` làm hàng 1 thành XXX nên `True`. Gán `board[2][1] = "X"` làm cột 1 thành X, X, X nên `wins(board, 2, 1)` là `True` nhờ nhánh cột. Ô (0,0) là O: hàng O, X, O và cột O, X, `.` đều không đủ nên `False`.'
+    rubric_md: "Output khớp VÀ nêu thắng nhờ kiểm tra cột c của ô vừa đánh. Đúng: bằng chứng điểm 1; sai: tối đa điểm 0."
+  - id: X622
+    difficulty: 2
+    type: write_code
+    minutes: 8
+    prompt_md: |
+      Viết hàm `winner(board)` cho tic-tac-toe. `board` là list 3x3 các chuỗi một ký tự thuộc `"X"`, `"O"`, `"."` (`"."` là ô trống). Trả `"X"` nếu X có ba ô thẳng hàng (hàng, cột hoặc một trong hai chéo), `"O"` nếu O có. Nếu không ai thắng và bàn đã đầy thì trả `"draw"`; nếu không ai thắng và còn ô trống thì trả `"none"`. Ví dụ: `[["X","X","X"],["O","O","."],[".",".","."]]` trả `"X"`.
+    problem_id: check-x622-tic-tac-toe
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 8 phút: bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X623
+    difficulty: 3
+    type: read_code
+    minutes: 5
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng. Giải thích vì sao lệnh `play` đầu thắng ở nước thứ 5 bằng chéo phụ, vì sao lệnh thứ hai trả `unfinished`, và vì sao lệnh thứ ba là `draw`.
+    code: |-
+      def play(moves):
+          board = [["."] * 3 for _ in range(3)]
+          turn = "X"
+          for n, (r, c) in enumerate(moves, 1):
+              if board[r][c] != ".":
+                  continue
+              board[r][c] = turn
+              m = turn
+              diag = r == c and all(board[i][i] == m for i in range(3))
+              anti = r + c == 2 and all(board[i][2 - i] == m for i in range(3))
+              row = all(board[r][j] == m for j in range(3))
+              col = all(board[i][c] == m for i in range(3))
+              if row or col or diag or anti:
+                  return m + " wins after " + str(n)
+              turn = "O" if turn == "X" else "X"
+          return "draw" if all("." not in row for row in board) else "unfinished"
+
+
+      print(play([(0, 2), (0, 0), (1, 1), (1, 0), (2, 0)]))
+      print(play([(0, 0), (0, 0), (1, 1), (0, 1), (2, 2)]))
+      print(play([(0, 0), (0, 1), (0, 2), (1, 1), (1, 0), (1, 2), (2, 1), (2, 0), (2, 2)]))
+    expected_output: "X wins after 5\nunfinished\ndraw"
+    answer_md: 'Lệnh 1: X đánh (0,2), (1,1), (2,0) là chéo phụ (r + c == 2) nên thắng ở nước 5. Lệnh 2: nước (0,0) thứ hai bị bỏ qua vì ô đã có quân và lượt không đổi, nên O đánh (1,1), X (0,1), O (2,2); không ai có ba ô thẳng hàng và bàn còn ô trống nên `unfinished`. Lệnh 3: chín nước lấp đầy bàn thành XOX / XOO / OXX không có đường nào đủ ba, nên bàn đầy và `draw`.'
+    rubric_md: "Output khớp từng dòng VÀ giải thích đúng chéo phụ, nước trùng bị bỏ qua không đổi lượt, bàn đầy không thắng là draw. Đúng: bằng chứng điểm 3; sai: tối đa điểm 2."

@@ -1,0 +1,73 @@
+id: check-x631-dispatch
+subtopic_id: lld.patterns.pattern_selection
+secondary_subtopics: []
+kind: check
+title: 'Check X631: dispatch table'
+title_vi: 'Kiểm tra X631: dispatch table'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Implement `apply_op(op, a, b)` by replacing a long `if/elif` type-dispatch with a data-driven table
+  (the Strategy/Factory shape). `op` is a string and `a`, `b` are ints. The operations are:
+  `"add"` -> `a + b`, `"sub"` -> `a - b`, `"mul"` -> `a * b`, `"max"` -> the larger of `a` and `b`,
+  `"min"` -> the smaller of `a` and `b`. Any other `op` (including the empty string and different
+  letter case) returns `0`. Return an int. Keep the operations in a dict of callables so adding an
+  operation means adding data, not another `if/elif` branch.
+statement_vi_md: |
+  Cài `apply_op(op, a, b)` bằng cách thay chuỗi `if/elif` dài theo loại bằng bảng dữ liệu (dạng
+  Strategy/Factory). `op` là chuỗi, `a` và `b` là số nguyên. Các phép: `"add"` -> `a + b`, `"sub"` ->
+  `a - b`, `"mul"` -> `a * b`, `"max"` -> số lớn hơn, `"min"` -> số nhỏ hơn. `op` khác (kể cả chuỗi
+  rỗng hoặc khác hoa/thường) trả `0`. Trả về int. Hãy đặt các phép trong dict các callable để thêm phép
+  mới chỉ là thêm dữ liệu, không thêm nhánh `if/elif`.
+constraints:
+- -1000000 <= a, b <= 1000000
+- op is a string
+examples:
+- input: op = "add", a = 3, b = 4
+  output: '7'
+  explain_vi: add trả 3 + 4 = 7.
+- input: op = "pow", a = 2, b = 3
+  output: '0'
+  explain_vi: pow không có trong bảng nên trả 0.
+io:
+  mode: function
+  entry: apply_op
+  params:
+  - name: op
+    type: str
+  - name: a
+    type: int
+  - name: b
+    type: int
+  returns: int
+  compare: exact
+starter:
+  python: |
+    def apply_op(op, a, b):
+        # TODO: dùng dict tên -> hàm, không dùng chuỗi if/elif
+        pass
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+time_target_min: 6
+hints:
+- Mỗi phép là một hàm nhận (a, b); tên phép là khoá của dict.
+- "Tạo OPS = {'add': lambda a, b: a + b, ...} rồi tra OPS.get(op, ...)."
+- "Với op lạ dùng hàm mặc định trả 0: OPS.get(op, lambda x, y: 0)(a, b)."
+solution:
+  file: solution.py
+  approach_vi: Tra hàm trong dict theo op (mặc định hàm trả 0) rồi gọi với (a, b).
+  complexity: O(1) / O(1)
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x631
+status: validated
+version: 1

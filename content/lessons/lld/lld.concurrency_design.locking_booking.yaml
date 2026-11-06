@@ -1,0 +1,296 @@
+id: lld.concurrency_design.locking_booking
+version: 1
+status: published
+title_vi: "Đặt chỗ đồng thời và chiến lược khóa"
+est_minutes: 15
+objectives_vi:
+  - "Giải thích lỗi check-then-act khiến hai người cùng đặt được một ghế."
+  - "Phân biệt khóa bi quan (khóa cả kiểm tra lẫn ghi) với khóa lạc quan (version compare-and-set)."
+  - "Mô hình hóa khóa lạc quan một cách xác định: ghi chỉ khi version chưa đổi, rồi tăng version."
+  - "Nêu khóa theo từng ghế, giữ ghế có hạn, thứ tự khóa cố định và khi nào dùng khóa của database."
+blocks:
+  - id: s_race
+    type: section
+    title_vi: "Lỗi check-then-act và khóa bi quan"
+    summary_vi: "Kiểm tra rồi ghi là hai bước; nếu có người chen vào giữa thì cả hai cùng đặt được."
+    exercise_ref: ex_cas
+  - id: t01
+    type: text
+    md: |
+      Hai người cùng bấm đặt ghế **A1**. Code đặt ghế gồm hai bước: **kiểm tra** "còn trống?" rồi **ghi** "đã đặt".
+      Nếu hai luồng (thread) chạy xen kẽ, luồng thứ hai có thể kiểm tra **trước khi** luồng đầu ghi:
+
+      ```
+      An:   kiểm tra A1 -> trống
+      Binh: kiểm tra A1 -> trống      (An chưa kịp ghi)
+      An:   ghi A1 = an
+      Binh: ghi A1 = binh             (ghi đè, cả hai đều tưởng mình đặt được)
+      ```
+
+      Đây là **check-then-act race**, nguyên nhân của **double-booking**.
+
+      **Lưu ý về chỗ học**: trình chấm của app chạy trong Pyodide, **chỉ có một luồng**, nên ta không tạo race thật.
+      Ta **mô hình hóa** cách xen kẽ bằng tay (gọi các bước theo thứ tự xấu) và mô hình hóa cơ chế version một cách
+      **xác định** (deterministic).
+
+      **Khóa bi quan (pessimistic)**: khóa ghế *trước* khi kiểm tra, giữ đến khi ghi xong; người thứ hai phải chờ.
+      Ý tưởng, viết dạng pseudo-code:
+
+      ```python
+      with lock:                 # chỉ một luồng vào đây cùng lúc
+          if seat not in booked: # kiểm tra
+              booked[seat] = who # ghi
+      ```
+
+      Quan trọng: `with lock:` phải bọc **cả** kiểm tra **lẫn** ghi. Chỉ bọc bước ghi thì race vẫn còn.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      booked = {}
+
+
+      def check(seat):
+          return seat not in booked
+
+
+      def write(seat, who):
+          booked[seat] = who
+
+
+      # Mô phỏng xen kẽ xấu: cả hai kiểm tra trước, rồi mới ghi
+      an_ok = check("A1")
+      binh_ok = check("A1")
+      if an_ok:
+          write("A1", "an")
+      if binh_ok:
+          write("A1", "binh")
+      print(an_ok, binh_ok)
+      print(booked)
+    expected_output: |
+      True True
+      {'A1': 'binh'}
+  - id: q01
+    type: predict_output
+    code: |
+      booked = {}
+
+
+      def check(seat):
+          return seat not in booked
+
+
+      def write(seat, who):
+          booked[seat] = who
+
+
+      a = check("B2")
+      if a:
+          write("B2", "an")
+      b = check("B2")
+      if b:
+          write("B2", "binh")
+      print(a, b)
+      print(booked)
+    expected_output: |
+      True False
+      {'B2': 'an'}
+    explain_md: "Lần này kiểm tra và ghi của `an` xong hẳn trước khi `binh` kiểm tra (như khi có khóa bọc cả hai bước), nên `binh` thấy ghế đã đặt và không ghi."
+  - id: q02
+    type: quiz_mcq
+    prompt_md: "Dùng khóa bi quan cho việc đặt ghế, đoạn nào phải nằm trong `with lock:`?"
+    options:
+      - {id: a, text_md: "Cả bước kiểm tra ghế còn trống lẫn bước ghi đã đặt"}
+      - {id: b, text_md: "Chỉ bước ghi đã đặt"}
+      - {id: c, text_md: "Chỉ bước in kết quả cho người dùng"}
+    answer: [a]
+    explain_md: "Nếu chỉ khóa bước ghi, hai luồng vẫn cùng qua bước kiểm tra trước khi ai đó khóa. Kiểm tra và ghi phải là một khối không bị chen vào."
+  - id: ex_cas
+    type: code_exercise
+    md: |
+      Mô hình **khóa lạc quan**: mỗi ghế có `version` (bắt đầu 0). `run_cas(cmds)` xử lý các lệnh `["add", ghế]`
+      (đăng ký ghế, không ghi kết quả) và `["book", ghế, version_đã_đọc]` (ghi `True`/`False`).
+      `book` chỉ thành công khi ghế tồn tại, chưa đặt **và** version hiện tại bằng version đã đọc; khi đó đánh dấu đã đặt và
+      tăng version thêm 1. Bản dưới đây quên kiểm tra version. Hãy sửa.
+    entry: run_cas
+    starter: |
+      def run_cas(cmds):
+          seats = {}
+          out = []
+          for c in cmds:
+              if c[0] == "add":
+                  seats.setdefault(c[1], [0, False])
+              else:
+                  rec = seats.get(c[1])
+                  if rec is None or rec[1]:
+                      out.append(False)
+                  else:
+                      rec[1] = True
+                      rec[0] += 1
+                      out.append(True)
+          return out
+    guidance_md: |
+      - Thử `[["add","a"],["book","a",0],["book","a",0]]`: đáp án `[True, False]`; ở ví dụ này bản gốc cũng ra đúng vì ghế đã đặt.
+      - Nhưng `[["add","a"],["book","a",5]]` phải là `[False]` vì version hiện tại là 0, không phải 5.
+    hints:
+      - level: nudge
+        md: "Khi version bạn đọc khác version hiện tại của ghế thì sao?"
+      - level: approach
+        md: "Thêm điều kiện `rec[0] != c[2]` vào nhánh từ chối."
+      - level: near_solution
+        md: "`if rec is None or rec[1] or rec[0] != c[2]: out.append(False)`."
+    tests:
+      - {args: [[["add", "a"], ["book", "a", 0], ["book", "a", 0]]], expected: [true, false]}
+      - {args: [[["add", "a"], ["book", "a", 5]]], expected: [false]}
+      - {args: [[["book", "x", 0]]], expected: [false]}
+      - {args: [[["add", "a"], ["add", "b"], ["book", "a", 0], ["book", "b", 1], ["book", "b", 0]]], expected: [true, false, true]}
+      - {args: [[]], expected: []}
+    solution: |
+      def run_cas(cmds):
+          seats = {}
+          out = []
+          for c in cmds:
+              if c[0] == "add":
+                  seats.setdefault(c[1], [0, False])
+              else:
+                  rec = seats.get(c[1])
+                  if rec is None or rec[1] or rec[0] != c[2]:
+                      out.append(False)
+                  else:
+                      rec[1] = True
+                      rec[0] += 1
+                      out.append(True)
+          return out
+  - id: s_opt
+    type: section
+    title_vi: "Khóa lạc quan, khóa từng ghế, giữ ghế và thứ tự khóa"
+    summary_vi: "Version compare-and-set, khóa riêng từng ghế, hạn giữ ghế, khóa theo thứ tự cố định."
+    exercise_ref: ex_order
+  - id: t02
+    type: text
+    md: |
+      **Khóa lạc quan (optimistic)**: không khóa khi đọc. Mỗi ghế có thêm trường **version**.
+
+      1. Client đọc ghế và nhớ `version` (ví dụ 0).
+      2. Khi ghi, gửi kèm điều kiện: **"chỉ ghi nếu version vẫn là 0"**, ghi xong **tăng version lên 1**.
+      3. Nếu version đã đổi (ai đó ghi trước), ghi bị **từ chối**; client đọc lại và thử lại hoặc báo lỗi.
+
+      Đây là **compare-and-set (CAS)**, và phải là một lệnh **nguyên tử** (atomic: chạy trọn vẹn, không ai chen vào giữa).
+      Trong database nó thường là `UPDATE seats SET booked=1, version=version+1 WHERE id=? AND version=?`; nếu số dòng
+      bị ảnh hưởng là 0 thì ghi thất bại.
+
+      | | Bi quan | Lạc quan |
+      |---|---|---|
+      | Khi đọc | khóa luôn | không khóa |
+      | Người thứ hai | chờ | ghi thất bại, thử lại |
+      | Hợp khi | tranh chấp cao | tranh chấp thấp, đọc nhiều |
+
+      **Khóa theo từng ghế**: một khóa cho cả hệ thống làm mọi người xếp hàng. Dùng dict `ghế -> lock` để
+      người đặt A1 và người đặt B2 chạy song song; chỉ tranh nhau khi cùng ghế.
+
+      **Giữ ghế có hạn (temporary hold)**: khi người dùng chọn ghế, lưu `hold_until = now + 300` (giây). Hết giờ mà chưa
+      thanh toán thì ghế được nhả. Để kiểm thử xác định, truyền thời gian hiện tại qua tham số thay vì đọc đồng hồ.
+
+      **Đặt nhiều ghế, lock ordering**: nếu An khóa A1 rồi chờ A2, còn Binh khóa A2 rồi chờ A1 thì **deadlock** (cùng chờ mãi).
+      Cách tránh: **luôn khóa theo thứ tự cố định** (ví dụ sắp theo số ghế), nên cả hai cùng khóa A1 trước.
+
+      **Trong chương trình hay database?** Khóa trong bộ nhớ chỉ có tác dụng trong một process. Khi có nhiều máy chủ,
+      phải để database (row lock, transaction, cột version) hoặc kho chung lo khóa.
+  - id: q03
+    type: predict_output
+    code: |
+      seat = {"version": 0, "booked": False}
+
+
+      def cas(expected):
+          if seat["booked"] or seat["version"] != expected:
+              return False
+          seat["booked"] = True
+          seat["version"] += 1
+          return True
+
+
+      v_an = seat["version"]
+      v_binh = seat["version"]
+      print(cas(v_an))
+      print(cas(v_binh))
+      print(seat)
+    expected_output: |
+      True
+      False
+      {'version': 1, 'booked': True}
+    explain_md: "Cả hai đọc version 0. `an` ghi trước: version thành 1 và ghế đã đặt. `binh` còn cầm version 0 (cũ) nên bị từ chối, trạng thái không đổi."
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Client đọc `version = 4`, lúc ghi thì ghế đã ở `version = 5`. Khóa lạc quan xử lý thế nào?"
+    options:
+      - {id: a, text_md: "Từ chối ghi vì version đã đổi; client đọc lại và thử lại"}
+      - {id: b, text_md: "Vẫn ghi đè rồi giảm version về 4"}
+      - {id: c, text_md: "Ghi và bỏ qua version"}
+    answer: [a]
+    explain_md: "Version khác lúc đọc nghĩa là có người ghi trước. CAS từ chối để không ghi đè dữ liệu mới hơn."
+  - id: q05
+    type: quiz_mcq
+    prompt_md: "Giữ ghế 5 phút (hold with expiry). Cách thiết kế nào hợp lý?"
+    options:
+      - {id: a, text_md: "Lưu thời điểm hết hạn của lượt giữ; khi đặt hoặc kiểm tra, nếu thời gian hiện tại đã quá hạn thì coi ghế là trống"}
+      - {id: b, text_md: "Giữ ghế vĩnh viễn cho đến khi người dùng quay lại"}
+      - {id: c, text_md: "Không lưu gì, tin rằng người dùng sẽ thanh toán"}
+    answer: [a]
+    explain_md: "Phải có `hold_until`. Không có hạn thì ghế bị chiếm mãi bởi người bỏ dở thanh toán."
+  - id: q06
+    type: quiz_mcq
+    prompt_md: "An khóa A1 rồi A2; Binh khóa A2 rồi A1 có thể gây deadlock. Cách tránh chuẩn là gì?"
+    options:
+      - {id: a, text_md: "Mọi người luôn khóa các ghế theo cùng một thứ tự cố định (ví dụ sắp tăng dần)"}
+      - {id: b, text_md: "Mỗi người khóa theo thứ tự mình thích"}
+      - {id: c, text_md: "Bỏ hết khóa"}
+    answer: [a]
+    explain_md: "Khi ai cũng khóa A1 trước A2 thì không thể có vòng chờ nhau, nên không deadlock."
+  - id: q07
+    type: quiz_fill
+    prompt_md: "Câu lệnh nguyên tử \"nếu version vẫn như lúc đọc thì ghi\" gọi tắt là compare-and-___ (một từ, viết tắt CAS)."
+    blanks: [{accept: ["set", "swap"]}]
+    explain_md: "Compare-and-set (hoặc compare-and-swap): so sánh rồi mới ghi, tất cả trong một bước nguyên tử."
+  - id: ex_order
+    type: code_exercise
+    md: |
+      `lock_order(seats)` nhận list mã ghế (chuỗi, có thể trùng) và trả list **các ghế khác nhau theo thứ tự tăng dần**,
+      đúng thứ tự mà ta nên khóa để tránh deadlock. Bản dưới đây giữ nguyên thứ tự đầu vào và giữ phần tử trùng. Hãy sửa.
+    entry: lock_order
+    starter: |
+      def lock_order(seats):
+          return list(seats)
+    guidance_md: |
+      - `lock_order(["b2", "a1", "b2"])` phải là `["a1", "b2"]`.
+    hints:
+      - level: nudge
+        md: "Cần bỏ trùng và sắp xếp."
+      - level: approach
+        md: "`set` bỏ trùng, `sorted` sắp xếp."
+      - level: near_solution
+        md: "`return sorted(set(seats))`."
+    tests:
+      - {args: [["b2", "a1", "b2"]], expected: ["a1", "b2"]}
+      - {args: [[]], expected: []}
+      - {args: [["c"]], expected: ["c"]}
+      - {args: [["z9", "a1", "m5", "a1"]], expected: ["a1", "m5", "z9"]}
+    solution: |
+      def lock_order(seats):
+          return sorted(set(seats))
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Check-then-act là hai bước; nếu có người chen vào giữa thì hai bên cùng đặt được ghế (double-booking)."
+      - "Khóa bi quan: with lock bọc cả kiểm tra lẫn ghi, người sau chờ. Khóa lạc quan: ghi kèm điều kiện version chưa đổi (compare-and-set), rồi tăng version; version đã đổi thì từ chối và thử lại."
+      - "Khóa riêng từng ghế cho phép đặt ghế khác nhau song song; giữ ghế cần thời điểm hết hạn; đặt nhiều ghế thì luôn khóa theo thứ tự cố định để tránh deadlock."
+      - "Khóa trong bộ nhớ chỉ đúng trong một process; nhiều máy chủ thì dùng database (transaction, cột version). Trình chấm Pyodide chỉ một luồng nên ta mô hình hóa cơ chế version một cách xác định."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X627], l2: [X628], l3: [X629]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

@@ -1,0 +1,35 @@
+# Placement-only items. Validated by content/schemas/placement.schema.json.
+# read_code expected_output = real stdout of `code` (computed by running it, never typed).
+subtopic_id: lld.concurrency_design.locking_booking
+items:
+- id: P1576
+  difficulty: 1
+  type: mcq
+  minutes: 1
+  prompt_md: Lỗi check-then-act khi đặt ghế đồng thời là gì?
+  choices:
+  - Hai luồng cùng thấy ghế còn trống rồi cùng ghi, nên ghế bị đặt hai lần
+  - Ghế bị xóa khỏi dict khi có hai luồng
+  - Chương trình luôn báo ghế đã đặt
+  - Hai luồng cùng đọc nên dữ liệu bị mã hóa
+  answer_index: 0
+  explanation_md: Giữa bước kiểm tra "còn trống" và bước ghi, luồng khác chen vào nên cả hai cùng qua bước kiểm tra. Cách sửa là khóa cả hai bước hoặc dùng compare-and-set.
+- id: P1577
+  difficulty: 1
+  type: mcq
+  minutes: 1
+  prompt_md: Khóa lạc quan (optimistic locking) với version hoạt động thế nào?
+  choices:
+  - Ghi chỉ khi version vẫn như lúc đọc, rồi tăng version; version đã đổi thì từ chối và thử lại
+  - Khóa ghế ngay từ lúc đọc để người khác phải chờ
+  - Không bao giờ kiểm tra gì và ghi đè
+  - Luôn ghi hai lần cho chắc
+  answer_index: 0
+  explanation_md: Optimistic lock không giữ khóa khi đọc; nó kiểm tra version lúc ghi (compare-and-set) và từ chối nếu ai đó đã đổi trước.
+- id: P1578
+  difficulty: 1
+  type: read_code
+  minutes: 2
+  prompt_md: 'Chạy tay (không chạy máy): đoạn code in ra gì?'
+  code: "seat = {\"v\": 0}\n\ndef cas(exp):\n    if seat[\"v\"] != exp:\n        return False\n    seat[\"v\"] += 1\n    return True\n\nprint(cas(0), cas(0), cas(1))"
+  expected_output: "True False True"

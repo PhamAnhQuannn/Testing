@@ -1,0 +1,63 @@
+id: check-x625-logger
+subtopic_id: lld.problems.logger_notification
+secondary_subtopics: []
+kind: check
+title: 'Check X625: Logger'
+title_vi: 'Kiểm tra X625: Logger'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Core of a level-filtered logger. Levels are compared as integers: `DEBUG=0`, `INFO=1`, `ERROR=2`. Never raise.
+
+  Implement `class Logger` with:
+
+  - `Logger()`: no handlers.
+  - `add_handler(name, level)`: registers a handler named `name` with minimum level `level` (one of `"DEBUG"`, `"INFO"`, `"ERROR"`). Handlers are kept in insertion order. Returns nothing.
+  - `log(level, msg)`: returns the `list` of handler names (in the order they were added) whose threshold is `<=` the message level, i.e. the handlers that would write this message.
+  - `handler_count()`: returns the `int` number of handlers.
+statement_vi_md: |
+  Lõi của một logger lọc theo mức. Mức so sánh bằng số nguyên: `DEBUG=0`, `INFO=1`, `ERROR=2`. Không ném lỗi.
+
+  Viết `class Logger` với:
+
+  - `Logger()`: chưa có handler.
+  - `add_handler(name, level)`: đăng ký handler tên `name` với ngưỡng `level` (`"DEBUG"`, `"INFO"` hoặc `"ERROR"`). Giữ theo thứ tự thêm vào. Không trả gì.
+  - `log(level, msg)`: trả `list` tên các handler (theo thứ tự thêm vào) có ngưỡng `<=` mức dòng log, tức các handler sẽ ghi dòng đó.
+  - `handler_count()`: trả số handler (`int`).
+constraints:
+- 'level chỉ là "DEBUG", "INFO" hoặc "ERROR"; tên handler là chuỗi (có thể trùng).'
+- 'Không dùng thread, time hay random.'
+examples:
+- input: ops = ['Logger', 'add_handler', 'add_handler', 'log', 'handler_count'], args = [[], ['console', 'DEBUG'], ['file', 'ERROR'], ['INFO', 'hi'], []]
+  output: '[null, null, null, ["console"], 2]'
+  explain_vi: 'Dòng mức INFO (1): console có ngưỡng DEBUG (0) nên ghi; file có ngưỡng ERROR (2) nên bỏ. Có 2 handler.'
+io:
+  mode: class_ops
+  compare: exact
+starter:
+  python: "class Logger:\n    # TODO\n    pass\n"
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+time_target_min: 8
+hints:
+- 'Đặt bảng LEVELS = {"DEBUG": 0, "INFO": 1, "ERROR": 2} và lưu handler thành list các cặp (tên, mức số).'
+- 'log: duyệt list theo thứ tự và giữ tên có ngưỡng <= mức dòng log.'
+- 'Không cần sort hay dict cho handler; list giữ sẵn thứ tự thêm vào.'
+solution:
+  file: solution.py
+  approach_vi: List các cặp (tên, ngưỡng số); log lọc theo thứ tự, O(số handler).
+  complexity: O(h) mỗi lần log
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x625
+status: validated
+version: 1

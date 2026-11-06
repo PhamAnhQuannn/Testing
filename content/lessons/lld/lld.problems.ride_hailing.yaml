@@ -1,0 +1,299 @@
+id: lld.problems.ride_hailing
+version: 1
+status: published
+title_vi: "Ứng dụng đặt xe và giao đồ ăn"
+est_minutes: 15
+objectives_vi:
+  - "Xác định entity Rider/Driver/Trip/Location và trách nhiệm của từng class."
+  - "Viết matching bằng Strategy (tài xế rảnh gần nhất, hòa thì id nhỏ), đổi thuật toán mà không sửa lõi."
+  - "Mô hình vòng đời chuyến đi như state machine: requested, accepted, ongoing, completed hoặc cancelled; chuyển sai thì từ chối."
+  - "Tính giá bằng Strategy (surge khi khách chờ nhiều hơn tài xế rảnh, tiền số nguyên) và dùng Observer đẩy vị trí tài xế tới app khách."
+blocks:
+  - id: s_match
+    type: section
+    title_vi: "Entity và ghép cặp gần nhất"
+    summary_vi: "Rider, Driver, Trip, Location; matching là một Strategy chọn tài xế rảnh gần nhất."
+    exercise_ref: ex_pick
+  - id: t01
+    type: text
+    md: |
+      Đề chuẩn (Design Uber, LLD): khách gọi xe, hệ thống ghép với tài xế rảnh gần nhất, chuyến đi chạy qua nhiều trạng thái.
+      Tách **entity** theo trách nhiệm:
+
+      - `Rider`: khách, có vị trí hiện tại.
+      - `Driver`: id, vị trí, đang rảnh hay bận.
+      - `Location`: một điểm (bài này dùng số nguyên trên trục số; thực tế là cặp lat/lng).
+      - `Trip`: khách, tài xế, trạng thái, quãng đường. Một chuyến là một lượt đi.
+      - `RideSystem`: điều phối, giữ danh sách tài xế và các chuyến.
+
+      **Matching** là quyết định hay đổi (gần nhất, đánh giá cao nhất, ít chuyến nhất), nên đặt sau interface **Strategy**
+      `pick(drivers, rider_pos) -> Driver | None` và để `RideSystem` giao việc cho strategy. Đổi thuật toán nghĩa là truyền strategy khác.
+
+      Với "gần nhất", cần quy tắc **hòa** xác định: duyệt tài xế theo id tăng dần và chỉ thay ứng viên khi khoảng cách **nhỏ hơn hẳn**
+      (`<`, không phải `<=`) thì khi hòa tài xế id nhỏ hơn thắng và kết quả luôn lặp lại được. Không có tài xế rảnh thì trả giá trị báo lỗi
+      (`None` hoặc `-1`), không ném exception, và không đổi gì.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      class Driver:
+          def __init__(self, did, pos):
+              self.did = did
+              self.pos = pos
+              self.free = True
+
+
+      class Nearest:
+          def pick(self, drivers, rider_pos):
+              best = None
+              for d in sorted(drivers, key=lambda x: x.did):
+                  if not d.free:
+                      continue
+                  if best is None or abs(d.pos - rider_pos) < abs(best.pos - rider_pos):
+                      best = d
+              return best
+
+
+      drivers = [Driver(1, 10), Driver(2, 5), Driver(3, 7)]
+      m = Nearest()
+      d = m.pick(drivers, 6)
+      d.free = False
+      print(d.did)
+      print(m.pick(drivers, 6).did)
+    expected_output: |
+      2
+      3
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Muốn thêm cách ghép 'tài xế đánh giá cao nhất' mà không sửa `RideSystem`, nên làm gì?"
+    options:
+      - {id: a, text_md: "Thêm một class strategy mới cùng interface `pick` và truyền vào `RideSystem`"}
+      - {id: b, text_md: "Thêm nhánh `if mode == 'rating'` vào hàm `request`"}
+      - {id: c, text_md: "Sao chép `RideSystem` thành `RatingRideSystem`"}
+    answer: [a]
+    explain_md: "Strategy giữ phần thay đổi sau một interface nên lõi đóng với sửa đổi (OCP). Thêm nhánh if hoặc nhân bản class làm lõi phình ra mỗi khi có thuật toán mới."
+  - id: q02
+    type: predict_output
+    code: |
+      drivers = [[1, 4], [2, 8], [3, 6]]
+
+
+      def pick(rider_pos):
+          best = None
+          for did, pos in drivers:
+              if best is None or abs(pos - rider_pos) < best[0]:
+                  best = (abs(pos - rider_pos), did)
+          return best[1]
+
+
+      print(pick(6))
+      print(pick(5))
+      print(pick(7))
+    expected_output: |
+      3
+      1
+      2
+    explain_md: "Khách ở 6: tài xế 3 cách 0 nên thắng. Khách ở 5: tài xế 1 (vị trí 4) và 3 (vị trí 6) cùng cách 1; vì so sánh `<` chặt nên ứng viên đến trước (id 1) được giữ. Khách ở 7: tài xế 2 (vị trí 8) cách 1 và tài xế 3 (vị trí 6) cũng cách 1, id 2 đến trước nên thắng."
+  - id: q03
+    type: quiz_fill
+    prompt_md: "Khi không có tài xế rảnh, `request` trả giá trị báo lỗi `___` (số nguyên) và không đổi trạng thái; hết tài xế là chuyện bình thường nên không ném exception."
+    blanks: [{accept: ["-1"]}]
+    explain_md: "Quy ước ở các bài chấm tự động: thất bại là kết quả bình thường nên báo bằng giá trị trả về (-1), người gọi phải kiểm tra."
+  - id: ex_pick
+    type: code_exercise
+    md: |
+      `nearest(drivers, rider_pos)` nhận list `[id, pos]` (có thể không theo thứ tự id) và trả `id` của tài xế gần khách nhất,
+      hòa thì lấy id nhỏ hơn; list rỗng thì trả `-1`. Bản dưới đây đang trả tài xế **xa** nhất. Hãy sửa.
+    entry: nearest
+    starter: |
+      def nearest(drivers, rider_pos):
+          best = -1
+          best_dist = -1
+          for did, pos in drivers:
+              dist = abs(pos - rider_pos)
+              if dist > best_dist:
+                  best = did
+                  best_dist = dist
+          return best
+    guidance_md: |
+      - Thử `nearest([[1, 10], [2, 5]], 6)`: đáp án `2`, code trả `1`.
+      - Khi hòa phải lấy id nhỏ hơn, và đầu vào không đảm bảo đã sắp theo id.
+    hints:
+      - level: nudge
+        md: "Code đang giữ khoảng cách lớn nhất. Muốn gần nhất thì so sánh theo hướng nào, và khi hòa thì sao?"
+      - level: approach
+        md: "Duyệt `sorted(drivers)` (sắp theo id) và chỉ thay ứng viên khi `dist` nhỏ hơn hẳn `best_dist`; khởi tạo `best = -1` và dùng `best == -1` để nhận ứng viên đầu tiên."
+      - level: near_solution
+        md: "`for did, pos in sorted(drivers): dist = abs(pos - rider_pos); if best == -1 or dist < best_dist: best = did; best_dist = dist`."
+    tests:
+      - {args: [[[1, 10], [2, 5]], 6], expected: 2}
+      - {args: [[[2, 4], [1, 8]], 6], expected: 1}
+      - {args: [[], 3], expected: -1}
+      - {args: [[[5, 0]], 9], expected: 5}
+    solution: |
+      def nearest(drivers, rider_pos):
+          best = -1
+          best_dist = 0
+          for did, pos in sorted(drivers):
+              dist = abs(pos - rider_pos)
+              if best == -1 or dist < best_dist:
+                  best = did
+                  best_dist = dist
+          return best
+  - id: s_trip
+    type: section
+    title_vi: "Vòng đời chuyến, surge và Observer"
+    summary_vi: "State machine cho Trip, surge pricing bằng Strategy với tiền số nguyên, Observer cho vị trí tài xế."
+    exercise_ref: ex_fare
+  - id: t02
+    type: text
+    md: |
+      **Vòng đời chuyến đi** là một **state machine**: `requested` → `accepted` → `ongoing` → `completed`; hủy (`cancelled`) chỉ được
+      từ `requested` hoặc `accepted`. Lưu bảng chuyển hợp lệ dưới dạng dữ liệu (dict trạng thái → các trạng thái kế tiếp) thay vì rải `if`:
+      `move(nxt)` trả `True` khi hợp lệ, `False` khi sai và **không đổi trạng thái**. `completed` và `cancelled` là trạng thái cuối, không có đường ra.
+
+      **Giá chuyến** cũng là Strategy: giá cơ bản `1000 + 500 * km`, rồi một strategy bọc ngoài (decorator) áp **surge** khi
+      số khách đang chờ lớn hơn số tài xế rảnh. **Tiền dùng số nguyên** (đồng), không dùng float: nhân hệ số 1.5 viết là `p * 3 // 2`
+      để kết quả không sai số và tái lặp được.
+
+      **Observer** cho vị trí: `Driver` giữ danh sách người nghe; mỗi lần `move(to)` nó cập nhật `pos` rồi gọi từng người nghe theo thứ tự
+      đăng ký. App khách đăng ký để nhận vị trí mới, `Driver` không cần biết app làm gì với nó (coupling lỏng). Người nghe đăng ký sau chỉ
+      nhận các lần cập nhật **sau** thời điểm đăng ký.
+
+      Giao đồ ăn là bài tương tự: thêm `Restaurant` và `Order`, và thêm trạng thái "đang nấu" vào state machine.
+  - id: b02
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      VALID = {
+          "requested": ["accepted", "cancelled"],
+          "accepted": ["ongoing", "cancelled"],
+          "ongoing": ["completed"],
+          "completed": [],
+          "cancelled": [],
+      }
+
+
+      class Trip:
+          def __init__(self):
+              self.state = "requested"
+
+          def move(self, nxt):
+              if nxt not in VALID[self.state]:
+                  return False
+              self.state = nxt
+              return True
+
+
+      t = Trip()
+      print(t.move("ongoing"), t.move("accepted"), t.move("ongoing"))
+      print(t.move("cancelled"), t.state)
+    expected_output: |
+      False True True
+      False ongoing
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Surge pricing nhân giá với hệ số 1.5. Cách nào giữ được tiền chính xác?"
+    options:
+      - {id: a, text_md: "Tiền là số nguyên đồng và tính `p * 3 // 2`"}
+      - {id: b, text_md: "Dùng float: `p * 1.5`"}
+      - {id: c, text_md: "Lưu tiền dưới dạng chuỗi"}
+    answer: [a]
+    explain_md: "Số nguyên không có sai số làm tròn nhị phân và kết quả xác định. Float dễ lệch (ví dụ cộng nhiều lần) và khó so sánh bằng nhau."
+  - id: q05
+    type: predict_output
+    code: |
+      class Base:
+          def price(self, km, waiting, free):
+              return 1000 + 500 * km
+
+
+      class Surge:
+          def __init__(self, inner, num, den):
+              self.inner = inner
+              self.num = num
+              self.den = den
+
+          def price(self, km, waiting, free):
+              p = self.inner.price(km, waiting, free)
+              if waiting > free:
+                  return p * self.num // self.den
+              return p
+
+
+      s = Surge(Base(), 3, 2)
+      print(s.price(4, 5, 2), s.price(4, 2, 2))
+    expected_output: |
+      4500 3000
+    explain_md: "Giá cơ bản 1000 + 500*4 = 3000. Có 5 khách chờ và 2 tài xế rảnh (5 > 2) nên surge: 3000*3//2 = 4500. Lần hai 2 khách chờ và 2 tài xế (2 > 2 sai) nên giữ 3000."
+  - id: q06
+    type: predict_output
+    code: |
+      class Driver:
+          def __init__(self):
+              self.pos = 0
+              self.watchers = []
+
+          def move(self, to):
+              self.pos = to
+              for w in self.watchers:
+                  w(to)
+
+
+      log = []
+      d = Driver()
+      d.watchers.append(lambda p: log.append(("A", p)))
+      d.move(3)
+      d.watchers.append(lambda p: log.append(("B", p)))
+      d.move(7)
+      print(log)
+    expected_output: |
+      [('A', 3), ('A', 7), ('B', 7)]
+    explain_md: "Người nghe A đăng ký trước lần di chuyển đầu nên nhận cả vị trí 3 và 7; B đăng ký sau nên chỉ nhận 7. Thứ tự gọi là thứ tự đăng ký."
+  - id: ex_fare
+    type: code_exercise
+    md: |
+      `fare(km, waiting, free)` trả giá chuyến (số nguyên): `1000 + 500 * km`, và khi `waiting > free` thì nhân surge 1.5
+      (viết bằng số nguyên `* 3 // 2`). Bản dưới đây quên surge. Hãy sửa.
+    entry: fare
+    starter: |
+      def fare(km, waiting, free):
+          return 1000 + 500 * km
+    guidance_md: |
+      - Thử `fare(4, 5, 2)`: đáp án `4500`, code trả `3000`.
+      - Surge chỉ khi `waiting > free` (chặt), và dùng `* 3 // 2` chứ không dùng float.
+    hints:
+      - level: nudge
+        md: "Code chưa xét số khách chờ và số tài xế rảnh. Điều kiện surge là gì?"
+      - level: approach
+        md: "Tính `p = 1000 + 500 * km`; nếu `waiting > free` thì `p = p * 3 // 2`; trả `p`."
+      - level: near_solution
+        md: "`p = 1000 + 500 * km` rồi `if waiting > free: p = p * 3 // 2` và `return p`."
+    tests:
+      - {args: [4, 5, 2], expected: 4500}
+      - {args: [4, 2, 2], expected: 3000}
+      - {args: [3, 3, 1], expected: 3750}
+      - {args: [0, 1, 0], expected: 1500}
+    solution: |
+      def fare(km, waiting, free):
+          p = 1000 + 500 * km
+          if waiting > free:
+              p = p * 3 // 2
+          return p
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Entity: Rider, Driver (id, vị trí, rảnh hay bận), Location, Trip (một lượt đi), RideSystem (điều phối)."
+      - "Matching là Strategy: tài xế rảnh gần nhất, duyệt theo id tăng và so sánh `<` chặt để hòa thì id nhỏ thắng; không có ai thì trả -1."
+      - "Trip là state machine: requested, accepted, ongoing, completed; hủy từ requested hoặc accepted; chuyển sai trả False và không đổi trạng thái."
+      - "Giá là Strategy bọc ngoài: surge khi waiting > free, tiền số nguyên (`p * 3 // 2`); Observer đẩy vị trí tài xế tới app khách theo thứ tự đăng ký."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X618], l2: [X619], l3: [X620]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"
