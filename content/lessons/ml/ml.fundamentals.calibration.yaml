@@ -1,0 +1,156 @@
+id: ml.fundamentals.calibration
+version: 1
+status: published
+title_vi: "Hiệu chỉnh xác suất"
+est_minutes: 14
+objectives_vi:
+  - "Phân biệt calibration với discrimination và đọc reliability diagram."
+  - "Tính tay ECE = Σ (n_b/N)·|acc_b − conf_b| và nhận ra quá tự tin hay quá rụt rè."
+  - "Biết Platt scaling và isotonic regression, vì sao mạng nơ-ron quá tự tin và khi nào cần calibration."
+blocks:
+  - id: s_ece
+    type: section
+    title_vi: "Calibration, reliability diagram và ECE"
+    summary_vi: "Calibrated nghĩa là nói 70% thì đúng khoảng 70%; ECE đo độ lệch đó qua các nhóm xác suất."
+    exercise_ref: ex_gap
+  - id: t01
+    type: text
+    md: |
+      Mô hình **calibrated** khi trong các mẫu nó báo xác suất 0,7, khoảng 70% thật sự là dương, như dự báo "mưa 70%".
+      **Discrimination** là khả năng xếp mẫu dương cao hơn mẫu âm (AUC); **calibration** là con số xác suất có đúng nghĩa không.
+      Hai thứ độc lập: mô hình rất chính xác vẫn có thể báo xác suất lệch.
+
+      **Reliability diagram**: gom dự đoán theo nhóm (bin) xác suất, vẽ `conf` (xác suất dự đoán trung bình, trục x) với
+      `acc` (tỉ lệ dương thật, trục y). Đường chéo là hoàn hảo; điểm dưới đường chéo là quá tự tin, trên đường chéo là quá rụt rè.
+
+      **ECE** (expected calibration error), với `N = Σ nᵦ`:
+      ```
+      ECE = Σ (nᵦ / N) · |accᵦ − confᵦ|
+      ```
+      Ví dụ 3 nhóm, tổng 400 mẫu: (100, conf 0,2, acc 0,1), (200, 0,5, 0,4), (100, 0,8, 0,6).
+      ECE = 0,25·0,1 + 0,5·0,1 + 0,25·0,2 = **0,125**. Càng gần 0 càng tốt.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      bins = [(100, 0.2, 0.1), (200, 0.5, 0.4), (100, 0.8, 0.6)]
+      total = sum(n for n, _, _ in bins)
+      print(round(sum(n / total * abs(acc - conf) for n, conf, acc in bins), 4))
+    expected_output: |
+      0.125
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Mô hình báo 0,8 cho 100 mẫu nhưng chỉ 60 mẫu là dương. Nhận xét nào đúng?"
+    options:
+      - {id: a, text_md: "Quá tự tin: conf 0,8 lớn hơn acc 0,6 (lệch 0,2)"}
+      - {id: b, text_md: "Quá rụt rè: acc nhỏ hơn conf"}
+      - {id: c, text_md: "Calibrated hoàn hảo"}
+    answer: [a]
+    explain_md: "|0,8 − 0,6| = 0,2 và conf > acc nghĩa là mô hình tự tin hơn thực tế."
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Hai nhóm: (100 mẫu, conf 0,5, acc 0,5) và (100 mẫu, conf 0,9, acc 0,7). ECE bằng ___."
+    blanks: [{accept: ["0.1", "0,1", "0.10"]}]
+    explain_md: "Nhóm 1 lệch 0; nhóm 2 lệch 0,2 với trọng số 0,5: ECE = 0,5·0 + 0,5·0,2 = 0,1."
+  - id: q03
+    type: predict_output
+    code: |
+      bins = [(50, 0.3, 0.3), (50, 0.7, 0.5)]
+      total = sum(n for n, _, _ in bins)
+      print(round(sum(n / total * abs(a - c) for n, c, a in bins), 3))
+    expected_output: |
+      0.1
+    explain_md: "0,5·0 + 0,5·0,2 = 0,1."
+  - id: ex_gap
+    type: code_exercise
+    md: |
+      `bin_gap(probs, labels)` trả `mean(probs) − mean(labels)` làm tròn 6 chữ số (dương = quá tự tin; danh sách rỗng trả `0.0`).
+      Bản dưới lấy `max` thay vì trung bình xác suất nên sai. Hãy sửa.
+    entry: bin_gap
+    starter: |
+      def bin_gap(probs, labels):
+          n = len(probs)
+          if n == 0:
+              return 0.0
+          return round(max(probs) - sum(labels) / n, 6)
+    guidance_md: |
+      - Thử `bin_gap([0.2, 0.4], [0, 1])`: đáp án `-0.2`, code trả `-0.1`.
+    hints:
+      - level: nudge
+        md: "conf của nhóm là xác suất dự đoán trung bình, không phải giá trị lớn nhất."
+      - level: approach
+        md: "Tính `sum(probs) / n` thay cho `max(probs)`."
+      - level: near_solution
+        md: "`round(sum(probs) / n - sum(labels) / n, 6)`."
+    tests:
+      - {args: [[0.8, 0.8, 0.8, 0.8, 0.8], [1, 1, 0, 0, 1]], expected: 0.2}
+      - {args: [[0.2, 0.4], [0, 1]], expected: -0.2}
+      - {args: [[0.5], [1]], expected: -0.5}
+      - {args: [[0.9, 0.7], [1, 1]], expected: -0.2}
+      - {args: [[], []], expected: 0.0}
+    solution: |
+      def bin_gap(probs, labels):
+          n = len(probs)
+          if n == 0:
+              return 0.0
+          return round(sum(probs) / n - sum(labels) / n, 6)
+  - id: s_fix
+    type: section
+    title_vi: "Sửa lệch, nguyên nhân và khi nào cần"
+    summary_vi: "Platt và isotonic học hàm sửa xác suất trên validation; chỉ cần khi dùng xác suất để quyết định."
+  - id: t02
+    type: text
+    md: |
+      **Sửa calibration** (post-hoc, fit trên tập validation, không phải tập train):
+      - **Platt scaling**: fit đường chữ S (sigmoid) `σ(a·s + b)` lên điểm thô. Ít tham số nên hợp khi dữ liệu ít.
+      - **Isotonic regression**: hàm bậc thang chỉ đi lên, linh hoạt hơn nhưng cần nhiều dữ liệu hơn, dễ overfit khi ít mẫu.
+      Sau khi sửa, tính lại ECE trên dữ liệu chưa dùng để fit.
+
+      **Vì sao lệch**: mạng nơ-ron hiện đại thường quá tự tin vì train lâu với cross-entropy đẩy xác suất về gần 0 hoặc 1 kể cả khi sai
+      (báo 0,99 dù chỉ đúng 90%); một số mô hình khác lại quá rụt rè.
+
+      **Khi nào cần**: khi dùng xác suất để đặt ngưỡng theo chi phí hoặc kết hợp nhiều mô hình. Nếu chỉ xếp hạng (ranking) thì không cần,
+      vì calibration đơn điệu không đổi thứ tự.
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Trường hợp nào cần calibration nhất?"
+    options:
+      - {id: a, text_md: "Dùng xác suất để đặt ngưỡng theo chi phí sai"}
+      - {id: b, text_md: "Chỉ cần xếp hạng ứng viên từ cao xuống thấp"}
+      - {id: c, text_md: "Không bao giờ cần"}
+    answer: [a]
+    explain_md: "Ngưỡng theo chi phí đọc trực tiếp giá trị xác suất; xếp hạng chỉ cần thứ tự."
+  - id: q05
+    type: quiz_mcq
+    prompt_md: "Mạng nơ-ron train lâu bằng cross-entropy thường bị gì?"
+    options:
+      - {id: a, text_md: "Quá tự tin: xác suất đẩy về gần 0 hoặc 1"}
+      - {id: b, text_md: "Quá rụt rè: mọi xác suất gần 0,5"}
+      - {id: c, text_md: "Luôn calibrated"}
+    answer: [a]
+    explain_md: "Giảm cross-entropy khuyến khích logit lớn, nên xác suất cực đoan kể cả khi sai."
+  - id: q06
+    type: predict_output
+    code: |
+      conf = 0.99
+      acc = 90 / 100
+      print(round(conf - acc, 2))
+    expected_output: |
+      0.09
+    explain_md: "Báo 0,99 nhưng đúng 90%: lệch 0,09, quá tự tin."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Calibration là xác suất có đúng nghĩa; discrimination là xếp hạng đúng; hai thứ độc lập."
+      - "Reliability diagram vẽ acc theo conf từng bin; đường chéo là hoàn hảo."
+      - "ECE = Σ (n_b/N)·|acc_b − conf_b|; conf > acc là quá tự tin."
+      - "Platt (sigmoid) và isotonic (bậc thang) fit trên validation; NN thường quá tự tin; chỉ cần khi dùng giá trị xác suất."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X672], l2: [X673], l3: [X674]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

@@ -27736,6 +27736,448 @@
       "plan_hours": 5
     },
     {
+      "id": "ml.fundamentals.calibration",
+      "section": "ml",
+      "module": "ml.fundamentals",
+      "name_vi": "Hiệu chỉnh xác suất (calibration)",
+      "order": 3,
+      "summary_vi": "Mô hình được gọi là calibrated (hiệu chuẩn tốt) khi nói 70% thì thực tế đúng khoảng 70% số lần, như dự báo thời tiết nói 'mưa 70%' thì 10 ngày như vậy mưa khoảng 7 ngày. Học xong bạn kiểm tra và sửa độ tin cậy của xác suất, quan trọng khi dùng xác suất để ra quyết định.",
+      "mastery_bar_vi": "Mức 3: vẽ reliability diagram cho một mô hình, tính sai lệch calibration và sửa bằng Platt scaling hoặc isotonic trên tập validation.",
+      "prerequisites": [
+        "ml.fundamentals.classification_metrics"
+      ],
+      "lang_prereqs": {
+        "python": [],
+        "java": null
+      },
+      "key_concepts": [
+        "calibration vs discrimination",
+        "reliability diagram",
+        "expected calibration error",
+        "Platt scaling and isotonic regression",
+        "why probabilities become miscalibrated",
+        "when calibration matters"
+      ],
+      "concepts_vi": [
+        {
+          "text": "Calibration: trong các mẫu mô hình nói 0,7, khoảng 70% thật sự là dương; mô hình chính xác vẫn có thể báo xác suất lệch.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Reliability diagram: gom dự đoán theo nhóm xác suất, vẽ xác suất dự đoán trung bình (trục x) với tỉ lệ dương thật (trục y); đường chéo là hoàn hảo.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "ECE (expected calibration error): ECE = Σ (n_b/n)·|tỉ lệ dương thật_b − xác suất dự đoán_b| qua các nhóm b; càng gần 0 càng tốt.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Platt scaling và isotonic regression: học hàm nhỏ biến xác suất thô thành xác suất chuẩn hơn, fit trên validation. Platt dùng đường chữ S (sigmoid); isotonic dùng đường bậc thang chỉ đi lên, linh hoạt hơn nhưng cần nhiều dữ liệu hơn.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Vì sao xác suất lệch: mạng nơ-ron hiện đại thường quá tự tin (train lâu bằng cross-entropy đẩy xác suất dự đoán về gần 0 hoặc 1 kể cả khi sai) (hay báo 0,99 dù chỉ đúng 90%); một số mô hình khác lại quá rụt rè.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Khi nào cần calibration: khi dùng xác suất để đặt ngưỡng theo chi phí hoặc kết hợp nhiều mô hình; nếu chỉ xếp hạng thì không cần.",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "Tính độ lệch calibration",
+          "vi": "Mô hình báo 0,8 cho 100 mẫu nhưng chỉ 60 mẫu là dương: lệch |0,8 − 0,6| = 0,2, tức quá tự tin."
+        },
+        {
+          "title": "Tính ECE bằng tay",
+          "vi": "3 nhóm, tổng 400 mẫu: nhóm A 100 mẫu báo 0,2, thật 10 mẫu dương (0,1); nhóm B 200 mẫu báo 0,5, thật 80 dương (0,4); nhóm C 100 mẫu báo 0,8, thật 60 dương (0,6). ECE = 0,25·0,1 + 0,5·0,1 + 0,25·0,2 = 0,125.",
+          "starter_code_vi": {
+            "lang": "python",
+            "code": "import numpy as np\np = np.array([0.2]*100 + [0.5]*200 + [0.8]*100)\ny = np.array([1]*10 + [0]*90 + [1]*80 + [0]*120 + [1]*60 + [0]*40)\nfor v in (0.2, 0.5, 0.8):\n    rate = ...   # TODO: tỉ lệ y == 1 trong các mẫu có p == v\n    print(v, rate)"
+          }
+        },
+        {
+          "title": "Vẽ reliability diagram",
+          "vi": "Dùng sklearn: prob_true, prob_pred = calibration_curve(y_val, p_val, n_bins=10) (from sklearn.calibration import calibration_curve; y_val là nhãn 0/1, p_val là xác suất mô hình), rồi plt.plot(prob_pred, prob_true, 'o-') và đường chéo plt.plot([0, 1], [0, 1], '--') cho hai mô hình bất kỳ."
+        },
+        {
+          "title": "Platt scaling",
+          "vi": "Bọc mô hình: CalibratedClassifierCV(LogisticRegression(), method='sigmoid', cv=5).fit(X_train, y_train) (method='isotonic' cho isotonic), rồi so ECE trước và sau trên validation."
+        }
+      ],
+      "beginner_note_vi": "Intern và fresher có thể bỏ qua; quay lại khi cần dùng xác suất để ra quyết định.",
+      "example_problems": [
+        "Compute calibration gap from bins",
+        "Draw a reliability diagram",
+        "Apply Platt scaling and compare ECE"
+      ],
+      "bank_topics": [],
+      "bank_counts": {},
+      "target_swe": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 0,
+        "senior": 0
+      },
+      "target_ai": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 1,
+        "senior": 2
+      },
+      "est_hours": 2,
+      "est_hours_beginner": 3,
+      "plan_order": 246,
+      "plan_day": null,
+      "plan_hours": 2
+    },
+    {
+      "id": "ml.fundamentals.regression_ranking_metrics",
+      "section": "ml",
+      "module": "ml.fundamentals",
+      "name_vi": "Metric hồi quy, ranking và retrieval (ranking metrics)",
+      "order": 4,
+      "summary_vi": "Metric hồi quy đo sai số giữa số dự đoán và số thật; metric ranking đo việc xếp kết quả đúng lên đầu, như kết quả tìm kiếm (người dùng chỉ nhìn vài dòng đầu). Học xong bạn tính tay RMSE, R², precision/recall@k, MRR cho một danh sách nhỏ.",
+      "mastery_bar_vi": "Mức 3: tính tay RMSE, R², recall@k và MRR cho một danh sách nhỏ, chọn metric theo bài toán và nêu giới hạn của metric offline (NDCG dành cho junior).",
+      "prerequisites": [
+        "ml.fundamentals.classification_metrics"
+      ],
+      "lang_prereqs": {
+        "python": [],
+        "java": null
+      },
+      "key_concepts": [
+        "MSE/RMSE/MAE/R²/MAPE",
+        "precision@k, recall@k",
+        "MRR and MAP",
+        "NDCG definition & discount",
+        "hit rate",
+        "coverage, diversity, novelty",
+        "offline vs online metric gap",
+        "clustering metrics (silhouette)"
+      ],
+      "concepts_vi": [
+        {
+          "text": "MAE, MSE, RMSE: sai số trung bình (tuyệt đối / bình phương); RMSE = √MSE có cùng đơn vị với y nên dễ đọc nhất.",
+          "level": "co_ban"
+        },
+        {
+          "text": "R²: 1 − Σ(y − ŷ)²/Σ(y − ȳ)², trong đó ȳ là trung bình của y; 1 là hoàn hảo, 0 là không hơn việc luôn đoán trung bình, âm nếu còn tệ hơn.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Top-k: danh sách k kết quả đầu tiên mà hệ thống trả về; người dùng thường chỉ nhìn vài kết quả này nên metric ranking chỉ xét top k.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Recall@k và precision@k: recall@k = số kết quả đúng nằm trong top k / tổng số kết quả đúng; precision@k = số đúng trong top k / k.",
+          "level": "co_ban"
+        },
+        {
+          "text": "MRR: trung bình của 1/(vị trí kết quả đúng đầu tiên); đúng ngay vị trí 1 cho 1, vị trí 4 cho 0,25.",
+          "level": "co_ban"
+        },
+        {
+          "text": "NDCG: DCG = Σ rel_i / log₂(i+1) (kết quả ở vị trí càng thấp càng bị chia nhiều, vị trí 1 chia 1, vị trí 3 chia 2), rồi chia cho DCG lý tưởng.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "MAPE: sai số phần trăm |y − ŷ|/|y|; hỏng khi y gần 0 vì chia cho số rất nhỏ.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Hit rate và coverage: hit rate = tỉ lệ người dùng có ít nhất một kết quả đúng trong top k; coverage = tỉ lệ món trong kho từng được gợi ý.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Offline và online: offline đo trên dữ liệu cũ; online đo với người dùng thật bằng thí nghiệm A/B (chia người dùng thành hai nhóm dùng bản cũ và bản mới, học ở ab_testing); hai loại có thể lệch nhau.",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "RMSE và R² bằng tay",
+          "vi": "y = [3, 5, 7], ŷ = [2, 5, 9]: sai số −1, 0, 2 nên MSE = (1 + 0 + 4)/3 ≈ 1,67 và RMSE ≈ 1,29; ȳ = 5, tổng bình phương lệch trung bình = 4+0+4 = 8, R² = 1 − 5/8 = 0,375."
+        },
+        {
+          "title": "Metric ranking cho danh sách tìm kiếm",
+          "vi": "Danh sách 5 kết quả, đúng (✓) ở vị trí 1 và 4: [✓, ✗, ✗, ✓, ✗]. Tổng 2 kết quả đúng nên recall@3 = 1/2, precision@3 = 1/3, MRR = 1/1 = 1."
+        },
+        {
+          "title": "NDCG@3 từng bước",
+          "vi": "Cùng danh sách trên: DCG@3 = 1/log₂2 = 1; DCG lý tưởng (2 kết quả đúng đứng đầu) = 1 + 1/log₂3 ≈ 1,63; NDCG@3 ≈ 1/1,63 ≈ 0,61. Tính lại với danh sách [✗, ✓, ✓, ✗, ✗]."
+        },
+        {
+          "title": "Khi nào MAPE hỏng",
+          "vi": "Tính MAPE khi y = 0,01 và ŷ = 1: |y − ŷ|/|y| = 99, tức 9.900%; giải thích vì sao metric này hỏng khi y gần 0."
+        }
+      ],
+      "beginner_note_vi": "Intern và fresher cần phần Cơ bản (RMSE, R², recall@k, MRR); NDCG và các metric gợi ý khác dành cho junior.",
+      "example_problems": [
+        "Compute NDCG@3 for a ranked list",
+        "When is MAPE bad?",
+        "Which metric for a RAG retriever?"
+      ],
+      "bank_topics": [
+        "ml_ai.ml_fundamentals",
+        "ml_ai.ml_system_design"
+      ],
+      "bank_counts": {
+        "ml_ai.ml_fundamentals": {
+          "total": 126,
+          "y2026": 58
+        },
+        "ml_ai.ml_system_design": {
+          "total": 313,
+          "y2026": 168
+        }
+      },
+      "target_swe": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 1,
+        "senior": 1
+      },
+      "target_ai": {
+        "intern": 0,
+        "fresher": 1,
+        "junior": 2,
+        "senior": 3
+      },
+      "est_hours": 3,
+      "plan_order": 247,
+      "plan_day": null,
+      "plan_hours": 3
+    },
+    {
+      "id": "ml.fundamentals.validation_tuning",
+      "section": "ml",
+      "module": "ml.fundamentals",
+      "name_vi": "Validation, cross-validation và tuning (validation)",
+      "order": 5,
+      "summary_vi": "Validation là cách thi thử: ta giữ lại một phần dữ liệu mô hình chưa từng thấy để biết nó tổng quát tốt không, rồi dùng nó để chỉnh hyperparameter. Học xong bạn chia dữ liệu đúng và nhận ra data leakage (thông tin đáp án rò vào lúc train).",
+      "mastery_bar_vi": "Mức 3: chọn cách chia dữ liệu đúng (ngẫu nhiên, theo nhóm, theo thời gian) và chỉ ra ít nhất 3 kiểu leakage trong một pipeline cho trước.",
+      "prerequisites": [
+        "ml.fundamentals.bias_variance_overfitting"
+      ],
+      "lang_prereqs": {
+        "python": [],
+        "java": null
+      },
+      "key_concepts": [
+        "k-fold, stratified, group k-fold",
+        "time-based split",
+        "data leakage types",
+        "nested CV",
+        "grid/random/Bayesian search",
+        "test set discipline",
+        "statistical significance of model comparison",
+        "learning rate / early stopping tuning"
+      ],
+      "concepts_vi": [
+        {
+          "text": "Hold-out và k-fold cross-validation: chia thành k phần, lần lượt dùng 1 phần làm validation rồi lấy trung bình k lần (vd k = 5).",
+          "level": "co_ban"
+        },
+        {
+          "text": "Stratified, group, theo thời gian: giữ tỉ lệ nhóm / giữ cùng một người trong cùng một phần / chia theo thời gian (dữ liệu chuỗi thời gian không được xáo trộn).",
+          "level": "co_ban"
+        },
+        {
+          "text": "Kỷ luật test set: test chỉ dùng một lần ở cuối; chỉnh theo test là tự gian lận.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Data leakage: thông tin không có lúc dự đoán thật lọt vào train, vd chuẩn hoá bằng cả test hoặc dùng feature 'đã hoàn tiền' để dự đoán gian lận.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Grid search và random search: thử lưới các hyperparameter / thử ngẫu nhiên; random thường hiệu quả hơn khi chỉ vài tham số quan trọng.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Bayesian optimization: chọn cấu hình tiếp theo dựa trên kết quả các lần thử trước thay vì thử mù; nested CV: cross-validation lồng nhau (vòng trong chọn hyperparameter, vòng ngoài đo điểm) để điểm không bị lạc quan.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "So sánh mô hình có ý nghĩa thống kê: chênh lệch nhỏ hơn dao động giữa các fold thì chưa kết luận được.",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "Spot leakage",
+          "vi": "5 feature để dự đoán gian lận: số tiền, giờ, quốc gia, 'đã hoàn tiền', 'số khiếu nại sau giao dịch'. Chỉ ra 2 feature rò rỉ và giải thích."
+        },
+        {
+          "title": "Scaler leakage",
+          "vi": "So hai cách: fit StandardScaler trên toàn bộ dữ liệu rồi chia, và chia rồi chỉ fit trên train; viết code cả hai và nói cách nào sai. Cú pháp: sai = StandardScaler().fit_transform(X) rồi mới chia; đúng = sc = StandardScaler().fit(X_train); X_train2 = sc.transform(X_train); X_test2 = sc.transform(X_test)."
+        },
+        {
+          "title": "Time split",
+          "vi": "Giải thích vì sao chia ngẫu nhiên dữ liệu doanh số theo ngày là sai và chia thế nào cho đúng."
+        },
+        {
+          "title": "Tuning with GridSearchCV",
+          "vi": "Dùng train_test_split rồi GridSearchCV 5-fold để chọn max_depth của DecisionTreeClassifier trên dữ liệu iris, rồi báo điểm trên tập test.",
+          "starter_code_vi": {
+            "lang": "python",
+            "code": "from sklearn.datasets import load_iris\nfrom sklearn.model_selection import train_test_split, GridSearchCV\nfrom sklearn.tree import DecisionTreeClassifier\nX, y = load_iris(return_X_y=True)\nX_tr, X_te, y_tr, y_te = train_test_split(X, y, test_size=0.2, random_state=0)\ngs = ...   # TODO: GridSearchCV(DecisionTreeClassifier(random_state=0), {\"max_depth\": [1, 2, 3, 5]}, cv=5)\ngs.fit(X_tr, y_tr)\nprint(gs.best_params_, gs.score(X_te, y_te))"
+          }
+        }
+      ],
+      "example_problems": [
+        "Why random split fails for time series",
+        "Spot leakage in a feature list",
+        "Random vs grid search"
+      ],
+      "bank_topics": [
+        "ml_ai.ml_fundamentals",
+        "ml_ai.data_features"
+      ],
+      "bank_counts": {
+        "ml_ai.ml_fundamentals": {
+          "total": 126,
+          "y2026": 58
+        },
+        "ml_ai.data_features": {
+          "total": 52,
+          "y2026": 18
+        }
+      },
+      "target_swe": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 1,
+        "senior": 1
+      },
+      "target_ai": {
+        "intern": 2,
+        "fresher": 3,
+        "junior": 3,
+        "senior": 3
+      },
+      "est_hours": 3,
+      "plan_order": 248,
+      "plan_day": null,
+      "plan_hours": 3
+    },
+    {
+      "id": "ml.fundamentals.interpretability_fairness",
+      "section": "ml",
+      "module": "ml.fundamentals",
+      "name_vi": "Khả năng giải thích, công bằng và ML có trách nhiệm (interpretability and fairness)",
+      "order": 6,
+      "summary_vi": "Khả năng giải thích là trả lời 'vì sao mô hình đoán vậy'; công bằng là kiểm tra mô hình có đối xử khác nhau giữa các nhóm người hay không. Học xong bạn giải thích được một dự đoán và so sánh hai tiêu chí công bằng bằng số liệu cụ thể.",
+      "mastery_bar_vi": "Mức 3: giải thích một dự đoán bằng permutation importance hoặc SHAP, so sánh hai tiêu chí công bằng và nêu trade-off với độ chính xác.",
+      "prerequisites": [
+        "ml.fundamentals.classification_metrics"
+      ],
+      "lang_prereqs": {
+        "python": [],
+        "java": null
+      },
+      "key_concepts": [
+        "feature importance: permutation importance, SHAP idea",
+        "LIME and partial dependence plots",
+        "bias sources: sampling, label and measurement bias",
+        "fairness metrics: demographic parity, equalized odds, calibration by group",
+        "fairness vs accuracy trade-off",
+        "model cards and data sheets",
+        "privacy: PII and differential privacy idea",
+        "interpretable models vs post-hoc explanations"
+      ],
+      "concepts_vi": [
+        {
+          "text": "Permutation importance: xáo trộn một cột của tập validation rồi xem điểm giảm bao nhiêu; giảm nhiều thì cột quan trọng.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "SHAP và LIME: SHAP chia phần đóng góp của từng feature vào một dự đoán cụ thể; LIME xấp xỉ mô hình quanh dự đoán đó bằng mô hình đơn giản dễ đọc.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Nguồn thiên lệch (bias): mẫu không đại diện cho người dùng thật, nhãn do người gán mang thiên kiến, hoặc đo lường lệch giữa các nhóm.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Demographic parity: tỉ lệ được chấp thuận bằng nhau giữa các nhóm (vd cùng duyệt vay 50%).",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Equalized odds: giữa các nhóm bằng nhau cả recall (trong số người thật sự trả được nợ, tỉ lệ được duyệt) lẫn tỉ lệ duyệt nhầm (trong số người không trả được nợ, tỉ lệ vẫn được duyệt).",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Công bằng và độ chính xác: hai tiêu chí công bằng thường mâu thuẫn nhau và với accuracy; phải chọn tiêu chí theo bối cảnh.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Model card và PII: model card ghi mục đích, dữ liệu, giới hạn của mô hình; PII (personally identifiable information) là dữ liệu cá nhân cần bảo vệ.",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "Chênh lệch demographic parity",
+          "vi": "Nhóm A duyệt 60/100, nhóm B duyệt 30/100: chênh lệch parity = 0,6 − 0,3 = 0,3."
+        },
+        {
+          "title": "So sánh hai tiêu chí",
+          "vi": "Nhóm A: 100 người, 50 người thật sự trả được nợ, mô hình duyệt 45 người trả được và 15 người không trả được (tổng 60). Nhóm B: 100 người, cũng 50 người trả được, duyệt 27 người trả được và 3 người không (tổng 30). Tính recall (45/50 so với 27/50) và tỉ lệ duyệt nhầm (15/50 so với 3/50): parity lệch 0,3 và equalized odds lệch cả hai."
+        },
+        {
+          "title": "Khi nào parity lệch vẫn chấp nhận được",
+          "vi": "Nhóm A có 80/100 người trả được nợ, nhóm B có 40/100. Mô hình duyệt đúng những người trả được ở cả hai nhóm: duyệt 80 và 40. Parity lệch 0,4 nhưng recall = 1 và tỉ lệ duyệt nhầm = 0 ở cả hai nhóm, tức equalized odds đạt. Nêu cách nhìn của mỗi tiêu chí."
+        },
+        {
+          "title": "Permutation importance bằng code",
+          "vi": "Hoàn thành hàm perm_importance: xáo trộn từng cột của tập validation và đo mức giảm điểm. Thử trên dữ liệu tự sinh X (100×3), y = 3·x₀ + x₁ với LinearRegression và r2_score: cột 0 phải quan trọng nhất, cột 2 gần 0.",
+          "starter_code_vi": {
+            "lang": "python",
+            "code": "import numpy as np\ndef perm_importance(model, X_val, y_val, score):\n    base = score(y_val, model.predict(X_val))\n    out = []\n    for j in range(X_val.shape[1]):\n        Xp = X_val.copy()\n        np.random.shuffle(Xp[:, j])   # xáo trộn cột j\n        out.append(base - ...)        # TODO: điểm mới trên Xp\n    return out\n# thử: model = LinearRegression().fit(X, y); perm_importance(model, X, y, r2_score)\n# (from sklearn.linear_model import LinearRegression; from sklearn.metrics import r2_score)"
+          }
+        },
+        {
+          "title": "Model card",
+          "vi": "Điền model card 5 dòng cho mô hình duyệt vay: mục đích; dữ liệu huấn luyện; metric chính; giới hạn; nhóm cần theo dõi."
+        }
+      ],
+      "beginner_note_vi": "Mục tiêu bắt đầu từ junior: intern và fresher có thể bỏ qua, hoặc chỉ đọc phần Cơ bản nếu còn thời gian. Bài số liệu duyệt vay làm được chỉ với phép chia.",
+      "example_problems": [
+        "How would you explain a loan rejection to a customer?",
+        "Demographic parity vs equalized odds: when do they conflict?",
+        "Audit a hiring model for bias",
+        "What goes into a model card?"
+      ],
+      "bank_topics": [
+        "ml_ai.ml_fundamentals"
+      ],
+      "bank_counts": {
+        "ml_ai.ml_fundamentals": {
+          "total": 126,
+          "y2026": 58
+        }
+      },
+      "target_swe": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 0,
+        "senior": 0
+      },
+      "target_ai": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 2,
+        "senior": 2
+      },
+      "est_hours": 3,
+      "plan_order": 249,
+      "plan_day": null,
+      "plan_hours": 3
+    },
+    {
       "id": "ml.math.linalg_decomposition",
       "section": "ml",
       "module": "ml.classical",
@@ -27858,7 +28300,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 246,
+      "plan_order": 250,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -27984,7 +28426,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 247,
+      "plan_order": 251,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -28107,7 +28549,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 248,
+      "plan_order": 252,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -28224,7 +28666,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 249,
+      "plan_order": 253,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -28331,7 +28773,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 250,
+      "plan_order": 254,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -28446,7 +28888,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 251,
+      "plan_order": 255,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -28563,7 +29005,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 252,
+      "plan_order": 256,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -28686,7 +29128,7 @@
         "senior": 3
       },
       "est_hours": 2,
-      "plan_order": 253,
+      "plan_order": 257,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -28814,7 +29256,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 254,
+      "plan_order": 258,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -28934,7 +29376,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 255,
+      "plan_order": 259,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -29048,7 +29490,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 256,
+      "plan_order": 260,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -29170,7 +29612,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 257,
+      "plan_order": 261,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -29296,7 +29738,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 258,
+      "plan_order": 262,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -29416,7 +29858,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 259,
+      "plan_order": 263,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -29533,7 +29975,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 260,
+      "plan_order": 264,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -29652,7 +30094,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 261,
+      "plan_order": 265,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -29764,7 +30206,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 262,
+      "plan_order": 266,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -29886,7 +30328,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 263,
+      "plan_order": 267,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -30011,7 +30453,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 264,
+      "plan_order": 268,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -30128,7 +30570,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 265,
+      "plan_order": 269,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -30239,7 +30681,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 266,
+      "plan_order": 270,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -30351,7 +30793,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 267,
+      "plan_order": 271,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -30458,7 +30900,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 268,
+      "plan_order": 272,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -30578,7 +31020,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 269,
+      "plan_order": 273,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -30701,7 +31143,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 270,
+      "plan_order": 274,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -30811,7 +31253,7 @@
         "senior": 3
       },
       "est_hours": 2,
-      "plan_order": 271,
+      "plan_order": 275,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -30921,7 +31363,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 272,
+      "plan_order": 276,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -31037,7 +31479,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 273,
+      "plan_order": 277,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -31162,7 +31604,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 274,
+      "plan_order": 278,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -31276,7 +31718,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 275,
+      "plan_order": 279,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -31393,7 +31835,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 276,
+      "plan_order": 280,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -31491,7 +31933,7 @@
         "senior": 3
       },
       "est_hours": 2,
-      "plan_order": 277,
+      "plan_order": 281,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -31609,7 +32051,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 278,
+      "plan_order": 282,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -31733,7 +32175,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 279,
+      "plan_order": 283,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -31858,7 +32300,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 280,
+      "plan_order": 284,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -31986,7 +32428,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 281,
+      "plan_order": 285,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -32102,7 +32544,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 282,
+      "plan_order": 286,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -32206,7 +32648,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 283,
+      "plan_order": 287,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -32323,7 +32765,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 284,
+      "plan_order": 288,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -32435,7 +32877,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 285,
+      "plan_order": 289,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -32535,7 +32977,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 286,
+      "plan_order": 290,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -32669,7 +33111,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 287,
+      "plan_order": 291,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -32805,7 +33247,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 288,
+      "plan_order": 292,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -32950,7 +33392,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 289,
+      "plan_order": 293,
       "plan_day": null,
       "plan_hours": 6
     }
