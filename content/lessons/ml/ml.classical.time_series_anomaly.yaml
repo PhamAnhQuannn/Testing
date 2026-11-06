@@ -1,0 +1,158 @@
+id: ml.classical.time_series_anomaly
+version: 1
+status: published
+title_vi: "Dự báo chuỗi thời gian và phát hiện bất thường"
+est_minutes: 14
+objectives_vi:
+  - "Tách chuỗi thời gian thành trend, seasonality, noise và dựng baseline đơn giản (last-value, seasonal-naive, moving average)."
+  - "Backtest theo thời gian (rolling/expanding window), không bao giờ xáo trộn, và nêu được ít nhất 2 cách rò rỉ dữ liệu."
+  - "Phát hiện bất thường bằng z-score hoặc ngưỡng trên residual."
+blocks:
+  - id: s_forecast
+    type: section
+    title_vi: "Thành phần, baseline và backtest"
+    summary_vi: "Trend, seasonality, noise; baseline đơn giản phải thắng trước khi dùng mô hình phức tạp; backtest đi theo chiều thời gian."
+    exercise_ref: ex_ma
+  - id: t01
+    type: text
+    md: |
+      Một chuỗi thời gian thường gồm ba thành phần:
+
+      - **Trend**: xu hướng dài hạn (doanh số tăng dần theo tháng).
+      - **Seasonality**: mẫu lặp theo chu kỳ cố định (cao điểm cuối tuần, chu kỳ `period = 7` ngày).
+      - **Noise**: phần ngẫu nhiên còn lại, không dự đoán được.
+
+      **Baseline** đơn giản cần dựng trước mọi mô hình phức tạp:
+
+      - **Last-value (naive)**: dự báo ngày mai = hôm nay. `pred[t] = y[t-1]`.
+      - **Seasonal-naive**: dự báo bằng giá trị cùng pha ở chu kỳ trước: `pred[t] = y[t - period]`.
+      - **Moving average** cửa sổ `w`: trung bình `w` điểm gần nhất.
+
+      Mô hình phức tạp mà không thắng seasonal-naive thì chưa đáng triển khai.
+
+      **Backtest** đo mô hình bằng cách mô phỏng dự báo thật: tại mỗi mốc `t` chỉ train trên dữ liệu **trước** `t`, dự báo
+      điểm hoặc đoạn tiếp theo, rồi trượt mốc về phía trước.
+
+      - **Expanding window**: train luôn từ đầu đến `t` (cửa sổ lớn dần).
+      - **Rolling window**: train chỉ `k` điểm gần nhất (cửa sổ trượt cố định).
+      - **Không xáo trộn** và không dùng k-fold thường: xáo trộn đưa tương lai vào train nên điểm quá lạc quan.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Doanh số có chu kỳ tuần (period = 7). Baseline seasonal-naive dự báo thứ Hai tuần này bằng gì?"
+    options:
+      - {id: a, text_md: "Doanh số thứ Hai tuần trước (cách 7 ngày)"}
+      - {id: b, text_md: "Doanh số Chủ nhật hôm qua"}
+      - {id: c, text_md: "Trung bình toàn bộ lịch sử"}
+    answer: [a]
+    explain_md: "Seasonal-naive lấy giá trị cùng pha ở chu kỳ trước: pred[t] = y[t - period]."
+  - id: q02
+    type: quiz_mcq
+    prompt_md: "Cách nào đúng để đánh giá mô hình dự báo doanh số?"
+    options:
+      - {id: a, text_md: "Backtest expanding/rolling window: train trên quá khứ, test trên đoạn kế tiếp, trượt dần"}
+      - {id: b, text_md: "k-fold thường với xáo trộn ngẫu nhiên"}
+      - {id: c, text_md: "Train và test trên cùng toàn bộ chuỗi"}
+    answer: [a]
+    explain_md: "Dự báo thật luôn đi từ quá khứ sang tương lai; xáo trộn làm tương lai lọt vào train."
+  - id: q03
+    type: predict_output
+    code: |
+      series = [5, 7, 9, 6, 8, 10]
+      period = 3
+      print([series[-period + i % period] for i in range(4)])
+    expected_output: |
+      [6, 8, 10, 6]
+    explain_md: "series[-3], series[-2], series[-1] = 6, 8, 10 rồi lặp lại pha đầu: 6. Đây là seasonal-naive với h = 4."
+  - id: ex_ma
+    type: code_exercise
+    md: |
+      `moving_average(series, w)` trả list trung bình của mọi cửa sổ liên tiếp độ dài `w` (làm tròn 6 chữ số). Chuỗi dài `n`
+      cho `n - w + 1` giá trị; nếu `n < w` trả `[]`.
+    entry: moving_average
+    starter: |
+      def moving_average(series, w):
+          # TODO: với mỗi cửa sổ series[i:i+w], tính trung bình rồi round(·, 6)
+          pass
+    guidance_md: |
+      - `moving_average([1, 2, 3, 4], 2)` cho `[1.5, 2.5, 3.5]`.
+      - `moving_average([1, 2], 3)` cho `[]` vì chuỗi ngắn hơn cửa sổ.
+    hints:
+      - level: nudge
+        md: "Cửa sổ đầu tiên bắt đầu ở chỉ số nào, và cửa sổ cuối cùng bắt đầu ở chỉ số nào?"
+      - level: approach
+        md: "Duyệt `i` từ 0 đến `len(series) - w`, lấy `sum(series[i:i+w]) / w`."
+      - level: near_solution
+        md: "`[round(sum(series[i:i+w]) / w, 6) for i in range(len(series) - w + 1)]`; `range` âm tự cho list rỗng."
+    tests:
+      - {args: [[1, 2, 3, 4], 2], expected: [1.5, 2.5, 3.5]}
+      - {args: [[1, 2, 4], 3], expected: [2.333333]}
+      - {args: [[5], 1], expected: [5.0]}
+      - {args: [[1, 2], 3], expected: []}
+    solution: |
+      def moving_average(series, w):
+          return [round(sum(series[i:i + w]) / w, 6) for i in range(len(series) - w + 1)]
+  - id: s_leak
+    type: section
+    title_vi: "Rò rỉ dữ liệu và phát hiện bất thường"
+    summary_vi: "Ba kiểu leakage trong chuỗi thời gian; z-score và ngưỡng trên residual."
+  - id: t02
+    type: text
+    md: |
+      **Data leakage trong chuỗi thời gian** (thông tin tương lai lọt vào lúc train):
+
+      - **Dùng dòng tương lai để train**: chia ngẫu nhiên hoặc k-fold xáo trộn, nên mô hình thấy ngày 10 khi dự đoán ngày 9.
+      - **Fit thống kê trên toàn bộ chuỗi**: scaler (mean, std) hoặc điền giá trị thiếu tính trên cả chuỗi, trong khi lúc dự báo
+        thật chưa có phần tương lai. Đúng: chỉ `fit` trên đoạn train của mỗi lần backtest.
+      - **Target leakage từ feature nhìn trước**: ví dụ moving average trung tâm (gồm cả điểm sau) hoặc feature `y[t+1]`.
+        Feature tại thời điểm `t` chỉ được dùng thông tin `<= t`.
+
+      **Phát hiện bất thường (anomaly detection)** đơn giản:
+
+      - **z-score**: `z = (x - mean) / std`; điểm bất thường nếu `|z| > threshold` (thường 3).
+      - **Residual threshold**: dự báo bằng baseline (ví dụ moving average), tính `residual = actual - forecast`, rồi đánh dấu
+        điểm có residual lớn bất thường. Cách này chịu được trend và seasonality vì chúng đã nằm trong dự báo.
+
+      ```
+      mean = sum(x) / n
+      std = (sum((v - mean) ** 2 for v in x) / n) ** 0.5
+      z = (x[i] - mean) / std
+      ```
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Cách chuẩn hoá nào KHÔNG gây leakage khi backtest?"
+    options:
+      - {id: a, text_md: "Mỗi lần backtest, fit mean/std chỉ trên đoạn train rồi áp cho đoạn test"}
+      - {id: b, text_md: "Fit mean/std trên toàn bộ chuỗi rồi mới chia train/test"}
+      - {id: c, text_md: "Fit mean/std riêng trên đoạn test"}
+    answer: [a]
+    explain_md: "Thống kê tính trên cả chuỗi chứa thông tin của đoạn test: đó là leakage."
+  - id: q05
+    type: quiz_fill
+    prompt_md: "Moving average trung tâm (gồm cả điểm sau t) làm feature cho dự báo tại t là ví dụ của data ___ (điền: leakage)."
+    blanks: [{accept: ["leakage", "data leakage", "rò rỉ", "ro ri"]}]
+    explain_md: "Feature dùng điểm sau t không tồn tại lúc dự báo thật nên là target leakage."
+  - id: q06
+    type: predict_output
+    code: |
+      x = [2, 4, 4, 4, 5, 5, 7, 9]
+      mean = sum(x) / len(x)
+      std = (sum((v - mean) ** 2 for v in x) / len(x)) ** 0.5
+      print(mean, std, (9 - mean) / std)
+    expected_output: |
+      5.0 2.0 2.0
+    explain_md: "mean = 40 / 8 = 5; phương sai = (9+1+1+1+0+0+4+16) / 8 = 4 nên std = 2; z của 9 = (9 - 5) / 2 = 2."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Chuỗi thời gian = trend + seasonality + noise. Dựng baseline last-value, seasonal-naive, moving average trước khi dùng mô hình phức tạp."
+      - "Backtest bằng expanding hoặc rolling window, luôn đi tiến theo thời gian; không xáo trộn, không k-fold thường."
+      - "Leakage: dùng dòng tương lai để train, fit scaler/thống kê trên toàn chuỗi, feature nhìn trước (target leakage)."
+      - "Anomaly: z-score |z| > threshold, hoặc ngưỡng trên residual so với dự báo baseline."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X697], l2: [X698], l3: [X699]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-06"

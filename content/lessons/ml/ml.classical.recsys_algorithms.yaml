@@ -1,0 +1,146 @@
+id: ml.classical.recsys_algorithms
+version: 1
+status: published
+title_vi: "Recommender algorithms"
+est_minutes: 14
+objectives_vi:
+  - "Dựng baseline phổ biến (popularity) và nói khi nào nó đủ tốt để làm mốc so sánh."
+  - "Mô tả content-based, collaborative filtering (user-user, item-item) và matrix factorization bằng ví dụ số nhỏ."
+  - "Xử lý cold start và implicit feedback (click, view) bằng fallback và confidence weighting."
+blocks:
+  - id: s_basic
+    type: section
+    title_vi: "Baseline, content-based và collaborative filtering"
+    summary_vi: "Từ đếm phổ biến đến độ tương tự giữa item hoặc giữa user."
+  - id: t01
+    type: text
+    md: |
+      **Popularity baseline**: gợi ý các item được tương tác nhiều nhất (đếm lượt xem hoặc mua), giống nhau cho mọi user.
+      Rất rẻ và khó thắng ở nhiều bài toán, nên luôn là mốc đầu tiên: mô hình phức tạp phải hơn baseline này mới đáng dùng.
+
+      **Content-based**: mỗi item có vector đặc trưng (thể loại, từ khoá, giá). Gợi ý item có vector gần với những item user đã thích.
+      Độ gần thường đo bằng **cosine similarity** = `dot(a, b) / (|a| · |b|)`. Ví dụ `a = [1, 0]`, `b = [1, 1]`:
+      dot = 1, |a| = 1, |b| = √2, nên cosine ≈ 0,7071.
+
+      **Collaborative filtering (CF)** chỉ dùng ma trận user × item, không cần đặc trưng item:
+      - **User-user**: tìm user có hành vi giống bạn, gợi ý thứ họ thích mà bạn chưa xem.
+      - **Item-item**: item nào hay được cùng một nhóm user thích thì giống nhau; gợi ý item gần item bạn đã thích.
+      Độ giống có thể là cosine trên hàng/cột rating hoặc **Jaccard** trên tập user: `|A ∩ B| / |A ∪ B|`.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Vì sao nên dựng popularity baseline trước khi huấn luyện mô hình recommender phức tạp?"
+    options:
+      - {id: a, text_md: "Nó rẻ, và là mốc để biết mô hình phức tạp có thật sự tốt hơn không"}
+      - {id: b, text_md: "Vì nó luôn cá nhân hoá tốt nhất"}
+      - {id: c, text_md: "Vì nó không cần dữ liệu"}
+    answer: [a]
+    explain_md: "Baseline phổ biến cho mọi user cùng một danh sách; nó không cá nhân hoá nhưng thường khó thắng, nên là mốc so sánh."
+  - id: q02
+    type: predict_output
+    code: |
+      import math
+      a = [1, 0]
+      b = [1, 1]
+      dot = sum(x * y for x, y in zip(a, b))
+      print(round(dot / (math.sqrt(1) * math.sqrt(2)), 4))
+    expected_output: |
+      0.7071
+    explain_md: "dot = 1·1 + 0·1 = 1; |a| = 1, |b| = √2 ≈ 1,4142; 1 / 1,4142 ≈ 0,7071."
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Item-item CF khác user-user CF ở điểm nào?"
+    options:
+      - {id: a, text_md: "Item-item tìm item giống nhau theo người thích chúng; user-user tìm user giống nhau"}
+      - {id: b, text_md: "Item-item cần đặc trưng nội dung của item"}
+      - {id: c, text_md: "Hai cách hoàn toàn giống nhau"}
+    answer: [a]
+    explain_md: "Cả hai chỉ dùng ma trận tương tác. Item-item thường ổn định hơn vì quan hệ giữa item thay đổi chậm hơn sở thích user."
+  - id: s_mf
+    type: section
+    title_vi: "Matrix factorization, cold start và implicit feedback"
+    summary_vi: "Vector ẩn cho user và item, và cách xử lý user/item mới cùng dữ liệu không có rating."
+    exercise_ref: ex_dot
+  - id: t02
+    type: text
+    md: |
+      **Matrix factorization (MF)** gán mỗi user một vector ẩn `p_u` và mỗi item một vector ẩn `q_i` (cùng số chiều `k`).
+      Rating dự đoán là tích vô hướng: `r̂(u, i) = p_u · q_i`. Ví dụ `k = 2`, `p_u = [1, 2]`, `q_i = [3, 1]`:
+      `r̂ = 1·3 + 2·1 = 5`. Huấn luyện bằng cách chỉnh các vector (SGD hoặc ALS) để giảm sai số bình phương trên các rating đã biết,
+      thường kèm regularization để tránh overfit.
+
+      **Cold start**: user hoặc item mới chưa có tương tác nên CF và MF không có vector đáng tin.
+      - User mới: gợi ý popularity, hoặc hỏi vài sở thích lúc onboarding.
+      - Item mới: dùng content-based (đặc trưng item) cho tới khi có đủ tương tác.
+
+      **Implicit feedback**: chỉ có click, view, thời gian xem, không có rating. Không click không có nghĩa là ghét.
+      Cách làm: coi tương tác là **preference** `p = 1` nếu có hành vi, `0` nếu không, và gán **confidence**
+      `c = 1 + α · count` (count càng lớn càng tin). Mất mát có trọng số `c · (p − p̂)²`, nên item được xem nhiều lần
+      được ưu tiên khớp hơn. Đánh giá bằng ranking (precision@k), không dùng RMSE trên rating.
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "User vừa đăng ký, chưa có hành vi nào. Cách làm hợp lý nhất?"
+    options:
+      - {id: a, text_md: "Gợi ý popularity hoặc theo sở thích hỏi lúc onboarding, rồi chuyển sang CF khi đủ dữ liệu"}
+      - {id: b, text_md: "Dùng vector MF ngẫu nhiên và coi là kết quả cá nhân hoá"}
+      - {id: c, text_md: "Không gợi ý gì cả"}
+    answer: [a]
+    explain_md: "Đây là cold start: fallback sang popularity hoặc content, rồi chuyển dần sang CF khi có tương tác."
+  - id: q05
+    type: quiz_fill
+    prompt_md: "Với dữ liệu click/view (không có rating), ta gán mỗi cặp tương tác một trọng số gọi là ___ (điền: confidence)."
+    blanks: [{accept: ["confidence", "độ tin cậy", "do tin cay"]}]
+    explain_md: "Implicit feedback dùng preference nhị phân cùng confidence tăng theo số lần tương tác."
+  - id: q06
+    type: predict_output
+    code: |
+      p = [1, 2]
+      q = [3, 1]
+      print(sum(x * y for x, y in zip(p, q)))
+      print(1 + 0.5 * 4)
+    expected_output: |-
+      5
+      3.0
+    explain_md: "Dự đoán MF = 1·3 + 2·1 = 5. Confidence với α = 0,5 và count = 4 là 1 + 0,5·4 = 3,0."
+  - id: ex_dot
+    type: code_exercise
+    md: |
+      `predict_rating(user_vec, item_vec)` trả rating dự đoán của matrix factorization: tích vô hướng của hai vector cùng độ dài,
+      làm tròn 6 chữ số. Bản dưới đây nhân hai tổng thay vì nhân từng cặp thành phần nên sai. Hãy sửa.
+    entry: predict_rating
+    starter: |
+      def predict_rating(user_vec, item_vec):
+          return round(sum(user_vec) * sum(item_vec), 6)
+    guidance_md: |
+      - Thử `predict_rating([1, 2], [3, 4])`: đáp án `11.0` (1·3 + 2·4), code trả `21.0`.
+      - Phải nhân từng cặp thành phần tương ứng rồi mới cộng.
+    hints:
+      - level: nudge
+        md: "Tích vô hướng nhân thành phần thứ i của hai vector, rồi cộng lại. Code hiện tại làm khác ở đâu?"
+      - level: approach
+        md: "Dùng `zip(user_vec, item_vec)` để ghép từng cặp và `sum(x * y ...)`."
+      - level: near_solution
+        md: "`return round(sum(x * y for x, y in zip(user_vec, item_vec)), 6)`."
+    tests:
+      - {args: [[1, 2], [3, 4]], expected: 11.0}
+      - {args: [[0.5, 0.5], [1, 1]], expected: 1.0}
+      - {args: [[1.5, -1], [2, 0.5]], expected: 2.5}
+      - {args: [[], []], expected: 0.0}
+    solution: |
+      def predict_rating(user_vec, item_vec):
+          return round(sum(x * y for x, y in zip(user_vec, item_vec)), 6)
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Popularity baseline: đếm item phổ biến, không cá nhân hoá, luôn là mốc đầu tiên."
+      - "Content-based dùng đặc trưng item và cosine similarity; CF dùng ma trận user × item (user-user hoặc item-item)."
+      - "Matrix factorization: rating ≈ p_u · q_i, học vector ẩn bằng SGD hoặc ALS."
+      - "Cold start: user/item mới thì fallback sang popularity hoặc content-based."
+      - "Implicit feedback: preference nhị phân và confidence tăng theo số lần tương tác, đánh giá bằng ranking."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X694], l2: [X695], l3: [X696]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-06"

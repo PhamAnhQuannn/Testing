@@ -1,0 +1,44 @@
+subtopic_id: ml.classical.time_series_anomaly
+items:
+  - id: X697
+    difficulty: 1
+    type: read_code
+    minutes: 3
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng.
+    code: |-
+      series = [10, 12, 11, 13, 14]
+      pred = series[:-1]
+      actual = series[1:]
+      errors = [a - p for a, p in zip(actual, pred)]
+      print(pred)
+      print(errors)
+      print(sum(abs(e) for e in errors) / len(errors))
+    expected_output: "[10, 12, 11, 13]\n[2, -1, 2, 1]\n1.5"
+    answer_md: "Baseline last-value: dự báo y[t] bằng y[t-1] nên pred = [10, 12, 11, 13], actual = [12, 11, 13, 14]. Sai số = [2, -1, 2, 1]; MAE = (2+1+2+1) / 4 = 1,5."
+    rubric_md: "Output khớp từng dòng. Đúng: bằng chứng điểm 1; sai: tối đa điểm 0."
+  - id: X698
+    difficulty: 2
+    type: write_code
+    minutes: 6
+    prompt_md: |
+      Viết hàm `zscore_anomalies(series, threshold)` trả list **chỉ số** `i` mà `|series[i] - mean| / std > threshold` (lớn hơn **nghiêm ngặt**). Dùng mean và std theo quần thể (chia cho `n`, không phải `n - 1`). Nếu chuỗi rỗng hoặc `std == 0` thì trả `[]`. Ví dụ `[2,4,4,4,5,5,7,9]` với `threshold = 1.5` cho `[7]` (điểm 2 có z = 1,5 không vượt ngưỡng).
+    problem_id: check-x698-zscore
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 6 phút: bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X699
+    difficulty: 3
+    type: read_code
+    minutes: 5
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng và giải thích vì sao backtest này đi theo thời gian mà không được xáo trộn các dòng.
+    code: |-
+      series = [1, 2, 3, 4, 5, 6]
+      errs = []
+      for end in range(3, 6):
+          train = series[:end]
+          test = series[end]
+          pred = sum(train[-2:]) / 2
+          errs.append(abs(test - pred))
+          print(train, test, pred)
+      print(sum(errs) / len(errs))
+    expected_output: "[1, 2, 3] 4 2.5\n[1, 2, 3, 4] 5 3.5\n[1, 2, 3, 4, 5] 6 4.5\n1.5"
+    answer_md: "Expanding window: mỗi vòng train = series[:end], test là điểm kế tiếp. Vòng 1: train [1,2,3], test 4, pred = (2+3)/2 = 2,5. Vòng 2: pred = (3+4)/2 = 3,5. Vòng 3: pred = (4+5)/2 = 4,5. Mỗi sai số tuyệt đối = 1,5 nên trung bình 1,5. Nếu xáo trộn, train có thể chứa điểm sau điểm test (tương lai) nên mô hình thấy thông tin không có lúc dự báo thật, điểm sai số quá lạc quan (data leakage)."
+    rubric_md: "Output khớp từng dòng VÀ giải thích đúng: train chỉ gồm quá khứ so với điểm test, xáo trộn làm tương lai lọt vào train (leakage) nên điểm lạc quan. Đúng: bằng chứng điểm 3; sai: tối đa điểm 2."
