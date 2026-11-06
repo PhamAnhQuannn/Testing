@@ -1,0 +1,187 @@
+id: ml.math.derivatives_gradients
+version: 1
+status: published
+title_vi: "Đạo hàm, gradient và quy tắc chuỗi"
+est_minutes: 15
+objectives_vi:
+  - "Hiểu đạo hàm là độ dốc, dùng các quy tắc cơ bản và đạo hàm riêng để dựng gradient."
+  - "Áp quy tắc chuỗi dọc đồ thị tính toán; nhớ σ'(z) = σ(z)(1 − σ(z)) và ∂L/∂w = 2(wx − y)x cho MSE."
+  - "Kiểm tra gradient tính tay bằng sai phân hữu hạn (finite differences) trong Python."
+blocks:
+  - id: s_deriv
+    type: section
+    title_vi: "Đạo hàm, đạo hàm riêng và gradient"
+    summary_vi: "Đạo hàm là độ dốc; đạo hàm riêng theo từng biến gộp thành vector gradient."
+    exercise_ref: ex_sigmoid
+  - id: t01
+    type: text
+    md: |
+      **Đạo hàm (derivative)** cho biết hàm đổi nhanh thế nào khi đầu vào nhích một chút, tức **độ dốc** của đường cong tại
+      một điểm: `f'(x)` là giới hạn của `(f(x+h) − f(x))/h` khi `h → 0`. Ví dụ `(x²)' = 2x`, nên tại `x = 3` độ dốc là 6.
+
+      **Quy tắc cơ bản**:
+
+      - `(xⁿ)' = n·xⁿ⁻¹`, ví dụ `(x³)' = 3x²`.
+      - `(eˣ)' = eˣ`, `(log x)' = 1/x` (log tự nhiên).
+      - `(f+g)' = f'+g'`, `(c·f)' = c·f'`.
+
+      **Đạo hàm riêng (partial derivative)**: với hàm nhiều biến, đạo hàm theo một biến và coi biến khác là hằng.
+      Với `f(x, y) = x²y`: `∂f/∂x = 2xy`, `∂f/∂y = x²`.
+
+      **Gradient** là vector các đạo hàm riêng, `∇f = (∂f/∂x, ∂f/∂y)`, chỉ hướng làm `f` tăng nhanh nhất.
+      Tại `(3, 2)`: `∇f = (12, 9)`. Gradient descent đi ngược hướng này để giảm loss.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Đạo hàm của `f(x) = x³` tại `x = 2` là bao nhiêu?"
+    options:
+      - {id: a, text_md: "`12`"}
+      - {id: b, text_md: "`8`"}
+      - {id: c, text_md: "`6`"}
+    answer: [a]
+    explain_md: "`(x³)' = 3x²`, tại `x = 2` là `3·4 = 12`. `8` là giá trị `f(2)`, không phải độ dốc."
+  - id: q02
+    type: quiz_fill
+    prompt_md: "Với `f(x, y) = x²y`, đạo hàm riêng `∂f/∂y` (coi `x` là hằng) bằng `x^___` (một số)."
+    blanks: [{accept: ["2"]}]
+    explain_md: "Theo `y`, `x²` là hằng số nhân với `y`, nên `∂f/∂y = x²`."
+  - id: t02
+    type: text
+    md: |
+      **Đạo hàm sigmoid**: với `σ(z) = 1/(1+e⁻ᶻ)`, `σ'(z) = σ(z)(1 − σ(z))`, lớn nhất bằng `0,25` tại `z = 0`.
+      Vì tối đa chỉ 0,25, nhiều lớp sigmoid nối nhau làm gradient co nhanh (vanishing gradient).
+  - id: ex_sigmoid
+    type: code_exercise
+    md: |
+      `sigmoid_grad(z)` trả `σ'(z) = σ(z)(1 − σ(z))`, làm tròn 6 chữ số. Bản dưới đây quên nhân với `(1 − σ)`.
+      Hãy sửa.
+    entry: sigmoid_grad
+    starter: |
+      import math
+
+
+      def sigmoid_grad(z):
+          s = 1 / (1 + math.exp(-z))
+          return round(s, 6)
+    guidance_md: |
+      - Thử `sigmoid_grad(0)`: đáp án `0.25`, code trả `0.5`.
+      - Nhân `s` với `1 - s` trước khi làm tròn.
+    hints:
+      - level: nudge
+        md: "Công thức là tích của hai thừa số, code mới có một."
+      - level: approach
+        md: "Tính `s = σ(z)` rồi trả `s * (1 - s)`."
+      - level: near_solution
+        md: "`return round(s * (1 - s), 6)`."
+    tests:
+      - {args: [0], expected: 0.25}
+      - {args: [2], expected: 0.104994}
+      - {args: [-2], expected: 0.104994}
+    solution: |
+      import math
+
+
+      def sigmoid_grad(z):
+          s = 1 / (1 + math.exp(-z))
+          return round(s * (1 - s), 6)
+  - id: s_chain
+    type: section
+    title_vi: "Quy tắc chuỗi, gradient MSE và kiểm tra bằng sai phân"
+    summary_vi: "Nhân đạo hàm từng lớp dọc đồ thị; suy gradient MSE; kiểm tra bằng finite differences."
+    exercise_ref: ex_check
+  - id: t03
+    type: text
+    md: |
+      **Quy tắc chuỗi (chain rule)**: `(f(g(x)))' = f'(g(x))·g'(x)`. Vẽ phép tính thành **đồ thị tính toán**
+      (nút nối bằng mũi tên) rồi nhân đạo hàm dọc các mũi tên. Ví dụ `y = (2x+1)²` tại `x = 1`: đặt `u = 2x+1 = 3`,
+      `y = u²`, nên `dy/dx = 2u·2 = 12`.
+
+      **Gradient của MSE**: với `L = (w·x − y)²`, đặt `e = w·x − y`, `L = e²`, `∂L/∂e = 2e`, `∂e/∂w = x`, suy ra
+      `∂L/∂w = 2(w·x − y)·x`. Với `x = 2, y = 1, w = 3`: `2·5·2 = 20`. Nhiều điểm dữ liệu thì lấy trung bình.
+
+      **Kiểm tra bằng sai phân hữu hạn (finite differences)**: `(L(w+h) − L(w−h)) / 2h` với `h` rất nhỏ
+      (vd `1e-5`) phải khớp công thức tính tay. Đây là cách bắt lỗi khi tự viết backprop.
+  - id: b01
+    type: code_sample
+    lang: python
+    runnable: true
+    code: |
+      def L(w, x=2, y=1):
+          return (w * x - y) ** 2
+
+
+      w, h = 3, 1e-5
+      analytic = 2 * (w * 2 - 1) * 2
+      numeric = (L(w + h) - L(w - h)) / (2 * h)
+      print(analytic, round(numeric, 4))
+    expected_output: |
+      20 20.0
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Với `L = (w·x − y)²`, `x = 1`, `y = 3`, `w = 0`, `∂L/∂w` là bao nhiêu?"
+    options:
+      - {id: a, text_md: "`-6`"}
+      - {id: b, text_md: "`6`"}
+      - {id: c, text_md: "`9`"}
+    answer: [a]
+    explain_md: "`2(w·x − y)·x = 2·(0 − 3)·1 = -6`. Gradient âm nghĩa là tăng `w` sẽ làm loss giảm."
+  - id: q04
+    type: predict_output
+    code: |
+      def f(x):
+          return (2 * x + 1) ** 2
+
+
+      h = 1e-5
+      print(round((f(1 + h) - f(1 - h)) / (2 * h), 3))
+    expected_output: |
+      12.0
+    explain_md: "Sai phân trung tâm xấp xỉ `f'(1)`. Theo quy tắc chuỗi `dy/dx = 2u·2 = 2·3·2 = 12`, và hàm bậc hai nên sai số cực nhỏ, làm tròn ra `12.0`."
+  - id: ex_check
+    type: code_exercise
+    md: |
+      `grad_check(w, x, y)` ước lượng `∂L/∂w` của `L = (w·x − y)²` bằng sai phân trung tâm với `h = 1e-5`, làm tròn 6
+      chữ số. Bản dưới đây dùng sai phân một phía, hãy đổi sang sai phân trung tâm `(L(w+h) − L(w−h)) / (2h)`.
+    entry: grad_check
+    starter: |
+      def grad_check(w, x, y):
+          def loss(v):
+              return (v * x - y) ** 2
+
+          h = 1e-5
+          return round((loss(w + h) - loss(w)) / h, 6)
+    guidance_md: |
+      - Thử `grad_check(3, 2, 1)`: đáp án `20.0`, code trả giá trị lệch (khoảng `20.00004`).
+      - Dùng `loss(w + h) - loss(w - h)` chia `2 * h`.
+    hints:
+      - level: nudge
+        md: "Sai phân một phía có sai số cỡ `h`; sai phân trung tâm chính xác hơn."
+      - level: approach
+        md: "Lấy `loss(w + h)` trừ `loss(w - h)` rồi chia `2 * h`."
+      - level: near_solution
+        md: "`return round((loss(w + h) - loss(w - h)) / (2 * h), 6)`."
+    tests:
+      - {args: [3, 2, 1], expected: 20.0}
+      - {args: [0, 1, 1], expected: -2.0}
+      - {args: [2, 3, 1], expected: 30.0}
+    solution: |
+      def grad_check(w, x, y):
+          def loss(v):
+              return (v * x - y) ** 2
+
+          h = 1e-5
+          return round((loss(w + h) - loss(w - h)) / (2 * h), 6)
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Đạo hàm là độ dốc: (xⁿ)' = n·xⁿ⁻¹, (eˣ)' = eˣ, (log x)' = 1/x; gradient là vector các đạo hàm riêng."
+      - "Quy tắc chuỗi: nhân đạo hàm từng lớp dọc đồ thị tính toán; σ'(z) = σ(z)(1 − σ(z)) tối đa 0,25."
+      - "Gradient MSE theo w: ∂L/∂w = 2(w·x − y)·x (trung bình qua các điểm dữ liệu)."
+      - "Kiểm tra gradient bằng sai phân trung tâm (L(w+h) − L(w−h))/2h với h cỡ 1e-5."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [Q231], l2: [X638], l3: [X639]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-05"

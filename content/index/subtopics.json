@@ -26398,6 +26398,477 @@
       "plan_hours": 5
     },
     {
+      "id": "ml.math.algebra_functions_bridge",
+      "section": "ml",
+      "module": "ml.math",
+      "name_vi": "Cầu nối đại số và hàm số cho ML (functions bridge)",
+      "order": 2,
+      "summary_vi": "Mục này ôn lại các công cụ toán lớp 12 mà công thức ML dùng suốt: hàm số, mũ và log, dấu tổng Σ, vector (một dãy số, giống list trong Python). Học xong bạn đọc được công thức sigmoid, softmax mà không bị ký hiệu chặn lại.",
+      "mastery_bar_vi": "Mức 3: tính tay softmax của [1, 2, 3] (≈ [0,09; 0,24; 0,67]), tính sigmoid tại vài điểm và giải thích vì sao ML cộng log xác suất thay vì nhân.",
+      "prerequisites": [],
+      "lang_prereqs": {
+        "python": [],
+        "java": null
+      },
+      "key_concepts": [
+        "function, domain/range, composition and inverse",
+        "exp and log properties (log of a product, change of base, log as a sum)",
+        "sigma and pi notation, reading a formula aloud",
+        "vectors as lists of numbers, element-wise operations",
+        "sigmoid, softmax and ReLU as functions with their shapes",
+        "slope of a line, rate of change, linear vs nonlinear",
+        "plotting a function and reading a graph",
+        "orders of magnitude, scientific notation, floating-point rounding"
+      ],
+      "concepts_vi": [
+        {
+          "text": "Hàm số (function): quy tắc biến mỗi đầu vào x thành một đầu ra f(x). Ghép hàm f(g(x)) là lấy kết quả của g làm đầu vào của f.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Độ dốc (slope) và tuyến tính: độ dốc là mức f đổi khi x tăng 1; đường thẳng có độ dốc không đổi (tuyến tính), đường cong thì không.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Mũ và log (exp, log): exp(x) = eˣ, log là phép ngược của exp. log(a·b) = log a + log b nên log biến tích thành tổng.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Vì sao ML dùng log: nhân nhiều xác suất nhỏ với nhau máy sẽ làm tròn về 0; cộng các log của chúng thì không.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Ký hiệu tổng Σ (sigma): Σ xᵢ nghĩa là x₁ + x₂ + …; trong Python là sum(x).",
+          "level": "co_ban"
+        },
+        {
+          "text": "Vector: dãy số có thứ tự như list [2, 5, 1]; cộng hoặc nhân hai vector là cộng hoặc nhân từng cặp cùng vị trí.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Sigmoid: σ(z) = 1/(1 + e⁻ᶻ), đồ thị chữ S, ép mọi số vào khoảng (0, 1) nên dùng như xác suất của một câu trả lời có/không.",
+          "level": "co_ban"
+        },
+        {
+          "text": "ReLU: ReLU(z) = max(0, z), số âm thành 0, số dương giữ nguyên; hàm kích hoạt phổ biến nhất trong mạng nơ-ron.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Softmax: softmax(zᵢ) = e^zᵢ / Σ e^zⱼ, biến một dãy số thành các xác suất cộng lại bằng 1; dùng ở cuối mô hình chọn 1 trong nhiều nhóm.",
+          "level": "co_ban"
+        },
+        {
+          "text": "tanh: tanh(z) = (eᶻ − e⁻ᶻ)/(eᶻ + e⁻ᶻ), hình chữ S như sigmoid nhưng ép số vào khoảng (−1, 1), tâm ở 0; gặp trong RNN.",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "Tính tổng Σ bằng tay rồi kiểm tra bằng code",
+          "vi": "Tính tay Σ (i=1..4) i² = 1+4+9+16 = 30, rồi viết một dòng Python tính cùng tổng bằng sum và range.",
+          "starter_code_vi": {
+            "lang": "python",
+            "code": "total = ...   # TODO: sum(i**2 for i in range(1, 5))\nprint(total)   # kỳ vọng 30"
+          }
+        },
+        {
+          "title": "Rút gọn log",
+          "vi": "Rút gọn log(a·b/c) = log a + log b − log c và e^(log x) = x; thử với a=2, b=3, c=4 bằng math.log và math.exp (nhớ log ở đây là log tự nhiên ln)."
+        },
+        {
+          "title": "Softmax bằng tay",
+          "vi": "Tính softmax của [1, 2, 3]: e¹≈2,718; e²≈7,389; e³≈20,086; tổng ≈30,19 nên kết quả ≈ [0,09; 0,24; 0,67]. Kiểm tra tổng bằng 1."
+        },
+        {
+          "title": "Vẽ sigmoid và tanh",
+          "vi": "Tính σ(z) = 1/(1+e⁻ᶻ) tại z = −2, 0, 2 (≈ 0,12; 0,5; 0,88), rồi vẽ sigmoid và tanh (tanh(2) ≈ 0,96) lên cùng một đồ thị bằng matplotlib."
+        },
+        {
+          "title": "Vì sao cộng log xác suất",
+          "vi": "Nhân 0,001 hai trăm lần trong Python ra 0.0, nhưng 200·log(0,001) ≈ −1381,6 vẫn tính được; giải thích vì sao."
+        }
+      ],
+      "beginner_note_vi": "Đây là mục ôn toán lớp 12, mọi mục sau đều dựa vào nó; nếu đã vững thì làm nhanh các bài tính tay rồi đi tiếp.",
+      "example_problems": [
+        "Simplify log(a*b/c) and exp(log x)",
+        "Compute a sum written in sigma notation by hand and in code",
+        "Plot sigmoid and tanh and compare their ranges",
+        "Explain why log-probabilities are summed instead of multiplying probabilities"
+      ],
+      "bank_topics": [],
+      "bank_counts": {},
+      "target_swe": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 1,
+        "senior": 1
+      },
+      "target_ai": {
+        "intern": 1,
+        "fresher": 2,
+        "junior": 2,
+        "senior": 2
+      },
+      "est_hours": 3,
+      "est_hours_beginner": 5,
+      "plan_order": 235,
+      "plan_day": null,
+      "plan_hours": 3
+    },
+    {
+      "id": "ml.math.linear_algebra_basics",
+      "section": "ml",
+      "module": "ml.math",
+      "name_vi": "Vector, ma trận và phép nhân ma trận (linear algebra)",
+      "order": 4,
+      "summary_vi": "Vector là một dãy số, ma trận (matrix) là một bảng số gồm hàng và cột; mọi mô hình ML đều nhân ma trận với vector để biến đầu vào thành đầu ra. Học xong bạn nhân ma trận bằng tay, đoán đúng shape kết quả và hiểu cosine similarity (độ giống nhau của hai vector).",
+      "mastery_bar_vi": "Mức 3: tính tay tích hai ma trận nhỏ, đoán đúng shape của X@W+b rồi kiểm tra bằng NumPy, và giải thích cosine similarity trong 3 phút.",
+      "prerequisites": [
+        "ml.math.algebra_functions_bridge"
+      ],
+      "lang_prereqs": {
+        "python": [],
+        "java": null
+      },
+      "key_concepts": [
+        "vector & dot product",
+        "matrix multiplication and shape rules (m×n)(n×p)",
+        "transpose, identity, inverse",
+        "L1/L2 norms and distances",
+        "cosine similarity",
+        "broadcasting intuition",
+        "linear system Ax=b",
+        "matrix as linear transformation"
+      ],
+      "concepts_vi": [
+        {
+          "text": "Vector và ma trận: vector là dãy n số; ma trận là bảng m hàng × n cột; cặp (m, n) gọi là shape.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Tích vô hướng (dot product): nhân từng cặp phần tử rồi cộng lại; [1,2,3]·[4,5,6] = 4+10+18 = 32.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Nhân ma trận: ô (i, j) của kết quả = dot của hàng i bên trái với cột j bên phải.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Quy tắc shape: (m×n)@(n×p) cho (m×p); số cột bên trái phải bằng số hàng bên phải.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Chuyển vị (transpose): lật hàng thành cột; Aᵀ của ma trận (m×n) có shape (n×m).",
+          "level": "co_ban"
+        },
+        {
+          "text": "Chuẩn L2 (norm) và khoảng cách: độ dài vector |x| = √(Σxᵢ²); khoảng cách hai điểm = độ dài của hiệu chúng.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Cosine similarity: cos = a·b / (|a|·|b|); 1 là cùng hướng, 0 là vuông góc, −1 là ngược hướng.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Broadcasting (NumPy): NumPy tự lặp vector nhỏ để cộng với ma trận, ví dụ cộng bias b vào mọi hàng.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Ma trận đơn vị, nghịch đảo: I không đổi gì; A⁻¹ hoàn tác A (chỉ có với ma trận vuông khả nghịch).",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Hệ Ax = b và phép biến đổi tuyến tính: A kéo dãn/xoay không gian; giải Ax = b là tìm x biến thành b.",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "Output shape of X@W+b",
+          "vi": "X shape (4,3) (4 mẫu, 3 cột), W shape (3,2), b shape (2): suy ra shape của X@W+b là (4,2), rồi kiểm tra bằng NumPy (@ và .shape)."
+        },
+        {
+          "title": "Matrix product by hand",
+          "vi": "Tính tay [[1,2,3],[4,5,6]] @ [[1,0],[0,1],[1,1]] theo C[i][j] = Σₖ A[i][k]·B[k][j] (đáp án [[4,5],[10,11]]) rồi kiểm tra bằng NumPy."
+        },
+        {
+          "title": "Cosine similarity",
+          "vi": "Tính cosine của a=[1,0] và b=[1,1] theo cos = a·b/(|a||b|) = 1/(1·√2) ≈ 0,71; thử b=[2,0] sẽ ra 1 dù dài hơn."
+        }
+      ],
+      "example_problems": [
+        "Compute output shape of X@W+b for a batch",
+        "Why is cosine similarity preferred for embeddings?",
+        "Forward-pass arithmetic of a tiny 2-layer net"
+      ],
+      "bank_topics": [
+        "ml_ai.ml_fundamentals"
+      ],
+      "bank_counts": {
+        "ml_ai.ml_fundamentals": {
+          "total": 126,
+          "y2026": 58
+        }
+      },
+      "target_swe": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 1,
+        "senior": 1
+      },
+      "target_ai": {
+        "intern": 2,
+        "fresher": 2,
+        "junior": 3,
+        "senior": 3
+      },
+      "est_hours": 4,
+      "plan_order": 236,
+      "plan_day": null,
+      "plan_hours": 4
+    },
+    {
+      "id": "ml.math.derivatives_gradients",
+      "section": "ml",
+      "module": "ml.math",
+      "name_vi": "Đạo hàm, gradient và quy tắc chuỗi (derivatives)",
+      "order": 5,
+      "summary_vi": "Đạo hàm (derivative) cho biết một hàm đổi nhanh thế nào khi đầu vào nhích một chút, tức độ dốc tại một điểm. Gradient là vector các đạo hàm theo từng tham số, chỉ hướng dốc lên nhất. Học xong bạn tính đạo hàm, dùng quy tắc chuỗi và hiểu nền của backprop.",
+      "mastery_bar_vi": "Mức 3: tính tay đạo hàm riêng và gradient của hàm 2 biến, áp quy tắc chuỗi trên đồ thị 3 nút và suy gradient của MSE theo w không cần tra cứu.",
+      "prerequisites": [
+        "ml.math.algebra_functions_bridge",
+        "ml.fundamentals.loss_functions",
+        "ml.math.linear_algebra_basics"
+      ],
+      "lang_prereqs": {
+        "python": [],
+        "java": null
+      },
+      "key_concepts": [
+        "derivative as slope and rate of change",
+        "partial derivatives and the gradient vector",
+        "gradient as direction of steepest ascent",
+        "chain rule on a computational graph",
+        "derivatives of sigmoid, softmax, log and exp",
+        "Jacobian shapes for vector-valued functions",
+        "matrix calculus basics (d/dW of xW)",
+        "gradient of MSE and of softmax cross-entropy",
+        "numerical gradient check by finite differences"
+      ],
+      "concepts_vi": [
+        {
+          "text": "Đạo hàm: độ dốc của đường cong tại một điểm, f'(x) = giới hạn của (f(x+h) − f(x))/h; ví dụ (x²)' = 2x.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Quy tắc cơ bản: (xⁿ)' = n·xⁿ⁻¹, (eˣ)' = eˣ, (log x)' = 1/x (log tự nhiên), (f+g)' = f'+g', (c·f)' = c·f'.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Đạo hàm riêng (partial derivative): với hàm nhiều biến, đạo hàm theo một biến và coi biến khác là hằng; f = x²y → ∂f/∂x = 2xy.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Gradient: vector các đạo hàm riêng ∇f = (∂f/∂x, ∂f/∂y); chỉ hướng làm f tăng nhanh nhất.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Quy tắc chuỗi (chain rule): (f(g(x)))' = f'(g(x))·g'(x); hàm lồng nhau thì nhân các đạo hàm từng lớp.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Đồ thị tính toán (computational graph): vẽ phép tính thành các nút nối bằng mũi tên; áp quy tắc chuỗi dọc theo mũi tên.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Đạo hàm sigmoid: σ'(z) = σ(z)(1 − σ(z)), lớn nhất bằng 0,25 tại z = 0.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Gradient của MSE: với L = (w·x − y)², ∂L/∂w = 2(w·x − y)·x.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Softmax + cross-entropy: ∂L/∂zᵢ = pᵢ − yᵢ (xác suất dự đoán trừ nhãn 0/1), kết quả rất gọn.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Jacobian (ma trận đạo hàm riêng khi hàm có nhiều đầu ra, mỗi hàng là gradient của một đầu ra); kiểm tra gradient bằng sai phân hữu hạn: (f(x+h) − f(x−h))/2h với h rất nhỏ (vd 1e−5) rồi so với công thức tính tay.",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "Derive d/dz of sigmoid",
+          "vi": "Chứng minh σ'(z) = σ(z)(1 − σ(z)) từ σ = (1+e⁻ᶻ)⁻¹ và tính giá trị tại z = 0 (0,25). Gợi ý: quy tắc chuỗi cho σ' = e⁻ᶻ/(1+e⁻ᶻ)²; viết thành σ · e⁻ᶻ/(1+e⁻ᶻ) và nhận ra e⁻ᶻ/(1+e⁻ᶻ) = 1 − σ."
+        },
+        {
+          "title": "Partial derivatives",
+          "vi": "Với f(x, y) = x²y tại (3, 2): ∂f/∂x = 2xy = 12, ∂f/∂y = x² = 9, nên gradient = (12, 9)."
+        },
+        {
+          "title": "Gradient of MSE",
+          "vi": "Với L = (w·x − y)², x=2, y=1, w=3: ∂L/∂w = 2(wx − y)·x = 2·5·2 = 20; kiểm tra bằng sai phân (L(w+h) − L(w−h))/2h trong Python."
+        },
+        {
+          "title": "Chain rule on 3 nodes",
+          "vi": "y = (2x+1)² tại x=1: đặt u = 2x+1 (=3), y = u²; dy/dx = 2u·2 = 12. Vẽ đồ thị 3 nút và kiểm tra bằng Python."
+        }
+      ],
+      "example_problems": [
+        "Derive d/dz of sigmoid(z)",
+        "Gradient of MSE for linear regression",
+        "Gradient of softmax + cross-entropy with respect to logits",
+        "Chain rule through a two-layer network by hand"
+      ],
+      "bank_topics": [
+        "ml_ai.deep_learning",
+        "ml_ai.ml_fundamentals"
+      ],
+      "bank_counts": {
+        "ml_ai.deep_learning": {
+          "total": 56,
+          "y2026": 29
+        },
+        "ml_ai.ml_fundamentals": {
+          "total": 126,
+          "y2026": 58
+        }
+      },
+      "target_swe": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 0,
+        "senior": 0
+      },
+      "target_ai": {
+        "intern": 1,
+        "fresher": 2,
+        "junior": 3,
+        "senior": 3
+      },
+      "est_hours": 4,
+      "plan_order": 237,
+      "plan_day": null,
+      "plan_hours": 4
+    },
+    {
+      "id": "ml.math.gradient_descent",
+      "section": "ml",
+      "module": "ml.math",
+      "name_vi": "Gradient descent và tối ưu cơ bản (gradient descent)",
+      "order": 6,
+      "summary_vi": "Gradient descent là cách máy tự tìm tham số tốt: nhìn loss (số đo sai bao nhiêu), bước một bước nhỏ ngược hướng gradient rồi lặp lại, như đi xuống đồi trong sương mù. Học xong bạn viết được vòng lặp này và giải thích vì sao learning rate quá lớn làm loss vỡ.",
+      "mastery_bar_vi": "Mức 3: viết vòng lặp gradient descent cho ŷ = w·x (rồi thêm b), giải thích vì sao lr quá lớn làm loss tăng và phân biệt bài toán lồi với không lồi.",
+      "prerequisites": [
+        "ml.math.derivatives_gradients",
+        "ml.fundamentals.ml_overview",
+        "ml.fundamentals.loss_functions"
+      ],
+      "lang_prereqs": {
+        "python": [],
+        "java": null
+      },
+      "key_concepts": [
+        "gradient descent update rule w <- w - lr * grad",
+        "learning-rate effects: too small, too large, divergence",
+        "batch vs stochastic vs mini-batch gradient descent",
+        "convex vs non-convex loss, local minima, saddle points",
+        "closed-form vs iterative solutions",
+        "stopping criteria and convergence checks",
+        "feature scaling and conditioning of the loss surface",
+        "constrained optimization idea (penalties)"
+      ],
+      "concepts_vi": [
+        {
+          "text": "Quy tắc cập nhật: w ← w − lr·∂L/∂w; lr (learning rate) là độ dài mỗi bước.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Learning rate: quá nhỏ thì học chậm, quá lớn thì nhảy qua đáy và loss tăng dần (phân kỳ, divergence).",
+          "level": "co_ban"
+        },
+        {
+          "text": "Hội tụ (convergence): loss không còn giảm đáng kể; dừng khi loss giảm dưới ngưỡng hoặc sau số bước cố định.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Batch, mini-batch, SGD: tính gradient trên toàn bộ dữ liệu / một nhóm nhỏ (vd 32 mẫu) / một mẫu; mini-batch là mặc định.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Epoch: một lượt đi hết toàn bộ dữ liệu train.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Hàm lồi và không lồi (convex): lồi chỉ có một đáy; mạng nơ-ron là không lồi, có nhiều đáy cục bộ và điểm yên ngựa (saddle point).",
+          "level": "co_ban"
+        },
+        {
+          "text": "Nghiệm đóng và nghiệm lặp: bài đơn giản có công thức tính thẳng (closed-form), bài lớn dùng lặp.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Chuẩn hoá feature: nếu các cột chênh thang đo, mặt loss bị dẹt và gradient descent đi chậm, zigzag.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Hình phạt (penalty): thêm số hạng phạt vào loss thay cho ràng buộc cứng.",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "Implement gradient descent for y = wx",
+          "vi": "3 điểm (1,2), (2,4), (3,6), mô hình ŷ = w·x, loss L = mean((wx − y)²). Dùng w ← w − lr·mean(2(wx − y)·x) với w=0, lr=0,05, chạy 20 vòng, in loss và thấy w → 2."
+        },
+        {
+          "title": "Why does GD diverge with large lr",
+          "vi": "Cùng bài trên với lr = 0,3 (lớn hơn mốc ≈ 0,21): quan sát loss tăng dần và giải thích."
+        },
+        {
+          "title": "Closed-form vs GD",
+          "vi": "Cùng bài: nghiệm đóng w = Σxy / Σx² = 28/14 = 2; so với kết quả gradient descent."
+        }
+      ],
+      "example_problems": [
+        "Why does gradient descent diverge with a large learning rate?",
+        "Implement gradient descent for y = wx + b",
+        "When is the closed-form solution better than gradient descent?",
+        "Explain saddle points vs local minima in deep nets"
+      ],
+      "bank_topics": [
+        "ml_ai.deep_learning",
+        "ml_ai.ml_fundamentals"
+      ],
+      "bank_counts": {
+        "ml_ai.deep_learning": {
+          "total": 56,
+          "y2026": 29
+        },
+        "ml_ai.ml_fundamentals": {
+          "total": 126,
+          "y2026": 58
+        }
+      },
+      "target_swe": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 0,
+        "senior": 0
+      },
+      "target_ai": {
+        "intern": 1,
+        "fresher": 2,
+        "junior": 3,
+        "senior": 3
+      },
+      "est_hours": 4,
+      "plan_order": 238,
+      "plan_day": null,
+      "plan_hours": 4
+    },
+    {
       "id": "ml.llm.llm_basics_pretraining",
       "section": "ml",
       "module": "ml.llm",
@@ -26508,7 +26979,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 235,
+      "plan_order": 239,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -26625,7 +27096,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 236,
+      "plan_order": 240,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -26748,7 +27219,7 @@
         "senior": 3
       },
       "est_hours": 2,
-      "plan_order": 237,
+      "plan_order": 241,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -26876,7 +27347,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 238,
+      "plan_order": 242,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -26996,7 +27467,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 239,
+      "plan_order": 243,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -27110,7 +27581,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 240,
+      "plan_order": 244,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -27232,7 +27703,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 241,
+      "plan_order": 245,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -27358,7 +27829,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 242,
+      "plan_order": 246,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -27478,7 +27949,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 243,
+      "plan_order": 247,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -27595,7 +28066,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 244,
+      "plan_order": 248,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -27714,7 +28185,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 245,
+      "plan_order": 249,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -27826,7 +28297,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 246,
+      "plan_order": 250,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -27948,7 +28419,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 247,
+      "plan_order": 251,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -28073,7 +28544,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 248,
+      "plan_order": 252,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -28190,7 +28661,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 249,
+      "plan_order": 253,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -28301,7 +28772,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 250,
+      "plan_order": 254,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -28413,7 +28884,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 251,
+      "plan_order": 255,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -28520,7 +28991,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 252,
+      "plan_order": 256,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -28640,7 +29111,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 253,
+      "plan_order": 257,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -28763,7 +29234,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 254,
+      "plan_order": 258,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -28873,7 +29344,7 @@
         "senior": 3
       },
       "est_hours": 2,
-      "plan_order": 255,
+      "plan_order": 259,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -28983,7 +29454,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 256,
+      "plan_order": 260,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -29099,7 +29570,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 257,
+      "plan_order": 261,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -29224,7 +29695,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 258,
+      "plan_order": 262,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -29338,7 +29809,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 259,
+      "plan_order": 263,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -29455,7 +29926,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 260,
+      "plan_order": 264,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -29553,7 +30024,7 @@
         "senior": 3
       },
       "est_hours": 2,
-      "plan_order": 261,
+      "plan_order": 265,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -29671,7 +30142,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 262,
+      "plan_order": 266,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -29795,7 +30266,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 263,
+      "plan_order": 267,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -29920,7 +30391,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 264,
+      "plan_order": 268,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -30048,7 +30519,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 265,
+      "plan_order": 269,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -30164,7 +30635,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 266,
+      "plan_order": 270,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -30268,7 +30739,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 267,
+      "plan_order": 271,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -30385,7 +30856,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 268,
+      "plan_order": 272,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -30497,7 +30968,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 269,
+      "plan_order": 273,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -30597,7 +31068,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 270,
+      "plan_order": 274,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -30731,7 +31202,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 271,
+      "plan_order": 275,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -30867,7 +31338,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 272,
+      "plan_order": 276,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -31012,7 +31483,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 273,
+      "plan_order": 277,
       "plan_day": null,
       "plan_hours": 6
     }

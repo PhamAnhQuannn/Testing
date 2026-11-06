@@ -1,0 +1,39 @@
+subtopic_id: ml.math.derivatives_gradients
+items:
+  - id: X638
+    difficulty: 2
+    type: write_code
+    minutes: 8
+    prompt_md: |
+      Viết hàm `grad_mse(w, xs, ys)` trả gradient theo `w` của mean squared error cho mô hình `ŷ = w·x`. Với `n = len(xs)` cặp `(x, y)`: `loss = mean((w*x - y)²)` và `gradient = mean(2*(w*x - y)*x)` trên mọi cặp. `xs`, `ys` là list số cùng độ dài (không rỗng), `w` là số. Trả về float đã làm tròn bằng `round(·, 6)`. Ví dụ: `w=3`, `xs=[2]`, `ys=[1]` cho `2*(6-1)*2 = 20.0`.
+    problem_id: check-x638-grad-mse
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 8 phút: bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X639
+    difficulty: 3
+    type: read_code
+    minutes: 5
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng và giải thích vì sao gradient tính bằng quy tắc chuỗi khớp với sai phân trung tâm.
+    code: |-
+      import math
+
+
+      def sigmoid(z):
+          return 1 / (1 + math.exp(-z))
+
+
+      def loss(w, x=2.0, b=0.0, y=1.0):
+          a = sigmoid(w * x + b)
+          return (a - y) ** 2
+
+
+      w, x, b, y = 0.0, 2.0, 0.0, 1.0
+      a = sigmoid(w * x + b)
+      analytic = 2 * (a - y) * a * (1 - a) * x
+      h = 1e-5
+      numeric = (loss(w + h) - loss(w - h)) / (2 * h)
+      print(round(analytic, 6))
+      print(round(numeric, 6))
+      print(abs(analytic - numeric) < 1e-6)
+    expected_output: "-0.5\n-0.5\nTrue"
+    answer_md: 'Tại `w = 0`: `z = 0`, `a = σ(0) = 0.5`. Quy tắc chuỗi: `∂L/∂a = 2(a−y) = -1`, `∂a/∂z = a(1−a) = 0.25`, `∂z/∂w = x = 2`, nhân lại được `-1·0.25·2 = -0.5`. Sai phân trung tâm xấp xỉ cùng đạo hàm đó (sai số cỡ h² nên rất nhỏ), nên in `-0.5` lần nữa và so sánh cho `True`.'
+    rubric_md: "Output khớp từng dòng VÀ nêu đúng ba thừa số của quy tắc chuỗi (2(a−y), a(1−a), x). Đúng: bằng chứng điểm 3; sai: tối đa điểm 2."
