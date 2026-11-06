@@ -29919,6 +29919,363 @@
       "plan_hours": 4
     },
     {
+      "id": "ml.nlp_transformers.attention",
+      "section": "ml",
+      "module": "ml.nlp_transformers",
+      "name_vi": "Cơ chế attention (attention)",
+      "order": 4,
+      "summary_vi": "Attention là cách mỗi từ trong câu nhìn các từ khác và lấy thông tin từ những từ liên quan nhất, giống tra từ điển mềm: có câu hỏi (query), so với các khoá (key), rồi lấy giá trị (value) theo độ khớp. Học xong bạn tính tay một lượt attention và viết nó bằng NumPy.",
+      "mastery_bar_vi": "Mức 3: tính tay attention cho 3 token, viết scaled dot-product và multi-head attention bằng NumPy với đúng shape và mask, và giải thích vì sao O(n²).",
+      "prerequisites": [
+        "ml.deep_learning.neural_net_basics",
+        "ml.math.linear_algebra_basics",
+        "ml.math.algebra_functions_bridge",
+        "ml.nlp_transformers.embeddings"
+      ],
+      "lang_prereqs": {
+        "python": [],
+        "java": null
+      },
+      "key_concepts": [
+        "query, key, value",
+        "scaled dot-product attention & sqrt(d_k)",
+        "softmax weights",
+        "multi-head attention and shapes",
+        "causal mask & padding mask",
+        "self vs cross-attention",
+        "complexity O(n²)",
+        "attention as soft dictionary lookup"
+      ],
+      "concepts_vi": [
+        {
+          "text": "Query, key, value: mỗi token có 3 vector Q (tôi đang tìm gì), K (tôi có gì), V (nội dung tôi trao đi). Ví dụ 'Con mèo ... nó': Q của 'nó' khớp mạnh với K của 'mèo' nên lấy nhiều V của 'mèo'.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Scaled dot-product: Attention = softmax(QKᵀ/√d_k)·V; điểm khớp là dot(Q, K).",
+          "level": "co_ban"
+        },
+        {
+          "text": "Vì sao chia √d_k: dot lớn làm softmax quá nhọn (một ô gần 1, còn lại gần 0) và gradient yếu.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Trọng số softmax: biến điểm thành trọng số cộng bằng 1; đầu ra là trung bình có trọng số của V.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Multi-head: chạy h head song song, mỗi head có bộ W_Q, W_K, W_V riêng nên học một kiểu quan hệ riêng; kết quả các head được nối lại rồi nhân ma trận O (W_O) để trộn.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Head (đầu): một attention nhỏ chạy riêng. Vector d chiều được chia thành h head, mỗi head d_head = d/h chiều (vd 512 chia 8 head, mỗi head 64); nối h kết quả lại được d chiều.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Mask: causal mask che các từ ở tương lai khi sinh văn bản; padding mask che chỗ đệm.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Self và cross attention: Q, K, V cùng chuỗi / Q từ chuỗi này còn K, V từ chuỗi khác.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Độ phức tạp O(n²): n token cần ma trận điểm n×n nên chuỗi dài rất tốn.",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "Attention by hand",
+          "vi": "Q = K = V = [[1,0],[0,1],[1,1]] (3 từ, 2 chiều), d_k = 2. Điểm của từ 1 là QKᵀ[0] = [1, 0, 1], chia √2 ≈ [0,71; 0; 0,71]; softmax ≈ [0,40; 0,20; 0,40]; đầu ra = 0,40·[1,0] + 0,20·[0,1] + 0,40·[1,1] ≈ [0,80; 0,60]."
+        },
+        {
+          "title": "Attention in NumPy",
+          "vi": "Viết hàm attention(Q, K, V, mask) khoảng 8 dòng; kiểm tra shape: Q (n, d), K (n, d), V (n, d_v) → ra (n, d_v), và hàng đầu của ví dụ tính tay phải ra ≈ [0,80; 0,60].",
+          "starter_code_vi": {
+            "lang": "python",
+            "code": "import numpy as np\ndef attention(Q, K, V, mask=None):\n    d_k = Q.shape[-1]\n    scores = ...   # TODO: Q @ K.T / np.sqrt(d_k)\n    if mask is not None:\n        scores = np.where(mask, scores, -1e9)   # chỗ mask = False bị chặn\n    w = np.exp(scores - scores.max(axis=-1, keepdims=True))\n    w = w / w.sum(axis=-1, keepdims=True)       # softmax theo từng hàng\n    return w @ V\nQ = K = V = np.array([[1., 0], [0, 1], [1, 1]])\nprint(attention(Q, K, V)[0])   # ≈ [0,80 0,60]"
+          }
+        },
+        {
+          "title": "Causal mask",
+          "vi": "Với n = 3, viết ma trận mask 3×3 chặn token i nhìn token j > i (điền −∞ trước softmax; trong NumPy: mask = np.tril(np.ones((3, 3), dtype=bool)) với True là được nhìn, truyền vào tham số mask của hàm trên)."
+        },
+        {
+          "title": "Multi-head bằng cắt cột",
+          "vi": "d = 8, h = 2 nên d_head = 4. Với X shape (3, 8) làm Q = K = V = X (bỏ qua các ma trận W cho gọn): cột 0-3 cho head 1, cột 4-7 cho head 2, chạy attention cho mỗi head ra shape (3, 4), nối lại được (3, 8). (Bản đầy đủ còn nhân W_O.) Dùng lại hàm attention ở bài trên.",
+          "starter_code_vi": {
+            "lang": "python",
+            "code": "n, d, h = 3, 8, 2\nX = np.random.default_rng(0).normal(size=(n, d))\nQ = K = V = X\nd_head = ...   # TODO: d // h\nheads = []\nfor i in range(h):\n    sl = slice(i * d_head, (i + 1) * d_head)\n    heads.append(attention(Q[:, sl], K[:, sl], V[:, sl]))   # mỗi head ra (n, d_head)\nout = ...   # TODO: np.concatenate(heads, axis=1)\nprint(out.shape)   # (3, 8)"
+          }
+        },
+        {
+          "title": "Why divide by sqrt(d_k)",
+          "vi": "d_k = 64 và các phần tử của Q, K có phương sai 1: dot có độ lệch chuẩn √64 = 8; chia √d_k đưa về 1."
+        }
+      ],
+      "example_problems": [
+        "Explain Transformers and QKV matrices",
+        "Why divide by sqrt(d_k)?",
+        "Complexity of self-attention"
+      ],
+      "bank_topics": [
+        "ml_ai.nlp_transformers",
+        "ml_ai.ml_coding"
+      ],
+      "bank_counts": {
+        "ml_ai.nlp_transformers": {
+          "total": 52,
+          "y2026": 28
+        },
+        "ml_ai.ml_coding": {
+          "total": 145,
+          "y2026": 87
+        }
+      },
+      "target_swe": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 1,
+        "senior": 1
+      },
+      "target_ai": {
+        "intern": 0,
+        "fresher": 2,
+        "junior": 3,
+        "senior": 3
+      },
+      "est_hours": 4,
+      "plan_order": 265,
+      "plan_day": null,
+      "plan_hours": 4
+    },
+    {
+      "id": "ml.nlp_transformers.transformer_architecture",
+      "section": "ml",
+      "module": "ml.nlp_transformers",
+      "name_vi": "Kiến trúc Transformer (transformer architecture)",
+      "order": 5,
+      "summary_vi": "Transformer là chồng nhiều 'khối' giống nhau; mỗi khối gồm attention (các từ trao đổi thông tin) rồi một mạng nơ-ron nhỏ FFN (mỗi từ tự xử lý), có đường nối tắt residual và LayerNorm giữ ổn định. LLM như GPT là transformer chỉ có phần decoder. Học xong bạn kể được từng bước một lượt chạy và đếm tham số một khối.",
+      "mastery_bar_vi": "Mức 3: vẽ và giải thích từng bước forward của transformer decoder-only với shape, đếm tham số một khối và nói được vì sao cần positional encoding (learned và RoPE).",
+      "prerequisites": [
+        "ml.nlp_transformers.attention",
+        "ml.nlp_transformers.tokenization",
+        "ml.deep_learning.norm_init_regularization"
+      ],
+      "lang_prereqs": {
+        "python": [],
+        "java": null
+      },
+      "key_concepts": [
+        "encoder, decoder, encoder-decoder",
+        "block: attention + FFN + residual + norm",
+        "positional encodings: sinusoidal, learned, RoPE, ALiBi",
+        "FFN (SwiGLU) and RMSNorm in modern LLMs",
+        "parameter count (~12 d^2 per block)",
+        "training objective by variant",
+        "embedding tying",
+        "walk-through of forward pass",
+        "decoder-only inference: prefill then autoregressive decode"
+      ],
+      "concepts_vi": [
+        {
+          "text": "Khối transformer: x → x + Attention(Norm(x)) → x + FFN(Norm(x)), lặp N khối. Attention dùng ba bản biến đổi Q, K, V của đầu vào; ma trận O trộn kết quả các head (head: xem attention).",
+          "level": "co_ban"
+        },
+        {
+          "text": "Residual (đường nối tắt): ra = x + F(x), đã học ở norm_init_regularization; trong transformer có hai phép cộng này mỗi khối (quanh attention và quanh FFN).",
+          "level": "co_ban"
+        },
+        {
+          "text": "LayerNorm/RMSNorm: chuẩn hoá từng token trước attention và trước FFN (xem norm_init_regularization).",
+          "level": "co_ban"
+        },
+        {
+          "text": "FFN: mạng hai lớp áp riêng cho từng token, mở rộng từ d lên 4d rồi thu về d (SwiGLU là biến thể hiện đại).",
+          "level": "co_ban"
+        },
+        {
+          "text": "Positional encoding: attention không biết thứ tự nên phải thêm vị trí; hai cách phổ biến: learned (vector vị trí học được) và RoPE (xoay vector theo vị trí).",
+          "level": "co_ban"
+        },
+        {
+          "text": "Encoder, decoder, encoder-decoder: encoder đọc hiểu cả câu; decoder sinh từng token chỉ nhìn quá khứ (causal mask che tương lai).",
+          "level": "co_ban"
+        },
+        {
+          "text": "Luồng decoder-only: token → embedding (+ vị trí) → N khối → lớp ra (logits) → softmax → token tiếp theo.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Đếm tham số: một khối ≈ 12d² (attention 4d²: bốn ma trận Q, K, V, O mỗi cái d×d; FFN 8d²: d×4d và 4d×d), d là số chiều của vector mỗi token.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Sinh văn bản: prefill (đọc cả prompt một lượt) rồi decode (sinh từng token, nối vào đầu vào).",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "Tham số một khối (d = 8)",
+          "vi": "Attention có 4 ma trận (Q, K, V, O) mỗi cái 8×8 = 64 nên 4·64 = 256; FFN 8→32→8 có 2·8·32 = 512; tổng 768 = 12·8² (bỏ qua bias và norm).",
+          "starter_code_vi": {
+            "lang": "python",
+            "code": "d = 8\nattention = ...   # TODO: 4 ma trận d×d\nffn = ...         # TODO: d→4d và 4d→d\nprint(attention + ffn, 12 * d * d)   # 768 và 768"
+          }
+        },
+        {
+          "title": "GPT-2 small",
+          "vi": "d = 768: một khối ≈ 12·768² ≈ 7,1 triệu tham số; 12 khối ≈ 85 triệu (chưa tính embedding)."
+        },
+        {
+          "title": "Residual và LayerNorm bằng số",
+          "vi": "x = [1, 2], F(x) = [0,5; −1]: ra = x + F(x) = [1,5; 1]. LayerNorm của ra: μ = 1,25, σ = 0,25, x̂ = (ra − μ)/σ = [1, −1]."
+        },
+        {
+          "title": "Theo dõi shape",
+          "vi": "Với 5 token, d = 8, từ vựng V: vẽ sơ đồ token ids (5) → embedding (5, 8) → [Norm → Attention → +] → [Norm → FFN → +] (vẫn (5, 8)) → logits (5, V), ghi shape trên mỗi mũi tên."
+        }
+      ],
+      "example_problems": [
+        "Explain the Transformer in detail",
+        "RoPE vs sinusoidal",
+        "Parameter count of a GPT block"
+      ],
+      "bank_topics": [
+        "ml_ai.nlp_transformers"
+      ],
+      "bank_counts": {
+        "ml_ai.nlp_transformers": {
+          "total": 52,
+          "y2026": 28
+        }
+      },
+      "target_swe": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 0,
+        "senior": 0
+      },
+      "target_ai": {
+        "intern": 0,
+        "fresher": 2,
+        "junior": 3,
+        "senior": 3
+      },
+      "est_hours": 6,
+      "plan_order": 266,
+      "plan_day": null,
+      "plan_hours": 6
+    },
+    {
+      "id": "ml.nlp_transformers.transformer_variants",
+      "section": "ml",
+      "module": "ml.nlp_transformers",
+      "name_vi": "BERT, GPT, MoE và attention hiệu quả (transformer variants)",
+      "order": 6,
+      "summary_vi": "Từ khung transformer sinh ra nhiều họ: BERT (đọc hiểu hai chiều, dùng để phân loại hoặc tạo embedding), GPT (sinh từng token), T5 (biến văn bản thành văn bản). Học xong bạn chọn được loại phù hợp và hiểu MoE, GQA, FlashAttention giúp mô hình lớn chạy nhanh hơn.",
+      "mastery_bar_vi": "Mức 3: giải thích MoE, GQA và FlashAttention và chọn encoder hay decoder cho một bài toán cụ thể kèm lý do về dữ liệu và độ trễ.",
+      "prerequisites": [
+        "ml.nlp_transformers.transformer_architecture",
+        "ml.deep_learning.gpu_101"
+      ],
+      "lang_prereqs": {
+        "python": [],
+        "java": null
+      },
+      "key_concepts": [
+        "BERT (MLM) vs GPT (CLM) vs T5",
+        "fine-tuning BERT for classification",
+        "mixture of experts: router, top-k experts, active vs total parameters",
+        "MHA vs MQA vs GQA vs MLA (KV cache shrink)",
+        "FlashAttention idea",
+        "sliding-window and sparse attention",
+        "long context: RoPE scaling (YaRN), KV growth",
+        "CNN vs transformer inductive bias"
+      ],
+      "concepts_vi": [
+        {
+          "text": "BERT, GPT, T5: BERT (encoder) đoán từ bị che (MLM, masked language modeling), nhìn hai phía; GPT (decoder) đoán từ kế tiếp (CLM, causal language modeling); T5 (encoder-decoder) biến văn bản thành văn bản.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Fine-tune BERT để phân loại: thêm một lớp nhỏ lên vector đại diện câu rồi huấn luyện tiếp.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "KV cache: khi sinh từng token, K và V của token cũ không đổi nên lưu lại để khỏi tính lại; đổi bộ nhớ lấy tốc độ, tăng theo độ dài ngữ cảnh.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "GQA (grouped-query attention): nhiều head (head: xem attention) dùng chung một nhóm K, V nên KV cache nhỏ đi nhiều lần; MQA là cực đoan dùng chung 1 nhóm.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Mixture of experts (MoE): nhiều 'chuyên gia' FFN, bộ định tuyến (router) chọn top-k cho mỗi token; tổng tham số lớn nhưng mỗi token chỉ dùng một phần.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "FlashAttention: tính attention theo từng khối nhỏ trong bộ nhớ nhanh của GPU, tránh ghi ma trận n×n ra bộ nhớ chậm; kết quả y hệt, nhanh hơn.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "CNN và transformer: khác nhau ở inductive bias (giả định có sẵn về cấu trúc dữ liệu, vd CNN giả định điểm gần nhau liên quan).",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "Chọn encoder hay decoder",
+          "vi": "Điền bảng 3 cột BERT/GPT/T5 với bài toán hợp, rồi chọn cho: (a) phân loại email, (b) sinh câu trả lời chat, (c) tìm kiếm ngữ nghĩa (tạo embedding); nêu lý do."
+        },
+        {
+          "title": "Kích thước KV cache",
+          "vi": "Mỗi token lưu K và V cho mỗi lớp: 2 (K và V) × L (số lớp) × d × 2 byte (fp16). L = 32, d = 4096 cho 2·32·4096·2 = 524.288 byte ≈ 0,5 MB mỗi token; 4.000 token ≈ 2 GB."
+        },
+        {
+          "title": "GQA giảm KV cache",
+          "vi": "d = 4096 chia 32 head thì mỗi head có head_dim = d/32 = 128 chiều (head_dim là số chiều của một head). Cache lưu K, V của từng nhóm chứ không của từng head, nên ít nhóm hơn thì cache nhỏ hơn (MQA: chỉ 1 nhóm). Nếu 32 head dùng chung 8 nhóm K,V thì KV cache còn 8/32 = 1/4: 0,5 MB → 0,125 MB mỗi token."
+        },
+        {
+          "title": "Đếm tham số MoE",
+          "vi": "8 chuyên gia, mỗi token dùng top-2; nếu mỗi chuyên gia 1 tỉ tham số thì tổng 8 tỉ nhưng mỗi token chỉ dùng 2 tỉ (cộng phần dùng chung)."
+        }
+      ],
+      "beginner_note_vi": "Intern và fresher có thể bỏ qua; KV cache được nhắc lại ở phần inference.",
+      "example_problems": [
+        "Explain mixture of experts",
+        "Efficient attention under tight GPU memory",
+        "BERT vs GPT"
+      ],
+      "bank_topics": [
+        "ml_ai.nlp_transformers"
+      ],
+      "bank_counts": {
+        "ml_ai.nlp_transformers": {
+          "total": 52,
+          "y2026": 28
+        }
+      },
+      "target_swe": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 0,
+        "senior": 0
+      },
+      "target_ai": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 2,
+        "senior": 2
+      },
+      "est_hours": 4,
+      "plan_order": 267,
+      "plan_day": null,
+      "plan_hours": 4
+    },
+    {
       "id": "ml.llm.llm_basics_pretraining",
       "section": "ml",
       "module": "ml.llm",
@@ -30029,7 +30386,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 265,
+      "plan_order": 268,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -30146,7 +30503,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 266,
+      "plan_order": 269,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -30269,7 +30626,7 @@
         "senior": 3
       },
       "est_hours": 2,
-      "plan_order": 267,
+      "plan_order": 270,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -30397,7 +30754,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 268,
+      "plan_order": 271,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -30517,7 +30874,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 269,
+      "plan_order": 272,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -30631,7 +30988,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 270,
+      "plan_order": 273,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -30753,7 +31110,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 271,
+      "plan_order": 274,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -30879,7 +31236,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 272,
+      "plan_order": 275,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -30999,7 +31356,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 273,
+      "plan_order": 276,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -31116,7 +31473,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 274,
+      "plan_order": 277,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -31235,7 +31592,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 275,
+      "plan_order": 278,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -31347,7 +31704,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 276,
+      "plan_order": 279,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -31469,7 +31826,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 277,
+      "plan_order": 280,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -31594,7 +31951,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 278,
+      "plan_order": 281,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -31711,7 +32068,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 279,
+      "plan_order": 282,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -31822,7 +32179,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 280,
+      "plan_order": 283,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -31934,7 +32291,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 281,
+      "plan_order": 284,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -32041,7 +32398,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 282,
+      "plan_order": 285,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -32161,7 +32518,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 283,
+      "plan_order": 286,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -32284,7 +32641,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 284,
+      "plan_order": 287,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -32394,7 +32751,7 @@
         "senior": 3
       },
       "est_hours": 2,
-      "plan_order": 285,
+      "plan_order": 288,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -32504,7 +32861,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 286,
+      "plan_order": 289,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -32620,7 +32977,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 287,
+      "plan_order": 290,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -32745,7 +33102,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 288,
+      "plan_order": 291,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -32859,7 +33216,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 289,
+      "plan_order": 292,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -32976,7 +33333,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 290,
+      "plan_order": 293,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -33074,7 +33431,7 @@
         "senior": 3
       },
       "est_hours": 2,
-      "plan_order": 291,
+      "plan_order": 294,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -33192,7 +33549,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 292,
+      "plan_order": 295,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -33316,7 +33673,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 293,
+      "plan_order": 296,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -33441,7 +33798,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 294,
+      "plan_order": 297,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -33569,7 +33926,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 295,
+      "plan_order": 298,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -33685,7 +34042,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 296,
+      "plan_order": 299,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -33789,7 +34146,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 297,
+      "plan_order": 300,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -33906,7 +34263,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 298,
+      "plan_order": 301,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -34018,7 +34375,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 299,
+      "plan_order": 302,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -34118,7 +34475,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 300,
+      "plan_order": 303,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -34252,7 +34609,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 301,
+      "plan_order": 304,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -34388,7 +34745,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 302,
+      "plan_order": 305,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -34533,7 +34890,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 303,
+      "plan_order": 306,
       "plan_day": null,
       "plan_hours": 6
     }

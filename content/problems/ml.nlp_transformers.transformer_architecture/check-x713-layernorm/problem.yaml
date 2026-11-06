@@ -1,0 +1,65 @@
+id: check-x713-layernorm
+subtopic_id: ml.nlp_transformers.transformer_architecture
+secondary_subtopics: []
+kind: check
+title: 'Check X713: layer norm'
+title_vi: 'Kiểm tra X713: layer norm'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Implement `layer_norm(xs)` for a non-empty list of floats. Compute `mean = sum(xs) / n`,
+  `var = sum((x - mean) ** 2) / n` (population variance) and return
+  `(x - mean) / sqrt(var + 1e-5)` for every element, each rounded to 6 decimals.
+  For `xs = [1.0, 2.0, 3.0]` the result is `[-1.224736, 0.0, 1.224736]`; a constant vector gives all `0.0`.
+statement_vi_md: |
+  Cài `layer_norm(xs)` cho list số thực không rỗng. Tính `mean = sum(xs) / n`,
+  `var = sum((x - mean) ** 2) / n` (phương sai tổng thể) rồi trả `(x - mean) / sqrt(var + 1e-5)` cho từng phần tử,
+  làm tròn 6 chữ số. Với `xs = [1.0, 2.0, 3.0]` kết quả là `[-1.224736, 0.0, 1.224736]`; vector hằng cho toàn `0.0`.
+constraints:
+- 1 <= len(xs) <= 1000
+- Phần tử là số thực hữu hạn
+examples:
+- input: xs = [1.0, 2.0, 3.0]
+  output: '[-1.224736, 0.0, 1.224736]'
+  explain_vi: mean = 2, var = 2/3; chia cho sqrt(2/3 + 1e-5) nên hai đầu xấp xỉ -1.2247 và 1.2247.
+io:
+  mode: function
+  entry: layer_norm
+  params:
+  - name: xs
+    type: list
+  returns: list
+  compare: float_tol
+starter:
+  python: |
+    import math
+
+
+    def layer_norm(xs):
+        # TODO: mean, population variance, rồi trả [round((x - mean) / sqrt(var + 1e-5), 6) for x in xs]
+        pass
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+time_target_min: 6
+hints:
+- Tính mean = sum(xs) / n rồi var = sum((x - mean) ** 2) / n (chia cho n).
+- eps = 1e-5 nằm trong căn, mẫu số là math.sqrt(var + 1e-5).
+- Trả [round((x - mean) / denom, 6) for x in xs].
+solution:
+  file: solution.py
+  approach_vi: Tính mean và population variance một lượt, chuẩn hoá từng phần tử với eps trong căn.
+  complexity: O(n) / O(n)
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x713
+status: validated
+version: 1

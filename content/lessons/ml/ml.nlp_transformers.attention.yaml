@@ -1,0 +1,154 @@
+id: ml.nlp_transformers.attention
+version: 1
+status: published
+title_vi: "Cơ chế attention"
+est_minutes: 14
+objectives_vi:
+  - "Giải thích attention như tra cứu mềm theo query / key / value: điểm q·k, softmax thành trọng số tổng bằng 1, output là tổng có trọng số của các value."
+  - "Nêu được vì sao chia cho sqrt(d_k), multi-head, causal mask, padding mask, self vs cross-attention và độ phức tạp O(n²)."
+  - "Cài hàm attention_weights thuần Python: dot score rồi softmax ổn định số học."
+blocks:
+  - id: s_what
+    type: section
+    title_vi: "Attention là tra cứu mềm"
+    summary_vi: "Query / key / value, softmax, tổng có trọng số, scaling, mask, self vs cross, multi-head, O(n²)."
+  - id: t01
+    type: text
+    md: |
+      **Attention** là cách để mỗi vị trí trong chuỗi "nhìn" vào các vị trí khác và lấy thông tin có chọn lọc. Hình dung
+      một **từ điển tra cứu mềm** (soft dictionary lookup): từ điển thường so khớp `query` với `key` đúng-hoặc-sai rồi
+      trả `value`; attention so khớp **mức độ** rồi trộn các `value` theo mức độ đó.
+
+      - **Query (q)**: "tôi đang tìm gì". **Key (k)**: "tôi có nhãn gì". **Value (v)**: "nội dung tôi mang".
+      - Điểm khớp của query với mỗi key là tích vô hướng `score_i = q · k_i`.
+      - **Softmax** biến các điểm thành **trọng số** không âm, tổng bằng 1: `w_i = exp(s_i) / sum(exp(s_j))`.
+      - **Output** là tổng có trọng số của các value: `out = sum(w_i * v_i)`.
+
+      ```
+      scores  = [dot(q, k) for k in keys]
+      weights = softmax(scores)               # sum(weights) == 1
+      out     = sum(w * v for w, v in zip(weights, values))
+      ```
+
+      **Scaled dot-product attention** thật còn chia điểm cho `sqrt(d_k)` (d_k là số chiều của key): khi d_k lớn,
+      tích vô hướng có độ lớn tăng theo d_k làm softmax bão hoà (một trọng số gần 1, gradient gần 0); chia cho
+      `sqrt(d_k)` giữ phương sai điểm ổn định. **Lưu ý: bài tập và bài kiểm tra trong node này bỏ bước chia
+      sqrt(d_k) cho đơn giản**, chỉ dùng `score = q · k`.
+
+      Các điểm cần nhớ thêm:
+
+      - **Self-attention**: q, k, v đều lấy từ cùng một chuỗi. **Cross-attention**: q từ một chuỗi (decoder), k và v từ
+        chuỗi khác (encoder), ví dụ dịch máy.
+      - **Multi-head attention**: chạy nhiều attention song song với các phép chiếu q/k/v khác nhau rồi nối kết quả,
+        mỗi head học một kiểu quan hệ.
+      - **Causal mask**: trong decoder, vị trí i không được nhìn vị trí sau nó; điểm của các vị trí đó đặt `-inf` để
+        trọng số bằng 0. **Padding mask**: che các token đệm để chúng không nhận trọng số.
+      - **Độ phức tạp**: mỗi trong n vị trí so với n vị trí nên ma trận điểm có n² phần tử, tức **O(n²)** thời gian
+        và bộ nhớ theo độ dài chuỗi; đây là nút thắt của context dài.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Trong attention, trọng số sau softmax có tính chất nào?"
+    options:
+      - {id: a, text_md: "Không âm và tổng bằng 1"}
+      - {id: b, text_md: "Có thể âm và tổng bằng 0"}
+      - {id: c, text_md: "Luôn bằng nhau với mọi key"}
+    answer: [a]
+    explain_md: "Softmax chuẩn hoá exp(score) nên mọi trọng số dương và cộng lại bằng 1. Chúng chỉ bằng nhau khi các điểm bằng nhau."
+  - id: q02
+    type: predict_output
+    code: |
+      w = [0.5, 0.5]
+      v = [[2, 0], [0, 4]]
+      out = [sum(wi * vi[j] for wi, vi in zip(w, v)) for j in range(2)]
+      print(out)
+    expected_output: |
+      [1.0, 2.0]
+    explain_md: "Output là tổng có trọng số: chiều 0 là 0.5·2 + 0.5·0 = 1.0; chiều 1 là 0.5·0 + 0.5·4 = 2.0."
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Độ phức tạp thời gian của self-attention theo độ dài chuỗi n là gì?"
+    options:
+      - {id: a, text_md: "O(n)"}
+      - {id: b, text_md: "O(n²)"}
+      - {id: c, text_md: "O(log n)"}
+    answer: [b]
+    explain_md: "Mỗi vị trí tính điểm với mọi vị trí, nên có n × n điểm: O(n²)."
+  - id: s_weights
+    type: section
+    title_vi: "Cài attention_weights"
+    summary_vi: "Dot score rồi softmax ổn định (trừ max) cho một query và nhiều key."
+    exercise_ref: ex_weights
+  - id: t02
+    type: text
+    md: |
+      Phần lõi của attention là **trọng số**: với một `query` và danh sách `keys`, tính điểm `q · k` cho từng key rồi
+      softmax. Để tránh `exp` tràn số khi điểm lớn, dùng **softmax ổn định**: trừ điểm lớn nhất trước khi `exp`.
+      Kết quả không đổi vì tử và mẫu cùng nhân một hệ số.
+
+      ```
+      m = max(scores)
+      exps = [math.exp(s - m) for s in scores]
+      weights = [e / sum(exps) for e in exps]
+      ```
+
+      Ví dụ `query = [1, 0]`, `keys = [[1, 0], [0, 1]]`: điểm `[1, 0]`, trọng số `[0.731059, 0.268941]`.
+      Hai key cùng điểm thì trọng số chia đều.
+  - id: ex_weights
+    type: code_exercise
+    md: |
+      Cài `attention_weights(query, keys)` trả danh sách trọng số attention (softmax của các điểm `q · k`),
+      mỗi số làm tròn 6 chữ số. **Không chia sqrt(d_k)** (bài này bỏ bước đó). `keys` khác rỗng, mọi vector cùng độ dài.
+      Ví dụ `query = [1.0, 0.0]`, `keys = [[1.0, 0.0], [0.0, 1.0]]` cho `[0.731059, 0.268941]`.
+    entry: attention_weights
+    starter: |
+      import math
+
+
+      def attention_weights(query, keys):
+          # TODO: scores = dot(query, key) cho từng key; softmax ổn định (trừ max); làm tròn 6 chữ số
+          pass
+    guidance_md: |
+      - Điểm của mỗi key là `sum(q * k for q, k in zip(query, key))`.
+      - Trừ `max(scores)` trước khi `math.exp`, rồi chia cho tổng.
+    hints:
+      - level: nudge
+        md: "Cần một điểm cho mỗi key, rồi biến các điểm thành xác suất tổng bằng 1."
+      - level: approach
+        md: "scores = [dot(query, key) for key]; m = max(scores); exps = [exp(s - m)]; chia từng exp cho tổng."
+      - level: near_solution
+        md: "`return [round(e / total, 6) for e in exps]` với `total = sum(exps)`."
+    tests:
+      - {args: [[1.0, 0.0], [[1.0, 0.0], [0.0, 1.0]]], expected: [0.731059, 0.268941]}
+      - {args: [[1.0, 1.0], [[1.0, 1.0], [1.0, 1.0], [1.0, 1.0]]], expected: [0.333333, 0.333333, 0.333333]}
+      - {args: [[1.0], [[0.0], [1.0], [2.0]]], expected: [0.090031, 0.244728, 0.665241]}
+      - {args: [[3.0, 4.0], [[1.0, 1.0]]], expected: [1.0]}
+    solution: |
+      import math
+
+
+      def attention_weights(query, keys):
+          scores = [sum(q * k for q, k in zip(query, key)) for key in keys]
+          m = max(scores)
+          exps = [math.exp(s - m) for s in scores]
+          total = sum(exps)
+          return [round(e / total, 6) for e in exps]
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Self-attention có mỗi vị trí so với mọi vị trí nên chi phí tăng theo bình phương độ dài chuỗi: độ phức tạp là O(n^__) (điền số mũ)."
+    blanks: [{accept: ["2", "hai"]}]
+    explain_md: "Ma trận điểm n × n có n² phần tử nên thời gian và bộ nhớ là O(n²)."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Attention là tra cứu mềm: điểm q·k, softmax thành trọng số tổng 1, output là tổng có trọng số của value."
+      - "Scaled dot-product chia điểm cho sqrt(d_k) để softmax không bão hoà; gate trong node này bỏ bước chia."
+      - "Self-attention lấy q/k/v từ cùng chuỗi, cross-attention lấy k/v từ chuỗi khác; multi-head chạy nhiều attention song song."
+      - "Causal mask và padding mask đặt điểm -inf để trọng số 0; chi phí attention là O(n²)."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X709], l2: [X710], l3: [X711]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-06"

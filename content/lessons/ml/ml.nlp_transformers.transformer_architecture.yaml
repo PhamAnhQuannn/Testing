@@ -1,0 +1,142 @@
+id: ml.nlp_transformers.transformer_architecture
+version: 1
+status: published
+title_vi: "Kiến trúc Transformer"
+est_minutes: 14
+objectives_vi:
+  - "Mô tả một block Transformer gồm multi-head attention và feed-forward network (FFN), mỗi phần bọc trong residual connection + LayerNorm (Add & Norm)."
+  - "Giải thích vì sao cần positional encoding, và các siêu tham số d_model, số head, FFN hidden dim, số block N."
+  - "Cài layer_norm thuần Python và hiểu vì sao nó giúp huấn luyện ổn định; nhận biết pre-norm vs post-norm."
+blocks:
+  - id: s_block
+    type: section
+    title_vi: "Một block Transformer và positional encoding"
+    summary_vi: "Attention + FFN, Add & Norm, positional encoding, xếp chồng N block, các siêu tham số."
+  - id: t01
+    type: text
+    md: |
+      **Transformer** xếp chồng **N block giống nhau** (mỗi block có trọng số riêng). Một **encoder block** gồm hai phần:
+
+      1. **Multi-head self-attention**: mỗi token nhìn mọi token khác, nhiều head học các kiểu quan hệ khác nhau.
+      2. **Feed-forward network (FFN)**: một MLP nhỏ áp dụng **riêng cho từng vị trí** (hai lớp tuyến tính với phi tuyến ở giữa).
+
+      Mỗi phần được bọc bởi **Add & Norm**: `x = LayerNorm(x + Sublayer(x))`. Phần `x + Sublayer(x)` là
+      **residual connection** (đường tắt giúp gradient chảy qua mạng sâu). **Decoder block** thêm **masked** self-attention
+      (không nhìn token tương lai) và **cross-attention** vào đầu ra của encoder.
+
+      Attention bản thân **không có khái niệm thứ tự**: xáo trộn token thì kết quả chỉ bị xáo trộn theo. Vì vậy ta cộng
+      **positional encoding** (sin/cos cố định hoặc vector học được) vào embedding đầu vào để mô hình biết vị trí.
+
+      Siêu tham số chính: **d_model** (số chiều của vector mỗi token, ví dụ 512), **số head** `h` (mỗi head dùng
+      `d_model / h` chiều), **FFN hidden dim** (thường `4 * d_model`) và **N** (số block, ví dụ 6 hoặc 12).
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Vì sao cần positional encoding trong Transformer?"
+    options:
+      - {id: a, text_md: "Self-attention không tự biết thứ tự token, cần thêm thông tin vị trí"}
+      - {id: b, text_md: "Để giảm số head"}
+      - {id: c, text_md: "Để thay thế FFN"}
+    answer: [a]
+    explain_md: "Attention coi đầu vào như một tập, không phân biệt vị trí. Cộng positional encoding vào embedding để giữ thông tin thứ tự."
+  - id: q02
+    type: predict_output
+    code: |
+      d_model = 512
+      heads = 8
+      print(d_model // heads)
+      print(4 * d_model)
+    expected_output: |
+      64
+      2048
+    explain_md: "Mỗi head có d_model / heads = 64 chiều; FFN hidden dim thường là 4 * d_model = 2048."
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Trong công thức Add & Norm `LayerNorm(x + Sublayer(x))`, phần `x + Sublayer(x)` gọi là gì?"
+    options:
+      - {id: a, text_md: "Residual connection"}
+      - {id: b, text_md: "Positional encoding"}
+      - {id: c, text_md: "Softmax"}
+    answer: [a]
+    explain_md: "Cộng đầu vào với đầu ra sublayer là residual connection, giúp gradient truyền tốt qua nhiều block."
+  - id: s_norm
+    type: section
+    title_vi: "LayerNorm: chuẩn hoá trên một vector"
+    summary_vi: "Mean, variance, epsilon; vì sao ổn định huấn luyện; pre-norm vs post-norm."
+    exercise_ref: ex_layernorm
+  - id: t02
+    type: text
+    md: |
+      **LayerNorm** chuẩn hoá **từng vector token** (không phải theo batch) để có mean 0 và variance 1:
+
+      ```
+      mean = sum(x) / n
+      var  = sum((x - mean) ** 2) / n          # population variance
+      out  = (x - mean) / sqrt(var + eps)      # eps ~ 1e-5 tránh chia cho 0
+      ```
+
+      Thực tế còn có hai tham số học được `gamma` (scale) và `beta` (shift); ở đây ta bỏ qua. Nhờ chuẩn hoá, độ lớn
+      activation giữ ổn định qua nhiều block nên gradient không nổ hay tắt dần, huấn luyện nhanh và ổn định hơn.
+      Vector hằng (mọi phần tử bằng nhau) có `var = 0`, `x - mean = 0` nên kết quả là 0 (nhờ `eps` không bị chia cho 0).
+
+      **Post-norm** (bản gốc): `LayerNorm(x + Sublayer(x))`. **Pre-norm** (phổ biến ở mô hình lớn):
+      `x + Sublayer(LayerNorm(x))`, ổn định hơn khi xếp rất nhiều block.
+  - id: ex_layernorm
+    type: code_exercise
+    md: |
+      Cài `layer_norm(xs)` nhận list số thực không rỗng, trả list đã chuẩn hoá:
+      `mean = sum/n`, `var = sum((x - mean)**2)/n` (population), `out = (x - mean) / sqrt(var + 1e-5)`,
+      mỗi phần tử làm tròn 6 chữ số.
+      Ví dụ `[1.0, 2.0, 3.0]` cho `[-1.224736, 0.0, 1.224736]`.
+    entry: layer_norm
+    starter: |
+      import math
+
+
+      def layer_norm(xs):
+          # TODO: mean, population variance, rồi (x - mean) / sqrt(var + 1e-5), round 6
+          pass
+    guidance_md: |
+      - Tính `mean` và `var` (chia cho `n`, không phải `n - 1`).
+      - `eps = 1e-5` nằm **trong** căn bậc hai.
+    hints:
+      - level: nudge
+        md: "Cần mean và variance của cả vector trước khi chuẩn hoá từng phần tử."
+      - level: approach
+        md: "`var = sum((x - mean) ** 2 for x in xs) / n`; `denom = math.sqrt(var + 1e-5)`."
+      - level: near_solution
+        md: "`return [round((x - mean) / denom, 6) for x in xs]`."
+    tests:
+      - {args: [[1.0, 2.0, 3.0]], expected: [-1.224736, 0.0, 1.224736]}
+      - {args: [[5.0, 5.0]], expected: [0.0, 0.0]}
+      - {args: [[0.0, 4.0]], expected: [-0.999999, 0.999999]}
+      - {args: [[2.0, 4.0, 6.0, 8.0]], expected: [-1.341639, -0.447213, 0.447213, 1.341639]}
+    solution: |
+      import math
+
+
+      def layer_norm(xs):
+          n = len(xs)
+          mean = sum(xs) / n
+          var = sum((x - mean) ** 2 for x in xs) / n
+          denom = math.sqrt(var + 1e-5)
+          return [round((x - mean) / denom, 6) for x in xs]
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Trong công thức LayerNorm, hằng nhỏ `eps` được cộng vào ___ trước khi lấy căn để tránh chia cho 0 (điền: variance hoặc mean)."
+    blanks: [{accept: ["variance", "phương sai", "var"]}]
+    explain_md: "Mẫu số là sqrt(var + eps); vector hằng có var = 0 nên cần eps."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Block Transformer = multi-head attention + FFN, mỗi phần bọc Add & Norm: LayerNorm(x + Sublayer(x)). Decoder thêm masked và cross-attention."
+      - "Attention không có thứ tự nên cộng positional encoding vào embedding."
+      - "Siêu tham số: d_model, số head (mỗi head d_model / h chiều), FFN hidden dim (thường 4 * d_model), N block."
+      - "LayerNorm chuẩn hoá từng vector: (x - mean) / sqrt(var + eps), giữ activation ổn định; pre-norm ổn định hơn post-norm khi rất sâu."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X712], l2: [X713], l3: [X714]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-06"

@@ -1,0 +1,46 @@
+subtopic_id: ml.nlp_transformers.transformer_architecture
+items:
+  - id: X712
+    difficulty: 1
+    type: read_code
+    minutes: 3
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng.
+    code: |-
+      xs = [1, 3, 5, 7]
+      mean = sum(xs) / len(xs)
+      var = sum((x - mean) ** 2 for x in xs) / len(xs)
+      sub = [0, 1, 0, 1]
+      out = [x + s for x, s in zip(xs, sub)]
+      print(mean)
+      print(var)
+      print(out)
+    expected_output: "4.0\n5.0\n[1, 4, 5, 8]"
+    answer_md: "mean = 16 / 4 = 4.0. var = (9 + 1 + 1 + 9) / 4 = 5.0. Residual add cộng từng cặp: [1+0, 3+1, 5+0, 7+1] = [1, 4, 5, 8]."
+    rubric_md: "Output khớp từng dòng. Đúng: bằng chứng điểm 1; sai: tối đa điểm 0."
+  - id: X713
+    difficulty: 2
+    type: write_code
+    minutes: 6
+    prompt_md: |
+      Viết hàm `layer_norm(xs)` nhận list số thực không rỗng và trả list đã chuẩn hoá LayerNorm: `mean = sum(xs) / n`, `var = sum((x - mean) ** 2) / n` (population variance), `out = (x - mean) / sqrt(var + 1e-5)`, mỗi phần tử làm tròn 6 chữ số. Vector hằng cho toàn `0.0`. Ví dụ `[1.0, 2.0, 3.0]` cho `[-1.224736, 0.0, 1.224736]`.
+    problem_id: check-x713-layernorm
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 6 phút: bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X714
+    difficulty: 3
+    type: read_code
+    minutes: 5
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng và giải thích vì sao LayerNorm giúp huấn luyện ổn định.
+    code: |-
+      import math
+
+      xs = [2, 4, 4, 4, 5, 5, 7, 9]
+      n = len(xs)
+      mean = sum(xs) / n
+      std = math.sqrt(sum((x - mean) ** 2 for x in xs) / n)
+      z = [(x - mean) / std for x in xs]
+      print(z)
+      print(sum(z))
+      print(sum(v * v for v in z) / n)
+    expected_output: "[-1.5, -0.5, -0.5, -0.5, 0.0, 0.0, 1.0, 2.0]\n0.0\n1.0"
+    answer_md: "mean = 40 / 8 = 5.0; var = (9+1+1+1+0+0+4+16) / 8 = 4.0 nên std = 2.0. z = (x - 5) / 2 = [-1.5, -0.5, -0.5, -0.5, 0.0, 0.0, 1.0, 2.0]. Tổng z = 0.0 (mean 0) và trung bình bình phương = 1.0 (variance 1). LayerNorm ép mỗi vector token về mean 0, variance 1 nên độ lớn activation không phình hay co qua nhiều block, gradient ổn định và huấn luyện nhanh, ổn định hơn."
+    rubric_md: "Output khớp từng dòng VÀ giải thích đúng: chuẩn hoá về mean 0 / variance 1 giữ scale activation ổn định qua các block. Đúng: bằng chứng điểm 3; sai: tối đa điểm 2."
