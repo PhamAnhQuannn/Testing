@@ -241,6 +241,11 @@ EXTRA_IDS = {
     "cs.sql.window_functions",
     "cs.sql.dml_ddl",
     "cs.sql.classic_puzzles",
+    # Wave 7 Round 43: cs.databases A (concept, opens cs.databases).
+    "cs.databases.relational_basics",
+    "cs.databases.normalization",
+    "cs.databases.indexing_btree",
+    "cs.databases.transactions_acid",
 }
 
 # Expected shipped counts, asserted so an upstream tree edit can't silently change the snapshot.
@@ -248,7 +253,7 @@ PLAN_MVP_COUNT = 40
 EXPECTED_SD = 86
 EXPECTED_ML4 = 39
 EXPECTED_EXTRA_IDS = len(EXTRA_IDS)  # Wave 2 additions
-EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 333
+EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 337
 
 # Node fields the app uses (SPEC 4.2); optional ones are skipped when a node lacks them.
 NODE_FIELDS = [

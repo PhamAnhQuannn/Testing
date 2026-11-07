@@ -1,0 +1,63 @@
+subtopic_id: cs.databases.transactions_acid
+items:
+  - id: X804
+    difficulty: 1
+    type: read_code
+    minutes: 3
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng.
+    code: |-
+      store = {"a": 10, "b": 20}
+      snap = dict(store)
+      store["a"] = 99
+      store["c"] = 5
+      print(store)
+      store = snap
+      print(store)
+      store["b"] = 21
+      print(sorted(store.items()))
+    expected_output: "{'a': 99, 'b': 20, 'c': 5}\n{'a': 10, 'b': 20}\n[('a', 10), ('b', 21)]"
+    answer_md: "Sau BEGIN (snap) ta sửa a và thêm c, nên dòng 1 có a = 99 và c. `store = snap` mô phỏng ROLLBACK: trở về a = 10, b = 20 và c biến mất. Sau đó b được sửa thành 21 trên trạng thái đã rollback."
+    rubric_md: "Output khớp từng dòng. Đúng: bằng chứng điểm 1; sai: tối đa điểm 0."
+  - id: X805
+    difficulty: 2
+    type: write_code
+    minutes: 6
+    prompt_md: |
+      Viết hàm `apply_tx(ops)` mô phỏng kho key-value có transaction (không lồng nhau). `ops` là list thao tác áp dụng theo thứ tự, mỗi thao tác là một trong: `["set", key, value]` (key là chuỗi, value là số nguyên), `["begin"]`, `["commit"]`, `["rollback"]`. `set` ghi vào kho đã chốt nếu không có transaction mở, ngược lại ghi vào bản làm việc của transaction. `begin` chụp trạng thái đã chốt thành bản làm việc; `commit` chép bản làm việc vào kho đã chốt; `rollback` bỏ bản làm việc. `begin` khi đã có transaction mở, hoặc `commit`/`rollback` khi không có transaction mở, là no-op. Cuối cùng trả về kho ĐÃ CHỐT dưới dạng list các cặp `[key, value]` (mỗi cặp là list) sắp xếp theo key; rỗng thì trả `[]`. Ví dụ `[["set","a",1],["begin"],["set","a",9],["set","b",2],["rollback"],["set","c",3]]` cho `[["a", 1], ["c", 3]]`.
+    problem_id: check-x805-apply-tx
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 6 phút: bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X806
+    difficulty: 3
+    type: read_code
+    minutes: 5
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng và giải thích vì sao phiên bản `safe` giữ được atomicity còn `naive` thì không.
+    code: |-
+      def naive(acc, frm, to, amt):
+          acc[frm] -= amt
+          acc[to] += amt
+
+
+      def safe(acc, frm, to, amt):
+          work = dict(acc)
+          work[frm] -= amt
+          work[to] += amt
+          acc.update(work)
+
+
+      a = {"a": 50, "b": 10}
+      b = {"a": 50, "b": 10}
+      try:
+          naive(a, "a", "zz", 20)
+      except KeyError:
+          pass
+      try:
+          safe(b, "a", "zz", 20)
+      except KeyError as e:
+          print("error", e)
+      print(a)
+      print(b)
+      safe(b, "a", "b", 20)
+      print(b)
+    expected_output: "error 'zz'\n{'a': 30, 'b': 10}\n{'a': 50, 'b': 10}\n{'a': 30, 'b': 30}"
+    answer_md: "`naive` sửa trực tiếp dict: chân 1 trừ a xuống 30 đã xảy ra rồi chân 2 mới gặp KeyError, nên 20 đồng biến mất (trạng thái nửa chừng, vi phạm atomicity). `safe` làm trên bản sao `work`; lỗi xảy ra trước `acc.update(work)` nên bản gốc không bị đụng (rollback ngầm). Lần gọi hợp lệ sau đó commit cả hai chân: a = 30, b = 30."
+    rubric_md: "Output khớp từng dòng VÀ giải thích đúng: naive sửa tại chỗ nên lỗi ở chân 2 để lại chân 1 đã áp dụng (mất tiền); safe làm trên bản sao và chỉ ghi vào bản thật sau khi mọi chân thành công. Đúng: bằng chứng điểm 3; sai: tối đa điểm 2."

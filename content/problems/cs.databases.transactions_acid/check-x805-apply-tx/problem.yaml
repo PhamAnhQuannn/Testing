@@ -1,0 +1,72 @@
+id: check-x805-apply-tx
+subtopic_id: cs.databases.transactions_acid
+secondary_subtopics: []
+kind: check
+title: 'Check X805: apply transaction ops'
+title_vi: 'Kiểm tra X805: áp dụng chuỗi thao tác transaction'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Implement `apply_tx(ops)`, a tiny key-value store with single-level transactions. `ops` is a list applied in
+  order; each op is one of `["set", key, value]` (string key, int value), `["begin"]`, `["commit"]`,
+  `["rollback"]`. A `set` outside any transaction writes straight to the committed store; after `begin` it writes
+  to a working copy. `begin` snapshots the committed store into a working copy, `commit` copies the working copy
+  into the committed store, `rollback` discards it. `begin` while a transaction is open, or `commit`/`rollback`
+  with no open transaction, is a no-op. After all ops return the **committed** store as a list of `[key, value]`
+  lists sorted by key (`[]` if empty). A transaction left open at the end is never committed.
+  For `[["set","a",1],["begin"],["set","a",9],["set","b",2],["rollback"],["set","c",3]]` the result is
+  `[["a", 1], ["c", 3]]`.
+statement_vi_md: |
+  Cài `apply_tx(ops)`, một kho key-value nhỏ có transaction một cấp. `ops` là list thao tác áp dụng theo thứ tự,
+  mỗi thao tác là `["set", key, value]` (key chuỗi, value số nguyên), `["begin"]`, `["commit"]` hoặc
+  `["rollback"]`. `set` ngoài transaction ghi thẳng vào kho đã chốt; sau `begin` thì ghi vào bản làm việc.
+  `begin` chụp kho đã chốt thành bản làm việc, `commit` chép bản làm việc vào kho đã chốt, `rollback` bỏ bản làm
+  việc. `begin` khi đã có transaction mở, hoặc `commit`/`rollback` khi không có transaction mở, là no-op. Cuối
+  cùng trả về kho **đã chốt** dưới dạng list các list `[key, value]` sắp theo key (rỗng thì `[]`). Transaction còn
+  mở ở cuối không bao giờ được chốt. Với ví dụ trên kết quả là `[["a", 1], ["c", 3]]`.
+constraints:
+- 'Mỗi thao tác là list: ["set", key, value], ["begin"], ["commit"] hoặc ["rollback"]'
+- 'Transaction không lồng nhau; begin/commit/rollback sai ngữ cảnh là no-op'
+- 'Chỉ dùng thư viện chuẩn của Python'
+examples:
+- input: 'ops = [["set","a",1],["begin"],["set","a",9],["set","b",2],["rollback"],["set","c",3]]'
+  output: '[["a", 1], ["c", 3]]'
+  explain_vi: 'rollback bỏ a = 9 và b = 2; a = 1 giữ nguyên, c = 3 được ghi sau khi transaction đã đóng.'
+io:
+  mode: function
+  entry: apply_tx
+  params:
+  - name: ops
+    type: list
+  returns: list
+  compare: exact
+starter:
+  python: |
+    def apply_tx(ops):
+        # TODO: giữ committed dict, bản làm việc (khi có transaction mở), xử lý từng op, trả list [key, value] đã sắp xếp
+        pass
+time_target_min: 6
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+hints:
+- "Giữ hai dict: `committed` và `working`, cùng cờ `in_tx` cho biết có transaction mở không."
+- "`begin` (khi chưa mở): `working = dict(committed)`; `set` ghi vào `working` nếu `in_tx`, ngược lại vào `committed`."
+- "`commit` thì `committed = working`, `rollback` thì bỏ `working` (cả hai chỉ khi `in_tx`); cuối cùng trả `[[k, v] for k, v in sorted(committed.items())]`."
+solution:
+  file: solution.py
+  approach_vi: Theo dõi dict đã chốt, dict làm việc và cờ in_tx; xử lý từng op theo quy tắc, cuối cùng sắp xếp kho đã chốt thành list cặp.
+  complexity: "O(n) / O(n)"
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x805
+status: validated
+version: 1

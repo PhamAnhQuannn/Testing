@@ -1,0 +1,43 @@
+subtopic_id: cs.databases.indexing_btree
+items:
+  - id: X801
+    difficulty: 1
+    type: read_code
+    minutes: 3
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng.
+    code: |-
+      import bisect
+      keys = [10, 20, 30, 40, 50]
+      print(bisect.bisect_left(keys, 30))
+      print(bisect.bisect_left(keys, 35))
+      print(bisect.bisect_left(keys, 5))
+      print(bisect.bisect_left(keys, 60))
+      print(35 in keys)
+    expected_output: "2\n3\n0\n5\nFalse"
+    answer_md: "bisect_left trả điểm chèn bên trái trong list đã sắp xếp (tìm nhị phân O(log n), như index). 30 ở chỉ số 2; 35 vắng nên điểm chèn là 3; 5 nhỏ hơn mọi khoá nên 0; 60 lớn hơn mọi khoá nên 5 (bằng độ dài). `35 in keys` là False."
+    rubric_md: "Output khớp từng dòng. Đúng: bằng chứng điểm 1; sai: tối đa điểm 0."
+  - id: X802
+    difficulty: 2
+    type: write_code
+    minutes: 6
+    prompt_md: |
+      Viết hàm `index_lookup(sorted_keys, targets)` mô phỏng tra cứu điểm trên index. `sorted_keys` là list số nguyên **tăng ngặt** (không trùng); `targets` là list các giá trị cần tìm. Với mỗi target hãy dùng **tìm kiếm nhị phân** và trả về vị trí (chỉ số từ 0) trong `sorted_keys`, hoặc `-1` nếu không có. Trả về list vị trí theo đúng thứ tự `targets`. Ví dụ `sorted_keys = [10, 20, 30, 40]`, `targets = [30, 25, 10]` cho `[2, -1, 0]`. `targets` rỗng cho `[]`.
+    problem_id: check-x802-index-lookup
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 6 phút: bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X803
+    difficulty: 3
+    type: read_code
+    minutes: 5
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng và giải thích vì sao index trên (a, b) giúp tìm theo a nhưng không giúp tìm theo b riêng (quy tắc leftmost prefix).
+    code: |-
+      import bisect
+      idx = [(1, 5), (1, 9), (2, 3), (2, 7), (3, 5)]
+      lo = bisect.bisect_left(idx, (2,))
+      hi = bisect.bisect_left(idx, (3,))
+      print(idx[lo:hi])
+      print(bisect.bisect_left(idx, (2, 7)))
+      print([r for r in idx if r[1] == 5])
+      print(bisect.bisect_left(idx, (5,)))
+    expected_output: "[(2, 3), (2, 7)]\n3\n[(1, 5), (3, 5)]\n5"
+    answer_md: "idx được sắp theo a rồi mới theo b, như index (a, b). Tuple (2,) nhỏ hơn mọi (2, x) nên bisect tìm được đoạn a = 2 là chỉ số 2 tới 4, in `[(2, 3), (2, 7)]`. `(2, 7)` ở chỉ số 3. Tìm theo b = 5 không dùng được thứ tự nên phải quét toàn list (full scan) và ra `[(1, 5), (3, 5)]`. Bisect với `(5,)` cho 5 (cuối list) dù có dòng b = 5, chứng tỏ b không có thứ tự toàn cục nên tìm nhị phân theo b vô nghĩa."
+    rubric_md: "Output khớp từng dòng VÀ giải thích đúng: index (a, b) sắp theo a trước nên chỉ tiền tố bên trái (a hoặc a, b) tìm nhị phân được; chỉ có b thì phải quét toàn bộ. Đúng: bằng chứng điểm 3; sai: tối đa điểm 2."

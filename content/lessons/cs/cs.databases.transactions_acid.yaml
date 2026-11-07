@@ -1,0 +1,165 @@
+id: cs.databases.transactions_acid
+version: 1
+status: published
+title_vi: "Giao dịch và ACID (transactions)"
+est_minutes: 15
+objectives_vi:
+  - "Định nghĩa transaction và phân biệt COMMIT với ROLLBACK."
+  - "Giải thích từng chữ trong ACID (Atomicity, Consistency, Isolation, Durability) bằng ví dụ chuyển tiền."
+  - "Mô tả ý tưởng write-ahead log (WAL) và vì sao nó giúp durability và atomicity."
+  - "Mô phỏng tính atomic: hoặc áp dụng cả hai chân của giao dịch, hoặc không đổi gì."
+blocks:
+  - id: s_model
+    type: section
+    title_vi: "Transaction và bốn cam kết ACID"
+    summary_vi: "Transaction gộp nhiều thao tác thành một khối tất cả hoặc không gì cả; ACID là bốn cam kết của database."
+  - id: t01
+    type: text
+    md: |
+      **Transaction** (giao dịch) là một nhóm thao tác mà database coi như **một đơn vị không chia cắt**.
+      Bắt đầu bằng `BEGIN`, kết thúc bằng một trong hai:
+
+      - `COMMIT`: chốt, mọi thay đổi trở thành vĩnh viễn và người khác nhìn thấy.
+      - `ROLLBACK`: hủy hết, dữ liệu trở về đúng như trước `BEGIN`.
+
+      Ví dụ kinh điển là **chuyển tiền** 100 từ A sang B. Hai lệnh `UPDATE` phải đi cùng nhau:
+
+      ```text
+      BEGIN;
+      UPDATE accounts SET balance = balance - 100 WHERE name = 'A';
+      UPDATE accounts SET balance = balance + 100 WHERE name = 'B';
+      COMMIT;          -- hoặc ROLLBACK; nếu có gì sai
+      ```
+
+      Nếu máy sập giữa hai lệnh mà không có transaction, 100 đồng biến mất: A đã bị trừ nhưng B chưa được cộng.
+
+      **ACID** là bốn cam kết để chuyện đó không xảy ra:
+
+      - **Atomicity** (trọn vẹn): hoặc cả giao dịch xong, hoặc coi như chưa làm gì. Không có trạng thái "xong một nửa".
+      - **Consistency** (đúng luật): sau giao dịch, dữ liệu vẫn thỏa các ràng buộc (số dư không âm, khóa ngoại hợp lệ). Giao dịch vi phạm luật bị hủy.
+      - **Isolation** (không giẫm nhau): nhiều giao dịch chạy cùng lúc không làm hỏng kết quả của nhau. Mức độ cách ly (isolation level) là một chủ đề riêng ở node kế tiếp.
+      - **Durability** (đã lưu là không mất): đã `COMMIT` thì mất điện hay crash cũng không mất dữ liệu.
+
+      Lưu ý: Atomicity nói về "tất cả hoặc không gì", còn Consistency là luật nghiệp vụ; hai khái niệm này hay bị nhầm.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Máy chủ sập sau khi trừ tiền A nhưng trước khi cộng tiền B (chưa COMMIT). Cam kết nào của ACID đảm bảo khi khởi động lại A vẫn còn đủ tiền?"
+    options:
+      - {id: a, text_md: "Atomicity: giao dịch chưa COMMIT bị hủy hoàn toàn"}
+      - {id: b, text_md: "Durability: dữ liệu luôn được lưu"}
+      - {id: c, text_md: "Isolation: các giao dịch không thấy nhau"}
+    answer: [a]
+    explain_md: "Giao dịch chưa chốt thì phải coi như chưa làm gì (Atomicity). Durability chỉ áp dụng cho giao dịch đã COMMIT."
+  - id: t02
+    type: text
+    md: |
+      **Write-ahead log (WAL)** là cách database làm được Atomicity và Durability: trước khi sửa dữ liệu thật,
+      nó **ghi ý định vào nhật ký** (log) trên đĩa, theo thứ tự.
+
+      ```text
+      1. Ghi vào log: "T1: A 500 -> 400", "T1: B 100 -> 200"
+      2. Ghi vào log: "T1 COMMIT"  (flush xuống đĩa)  -> từ đây trả lời "đã chốt" cho client
+      3. Sau đó mới (có thể chậm hơn) sửa các trang dữ liệu thật
+      ```
+
+      Khi khởi động lại sau crash, database đọc log:
+
+      - Giao dịch **có** `COMMIT` trong log: **redo** (làm lại) những thay đổi chưa kịp ghi vào dữ liệu thật, nên không mất (Durability).
+      - Giao dịch **không có** `COMMIT`: **undo** (hoàn tác) những gì đã lỡ ghi, nên không để lại nửa chừng (Atomicity).
+
+      Ghi log tuần tự rẻ hơn nhiều so với ghi rải rác vào các trang dữ liệu, nên WAL vừa an toàn vừa nhanh.
+  - id: q02
+    type: predict_output
+    code: |
+      store = {"a": 10, "b": 20}
+      snapshot = dict(store)
+      store["a"] = 99
+      store = snapshot
+      print(store)
+    expected_output: |
+      {'a': 10, 'b': 20}
+    explain_md: "Gán lại store = snapshot mô phỏng ROLLBACK: mọi thay đổi sau lúc chụp snapshot bị bỏ."
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Cam kết nào của ACID được WAL bảo vệ khi mất điện NGAY SAU một COMMIT thành công?"
+    options:
+      - {id: a, text_md: "Durability: log đã flush nên redo được"}
+      - {id: b, text_md: "Isolation: log tách các giao dịch"}
+      - {id: c, text_md: "Consistency: log kiểm tra ràng buộc"}
+    answer: [a]
+    explain_md: "COMMIT chỉ được báo thành công sau khi log đã xuống đĩa; khi khởi động lại database redo từ log nên dữ liệu đã chốt không mất."
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: chuyển tiền atomic"
+    summary_vi: "Mô phỏng một giao dịch chuyển tiền: hoặc áp dụng cả hai chân, hoặc giữ nguyên số dư."
+    exercise_ref: ex_transfer
+  - id: t03
+    type: text
+    md: |
+      Mô hình đơn giản của một giao dịch trong Python: làm việc trên **bản sao**, chỉ khi mọi bước hợp lệ mới
+      ghi đè bản thật (commit); gặp lỗi thì vứt bản sao (rollback).
+
+      ```text
+      work = dict(balances)        # BEGIN: chụp snapshot
+      work[frm] -= amt             # chân 1
+      work[to] += amt              # chân 2
+      if work[frm] < 0:            # vi phạm luật số dư không âm
+          return balances          # ROLLBACK: bỏ bản sao
+      return work                  # COMMIT
+      ```
+  - id: ex_transfer
+    type: code_exercise
+    md: |
+      Cài `transfer(balances, frm, to, amt)`. `balances` là dict tên tài khoản sang số dư (số nguyên), `frm` và `to`
+      là hai tên khác nhau đều có trong dict, `amt` là số nguyên không âm. Nếu `balances[frm] < amt` thì giao dịch
+      **bị hủy** (atomic abort): trả về dict có nội dung **y hệt ban đầu**. Ngược lại trừ `amt` ở `frm` và cộng
+      `amt` ở `to`, rồi trả về dict mới. Không sửa dict đầu vào. Ví dụ `{"a": 100, "b": 50}`, `"a"`, `"b"`, `30`
+      cho `{"a": 70, "b": 80}`.
+    entry: transfer
+    starter: |
+      def transfer(balances, frm, to, amt):
+          # TODO: làm việc trên bản sao; hủy (trả bản gốc) nếu balances[frm] < amt, ngược lại áp dụng cả hai chân
+          pass
+    guidance_md: |
+      - Tạo `work = dict(balances)` rồi kiểm tra điều kiện trước khi sửa.
+      - Hủy thì trả `dict(balances)` (nội dung không đổi), commit thì trả `work`.
+    hints:
+      - level: nudge
+        md: "Chỉ cần so sánh `balances[frm]` với `amt` để biết giao dịch có hợp lệ không."
+      - level: approach
+        md: "Sao chép dict, nếu hợp lệ thì trừ ở frm và cộng ở to trên bản sao rồi trả bản sao."
+      - level: near_solution
+        md: "Khi số dư không đủ, trả `dict(balances)` mà không động vào gì cả."
+    tests:
+      - {args: [{"a": 100, "b": 50}, "a", "b", 30], expected: {"a": 70, "b": 80}}
+      - {args: [{"a": 10, "b": 0}, "a", "b", 30], expected: {"a": 10, "b": 0}}
+      - {args: [{"a": 30, "b": 0}, "a", "b", 30], expected: {"a": 0, "b": 30}}
+      - {args: [{"a": 5, "b": 5, "c": 9}, "b", "c", 5], expected: {"a": 5, "b": 0, "c": 14}}
+    solution: |
+      def transfer(balances, frm, to, amt):
+          work = dict(balances)
+          if work[frm] < amt:
+              return dict(balances)
+          work[frm] -= amt
+          work[to] += amt
+          return work
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Để hủy toàn bộ thay đổi của giao dịch đang mở và trở về trạng thái trước BEGIN, dùng lệnh ___."
+    blanks: [{accept: ["ROLLBACK", "rollback"]}]
+    explain_md: "ROLLBACK hủy mọi thay đổi chưa chốt; COMMIT thì ngược lại, chốt vĩnh viễn."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Transaction gộp nhiều thao tác thành một khối: BEGIN, rồi COMMIT (chốt) hoặc ROLLBACK (hủy hết)."
+      - "ACID: Atomicity (tất cả hoặc không gì), Consistency (thỏa ràng buộc), Isolation (giao dịch song song không phá nhau), Durability (đã COMMIT thì không mất)."
+      - "WAL ghi nhật ký trước khi sửa dữ liệu thật; khi khởi động lại thì redo giao dịch đã COMMIT và undo giao dịch chưa COMMIT."
+      - "Isolation level là chủ đề riêng ở node kế tiếp; mô phỏng atomic bằng cách làm trên bản sao rồi mới commit."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X804], l2: [X805], l3: [X806]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-07"

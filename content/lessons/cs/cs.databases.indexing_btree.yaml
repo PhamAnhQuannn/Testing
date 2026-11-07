@@ -1,0 +1,155 @@
+id: cs.databases.indexing_btree
+version: 1
+status: published
+title_vi: "Index, B-tree và thiết kế index (indexes)"
+est_minutes: 15
+objectives_vi:
+  - "Giải thích vì sao index đổi tra cứu O(n) thành O(log n) và cấu trúc B-tree / B+tree."
+  - "Phân biệt clustered index, secondary index và covering index."
+  - "Áp dụng quy tắc leftmost prefix cho composite index để chọn thứ tự cột."
+  - "Nêu đánh đổi (đọc nhanh, ghi chậm, tốn chỗ) và các trường hợp index không được dùng."
+blocks:
+  - id: s_model
+    type: section
+    title_vi: "Index và B-tree"
+    summary_vi: "Index là cấu trúc đã sắp xếp giúp nhảy tới dòng cần tìm thay vì quét cả bảng."
+  - id: t01
+    type: text
+    md: |
+      Không có index, `SELECT * FROM users WHERE id = 42` phải **quét toàn bảng** (full table scan): đọc
+      từng dòng, tốn **O(n)**. Index là một cấu trúc **đã sắp xếp theo khoá** trỏ tới dòng thật, nên tra cứu
+      chỉ tốn **O(log n)** giống tìm kiếm nhị phân.
+
+      **B-tree** là cây cân bằng nhiều nhánh: mỗi node là một trang đĩa chứa hàng trăm khoá, nên cây rất thấp.
+      Một bảng cả tỉ dòng thường chỉ cần 3 đến 4 lần đọc trang để tới đúng dòng.
+
+      ```text
+      B+tree (loại hầu hết database dùng):
+                    [ 30 | 60 ]                 <- node trong: chỉ chứa khoá để điều hướng
+                   /     |      \
+          [10 20] -> [30 40 50] -> [60 70 80]   <- node lá: chứa mọi khoá, nối nhau thành list
+      ```
+
+      Ở **B+tree**, dữ liệu (hoặc con trỏ tới dòng) chỉ nằm ở node lá và các lá được nối thành danh sách.
+      Vì vậy truy vấn khoảng như `WHERE age BETWEEN 20 AND 30` chỉ cần tìm lá đầu rồi đi ngang theo
+      liên kết, rất nhanh. Hash index chỉ giỏi so sánh bằng, không làm được khoảng hay ORDER BY.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Vì sao B+tree phù hợp với truy vấn khoảng (`BETWEEN`) hơn hash index?"
+    options:
+      - {id: a, text_md: "Khoá được sắp xếp và các node lá nối nhau, nên đi ngang từ lá đầu tới lá cuối"}
+      - {id: b, text_md: "B+tree không cần đọc đĩa"}
+      - {id: c, text_md: "B+tree luôn nhỏ hơn hash index"}
+    answer: [a]
+    explain_md: "Khoá trong B+tree có thứ tự và lá được nối thành list, nên tìm điểm bắt đầu rồi quét tuần tự. Hash không giữ thứ tự."
+  - id: t02
+    type: text
+    md: |
+      **Clustered index**: chính dữ liệu bảng được lưu theo thứ tự khoá (mỗi bảng chỉ có **một**, thường là
+      primary key; ví dụ InnoDB của MySQL). **Secondary index**: cấu trúc riêng, lá chứa khoá index cùng
+      primary key; tra xong phải nhảy thêm một bước về clustered index để lấy dòng.
+
+      **Composite index** trên `(a, b)` sắp xếp theo `a`, trong cùng `a` mới sắp theo `b`. Quy tắc
+      **leftmost prefix**: index chỉ giúp khi truy vấn dùng tiền tố bên trái của các cột.
+
+      ```text
+      INDEX (a, b)
+        WHERE a = 1                 -> dùng index
+        WHERE a = 1 AND b = 2       -> dùng index
+        WHERE b = 2                 -> KHÔNG dùng được (b không phải tiền tố)
+        WHERE a > 1 AND b = 2       -> chỉ cột a dùng để tìm; b lọc tiếp
+      ```
+
+      **Covering index**: index chứa đủ mọi cột truy vấn cần, nên database trả kết quả ngay từ index mà không
+      đọc bảng (`SELECT a, b FROM t WHERE a = 1` với `INDEX (a, b)`).
+
+      **Đánh đổi**: đọc nhanh hơn, nhưng mỗi `INSERT/UPDATE/DELETE` phải cập nhật mọi index (ghi chậm) và index
+      tốn dung lượng. Đừng đánh index bừa; chỉ đánh cho cột hay nằm trong WHERE, JOIN, ORDER BY.
+
+      **Khi index KHÔNG được dùng**: bọc cột trong hàm (`WHERE LOWER(name) = 'a'`), `LIKE '%abc'` (wildcard đầu),
+      so sánh ép kiểu ngầm, cột có độ chọn lọc thấp (ví dụ cột giới tính), hoặc bảng quá nhỏ khiến quét cả
+      bảng rẻ hơn. Dùng `EXPLAIN` để kiểm tra kế hoạch thực thi.
+  - id: q02
+    type: quiz_mcq
+    prompt_md: "Có `INDEX (a, b)`. Truy vấn nào KHÔNG tận dụng được index?"
+    options:
+      - {id: a, text_md: "`WHERE a = 1`"}
+      - {id: b, text_md: "`WHERE a = 1 AND b = 2`"}
+      - {id: c, text_md: "`WHERE b = 2`"}
+    answer: [c]
+    explain_md: "Theo leftmost prefix, index (a, b) cần bắt đầu từ a. Chỉ có b thì không dùng được tiền tố nào."
+  - id: q03
+    type: predict_output
+    code: |
+      import bisect
+      keys = [10, 20, 30, 40, 50]
+      print(bisect.bisect_left(keys, 30))
+      print(bisect.bisect_left(keys, 35))
+    expected_output: |
+      2
+      3
+    explain_md: "bisect_left trả vị trí chèn bên trái: 30 nằm ở chỉ số 2; 35 vắng mặt nên điểm chèn là chỉ số 3 (sau 30). Đây là tìm nhị phân O(log n) như index."
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: quét khoảng trên index"
+    summary_vi: "Dùng bisect để tìm hai đầu khoảng rồi cắt lát, như cách B+tree quét khoảng."
+    exercise_ref: ex_range_scan
+  - id: ex_range_scan
+    type: code_exercise
+    md: |
+      Cài `range_scan(sorted_keys, lo, hi)`. `sorted_keys` là list số nguyên đã sắp xếp tăng dần (có thể có
+      trùng). Trả về list các khoá `k` thoả `lo <= k <= hi`, theo thứ tự. Dùng `bisect` để tìm hai đầu
+      thay vì duyệt cả list. Nếu `lo > hi` trả list rỗng. Ví dụ `([1, 3, 5, 7, 9], 3, 7)` cho `[3, 5, 7]`.
+    entry: range_scan
+    starter: |
+      import bisect
+
+
+      def range_scan(sorted_keys, lo, hi):
+          # TODO: bisect_left cho lo, bisect_right cho hi, rồi cắt lát
+          pass
+    guidance_md: |
+      - `left = bisect.bisect_left(sorted_keys, lo)` là chỉ số khoá đầu tiên không nhỏ hơn lo.
+      - `right = bisect.bisect_right(sorted_keys, hi)` là chỉ số sau khoá cuối không lớn hơn hi.
+      - Kết quả là `sorted_keys[left:right]`; nếu left lớn hơn right thì lát cắt tự rỗng.
+    hints:
+      - level: nudge
+        md: "Hai đầu khoảng đều tìm được bằng tìm nhị phân, không cần vòng lặp qua mọi khoá."
+      - level: approach
+        md: "Dùng `bisect_left` cho cận dưới và `bisect_right` cho cận trên (bao gồm hi)."
+      - level: near_solution
+        md: "Trả về lát cắt `sorted_keys[left:right]`."
+    tests:
+      - {args: [[1, 3, 5, 7, 9], 3, 7], expected: [3, 5, 7]}
+      - {args: [[1, 3, 5, 7, 9], 4, 6], expected: [5]}
+      - {args: [[1, 3, 5], 6, 9], expected: []}
+      - {args: [[2, 4, 6], 0, 10], expected: [2, 4, 6]}
+      - {args: [[1, 2, 2, 3], 2, 2], expected: [2, 2]}
+    solution: |
+      import bisect
+
+
+      def range_scan(sorted_keys, lo, hi):
+          left = bisect.bisect_left(sorted_keys, lo)
+          right = bisect.bisect_right(sorted_keys, hi)
+          return sorted_keys[left:right]
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Index mà truy vấn lấy đủ cột từ chính index, không cần đọc bảng, gọi là ___ index."
+    blanks: [{accept: ["covering", "Covering"]}]
+    explain_md: "Covering index chứa mọi cột truy vấn cần nên bỏ được bước đọc bảng."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Index (thường là B+tree) đổi quét toàn bảng O(n) thành tra cứu O(log n) và hỗ trợ truy vấn khoảng, ORDER BY."
+      - "Clustered index quyết định thứ tự lưu dòng (chỉ một); secondary index trỏ về primary key; covering index tránh đọc bảng."
+      - "Composite index (a, b) theo leftmost prefix: dùng được cho a hoặc (a, b), không dùng được cho b riêng."
+      - "Đánh đổi: đọc nhanh, ghi chậm và tốn chỗ; hàm bọc cột, LIKE '%x', độ chọn lọc thấp làm index vô dụng."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X801], l2: [X802], l3: [X803]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-07"
