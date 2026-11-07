@@ -1,0 +1,184 @@
+id: cs.sql.joins
+version: 1
+status: published
+title_vi: "Phép nối (JOIN)"
+est_minutes: 15
+objectives_vi:
+  - "Viết INNER JOIN ... ON để ghép hai bảng theo khoá chung và dùng alias bảng."
+  - "Giải thích LEFT JOIN giữ mọi dòng bảng trái và điền NULL khi không có dòng khớp."
+  - "Kết hợp JOIN với WHERE và GROUP BY, và nối nhiều bảng bằng nhiều mệnh đề JOIN."
+  - "Nhận ra CROSS JOIN và join sai điều kiện làm số dòng tăng bất ngờ."
+blocks:
+  - id: s_model
+    type: section
+    title_vi: "INNER JOIN, LEFT JOIN và khoá nối"
+    summary_vi: "JOIN ghép dòng của hai bảng theo điều kiện ON; INNER bỏ dòng không khớp, LEFT giữ lại với NULL."
+  - id: t01
+    type: text
+    md: |
+      Dữ liệu thật thường nằm ở nhiều bảng. Bảng `orders` chỉ lưu `customer_id`, còn tên khách nằm ở bảng
+      `customers`. **JOIN** ghép hai bảng theo một **khoá nối**: cột `orders.customer_id` là **foreign key**
+      trỏ tới **primary key** `customers.customer_id`.
+
+      ```text
+      SELECT o.order_id, c.name, o.amount
+      FROM orders o
+      JOIN customers c ON o.customer_id = c.customer_id
+      ORDER BY o.order_id;
+      ```
+
+      `o` và `c` là **alias** (tên ngắn cho bảng) để tránh gõ lại tên dài và phân biệt hai cột cùng tên
+      `customer_id`. `JOIN` đứng một mình nghĩa là **INNER JOIN**: chỉ giữ cặp dòng thoả `ON`. Đơn hàng có
+      `customer_id` không tồn tại ở `customers` sẽ **bị loại**.
+
+      **LEFT JOIN** giữ **mọi** dòng của bảng bên trái. Dòng nào không có dòng khớp bên phải vẫn xuất hiện, các cột
+      của bảng phải là **NULL**.
+
+      ```text
+      SELECT o.order_id, c.name
+      FROM orders o
+      LEFT JOIN customers c ON o.customer_id = c.customer_id;
+      -- đơn của khách 99 (không có trong customers) -> (3, NULL)
+      ```
+
+      Mẹo tìm "chưa có": `LEFT JOIN ... WHERE c.customer_id IS NULL` cho các đơn không có khách tương ứng.
+      Đừng viết `= NULL`, phải dùng `IS NULL`.
+
+      **JOIN + WHERE / GROUP BY.** `WHERE` lọc sau khi ghép, `GROUP BY` gom nhóm trên kết quả đã ghép:
+
+      ```text
+      SELECT c.name, SUM(o.amount) AS total
+      FROM orders o JOIN customers c ON o.customer_id = c.customer_id
+      WHERE o.amount > 0
+      GROUP BY c.name;
+      ```
+
+      **Nhiều bảng:** nối tiếp từng bước, `FROM a JOIN b ON ... JOIN c ON ...`. **CROSS JOIN** không có điều kiện,
+      cho mọi cặp (n x m dòng); quên `ON` hoặc nối sai cột cũng gây ra kết quả nhân dòng. Nếu khoá bên phải bị
+      trùng (hai khách cùng `customer_id`), mỗi đơn sẽ xuất hiện nhiều lần.
+
+      Trong Python, `sqlite3` chạy các câu này y nguyên: `cur.execute(sql)` rồi `cur.fetchall()` trả list các tuple.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Bảng `orders` có đơn của khách 99 nhưng `customers` không có khách 99. Với `orders o JOIN customers c ON ...` (INNER), đơn đó xuất hiện thế nào?"
+    options:
+      - {id: a, text_md: "Bị loại khỏi kết quả"}
+      - {id: b, text_md: "Xuất hiện với `name` là NULL"}
+      - {id: c, text_md: "Gây lỗi truy vấn"}
+    answer: [a]
+    explain_md: "INNER JOIN chỉ giữ cặp dòng thoả điều kiện ON. Muốn giữ đơn với NULL, dùng LEFT JOIN."
+  - id: q02
+    type: predict_output
+    code: |
+      customers = {10: "an", 20: "binh"}
+      orders = [(1, 10), (2, 99), (3, 20)]
+      inner = [(o, customers[c]) for o, c in orders if c in customers]
+      left = [(o, customers.get(c)) for o, c in orders]
+      print(inner)
+      print(left)
+    expected_output: |
+      [(1, 'an'), (3, 'binh')]
+      [(1, 'an'), (2, None), (3, 'binh')]
+    explain_md: "`inner` bỏ đơn 2 (khách 99 không có); `left` giữ đơn 2 với None, giống NULL trong SQL."
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Cách nào đúng để tìm các đơn không có khách tương ứng?"
+    options:
+      - {id: a, text_md: "`FROM orders o LEFT JOIN customers c ON o.customer_id = c.customer_id WHERE c.customer_id IS NULL`"}
+      - {id: b, text_md: "`FROM orders o JOIN customers c ON o.customer_id = c.customer_id WHERE c.customer_id = NULL`"}
+      - {id: c, text_md: "`FROM orders o CROSS JOIN customers c`"}
+    answer: [a]
+    explain_md: "LEFT JOIN giữ các đơn không khớp với cột bên phải là NULL, rồi lọc bằng IS NULL. `= NULL` không bao giờ đúng, và INNER JOIN đã loại sẵn các đơn đó."
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: INNER JOIN với sqlite3"
+    summary_vi: "Ghép user với tên thành phố bằng JOIN thật trong sqlite3 bộ nhớ."
+    exercise_ref: ex_join
+  - id: t02
+    type: text
+    md: |
+      Mẫu làm việc với hai bảng trong `sqlite3`:
+
+      ```text
+      con = sqlite3.connect(":memory:")
+      cur = con.cursor()
+      cur.execute("CREATE TABLE a (id INTEGER, name TEXT)")
+      cur.execute("CREATE TABLE b (id INTEGER, tag TEXT)")
+      cur.executemany("INSERT INTO a VALUES (?, ?)", rows_a)
+      cur.executemany("INSERT INTO b VALUES (?, ?)", rows_b)
+      cur.execute("SELECT a.name, b.tag FROM a JOIN b ON a.id = b.id ORDER BY a.name")
+      result = [list(r) for r in cur.fetchall()]
+      ```
+
+      Nhớ: `executemany` cần list các tuple/list có đúng số cột, và `fetchall()` trả tuple nên đổi sang list nếu cần
+      so sánh. Luôn thêm `ORDER BY` vì thứ tự dòng của JOIN không được đảm bảo.
+  - id: ex_join
+    type: code_exercise
+    md: |
+      Cài `user_cities(users, cities)`. `users` là list `[user_id, name, city_id]`, `cities` là list
+      `[city_id, city_name]`. Dùng `sqlite3` trong bộ nhớ: tạo bảng `users` và `cities`, chèn bằng câu SQL tham số
+      hoá, rồi INNER JOIN theo `city_id`, chọn `u.name, c.city_name`, sắp theo `u.name` tăng dần. Trả về list
+      các cặp `[name, city_name]` (mỗi cặp là list). User có `city_id` không tồn tại bị loại. Ví dụ
+      `users = [[1, "an", 10], [2, "binh", 99]]`, `cities = [[10, "hanoi"]]` cho `[["an", "hanoi"]]`.
+    entry: user_cities
+    starter: |
+      import sqlite3
+
+
+      def user_cities(users, cities):
+          # TODO: tạo 2 bảng, executemany INSERT với ?, rồi SELECT ... JOIN ... ON ... ORDER BY u.name
+          pass
+    guidance_md: |
+      - `CREATE TABLE users (user_id INTEGER, name TEXT, city_id INTEGER)` và `CREATE TABLE cities (city_id INTEGER, city_name TEXT)`.
+      - `SELECT u.name, c.city_name FROM users u JOIN cities c ON u.city_id = c.city_id ORDER BY u.name`.
+      - Đổi mỗi tuple kết quả thành list.
+    hints:
+      - level: nudge
+        md: "Cần hai bảng và một mệnh đề `JOIN ... ON` so sánh hai cột `city_id`."
+      - level: approach
+        md: "Chèn cả hai bảng bằng `executemany`, rồi `SELECT u.name, c.city_name ... JOIN ... ORDER BY u.name`."
+      - level: near_solution
+        md: "`return [list(r) for r in cur.fetchall()]` sau khi chạy câu SELECT; nhớ `con.close()`."
+    tests:
+      - {args: [[[1, "an", 10], [2, "binh", 20]], [[10, "hanoi"], [20, "hue"]]], expected: [["an", "hanoi"], ["binh", "hue"]]}
+      - {args: [[[1, "an", 10], [2, "binh", 99]], [[10, "hanoi"]]], expected: [["an", "hanoi"]]}
+      - {args: [[], [[10, "hanoi"]]], expected: []}
+      - {args: [[[1, "cuong", 10], [2, "an", 10]], [[10, "hanoi"]]], expected: [["an", "hanoi"], ["cuong", "hanoi"]]}
+    solution: |
+      import sqlite3
+
+
+      def user_cities(users, cities):
+          con = sqlite3.connect(":memory:")
+          cur = con.cursor()
+          cur.execute("CREATE TABLE users (user_id INTEGER, name TEXT, city_id INTEGER)")
+          cur.execute("CREATE TABLE cities (city_id INTEGER, city_name TEXT)")
+          cur.executemany("INSERT INTO users VALUES (?, ?, ?)", users)
+          cur.executemany("INSERT INTO cities VALUES (?, ?)", cities)
+          cur.execute(
+              "SELECT u.name, c.city_name FROM users u "
+              "JOIN cities c ON u.city_id = c.city_id ORDER BY u.name"
+          )
+          result = [list(r) for r in cur.fetchall()]
+          con.close()
+          return result
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Để giữ mọi dòng bảng trái kể cả khi không khớp, dùng ___ JOIN (điền một từ)."
+    blanks: [{accept: ["LEFT", "left"]}]
+    explain_md: "LEFT JOIN giữ mọi dòng bảng trái; cột bảng phải là NULL khi không có dòng khớp."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "JOIN ghép hai bảng theo điều kiện ON, thường là foreign key bằng primary key; alias giúp viết ngắn và rõ."
+      - "INNER JOIN loại dòng không khớp; LEFT JOIN giữ mọi dòng bảng trái với NULL cho phần không khớp."
+      - "Tìm 'chưa có' bằng LEFT JOIN ... WHERE cột_phải IS NULL (không dùng = NULL)."
+      - "CROSS JOIN, thiếu ON hoặc khoá trùng làm số dòng nhân lên; luôn kiểm tra số dòng và thêm ORDER BY."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X780], l2: [X781], l3: [X782]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-07"

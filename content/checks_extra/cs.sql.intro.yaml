@@ -1,0 +1,37 @@
+subtopic_id: cs.sql.intro
+items:
+  - id: X771
+    difficulty: 1
+    type: read_code
+    minutes: 3
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng.
+    code: |-
+      rows = [{"name": "binh", "score": 5}, {"name": "an", "score": 8}, {"name": "chi", "score": 8}]
+      names = sorted([r["name"] for r in rows])
+      print(names)
+      print(len(rows))
+    expected_output: "['an', 'binh', 'chi']\n3"
+    answer_md: "Lấy cột name của mỗi dòng rồi sắp tăng dần (giống SELECT name ... ORDER BY name): an, binh, chi. Sắp xếp không làm mất dòng nào nên len(rows) vẫn là 3."
+    rubric_md: "Output khớp từng dòng. Đúng: bằng chứng điểm 1; sai: tối đa điểm 0."
+  - id: X772
+    difficulty: 2
+    type: write_code
+    minutes: 6
+    prompt_md: |
+      Viết hàm `select_all(rows)`. `rows` là list các bản ghi `[name, score]` (name là chuỗi, score là số nguyên). Dùng `sqlite3` trong bộ nhớ: tạo bảng `people(name TEXT, score INTEGER)`, chèn mọi dòng bằng `executemany` tham số hoá, rồi chạy `SELECT name, score FROM people ORDER BY score DESC, name ASC`. Trả về list các cặp `[name, score]`, mỗi cặp là list 2 phần tử (không phải tuple). Ví dụ `[["an", 8], ["binh", 5], ["chi", 8]]` cho `[["an", 8], ["chi", 8], ["binh", 5]]`; `[]` cho `[]`.
+    problem_id: check-x772-select-all
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 6 phút: bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X773
+    difficulty: 3
+    type: read_code
+    minutes: 5
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng và giải thích vì sao dòng thứ hai cho binh trước dung (liên hệ với ORDER BY khi hai dòng có cùng giá trị sắp xếp).
+    code: |-
+      rows = [("an", 8), ("binh", 5), ("chi", 9), ("dung", 5)]
+      top = sorted(rows, key=lambda r: -r[1])[:2]
+      print([name for name, point in top])
+      low = sorted(rows, key=lambda r: r[1])[:2]
+      print(low)
+    expected_output: "['chi', 'an']\n[('binh', 5), ('dung', 5)]"
+    answer_md: "Dòng 1: sắp điểm giảm dần (9, 8, 5, 5) rồi cắt 2 dòng đầu (như ORDER BY score DESC LIMIT 2) được chi, an. Dòng 2: sắp tăng dần, binh và dung cùng điểm 5; sorted giữ nguyên thứ tự ban đầu khi hòa nên binh đứng trước dung. Trong SQL, nếu chỉ ORDER BY score thì thứ tự giữa các dòng hòa không được đảm bảo, nên cần thêm cột phá hòa như name."
+    rubric_md: "Output khớp từng dòng VÀ giải thích đúng: các dòng cùng giá trị sắp xếp là hòa, cần cột phá hòa (ORDER BY score, name) mới có thứ tự xác định. Đúng: bằng chứng điểm 3; sai: tối đa điểm 2."

@@ -1,0 +1,171 @@
+id: cs.sql.aggregation
+version: 1
+status: published
+title_vi: "Gom nhóm: GROUP BY và HAVING (aggregation)"
+est_minutes: 15
+objectives_vi:
+  - "Dùng COUNT/SUM/AVG/MIN/MAX và COUNT(DISTINCT x) đúng, kể cả khi cột có NULL."
+  - "Viết GROUP BY để tính chỉ số cho từng nhóm và ORDER BY theo alias của hàm gom."
+  - "Phân biệt WHERE (lọc dòng trước khi gom) với HAVING (lọc nhóm sau khi gom)."
+  - "Chạy truy vấn gom nhóm bằng sqlite3 trong Python và đọc kết quả thành list."
+blocks:
+  - id: s_model
+    type: section
+    title_vi: "Hàm gom, GROUP BY và HAVING"
+    summary_vi: "Hàm gom nén nhiều dòng thành một giá trị; GROUP BY chia dòng thành nhóm; HAVING lọc nhóm."
+  - id: t01
+    type: text
+    md: |
+      **Hàm gom (aggregate)** nén nhiều dòng thành **một** giá trị: `COUNT`, `SUM`, `AVG`, `MIN`, `MAX`.
+      Giả sử bảng `sales(category, amount)`:
+
+      ```text
+      SELECT COUNT(*)        FROM sales;   -- số dòng (tính cả dòng có NULL)
+      SELECT COUNT(amount)   FROM sales;   -- chỉ đếm dòng amount KHÔNG NULL
+      SELECT COUNT(DISTINCT category) FROM sales;  -- số giá trị khác nhau
+      SELECT SUM(amount), AVG(amount), MIN(amount), MAX(amount) FROM sales;
+      ```
+
+      **NULL.** `SUM`, `AVG`, `MIN`, `MAX`, `COUNT(cột)` đều **bỏ qua NULL**; chỉ `COUNT(*)` đếm mọi dòng.
+      Vì vậy `AVG(amount)` = tổng chia cho số dòng **không NULL**, không phải số dòng tổng.
+
+      **GROUP BY** chia dòng thành nhóm theo giá trị cột, rồi hàm gom chạy riêng cho từng nhóm:
+
+      ```text
+      SELECT category, COUNT(*) AS n, SUM(amount) AS total
+      FROM sales
+      GROUP BY category
+      ORDER BY total DESC;      -- ORDER BY dùng được alias của hàm gom
+      ```
+
+      Quy tắc: mỗi cột trong `SELECT` hoặc nằm trong `GROUP BY`, hoặc nằm trong một hàm gom.
+
+      **WHERE và HAVING.** `WHERE` lọc **dòng** trước khi gom, nên không dùng được hàm gom. `HAVING` lọc **nhóm**
+      sau khi gom:
+
+      ```text
+      SELECT category, SUM(amount) AS total
+      FROM sales
+      WHERE amount > 0              -- bỏ dòng âm trước
+      GROUP BY category
+      HAVING SUM(amount) >= 100;    -- rồi chỉ giữ nhóm đủ lớn
+      ```
+
+      Thứ tự thực thi logic: FROM, WHERE, GROUP BY, HAVING, SELECT, ORDER BY. Lưu ý trong SQLite phép chia số
+      nguyên cho ra số nguyên, nhưng `AVG` luôn trả số thực (ví dụ AVG của 1 và 2 là 1.5).
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Muốn chỉ giữ các phòng ban có trên 5 nhân viên, điều kiện nào đúng?"
+    options:
+      - {id: a, text_md: "`GROUP BY dept HAVING COUNT(*) > 5`"}
+      - {id: b, text_md: "`WHERE COUNT(*) > 5 GROUP BY dept`"}
+      - {id: c, text_md: "`GROUP BY dept WHERE COUNT(*) > 5`"}
+    answer: [a]
+    explain_md: "Điều kiện trên kết quả của hàm gom phải đặt ở HAVING sau GROUP BY. WHERE chạy trước khi gom nên không dùng được COUNT(*)."
+  - id: q02
+    type: predict_output
+    code: |
+      rows = [("a", 3), ("b", 5), ("a", 4)]
+      total = {}
+      n = {}
+      for cat, amount in rows:
+          total[cat] = total.get(cat, 0) + amount
+          n[cat] = n.get(cat, 0) + 1
+      print(total)
+      print(n)
+    expected_output: |
+      {'a': 7, 'b': 5}
+      {'a': 2, 'b': 1}
+    explain_md: "Đây là GROUP BY category với SUM(amount) và COUNT(*): a = 3 + 4 = 7 gồm 2 dòng, b = 5 gồm 1 dòng."
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Cột `score` có các giá trị 4, NULL, 6. `AVG(score)` bằng bao nhiêu?"
+    options:
+      - {id: a, text_md: "5 (NULL bị bỏ qua: 10 / 2)"}
+      - {id: b, text_md: "3.33 (NULL tính như 0: 10 / 3)"}
+      - {id: c, text_md: "NULL (có NULL thì kết quả NULL)"}
+    answer: [a]
+    explain_md: "Hàm gom bỏ qua NULL, nên AVG = (4 + 6) / 2 = 5. COUNT(*) vẫn là 3 còn COUNT(score) là 2."
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: GROUP BY với sqlite3"
+    summary_vi: "Chèn bằng executemany, gom nhóm bằng GROUP BY, đọc kết quả thành list."
+    exercise_ref: ex_count_by
+  - id: t02
+    type: text
+    md: |
+      Mẫu chạy một truy vấn gom nhóm bằng `sqlite3` trong bộ nhớ:
+
+      ```text
+      con = sqlite3.connect(":memory:")
+      cur = con.cursor()
+      cur.execute("CREATE TABLE t (cat TEXT)")
+      cur.executemany("INSERT INTO t(cat) VALUES (?)", [(c,) for c in cats])
+      cur.execute("SELECT cat, COUNT(*) FROM t GROUP BY cat ORDER BY cat")
+      result = [list(r) for r in cur.fetchall()]
+      ```
+
+      `fetchall()` trả list các **tuple**; đổi thành list nếu cần so sánh với JSON. Không có `ORDER BY` thì thứ tự
+      nhóm không được đảm bảo, nên luôn thêm khi cần kết quả ổn định.
+  - id: ex_count_by
+    type: code_exercise
+    md: |
+      Cài `count_by(cats)`. `cats` là list chuỗi. Dùng `sqlite3` trong bộ nhớ: tạo bảng, chèn mọi chuỗi bằng câu SQL
+      tham số hoá, rồi chạy `SELECT cat, COUNT(*) ... GROUP BY cat ORDER BY cat`. Trả về list các cặp `[cat, n]`
+      (mỗi cặp là list). Ví dụ `["b", "a", "b"]` cho `[["a", 1], ["b", 2]]`.
+    entry: count_by
+    starter: |
+      import sqlite3
+
+
+      def count_by(cats):
+          # TODO: connect(":memory:"), CREATE TABLE, executemany INSERT với ?, rồi SELECT cat, COUNT(*) ... GROUP BY cat ORDER BY cat
+          pass
+    guidance_md: |
+      - `executemany("INSERT INTO t(cat) VALUES (?)", [(c,) for c in cats])`.
+      - `SELECT cat, COUNT(*) FROM t GROUP BY cat ORDER BY cat`, rồi `[list(r) for r in cur.fetchall()]`.
+    hints:
+      - level: nudge
+        md: "Dùng `sqlite3.connect(\":memory:\")` và truyền giá trị qua dấu `?`."
+      - level: approach
+        md: "Bảng một cột, `executemany` với list tuple một phần tử, rồi `GROUP BY cat` kèm `COUNT(*)`."
+      - level: near_solution
+        md: "Nhớ `ORDER BY cat` và đổi mỗi tuple thành list bằng `list(r)`."
+    tests:
+      - {args: [["b", "a", "b"]], expected: [["a", 1], ["b", 2]]}
+      - {args: [[]], expected: []}
+      - {args: [["x"]], expected: [["x", 1]]}
+      - {args: [["o'k", "o'k", "a"]], expected: [["a", 1], ["o'k", 2]]}
+    solution: |
+      import sqlite3
+
+
+      def count_by(cats):
+          con = sqlite3.connect(":memory:")
+          cur = con.cursor()
+          cur.execute("CREATE TABLE t (cat TEXT)")
+          cur.executemany("INSERT INTO t(cat) VALUES (?)", [(c,) for c in cats])
+          cur.execute("SELECT cat, COUNT(*) FROM t GROUP BY cat ORDER BY cat")
+          result = [list(r) for r in cur.fetchall()]
+          con.close()
+          return result
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Để lọc các nhóm sau khi đã gom (ví dụ chỉ giữ nhóm có tổng lớn hơn 10), dùng mệnh đề ___."
+    blanks: [{accept: ["HAVING", "having"]}]
+    explain_md: "HAVING lọc nhóm sau GROUP BY, còn WHERE lọc dòng trước khi gom."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "COUNT/SUM/AVG/MIN/MAX nén nhiều dòng thành một giá trị; chúng bỏ qua NULL (trừ COUNT(*))."
+      - "GROUP BY tính hàm gom riêng cho từng nhóm; cột trong SELECT phải nằm trong GROUP BY hoặc trong hàm gom."
+      - "WHERE lọc dòng trước khi gom, HAVING lọc nhóm sau khi gom; ORDER BY dùng được alias của hàm gom."
+      - "Dùng COUNT(DISTINCT x) để đếm giá trị khác nhau; luôn thêm ORDER BY khi cần thứ tự ổn định."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X777], l2: [X778], l3: [X779]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-07"

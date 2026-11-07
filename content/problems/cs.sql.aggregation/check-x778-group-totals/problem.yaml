@@ -1,0 +1,77 @@
+id: check-x778-group-totals
+subtopic_id: cs.sql.aggregation
+secondary_subtopics: []
+kind: check
+title: 'Check X778: group totals'
+title_vi: 'Kiểm tra X778: tổng theo nhóm với GROUP BY và HAVING'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Implement `group_totals(rows)`. `rows` is a list of `[category, amount]` records (category is a string, amount an
+  int). Using the standard-library `sqlite3` module with an in-memory database (`sqlite3.connect(":memory:")`),
+  create a table `sales(category TEXT, amount INTEGER)`, insert every row with a **parameterized** query
+  (`cur.executemany("INSERT INTO sales(category, amount) VALUES (?, ?)", rows)`), then run
+  `SELECT category, COUNT(*) AS n, SUM(amount) AS total FROM sales GROUP BY category HAVING SUM(amount) > 0 ORDER BY total DESC, category ASC`.
+  Return the result as a list of `[category, n, total]` triples, each a 3-element **list** (not a tuple), in that
+  order (total descending, category ascending to break ties). `HAVING` drops every group whose total is not positive.
+  For `rows = [["a", 3], ["b", 5], ["a", 4], ["b", -5]]` group a has n=2, total=7 and group b has total 0, so the
+  result is `[["a", 2, 7]]`; for `[]` the result is `[]`.
+statement_vi_md: |
+  Cài `group_totals(rows)`. `rows` là list các bản ghi `[category, amount]` (category là chuỗi, amount là số
+  nguyên). Dùng module `sqlite3` của thư viện chuẩn với database trong bộ nhớ (`sqlite3.connect(":memory:")`): tạo
+  bảng `sales(category TEXT, amount INTEGER)`, chèn mọi dòng bằng câu SQL tham số hoá
+  (`cur.executemany("INSERT INTO sales(category, amount) VALUES (?, ?)", rows)`), rồi chạy
+  `SELECT category, COUNT(*) AS n, SUM(amount) AS total FROM sales GROUP BY category HAVING SUM(amount) > 0 ORDER BY total DESC, category ASC`.
+  Trả về list các bộ ba `[category, n, total]`, mỗi bộ là **list** 3 phần tử (không phải tuple), theo đúng thứ tự đó
+  (tổng giảm dần, hòa thì category tăng dần). `HAVING` loại mọi nhóm có tổng không dương. Với
+  `rows = [["a", 3], ["b", 5], ["a", 4], ["b", -5]]` nhóm a có n=2, total=7 còn nhóm b có tổng 0 nên bị loại, kết quả
+  là `[["a", 2, 7]]`; với `[]` kết quả là `[]`.
+constraints:
+- 'Dùng sqlite3 trong bộ nhớ và truy vấn GROUP BY / HAVING / ORDER BY như đề; chèn bằng câu SQL tham số hoá (dấu ?)'
+- 'rows có thể rỗng (kết quả []); amount có thể âm hoặc bằng 0; tên category có thể chứa dấu nháy'
+- 'Mỗi phần tử kết quả phải là list [category, n, total], không phải tuple'
+examples:
+- input: 'rows = [["a", 3], ["b", 5], ["a", 4], ["b", -5]]'
+  output: '[["a", 2, 7]]'
+  explain_vi: 'a = 3 + 4 = 7 (2 dòng); b = 5 - 5 = 0 nên HAVING SUM(amount) > 0 loại nhóm b.'
+io:
+  mode: function
+  entry: group_totals
+  params:
+  - name: rows
+    type: list
+  returns: list
+  compare: exact
+starter:
+  python: |
+    import sqlite3
+
+
+    def group_totals(rows):
+        # TODO: sqlite3.connect(":memory:"), CREATE TABLE, executemany INSERT với ?, rồi SELECT ... GROUP BY ... HAVING ... ORDER BY
+        pass
+time_target_min: 6
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+hints:
+- "Chèn nhiều dòng bằng câu SQL tham số hoá: `cur.executemany(\"INSERT INTO sales(category, amount) VALUES (?, ?)\", rows)`."
+- "Truy vấn: `SELECT category, COUNT(*) AS n, SUM(amount) AS total FROM sales GROUP BY category HAVING SUM(amount) > 0 ORDER BY total DESC, category ASC`."
+- "`cur.fetchall()` trả list các tuple; đổi thành `[list(r) for r in cur.fetchall()]` để so sánh JSON khớp."
+solution:
+  file: solution.py
+  approach_vi: Dùng sqlite3 trong bộ nhớ, chèn bằng executemany tham số hoá, gom nhóm bằng GROUP BY với COUNT và SUM, lọc nhóm bằng HAVING, sắp xếp rồi đổi tuple thành list.
+  complexity: "O(n log n) / O(k)"
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x778
+status: validated
+version: 1

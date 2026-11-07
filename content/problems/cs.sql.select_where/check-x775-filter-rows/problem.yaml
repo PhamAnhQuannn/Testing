@@ -1,0 +1,81 @@
+id: check-x775-filter-rows
+subtopic_id: cs.sql.select_where
+secondary_subtopics: []
+kind: check
+title: 'Check X775: filter rows'
+title_vi: 'Kiểm tra X775: lọc dòng bằng WHERE trong SQLite'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Implement `filter_rows(rows, threshold)`. `rows` is a list of `[name, score, active]` records (name is a string,
+  score an int, active an int that is 0 or 1). Using the standard-library `sqlite3` module with an in-memory
+  database (`sqlite3.connect(":memory:")`), create a table `t(name TEXT, score INTEGER, active INTEGER)`, insert
+  every row with a **parameterized** query
+  (`cur.executemany("INSERT INTO t(name, score, active) VALUES (?, ?, ?)", rows)`), then run
+  `SELECT name, score FROM t WHERE score >= ? AND active = 1 ORDER BY score DESC, name ASC`
+  with `threshold` bound to the `?`.
+  Return the result as a list of `[name, score]` pairs, each pair a 2-element **list** (not a tuple), in that
+  order. If no row matches, return `[]`.
+  For `rows = [["an", 8, 1], ["binh", 9, 0], ["chi", 8, 1]]` and `threshold = 8` the result is
+  `[["an", 8], ["chi", 8]]` (binh is excluded because active is 0).
+statement_vi_md: |
+  Cài `filter_rows(rows, threshold)`. `rows` là list các bản ghi `[name, score, active]` (name là chuỗi, score là số
+  nguyên, active là 0 hoặc 1). Dùng module `sqlite3` của thư viện chuẩn với database trong bộ nhớ
+  (`sqlite3.connect(":memory:")`): tạo bảng `t(name TEXT, score INTEGER, active INTEGER)`, chèn mọi dòng bằng câu
+  SQL tham số hoá (`cur.executemany("INSERT INTO t(name, score, active) VALUES (?, ?, ?)", rows)`), rồi chạy
+  `SELECT name, score FROM t WHERE score >= ? AND active = 1 ORDER BY score DESC, name ASC`
+  với `threshold` truyền qua dấu `?`. Trả về list các cặp `[name, score]`, mỗi cặp là **list** 2 phần tử (không phải
+  tuple), theo đúng thứ tự đó. Không có dòng nào khớp thì trả `[]`. Với
+  `rows = [["an", 8, 1], ["binh", 9, 0], ["chi", 8, 1]]` và `threshold = 8` kết quả là `[["an", 8], ["chi", 8]]`
+  (binh bị loại vì active = 0).
+constraints:
+- 'Dùng sqlite3 trong bộ nhớ và truy vấn WHERE / ORDER BY như đề; chèn và lọc bằng tham số (dấu ?)'
+- 'rows có thể rỗng; có thể không dòng nào thoả; tên có thể chứa dấu nháy; score có thể bằng 0'
+- 'Mỗi phần tử kết quả phải là list [name, score], không phải tuple'
+examples:
+- input: 'rows = [["an", 8, 1], ["binh", 9, 0], ["chi", 8, 1]], threshold = 8'
+  output: '[["an", 8], ["chi", 8]]'
+  explain_vi: 'binh có active = 0 nên bị loại; an và chi cùng 8 điểm, hòa thì tên tăng dần.'
+io:
+  mode: function
+  entry: filter_rows
+  params:
+  - name: rows
+    type: list
+  - name: threshold
+    type: int
+  returns: list
+  compare: exact
+starter:
+  python: |
+    import sqlite3
+
+
+    def filter_rows(rows, threshold):
+        # TODO: sqlite3.connect(":memory:"), CREATE TABLE, executemany INSERT với ?, rồi SELECT ... WHERE ... ORDER BY
+        pass
+time_target_min: 6
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+hints:
+- "Chèn nhiều dòng bằng câu SQL tham số hoá: `cur.executemany(\"INSERT INTO t(name, score, active) VALUES (?, ?, ?)\", rows)`."
+- "Truy vấn: `SELECT name, score FROM t WHERE score >= ? AND active = 1 ORDER BY score DESC, name ASC`, truyền `(threshold,)` (tuple một phần tử, có dấu phẩy)."
+- "`cur.fetchall()` trả list các tuple; đổi thành `[list(r) for r in cur.fetchall()]` để so sánh JSON khớp."
+solution:
+  file: solution.py
+  approach_vi: Dùng sqlite3 trong bộ nhớ, chèn bằng executemany tham số hoá, lọc bằng WHERE score >= ? AND active = 1, sắp xếp bằng ORDER BY rồi đổi tuple thành list.
+  complexity: O(n log n) / O(n)
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x775
+status: validated
+version: 1

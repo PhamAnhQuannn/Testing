@@ -1,0 +1,37 @@
+subtopic_id: cs.sql.select_where
+items:
+  - id: X774
+    difficulty: 1
+    type: read_code
+    minutes: 3
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng. (Mô phỏng `WHERE v >= 5` bằng Python.)
+    code: |-
+      rows = [{"n": "a", "v": 3}, {"n": "b", "v": 5}, {"n": "c", "v": 8}]
+      kept = [r["n"] for r in rows if r["v"] >= 5]
+      print(kept)
+      print(len(rows) - len(kept))
+    expected_output: "['b', 'c']\n1"
+    answer_md: "Điều kiện `v >= 5` giữ b (5) và c (8) vì so sánh gồm cả dấu bằng; a (3) bị loại nên có 1 dòng bị lọc."
+    rubric_md: "Output khớp từng dòng. Đúng: bằng chứng điểm 1; sai: tối đa điểm 0."
+  - id: X775
+    difficulty: 2
+    type: write_code
+    minutes: 6
+    prompt_md: |
+      Viết hàm `filter_rows(rows, threshold)` dùng `sqlite3` trong bộ nhớ. `rows` là list các bản ghi `[name, score, active]` (chuỗi, số nguyên, 0 hoặc 1). Tạo bảng `t(name TEXT, score INTEGER, active INTEGER)`, chèn bằng `executemany` tham số hoá, rồi chạy `SELECT name, score FROM t WHERE score >= ? AND active = 1 ORDER BY score DESC, name ASC` với `threshold` truyền qua `?`. Trả về list các cặp `[name, score]` (mỗi cặp là list, không phải tuple); không có dòng nào thì trả `[]`. Ví dụ `rows = [["an",8,1],["binh",9,0],["chi",8,1]]`, `threshold = 8` cho `[["an",8],["chi",8]]`.
+    problem_id: check-x775-filter-rows
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 6 phút: bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X776
+    difficulty: 3
+    type: read_code
+    minutes: 5
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng và giải thích vì sao hai điều kiện cho kết quả khác nhau (liên quan thứ tự ưu tiên AND và OR trong WHERE).
+    code: |-
+      rows = [("a", 1, 1), ("b", 9, 0), ("c", 9, 1)]
+      first = [n for n, s, act in rows if s >= 9 or s <= 1 and act == 1]
+      second = [n for n, s, act in rows if (s >= 9 or s <= 1) and act == 1]
+      print(first)
+      print(second)
+    expected_output: "['a', 'b', 'c']\n['a', 'c']"
+    answer_md: "`and` được tính trước `or`, nên điều kiện đầu hiểu là `s >= 9 or (s <= 1 and act == 1)`: b qua nhờ `s >= 9` dù act = 0, nên cả ba dòng được giữ. Điều kiện thứ hai có ngoặc nên bắt buộc `act == 1` cho mọi dòng: b (act = 0) bị loại. SQL cũng vậy: AND ưu tiên hơn OR, cần ngoặc để đổi nghĩa."
+    rubric_md: "Output khớp từng dòng VÀ giải thích đúng: AND được tính trước OR nên điều kiện đầu cho b qua bằng nhánh OR, còn ngoặc ở điều kiện thứ hai buộc act = 1 cho mọi dòng. Đúng: bằng chứng điểm 3; sai: tối đa điểm 2."

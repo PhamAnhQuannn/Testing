@@ -1,0 +1,82 @@
+id: check-x781-join-lookup
+subtopic_id: cs.sql.joins
+secondary_subtopics: []
+kind: check
+title: 'Check X781: join lookup'
+title_vi: 'Kiểm tra X781: ghép đơn hàng với khách bằng JOIN'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Implement `join_lookup(orders, customers)`. `orders` is a list of `[order_id, customer_id, amount]` (ints) and
+  `customers` is a list of `[customer_id, name]` (customer_id int, name str). Using the standard-library `sqlite3`
+  module with an in-memory database (`sqlite3.connect(":memory:")`), create TWO tables
+  `orders(order_id INTEGER, customer_id INTEGER, amount INTEGER)` and `customers(customer_id INTEGER, name TEXT)`,
+  insert every row with **parameterized** `executemany`, then run
+  `SELECT o.order_id, c.name, o.amount FROM orders o JOIN customers c ON o.customer_id = c.customer_id ORDER BY o.order_id ASC`
+  (add `c.name ASC, o.amount ASC` as tie-breakers so duplicate customer ids give a deterministic order).
+  Return a list of `[order_id, name, amount]` records, each a 3-element **list** (not a tuple). Orders whose
+  `customer_id` has no matching customer are dropped (INNER JOIN). Empty input gives `[]`.
+  For `orders = [[1, 10, 50], [2, 20, 30], [3, 99, 40]]` and `customers = [[10, "an"], [20, "binh"]]` the result is
+  `[[1, "an", 50], [2, "binh", 30]]` (order 3 is dropped: customer 99 is absent).
+statement_vi_md: |
+  Cài `join_lookup(orders, customers)`. `orders` là list `[order_id, customer_id, amount]` (số nguyên), `customers`
+  là list `[customer_id, name]` (customer_id số nguyên, name chuỗi). Dùng `sqlite3` trong bộ nhớ
+  (`sqlite3.connect(":memory:")`): tạo HAI bảng `orders(order_id INTEGER, customer_id INTEGER, amount INTEGER)` và
+  `customers(customer_id INTEGER, name TEXT)`, chèn mọi dòng bằng `executemany` tham số hoá, rồi chạy
+  `SELECT o.order_id, c.name, o.amount FROM orders o JOIN customers c ON o.customer_id = c.customer_id ORDER BY o.order_id ASC`
+  (thêm `c.name ASC, o.amount ASC` để phá hoà khi customer_id bị trùng, cho thứ tự xác định). Trả về list các bản ghi
+  `[order_id, name, amount]`, mỗi bản ghi là **list** 3 phần tử (không phải tuple). Đơn có `customer_id` không có
+  khách tương ứng bị loại (INNER JOIN). Đầu vào rỗng cho `[]`. Với `orders = [[1, 10, 50], [2, 20, 30], [3, 99, 40]]`
+  và `customers = [[10, "an"], [20, "binh"]]` kết quả là `[[1, "an", 50], [2, "binh", 30]]` (đơn 3 bị loại vì
+  không có khách 99).
+constraints:
+- 'Dùng sqlite3 trong bộ nhớ với hai bảng và INNER JOIN ... ON như đề; chèn bằng câu SQL tham số hoá (dấu ?)'
+- 'orders hoặc customers có thể rỗng; customer_id có thể trùng ở customers; tên có thể chứa dấu nháy'
+- 'Mỗi phần tử kết quả phải là list [order_id, name, amount], không phải tuple'
+examples:
+- input: 'orders = [[1, 10, 50], [2, 20, 30], [3, 99, 40]], customers = [[10, "an"], [20, "binh"]]'
+  output: '[[1, "an", 50], [2, "binh", 30]]'
+  explain_vi: 'Đơn 3 có khách 99 không tồn tại nên bị INNER JOIN loại.'
+io:
+  mode: function
+  entry: join_lookup
+  params:
+  - name: orders
+    type: list
+  - name: customers
+    type: list
+  returns: list
+  compare: exact
+starter:
+  python: |
+    import sqlite3
+
+
+    def join_lookup(orders, customers):
+        # TODO: tạo 2 bảng, executemany INSERT với ?, rồi SELECT ... JOIN ... ON ... ORDER BY o.order_id
+        pass
+time_target_min: 6
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+hints:
+- "Tạo hai bảng `orders` và `customers`, chèn mỗi bảng bằng `executemany` với câu SQL tham số hoá."
+- "Truy vấn: `SELECT o.order_id, c.name, o.amount FROM orders o JOIN customers c ON o.customer_id = c.customer_id ORDER BY o.order_id ASC`."
+- "`cur.fetchall()` trả list các tuple; đổi thành `[list(r) for r in cur.fetchall()]` để so sánh JSON khớp."
+solution:
+  file: solution.py
+  approach_vi: Dùng sqlite3 trong bộ nhớ với hai bảng, chèn bằng executemany tham số hoá, INNER JOIN theo customer_id, sắp xếp xác định rồi đổi tuple thành list.
+  complexity: O(n log n) / O(n)
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x781
+status: validated
+version: 1
