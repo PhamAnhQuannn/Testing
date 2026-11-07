@@ -1,0 +1,180 @@
+id: py.ecosystem.ai_python_stack
+version: 1
+status: published
+title_vi: "Python stack cho AI engineer (numpy, pandas, scikit-learn, PyTorch)"
+est_minutes: 15
+objectives_vi:
+  - "Kể được vai trò của numpy, pandas, scikit-learn, PyTorch/TensorFlow, Jupyter và matplotlib trong một dự án AI."
+  - "Mô tả luồng ML: data, features, model, eval; và vì sao phải tách train/test."
+  - "Hiểu Pipeline với fit/transform/predict là nối các bước biến đổi theo đúng thứ tự."
+  - "Biết vectorize nhanh hơn vòng lặp, và giữ API key trong .env thay vì viết vào code."
+blocks:
+  - id: s_model
+    type: section
+    title_vi: "Các thư viện trong stack và luồng ML"
+    summary_vi: "numpy/pandas cho dữ liệu, scikit-learn cho mô hình, PyTorch cho deep learning, Jupyter để khám phá."
+  - id: t01
+    type: text
+    md: |
+      Bài này là **tổng quan**: các thư viện dưới đây không chạy trong trình chấm của app, nên bạn đọc code
+      và "chạy tay". Phần thực hành dùng Python thuần để mô phỏng ý tưởng.
+
+      **numpy** cung cấp `ndarray`: mảng số cùng kiểu, tính toán theo **vectorize** (một phép toán áp lên cả mảng,
+      chạy bằng code C nên nhanh hơn vòng lặp `for`).
+
+      ```text
+      import numpy as np
+      x = np.array([1, 5, -4])
+      y = (x + 2) * 3            # vectorize: [ 9 21 -6], không cần vòng for
+      z = np.clip(y, 0, 20)      # [ 9 20  0]
+      ```
+
+      **pandas** có `DataFrame`: bảng có tên cột, đọc file, lọc, nhóm, nối bảng.
+
+      ```text
+      import pandas as pd
+      df = pd.read_csv("data.csv")
+      df = df[df["age"] > 18]                 # lọc dòng
+      print(df.groupby("city")["income"].mean())
+      ```
+
+      **scikit-learn** là thư viện cho mô hình cổ điển với giao diện thống nhất: `fit(X, y)` để học,
+      `predict(X)` để dự đoán, `transform(X)` cho bước xử lý dữ liệu. `Pipeline` nối nhiều bước thành một đối tượng,
+      chạy lần lượt theo thứ tự.
+
+      ```text
+      from sklearn.model_selection import train_test_split
+      from sklearn.pipeline import Pipeline
+      from sklearn.preprocessing import StandardScaler
+      from sklearn.linear_model import LogisticRegression
+
+      X_tr, X_te, y_tr, y_te = train_test_split(X, y, test_size=0.2, random_state=0)
+      pipe = Pipeline([("scale", StandardScaler()), ("clf", LogisticRegression())])
+      pipe.fit(X_tr, y_tr)          # scaler học mean/std CHỈ từ tập train
+      print(pipe.score(X_te, y_te)) # đánh giá trên tập test chưa từng thấy
+      ```
+  - id: t02
+    type: text
+    md: |
+      **PyTorch / TensorFlow** dùng cho deep learning. Khái niệm chính là **tensor** (giống ndarray nhưng có thể
+      chạy trên GPU) và **autograd** (tự tính đạo hàm để huấn luyện).
+
+      ```text
+      import torch
+      w = torch.tensor([2.0], requires_grad=True)
+      loss = (w * 3 - 1) ** 2
+      loss.backward()               # autograd tính d(loss)/dw và lưu vào w.grad
+      ```
+
+      Dữ liệu lớn được đưa vào mô hình theo **batch** (`Dataset` + `DataLoader`); thư viện HuggingFace
+      `transformers` cho phép dùng mô hình có sẵn chỉ với vài dòng. **Jupyter notebook** để chạy từng ô code và xem
+      kết quả ngay, **matplotlib** để vẽ biểu đồ khi khám phá dữ liệu. Khóa API của dịch vụ LLM để trong file `.env`
+      (đọc bằng `os.environ`), không viết vào code và không đưa lên git.
+
+      **Luồng ML:** `data` (đọc, làm sạch) -> `features` (biến đổi thành số) -> `model` (`fit`) -> `eval`
+      (`predict` trên tập test, tính độ chính xác). Tách train/test là bắt buộc: nếu đánh giá trên chính dữ liệu đã
+      học, điểm số sẽ đẹp giả tạo (**data leakage**). Mọi bước biến đổi chỉ được "học" tham số từ tập train.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Vì sao phải đánh giá mô hình trên tập test tách riêng khỏi tập train?"
+    options:
+      - {id: a, text_md: "Để biết mô hình hoạt động thế nào trên dữ liệu chưa từng thấy, tránh điểm số ảo do học thuộc"}
+      - {id: b, text_md: "Để mô hình chạy nhanh hơn"}
+      - {id: c, text_md: "Vì `fit` chỉ nhận một nửa dữ liệu"}
+    answer: [a]
+    explain_md: "Tập test mô phỏng dữ liệu thật trong tương lai. Đánh giá trên tập train sẽ cho điểm cao giả."
+  - id: q02
+    type: predict_output
+    code: |
+      steps = [lambda x: x + 1, lambda x: x * 2]
+      v = 3
+      for f in steps:
+          v = f(v)
+      print(v)
+      w = 3
+      for f in reversed(steps):
+          w = f(w)
+      print(w)
+    expected_output: |
+      8
+      7
+    explain_md: "Thứ tự thuận: (3 + 1) * 2 = 8. Thứ tự ngược: 3 * 2 + 1 = 7. Pipeline chạy theo thứ tự nên đổi thứ tự là đổi kết quả."
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Trong `Pipeline([(\"scale\", StandardScaler()), (\"clf\", LogisticRegression())])`, gọi `fit(X_train, y_train)` làm gì?"
+    options:
+      - {id: a, text_md: "Chạy scaler rồi mô hình theo thứ tự, mọi tham số đều học từ tập train"}
+      - {id: b, text_md: "Chỉ huấn luyện mô hình, bỏ qua scaler"}
+      - {id: c, text_md: "Học từ cả tập train và test để chính xác hơn"}
+    answer: [a]
+    explain_md: "Pipeline nối các bước theo thứ tự; học trên cả test sẽ gây data leakage."
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: tách train/test theo chỉ số"
+    summary_vi: "Mô phỏng train_test_split bằng cắt list thuần Python."
+    exercise_ref: ex_split
+  - id: t03
+    type: text
+    md: |
+      Cốt lõi của `train_test_split` là cắt dữ liệu thành hai phần không giao nhau. Với list, dùng slicing:
+
+      ```
+      k = 2
+      train = xs[:len(xs) - k]
+      test = xs[len(xs) - k:]
+      ```
+
+      Lưu ý trường hợp biên: `k = 0` cho test rỗng (đừng viết `xs[-0:]` vì nó lấy cả list), `k` lớn hơn
+      `len(xs)` thì cần giới hạn lại.
+  - id: ex_split
+    type: code_exercise
+    md: |
+      Cài `split_train_test(xs, n_test)`. `xs` là list, `n_test` là số phần tử cuối dành cho tập test. Trả về
+      `[train, test]` (list gồm hai list): `test` là `n_test` phần tử cuối, `train` là phần còn lại, giữ nguyên
+      thứ tự. Nếu `n_test` âm coi như 0, nếu lớn hơn `len(xs)` thì coi như `len(xs)`. Ví dụ
+      `split_train_test([1, 2, 3, 4, 5], 2)` cho `[[1, 2, 3], [4, 5]]`.
+    entry: split_train_test
+    starter: |
+      def split_train_test(xs, n_test):
+          # TODO: giới hạn n_test trong [0, len(xs)], rồi cắt list thành train và test
+          pass
+    guidance_md: |
+      - Đặt `k = min(max(n_test, 0), len(xs))`.
+      - `train = xs[:len(xs) - k]`, `test = xs[len(xs) - k:]`.
+    hints:
+      - level: nudge
+        md: "Giới hạn `n_test` về khoảng từ 0 đến `len(xs)` trước khi cắt."
+      - level: approach
+        md: "Tính `k`, rồi train là phần đầu có `len(xs) - k` phần tử, test là phần còn lại."
+      - level: near_solution
+        md: "Trả `[xs[:len(xs) - k], xs[len(xs) - k:]]`; tránh `xs[-0:]` khi k = 0."
+    tests:
+      - {args: [[1, 2, 3, 4, 5], 2], expected: [[1, 2, 3], [4, 5]]}
+      - {args: [[1, 2, 3], 0], expected: [[1, 2, 3], []]}
+      - {args: [[1, 2], 5], expected: [[], [1, 2]]}
+      - {args: [[], 2], expected: [[], []]}
+      - {args: [[7, 8, 9], -1], expected: [[7, 8, 9], []]}
+    solution: |
+      def split_train_test(xs, n_test):
+          k = min(max(n_test, 0), len(xs))
+          return [xs[:len(xs) - k], xs[len(xs) - k:]]
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Trong numpy, việc áp một phép toán lên cả mảng cùng lúc, không viết vòng lặp, gọi là ___ (một từ tiếng Anh)."
+    blanks: [{accept: ["vectorize", "vectorization", "vectorized", "vectorise"]}]
+    explain_md: "Vectorize chạy bằng code C bên dưới nên nhanh hơn vòng lặp for của Python thuần."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "numpy (ndarray, vectorize) và pandas (DataFrame) xử lý dữ liệu; scikit-learn cho mô hình với fit/transform/predict và Pipeline."
+      - "PyTorch/TensorFlow dùng tensor và autograd cho deep learning; Jupyter và matplotlib để khám phá dữ liệu."
+      - "Luồng ML: data, features, model, eval; luôn tách train/test và chỉ học tham số từ tập train."
+      - "Pipeline chạy các bước theo thứ tự nên thứ tự quan trọng; API key để trong .env, không viết vào code."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X768], l2: [X769], l3: [X770]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-07"

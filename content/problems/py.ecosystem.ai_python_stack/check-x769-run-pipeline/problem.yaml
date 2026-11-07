@@ -1,0 +1,73 @@
+id: check-x769-run-pipeline
+subtopic_id: py.ecosystem.ai_python_stack
+secondary_subtopics: []
+kind: check
+title: 'Check X769: run pipeline'
+title_vi: 'Kiểm tra X769: chạy pipeline các bước transform'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Implement `run_pipeline(steps, xs)`, a pure-Python mini version of chaining `sklearn` Pipeline transforms.
+  `xs` is a list of ints. `steps` is a list of operations applied **in order** to the whole list, each operation
+  transforming every element:
+  `["add", k]` gives `x + k`; `["mul", k]` gives `x * k`; `["clip", lo, hi]` gives `min(max(x, lo), hi)`.
+  All of `k`, `lo`, `hi` are ints. After applying all steps in sequence, return the final list of ints.
+  With no steps return a copy of `xs` with the same values; for an empty `xs` return `[]`.
+  For `steps = [["add", 2], ["mul", 3], ["clip", 0, 20]]` and `xs = [1, 5, -4]`:
+  `[3, 7, -2]`, then `[9, 21, -6]`, then `[9, 20, 0]`, so the result is `[9, 20, 0]`.
+statement_vi_md: |
+  Cài `run_pipeline(steps, xs)`, bản thuần Python mô phỏng việc nối các bước transform của `Pipeline` trong sklearn.
+  `xs` là list số nguyên. `steps` là list các phép biến đổi, áp dụng **theo thứ tự** lên cả list, mỗi phép biến đổi
+  từng phần tử: `["add", k]` cho `x + k`; `["mul", k]` cho `x * k`; `["clip", lo, hi]` cho `min(max(x, lo), hi)`.
+  Mọi `k`, `lo`, `hi` là số nguyên. Sau khi áp dụng hết các bước, trả về list số nguyên cuối cùng.
+  `steps` rỗng thì trả về bản sao của `xs` (cùng giá trị); `xs` rỗng thì trả `[]`.
+  Với `steps = [["add", 2], ["mul", 3], ["clip", 0, 20]]` và `xs = [1, 5, -4]`: `[3, 7, -2]`, rồi `[9, 21, -6]`,
+  rồi `[9, 20, 0]`, nên kết quả là `[9, 20, 0]`.
+constraints:
+- 'Mọi giá trị là số nguyên; không dùng numpy hay thư viện ngoài'
+- 'Các bước áp dụng đúng thứ tự trong steps; thứ tự thay đổi kết quả'
+- 'steps hoặc xs có thể rỗng; k có thể âm; với clip luôn có lo <= hi'
+examples:
+- input: 'steps = [["add", 2], ["mul", 3], ["clip", 0, 20]], xs = [1, 5, -4]'
+  output: '[9, 20, 0]'
+  explain_vi: 'Cộng 2 ra [3, 7, -2], nhân 3 ra [9, 21, -6], clip về [0, 20] ra [9, 20, 0].'
+io:
+  mode: function
+  entry: run_pipeline
+  params:
+  - name: steps
+    type: list
+  - name: xs
+    type: list
+  returns: list
+  compare: exact
+starter:
+  python: |
+    def run_pipeline(steps, xs):
+        # TODO: với mỗi step theo thứ tự, tạo list mới bằng cách biến đổi từng phần tử
+        pass
+time_target_min: 6
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+hints:
+- "Bắt đầu với `cur = list(xs)`, rồi lặp qua `steps` theo thứ tự và gán lại `cur` ở mỗi bước."
+- "Nhìn `step[0]` để biết phép gì: `\"add\"` dùng `step[1]`, `\"mul\"` dùng `step[1]`, `\"clip\"` dùng `step[1]` và `step[2]`."
+- "Với clip dùng `min(max(x, lo), hi)`; mỗi bước dựng list mới bằng list comprehension."
+solution:
+  file: solution.py
+  approach_vi: Duyệt từng step theo thứ tự, mỗi step dựng lại list bằng list comprehension theo loại phép (add, mul, clip), cuối cùng trả list kết quả.
+  complexity: "O(s*n) / O(n)"
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x769
+status: validated
+version: 1

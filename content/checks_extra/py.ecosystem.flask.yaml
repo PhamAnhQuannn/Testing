@@ -1,0 +1,48 @@
+subtopic_id: py.ecosystem.flask
+items:
+  - id: X762
+    difficulty: 1
+    type: read_code
+    minutes: 3
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng.
+    code: |-
+      pattern = "/users/{id}"
+      print(pattern.replace("{id}", str(42)))
+      handlers = {"GET": "list", "POST": "create"}
+      print(handlers["POST"])
+    expected_output: "/users/42\ncreate"
+    answer_md: "replace thay `{id}` bằng chuỗi `42` nên được `/users/42` (giống url_for điền tham số vào route). Tra dict handlers theo method `POST` cho `create`."
+    rubric_md: "Output khớp từng dòng. Đúng: bằng chứng điểm 1; sai: tối đa điểm 0."
+  - id: X763
+    difficulty: 2
+    type: write_code
+    minutes: 6
+    prompt_md: |
+      Viết hàm `url_for(rules, endpoint, params)` mô phỏng reverse routing của Flask. `rules` là list các cặp `[endpoint_name, pattern]` (chuỗi), `pattern` chứa các placeholder dạng `{name}`. Tìm rule **đầu tiên** có `endpoint_name == endpoint`, thay mỗi `{name}` bằng `str(params[name])` rồi trả về đường dẫn. Nếu không có rule nào khớp endpoint thì trả về `""`. Có thể giả sử `params` đủ mọi placeholder. Ví dụ `rules = [["get_user","/users/{id}"],["get_post","/users/{id}/posts/{pid}"]]`, `endpoint = "get_post"`, `params = {"id": 7, "pid": 3}` cho `"/users/7/posts/3"`; `endpoint = "missing"` cho `""`.
+    problem_id: check-x763-url-for
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 6 phút: bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X764
+    difficulty: 3
+    type: read_code
+    minutes: 5
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng và giải thích vì sao dòng thứ tư vẫn còn nguyên `{n}` (liên hệ với việc url_for phải nhận đủ tham số).
+    code: |-
+      rules = [["a", "/x/{n}"], ["a", "/y/{n}"], ["b", "/z"]]
+
+
+      def find(rules, ep, params):
+          for e, p in rules:
+              if e == ep:
+                  for k, v in params.items():
+                      p = p.replace("{" + k + "}", str(v))
+                  return p
+          return ""
+
+
+      print(find(rules, "a", {"n": 1}))
+      print(repr(find(rules, "c", {})))
+      print(find(rules, "b", {"n": 9}))
+      print(find(rules, "a", {"m": 2}))
+    expected_output: "/x/1\n''\n/z\n/x/{n}"
+    answer_md: "Endpoint `a` trùng hai lần nên rule đầu (`/x/{n}`) thắng, cho `/x/1`. Endpoint `c` không tồn tại nên trả chuỗi rỗng, repr in `''`. Pattern `/z` không có placeholder nên tham số thừa bị bỏ qua. Dòng cuối truyền `m` thay vì `n` nên `{n}` không được thay, vẫn còn nguyên; Flask thật sẽ báo lỗi BuildError khi thiếu tham số."
+    rubric_md: "Output khớp từng dòng VÀ giải thích đúng: placeholder `{n}` không có tham số `n` tương ứng nên không được thay (Flask thật báo lỗi khi thiếu tham số). Đúng: bằng chứng điểm 3; sai: tối đa điểm 2."

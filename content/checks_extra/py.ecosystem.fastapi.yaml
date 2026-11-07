@@ -1,0 +1,48 @@
+subtopic_id: py.ecosystem.fastapi
+items:
+  - id: X759
+    difficulty: 1
+    type: read_code
+    minutes: 3
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng.
+    code: |-
+      pattern = "/users/{id}"
+      path = "/users/7"
+      p = pattern.split("/")
+      q = path.split("/")
+      params = dict((a[1:-1], b) for a, b in zip(p, q) if a.startswith("{"))
+      print(params)
+      print(len(p))
+    expected_output: "{'id': '7'}\n3"
+    answer_md: "Tách theo `/` cho ['', 'users', '{id}'] và ['', 'users', '7']. Chỉ segment bắt đầu bằng `{` là path param, bỏ ngoặc nên khoá là 'id', giá trị là chuỗi '7'. p có 3 phần tử."
+    rubric_md: "Output khớp từng dòng. Đúng: bằng chứng điểm 1; sai: tối đa điểm 0."
+  - id: X760
+    difficulty: 2
+    type: write_code
+    minutes: 6
+    prompt_md: |
+      Viết hàm `match_route(routes, path)` mô phỏng router. `routes` là list các cặp `[pattern, handler]` (cả hai là chuỗi). `pattern` như `"/users/{id}/posts/{pid}"`: segment dạng `{name}` bắt đúng MỘT segment của `path` (tách theo `/`). Một pattern khớp khi có cùng số segment, mọi segment literal bằng nhau, và mỗi `{name}` ứng với segment tương ứng của `path`. Trả về `[handler, params]` của route khớp ĐẦU TIÊN theo thứ tự list, `params` là dict `{name: value}` (giá trị là chuỗi, không ép kiểu; dict rỗng nếu pattern không có `{}`). Không route nào khớp thì trả `[]`. Ví dụ `routes = [["/users/{id}", "get_user"], ["/users/{id}/posts/{pid}", "get_post"]]`, `path = "/users/7/posts/3"` cho `["get_post", {"id": "7", "pid": "3"}]`; `path = "/unknown"` cho `[]`.
+    problem_id: check-x760-match-route
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 6 phút: bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X761
+    difficulty: 3
+    type: read_code
+    minutes: 5
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng và giải thích vì sao `/users/me` không gọi `get_me` (đây là lý do route cụ thể phải khai báo trước route có {param}), và vì sao `/users/9/` không khớp.
+    code: |-
+      routes = [("/users/{id}", "get_user"), ("/users/me", "get_me")]
+
+      def find(path):
+          segs = path.split("/")
+          for pat, h in routes:
+              a = pat.split("/")
+              if len(a) == len(segs) and all(x.startswith("{") or x == y for x, y in zip(a, segs)):
+                  return h
+          return None
+
+      print(find("/users/me"))
+      print(find("/users/9"))
+      print(find("/users/9/"))
+    expected_output: "get_user\nget_user\nNone"
+    answer_md: "Router duyệt theo thứ tự và dừng ở route khớp đầu tiên. `/users/{id}` khớp cả `/users/me` (id = 'me') nên `get_me` không bao giờ được tới; muốn đúng phải đặt `/users/me` trước. `/users/9/` tách ra ['', 'users', '9', ''] có 4 segment trong khi pattern có 3 nên không khớp, kết quả None."
+    rubric_md: "Output khớp từng dòng VÀ giải thích đúng: route đầu tiên khớp thắng (wildcard {id} nuốt 'me') và số segment phải bằng nhau (dấu `/` cuối tạo thêm segment rỗng). Đúng: bằng chứng điểm 3; sai: tối đa điểm 2."

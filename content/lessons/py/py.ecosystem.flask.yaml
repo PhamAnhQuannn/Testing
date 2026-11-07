@@ -1,0 +1,153 @@
+id: py.ecosystem.flask
+version: 1
+status: published
+title_vi: "Flask: route, request và url_for"
+est_minutes: 15
+objectives_vi:
+  - "Viết route bằng @app.route với methods và URL converter như <int:id>."
+  - "Đọc dữ liệu từ request (args, form, json) và trả JSON bằng jsonify."
+  - "Dùng url_for để sinh URL từ tên endpoint thay vì hard-code đường dẫn."
+  - "Biết template, blueprint và phân biệt WSGI với ASGI ở mức khái niệm."
+blocks:
+  - id: s_model
+    type: section
+    title_vi: "Route, request và url_for"
+    summary_vi: "Mỗi route ánh xạ URL + method sang một hàm view; request mang dữ liệu vào, jsonify trả dữ liệu ra."
+  - id: t01
+    type: text
+    md: |
+      **Flask** là web framework nhỏ. Bạn khai báo **route**: URL + HTTP method được ánh xạ tới một hàm (view).
+      Đoạn dưới là Flask thật, chỉ để đọc (app này không chạy Flask).
+
+      ```
+      from flask import Flask, request, jsonify, url_for
+
+      app = Flask(__name__)
+
+      @app.route("/users/<int:id>", methods=["GET"])
+      def get_user(id):                      # id đã được đổi sang int nhờ converter <int:id>
+          return jsonify({"id": id})
+
+      @app.route("/users", methods=["GET", "POST"])
+      def users():
+          if request.method == "POST":
+              data = request.json            # body JSON
+              return jsonify(data), 201      # (body, status code)
+          page = request.args.get("page", "1")   # ?page=2 -> chuỗi "2"
+          return jsonify({"page": page})
+      ```
+
+      **request**: `request.args` là query string (`?a=1`), `request.form` là form body, `request.json` là JSON
+      body, `request.method` là method hiện tại. Giá trị từ `args`/`form` luôn là **chuỗi**.
+
+      **url_for (reverse routing).** Tên **endpoint** mặc định là tên hàm view. `url_for("get_user", id=7)` cho
+      `"/users/7"`; tham số thừa thành query string. Dùng `url_for` để đổi route mà không phải sửa mọi link.
+
+      **Awareness.** *Template* (Jinja2) dựng HTML bằng `render_template("a.html", x=1)`. *Blueprint* gom các
+      route thành module (`Blueprint("api", __name__)`) rồi `app.register_blueprint(...)`. Flask chạy trên
+      **WSGI** (đồng bộ, mỗi request một worker, ví dụ gunicorn); **ASGI** (FastAPI, Starlette) hỗ trợ async
+      và WebSocket.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Với `@app.route(\"/items/<int:id>\")`, request `GET /items/abc` sẽ ra sao?"
+    options:
+      - {id: a, text_md: "404 Not Found, vì `abc` không khớp converter `int`"}
+      - {id: b, text_md: "Gọi view với `id = \"abc\"`"}
+      - {id: c, text_md: "Gọi view với `id = 0`"}
+    answer: [a]
+    explain_md: "Converter `<int:id>` chỉ khớp chuỗi số nguyên; nếu không khớp route thì Flask trả 404."
+  - id: q02
+    type: predict_output
+    code: |
+      routes = {("GET", "/a"): "list", ("POST", "/a"): "create"}
+      print(routes.get(("GET", "/a")))
+      print(routes.get(("DELETE", "/a"), "405"))
+      print(len(routes))
+    expected_output: |
+      list
+      405
+      2
+    explain_md: "Route khớp theo cặp (method, path). DELETE không có trong dict nên rơi về giá trị mặc định, giống Flask trả 405."
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Trong view Flask, `request.args.get(\"page\")` cho `?page=3` trả về gì?"
+    options:
+      - {id: a, text_md: "Chuỗi `\"3\"`"}
+      - {id: b, text_md: "Số nguyên `3`"}
+      - {id: c, text_md: "`None`"}
+    answer: [a]
+    explain_md: "Dữ liệu từ query string/form luôn là chuỗi; muốn số phải tự `int(...)` hoặc dùng `get(\"page\", type=int)`."
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: parse query string như request.args"
+    summary_vi: "Tách chuỗi a=1&b=2 thành dict, giống cách request.args hoạt động."
+    exercise_ref: ex_args
+  - id: t02
+    type: text
+    md: |
+      `request.args` về bản chất là dict được dựng từ query string. Ý tưởng:
+
+      ```
+      for part in qs.split("&"):
+          key, _, value = part.partition("=")   # không có "=" thì value là ""
+      ```
+
+      Chú ý: bỏ qua phần rỗng (`a=1&&b=2`), chỉ tách ở dấu `=` **đầu tiên** (`q=x=y` cho `"x=y"`), và khi một
+      key lặp lại thì `args.get` lấy giá trị **đầu tiên**.
+  - id: ex_args
+    type: code_exercise
+    md: |
+      Cài `parse_args(qs)`. `qs` là query string không có dấu `?`, ví dụ `"a=1&b=2"`. Trả về dict `{key: value}`
+      (cả hai là chuỗi). Bỏ qua phần rỗng; key không có `=` có giá trị `""`; chỉ tách ở `=` đầu tiên; key lặp
+      thì giữ giá trị đầu tiên. Ví dụ `"a=1&a=2"` cho `{"a": "1"}`.
+    entry: parse_args
+    starter: |
+      def parse_args(qs):
+          # TODO: split("&"), bỏ phần rỗng, partition("=") rồi lưu vào dict (giữ giá trị đầu tiên)
+          pass
+    guidance_md: |
+      - `key, _, value = part.partition("=")` tách ở `=` đầu tiên.
+      - Dùng `if key not in result` để giữ giá trị đầu tiên.
+    hints:
+      - level: nudge
+        md: "Tách chuỗi bằng `split(\"&\")` và bỏ qua phần rỗng."
+      - level: approach
+        md: "Với mỗi phần, `partition(\"=\")` cho key và value; chỉ gán khi key chưa có trong dict."
+      - level: near_solution
+        md: "Phần rỗng `\"\"` bị bỏ qua bằng `if not part: continue`."
+    tests:
+      - {args: ["a=1&b=2"], expected: {"a": "1", "b": "2"}}
+      - {args: [""], expected: {}}
+      - {args: ["a=1&a=2"], expected: {"a": "1"}}
+      - {args: ["flag"], expected: {"flag": ""}}
+      - {args: ["q=x=y"], expected: {"q": "x=y"}}
+    solution: |
+      def parse_args(qs):
+          result = {}
+          for part in qs.split("&"):
+              if not part:
+                  continue
+              key, _, value = part.partition("=")
+              if key not in result:
+                  result[key] = value
+          return result
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Hàm Flask dùng để sinh URL từ tên endpoint là ___ (viết tên hàm)."
+    blanks: [{accept: ["url_for", "url_for()"]}]
+    explain_md: "`url_for(\"get_user\", id=7)` sinh `/users/7`; đây là reverse routing."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "@app.route(path, methods=[...]) ánh xạ URL + method sang view; <int:id> là converter, không khớp thì 404."
+      - "request.args/form/json mang dữ liệu vào (args và form luôn là chuỗi); jsonify trả JSON."
+      - "url_for(endpoint, **params) sinh URL từ tên endpoint, tránh hard-code đường dẫn."
+      - "Template và blueprint để tổ chức code; Flask là WSGI, FastAPI/Starlette là ASGI (async)."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X762], l2: [X763], l3: [X764]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-07"

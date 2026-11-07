@@ -1,0 +1,75 @@
+id: check-x763-url-for
+subtopic_id: py.ecosystem.flask
+secondary_subtopics: []
+kind: check
+title: 'Check X763: url_for'
+title_vi: 'Kiểm tra X763: reverse routing kiểu url_for'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Implement `url_for(rules, endpoint, params)`, a pure-Python mimic of Flask's reverse routing. `rules` is a list of
+  `[endpoint_name, pattern]` pairs (strings); a `pattern` is a URL such as `"/users/{id}/posts/{pid}"` containing
+  `{name}` placeholders. `endpoint` is a string and `params` is a dict mapping placeholder names to values (int or str).
+  Find the **first** rule whose `endpoint_name == endpoint`, replace every `{name}` in its pattern with
+  `str(params[name])`, and return the resulting path. If no rule has that endpoint, return `""`.
+  You may assume `params` contains every placeholder the matched pattern needs.
+  For `rules = [["get_user", "/users/{id}"], ["get_post", "/users/{id}/posts/{pid}"]]`, `endpoint = "get_post"`,
+  `params = {"id": 7, "pid": 3}` the result is `"/users/7/posts/3"`; for `endpoint = "missing"` it is `""`.
+statement_vi_md: |
+  Cài `url_for(rules, endpoint, params)`, mô phỏng thuần Python cho reverse routing của Flask. `rules` là list các cặp
+  `[endpoint_name, pattern]` (chuỗi); `pattern` là URL như `"/users/{id}/posts/{pid}"` chứa các placeholder `{name}`.
+  `endpoint` là chuỗi, `params` là dict ánh xạ tên placeholder sang giá trị (int hoặc str).
+  Tìm rule **đầu tiên** có `endpoint_name == endpoint`, thay mỗi `{name}` trong pattern bằng `str(params[name])` rồi
+  trả về đường dẫn. Nếu không rule nào có endpoint đó, trả về `""`. Có thể giả sử `params` đủ mọi placeholder cần dùng.
+  Với `rules = [["get_user", "/users/{id}"], ["get_post", "/users/{id}/posts/{pid}"]]`, `endpoint = "get_post"`,
+  `params = {"id": 7, "pid": 3}` kết quả là `"/users/7/posts/3"`; với `endpoint = "missing"` kết quả là `""`.
+constraints:
+- 'Chỉ dùng thư viện chuẩn; không import flask'
+- 'Endpoint không tồn tại trả về chuỗi rỗng; endpoint trùng tên thì rule đầu tiên thắng'
+- 'Pattern có thể không có placeholder; giá trị tham số có thể là int hoặc str (dùng str(value))'
+examples:
+- input: 'rules = [["get_user", "/users/{id}"], ["get_post", "/users/{id}/posts/{pid}"]], endpoint = "get_post", params = {"id": 7, "pid": 3}'
+  output: '"/users/7/posts/3"'
+  explain_vi: 'Rule get_post khớp; {id} thành 7 và {pid} thành 3.'
+io:
+  mode: function
+  entry: url_for
+  params:
+  - name: rules
+    type: list
+  - name: endpoint
+    type: str
+  - name: params
+    type: dict
+  returns: str
+  compare: exact
+starter:
+  python: |
+    def url_for(rules, endpoint, params):
+        # TODO: tìm rule đầu tiên có endpoint_name == endpoint, thay từng {name} bằng str(params[name])
+        pass
+time_target_min: 6
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+hints:
+- "Duyệt rules theo thứ tự và dừng ở rule đầu tiên có `name == endpoint`; không thấy thì trả `\"\"`."
+- "Với mỗi `{name}` trong pattern, thay bằng `str(params[name])`; có thể dùng `pattern.replace(\"{\" + k + \"}\", str(v))` hoặc `re.sub`."
+- "Dùng `str(value)` vì giá trị có thể là int."
+solution:
+  file: solution.py
+  approach_vi: Duyệt rules lấy rule đầu tiên khớp endpoint, rồi dùng re.sub thay từng placeholder {name} bằng str(params[name]); không khớp thì trả chuỗi rỗng.
+  complexity: "O(n + m) / O(1)"
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x763
+status: validated
+version: 1

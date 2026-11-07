@@ -1,0 +1,81 @@
+id: check-x760-match-route
+subtopic_id: py.ecosystem.fastapi
+secondary_subtopics: []
+kind: check
+title: 'Check X760: match route'
+title_vi: 'Kiểm tra X760: khớp route kiểu FastAPI'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Implement `match_route(routes, path)`, a tiny router like the one inside a web framework.
+  `routes` is a list of `[pattern, handler]` pairs (both strings). A pattern is a URL such as
+  `"/users/{id}/posts/{pid}"`; a `{name}` segment is a wildcard that captures exactly **one** path segment
+  (segments are obtained by splitting on `/`). `path` is a concrete URL such as `"/users/7/posts/3"`.
+  A pattern matches iff it has the same number of segments as `path`, every literal segment is equal, and
+  every `{name}` segment maps to the corresponding segment of `path`.
+  Return `[handler, params]` for the **first** matching route in list order, where `params` is a dict
+  `{name: value}` of the captured segments (values stay **strings**; the dict is empty if the pattern has no
+  `{}`). If no route matches, return `[]`.
+  For `routes = [["/users/{id}", "get_user"], ["/users/{id}/posts/{pid}", "get_post"]]` and
+  `path = "/users/7/posts/3"` the result is `["get_post", {"id": "7", "pid": "3"}]`; for `path = "/unknown"`
+  the result is `[]`.
+statement_vi_md: |
+  Cài `match_route(routes, path)`, một router nhỏ giống phần bên trong web framework. `routes` là list các cặp
+  `[pattern, handler]` (đều là chuỗi). Pattern là URL như `"/users/{id}/posts/{pid}"`; segment dạng `{name}` là
+  wildcard bắt đúng **một** segment của đường dẫn (tách segment bằng `/`). `path` là URL cụ thể như
+  `"/users/7/posts/3"`. Pattern khớp khi có cùng số segment với `path`, mọi segment literal bằng nhau, và mỗi
+  `{name}` ứng với segment tương ứng của `path`.
+  Trả về `[handler, params]` của route khớp **đầu tiên** theo thứ tự list, trong đó `params` là dict
+  `{name: value}` các segment đã bắt (giá trị giữ nguyên là **chuỗi**; dict rỗng nếu pattern không có `{}`).
+  Không route nào khớp thì trả `[]`.
+  Với `routes = [["/users/{id}", "get_user"], ["/users/{id}/posts/{pid}", "get_post"]]` và
+  `path = "/users/7/posts/3"` kết quả là `["get_post", {"id": "7", "pid": "3"}]`; với `path = "/unknown"` kết
+  quả là `[]`.
+constraints:
+- 'Segment tách bằng split("/"); pattern và path phải có cùng số segment (dấu / cuối tạo thêm segment rỗng)'
+- 'Route khớp đầu tiên theo thứ tự list thắng, kể cả khi route sau cụ thể hơn'
+- 'Giá trị bắt được là chuỗi, không ép sang số; không có route khớp thì trả [] (list rỗng)'
+examples:
+- input: 'routes = [["/users/{id}", "get_user"], ["/users/{id}/posts/{pid}", "get_post"]], path = "/users/7/posts/3"'
+  output: '["get_post", {"id": "7", "pid": "3"}]'
+  explain_vi: 'Route đầu có 3 segment, path có 5 segment nên bị loại; route hai khớp và bắt id, pid.'
+io:
+  mode: function
+  entry: match_route
+  params:
+  - name: routes
+    type: list
+  - name: path
+    type: str
+  returns: list
+  compare: exact
+starter:
+  python: |
+    def match_route(routes, path):
+        # TODO: split path theo "/", duyệt routes, so từng segment, thu {name} vào dict
+        pass
+time_target_min: 6
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+hints:
+- "Tách `path.split(\"/\")` và `pattern.split(\"/\")`; khác độ dài thì bỏ qua route đó."
+- "Duyệt `zip(pattern_segs, path_segs)`; segment bắt đầu bằng `{` và kết thúc bằng `}` thì ghi `params[name] = segment`, ngược lại phải bằng nhau."
+- "Trả `[handler, params]` ngay ở route khớp đầu tiên; hết vòng lặp mà chưa khớp thì trả `[]`."
+solution:
+  file: solution.py
+  approach_vi: Tách segment theo "/", duyệt route theo thứ tự, loại route khác số segment, so từng cặp segment (literal phải bằng nhau, {name} thì ghi vào dict), trả route khớp đầu tiên.
+  complexity: "O(n*m) / O(m)"
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x760
+status: validated
+version: 1
