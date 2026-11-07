@@ -1,0 +1,77 @@
+id: check-x787-rank-within
+subtopic_id: cs.sql.window_functions
+secondary_subtopics: []
+kind: check
+title: 'Check X787: rank within group'
+title_vi: 'Kiểm tra X787: đánh số thứ tự trong nhóm với ROW_NUMBER'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Implement `rank_within(rows)`. `rows` is a list of `[grp, name, score]` records (grp and name are strings, score an
+  int). Using the standard-library `sqlite3` module with an in-memory database (`sqlite3.connect(":memory:")`),
+  create a table `t(grp TEXT, name TEXT, score INTEGER)`, insert every row with a **parameterized** query
+  (`cur.executemany("INSERT INTO t(grp, name, score) VALUES (?, ?, ?)", rows)`), then run
+  `SELECT grp, name, ROW_NUMBER() OVER (PARTITION BY grp ORDER BY score DESC, name ASC) AS rn FROM t ORDER BY grp ASC, rn ASC`.
+  Return the result as a list of `[grp, name, rn]` triples, each a 3-element **list** (not a tuple), in that order.
+  Within each group the highest score gets `rn = 1`; ties on score are broken by name ascending, so `rn` is
+  deterministic. For `rows = [["a", "x", 5], ["a", "y", 9], ["b", "z", 1]]` the result is
+  `[["a", "y", 1], ["a", "x", 2], ["b", "z", 1]]`; for `[]` the result is `[]`.
+statement_vi_md: |
+  Cài `rank_within(rows)`. `rows` là list các bản ghi `[grp, name, score]` (grp và name là chuỗi, score là số
+  nguyên). Dùng module `sqlite3` của thư viện chuẩn với database trong bộ nhớ (`sqlite3.connect(":memory:")`): tạo
+  bảng `t(grp TEXT, name TEXT, score INTEGER)`, chèn mọi dòng bằng câu SQL tham số hoá
+  (`cur.executemany("INSERT INTO t(grp, name, score) VALUES (?, ?, ?)", rows)`), rồi chạy
+  `SELECT grp, name, ROW_NUMBER() OVER (PARTITION BY grp ORDER BY score DESC, name ASC) AS rn FROM t ORDER BY grp ASC, rn ASC`.
+  Trả về list các bộ ba `[grp, name, rn]`, mỗi bộ là **list** 3 phần tử (không phải tuple), theo đúng thứ tự đó.
+  Trong mỗi nhóm, điểm cao nhất có `rn = 1`; điểm trùng được phá hoà bằng name tăng dần nên `rn` xác định. Với
+  `rows = [["a", "x", 5], ["a", "y", 9], ["b", "z", 1]]` kết quả là
+  `[["a", "y", 1], ["a", "x", 2], ["b", "z", 1]]`; với `[]` kết quả là `[]`.
+constraints:
+- 'Dùng sqlite3 trong bộ nhớ và truy vấn ROW_NUMBER() OVER (PARTITION BY ... ORDER BY ...) như đề; chèn bằng câu SQL tham số hoá (dấu ?)'
+- 'rows có thể rỗng (kết quả []); score có thể âm hoặc trùng nhau; grp và name có thể chứa dấu nháy'
+- 'Mỗi phần tử kết quả phải là list [grp, name, rn], không phải tuple'
+examples:
+- input: 'rows = [["a", "x", 5], ["a", "y", 9], ["b", "z", 1]]'
+  output: '[["a", "y", 1], ["a", "x", 2], ["b", "z", 1]]'
+  explain_vi: 'Nhóm a: y (9) hạng 1, x (5) hạng 2; nhóm b chỉ có z nên rn = 1. Mọi dòng đều được giữ lại.'
+io:
+  mode: function
+  entry: rank_within
+  params:
+  - name: rows
+    type: list
+  returns: list
+  compare: exact
+starter:
+  python: |
+    import sqlite3
+
+
+    def rank_within(rows):
+        # TODO: sqlite3.connect(":memory:"), CREATE TABLE, executemany INSERT với ?, rồi SELECT ... ROW_NUMBER() OVER (PARTITION BY ... ORDER BY ...)
+        pass
+time_target_min: 6
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+hints:
+- "Chèn nhiều dòng bằng câu SQL tham số hoá: `cur.executemany(\"INSERT INTO t(grp, name, score) VALUES (?, ?, ?)\", rows)`."
+- "Truy vấn: `SELECT grp, name, ROW_NUMBER() OVER (PARTITION BY grp ORDER BY score DESC, name ASC) AS rn FROM t ORDER BY grp ASC, rn ASC`."
+- "`cur.fetchall()` trả list các tuple; đổi thành `[list(r) for r in cur.fetchall()]` để so sánh JSON khớp."
+solution:
+  file: solution.py
+  approach_vi: Dùng sqlite3 trong bộ nhớ, chèn bằng executemany tham số hoá, đánh số bằng ROW_NUMBER() OVER (PARTITION BY grp ORDER BY score DESC, name ASC), sắp xếp theo grp và rn rồi đổi tuple thành list.
+  complexity: "O(n log n) / O(n)"
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x787
+status: validated
+version: 1

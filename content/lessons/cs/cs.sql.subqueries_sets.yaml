@@ -1,0 +1,175 @@
+id: cs.sql.subqueries_sets
+version: 1
+status: published
+title_vi: "Subquery, phép toán tập hợp và CTE (subqueries & sets)"
+est_minutes: 14
+objectives_vi:
+  - "Viết scalar subquery và WHERE col IN (SELECT ...) để lọc theo kết quả của một truy vấn khác."
+  - "Dùng EXISTS / NOT EXISTS và correlated subquery; biết NOT IN gặp NULL sẽ trả rỗng."
+  - "Phân biệt UNION, UNION ALL, INTERSECT, EXCEPT và dùng CTE (WITH) để đặt tên cho truy vấn con."
+  - "Chạy truy vấn có subquery / phép toán tập hợp bằng sqlite3 trong Python."
+blocks:
+  - id: s_model
+    type: section
+    title_vi: "Subquery, EXISTS, phép toán tập hợp, CTE"
+    summary_vi: "Một truy vấn có thể nằm trong truy vấn khác; hai truy vấn cùng cột có thể ghép bằng phép toán tập hợp."
+  - id: t01
+    type: text
+    md: |
+      **Subquery** là câu `SELECT` nằm trong dấu ngoặc bên trong câu truy vấn khác. Giả sử `t(name, score)` và `orders(user_id, ...)`, `users(id, name)`.
+
+      **Scalar subquery** trả đúng một giá trị, dùng như một hằng số trong điều kiện:
+
+      ```text
+      SELECT name FROM t
+      WHERE score > (SELECT AVG(score) FROM t);   -- chỉ những dòng trên trung bình
+      ```
+
+      **IN (SELECT ...)** so sánh với cả một cột kết quả:
+
+      ```text
+      SELECT name FROM users
+      WHERE id IN (SELECT user_id FROM orders);   -- user có ít nhất một đơn
+      ```
+
+      **EXISTS** chỉ hỏi "có dòng nào không", thường là **correlated** (tham chiếu cột của truy vấn ngoài):
+
+      ```text
+      SELECT u.name FROM users u
+      WHERE NOT EXISTS (SELECT 1 FROM orders o WHERE o.user_id = u.id);  -- user chưa có đơn
+      ```
+
+      Bẫy: `x NOT IN (SELECT ...)` trả **rỗng** nếu danh sách con chứa NULL (vì `x <> NULL` không bao giờ đúng).
+      `NOT EXISTS` an toàn hơn.
+
+      **Phép toán tập hợp** ghép hai SELECT có cùng số cột:
+
+      ```text
+      SELECT name FROM a UNION     SELECT name FROM b;   -- hợp, bỏ trùng
+      SELECT name FROM a UNION ALL SELECT name FROM b;   -- hợp, giữ trùng
+      SELECT name FROM a INTERSECT SELECT name FROM b;   -- giao (bỏ trùng)
+      SELECT name FROM a EXCEPT    SELECT name FROM b;   -- có ở a, không có ở b (bỏ trùng)
+      ```
+
+      `ORDER BY` chỉ đặt một lần ở cuối cả cụm. **CTE** đặt tên cho truy vấn con để đọc dễ hơn:
+
+      ```text
+      WITH avg_s AS (SELECT AVG(score) AS m FROM t)
+      SELECT name FROM t, avg_s WHERE score > avg_s.m;
+      ```
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Muốn lấy các dòng có `score` lớn hơn trung bình của cả bảng, cách nào đúng?"
+    options:
+      - {id: a, text_md: "`WHERE score > (SELECT AVG(score) FROM t)`"}
+      - {id: b, text_md: "`WHERE score > AVG(score)`"}
+      - {id: c, text_md: "`HAVING score > AVG(score)` không cần GROUP BY"}
+    answer: [a]
+    explain_md: "Hàm gom không dùng trực tiếp trong WHERE; đặt nó trong scalar subquery để tính một lần rồi so sánh."
+  - id: q02
+    type: predict_output
+    code: |
+      a = [3, 1, 2, 3]
+      b = [2, 3, 4]
+      print(sorted(set(a) & set(b)))
+      print(sorted(set(a) - set(b)))
+      print(len(a) + len(b), len(set(a) | set(b)))
+    expected_output: |
+      [2, 3]
+      [1]
+      7 4
+    explain_md: "INTERSECT tương ứng set &, EXCEPT tương ứng set -. UNION ALL giữ 4 + 3 = 7 dòng, còn UNION bỏ trùng nên chỉ còn 4 giá trị."
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "`SELECT name FROM a UNION SELECT name FROM b` và `UNION ALL` khác nhau thế nào?"
+    options:
+      - {id: a, text_md: "UNION bỏ dòng trùng, UNION ALL giữ mọi dòng"}
+      - {id: b, text_md: "UNION giữ dòng trùng, UNION ALL bỏ dòng trùng"}
+      - {id: c, text_md: "Chúng luôn cho cùng kết quả"}
+    answer: [a]
+    explain_md: "UNION phải khử trùng nên tốn thêm bước; UNION ALL chỉ nối hai kết quả."
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: INTERSECT với sqlite3"
+    summary_vi: "Chèn hai bảng bằng executemany, lấy phần giao bằng INTERSECT, đọc kết quả thành list."
+    exercise_ref: ex_names_both
+  - id: t02
+    type: text
+    md: |
+      Mẫu chạy truy vấn có phép toán tập hợp bằng `sqlite3`:
+
+      ```text
+      con = sqlite3.connect(":memory:")
+      cur = con.cursor()
+      cur.execute("CREATE TABLE a (name TEXT)")
+      cur.executemany("INSERT INTO a(name) VALUES (?)", [(n,) for n in xs])
+      cur.execute("SELECT name FROM a INTERSECT SELECT name FROM b ORDER BY name")
+      result = [r[0] for r in cur.fetchall()]
+      ```
+
+      `fetchall()` trả list tuple một phần tử; `r[0]` lấy giá trị. Thứ tự kết quả của INTERSECT/UNION không được
+      đảm bảo nếu thiếu `ORDER BY`.
+  - id: ex_names_both
+    type: code_exercise
+    md: |
+      Cài `names_in_both(a, b)`. `a` và `b` là list chuỗi. Dùng `sqlite3` trong bộ nhớ: tạo hai bảng `a(name)` và
+      `b(name)`, chèn bằng câu SQL tham số hoá, rồi chạy `SELECT name FROM a INTERSECT SELECT name FROM b ORDER BY name`.
+      Trả về list các tên (chuỗi, đã bỏ trùng, tăng dần). Ví dụ `["an", "binh"]` và `["binh", "chi"]` cho `["binh"]`.
+    entry: names_in_both
+    starter: |
+      import sqlite3
+
+
+      def names_in_both(a, b):
+          # TODO: tạo bảng a, b; executemany INSERT với ?; SELECT ... INTERSECT ... ORDER BY name
+          pass
+    guidance_md: |
+      - Hai bảng: `CREATE TABLE a (name TEXT)` và `CREATE TABLE b (name TEXT)`.
+      - Kết quả: `[r[0] for r in cur.fetchall()]`.
+    hints:
+      - level: nudge
+        md: "Dùng hai bảng và nối hai SELECT bằng từ khoá INTERSECT."
+      - level: approach
+        md: "`SELECT name FROM a INTERSECT SELECT name FROM b ORDER BY name`, ORDER BY chỉ ở cuối."
+      - level: near_solution
+        md: "Chèn bằng `[(n,) for n in a]` và trả `[r[0] for r in cur.fetchall()]`."
+    tests:
+      - {args: [["an", "binh", "chi"], ["binh", "chi", "dung"]], expected: ["binh", "chi"]}
+      - {args: [[], ["a"]], expected: []}
+      - {args: [["x", "x", "y"], ["x", "x"]], expected: ["x"]}
+      - {args: [["o'k", "a"], ["a", "o'k", "z"]], expected: ["a", "o'k"]}
+    solution: |
+      import sqlite3
+
+
+      def names_in_both(a, b):
+          con = sqlite3.connect(":memory:")
+          cur = con.cursor()
+          cur.execute("CREATE TABLE a (name TEXT)")
+          cur.execute("CREATE TABLE b (name TEXT)")
+          cur.executemany("INSERT INTO a(name) VALUES (?)", [(n,) for n in a])
+          cur.executemany("INSERT INTO b(name) VALUES (?)", [(n,) for n in b])
+          cur.execute("SELECT name FROM a INTERSECT SELECT name FROM b ORDER BY name")
+          result = [r[0] for r in cur.fetchall()]
+          con.close()
+          return result
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Để lấy các dòng có ở bảng a nhưng không có ở bảng b, nối hai SELECT bằng ___."
+    blanks: [{accept: ["EXCEPT", "except"]}]
+    explain_md: "EXCEPT trả các dòng của truy vấn đầu không xuất hiện ở truy vấn sau (đã bỏ trùng)."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Scalar subquery trả một giá trị để so sánh; IN (SELECT ...) so với cả một cột; hàm gom đi vào subquery thay vì WHERE."
+      - "EXISTS / NOT EXISTS (correlated) kiểm tra có dòng khớp hay không; NOT IN trả rỗng nếu danh sách con có NULL."
+      - "UNION bỏ trùng, UNION ALL giữ trùng, INTERSECT lấy giao, EXCEPT lấy hiệu; ORDER BY đặt một lần ở cuối."
+      - "CTE (WITH) đặt tên cho truy vấn con; trong sqlite3 dùng dấu ? và đổi tuple thành list."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X783], l2: [X784], l3: [X785]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-07"

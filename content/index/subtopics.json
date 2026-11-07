@@ -9744,6 +9744,518 @@
       "plan_hours": 5
     },
     {
+      "id": "cs.sql.subqueries_sets",
+      "section": "cs",
+      "module": "cs.sql",
+      "name_vi": "Subquery, phép toán tập hợp và CTE (subqueries and CTEs)",
+      "order": 5,
+      "summary_vi": "Câu hỏi lồng (subquery) là một câu SELECT nằm trong câu SELECT khác, ví dụ 'ai có lương cao hơn lương trung bình?'. CTE đặt tên cho câu hỏi phụ để câu lớn dễ đọc; UNION ghép kết quả của hai câu hỏi.",
+      "mastery_bar_vi": "Mức 3: viết câu lồng phụ thuộc câu ngoài, tránh bẫy NOT IN với NULL và chọn đúng UNION hay UNION ALL.",
+      "prerequisites": [
+        "cs.sql.joins"
+      ],
+      "lang_prereqs": {
+        "python": [],
+        "java": []
+      },
+      "key_concepts": [
+        "scalar, row and table subqueries",
+        "correlated subquery",
+        "IN vs EXISTS vs JOIN",
+        "NOT IN and the NULL trap",
+        "derived table in FROM",
+        "UNION vs UNION ALL; INTERSECT and EXCEPT",
+        "WITH clause (CTE) and chaining several CTEs for readability",
+        "recursive CTE (anchor + recursive member)",
+        "hierarchies: org chart, category tree",
+        "CTE vs subquery vs temp table vs view"
+      ],
+      "concepts_vi": [
+        {
+          "text": "Subquery (câu hỏi lồng): đặt trong WHERE (trả về một giá trị hoặc một danh sách) hoặc trong FROM (như một bảng tạm).",
+          "level": "co_ban"
+        },
+        {
+          "text": "IN và EXISTS: kiểm tra giá trị có nằm trong kết quả câu lồng không / câu lồng có trả dòng nào không. Ví dụ: WHERE EXISTS (SELECT 1 FROM nhanvien n WHERE n.ma_phong = p.ma) giữ phòng có nhân viên.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Câu lồng phụ thuộc câu ngoài (correlated subquery): câu trong dùng giá trị của từng dòng câu ngoài, như lương so với trung bình phòng của chính người đó.",
+          "level": "co_ban"
+        },
+        {
+          "text": "CTE (WITH ... AS): đặt tên cho câu hỏi phụ rồi dùng như một bảng; nối nhiều CTE bằng dấu phẩy để câu lớn đọc từ trên xuống.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Mẫu: WITH tb AS (SELECT ma_phong, AVG(luong) AS tl FROM nhanvien GROUP BY ma_phong) SELECT n.ten FROM nhanvien n JOIN tb ON n.ma_phong = tb.ma_phong WHERE n.luong > tb.tl;",
+          "level": "co_ban"
+        },
+        {
+          "text": "UNION và UNION ALL: ghép dòng của hai kết quả; UNION bỏ dòng trùng, UNION ALL giữ hết và nhanh hơn.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Bẫy NOT IN: nếu danh sách có NULL thì x NOT IN (1, NULL) ra NULL (không phải đúng) nên không dòng nào được giữ; NOT EXISTS an toàn hơn.",
+          "level": "co_ban"
+        },
+        {
+          "text": "INTERSECT và EXCEPT: phần chung / phần chỉ có ở kết quả thứ nhất.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "CTE đệ quy (recursive CTE): tự gọi lại để đi qua cây, như sơ đồ tổ chức.",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "Above-average salary",
+          "vi": "Bảng nhanvien(ten, luong): (An, 30), (Binh, 20), (Chi, 40), (Dung, 40); lương trung bình là 32,5. Liệt kê nhân viên lương cao hơn trung bình cả công ty. Kết quả: Chi, Dung.",
+          "starter_code_vi": {
+            "lang": "sql",
+            "code": "SELECT ten\nFROM nhanvien\nWHERE luong > (SELECT ... FROM nhanvien);   -- TODO: câu lồng trả về lương trung bình"
+          }
+        },
+        {
+          "title": "Second highest salary",
+          "vi": "Cùng bảng trên, tìm mức lương cao thứ nhì (không tính trùng). Kết quả: 30. Gợi ý: lấy MAX của những lương nhỏ hơn MAX."
+        },
+        {
+          "title": "UNION vs UNION ALL",
+          "vi": "Kết quả 1: An, Binh; kết quả 2: Binh, Chi. UNION ra mấy dòng, UNION ALL ra mấy dòng? Đáp án: UNION 3 dòng (An, Binh, Chi); UNION ALL 4 dòng (Binh hiện hai lần)."
+        },
+        {
+          "title": "Refactor into CTEs",
+          "vi": "Bảng nhanvien(ten, luong, ma_phong): (An, 30, 1), (Binh, 20, 1), (Chi, 40, 2), (Dung, 40, 2). Liệt kê người lương cao hơn trung bình phòng của mình. Kết quả: An. Viết bằng WITH cho dễ đọc.",
+          "starter_code_vi": {
+            "lang": "sql",
+            "code": "WITH tb AS (\n  SELECT ma_phong, AVG(luong) AS tb_luong\n  FROM nhanvien GROUP BY ma_phong\n)\nSELECT n.ten\nFROM nhanvien n JOIN tb ON n.ma_phong = tb.ma_phong\nWHERE ...;   -- TODO: so lương với tb_luong"
+          }
+        }
+      ],
+      "example_problems": [
+        "Second highest salary",
+        "Employees earning more than their department average",
+        "UNION vs UNION ALL",
+        "All reports (direct and indirect) of a manager",
+        "Refactor nested subqueries into CTEs"
+      ],
+      "bank_topics": [
+        "cs_fundamentals.sql_queries"
+      ],
+      "bank_counts": {
+        "cs_fundamentals.sql_queries": {
+          "total": 75,
+          "y2026": 20
+        }
+      },
+      "target_swe": {
+        "intern": 1,
+        "fresher": 3,
+        "junior": 3,
+        "senior": 3
+      },
+      "target_ai": {
+        "intern": 1,
+        "fresher": 3,
+        "junior": 3,
+        "senior": 3
+      },
+      "est_hours": 5,
+      "plan_order": 86,
+      "plan_day": null,
+      "plan_hours": 5
+    },
+    {
+      "id": "cs.sql.window_functions",
+      "section": "cs",
+      "module": "cs.sql",
+      "name_vi": "Hàm cửa sổ (window functions)",
+      "order": 6,
+      "summary_vi": "Window function là cột tính thêm cho mỗi dòng dựa trên nhóm dòng liên quan nhưng không gộp dòng lại, như thêm cột 'hạng' vào bảng điểm mà bảng vẫn đủ từng học sinh. Học xong bạn giải được bài top N mỗi nhóm và so sánh với kỳ trước.",
+      "mastery_bar_vi": "Mức 3: giải bài top N mỗi nhóm, tổng cộng dồn và so sánh với kỳ trước bằng window function.",
+      "prerequisites": [
+        "cs.sql.aggregation",
+        "cs.sql.subqueries_sets"
+      ],
+      "lang_prereqs": {
+        "python": [],
+        "java": []
+      },
+      "key_concepts": [
+        "OVER (PARTITION BY ... ORDER BY ...)",
+        "ROW_NUMBER vs RANK vs DENSE_RANK",
+        "LAG and LEAD",
+        "running total / moving average with frame (ROWS BETWEEN)",
+        "FIRST_VALUE, LAST_VALUE, NTILE",
+        "aggregates as window functions",
+        "top-N per group",
+        "window vs GROUP BY"
+      ],
+      "concepts_vi": [
+        {
+          "text": "Window function: hàm() OVER (...) thêm một cột cho mỗi dòng; khác GROUP BY ở chỗ số dòng giữ nguyên.",
+          "level": "co_ban"
+        },
+        {
+          "text": "OVER (PARTITION BY a ORDER BY b): PARTITION BY chia dòng thành nhóm (như GROUP BY nhưng không gộp); ORDER BY sắp xếp bên trong từng nhóm.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Câu mẫu: SELECT ten, RANK() OVER (PARTITION BY ma_phong ORDER BY luong DESC) AS hang FROM nhanvien; thêm cột hang, hạng 1 là lương cao nhất phòng.",
+          "level": "co_ban"
+        },
+        {
+          "text": "ROW_NUMBER, RANK, DENSE_RANK: với điểm 9, 9, 7 cho ra 1,2,3 / 1,1,3 / 1,1,2; chỉ RANK nhảy số sau khi bằng điểm.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Top N mỗi nhóm: đánh hạng trong CTE (WITH ... AS) rồi SELECT ... WHERE hang <= N; WHERE chạy trước SELECT (thứ tự ở cs.sql.select_where) nên cột hang chưa tồn tại lúc đó.",
+          "level": "co_ban"
+        },
+        {
+          "text": "LAG và LEAD: lấy giá trị dòng trước hoặc dòng sau; tien - LAG(tien) OVER (ORDER BY thang) là chênh lệch so với tháng trước (tháng đầu là NULL).",
+          "level": "co_ban"
+        },
+        {
+          "text": "Tổng cộng dồn: SUM(tien) OVER (ORDER BY ngay) cộng từ dòng đầu đến dòng này; ROWS BETWEEN 2 PRECEDING AND CURRENT ROW là khung gồm 2 dòng trước và dòng hiện tại (cộng 3 dòng gần nhất).",
+          "level": "nang_cao"
+        },
+        {
+          "text": "FIRST_VALUE, LAST_VALUE: giá trị ở dòng đầu hoặc cuối của nhóm; NTILE(4) chia các dòng thành 4 phần bằng nhau và ghi số phần.",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "Rank vs dense_rank",
+          "vi": "Bảng diem(ten, diem): (An, 9), (Binh, 9), (Chi, 7). Thêm hai cột xếp hạng. Kết quả mong đợi: An 9 rk=1 dense=1; Binh 9 rk=1 dense=1; Chi 7 rk=3 dense=2.",
+          "starter_code_vi": {
+            "lang": "sql",
+            "code": "SELECT ten, diem,\n  RANK() OVER (ORDER BY diem DESC) AS rk\n  -- TODO: thêm cột dense bằng DENSE_RANK() OVER (...)\nFROM diem;"
+          }
+        },
+        {
+          "title": "Top 1 salary per department",
+          "vi": "Bảng nhanvien(ten, ma_phong, luong): (An, 1, 30), (Binh, 1, 20), (Chi, 2, 40), (Dung, 2, 35). Lấy người lương cao nhất mỗi phòng (rồi đổi thành top 2). Kết quả top 1: An, Chi.",
+          "starter_code_vi": {
+            "lang": "sql",
+            "code": "WITH r AS (\n  SELECT ten, ma_phong, luong,\n    ROW_NUMBER() OVER (PARTITION BY ... ORDER BY ... DESC) AS hang   -- TODO\n  FROM nhanvien\n)\nSELECT ten FROM r WHERE hang <= 1;"
+          }
+        },
+        {
+          "title": "Month-over-month with LAG",
+          "vi": "Bảng doanhthu(thang, tien): (1, 100), (2, 120), (3, 90). Thêm cột chênh lệch so với tháng trước. Kết quả: (1, NULL), (2, 20), (3, -30).",
+          "starter_code_vi": {
+            "lang": "sql",
+            "code": "SELECT thang, tien,\n  tien - LAG(tien) OVER (ORDER BY ...) AS chenh   -- TODO\nFROM doanhthu;"
+          }
+        },
+        {
+          "title": "Running total",
+          "vi": "Bảng banhang(ngay, tien): (1, 5), (2, 3), (3, 4). Tính tổng doanh thu cộng dồn theo ngày. Kết quả: (1, 5), (2, 8), (3, 12).",
+          "starter_code_vi": {
+            "lang": "sql",
+            "code": "SELECT ngay, tien,\n  SUM(tien) OVER (ORDER BY ...) AS cong_don   -- TODO\nFROM banhang;"
+          }
+        }
+      ],
+      "example_problems": [
+        "Top 3 salaries per department",
+        "Per-user daily totals with 7-day rolling average",
+        "Rank vs dense_rank",
+        "Month-over-month growth with LAG"
+      ],
+      "bank_topics": [
+        "cs_fundamentals.sql_queries"
+      ],
+      "bank_counts": {
+        "cs_fundamentals.sql_queries": {
+          "total": 75,
+          "y2026": 20
+        }
+      },
+      "target_swe": {
+        "intern": 0,
+        "fresher": 2,
+        "junior": 3,
+        "senior": 3
+      },
+      "target_ai": {
+        "intern": 1,
+        "fresher": 3,
+        "junior": 3,
+        "senior": 3
+      },
+      "est_hours": 6,
+      "plan_order": 87,
+      "plan_day": null,
+      "plan_hours": 6
+    },
+    {
+      "id": "cs.sql.dml_ddl",
+      "section": "cs",
+      "module": "cs.sql",
+      "name_vi": "DML, DDL và mô hình hóa bằng SQL (DML and DDL)",
+      "order": 7,
+      "summary_vi": "Ngoài hỏi dữ liệu, SQL còn thêm (INSERT), sửa (UPDATE), xóa (DELETE) dòng và tạo, sửa, xóa bảng (CREATE, ALTER, DROP). Khi tạo bảng bạn đặt luật cho dữ liệu, như không được trống hoặc không được trùng.",
+      "mastery_bar_vi": "Mức 3: viết CREATE TABLE có ràng buộc hợp lý, upsert và xóa dòng trùng an toàn, phân biệt TRUNCATE, DELETE và DROP.",
+      "prerequisites": [
+        "cs.sql.select_where",
+        "cs.sql.intro"
+      ],
+      "lang_prereqs": {
+        "python": [],
+        "java": []
+      },
+      "key_concepts": [
+        "INSERT, UPDATE, DELETE, MERGE/UPSERT",
+        "INSERT ... SELECT",
+        "CREATE/ALTER/DROP TABLE",
+        "TRUNCATE vs DELETE vs DROP",
+        "constraints and defaults",
+        "delete duplicates keeping first row",
+        "transactions in SQL scripts"
+      ],
+      "concepts_vi": [
+        {
+          "text": "INSERT, UPDATE, DELETE: thêm, sửa, xóa dòng; UPDATE hay DELETE quên WHERE sẽ tác động lên mọi dòng.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Mẫu sửa và xóa: UPDATE sinhvien SET diem = 9 WHERE ma = 1; DELETE FROM sinhvien WHERE ma = 1; (nhớ WHERE).",
+          "level": "co_ban"
+        },
+        {
+          "text": "Mẫu thêm dòng: INSERT INTO sinhvien (ma, ten, email) VALUES (1, 'An', 'a@x.vn'); cột không ghi sẽ lấy giá trị DEFAULT hoặc NULL.",
+          "level": "co_ban"
+        },
+        {
+          "text": "CREATE, ALTER, DROP TABLE: tạo bảng, đổi cấu trúc bảng, xóa luôn cả bảng.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Mẫu tạo bảng: CREATE TABLE sinhvien (ma INTEGER PRIMARY KEY, ten TEXT NOT NULL, email TEXT UNIQUE, diem INTEGER DEFAULT 0); mỗi cột gồm tên, kiểu, rồi ràng buộc.",
+          "level": "co_ban"
+        },
+        {
+          "text": "DELETE, TRUNCATE, DROP: DELETE xóa các dòng được chọn; TRUNCATE xóa sạch dòng rất nhanh; DROP xóa cả bảng.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Ràng buộc (constraint): luật cho cột như NOT NULL (không trống), UNIQUE (không trùng), PRIMARY KEY, DEFAULT (giá trị mặc định).",
+          "level": "co_ban"
+        },
+        {
+          "text": "Upsert (update + insert): thêm dòng, nếu trùng khóa thì cập nhật. PostgreSQL và SQLite: INSERT ... ON CONFLICT (email) DO UPDATE SET ...; MySQL: ON DUPLICATE KEY UPDATE; SQL Server, Oracle: MERGE.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Xóa dòng trùng, giữ một dòng: đánh số bằng ROW_NUMBER trong nhóm trùng rồi xóa các dòng số lớn hơn 1.",
+          "level": "co_ban"
+        },
+        {
+          "text": "INSERT ... SELECT: chép kết quả của một truy vấn vào bảng khác.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Giao dịch trong script SQL (file .sql chứa nhiều câu chạy liền): BEGIN và COMMIT gộp nhiều lệnh thành một khối (xem cs.databases.transactions_acid).",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "Create table with constraints",
+          "vi": "Tạo bảng sinhvien(ma, ten, email): ma là khóa chính, ten không được trống, email không được trùng. Kiểm tra: INSERT hai dòng cùng email thì dòng thứ hai bị từ chối.",
+          "starter_code_vi": {
+            "lang": "sql",
+            "code": "CREATE TABLE sinhvien (\n  ma INTEGER PRIMARY KEY,\n  ten TEXT ...,     -- TODO: không được trống\n  email TEXT ...    -- TODO: không được trùng\n);\nINSERT INTO sinhvien VALUES (1, 'An', 'a@x.vn');"
+          }
+        },
+        {
+          "title": "UPDATE without WHERE",
+          "vi": "Bảng nhanvien(ten, luong): (An, 30), (Binh, 20). Chạy UPDATE nhanvien SET luong = 0; thì bảng ra sao? Đáp án: cả hai về 0. Sửa câu để chỉ đổi lương của An."
+        },
+        {
+          "title": "TRUNCATE vs DELETE vs DROP",
+          "vi": "Lập bảng 3 cột so sánh DELETE, TRUNCATE, DROP: xóa gì, có dùng WHERE được không, có hoàn lại được không. Lưu ý: hoàn lại (ROLLBACK) là hủy các lệnh chưa chốt, học ở cs.databases.transactions_acid. DELETE thường hoàn lại được nếu chưa chốt; PostgreSQL cho hoàn lại cả TRUNCATE và DROP trong giao dịch, MySQL thì không (tự chốt). SQLite không có TRUNCATE."
+        },
+        {
+          "title": "Delete duplicates keeping first",
+          "vi": "Bảng users(id, email): (1, a@x), (2, a@x), (3, b@x). Xóa dòng trùng email, giữ dòng id nhỏ nhất. Còn lại: id 1 và 3.",
+          "starter_code_vi": {
+            "lang": "sql",
+            "code": "DELETE FROM users\nWHERE id NOT IN (\n  SELECT ... FROM users GROUP BY email   -- TODO: giữ id nhỏ nhất mỗi email\n);"
+          }
+        }
+      ],
+      "example_problems": [
+        "Delete duplicate rows keeping the first",
+        "TRUNCATE vs DELETE vs DROP",
+        "Create schema with foreign keys",
+        "Upsert a row"
+      ],
+      "bank_topics": [
+        "cs_fundamentals.sql_queries",
+        "cs_fundamentals.db_concepts"
+      ],
+      "bank_counts": {
+        "cs_fundamentals.sql_queries": {
+          "total": 75,
+          "y2026": 20
+        },
+        "cs_fundamentals.db_concepts": {
+          "total": 104,
+          "y2026": 20
+        }
+      },
+      "target_swe": {
+        "intern": 1,
+        "fresher": 3,
+        "junior": 3,
+        "senior": 3
+      },
+      "target_ai": {
+        "intern": 1,
+        "fresher": 2,
+        "junior": 2,
+        "senior": 2
+      },
+      "est_hours": 3,
+      "plan_order": 88,
+      "plan_day": null,
+      "plan_hours": 3
+    },
+    {
+      "id": "cs.sql.classic_puzzles",
+      "section": "cs",
+      "module": "cs.sql",
+      "name_vi": "Các bài SQL kinh điển và phân tích (SQL puzzles)",
+      "order": 8,
+      "summary_vi": "Đây là bộ bài SQL hay hỏi trong phỏng vấn: lương cao thứ N, top 3 mỗi phòng, xóa dòng trùng, khách chưa mua, người dùng hoạt động nhiều ngày liên tiếp. Mỗi bài có một khuôn giải để luyện.",
+      "mastery_bar_vi": "Mức 3: giải trong 15 phút các bài lương cao thứ N, top N mỗi nhóm, xóa dòng trùng, khách chưa mua và nêu được các trường hợp NULL, giá trị trùng.",
+      "prerequisites": [
+        "cs.sql.window_functions",
+        "cs.sql.dml_ddl"
+      ],
+      "lang_prereqs": {
+        "python": [],
+        "java": []
+      },
+      "key_concepts": [
+        "Nth highest salary (DENSE_RANK, LIMIT/OFFSET, subquery)",
+        "top-N per group",
+        "find and delete duplicates (GROUP BY ... HAVING, ROW_NUMBER)",
+        "anti-join: customers with no orders",
+        "current balance or stock from a transaction log",
+        "ties and NULL edge cases",
+        "retention / cohort analysis and funnel conversion",
+        "consecutive days (gaps and islands) and sessionization with LAG",
+        "pivot with conditional aggregation",
+        "median and percentiles",
+        "month-over-month growth and rolling averages",
+        "how to attack a SQL question in 15 minutes: clarify, sample data, edge cases"
+      ],
+      "concepts_vi": [
+        {
+          "text": "Lương cao thứ N: DENSE_RANK rồi lọc hạng = N, hoặc LIMIT 1 OFFSET N-1 trên danh sách mức lương khác nhau.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Top N mỗi nhóm: RANK hoặc ROW_NUMBER theo từng nhóm rồi lọc.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Tìm và xóa dòng trùng: GROUP BY ... HAVING COUNT(*) > 1 để tìm; ROW_NUMBER để xóa các bản sao.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Khách chưa mua: LEFT JOIN ... IS NULL hoặc NOT EXISTS.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Số dư từ nhật ký giao dịch: cộng tiền vào, trừ tiền ra cho từng tài khoản bằng SUM kèm CASE.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Cách làm bài trong 15 phút: hỏi rõ đề, viết vài dòng dữ liệu mẫu, nghĩ tới NULL và giá trị bằng nhau (ties) rồi mới viết.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Giữ chân người dùng (retention): bao nhiêu phần trăm người dùng ngày 0 quay lại ngày 1; phễu (funnel): bao nhiêu phần trăm đi tiếp từ bước này sang bước sau.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Ngày liên tiếp (gaps and islands) và phiên làm việc (sessionization: gom các lần bấm cách nhau ngắn thành một phiên): dùng LAG hoặc phép trừ với ROW_NUMBER.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Xoay bảng (pivot): biến giá trị của một cột thành các cột, làm bằng gộp có điều kiện; phân vị (percentile): giá trị mà p% dữ liệu nhỏ hơn hoặc bằng, trung vị (median) là phân vị 50%.",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "Nth highest salary",
+          "vi": "Bảng nhanvien(ten, luong): (An, 30), (Binh, 20), (Chi, 40), (Dung, 40). Tìm lương cao thứ N (N = 2 ra 30, N = 3 ra 20): lấy các mức lương khác nhau, xếp giảm dần, bỏ N-1 mức đầu.",
+          "starter_code_vi": {
+            "lang": "sql",
+            "code": "SELECT DISTINCT luong\nFROM nhanvien\nORDER BY luong DESC\nLIMIT 1 OFFSET ...;   -- TODO: N - 1"
+          }
+        },
+        {
+          "title": "Top salary per department",
+          "vi": "Bảng nhanvien(ten, ma_phong, luong): (An, 1, 30), (Binh, 1, 20), (Chi, 2, 40), (Dung, 2, 35). Lấy nhân viên lương cao nhất mỗi phòng (rồi top 3). Kết quả top 1: An, Chi."
+        },
+        {
+          "title": "Delete duplicate rows keeping the first",
+          "vi": "Bảng users(id, email): (1, a@x), (2, a@x), (3, b@x). Xóa dòng trùng email, giữ id nhỏ nhất. Còn lại id 1 và 3."
+        },
+        {
+          "title": "Customers with no orders",
+          "vi": "Bảng khach(ma, ten): (1, An), (2, Binh). Bảng donhang(ma_khach): (1). Liệt kê khách chưa có đơn. Kết quả: Binh."
+        },
+        {
+          "title": "Users active on 3 consecutive days",
+          "vi": "Bảng dangnhap(user, ngay): (1,1), (1,2), (1,3), (2,1), (2,3), ngày là số. Tìm người dùng có 3 ngày liên tiếp. Kết quả: user 1. Gợi ý: ngay - ROW_NUMBER() OVER (PARTITION BY user ORDER BY ngay) giống nhau ở các ngày liên tiếp. Tính tay: user 1 có ngay 1, 2, 3 và ROW_NUMBER 1, 2, 3 nên hiệu đều 0; user 2 có ngay 1, 3 và ROW_NUMBER 1, 2 nên hiệu 0 rồi 1 (khác nhau, không liên tiếp). Nhóm theo (user, hiệu) và đếm >= 3."
+        }
+      ],
+      "beginner_note_vi": "Intern có thể bỏ qua; fresher nên làm bốn bài đầu.",
+      "example_problems": [
+        "Nth highest salary",
+        "Top 3 salaries per department",
+        "Delete duplicate rows keeping the first",
+        "Users active on 3 consecutive days",
+        "Day-1 retention"
+      ],
+      "bank_topics": [
+        "cs_fundamentals.sql_queries"
+      ],
+      "bank_counts": {
+        "cs_fundamentals.sql_queries": {
+          "total": 75,
+          "y2026": 20
+        }
+      },
+      "target_swe": {
+        "intern": 0,
+        "fresher": 2,
+        "junior": 3,
+        "senior": 3
+      },
+      "target_ai": {
+        "intern": 0,
+        "fresher": 3,
+        "junior": 3,
+        "senior": 3
+      },
+      "est_hours": 6,
+      "plan_order": 89,
+      "plan_day": null,
+      "plan_hours": 6
+    },
+    {
       "id": "dsa.arrays_strings.matrix_traversal",
       "section": "dsa",
       "module": "dsa.arrays_strings",
@@ -9853,7 +10365,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 86,
+      "plan_order": 90,
       "plan_day": null,
       "plan_hours": 1.5
     },
@@ -9959,7 +10471,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 87,
+      "plan_order": 91,
       "plan_day": null,
       "plan_hours": 1.0
     },
@@ -10069,7 +10581,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 88,
+      "plan_order": 92,
       "plan_day": null,
       "plan_hours": 1.5
     },
@@ -10181,7 +10693,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 89,
+      "plan_order": 93,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -10305,7 +10817,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 90,
+      "plan_order": 94,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -10417,7 +10929,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 91,
+      "plan_order": 95,
       "plan_day": null,
       "plan_hours": 1.5
     },
@@ -10522,7 +11034,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 92,
+      "plan_order": 96,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -10633,7 +11145,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 93,
+      "plan_order": 97,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -10736,7 +11248,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 94,
+      "plan_order": 98,
       "plan_day": null,
       "plan_hours": 1.0
     },
@@ -10857,7 +11369,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 95,
+      "plan_order": 99,
       "plan_day": null,
       "plan_hours": 2.0
     },
@@ -10973,7 +11485,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 96,
+      "plan_order": 100,
       "plan_day": null,
       "plan_hours": 1.0
     },
@@ -11090,7 +11602,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 97,
+      "plan_order": 101,
       "plan_day": null,
       "plan_hours": 1.5
     },
@@ -11203,7 +11715,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 98,
+      "plan_order": 102,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -11316,7 +11828,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 99,
+      "plan_order": 103,
       "plan_day": null,
       "plan_hours": 1.0
     },
@@ -11421,7 +11933,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 100,
+      "plan_order": 104,
       "plan_day": null,
       "plan_hours": 1.0
     },
@@ -11537,7 +12049,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 101,
+      "plan_order": 105,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -11650,7 +12162,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 102,
+      "plan_order": 106,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -11758,7 +12270,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 103,
+      "plan_order": 107,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -11878,7 +12390,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 104,
+      "plan_order": 108,
       "plan_day": null,
       "plan_hours": 1.0
     },
@@ -12005,7 +12517,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 105,
+      "plan_order": 109,
       "plan_day": null,
       "plan_hours": 1.5
     },
@@ -12129,7 +12641,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 106,
+      "plan_order": 110,
       "plan_day": null,
       "plan_hours": 1.5
     },
@@ -12240,7 +12752,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 107,
+      "plan_order": 111,
       "plan_day": null,
       "plan_hours": 1.5
     },
@@ -12356,7 +12868,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 108,
+      "plan_order": 112,
       "plan_day": null,
       "plan_hours": 2.0
     },
@@ -12477,7 +12989,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 109,
+      "plan_order": 113,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -12593,7 +13105,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 110,
+      "plan_order": 114,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -12697,7 +13209,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 111,
+      "plan_order": 115,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -12793,7 +13305,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 112,
+      "plan_order": 116,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -12909,7 +13421,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 113,
+      "plan_order": 117,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -13037,7 +13549,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 114,
+      "plan_order": 118,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -13146,7 +13658,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 115,
+      "plan_order": 119,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -13269,7 +13781,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 116,
+      "plan_order": 120,
       "plan_day": null,
       "plan_hours": 1.5
     },
@@ -13376,7 +13888,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 117,
+      "plan_order": 121,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -13501,7 +14013,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 118,
+      "plan_order": 122,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -13624,7 +14136,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 119,
+      "plan_order": 123,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -13732,7 +14244,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 120,
+      "plan_order": 124,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -13845,7 +14357,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 121,
+      "plan_order": 125,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -13957,7 +14469,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 122,
+      "plan_order": 126,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -14079,7 +14591,7 @@
         "senior": 2
       },
       "est_hours": 6,
-      "plan_order": 123,
+      "plan_order": 127,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -14196,7 +14708,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 124,
+      "plan_order": 128,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -14304,7 +14816,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 125,
+      "plan_order": 129,
       "plan_day": null,
       "plan_hours": 1.0
     },
@@ -14423,7 +14935,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 126,
+      "plan_order": 130,
       "plan_day": null,
       "plan_hours": 1.5
     },
@@ -14540,7 +15052,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 127,
+      "plan_order": 131,
       "plan_day": null,
       "plan_hours": 2.0
     },
@@ -14650,7 +15162,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 128,
+      "plan_order": 132,
       "plan_day": null,
       "plan_hours": 1.5
     },
@@ -14766,7 +15278,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 129,
+      "plan_order": 133,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -14886,7 +15398,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 130,
+      "plan_order": 134,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -14988,7 +15500,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 131,
+      "plan_order": 135,
       "plan_day": null,
       "plan_hours": 1.0
     },
@@ -15115,7 +15627,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 132,
+      "plan_order": 136,
       "plan_day": null,
       "plan_hours": 1.5
     },
@@ -15239,7 +15751,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 133,
+      "plan_order": 137,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -15356,7 +15868,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 134,
+      "plan_order": 138,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -15464,7 +15976,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 135,
+      "plan_order": 139,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -15585,7 +16097,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 136,
+      "plan_order": 140,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -15706,7 +16218,7 @@
         "senior": 2
       },
       "est_hours": 6,
-      "plan_order": 137,
+      "plan_order": 141,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -15832,7 +16344,7 @@
         "senior": 2
       },
       "est_hours": 6,
-      "plan_order": 138,
+      "plan_order": 142,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -15925,7 +16437,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 139,
+      "plan_order": 143,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -16061,7 +16573,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 140,
+      "plan_order": 144,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -16176,7 +16688,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 141,
+      "plan_order": 145,
       "plan_day": null,
       "plan_hours": 1.5
     },
@@ -16292,7 +16804,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 142,
+      "plan_order": 146,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -16419,7 +16931,7 @@
         "senior": 2
       },
       "est_hours": 6,
-      "plan_order": 143,
+      "plan_order": 147,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -16531,7 +17043,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 144,
+      "plan_order": 148,
       "plan_day": null,
       "plan_hours": 1.0
     },
@@ -16646,7 +17158,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 145,
+      "plan_order": 149,
       "plan_day": null,
       "plan_hours": 1.0
     },
@@ -16776,7 +17288,7 @@
         "senior": 2
       },
       "est_hours": 6,
-      "plan_order": 146,
+      "plan_order": 150,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -16900,7 +17412,7 @@
         "senior": 2
       },
       "est_hours": 6,
-      "plan_order": 147,
+      "plan_order": 151,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -17013,7 +17525,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 148,
+      "plan_order": 152,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -17146,7 +17658,7 @@
         "senior": 1
       },
       "est_hours": 5,
-      "plan_order": 149,
+      "plan_order": 153,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -17277,7 +17789,7 @@
         "senior": 1
       },
       "est_hours": 6,
-      "plan_order": 150,
+      "plan_order": 154,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -17386,7 +17898,7 @@
         "senior": 0
       },
       "est_hours": 3,
-      "plan_order": 151,
+      "plan_order": 155,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -17503,7 +18015,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 152,
+      "plan_order": 156,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -17620,7 +18132,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 153,
+      "plan_order": 157,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -17732,7 +18244,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 154,
+      "plan_order": 158,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -17849,7 +18361,7 @@
         "senior": 1
       },
       "est_hours": 5,
-      "plan_order": 155,
+      "plan_order": 159,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -17970,7 +18482,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 156,
+      "plan_order": 160,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -18081,7 +18593,7 @@
         "senior": 1
       },
       "est_hours": 4,
-      "plan_order": 157,
+      "plan_order": 161,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -18184,7 +18696,7 @@
         "senior": 1
       },
       "est_hours": 2,
-      "plan_order": 158,
+      "plan_order": 162,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -18313,7 +18825,7 @@
         "senior": 1
       },
       "est_hours": 5,
-      "plan_order": 159,
+      "plan_order": 163,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -18422,7 +18934,7 @@
         "senior": 1
       },
       "est_hours": 5,
-      "plan_order": 160,
+      "plan_order": 164,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -18540,7 +19052,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 161,
+      "plan_order": 165,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -18639,7 +19151,7 @@
         "senior": 0
       },
       "est_hours": 3,
-      "plan_order": 162,
+      "plan_order": 166,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -18742,7 +19254,7 @@
         "senior": 1
       },
       "est_hours": 3,
-      "plan_order": 163,
+      "plan_order": 167,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -18844,7 +19356,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 164,
+      "plan_order": 168,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -18944,7 +19456,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 165,
+      "plan_order": 169,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -19058,7 +19570,7 @@
         "senior": 0
       },
       "est_hours": 6,
-      "plan_order": 166,
+      "plan_order": 170,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -19154,7 +19666,7 @@
         "senior": 0
       },
       "est_hours": 3,
-      "plan_order": 167,
+      "plan_order": 171,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -19264,7 +19776,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 168,
+      "plan_order": 172,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -19379,7 +19891,7 @@
         "senior": 0
       },
       "est_hours": 6,
-      "plan_order": 169,
+      "plan_order": 173,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -19497,7 +20009,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 170,
+      "plan_order": 174,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -19614,7 +20126,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 171,
+      "plan_order": 175,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -19723,7 +20235,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 172,
+      "plan_order": 176,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -19831,7 +20343,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 173,
+      "plan_order": 177,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -19938,7 +20450,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 174,
+      "plan_order": 178,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -20048,7 +20560,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 175,
+      "plan_order": 179,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -20159,7 +20671,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 176,
+      "plan_order": 180,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -20276,7 +20788,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 177,
+      "plan_order": 181,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -20388,7 +20900,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 178,
+      "plan_order": 182,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -20488,7 +21000,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 179,
+      "plan_order": 183,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -20594,7 +21106,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 180,
+      "plan_order": 184,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -20703,7 +21215,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 181,
+      "plan_order": 185,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -20848,7 +21360,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 182,
+      "plan_order": 186,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -20961,7 +21473,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 183,
+      "plan_order": 187,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -21074,7 +21586,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 184,
+      "plan_order": 188,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -21179,7 +21691,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 185,
+      "plan_order": 189,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -21287,7 +21799,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 186,
+      "plan_order": 190,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -21404,7 +21916,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 187,
+      "plan_order": 191,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -21512,7 +22024,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 188,
+      "plan_order": 192,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -21616,7 +22128,7 @@
         "senior": 0
       },
       "est_hours": 3,
-      "plan_order": 189,
+      "plan_order": 193,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -21728,7 +22240,7 @@
         "senior": 1
       },
       "est_hours": 3,
-      "plan_order": 190,
+      "plan_order": 194,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -21845,7 +22357,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 191,
+      "plan_order": 195,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -21954,7 +22466,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 192,
+      "plan_order": 196,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -22060,7 +22572,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 193,
+      "plan_order": 197,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -22195,7 +22707,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 194,
+      "plan_order": 198,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -22314,7 +22826,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 195,
+      "plan_order": 199,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -22442,7 +22954,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 196,
+      "plan_order": 200,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -22547,7 +23059,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 197,
+      "plan_order": 201,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -22660,7 +23172,7 @@
         "senior": 0
       },
       "est_hours": 2,
-      "plan_order": 198,
+      "plan_order": 202,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -22784,7 +23296,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 199,
+      "plan_order": 203,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -22892,7 +23404,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 200,
+      "plan_order": 204,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -23009,7 +23521,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 201,
+      "plan_order": 205,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -23114,7 +23626,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 202,
+      "plan_order": 206,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -23223,7 +23735,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 203,
+      "plan_order": 207,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -23359,7 +23871,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 204,
+      "plan_order": 208,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -23478,7 +23990,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 205,
+      "plan_order": 209,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -23603,7 +24115,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 206,
+      "plan_order": 210,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -23700,7 +24212,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 207,
+      "plan_order": 211,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -23822,7 +24334,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 208,
+      "plan_order": 212,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -23939,7 +24451,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 209,
+      "plan_order": 213,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -24048,7 +24560,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 210,
+      "plan_order": 214,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -24158,7 +24670,7 @@
         "senior": 1
       },
       "est_hours": 4,
-      "plan_order": 211,
+      "plan_order": 215,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -24263,7 +24775,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 212,
+      "plan_order": 216,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -24373,7 +24885,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 213,
+      "plan_order": 217,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -24478,7 +24990,7 @@
         "senior": 0
       },
       "est_hours": 3,
-      "plan_order": 214,
+      "plan_order": 218,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -24603,7 +25115,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 215,
+      "plan_order": 219,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -24726,7 +25238,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 216,
+      "plan_order": 220,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -24831,7 +25343,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 217,
+      "plan_order": 221,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -24933,7 +25445,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 218,
+      "plan_order": 222,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -25036,7 +25548,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 219,
+      "plan_order": 223,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -25154,7 +25666,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 220,
+      "plan_order": 224,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -25259,7 +25771,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 221,
+      "plan_order": 225,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -25351,7 +25863,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 222,
+      "plan_order": 226,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -25463,7 +25975,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 223,
+      "plan_order": 227,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -25581,7 +26093,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 224,
+      "plan_order": 228,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -25690,7 +26202,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 225,
+      "plan_order": 229,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -25800,7 +26312,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 226,
+      "plan_order": 230,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -25910,7 +26422,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 227,
+      "plan_order": 231,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -26018,7 +26530,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 228,
+      "plan_order": 232,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -26127,7 +26639,7 @@
         "senior": 1
       },
       "est_hours": 4,
-      "plan_order": 229,
+      "plan_order": 233,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -26237,7 +26749,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 230,
+      "plan_order": 234,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -26336,7 +26848,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 231,
+      "plan_order": 235,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -26440,7 +26952,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 232,
+      "plan_order": 236,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -26548,7 +27060,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 233,
+      "plan_order": 237,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -26658,7 +27170,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 234,
+      "plan_order": 238,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -26757,7 +27269,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 235,
+      "plan_order": 239,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -26860,7 +27372,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 236,
+      "plan_order": 240,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -26962,7 +27474,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 237,
+      "plan_order": 241,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -27066,7 +27578,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 238,
+      "plan_order": 242,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -27172,7 +27684,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 239,
+      "plan_order": 243,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -27276,7 +27788,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 240,
+      "plan_order": 244,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -27376,7 +27888,7 @@
         "senior": 0
       },
       "est_hours": 3,
-      "plan_order": 241,
+      "plan_order": 245,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -27481,7 +27993,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 242,
+      "plan_order": 246,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -27592,7 +28104,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 243,
+      "plan_order": 247,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -27699,7 +28211,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 244,
+      "plan_order": 248,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -27810,7 +28322,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 245,
+      "plan_order": 249,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -27920,7 +28432,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 246,
+      "plan_order": 250,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -28023,7 +28535,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 247,
+      "plan_order": 251,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -28127,7 +28639,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 248,
+      "plan_order": 252,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -28241,7 +28753,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 249,
+      "plan_order": 253,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -28360,7 +28872,7 @@
         "senior": 0
       },
       "est_hours": 6,
-      "plan_order": 250,
+      "plan_order": 254,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -28469,7 +28981,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 251,
+      "plan_order": 255,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -28570,7 +29082,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 252,
+      "plan_order": 256,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -28675,7 +29187,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 253,
+      "plan_order": 257,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -28781,7 +29293,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 254,
+      "plan_order": 258,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -28892,7 +29404,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 255,
+      "plan_order": 259,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -28998,7 +29510,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 256,
+      "plan_order": 260,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -29100,7 +29612,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 257,
+      "plan_order": 261,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -29218,7 +29730,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 258,
+      "plan_order": 262,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -29336,7 +29848,7 @@
       },
       "est_hours": 3,
       "est_hours_beginner": 5,
-      "plan_order": 259,
+      "plan_order": 263,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -29462,7 +29974,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 260,
+      "plan_order": 264,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -29574,7 +30086,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 261,
+      "plan_order": 265,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -29699,7 +30211,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 262,
+      "plan_order": 266,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -29815,7 +30327,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 263,
+      "plan_order": 267,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -29930,7 +30442,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 264,
+      "plan_order": 268,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -30057,7 +30569,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 265,
+      "plan_order": 269,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -30182,7 +30694,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 266,
+      "plan_order": 270,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -30308,7 +30820,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 267,
+      "plan_order": 271,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -30438,7 +30950,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 268,
+      "plan_order": 272,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -30535,7 +31047,7 @@
       },
       "est_hours": 2,
       "est_hours_beginner": 3,
-      "plan_order": 269,
+      "plan_order": 273,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -30653,7 +31165,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 270,
+      "plan_order": 274,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -30766,7 +31278,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 271,
+      "plan_order": 275,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -30880,7 +31392,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 272,
+      "plan_order": 276,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -30995,7 +31507,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 273,
+      "plan_order": 277,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -31104,7 +31616,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 274,
+      "plan_order": 278,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -31217,7 +31729,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 275,
+      "plan_order": 279,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -31327,7 +31839,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 276,
+      "plan_order": 280,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -31434,7 +31946,7 @@
       },
       "est_hours": 3,
       "est_hours_beginner": 4,
-      "plan_order": 277,
+      "plan_order": 281,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -31556,7 +32068,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 278,
+      "plan_order": 282,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -31675,7 +32187,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 279,
+      "plan_order": 283,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -31802,7 +32314,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 280,
+      "plan_order": 284,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -31928,7 +32440,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 281,
+      "plan_order": 285,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -32051,7 +32563,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 282,
+      "plan_order": 286,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -32168,7 +32680,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 283,
+      "plan_order": 287,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -32275,7 +32787,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 284,
+      "plan_order": 288,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -32390,7 +32902,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 285,
+      "plan_order": 289,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -32506,7 +33018,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 286,
+      "plan_order": 290,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -32621,7 +33133,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 287,
+      "plan_order": 291,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -32753,7 +33265,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 288,
+      "plan_order": 292,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -32872,7 +33384,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 289,
+      "plan_order": 293,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -32978,7 +33490,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 290,
+      "plan_order": 294,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -33093,7 +33605,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 291,
+      "plan_order": 295,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -33210,7 +33722,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 292,
+      "plan_order": 296,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -33333,7 +33845,7 @@
         "senior": 3
       },
       "est_hours": 2,
-      "plan_order": 293,
+      "plan_order": 297,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -33461,7 +33973,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 294,
+      "plan_order": 298,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -33581,7 +34093,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 295,
+      "plan_order": 299,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -33695,7 +34207,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 296,
+      "plan_order": 300,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -33817,7 +34329,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 297,
+      "plan_order": 301,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -33943,7 +34455,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 298,
+      "plan_order": 302,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -34063,7 +34575,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 299,
+      "plan_order": 303,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -34180,7 +34692,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 300,
+      "plan_order": 304,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -34299,7 +34811,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 301,
+      "plan_order": 305,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -34411,7 +34923,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 302,
+      "plan_order": 306,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -34533,7 +35045,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 303,
+      "plan_order": 307,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -34658,7 +35170,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 304,
+      "plan_order": 308,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -34775,7 +35287,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 305,
+      "plan_order": 309,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -34886,7 +35398,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 306,
+      "plan_order": 310,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -34998,7 +35510,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 307,
+      "plan_order": 311,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -35105,7 +35617,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 308,
+      "plan_order": 312,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -35225,7 +35737,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 309,
+      "plan_order": 313,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -35348,7 +35860,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 310,
+      "plan_order": 314,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -35458,7 +35970,7 @@
         "senior": 3
       },
       "est_hours": 2,
-      "plan_order": 311,
+      "plan_order": 315,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -35568,7 +36080,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 312,
+      "plan_order": 316,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -35684,7 +36196,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 313,
+      "plan_order": 317,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -35809,7 +36321,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 314,
+      "plan_order": 318,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -35923,7 +36435,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 315,
+      "plan_order": 319,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -36040,7 +36552,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 316,
+      "plan_order": 320,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -36138,7 +36650,7 @@
         "senior": 3
       },
       "est_hours": 2,
-      "plan_order": 317,
+      "plan_order": 321,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -36256,7 +36768,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 318,
+      "plan_order": 322,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -36380,7 +36892,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 319,
+      "plan_order": 323,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -36505,7 +37017,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 320,
+      "plan_order": 324,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -36633,7 +37145,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 321,
+      "plan_order": 325,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -36749,7 +37261,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 322,
+      "plan_order": 326,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -36853,7 +37365,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 323,
+      "plan_order": 327,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -36970,7 +37482,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 324,
+      "plan_order": 328,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -37082,7 +37594,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 325,
+      "plan_order": 329,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -37182,7 +37694,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 326,
+      "plan_order": 330,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -37316,7 +37828,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 327,
+      "plan_order": 331,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -37452,7 +37964,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 328,
+      "plan_order": 332,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -37597,7 +38109,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 329,
+      "plan_order": 333,
       "plan_day": null,
       "plan_hours": 6
     }

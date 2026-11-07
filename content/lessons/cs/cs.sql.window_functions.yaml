@@ -1,0 +1,191 @@
+id: cs.sql.window_functions
+version: 1
+status: published
+title_vi: "Hàm cửa sổ (window functions)"
+est_minutes: 15
+objectives_vi:
+  - "Viết OVER (PARTITION BY ... ORDER BY ...) để tính thêm một cột cho mỗi dòng mà không gộp dòng."
+  - "Phân biệt ROW_NUMBER, RANK và DENSE_RANK khi có giá trị trùng."
+  - "Dùng SUM(x) OVER (ORDER BY ...) làm tổng cộng dồn và LAG/LEAD để so với dòng trước/sau."
+  - "Chạy truy vấn window bằng sqlite3 trong Python và đọc kết quả thành list."
+blocks:
+  - id: s_model
+    type: section
+    title_vi: "OVER, PARTITION BY và các hàm xếp hạng"
+    summary_vi: "Window function thêm cột tính theo nhóm dòng nhưng vẫn giữ nguyên mọi dòng."
+  - id: t01
+    type: text
+    md: |
+      **GROUP BY** gộp nhiều dòng thành một dòng mỗi nhóm. **Window function** thì khác: nó tính một giá trị cho
+      **từng dòng** dựa trên một "cửa sổ" các dòng liên quan, và **giữ nguyên mọi dòng**. Cú pháp là `hàm(...) OVER (...)`.
+      Giả sử bảng `scores(grp, name, score)`:
+
+      ```text
+      SELECT grp, name, score,
+             ROW_NUMBER() OVER (PARTITION BY grp ORDER BY score DESC) AS rn
+      FROM scores;
+      ```
+
+      - `PARTITION BY grp` chia dòng thành các nhóm (như GROUP BY nhưng không gộp).
+      - `ORDER BY score DESC` sắp xếp **bên trong** mỗi nhóm để đánh số.
+      - Kết quả có đủ mọi dòng của `scores`, thêm cột `rn` tính lại từ 1 trong từng nhóm.
+
+      **Ba hàm xếp hạng** khác nhau khi có giá trị trùng. Với điểm 90, 80, 80, 70:
+
+      ```text
+      điểm   ROW_NUMBER   RANK   DENSE_RANK
+      90         1          1         1
+      80         2          2         2
+      80         3          2         2
+      70         4          4         3
+      ```
+
+      `ROW_NUMBER` luôn là 1, 2, 3, ... (hai dòng trùng vẫn có số khác nhau, thứ tự giữa chúng không xác định nếu
+      `ORDER BY` không phân định được). `RANK` cho hạng trùng nhau rồi **nhảy cách** (2, 2, 4). `DENSE_RANK` cho hạng trùng
+      nhau và **không nhảy** (2, 2, 3). Bài "top N mỗi nhóm" thường lọc `rn <= N` ở một truy vấn ngoài.
+
+      Muốn `ROW_NUMBER` ổn định, thêm cột phụ vào `ORDER BY` để phá hoà, ví dụ `ORDER BY score DESC, name ASC`.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Điểm của một nhóm là 90, 80, 80, 70 (sắp giảm dần). `RANK()` của dòng 70 là bao nhiêu?"
+    options:
+      - {id: a, text_md: "4 (hai dòng hạng 2 chiếm chỗ của hạng 3)"}
+      - {id: b, text_md: "3 (không nhảy cách)"}
+      - {id: c, text_md: "2 (cùng hạng với dòng trước)"}
+    answer: [a]
+    explain_md: "RANK nhảy cách sau các hạng trùng: 1, 2, 2, 4. Muốn 3 thì dùng DENSE_RANK, còn ROW_NUMBER sẽ cho 4 nhưng không có khái niệm hạng trùng."
+  - id: q02
+    type: predict_output
+    code: |
+      rows = [("a", 5), ("a", 9), ("b", 1), ("a", 7)]
+      seen = {}
+      for g, s in sorted(rows, key=lambda r: (r[0], -r[1])):
+          seen[g] = seen.get(g, 0) + 1
+          print(g, s, seen[g])
+    expected_output: |
+      a 9 1
+      a 7 2
+      a 5 3
+      b 1 1
+    explain_md: "Đây là ROW_NUMBER() OVER (PARTITION BY g ORDER BY s DESC): sắp theo nhóm rồi điểm giảm dần, bộ đếm tính lại từ 1 cho mỗi nhóm."
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Khác biệt chính giữa `SUM(x) OVER (PARTITION BY g)` và `SELECT g, SUM(x) ... GROUP BY g` là gì?"
+    options:
+      - {id: a, text_md: "Bản window giữ nguyên từng dòng, mỗi dòng kèm tổng của nhóm; GROUP BY chỉ còn một dòng mỗi nhóm"}
+      - {id: b, text_md: "Bản window chạy nhanh hơn và cho ít dòng hơn"}
+      - {id: c, text_md: "Hai cách luôn cho đúng cùng một kết quả"}
+    answer: [a]
+    explain_md: "Window function không gộp dòng. GROUP BY nén mỗi nhóm thành một dòng, còn window thêm cột tổng vào mọi dòng của nhóm."
+  - id: t_more
+    type: text
+    md: |
+      **Hàm gom làm window.** Thêm `OVER (...)` vào `SUM`, `AVG`, `COUNT`... để có giá trị theo cửa sổ. Khi có
+      `ORDER BY` trong `OVER`, kết quả là **cộng dồn** (running total):
+
+      ```text
+      SELECT id, amt,
+             SUM(amt) OVER (ORDER BY id) AS running
+      FROM t;
+      -- amt:     5   -2    4
+      -- running: 5    3    7
+      ```
+
+      Không có `ORDER BY` trong `OVER` thì cả cửa sổ là toàn nhóm, mọi dòng nhận cùng một tổng.
+
+      **LAG và LEAD** lấy giá trị của dòng **trước** / **sau** trong cửa sổ (dòng đầu không có dòng trước nên được NULL):
+
+      ```text
+      SELECT id, amt,
+             amt - LAG(amt) OVER (ORDER BY id) AS diff_prev,
+             LEAD(amt)      OVER (ORDER BY id) AS next_amt
+      FROM t;
+      ```
+
+      Cú pháp `LAG(cột, n, mặc_định)` cho phép nhảy n dòng và thay NULL bằng giá trị mặc định.
+
+      **Lưu ý.** Không dùng được window function trực tiếp trong `WHERE`; muốn lọc theo `rn` hay `running`, bọc truy vấn
+      vào subquery hoặc CTE rồi lọc ở ngoài. SQLite hỗ trợ window function từ phiên bản 3.25.
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: tổng cộng dồn với sqlite3"
+    summary_vi: "Chèn bằng executemany, dùng SUM() OVER (ORDER BY id), đọc kết quả thành list."
+    exercise_ref: ex_running
+  - id: t02
+    type: text
+    md: |
+      Mẫu chạy truy vấn window bằng `sqlite3` trong bộ nhớ:
+
+      ```text
+      con = sqlite3.connect(":memory:")
+      cur = con.cursor()
+      cur.execute("CREATE TABLE t (id INTEGER, amt INTEGER)")
+      cur.executemany("INSERT INTO t(id, amt) VALUES (?, ?)", [(i + 1, a) for i, a in enumerate(amts)])
+      cur.execute("SELECT SUM(amt) OVER (ORDER BY id) FROM t ORDER BY id")
+      result = [r[0] for r in cur.fetchall()]
+      ```
+
+      Cần `ORDER BY` ở cả trong `OVER` (để cộng dồn đúng thứ tự) lẫn ở truy vấn ngoài (để thứ tự dòng trả về ổn định).
+  - id: ex_running
+    type: code_exercise
+    md: |
+      Cài `running_total(amts)`. `amts` là list số nguyên. Dùng `sqlite3` trong bộ nhớ: tạo bảng `t(id INTEGER, amt INTEGER)`,
+      chèn dòng thứ i (đếm từ 1) với `id = i`, rồi chạy
+      `SELECT SUM(amt) OVER (ORDER BY id) FROM t ORDER BY id`. Trả về list các tổng cộng dồn (list số nguyên).
+      Ví dụ `[5, -2, 4]` cho `[5, 3, 7]`.
+    entry: running_total
+    starter: |
+      import sqlite3
+
+
+      def running_total(amts):
+          # TODO: connect(":memory:"), CREATE TABLE t(id, amt), executemany INSERT với ?, rồi SELECT SUM(amt) OVER (ORDER BY id) ...
+          pass
+    guidance_md: |
+      - Chèn `[(i + 1, a) for i, a in enumerate(amts)]` bằng `executemany`.
+      - `SELECT SUM(amt) OVER (ORDER BY id) FROM t ORDER BY id`, rồi `[r[0] for r in cur.fetchall()]`.
+    hints:
+      - level: nudge
+        md: "Dùng `sqlite3.connect(\":memory:\")` và truyền giá trị qua dấu `?`."
+      - level: approach
+        md: "Mỗi dòng cần một `id` tăng dần; `SUM(amt) OVER (ORDER BY id)` cho tổng cộng dồn theo id."
+      - level: near_solution
+        md: "Nhớ `ORDER BY id` ở truy vấn ngoài và lấy `r[0]` của mỗi tuple."
+    tests:
+      - {args: [[5, -2, 4]], expected: [5, 3, 7]}
+      - {args: [[]], expected: []}
+      - {args: [[7]], expected: [7]}
+      - {args: [[0, 0, 3, -3]], expected: [0, 0, 3, 0]}
+    solution: |
+      import sqlite3
+
+
+      def running_total(amts):
+          con = sqlite3.connect(":memory:")
+          cur = con.cursor()
+          cur.execute("CREATE TABLE t (id INTEGER, amt INTEGER)")
+          cur.executemany("INSERT INTO t(id, amt) VALUES (?, ?)", [(i + 1, a) for i, a in enumerate(amts)])
+          cur.execute("SELECT SUM(amt) OVER (ORDER BY id) FROM t ORDER BY id")
+          result = [r[0] for r in cur.fetchall()]
+          con.close()
+          return result
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Để lấy giá trị của dòng ngay trước trong cửa sổ (so sánh với kỳ trước), dùng hàm ___."
+    blanks: [{accept: ["LAG", "lag"]}]
+    explain_md: "LAG(cột) lấy giá trị dòng trước theo thứ tự của OVER (ORDER BY ...); LEAD lấy dòng sau."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Window function viết dạng hàm OVER (...), tính một giá trị cho mỗi dòng và không gộp dòng như GROUP BY."
+      - "PARTITION BY chia nhóm, ORDER BY trong OVER sắp xếp bên trong nhóm; thêm cột phụ để phá hoà cho ROW_NUMBER ổn định."
+      - "ROW_NUMBER: 1,2,3,4; RANK: 1,2,2,4 (nhảy cách); DENSE_RANK: 1,2,2,3 (không nhảy)."
+      - "SUM() OVER (ORDER BY ...) là tổng cộng dồn; LAG/LEAD lấy dòng trước/sau; muốn lọc theo kết quả window thì bọc subquery/CTE."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X786], l2: [X787], l3: [X788]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-07"

@@ -1,0 +1,81 @@
+id: check-x790-apply-ops
+subtopic_id: cs.sql.dml_ddl
+secondary_subtopics: []
+kind: check
+title: 'Check X790: apply ops'
+title_vi: 'Kiểm tra X790: áp dụng INSERT, UPDATE, DELETE'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Implement `apply_ops(ops)`. `ops` is a list of operations applied **in order** to a table
+  `t(name TEXT PRIMARY KEY, score INTEGER)` in an in-memory database (`sqlite3.connect(":memory:")`). Each operation
+  is a list with one of these shapes, run with a **parameterized** query:
+  - `["insert", name, score]` runs `INSERT OR REPLACE INTO t(name, score) VALUES (?, ?)`. `OR REPLACE` means inserting
+    an existing name overwrites its row instead of failing.
+  - `["update", name, score]` runs `UPDATE t SET score = ? WHERE name = ?` (does nothing if `name` is absent).
+  - `["delete", name]` runs `DELETE FROM t WHERE name = ?` (does nothing if `name` is absent).
+
+  After all operations, run `SELECT name, score FROM t ORDER BY name ASC` and return the rows as a list of
+  `[name, score]` **lists** (not tuples). If the table is empty return `[]`.
+  For `ops = [["insert","an",5],["insert","binh",3],["update","an",9],["delete","binh"]]` the result is `[["an", 9]]`.
+statement_vi_md: |
+  Cài `apply_ops(ops)`. `ops` là list các thao tác áp dụng **lần lượt** lên bảng `t(name TEXT PRIMARY KEY, score INTEGER)`
+  trong database bộ nhớ (`sqlite3.connect(":memory:")`). Mỗi thao tác là một list có một trong các dạng sau, chạy bằng
+  câu SQL **tham số hoá**:
+  - `["insert", name, score]` chạy `INSERT OR REPLACE INTO t(name, score) VALUES (?, ?)`. `OR REPLACE` nghĩa là chèn lại
+    tên đã có sẽ ghi đè dòng cũ thay vì báo lỗi.
+  - `["update", name, score]` chạy `UPDATE t SET score = ? WHERE name = ?` (không làm gì nếu `name` chưa có).
+  - `["delete", name]` chạy `DELETE FROM t WHERE name = ?` (không làm gì nếu `name` chưa có).
+
+  Sau khi áp dụng hết, chạy `SELECT name, score FROM t ORDER BY name ASC` và trả về list các cặp `[name, score]`, mỗi cặp
+  là **list** (không phải tuple). Bảng rỗng thì trả `[]`.
+  Với `ops = [["insert","an",5],["insert","binh",3],["update","an",9],["delete","binh"]]` kết quả là `[["an", 9]]`.
+constraints:
+- 'Dùng sqlite3 trong bộ nhớ, đúng câu INSERT OR REPLACE / UPDATE / DELETE như đề, truyền giá trị bằng dấu ?'
+- 'ops có thể rỗng (kết quả []); update/delete tên không tồn tại là no-op; score có thể âm; tên có thể chứa dấu nháy'
+- 'Mỗi phần tử kết quả phải là list [name, score], không phải tuple'
+examples:
+- input: 'ops = [["insert","an",5],["insert","binh",3],["update","an",9],["delete","binh"]]'
+  output: '[["an", 9]]'
+  explain_vi: 'an được chèn 5 rồi UPDATE thành 9; binh bị DELETE; còn lại một dòng.'
+io:
+  mode: function
+  entry: apply_ops
+  params:
+  - name: ops
+    type: list
+  returns: list
+  compare: exact
+starter:
+  python: |
+    import sqlite3
+
+
+    def apply_ops(ops):
+        # TODO: connect(":memory:"), CREATE TABLE, duyệt ops: insert / update / delete bằng SQL có ?, rồi SELECT ... ORDER BY name
+        pass
+time_target_min: 6
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+hints:
+- "Tạo bảng `CREATE TABLE t (name TEXT PRIMARY KEY, score INTEGER)`, rồi duyệt `ops` và rẽ nhánh theo `op[0]`."
+- "Insert: `INSERT OR REPLACE INTO t(name, score) VALUES (?, ?)`; update: `UPDATE t SET score = ? WHERE name = ?` (chú ý thứ tự tham số là score rồi name); delete: `DELETE FROM t WHERE name = ?`."
+- "Cuối cùng `SELECT name, score FROM t ORDER BY name ASC` và `[list(r) for r in cur.fetchall()]`."
+solution:
+  file: solution.py
+  approach_vi: Một kết nối sqlite3 trong bộ nhớ, duyệt ops theo thứ tự và rẽ nhánh insert/update/delete bằng SQL tham số hoá, cuối cùng SELECT có ORDER BY và đổi tuple thành list.
+  complexity: "O(n log n) / O(n)"
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x790
+status: validated
+version: 1

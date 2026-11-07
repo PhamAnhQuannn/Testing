@@ -1,0 +1,168 @@
+id: cs.sql.classic_puzzles
+version: 1
+status: published
+title_vi: "Các bài SQL kinh điển (SQL puzzles)"
+est_minutes: 15
+objectives_vi:
+  - "Giải bài giá trị cao thứ N bằng DISTINCT + ORDER BY + LIMIT/OFFSET hoặc truy vấn con."
+  - "Tìm dòng trùng bằng GROUP BY ... HAVING COUNT(*) > 1."
+  - "Nhận ra khuôn tổng lũy kế, dãy liên tiếp (ngày trừ ROW_NUMBER) và self-join tạo cặp."
+  - "Chạy truy vấn puzzle bằng sqlite3 trong Python và đọc kết quả thành list."
+blocks:
+  - id: s_model
+    type: section
+    title_vi: "Bốn khuôn puzzle hay gặp"
+    summary_vi: "Cao thứ N, dòng trùng, tổng lũy kế / dãy liên tiếp, self-join tạo cặp."
+  - id: t01
+    type: text
+    md: |
+      **1. Giá trị cao thứ N.** Dùng `DISTINCT` để giá trị trùng chỉ tính một lần, rồi bỏ qua N-1 giá trị đầu.
+      Giả sử bảng `emp(name, salary)`:
+
+      ```text
+      -- lương cao thứ 3 (OFFSET = N - 1)
+      SELECT DISTINCT salary FROM emp ORDER BY salary DESC LIMIT 1 OFFSET 2;
+
+      -- lấy tên những người có lương đó
+      SELECT name FROM emp
+      WHERE salary = (SELECT DISTINCT salary FROM emp ORDER BY salary DESC LIMIT 1 OFFSET 2);
+      ```
+
+      Nếu không đủ N giá trị khác nhau thì truy vấn con không ra dòng nào, nên so sánh `=` không khớp gì (kết quả rỗng).
+      Thiếu `DISTINCT` là lỗi kinh điển: hai người cùng lương cao nhất khiến "cao thứ hai" lại trả về chính lương cao nhất.
+
+      **2. Tìm dòng trùng.** Gom theo cột cần kiểm tra, giữ nhóm có nhiều hơn một dòng:
+
+      ```text
+      SELECT email, COUNT(*) AS n
+      FROM users
+      GROUP BY email
+      HAVING COUNT(*) > 1;
+      ```
+
+      **3. Tổng lũy kế và dãy liên tiếp.** Tổng lũy kế dùng hàm cửa sổ; dãy ngày liên tiếp dùng mẹo
+      "giá trị trừ số thứ tự" (với `day` là số nguyên, đã khử trùng):
+
+      ```text
+      SELECT day, SUM(amount) OVER (ORDER BY day) AS running FROM sales;
+
+      SELECT MIN(day) AS start_day, MAX(day) AS end_day, COUNT(*) AS len
+      FROM (SELECT day, day - ROW_NUMBER() OVER (ORDER BY day) AS grp
+            FROM (SELECT DISTINCT day FROM logins))
+      GROUP BY grp;
+      ```
+
+      Trong một dãy liên tiếp, `day` và `ROW_NUMBER()` cùng tăng 1 mỗi dòng nên hiệu `grp` không đổi; chỗ đứt dãy làm `grp` đổi.
+
+      **4. Self-join tạo cặp.** Nối bảng với chính nó; điều kiện `a.id < b.id` loại cặp (x, x) và tránh đếm (x, y) lẫn (y, x):
+
+      ```text
+      SELECT a.name, b.name
+      FROM emp AS a JOIN emp AS b ON a.dept = b.dept AND a.id < b.id;
+      ```
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Lương: 90, 90, 70. Truy vấn nào trả đúng lương cao thứ hai (70)?"
+    options:
+      - {id: a, text_md: "`SELECT DISTINCT salary FROM emp ORDER BY salary DESC LIMIT 1 OFFSET 1`"}
+      - {id: b, text_md: "`SELECT salary FROM emp ORDER BY salary DESC LIMIT 1 OFFSET 1`"}
+      - {id: c, text_md: "`SELECT MIN(salary) FROM emp`"}
+    answer: [a]
+    explain_md: "Có DISTINCT thì các giá trị là 90, 70 và OFFSET 1 chọn 70. Không có DISTINCT (b) các dòng là 90, 90, 70 và OFFSET 1 lại trả 90."
+  - id: q02
+    type: predict_output
+    code: |
+      vals = [3, 1, 3, 2, 1, 3]
+      counts = {}
+      for v in vals:
+          counts[v] = counts.get(v, 0) + 1
+      print(sorted(v for v, n in counts.items() if n > 1))
+      print(sorted(set(vals), reverse=True)[1])
+    expected_output: |
+      [1, 3]
+      2
+    explain_md: "Giá trị xuất hiện nhiều hơn một lần là 1 (2 lần) và 3 (3 lần): giống GROUP BY ... HAVING COUNT(*) > 1. Giá trị khác nhau giảm dần là [3, 2, 1] nên phần tử thứ hai là 2."
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: tìm giá trị trùng với sqlite3"
+    summary_vi: "Chèn bằng executemany, GROUP BY ... HAVING COUNT(*) > 1, đọc kết quả thành list phẳng."
+    exercise_ref: ex_find_dups
+  - id: t02
+    type: text
+    md: |
+      Mẫu chạy một truy vấn puzzle bằng `sqlite3` trong bộ nhớ:
+
+      ```text
+      con = sqlite3.connect(":memory:")
+      cur = con.cursor()
+      cur.execute("CREATE TABLE t (val INTEGER)")
+      cur.executemany("INSERT INTO t(val) VALUES (?)", [(v,) for v in vals])
+      cur.execute("SELECT val FROM t GROUP BY val HAVING COUNT(*) > 1 ORDER BY val")
+      result = [r[0] for r in cur.fetchall()]
+      ```
+
+      Mỗi dòng kết quả chỉ có một cột nên `r[0]` cho ra list phẳng thay vì list các tuple. Luôn thêm `ORDER BY`
+      để thứ tự ổn định.
+  - id: ex_find_dups
+    type: code_exercise
+    md: |
+      Cài `find_duplicates(rows)`. `rows` là list số nguyên. Dùng `sqlite3` trong bộ nhớ: tạo bảng `t(val INTEGER)`,
+      chèn mọi số bằng câu SQL tham số hoá, rồi chạy `SELECT val FROM t GROUP BY val HAVING COUNT(*) > 1 ORDER BY val`.
+      Trả về list phẳng các giá trị xuất hiện nhiều hơn một lần, tăng dần. Ví dụ `[1, 2, 2, 3, 3, 3]` cho `[2, 3]`.
+    entry: find_duplicates
+    starter: |
+      import sqlite3
+
+
+      def find_duplicates(rows):
+          # TODO: connect(":memory:"), CREATE TABLE t(val INTEGER), executemany INSERT với ?, rồi GROUP BY val HAVING COUNT(*) > 1 ORDER BY val
+          pass
+    guidance_md: |
+      - `executemany("INSERT INTO t(val) VALUES (?)", [(v,) for v in rows])`.
+      - `SELECT val FROM t GROUP BY val HAVING COUNT(*) > 1 ORDER BY val`, rồi `[r[0] for r in cur.fetchall()]`.
+    hints:
+      - level: nudge
+        md: "Dùng `sqlite3.connect(\":memory:\")` và truyền giá trị qua dấu `?`."
+      - level: approach
+        md: "Gom theo `val` rồi giữ nhóm có `COUNT(*) > 1` bằng HAVING."
+      - level: near_solution
+        md: "Nhớ `ORDER BY val` và lấy `r[0]` của mỗi tuple để ra list phẳng."
+    tests:
+      - {args: [[1, 2, 2, 3, 3, 3]], expected: [2, 3]}
+      - {args: [[]], expected: []}
+      - {args: [[5]], expected: []}
+      - {args: [[4, 4]], expected: [4]}
+      - {args: [[-1, 0, -1, 7, 0, 0]], expected: [-1, 0]}
+    solution: |
+      import sqlite3
+
+
+      def find_duplicates(rows):
+          con = sqlite3.connect(":memory:")
+          cur = con.cursor()
+          cur.execute("CREATE TABLE t (val INTEGER)")
+          cur.executemany("INSERT INTO t(val) VALUES (?)", [(v,) for v in rows])
+          cur.execute("SELECT val FROM t GROUP BY val HAVING COUNT(*) > 1 ORDER BY val")
+          result = [r[0] for r in cur.fetchall()]
+          con.close()
+          return result
+  - id: q03
+    type: quiz_fill
+    prompt_md: "Để tìm các giá trị xuất hiện nhiều hơn một lần, ta GROUP BY cột đó rồi lọc nhóm bằng HAVING COUNT(___) > 1."
+    blanks: [{accept: ["*"]}]
+    explain_md: "COUNT(*) đếm số dòng của mỗi nhóm; HAVING COUNT(*) > 1 giữ các nhóm có từ hai dòng trở lên."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Cao thứ N: SELECT DISTINCT ... ORDER BY ... DESC LIMIT 1 OFFSET N-1; thiếu DISTINCT thì giá trị trùng làm sai thứ hạng."
+      - "Dòng trùng: GROUP BY cột HAVING COUNT(*) > 1."
+      - "Tổng lũy kế dùng SUM(...) OVER (ORDER BY ...); dãy liên tiếp dùng giá trị trừ ROW_NUMBER() sau khi khử trùng."
+      - "Self-join tạo cặp với điều kiện a.id < b.id để không lặp và không ghép phần tử với chính nó."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X792], l2: [X793], l3: [X794]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-07"
