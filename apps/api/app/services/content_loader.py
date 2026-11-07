@@ -75,6 +75,7 @@ MODULE_NAMES: dict[str, str] = {
     "py.concurrency": "Đồng thời",
     "py.ecosystem": "Hệ sinh thái Python",
     "cs.complexity": "Độ phức tạp",
+    "cs.sql": "SQL",
     "dsa.foundations": "Nền tảng DSA",
     "dsa.arrays_strings": "Mảng & chuỗi",
     "dsa.two_pointers_window": "Hai con trỏ & cửa sổ trượt",

@@ -1,0 +1,163 @@
+id: cs.sql.intro
+version: 1
+status: published
+title_vi: "SQL và bảng: bạn đang hỏi cái gì (bảng, dòng, cột, khóa)"
+est_minutes: 15
+objectives_vi:
+  - "Mô tả database quan hệ: bảng, dòng, cột, và SQL là ngôn ngữ khai báo (nói muốn gì, không nói làm thế nào)."
+  - "Viết SELECT col1, col2 FROM table, SELECT *, và đặt tên lại cột bằng AS."
+  - "Sắp xếp và cắt kết quả bằng ORDER BY (ASC/DESC, nhiều cột) và LIMIT."
+  - "Chạy SQL từ Python bằng sqlite3: connect, cursor, execute, fetchall."
+blocks:
+  - id: s_model
+    type: section
+    title_vi: "Bảng, SELECT, ORDER BY, LIMIT"
+    summary_vi: "Bảng gồm dòng và cột; SELECT chọn cột, ORDER BY sắp xếp, LIMIT giới hạn số dòng."
+  - id: t01
+    type: text
+    md: |
+      **Database quan hệ** lưu dữ liệu thành các **bảng** (table) giống bảng Excel. Mỗi **dòng** (row) là một bản
+      ghi, mỗi **cột** (column) là một thuộc tính. **SQL** là ngôn ngữ để hỏi (và sửa) các bảng đó. SQL là
+      **khai báo** (declarative): bạn mô tả kết quả muốn có, database tự chọn cách tìm, khác với vòng lặp `for` trong Python.
+
+      Giả sử có bảng `students`:
+
+      ```text
+      name   | score
+      -------+------
+      an     | 8
+      binh   | 5
+      chi    | 8
+      ```
+
+      Câu lệnh đầu tiên:
+
+      ```text
+      SELECT name, score FROM students;      -- chọn 2 cột
+      SELECT * FROM students;                -- * = mọi cột
+      SELECT name AS ten FROM students;      -- AS đặt tên lại cột (alias)
+      ```
+
+      **ORDER BY** sắp xếp kết quả; mặc định là `ASC` (tăng dần), thêm `DESC` để giảm dần. Có thể sắp nhiều cột:
+      cột sau chỉ dùng để phá hòa của cột trước. **LIMIT n** chỉ giữ `n` dòng đầu của kết quả đã sắp.
+
+      ```text
+      SELECT name, score FROM students ORDER BY score DESC, name ASC;
+      SELECT name FROM students ORDER BY score DESC LIMIT 2;
+      ```
+
+      Lưu ý: nếu không có `ORDER BY` thì thứ tự dòng **không được đảm bảo**. Hãy luôn viết `ORDER BY` khi cần thứ tự.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Câu SQL nào lấy tên học sinh có điểm cao nhất (một dòng)?"
+    options:
+      - {id: a, text_md: "`SELECT name FROM students ORDER BY score DESC LIMIT 1`"}
+      - {id: b, text_md: "`SELECT name FROM students ORDER BY score ASC LIMIT 1`"}
+      - {id: c, text_md: "`SELECT name FROM students LIMIT 1 ORDER BY score DESC`"}
+    answer: [a]
+    explain_md: "DESC đưa điểm cao nhất lên đầu, LIMIT 1 giữ dòng đầu. Cách b lấy điểm thấp nhất; cách c sai thứ tự mệnh đề (ORDER BY phải đứng trước LIMIT)."
+  - id: q02
+    type: predict_output
+    code: |
+      rows = [("an", 8), ("binh", 5), ("chi", 8)]
+      ordered = sorted(rows, key=lambda r: (-r[1], r[0]))
+      print([r[0] for r in ordered])
+      print(ordered[0])
+    expected_output: |
+      ['an', 'chi', 'binh']
+      ('an', 8)
+    explain_md: "Khóa (-điểm, tên) giống `ORDER BY score DESC, name ASC`: an và chi cùng 8 nên hòa theo tên, sau đó là binh (5)."
+  - id: t_bridge
+    type: text
+    md: |
+      **Chạy SQL từ Python** bằng `sqlite3` (có sẵn trong thư viện chuẩn): connect, tạo cursor, `execute`, rồi
+      đọc kết quả bằng `fetchall()` (list các tuple).
+
+      ```text
+      import sqlite3
+      con = sqlite3.connect(":memory:")          # database tạm trong RAM
+      cur = con.cursor()
+      cur.execute("CREATE TABLE students (name TEXT, score INTEGER)")
+      cur.executemany("INSERT INTO students(name, score) VALUES (?, ?)", [("an", 8), ("binh", 5)])
+      cur.execute("SELECT name, score FROM students ORDER BY score DESC")
+      print(cur.fetchall())                       # [('an', 8), ('binh', 5)]
+      ```
+
+      Mỗi dòng kết quả là một **tuple**, kể cả khi chỉ chọn một cột: `SELECT name ...` cho `[('an',), ('binh',)]`,
+      nên lấy giá trị bằng `r[0]`. Giá trị truyền qua dấu `?`, không ghép chuỗi.
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "`SELECT name AS ten FROM students` thay đổi điều gì?"
+    options:
+      - {id: a, text_md: "Chỉ đổi tên cột trong kết quả, bảng gốc không đổi"}
+      - {id: b, text_md: "Đổi tên cột `name` trong bảng `students`"}
+      - {id: c, text_md: "Xóa cột `name`"}
+    answer: [a]
+    explain_md: "AS tạo alias cho cột trong kết quả truy vấn; cấu trúc bảng không bị sửa."
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: SELECT ... ORDER BY với sqlite3"
+    summary_vi: "Tạo bảng, chèn bằng executemany, SELECT có ORDER BY rồi đọc kết quả thành list."
+    exercise_ref: ex_names
+  - id: ex_names
+    type: code_exercise
+    md: |
+      Cài `names_sorted(names)`. `names` là list chuỗi. Dùng `sqlite3` trong bộ nhớ: tạo bảng `t(name TEXT)`, chèn mọi
+      tên bằng câu SQL tham số hoá, rồi chạy `SELECT name FROM t ORDER BY name`. Trả về list các tên (chuỗi, không phải
+      tuple) theo thứ tự đó. Ví dụ `["binh", "an", "chi"]` cho `["an", "binh", "chi"]`.
+    entry: names_sorted
+    starter: |
+      import sqlite3
+
+
+      def names_sorted(names):
+          # TODO: connect(":memory:"), CREATE TABLE t(name TEXT), executemany INSERT với ?, SELECT name FROM t ORDER BY name
+          pass
+    guidance_md: |
+      - `executemany("INSERT INTO t(name) VALUES (?)", [(n,) for n in names])`.
+      - `fetchall()` trả list các tuple một phần tử; lấy `r[0]` cho mỗi dòng.
+    hints:
+      - level: nudge
+        md: "Dùng `sqlite3.connect(\":memory:\")`, chèn bằng dấu `?` và để SQL tự sắp bằng ORDER BY."
+      - level: approach
+        md: "`CREATE TABLE t(name TEXT)`, `executemany` với list tuple một phần tử, rồi `SELECT name FROM t ORDER BY name`."
+      - level: near_solution
+        md: "Trả về `[r[0] for r in cur.fetchall()]` để đổi tuple thành chuỗi."
+    tests:
+      - {args: [["binh", "an", "chi"]], expected: ["an", "binh", "chi"]}
+      - {args: [[]], expected: []}
+      - {args: [["b", "a", "b"]], expected: ["a", "b", "b"]}
+      - {args: [["o'brien", "a"]], expected: ["a", "o'brien"]}
+    solution: |
+      import sqlite3
+
+
+      def names_sorted(names):
+          con = sqlite3.connect(":memory:")
+          cur = con.cursor()
+          cur.execute("CREATE TABLE t (name TEXT)")
+          cur.executemany("INSERT INTO t(name) VALUES (?)", [(n,) for n in names])
+          cur.execute("SELECT name FROM t ORDER BY name")
+          result = [r[0] for r in cur.fetchall()]
+          con.close()
+          return result
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Từ khóa SQL dùng để giữ lại chỉ n dòng đầu của kết quả là ___."
+    blanks: [{accept: ["LIMIT", "limit", "Limit"]}]
+    explain_md: "`LIMIT n` giữ n dòng đầu; thường đi cùng ORDER BY để biết 'đầu' là dòng nào."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Database quan hệ lưu dữ liệu thành bảng gồm dòng và cột; SQL là ngôn ngữ khai báo để hỏi bảng."
+      - "SELECT col1, col2 FROM table chọn cột; SELECT * lấy mọi cột; AS đặt alias trong kết quả."
+      - "ORDER BY col ASC/DESC sắp xếp (nhiều cột để phá hòa); LIMIT n giữ n dòng đầu; không ORDER BY thì thứ tự không đảm bảo."
+      - "sqlite3 trong Python: connect, cursor, execute, fetchall trả list các tuple."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X771], l2: [X772], l3: [X773]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-07"

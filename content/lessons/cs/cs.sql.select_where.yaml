@@ -1,0 +1,184 @@
+id: cs.sql.select_where
+version: 1
+status: published
+title_vi: "SELECT và WHERE: lọc dòng trong SQL"
+est_minutes: 15
+objectives_vi:
+  - "Viết điều kiện WHERE với so sánh (=, <>, <, >=), AND/OR/NOT và dùng ngoặc đúng thứ tự ưu tiên."
+  - "Dùng BETWEEN, IN (...) và LIKE (% và _) để lọc theo khoảng, tập giá trị và mẫu chuỗi."
+  - "Xử lý NULL bằng IS NULL / IS NOT NULL, và hiểu vì sao NULL = NULL không đúng."
+  - "Kết hợp WHERE với ORDER BY và truyền giá trị qua dấu ? trong sqlite3."
+blocks:
+  - id: s_model
+    type: section
+    title_vi: "WHERE: giữ lại những dòng thoả điều kiện"
+    summary_vi: "SELECT chọn cột, WHERE chọn dòng, ORDER BY sắp xếp kết quả."
+  - id: t01
+    type: text
+    md: |
+      Một truy vấn SQL đọc theo khuôn: **SELECT** (lấy cột nào) **FROM** (bảng nào) **WHERE** (dòng nào)
+      **ORDER BY** (sắp xếp theo gì). `WHERE` giống một cái rây: chỉ những dòng cho điều kiện đúng mới đi qua.
+
+      ```text
+      SELECT name, score
+      FROM students
+      WHERE score >= 8 AND active = 1
+      ORDER BY score DESC, name ASC;
+      ```
+
+      **So sánh:** `=` (bằng, chỉ một dấu `=`), `<>` (khác), `<`, `<=`, `>`, `>=`.
+      **Kết hợp:** `AND`, `OR`, `NOT`. Chú ý `AND` được tính trước `OR`:
+
+      ```text
+      WHERE score >= 9 OR score <= 1 AND active = 1      -- hiểu là: score >= 9 OR (score <= 1 AND active = 1)
+      WHERE (score >= 9 OR score <= 1) AND active = 1    -- thêm ngoặc để đổi nghĩa
+      ```
+
+      **Khoảng và tập giá trị:**
+
+      ```text
+      WHERE score BETWEEN 5 AND 8        -- gồm cả hai đầu: 5 <= score AND score <= 8
+      WHERE name IN ('an', 'binh')       -- giống name = 'an' OR name = 'binh'
+      WHERE name NOT IN ('an', 'binh')
+      ```
+
+      **Mẫu chuỗi với LIKE:** `%` khớp bất kỳ số ký tự (kể cả không có), `_` khớp đúng một ký tự.
+
+      ```text
+      WHERE name LIKE 'a%'     -- bắt đầu bằng a
+      WHERE name LIKE '%n'     -- kết thúc bằng n
+      WHERE name LIKE '_n%'    -- ký tự thứ hai là n
+      ```
+
+      **NULL** là "không biết / trống". `NULL = NULL` không đúng, và `x = NULL` không bao giờ giữ dòng nào. Phải viết:
+
+      ```text
+      WHERE email IS NULL
+      WHERE email IS NOT NULL
+      ```
+
+      **Cầu nối sang Python (sqlite3).** Giá trị đưa vào điều kiện nên đi qua dấu `?`, không ghép chuỗi:
+
+      ```text
+      cur.execute("SELECT name FROM t WHERE score BETWEEN ? AND ? ORDER BY name", (lo, hi))
+      rows = cur.fetchall()      # list các tuple, ví dụ [('an',), ('binh',)]
+      ```
+
+      Với `IN` có số phần tử thay đổi, tạo số dấu `?` tương ứng: `",".join("?" * len(keep))`.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Cách nào đúng để lấy các dòng có cột `email` bị trống (NULL)?"
+    options:
+      - {id: a, text_md: "`WHERE email IS NULL`"}
+      - {id: b, text_md: "`WHERE email = NULL`"}
+      - {id: c, text_md: "`WHERE email = ''` (chuỗi rỗng cũng là NULL)"}
+    answer: [a]
+    explain_md: "NULL chỉ so sánh được bằng `IS NULL` / `IS NOT NULL`. `= NULL` không bao giờ đúng, và chuỗi rỗng khác NULL."
+  - id: q02
+    type: predict_output
+    code: |
+      rows = [("an", 8), ("binh", 5), ("chi", 8), ("dung", 3)]
+      # WHERE score BETWEEN 5 AND 8 ORDER BY name
+      out = sorted(n for n, s in rows if 5 <= s <= 8)
+      print(out)
+      print(len(rows) - len(out))
+    expected_output: |
+      ['an', 'binh', 'chi']
+      1
+    explain_md: "BETWEEN gồm cả hai đầu nên cả điểm 5 và 8 đều được giữ; chỉ `dung` (3) bị loại, tức 1 dòng."
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: lọc bằng BETWEEN với sqlite3"
+    summary_vi: "Chèn bằng executemany, lọc bằng WHERE ... BETWEEN ? AND ?, đọc kết quả thành list."
+    exercise_ref: ex_between
+  - id: t02
+    type: text
+    md: |
+      Mẫu làm việc với `sqlite3` trong bộ nhớ:
+
+      ```text
+      con = sqlite3.connect(":memory:")
+      cur = con.cursor()
+      cur.execute("CREATE TABLE t (name TEXT, score INTEGER)")
+      cur.executemany("INSERT INTO t(name, score) VALUES (?, ?)", rows)
+      cur.execute("SELECT name FROM t WHERE score BETWEEN ? AND ? ORDER BY name", (lo, hi))
+      names = [r[0] for r in cur.fetchall()]
+      ```
+
+      `fetchall()` trả list các tuple, nên muốn một list tên phẳng phải lấy `r[0]`. `ORDER BY` làm thứ tự kết quả
+      xác định; không có nó, SQL không hứa thứ tự nào cả.
+  - id: ex_between
+    type: code_exercise
+    md: |
+      Cài `names_between(rows, lo, hi)`. `rows` là list các cặp `[name, score]` (chuỗi, số nguyên). Dùng `sqlite3`
+      trong bộ nhớ: tạo bảng `t(name, score)`, chèn mọi dòng bằng câu SQL tham số hoá, rồi chạy
+      `SELECT name FROM t WHERE score BETWEEN ? AND ? ORDER BY name` với `lo`, `hi` truyền qua `?`. Trả về **list tên**
+      (chuỗi, không phải tuple). Ví dụ `rows = [["an", 8], ["binh", 5], ["chi", 10]]`, `lo = 5`, `hi = 8` cho
+      `["an", "binh"]`.
+    entry: names_between
+    starter: |
+      import sqlite3
+
+
+      def names_between(rows, lo, hi):
+          # TODO: connect(":memory:"), CREATE TABLE, executemany INSERT với ?, rồi SELECT name ... WHERE score BETWEEN ? AND ?
+          pass
+    guidance_md: |
+      - `cur.executemany("INSERT INTO t(name, score) VALUES (?, ?)", rows)`.
+      - `cur.execute("SELECT name FROM t WHERE score BETWEEN ? AND ? ORDER BY name", (lo, hi))`.
+      - Đổi kết quả: `[r[0] for r in cur.fetchall()]`.
+    hints:
+      - level: nudge
+        md: "BETWEEN lấy cả hai đầu; truyền `lo` và `hi` qua dấu `?`, đừng ghép chuỗi."
+      - level: approach
+        md: "Tạo bảng hai cột, `executemany` chèn rows, rồi `SELECT name ... WHERE score BETWEEN ? AND ? ORDER BY name`."
+      - level: near_solution
+        md: "Tham số là tuple `(lo, hi)`; kết quả cuối là `[r[0] for r in cur.fetchall()]`."
+    tests:
+      - {args: [[["an", 8], ["binh", 5], ["chi", 10]], 5, 8], expected: ["an", "binh"]}
+      - {args: [[], 0, 10], expected: []}
+      - {args: [[["an", 8]], 9, 10], expected: []}
+      - {args: [[["x", 5], ["y", 5], ["z", 6]], 5, 5], expected: ["x", "y"]}
+      - {args: [[["b", 7], ["a", 7], ["c", 3]], 7, 7], expected: ["a", "b"]}
+    solution: |
+      import sqlite3
+
+
+      def names_between(rows, lo, hi):
+          con = sqlite3.connect(":memory:")
+          cur = con.cursor()
+          cur.execute("CREATE TABLE t (name TEXT, score INTEGER)")
+          cur.executemany("INSERT INTO t(name, score) VALUES (?, ?)", rows)
+          cur.execute("SELECT name FROM t WHERE score BETWEEN ? AND ? ORDER BY name", (lo, hi))
+          result = [r[0] for r in cur.fetchall()]
+          con.close()
+          return result
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Mẫu `LIKE '_n%'` khớp chuỗi nào?"
+    options:
+      - {id: a, text_md: "`'an'` và `'bnh'`"}
+      - {id: b, text_md: "`'n'` và `'nam'`"}
+      - {id: c, text_md: "`'nam'` nhưng không khớp `'an'`"}
+    answer: [a]
+    explain_md: "`_` khớp đúng một ký tự bất kỳ, rồi phải là `n`, sau đó `%` khớp phần còn lại. `'an'` và `'bnh'` đều thoả; `'n'` thiếu ký tự đầu."
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Để tìm tên bắt đầu bằng chữ a (theo sau là bất kỳ số ký tự nào), mẫu LIKE là `'a'` cộng ký tự đại diện ___ (điền một ký tự)."
+    blanks: [{accept: ["%", "dấu %", "dau %"]}]
+    explain_md: "`%` khớp bất kỳ số ký tự nào (kể cả không có), nên `'a%'` lấy mọi tên bắt đầu bằng a."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "SELECT chọn cột, WHERE chọn dòng, ORDER BY sắp xếp; thiếu ORDER BY thì thứ tự không được đảm bảo."
+      - "AND được tính trước OR; dùng ngoặc để rõ ý. BETWEEN gồm hai đầu; IN (...) là OR gọn."
+      - "LIKE: % khớp nhiều ký tự, _ khớp một ký tự. NULL phải dùng IS NULL / IS NOT NULL."
+      - "Trong sqlite3, truyền giá trị bằng dấu ? và đổi list tuple thành dữ liệu mong muốn."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X774], l2: [X775], l3: [X776]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-07"

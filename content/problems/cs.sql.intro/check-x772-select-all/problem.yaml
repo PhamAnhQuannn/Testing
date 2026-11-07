@@ -1,0 +1,76 @@
+id: check-x772-select-all
+subtopic_id: cs.sql.intro
+secondary_subtopics: []
+kind: check
+title: 'Check X772: select all'
+title_vi: 'Kiểm tra X772: SELECT ... ORDER BY bằng SQLite'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Implement `select_all(rows)`. `rows` is a list of `[name, score]` records (name is a string, score an int).
+  Using the standard-library `sqlite3` module with an in-memory database (`sqlite3.connect(":memory:")`), create a
+  table `people(name TEXT, score INTEGER)`, insert every row with a **parameterized** query
+  (`cur.executemany("INSERT INTO people(name, score) VALUES (?, ?)", rows)`), then run
+  `SELECT name, score FROM people ORDER BY score DESC, name ASC`.
+  Return the result as a list of `[name, score]` pairs, each pair a 2-element **list** (not a tuple), in that order
+  (score descending, name ascending to break ties).
+  For `rows = [["an", 8], ["binh", 5], ["chi", 8]]` the result is `[["an", 8], ["chi", 8], ["binh", 5]]`;
+  for `[]` the result is `[]`.
+statement_vi_md: |
+  Cài `select_all(rows)`. `rows` là list các bản ghi `[name, score]` (name là chuỗi, score là số nguyên). Dùng module
+  `sqlite3` của thư viện chuẩn với database trong bộ nhớ (`sqlite3.connect(":memory:")`): tạo bảng
+  `people(name TEXT, score INTEGER)`, chèn mọi dòng bằng câu SQL tham số hoá
+  (`cur.executemany("INSERT INTO people(name, score) VALUES (?, ?)", rows)`), rồi chạy
+  `SELECT name, score FROM people ORDER BY score DESC, name ASC`.
+  Trả về list các cặp `[name, score]`, mỗi cặp là **list** 2 phần tử (không phải tuple), theo đúng thứ tự đó
+  (điểm giảm dần, hòa thì tên tăng dần). Với `rows = [["an", 8], ["binh", 5], ["chi", 8]]` kết quả là
+  `[["an", 8], ["chi", 8], ["binh", 5]]`; với `[]` kết quả là `[]`.
+constraints:
+- 'Dùng sqlite3 trong bộ nhớ và truy vấn ORDER BY như đề; chèn bằng câu SQL tham số hoá (dấu ?)'
+- 'rows có thể rỗng (kết quả []); score có thể âm hoặc 0; tên có thể trùng hoặc chứa dấu nháy'
+- 'Mỗi phần tử kết quả phải là list [name, score], không phải tuple'
+examples:
+- input: 'rows = [["an", 8], ["binh", 5], ["chi", 8]]'
+  output: '[["an", 8], ["chi", 8], ["binh", 5]]'
+  explain_vi: 'an và chi cùng 8 nên hòa theo tên; binh (5) đứng cuối.'
+io:
+  mode: function
+  entry: select_all
+  params:
+  - name: rows
+    type: list
+  returns: list
+  compare: exact
+starter:
+  python: |
+    import sqlite3
+
+
+    def select_all(rows):
+        # TODO: sqlite3.connect(":memory:"), CREATE TABLE, executemany INSERT với ?, rồi SELECT ... ORDER BY ...
+        pass
+time_target_min: 6
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+hints:
+- "Chèn nhiều dòng bằng câu SQL tham số hoá: `cur.executemany(\"INSERT INTO people(name, score) VALUES (?, ?)\", rows)`."
+- "Truy vấn: `SELECT name, score FROM people ORDER BY score DESC, name ASC`."
+- "`cur.fetchall()` trả list các tuple; đổi thành `[list(r) for r in cur.fetchall()]` để so sánh JSON khớp."
+solution:
+  file: solution.py
+  approach_vi: Dùng sqlite3 trong bộ nhớ, chèn bằng executemany tham số hoá, SELECT với ORDER BY score DESC, name ASC rồi đổi tuple thành list.
+  complexity: O(n log n) / O(n)
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x772
+status: validated
+version: 1
