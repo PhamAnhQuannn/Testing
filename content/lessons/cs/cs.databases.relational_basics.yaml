@@ -1,0 +1,142 @@
+id: cs.databases.relational_basics
+version: 1
+status: published
+title_vi: "DBMS và mô hình quan hệ (relational model)"
+est_minutes: 15
+objectives_vi:
+  - "Phân biệt relation (bảng), tuple (dòng), attribute (cột) và schema với instance."
+  - "Phân biệt super key, candidate key, primary key và foreign key."
+  - "Hiểu NULL nghĩa là 'không biết' và referential integrity đảm bảo foreign key luôn trỏ đúng."
+  - "Mô phỏng projection và kiểm tra khoá bằng Python thuần."
+blocks:
+  - id: s_model
+    type: section
+    title_vi: "Relation, key và ràng buộc"
+    summary_vi: "Bảng là tập các dòng cùng cấu trúc; khoá định danh dòng; foreign key nối bảng và được bảo vệ bởi referential integrity."
+  - id: t01
+    type: text
+    md: |
+      **Mô hình quan hệ (relational model)** lưu dữ liệu thành các **relation**, tức là bảng:
+      mỗi **tuple** là một dòng, mỗi **attribute** là một cột có tên và kiểu.
+
+      - **Schema** (lược đồ) là phần cấu trúc: tên bảng, cột, kiểu, ràng buộc. Ít thay đổi.
+      - **Instance** là dữ liệu hiện có trong bảng tại một thời điểm. Thay đổi liên tục.
+
+      Khác bảng tính (spreadsheet): relation là một **tập** dòng, không có thứ tự vốn có, mỗi cột có một kiểu cố định,
+      và database **ép ràng buộc** (constraint) thay vì tin người nhập.
+
+      ```text
+      CREATE TABLE users (
+        id    INTEGER PRIMARY KEY,
+        email TEXT NOT NULL UNIQUE,
+        name  TEXT
+      );
+      CREATE TABLE orders (
+        id      INTEGER PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id),   -- foreign key
+        total   INTEGER NOT NULL
+      );
+      ```
+
+      **Các loại khoá (key):**
+
+      - **Super key**: tập cột nhận diện duy nhất mỗi dòng (có thể thừa cột). `{id, name}` là super key nếu `id` đã duy nhất.
+      - **Candidate key**: super key **tối thiểu**, bỏ cột nào cũng mất tính duy nhất. `id` và `email` đều có thể là candidate key.
+      - **Primary key**: một candidate key được chọn làm khoá chính; duy nhất và **không NULL**.
+      - **Foreign key**: cột trỏ tới primary key (hoặc cột UNIQUE) của bảng khác, dùng để nối bảng.
+
+      **NULL** nghĩa là "không biết / không có giá trị", không phải 0 hay chuỗi rỗng. `NULL = NULL` không đúng
+      (kết quả là unknown), phải dùng `IS NULL`. Vì vậy một cột nhận diện dòng không được NULL.
+
+      **Referential integrity**: mọi giá trị foreign key phải **tồn tại** trong bảng được trỏ tới (hoặc là NULL nếu cột cho phép).
+      Chèn `orders.user_id = 99` khi không có user 99 sẽ bị từ chối. Khi xoá user đang được trỏ tới, có thể
+      `RESTRICT` (chặn), `CASCADE` (xoá luôn các dòng con) hoặc `SET NULL`.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Bảng `users` có `id` duy nhất và `email` duy nhất. `{id, email}` là loại khoá nào?"
+    options:
+      - {id: a, text_md: "Super key nhưng không phải candidate key (thừa cột)"}
+      - {id: b, text_md: "Candidate key vì nhận diện duy nhất"}
+      - {id: c, text_md: "Foreign key"}
+    answer: [a]
+    explain_md: "Chỉ cần `id` (hoặc `email`) đã duy nhất, nên `{id, email}` thừa cột: là super key chứ không tối thiểu, không phải candidate key."
+  - id: q02
+    type: predict_output
+    code: |
+      ids = [1, 2, 2, 3]
+      print(len(ids), len(set(ids)), len(ids) == len(set(ids)))
+    expected_output: |
+      4 3 False
+    explain_md: "Có 4 dòng nhưng chỉ 3 giá trị khác nhau, nên cột này không thể làm primary key vì id 2 bị lặp."
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "`orders.user_id` chứa 99 nhưng bảng `users` không có id 99. Điều gì đúng?"
+    options:
+      - {id: a, text_md: "Vi phạm referential integrity; database từ chối nếu có foreign key"}
+      - {id: b, text_md: "Hợp lệ vì user_id chỉ là số nguyên"}
+      - {id: c, text_md: "Database tự tạo user 99"}
+    answer: [a]
+    explain_md: "Foreign key bắt buộc giá trị phải có trong bảng được trỏ tới (hoặc NULL nếu cho phép). Database không tự tạo dòng."
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: projection bằng Python"
+    summary_vi: "Mô phỏng phép chiếu (projection) của đại số quan hệ trên list các dict."
+    exercise_ref: ex_project
+  - id: t02
+    type: text
+    md: |
+      Trong đại số quan hệ, **projection** chọn một số cột và bỏ phần còn lại, tương ứng `SELECT a, b FROM t`.
+      Mô hình bằng Python: mỗi dòng là một dict, projection giữ lại các khoá trong `cols`.
+
+      ```text
+      row = {"id": 1, "name": "An", "age": 19}
+      {c: row[c] for c in ["name", "age"]}   # {'name': 'An', 'age': 19}
+      ```
+  - id: ex_project
+    type: code_exercise
+    md: |
+      Cài `project(rows, cols)`. `rows` là list các dict (cùng tập khoá), `cols` là list tên cột. Trả về list dict mới,
+      mỗi dict chỉ giữ các cột trong `cols`, cùng thứ tự dòng như đầu vào. Ví dụ
+      `project([{"id": 1, "name": "An"}], ["name"])` cho `[{"name": "An"}]`.
+    entry: project
+    starter: |
+      def project(rows, cols):
+          # TODO: với mỗi dòng, tạo dict chỉ gồm các cột trong cols
+          pass
+    guidance_md: |
+      - Dùng dict comprehension `{c: row[c] for c in cols}` cho từng dòng.
+    hints:
+      - level: nudge
+        md: "Mỗi dòng đầu vào tạo ra đúng một dòng đầu ra."
+      - level: approach
+        md: "Với từng `row`, lấy `row[c]` cho mỗi `c` trong `cols`."
+      - level: near_solution
+        md: "`return [{c: row[c] for c in cols} for row in rows]`."
+    tests:
+      - {args: [[{"id": 1, "name": "An", "age": 19}, {"id": 2, "name": "Binh", "age": 20}], ["name"]], expected: [{"name": "An"}, {"name": "Binh"}]}
+      - {args: [[], ["id"]], expected: []}
+      - {args: [[{"id": 1, "name": "An", "age": 19}], ["age", "id"]], expected: [{"age": 19, "id": 1}]}
+      - {args: [[{"id": 1}, {"id": 2}], []], expected: [{}, {}]}
+    solution: |
+      def project(rows, cols):
+          return [{c: row[c] for c in cols} for row in rows]
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Cột trỏ tới primary key của bảng khác để nối hai bảng gọi là ___ key."
+    blanks: [{accept: ["foreign", "Foreign", "FOREIGN"]}]
+    explain_md: "Foreign key giữ giá trị khoá chính của bảng khác; referential integrity đảm bảo giá trị đó tồn tại."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Relation là bảng gồm tuple (dòng) và attribute (cột); schema là cấu trúc, instance là dữ liệu hiện tại."
+      - "Super key nhận diện duy nhất; candidate key là super key tối thiểu; primary key là candidate key được chọn, không NULL."
+      - "NULL là 'không biết', không bằng cả chính nó; phải dùng IS NULL."
+      - "Foreign key nối bảng; referential integrity buộc giá trị phải tồn tại trong bảng được trỏ tới (hoặc NULL nếu cho phép)."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X795], l2: [X796], l3: [X797]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-07"

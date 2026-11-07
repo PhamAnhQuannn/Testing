@@ -1,0 +1,71 @@
+id: check-x799-fd-violations
+subtopic_id: cs.databases.normalization
+secondary_subtopics: []
+kind: check
+title: 'Check X799: functional dependency violations'
+title_vi: 'Kiểm tra X799: giá trị vi phạm phụ thuộc hàm'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Implement `fd_violations(rows, det, dep)`. `rows` is a list of dicts (values are integers or strings) and
+  `det`, `dep` are two column names present in every row. The functional dependency `det -> dep` is
+  **violated** for a `det` value if that value appears together with two or more **distinct** `dep` values.
+  Return a **sorted** list of the distinct `det` values that violate the FD (an empty list if the FD holds
+  or `rows` is empty). For `rows = [{"zip": "1", "city": "A"}, {"zip": "1", "city": "B"}, {"zip": "2", "city": "C"}]`,
+  `det = "zip"`, `dep = "city"` the result is `["1"]`.
+statement_vi_md: |
+  Cài `fd_violations(rows, det, dep)`. `rows` là list các dict (giá trị là số nguyên hoặc chuỗi), `det` và `dep`
+  là tên hai cột có trong mọi dòng. Phụ thuộc hàm `det -> dep` bị **vi phạm** tại một giá trị của `det` nếu giá trị
+  đó xuất hiện cùng hai hay nhiều giá trị `dep` **khác nhau**. Trả về list **đã sắp xếp** các giá trị `det` vi phạm
+  (list rỗng nếu FD đúng hoặc `rows` rỗng). Với `rows = [{"zip": "1", "city": "A"}, {"zip": "1", "city": "B"},
+  {"zip": "2", "city": "C"}]`, `det = "zip"`, `dep = "city"` kết quả là `["1"]`.
+constraints:
+- 'Cột det trong một test luôn cùng kiểu (cùng là số nguyên hoặc cùng là chuỗi), nên sắp xếp không lẫn kiểu'
+- 'Cùng một cặp (det, dep) lặp lại không phải vi phạm'
+- 'Chỉ dùng thư viện chuẩn của Python'
+examples:
+- input: 'rows = [{"zip": "1", "city": "A"}, {"zip": "1", "city": "B"}, {"zip": "2", "city": "C"}], det = "zip", dep = "city"'
+  output: '["1"]'
+  explain_vi: 'zip "1" ứng với hai city khác nhau là A và B nên vi phạm; zip "2" chỉ có C.'
+io:
+  mode: function
+  entry: fd_violations
+  params:
+  - name: rows
+    type: list
+  - name: det
+    type: str
+  - name: dep
+    type: str
+  returns: list
+  compare: exact
+starter:
+  python: |
+    def fd_violations(rows, det, dep):
+        # TODO: gom các giá trị dep theo giá trị det, trả list det đã sort có hơn 1 dep khác nhau
+        pass
+time_target_min: 6
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+hints:
+- "Dùng một dict ánh xạ giá trị `det` sang tập (set) các giá trị `dep` đã gặp."
+- "Dùng `groups.setdefault(row[det], set()).add(row[dep])` cho mỗi dòng."
+- "Cuối cùng lọc các khoá có `len(vals) > 1` rồi `sorted(...)`; rows rỗng tự cho list rỗng."
+solution:
+  file: solution.py
+  approach_vi: Gom tập giá trị dep theo từng giá trị det bằng dict of set, giữ các det có hơn một dep khác nhau rồi sắp xếp.
+  complexity: "O(n) / O(n)"
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x799
+status: validated
+version: 1

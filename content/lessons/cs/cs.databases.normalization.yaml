@@ -1,0 +1,156 @@
+id: cs.databases.normalization
+version: 1
+status: published
+title_vi: "Chuẩn hóa và phi chuẩn hóa (normalisation)"
+est_minutes: 15
+objectives_vi:
+  - "Đọc và kiểm tra phụ thuộc hàm (functional dependency) A -> B trên một bảng dữ liệu."
+  - "Nhận ra vi phạm 1NF, 2NF (phụ thuộc riêng phần), 3NF (phụ thuộc bắc cầu) và BCNF."
+  - "Mô tả update/insert/delete anomaly do dữ liệu lặp gây ra."
+  - "Nêu khi nào nên cố ý phi chuẩn hóa (denormalization) và cái giá phải trả."
+blocks:
+  - id: s_model
+    type: section
+    title_vi: "Phụ thuộc hàm và các dạng chuẩn"
+    summary_vi: "Chuẩn hóa tách bảng lặp dữ liệu theo phụ thuộc hàm để mỗi sự thật chỉ lưu một nơi."
+  - id: t01
+    type: text
+    md: |
+      **Vấn đề.** Một bảng gộp mọi thứ thường lặp dữ liệu:
+
+      ```text
+      orders(order_id, customer_id, customer_name, customer_city, product, qty)
+      -- tên và thành phố khách ghi lại ở MỌI dòng đơn hàng của khách đó
+      ```
+
+      **Functional dependency (FD)** `A -> B` nghĩa là: cùng giá trị `A` thì luôn cùng giá trị `B`.
+      Ví dụ `customer_id -> customer_name`. Một FD bị vi phạm khi cùng `A` xuất hiện với hai `B` khác nhau.
+      **Key** là tập cột xác định mọi cột còn lại.
+
+      **Các dạng chuẩn (normal forms):**
+
+      ```text
+      1NF   Mỗi ô là một giá trị nguyên tử (atomic): không có list trong ô,
+            không có nhóm cột lặp kiểu phone1, phone2, phone3.
+      2NF   Đã 1NF + không có phụ thuộc riêng phần (partial dependency):
+            cột không-khóa không được phụ thuộc vào MỘT PHẦN của khóa ghép.
+            Ví dụ khóa (order_id, product): product_price chỉ phụ thuộc product -> vi phạm 2NF.
+      3NF   Đã 2NF + không có phụ thuộc bắc cầu (transitive dependency):
+            id -> dept -> dept_name thì dept_name phụ thuộc id qua dept -> tách bảng dept.
+      BCNF  Mọi FD X -> Y không tầm thường thì X phải là (super)key.
+            Chặt hơn 3NF một chút; chỉ khác khi có nhiều candidate key chồng nhau.
+      ```
+
+      Cách nhớ: mọi cột không-khóa phụ thuộc vào "the key (1NF), the whole key (2NF), and nothing but the key (3NF)".
+
+      **Anomaly khi chưa chuẩn hóa:**
+
+      ```text
+      Update anomaly  Đổi tên phòng ban ở 1 dòng mà quên các dòng khác -> dữ liệu mâu thuẫn.
+      Insert anomaly  Không thêm được phòng ban mới nếu chưa có nhân viên nào (cột id bắt buộc).
+      Delete anomaly  Xóa nhân viên cuối cùng của phòng ban -> mất luôn thông tin phòng ban.
+      ```
+
+      **Phi chuẩn hóa (denormalization)** là cố ý lưu trùng để đọc nhanh hơn (bớt JOIN, bảng báo cáo, cache số
+      đếm). Đánh đổi: đọc nhanh hơn nhưng ghi phức tạp hơn, tốn chỗ, và phải tự giữ các bản sao nhất quán.
+      Quy tắc thực tế: chuẩn hóa trước, chỉ phi chuẩn hóa khi đo được truy vấn chậm và đọc nhiều hơn ghi.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Bảng `emp(id, dept, dept_name)` với `id` là khóa. FD `dept -> dept_name` làm bảng vi phạm dạng chuẩn nào?"
+    options:
+      - {id: a, text_md: "1NF"}
+      - {id: b, text_md: "2NF"}
+      - {id: c, text_md: "3NF (phụ thuộc bắc cầu id -> dept -> dept_name)"}
+    answer: [c]
+    explain_md: "Khóa chỉ có một cột nên không thể có phụ thuộc riêng phần (2NF). dept_name phụ thuộc vào id thông qua cột không-khóa dept, đó là phụ thuộc bắc cầu, vi phạm 3NF. Cách sửa: tách bảng dept(dept, dept_name)."
+  - id: q02
+    type: predict_output
+    code: |
+      rows = [("1", "A"), ("2", "B"), ("1", "C")]
+      seen = {}
+      bad = set()
+      for z, c in rows:
+          if z in seen and seen[z] != c:
+              bad.add(z)
+          seen[z] = c
+      print(sorted(bad))
+    expected_output: |
+      ['1']
+    explain_md: "Khóa '1' xuất hiện với A rồi với C nên FD z -> c bị vi phạm; '2' chỉ có một giá trị nên ổn."
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Khi nào phi chuẩn hóa (denormalization) hợp lý nhất?"
+    options:
+      - {id: a, text_md: "Ngay từ đầu cho mọi bảng để khỏi phải JOIN"}
+      - {id: b, text_md: "Khi đo thấy truy vấn đọc chậm do JOIN và hệ thống đọc nhiều hơn ghi, chấp nhận giữ các bản sao nhất quán"}
+      - {id: c, text_md: "Khi muốn tránh anomaly"}
+    answer: [b]
+    explain_md: "Phi chuẩn hóa đổi tính nhất quán dễ giữ lấy tốc độ đọc. Nó là tối ưu có chủ đích sau khi đo, không phải mặc định; chuẩn hóa mới là cách tránh anomaly."
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: kiểm tra 1NF"
+    summary_vi: "Phát hiện ô không nguyên tử (list) trong bảng dạng list các dict."
+    exercise_ref: ex_is_1nf
+  - id: t02
+    type: text
+    md: |
+      Ta mô hình một bảng bằng list các dict (mỗi dict là một dòng). Một ô vi phạm 1NF khi giá trị của nó là
+      một `list` (nhiều giá trị nhét vào một ô):
+
+      ```text
+      ok  : [{"id": 1, "phone": "0901"}, {"id": 2, "phone": "0902"}]
+      bad : [{"id": 1, "phones": ["0901", "0902"]}]    # cột lặp nhiều giá trị
+      ```
+
+      Cách sửa kinh điển: tách `phones` thành bảng `phone(id, phone)`, mỗi dòng một số.
+      Dùng `isinstance(value, list)` để phát hiện; list rỗng cũng không phải giá trị nguyên tử.
+  - id: ex_is_1nf
+    type: code_exercise
+    md: |
+      Cài `is_1nf(rows)`. `rows` là list các dict (mỗi dict là một dòng, giá trị là số nguyên, chuỗi hoặc list).
+      Trả về `True` nếu không có ô nào là `list`, ngược lại `False`. Bảng rỗng cho `True`.
+      Ví dụ `[{"id": 1, "tags": ["a", "b"]}]` cho `False`.
+    entry: is_1nf
+    starter: |
+      def is_1nf(rows):
+          # TODO: False nếu có giá trị nào trong bất kỳ dòng là list
+          pass
+    guidance_md: |
+      - Duyệt từng dòng, rồi từng `row.values()`.
+      - `isinstance(v, list)` cho biết ô không nguyên tử.
+    hints:
+      - level: nudge
+        md: "Mỗi dòng là một dict; lấy các giá trị bằng `row.values()`."
+      - level: approach
+        md: "Nếu có bất kỳ giá trị nào thoả `isinstance(v, list)` thì trả `False`."
+      - level: near_solution
+        md: "`return not any(isinstance(v, list) for row in rows for v in row.values())`."
+    tests:
+      - {args: [[{"id": 1, "tags": ["a", "b"]}]], expected: false}
+      - {args: [[{"id": 1, "name": "x"}, {"id": 2, "name": "y"}]], expected: true}
+      - {args: [[]], expected: true}
+      - {args: [[{"id": 1, "phone": "0901;0902"}]], expected: true}
+      - {args: [[{"id": 1, "a": 5}, {"id": 2, "a": []}]], expected: false}
+    solution: |
+      def is_1nf(rows):
+          return not any(isinstance(v, list) for row in rows for v in row.values())
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Khi một cột không-khóa phụ thuộc vào cột không-khóa khác (id -> dept -> dept_name), ta gọi là phụ thuộc ___ và nó vi phạm 3NF."
+    blanks: [{accept: ["bắc cầu", "transitive", "bac cau"]}]
+    explain_md: "Phụ thuộc bắc cầu (transitive dependency) được xử lý bằng cách tách cột phụ thuộc sang bảng riêng."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "FD A -> B: cùng A thì cùng B; bị vi phạm khi một A ứng với hai B khác nhau."
+      - "1NF: ô nguyên tử; 2NF: không phụ thuộc riêng phần vào khóa ghép; 3NF: không phụ thuộc bắc cầu; BCNF: mọi định thức là key."
+      - "Dữ liệu lặp gây update/insert/delete anomaly; chuẩn hóa tách bảng để mỗi sự thật lưu một nơi."
+      - "Phi chuẩn hóa là đánh đổi có chủ đích (đọc nhanh, ghi phức tạp), chỉ làm sau khi đo."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X798], l2: [X799], l3: [X800]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-07"
