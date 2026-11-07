@@ -1,0 +1,71 @@
+id: check-x739-parse-requirements
+subtopic_id: py.typing_testing.envs_packaging
+secondary_subtopics: []
+kind: check
+title: 'Check X739: parse requirements'
+title_vi: 'Kiểm tra X739: đọc requirements.txt'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Implement `parse_requirements(lines)`. `lines` is a list of strings, each one a line of a requirements.txt
+  file. For each line: strip whitespace; skip blank lines and comment lines (starting with `#`); strip an
+  inline trailing comment (a `#` preceded by whitespace); strip an extras suffix such as `pkg[extra]` or
+  `pkg[a,b]`, keeping only `pkg`. Then split `name OP version` where OP is one of `==`, `>=`, `<=`, `~=`,
+  `!=`, `>`, `<` (check longest operators first so `>=` is not read as `>`). If the line has an operator emit
+  `[name, op, version]` (name and version stripped); if it is a bare package name emit `[name, "", ""]`.
+  Return the list of `[name, op, version]` lists in input order.
+  For `["requests==2.31.0", "# a comment", "", "flask>=2.0", "uvicorn[standard]==0.23.0", "numpy"]` the result
+  is `[["requests","==","2.31.0"],["flask",">=","2.0"],["uvicorn","==","0.23.0"],["numpy","",""]]`.
+statement_vi_md: |
+  Cài `parse_requirements(lines)`. `lines` là list chuỗi, mỗi chuỗi là một dòng của file requirements.txt. Với
+  mỗi dòng: strip; bỏ dòng trống và dòng comment (bắt đầu bằng `#`); cắt comment cuối dòng (`#` đứng sau khoảng
+  trắng); bỏ extras dạng `pkg[extra]` hoặc `pkg[a,b]` chỉ giữ `pkg`. Rồi tách `name OP version` với OP thuộc
+  `==`, `>=`, `<=`, `~=`, `!=`, `>`, `<` (thử toán tử dài trước để `>=` không bị đọc thành `>`). Có toán tử thì
+  thêm `[name, op, version]` (đã strip); chỉ là tên thư viện thì thêm `[name, "", ""]`. Trả list theo thứ tự đầu
+  vào.
+constraints:
+- 'lines là list chuỗi, có thể rỗng; kết quả có thể là []'
+- 'Toán tử thử dài trước: ==, >=, <=, ~=, != rồi mới >, <'
+- 'Comment cuối dòng là # đứng sau khoảng trắng; extras cắt bằng split("[")'
+examples:
+- input: 'lines = ["requests==2.31.0", "# a comment", "", "flask>=2.0", "uvicorn[standard]==0.23.0", "numpy"]'
+  output: '[["requests","==","2.31.0"],["flask",">=","2.0"],["uvicorn","==","0.23.0"],["numpy","",""]]'
+  explain_vi: 'Bỏ comment và dòng trống, bỏ extras của uvicorn, numpy không có toán tử nên op và version rỗng.'
+io:
+  mode: function
+  entry: parse_requirements
+  params:
+  - name: lines
+    type: list
+  returns: list
+  compare: exact
+starter:
+  python: |
+    def parse_requirements(lines):
+        # TODO: bỏ dòng trống/comment, bỏ extras, tách [name, op, version]
+        pass
+time_target_min: 6
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+hints:
+- Lọc dòng cần bỏ trước (trống, comment, comment cuối dòng), rồi mới tách.
+- "Quét từng vị trí của dòng, tại mỗi vị trí thử các toán tử theo thứ tự dài trước; gặp toán tử đầu tiên thì cắt."
+- "Bỏ extras bằng `name.split(\"[\")[0].strip()`; dòng không có toán tử cho `[name, \"\", \"\"]`."
+solution:
+  file: solution.py
+  approach_vi: Duyệt từng dòng, bỏ dòng trống và comment, cắt comment cuối dòng, tìm toán tử đầu tiên (dài trước), bỏ extras rồi trả [name, op, version].
+  complexity: O(total length of lines)
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x739
+status: validated
+version: 1

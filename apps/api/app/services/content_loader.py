@@ -72,6 +72,7 @@ MODULE_NAMES: dict[str, str] = {
     "py.advanced": "Python nâng cao",
     "py.errors_modules": "Lỗi, ngoại lệ & module",
     "py.typing_testing": "Kiểu tĩnh & kiểm thử",
+    "py.concurrency": "Đồng thời",
     "cs.complexity": "Độ phức tạp",
     "dsa.foundations": "Nền tảng DSA",
     "dsa.arrays_strings": "Mảng & chuỗi",

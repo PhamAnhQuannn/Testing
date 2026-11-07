@@ -1,0 +1,67 @@
+id: check-x736-map-reduce
+subtopic_id: py.concurrency.multiprocessing
+secondary_subtopics: []
+kind: check
+title: 'Check X736: map-reduce word count'
+title_vi: 'Kiểm tra X736: đếm từ kiểu map-reduce'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Implement `count_words(chunks)`. `chunks` is a list of chunks; each chunk is a list of words (strings) and stands
+  for the slice of data one worker process handles. MAP: for each chunk independently, count word frequencies
+  (a dict word -> count for that chunk). REDUCE: merge all per-chunk dicts into one dict, summing the counts of
+  the same word. Return the merged dict (word -> total count across all chunks). Chunks may be empty and `chunks`
+  itself may be empty (the result is `{}`).
+  For `chunks = [["a", "b", "a"], ["b", "c"]]` the result is `{"a": 2, "b": 2, "c": 1}`.
+statement_vi_md: |
+  Cài `count_words(chunks)`. `chunks` là list các chunk, mỗi chunk là list từ (chuỗi), tượng trưng cho phần dữ liệu
+  một process worker xử lý. MAP: với mỗi chunk, đếm tần suất từ riêng của chunk đó (dict từ -> số lần). REDUCE: gộp mọi
+  dict riêng thành một dict, cộng số lần của cùng một từ. Trả về dict gộp (từ -> tổng số lần qua mọi chunk). Chunk có thể
+  rỗng, `chunks` cũng có thể rỗng (kết quả `{}`). Với `chunks = [["a", "b", "a"], ["b", "c"]]` kết quả là
+  `{"a": 2, "b": 2, "c": 1}`.
+constraints:
+- 'chunks có thể rỗng; mỗi chunk có thể rỗng (kết quả vẫn đúng)'
+- 'Mỗi phần tử của chunk là chuỗi; cùng một từ có thể xuất hiện ở nhiều chunk'
+- 'Trả về dict thường (từ -> số nguyên); thứ tự khoá không quan trọng'
+examples:
+- input: 'chunks = [["a", "b", "a"], ["b", "c"]]'
+  output: '{"a": 2, "b": 2, "c": 1}'
+  explain_vi: 'Map: chunk 1 cho {a: 2, b: 1}, chunk 2 cho {b: 1, c: 1}. Reduce cộng theo từ: a = 2, b = 2, c = 1.'
+io:
+  mode: function
+  entry: count_words
+  params:
+  - name: chunks
+    type: list
+  returns: dict
+  compare: exact
+starter:
+  python: |
+    def count_words(chunks):
+        # TODO: map (đếm từ từng chunk) rồi reduce (gộp dict, cộng số lần)
+        pass
+time_target_min: 6
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+hints:
+- "Chia làm hai bước: map đếm từ riêng từng chunk, reduce gộp các dict riêng lại."
+- "Với mỗi chunk tạo một dict đếm (`d[w] = d.get(w, 0) + 1`), cho vào list partials."
+- "Reduce: với mỗi dict riêng, `total[k] = total.get(k, 0) + v`; trả `total` (chunk rỗng cho dict rỗng, không gây lỗi)."
+solution:
+  file: solution.py
+  approach_vi: Map đếm tần suất từ trong từng chunk, reduce gộp các dict riêng bằng cách cộng số lần theo từ.
+  complexity: O(N) / O(U)
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x736
+status: validated
+version: 1
