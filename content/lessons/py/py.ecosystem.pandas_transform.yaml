@@ -1,0 +1,170 @@
+id: py.ecosystem.pandas_transform
+version: 1
+status: published
+title_vi: "Biến đổi dữ liệu với pandas (merge, pivot, apply, fillna)"
+est_minutes: 15
+objectives_vi:
+  - "Dùng merge/join (inner, left) để ghép hai bảng theo một cột khoá và biết dòng không khớp trở thành NaN."
+  - "Dùng pivot/pivot_table và melt để chuyển dữ liệu giữa dạng dài (long) và dạng rộng (wide)."
+  - "Biến đổi cột bằng apply/map/assign, sắp xếp bằng sort_values và xử lý thiếu bằng fillna/dropna."
+  - "Mô phỏng các phép biến đổi này bằng dict/list thuần Python để hiểu bản chất."
+blocks:
+  - id: s_model
+    type: section
+    title_vi: "merge, pivot và các phép biến đổi cột"
+    summary_vi: "Ghép bảng bằng merge, đổi hình dạng bằng pivot/melt, biến đổi cột bằng apply/assign."
+  - id: t01
+    type: text
+    md: |
+      **pandas** là thư viện phổ biến để xử lý dữ liệu dạng bảng (`DataFrame`). Bài này chỉ học cách đọc
+      và viết các phép biến đổi; code pandas dưới đây **không chạy** trong app (Pyodide của app không có pandas),
+      còn phần bài tập dùng dict/list thuần Python để mô phỏng cùng ý tưởng.
+
+      **merge / join.** Ghép hai bảng theo cột khoá, giống `JOIN` trong SQL.
+
+      ```
+      import pandas as pd
+      hs = pd.DataFrame({"id": [1, 2], "ten": ["an", "binh"]})
+      diem = pd.DataFrame({"id": [1], "diem": [9]})
+      pd.merge(hs, diem, on="id", how="inner")   # chỉ giữ id có ở cả hai bảng: 1 dòng
+      pd.merge(hs, diem, on="id", how="left")    # giữ mọi dòng của hs; id=2 có diem = NaN
+      ```
+
+      `how="inner"` chỉ giữ dòng khớp; `how="left"` giữ mọi dòng bảng trái, dòng không khớp có giá trị thiếu (NaN).
+      Nếu bảng phải có nhiều dòng cùng khoá thì dòng bảng trái bị nhân lên.
+
+      **pivot / pivot_table.** Chuyển dữ liệu dạng dài sang dạng rộng.
+
+      ```
+      df = pd.DataFrame({"thang": ["t1", "t1", "t2"], "sp": ["a", "a", "b"], "sl": [2, 3, 4]})
+      df.pivot_table(index="thang", columns="sp", values="sl", aggfunc="sum")
+      # sp      a    b
+      # thang
+      # t1    5.0  NaN
+      # t2    NaN  4.0
+      ```
+
+      `pivot` yêu cầu cặp (index, columns) là duy nhất; `pivot_table` cho phép trùng và gộp bằng `aggfunc`
+      (sum, mean, count...). Ô không có dữ liệu là NaN. Ngược lại, `melt` đưa dạng rộng về dạng dài.
+
+      **apply / map / assign / sort_values.**
+
+      ```
+      df["gap_doi"] = df["sl"].map(lambda x: x * 2)       # biến đổi từng phần tử của một cột
+      df = df.assign(tong=lambda d: d["sl"] + 1)          # thêm cột mới, trả DataFrame mới
+      df.apply(lambda row: row["sl"] * 10, axis=1)        # áp hàm cho từng dòng
+      df.sort_values(["thang", "sl"], ascending=[True, False])
+      ```
+
+      **Dữ liệu thiếu.** `df.fillna(0)` thay NaN bằng 0, `df.dropna()` bỏ các dòng có NaN. Hầu hết các phép
+      trên **trả về DataFrame mới** thay vì sửa tại chỗ.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "`pd.merge(a, b, on=\"id\", how=\"left\")` cho kết quả nào với dòng của `a` không có `id` tương ứng trong `b`?"
+    options:
+      - {id: a, text_md: "Dòng đó được giữ lại, các cột của `b` có giá trị NaN"}
+      - {id: b, text_md: "Dòng đó bị bỏ đi"}
+      - {id: c, text_md: "Gây ra lỗi KeyError"}
+    answer: [a]
+    explain_md: "Left join giữ mọi dòng bảng trái; phần không khớp của bảng phải được điền NaN. Bỏ dòng là hành vi của inner join."
+  - id: q02
+    type: predict_output
+    code: |
+      row = {"a": 1, "b": None}
+      filled = {k: (0 if v is None else v) for k, v in row.items()}
+      print(filled)
+      data = [("b", 2), ("a", 2), ("c", 1)]
+      print(sorted(data, key=lambda t: -t[1]))
+    expected_output: |
+      {'a': 1, 'b': 0}
+      [('b', 2), ('a', 2), ('c', 1)]
+    explain_md: "Thay None bằng 0 giống `fillna(0)`. `sorted` là sắp xếp ổn định nên hai phần tử cùng khoá 2 giữ nguyên thứ tự ban đầu (b trước a)."
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Khi cặp (index, columns) bị trùng, nên dùng hàm nào để gộp giá trị?"
+    options:
+      - {id: a, text_md: "`pivot_table` với `aggfunc`"}
+      - {id: b, text_md: "`pivot` (sẽ tự cộng các giá trị trùng)"}
+      - {id: c, text_md: "`melt`"}
+    answer: [a]
+    explain_md: "`pivot_table` gộp các giá trị trùng bằng `aggfunc`; `pivot` báo lỗi khi có cặp trùng, còn `melt` làm việc ngược lại (rộng thành dài)."
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: left join bằng dict"
+    summary_vi: "Mô phỏng pd.merge(how=\"left\") trên list các dict, dòng không khớp được giữ nguyên."
+    exercise_ref: ex_join
+  - id: t02
+    type: text
+    md: |
+      Ý tưởng của left join thuần Python: dựng một dict `khoá -> dòng` từ bảng phải, rồi duyệt bảng trái và
+      trộn thêm các cột của dòng khớp (bỏ cột khoá để không lặp).
+
+      ```
+      index = {r[key]: r for r in right}
+      for l in left:
+          match = index.get(l[key])
+          ...
+      ```
+
+      Dùng `dict(l)` để sao chép, không sửa trực tiếp dòng đầu vào (giống pandas trả về bảng mới).
+  - id: ex_join
+    type: code_exercise
+    md: |
+      Cài `left_join(left, right, key)`. `left` và `right` là list các dict, `key` là tên cột khoá (chuỗi) có trong
+      mọi dict. Khoá trong `right` là duy nhất. Với mỗi dòng của `left` theo thứ tự, trả về một dict mới gồm các cột
+      của dòng đó cộng thêm các cột của dòng `right` cùng giá trị khoá (không lặp cột khoá). Dòng không khớp thì giữ
+      nguyên như cũ. Ví dụ `left = [{"id": 1, "ten": "an"}, {"id": 2, "ten": "binh"}]`, `right = [{"id": 1, "diem": 9}]`,
+      `key = "id"` cho `[{"id": 1, "ten": "an", "diem": 9}, {"id": 2, "ten": "binh"}]`.
+    entry: left_join
+    starter: |
+      def left_join(left, right, key):
+          # TODO: dựng dict khoá -> dòng của right, rồi trộn vào từng dòng của left
+          pass
+    guidance_md: |
+      - `index = {r[key]: r for r in right}`.
+      - Với mỗi `l`: `out = dict(l)`; nếu `l[key] in index` thì thêm mọi cặp của dòng khớp trừ `key`.
+    hints:
+      - level: nudge
+        md: "Dựng dict tra cứu từ `right` trước để mỗi dòng của `left` tìm khớp trong O(1)."
+      - level: approach
+        md: "Duyệt `left`, tạo `out = dict(l)`, tra `index.get(l[key])`; nếu có thì cập nhật các cột khác `key`."
+      - level: near_solution
+        md: "`for k, v in m.items(): if k != key: out[k] = v`, rồi `result.append(out)`."
+    tests:
+      - {args: [[{"id": 1, "ten": "an"}, {"id": 2, "ten": "binh"}], [{"id": 1, "diem": 9}], "id"], expected: [{"id": 1, "ten": "an", "diem": 9}, {"id": 2, "ten": "binh"}]}
+      - {args: [[], [{"id": 1, "diem": 9}], "id"], expected: []}
+      - {args: [[{"id": 1}], [], "id"], expected: [{"id": 1}]}
+      - {args: [[{"k": "a", "v": 1}, {"k": "a", "v": 2}], [{"k": "a", "w": 0}], "k"], expected: [{"k": "a", "v": 1, "w": 0}, {"k": "a", "v": 2, "w": 0}]}
+    solution: |
+      def left_join(left, right, key):
+          index = {r[key]: r for r in right}
+          result = []
+          for l in left:
+              out = dict(l)
+              m = index.get(l[key])
+              if m is not None:
+                  for k, v in m.items():
+                      if k != key:
+                          out[k] = v
+              result.append(out)
+          return result
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Để thay giá trị thiếu (NaN) bằng 0 trong DataFrame, gọi `df.___(0)` (điền tên phương thức)."
+    blanks: [{accept: ["fillna", "fillna()", ".fillna"]}]
+    explain_md: "`df.fillna(0)` thay NaN bằng 0; còn `dropna()` bỏ các dòng chứa NaN."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "merge/join ghép bảng theo khoá: inner chỉ giữ dòng khớp, left giữ mọi dòng bảng trái (không khớp thì NaN)."
+      - "pivot/pivot_table đổi dài thành rộng (pivot_table gộp bằng aggfunc), melt làm ngược lại."
+      - "map/apply/assign biến đổi cột, sort_values sắp xếp, fillna/dropna xử lý dữ liệu thiếu; hầu hết trả về bảng mới."
+      - "Mọi phép này có bản chất là dict/list: ghép theo khoá, gộp theo (hàng, cột), thay None."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X753], l2: [X754], l3: [X755]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-07"

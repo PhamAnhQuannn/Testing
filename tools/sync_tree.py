@@ -221,6 +221,11 @@ EXTRA_IDS = {
     "py.typing_testing.pytest_testing",
     "py.errors_modules.http_requests",
     "py.ecosystem.db_python",
+    # Wave 5 Round 39: Python breadth - ecosystem data (numpy/pandas/viz).
+    "py.ecosystem.numpy_basics",
+    "py.ecosystem.pandas_basics",
+    "py.ecosystem.pandas_transform",
+    "py.ecosystem.notebooks_viz",
 }
 
 # Expected shipped counts, asserted so an upstream tree edit can't silently change the snapshot.
@@ -228,7 +233,7 @@ PLAN_MVP_COUNT = 40
 EXPECTED_SD = 86
 EXPECTED_ML4 = 39
 EXPECTED_EXTRA_IDS = len(EXTRA_IDS)  # Wave 2 additions
-EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 317
+EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 321
 
 # Node fields the app uses (SPEC 4.2); optional ones are skipped when a node lacks them.
 NODE_FIELDS = [

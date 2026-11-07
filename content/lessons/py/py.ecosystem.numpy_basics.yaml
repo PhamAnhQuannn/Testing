@@ -1,0 +1,149 @@
+id: py.ecosystem.numpy_basics
+version: 1
+status: published
+title_vi: "NumPy và vector hóa (vectorization)"
+est_minutes: 15
+objectives_vi:
+  - "Phân biệt ndarray với list: cùng dtype, tính toán theo từng phần tử (elementwise) không cần vòng for."
+  - "Dùng broadcasting, indexing/slicing và boolean mask để lọc và biến đổi cả mảng một lần."
+  - "Dùng sum/mean theo axis, reshape và đọc được shape của mảng 2 chiều."
+  - "Hiểu np.dot hay toán tử @ và nhận ra lỗi sai shape."
+blocks:
+  - id: s_model
+    type: section
+    title_vi: "ndarray, vectorization và broadcasting"
+    summary_vi: "Mảng cùng kiểu, phép toán chạy trên cả mảng, shape khác nhau vẫn kết hợp được nhờ broadcasting."
+  - id: t01
+    type: text
+    md: |
+      **NumPy** là thư viện tính toán số. Trung tâm của nó là **ndarray**: mảng nhiều chiều mà mọi phần tử có
+      **cùng một dtype** (ví dụ `int64`, `float64`). Khác với `list` của Python (chứa object bất kỳ), ndarray lưu
+      dữ liệu liền kề trong bộ nhớ nên tính toán nhanh hơn nhiều. Đoạn code dưới đây dùng NumPy thật (app này
+      không chạy NumPy, bạn đọc và chạy tay).
+
+      ```
+      import numpy as np
+      a = np.array([1, 2, 3])        # dtype int64, shape (3,)
+      print(a * 2)                   # [2 4 6]      nhân từng phần tử
+      print(a + np.array([10, 20, 30]))   # [11 22 33]
+      print([1, 2, 3] * 2)           # list: [1, 2, 3, 1, 2, 3]  (lặp list, không phải nhân)
+      ```
+
+      **Vectorization** là viết phép toán trên cả mảng (`a * 2`, `a + b`, `a.sum()`) thay vì vòng `for`.
+      Vòng lặp chạy ở C bên trong NumPy nên nhanh hơn vòng for Python.
+
+      **Broadcasting**: khi hai mảng khác shape, NumPy tự "kéo giãn" mảng nhỏ nếu các chiều khớp từ phải sang
+      trái (bằng nhau hoặc một bên là 1).
+
+      ```
+      m = np.array([[1, 2, 3], [4, 5, 6]])   # shape (2, 3)
+      print(m + 10)                  # cộng số vô hướng vào mọi ô
+      print(m + np.array([1, 0, 0])) # shape (3,) được kéo thành (2, 3): mỗi hàng cộng [1, 0, 0]
+      print(m.shape)                 # (2, 3)
+      ```
+
+      **Indexing và slicing**: `a[0]`, `a[1:3]`, với 2D dùng `m[1, 2]` (hàng 1, cột 2), `m[:, 0]` (cột 0).
+      **Boolean mask**: `a[a > 1]` lọc các phần tử thoả điều kiện, không cần vòng lặp. Slice là **view**
+      (chia sẻ bộ nhớ), sửa slice sẽ sửa cả mảng gốc.
+
+      **Tổng hợp theo axis**: `m.sum()` cộng tất cả; `m.sum(axis=0)` cộng dọc theo hàng, ra mỗi cột một số
+      (`[5 7 9]`); `m.sum(axis=1)` ra mỗi hàng một số (`[6 15]`); `m.mean()` là trung bình.
+
+      **reshape và dot**: `np.arange(6).reshape(2, 3)` đổi shape mà không đổi dữ liệu (số phần tử phải khớp,
+      `-1` để NumPy tự suy ra). `np.dot(a, b)` hay `a @ b` là tích vô hướng của hai vector, hoặc nhân ma trận
+      với shape `(m, n) @ (n, k)` ra `(m, k)`. Sai shape sẽ báo `ValueError`.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Với `a = np.array([1, 2, 3])`, biểu thức `a * 2` cho kết quả nào?"
+    options:
+      - {id: a, text_md: "`[2 4 6]` (nhân từng phần tử)"}
+      - {id: b, text_md: "`[1 2 3 1 2 3]` (lặp mảng hai lần)"}
+      - {id: c, text_md: "Báo lỗi vì không nhân được mảng với số"}
+    answer: [a]
+    explain_md: "ndarray tính theo từng phần tử nên `a * 2` là `[2 4 6]`. Lặp phần tử là hành vi của `list * 2`."
+  - id: q02
+    type: predict_output
+    code: |
+      a = [1, 2, 3]
+      print(a * 2)
+      print([x * 2 for x in a])
+      print(len(a))
+    expected_output: |
+      [1, 2, 3, 1, 2, 3]
+      [2, 4, 6]
+      3
+    explain_md: "Với list, `*` lặp list; muốn nhân từng phần tử phải dùng comprehension (NumPy làm việc này bằng `a * 2`)."
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Với `m` có shape `(2, 3)`, `m.sum(axis=0)` trả về mảng có shape nào?"
+    options:
+      - {id: a, text_md: "`(3,)`, mỗi cột một tổng"}
+      - {id: b, text_md: "`(2,)`, mỗi hàng một tổng"}
+      - {id: c, text_md: "Một số duy nhất"}
+    answer: [a]
+    explain_md: "`axis=0` gộp dọc theo trục hàng nên còn lại 3 cột, shape `(3,)`. `axis=1` mới cho mỗi hàng một tổng."
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: mô phỏng broadcasting bằng Python thuần"
+    summary_vi: "Cộng một số vào mọi phần tử của list, giống m + 10 trong NumPy."
+    exercise_ref: ex_bcast
+  - id: t02
+    type: text
+    md: |
+      App chấm bài bằng Python thuần (không có NumPy), nên bài thực hành mô phỏng ý tưởng: với NumPy ta viết
+      `a + k`, với list ta tự duyệt từng phần tử.
+
+      ```
+      def scale(a, k):
+          return [x * k for x in a]
+      ```
+
+      Nhớ: trả về **list mới**, không sửa list đầu vào, và list rỗng cho kết quả rỗng.
+  - id: ex_bcast
+    type: code_exercise
+    md: |
+      Cài `broadcast_add(a, k)`. `a` là list số nguyên, `k` là một số nguyên. Trả về list mới, mỗi phần tử là
+      `a[i] + k` (giống `np.array(a) + k`). Ví dụ `a = [1, 2, 3]`, `k = 10` cho `[11, 12, 13]`.
+    entry: broadcast_add
+    starter: |
+      def broadcast_add(a, k):
+          # TODO: trả về list mới, mỗi phần tử cộng thêm k
+          pass
+    guidance_md: |
+      - Dùng list comprehension: `[x + k for x in a]`.
+      - Không sửa `a` tại chỗ.
+    hints:
+      - level: nudge
+        md: "Mỗi phần tử của kết quả chỉ phụ thuộc một phần tử của `a` và số `k`."
+      - level: approach
+        md: "Duyệt `a` bằng comprehension và cộng `k` vào từng `x`."
+      - level: near_solution
+        md: "`return [x + k for x in a]`; list rỗng tự cho `[]`."
+    tests:
+      - {args: [[1, 2, 3], 10], expected: [11, 12, 13]}
+      - {args: [[], 5], expected: []}
+      - {args: [[-1, 0, 4], -3], expected: [-4, -3, 1]}
+      - {args: [[7], 0], expected: [7]}
+    solution: |
+      def broadcast_add(a, k):
+          return [x + k for x in a]
+  - id: q04
+    type: quiz_fill
+    prompt_md: "`np.array([[1, 2, 3], [4, 5, 6]]).shape` in ra ___ (điền tuple, ví dụ (4, 5))."
+    blanks: [{accept: ["(2, 3)", "(2,3)", "2, 3", "2,3"]}]
+    explain_md: "2 hàng, 3 cột nên shape là `(2, 3)`."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "ndarray: mảng cùng dtype, tính theo từng phần tử (a * 2 khác list * 2); vectorization thay vòng for."
+      - "Broadcasting kéo giãn mảng nhỏ khi các chiều khớp từ phải sang trái; boolean mask lọc không cần vòng lặp."
+      - "sum/mean theo axis: axis=0 ra mỗi cột một số, axis=1 ra mỗi hàng một số; reshape giữ nguyên số phần tử."
+      - "np.dot hay @ là tích vô hướng/nhân ma trận; sai shape báo ValueError."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [Q243], l2: [X749], l3: [X750]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-07"

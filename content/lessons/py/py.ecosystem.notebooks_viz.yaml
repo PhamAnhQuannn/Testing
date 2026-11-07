@@ -1,0 +1,149 @@
+id: py.ecosystem.notebooks_viz
+version: 1
+status: published
+title_vi: "Jupyter notebook và trực quan hoá dữ liệu với matplotlib"
+est_minutes: 15
+objectives_vi:
+  - "Hiểu notebook gồm các cell chạy trên một kernel dùng chung và vì sao thứ tự chạy cell quan trọng."
+  - "Vẽ biểu đồ matplotlib cơ bản: figure/ax, plot, scatter, bar, hist, kèm label, legend, savefig."
+  - "Chọn đúng loại biểu đồ: histogram cho phân phối số liên tục, bar chart cho đếm theo nhóm."
+  - "Biết bước chuẩn bị dữ liệu trước khi vẽ (đếm, chia bin) và nhận ra seaborn là lớp bọc phía trên matplotlib."
+blocks:
+  - id: s_model
+    type: section
+    title_vi: "Notebook, matplotlib và chọn loại biểu đồ"
+    summary_vi: "Cell + kernel, figure/ax, plot/scatter/bar/hist, histogram khác bar chart."
+  - id: t01
+    type: text
+    md: |
+      **Jupyter notebook** là tài liệu gồm nhiều **cell** (code hoặc markdown). Các cell code chạy trên một
+      **kernel** Python duy nhất, nên biến tạo ở cell này dùng được ở cell sau. Lưu ý: kernel nhớ theo **thứ tự
+      bạn chạy**, không phải thứ tự cell nằm trên trang; chạy lại cell cũ hoặc bỏ qua cell có thể cho kết quả khác
+      lần "Restart & Run All". Dòng magic `%matplotlib inline` làm biểu đồ hiện ngay dưới cell.
+
+      Lưu ý: bài này chỉ **đọc và chạy tay**; trình chấm trong app không có Jupyter hay matplotlib. Các bài tập
+      chấm tự động mô phỏng bước **chuẩn bị dữ liệu** bằng Python thuần.
+
+      ```
+      import matplotlib.pyplot as plt
+
+      fig, ax = plt.subplots(figsize=(6, 4))      # figure = khung, ax = một vùng vẽ
+      ax.plot([1, 2, 3], [2, 4, 8], label="y")    # đường (line)
+      ax.scatter([1, 2, 3], [3, 3, 7])            # điểm rời rạc
+      ax.set_xlabel("x")
+      ax.set_ylabel("y")
+      ax.set_title("Demo")
+      ax.legend()
+      fig.savefig("demo.png", dpi=150)            # lưu ra file
+      plt.show()
+      ```
+
+      **Chọn biểu đồ.** `ax.bar(labels, counts)` dành cho **nhóm rời rạc** (số đơn hàng theo thành phố): các cột
+      tách nhau, thứ tự có thể đổi. `ax.hist(values, bins=10)` dành cho **số liên tục** (tuổi, thời gian phản
+      hồi): trục x được chia thành các **bin** liền nhau có độ rộng bằng nhau, cột cao = số điểm rơi vào bin.
+      `plt.hist(values, bins=k)` thực chất là: lấy `lo = min`, `hi = max`, chia `[lo, hi]` thành k bin, đếm.
+      Chọn `bins` quá ít thì mất chi tiết, quá nhiều thì nhiễu.
+
+      **seaborn (awareness).** Thư viện xây trên matplotlib, có sẵn `sns.histplot`, `sns.barplot`, `sns.heatmap`
+      với style đẹp và làm việc trực tiếp với DataFrame của pandas. Vẫn dùng `ax`/`fig` của matplotlib để chỉnh.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Bạn có 5000 giá trị thời gian phản hồi (giây, số thực). Nên vẽ gì để xem phân phối?"
+    options:
+      - {id: a, text_md: "`ax.hist(times, bins=30)`"}
+      - {id: b, text_md: "`ax.bar(times, times)`"}
+      - {id: c, text_md: "Một biểu đồ tròn 5000 phần"}
+    answer: [a]
+    explain_md: "Dữ liệu số liên tục cần histogram: chia thành bin rồi đếm. Bar chart dành cho nhóm rời rạc."
+  - id: q02
+    type: predict_output
+    code: |
+      from collections import Counter
+
+      vals = [1, 2, 2, 3, 3, 3]
+      c = Counter(vals)
+      print(sorted(c.items()))
+      print(c.most_common(1))
+    expected_output: |
+      [(1, 1), (2, 2), (3, 3)]
+      [(3, 3)]
+    explain_md: "Đếm theo nhóm giống bước chuẩn bị cho bar chart: 1 xuất hiện 1 lần, 2 hai lần, 3 ba lần. `most_common(1)` trả nhóm cao nhất."
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Trong notebook, bạn chạy cell 5 (dùng biến `df` tạo ở cell 2) trước khi chạy lại cell 2 đã sửa. Điều gì xảy ra?"
+    options:
+      - {id: a, text_md: "Cell 5 dùng `df` cũ còn trong kernel, kết quả có thể không khớp code đang hiển thị"}
+      - {id: b, text_md: "Notebook tự chạy lại cell 2 trước"}
+      - {id: c, text_md: "Kernel báo lỗi vì sai thứ tự"}
+    answer: [a]
+    explain_md: "Kernel giữ trạng thái theo thứ tự chạy thực tế. Dùng Restart & Run All để chắc chắn notebook tái lập được."
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: chuẩn bị số liệu cho bar chart"
+    summary_vi: "Đếm số lần mỗi nhãn xuất hiện, trả về list [nhãn, số lượng] đã sắp theo nhãn."
+    exercise_ref: ex_bar
+  - id: t02
+    type: text
+    md: |
+      Trước khi gọi `ax.bar(labels, counts)` bạn cần hai list song song: các nhãn và số lượng của từng nhãn.
+      Cách quen thuộc là dùng `Counter` hoặc dict, rồi sắp theo nhãn để thứ tự cột ổn định:
+
+      ```
+      counts = {}
+      for lab in labels:
+          counts[lab] = counts.get(lab, 0) + 1
+      pairs = sorted(counts.items())          # [(nhãn, số lượng), ...]
+      ax.bar([p[0] for p in pairs], [p[1] for p in pairs])
+      ```
+  - id: ex_bar
+    type: code_exercise
+    md: |
+      Cài `bar_counts(labels)`. `labels` là list chuỗi (có thể rỗng). Trả về list các cặp `[label, count]`, mỗi
+      cặp là **list** 2 phần tử, sắp theo `label` tăng dần (so sánh chuỗi thông thường). Ví dụ
+      `["b", "a", "b"]` cho `[["a", 1], ["b", 2]]`; list rỗng cho `[]`.
+    entry: bar_counts
+    starter: |
+      def bar_counts(labels):
+          # TODO: đếm số lần mỗi nhãn xuất hiện, trả về list [label, count] sắp theo label
+          pass
+    guidance_md: |
+      - Dùng dict: `counts[lab] = counts.get(lab, 0) + 1`.
+      - `sorted(counts.items())` rồi đổi mỗi tuple thành list.
+    hints:
+      - level: nudge
+        md: "Đếm bằng dict hoặc `Counter`, sau đó sắp theo khoá."
+      - level: approach
+        md: "Duyệt `labels` để tăng đếm cho từng nhãn, rồi duyệt `sorted(counts)` để dựng kết quả."
+      - level: near_solution
+        md: "`return [[lab, counts[lab]] for lab in sorted(counts)]` (mỗi phần tử là list, không phải tuple)."
+    tests:
+      - {args: [["b", "a", "b", "c", "a", "b"]], expected: [["a", 2], ["b", 3], ["c", 1]]}
+      - {args: [[]], expected: []}
+      - {args: [["x"]], expected: [["x", 1]]}
+      - {args: [["Pass", "fail", "Pass"]], expected: [["Pass", 2], ["fail", 1]]}
+    solution: |
+      def bar_counts(labels):
+          counts = {}
+          for lab in labels:
+              counts[lab] = counts.get(lab, 0) + 1
+          return [[lab, counts[lab]] for lab in sorted(counts)]
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Để lưu biểu đồ ra file ảnh bằng matplotlib, gọi phương thức fig.___(\"demo.png\") (điền tên hàm)."
+    blanks: [{accept: ["savefig", "savefig()"]}]
+    explain_md: "`fig.savefig(\"demo.png\")` ghi figure ra file; nên gọi trước `plt.show()`."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Notebook: cell chạy trên một kernel dùng chung; trạng thái theo thứ tự chạy, dùng Restart & Run All để kiểm tra tái lập."
+      - "matplotlib: figure/ax, plot/scatter/bar/hist, set_xlabel/set_ylabel/legend, savefig."
+      - "histogram cho số liên tục (chia bin bằng nhau rồi đếm); bar chart cho nhóm rời rạc."
+      - "seaborn bọc matplotlib với style và API gọn hơn; bước đếm/chia bin thường làm trước khi vẽ."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X756], l2: [X757], l3: [X758]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-07"

@@ -20,7 +20,7 @@ EXTRA_MODULES = {"ml.llm", "ml.rag_agents", "ml.llm_eval_serving", "ml.system_de
 
 def test_index_starts_with_the_40_subtopics_of_spec_4_1():
     ids = [s["id"] for s in SUBTOPICS]
-    assert len(ids) == 317  # 40 plan + 86 sd + 39 ml + 152 Wave-2/3/4/5 py+dsa+lld+ml (EXTRA_IDS)
+    assert len(ids) == 321  # 40 plan + 86 sd + 39 ml + 156 Wave-2/3/4/5 py+dsa+lld+ml (EXTRA_IDS)
     assert ids[:40] == spec_table_ids()
 
 
