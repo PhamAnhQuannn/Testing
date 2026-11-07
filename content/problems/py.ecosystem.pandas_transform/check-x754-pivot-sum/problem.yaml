@@ -1,0 +1,68 @@
+id: check-x754-pivot-sum
+subtopic_id: py.ecosystem.pandas_transform
+secondary_subtopics: []
+kind: check
+title: 'Check X754: pivot sum'
+title_vi: 'Kiểm tra X754: pivot cộng tổng bằng dict lồng nhau'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Implement `pivot_sum(rows)`, a pure-Python mimic of
+  `df.pivot_table(index=row, columns=col, values=v, aggfunc="sum")`. `rows` is a list of
+  `[row_key, col_key, value]` triples (row_key and col_key are strings, value is an int). Return a **nested dict**
+  `{row_key: {col_key: total}}` where values sharing the same `(row_key, col_key)` pair are summed.
+  Empty `rows` gives `{}`. Only pairs that actually occur appear in the result (no filling of missing cells).
+  For `rows = [["a", "x", 2], ["a", "y", 3], ["a", "x", 5]]` the result is `{"a": {"x": 7, "y": 3}}`.
+statement_vi_md: |
+  Cài `pivot_sum(rows)`, mô phỏng thuần Python của
+  `df.pivot_table(index=row, columns=col, values=v, aggfunc="sum")`. `rows` là list các bộ ba
+  `[row_key, col_key, value]` (row_key và col_key là chuỗi, value là số nguyên). Trả về **dict lồng nhau**
+  `{row_key: {col_key: tổng}}`, các value có cùng cặp `(row_key, col_key)` được cộng lại. `rows` rỗng cho `{}`.
+  Chỉ các cặp thực sự xuất hiện mới có trong kết quả (không điền ô thiếu).
+  Với `rows = [["a", "x", 2], ["a", "y", 3], ["a", "x", 5]]` kết quả là `{"a": {"x": 7, "y": 3}}`.
+constraints:
+- 'rows có thể rỗng (kết quả {}); value có thể bằng 0 hoặc âm'
+- 'Khoá có thể chứa dấu nháy hoặc ký tự đặc biệt'
+- 'Kết quả là dict lồng nhau, thứ tự khoá không quan trọng'
+examples:
+- input: 'rows = [["a", "x", 2], ["a", "y", 3], ["a", "x", 5]]'
+  output: '{"a": {"x": 7, "y": 3}}'
+  explain_vi: '(a, x) = 2 + 5 = 7, (a, y) = 3.'
+io:
+  mode: function
+  entry: pivot_sum
+  params:
+  - name: rows
+    type: list
+  returns: dict
+  compare: exact
+starter:
+  python: |
+    def pivot_sum(rows):
+        # TODO: dict lồng nhau {row_key: {col_key: tổng}}, cộng các value cùng cặp
+        pass
+time_target_min: 6
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+hints:
+- "Duyệt từng bộ ba `r, c, v`; đảm bảo `result[r]` tồn tại bằng `result.setdefault(r, {})`."
+- "Cộng dồn: `inner[c] = inner.get(c, 0) + v`."
+- "Trả về `result`; không cần điền các ô thiếu."
+solution:
+  file: solution.py
+  approach_vi: Duyệt một lần, dùng setdefault để tạo dict hàng và get với mặc định 0 để cộng dồn theo cột.
+  complexity: "O(n) / O(k)"
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x754
+status: validated
+version: 1

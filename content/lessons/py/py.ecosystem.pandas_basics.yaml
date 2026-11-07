@@ -1,0 +1,147 @@
+id: py.ecosystem.pandas_basics
+version: 1
+status: published
+title_vi: "pandas cơ bản: Series, DataFrame, chọn dữ liệu"
+est_minutes: 15
+objectives_vi:
+  - "Phân biệt Series (một cột) và DataFrame (cả bảng) và tạo DataFrame từ dict hoặc file CSV."
+  - "Chọn cột, lọc dòng bằng điều kiện boolean và dùng loc/iloc đúng chỗ."
+  - "Tổng hợp theo nhóm với groupby rồi sắp xếp bằng sort_values."
+  - "Mô phỏng các thao tác đó bằng Python thuần (list, dict) để hiểu bản chất."
+blocks:
+  - id: s_model
+    type: section
+    title_vi: "Series, DataFrame và chọn dữ liệu"
+    summary_vi: "DataFrame là bảng, Series là một cột; lọc bằng điều kiện boolean, gộp bằng groupby."
+  - id: t01
+    type: text
+    md: |
+      **pandas** là thư viện xử lý dữ liệu dạng bảng, giống Excel nhưng viết bằng code. Hai kiểu chính:
+      **Series** (một cột, có index) và **DataFrame** (bảng gồm nhiều Series chung index).
+      Lưu ý: bài này dạy API pandas thật, nhưng trình chấm trong app không có pandas nên các ví dụ dưới đây
+      để đọc và chạy tay; phần thực hành dùng Python thuần mô phỏng cùng ý tưởng.
+
+      ```
+      import pandas as pd
+      df = pd.DataFrame({"name": ["An", "Binh", "Chi"], "age": [20, 15, 31], "city": ["HN", "HCM", "HN"]})
+      # df = pd.read_csv("students.csv")     # đọc từ file CSV
+      df["age"]            # Series: cột age
+      df[["name", "age"]]  # DataFrame: chọn nhiều cột (truyền list)
+      df.head(2)           # 2 dòng đầu
+      df.describe()        # count, mean, std, min, max... của các cột số
+      ```
+
+      **Lọc dòng** bằng mask boolean: `df.age > 18` là một Series True/False, đưa vào ngoặc vuông để giữ
+      dòng True. Kết hợp điều kiện dùng `&`, `|` (có ngoặc từng vế), không dùng `and`/`or`.
+
+      ```
+      adults = df[df.age > 18]
+      hn_adults = df[(df.age > 18) & (df.city == "HN")]
+      ```
+
+      **loc và iloc.** `df.loc[hàng, cột]` chọn theo **nhãn** (index và tên cột, cả hai đầu đều lấy);
+      `df.iloc[hàng, cột]` chọn theo **vị trí** số nguyên (đầu cuối kiểu slice của Python, không lấy đầu phải).
+      Ví dụ `df.loc[df.age > 18, "name"]` lấy cột name của các dòng đã lọc; `df.iloc[0, 1]` lấy ô hàng 0 cột 1.
+
+      **Nhóm và sắp xếp.** `df.groupby("city")["age"].sum()` gộp theo city rồi cộng age; kết quả là Series có
+      index là city, **đã sắp theo key** mặc định. `df.sort_values("age", ascending=False)` sắp theo giá trị.
+
+      ```
+      df.groupby("city")["age"].sum()     # HCM 15, HN 51
+      df.sort_values("age", ascending=False).head(1)
+      ```
+
+      Tránh vòng lặp từng dòng: thao tác trên cả cột (vectorized) vừa ngắn vừa nhanh hơn.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Với `df` là DataFrame, `df[\"age\"]` trả về kiểu gì?"
+    options:
+      - {id: a, text_md: "Một Series (một cột)"}
+      - {id: b, text_md: "Một DataFrame gồm một cột"}
+      - {id: c, text_md: "Một list Python"}
+    answer: [a]
+    explain_md: "Chọn bằng một tên cột cho ra Series; chọn bằng list tên cột như `df[[\"age\"]]` mới cho ra DataFrame."
+  - id: q02
+    type: predict_output
+    code: |
+      rows = [{"name": "An", "age": 20}, {"name": "Binh", "age": 15}, {"name": "Chi", "age": 31}]
+      mask = [r["age"] > 18 for r in rows]
+      print(mask)
+      print([r["name"] for r, m in zip(rows, mask) if m])
+    expected_output: |
+      [True, False, True]
+      ['An', 'Chi']
+    explain_md: "Đây là ý tưởng của `df[df.age > 18][\"name\"]`: tạo mask boolean rồi chỉ giữ dòng True."
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Cách nào đúng để lọc dòng có `age > 18` VÀ `city == \"HN\"`?"
+    options:
+      - {id: a, text_md: "`df[(df.age > 18) & (df.city == \"HN\")]`"}
+      - {id: b, text_md: "`df[df.age > 18 and df.city == \"HN\"]`"}
+      - {id: c, text_md: "`df[df.age > 18, df.city == \"HN\"]`"}
+    answer: [a]
+    explain_md: "Dùng `&` với ngoặc quanh từng vế. `and` báo lỗi vì không hiểu cả Series là True hay False."
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: lọc dòng và chọn cột bằng Python thuần"
+    summary_vi: "Mô phỏng df[df.age > n][\"name\"] bằng list các dict."
+    exercise_ref: ex_filter
+  - id: t02
+    type: text
+    md: |
+      Trong pandas, `df[df.age > limit]["name"]` lọc dòng rồi chọn cột. Với list các dict (mỗi dict là một dòng),
+      cùng ý đó là: duyệt từng dòng, giữ dòng thỏa điều kiện, lấy giá trị của khóa cần chọn, **giữ nguyên thứ tự**.
+
+      ```
+      names = [r["name"] for r in rows if r["age"] > limit]
+      ```
+  - id: ex_filter
+    type: code_exercise
+    md: |
+      Cài `names_older(rows, limit)`. `rows` là list các dict `{"name": str, "age": int}`. Trả về list tên của
+      những dòng có `age` **lớn hơn hẳn** `limit`, theo đúng thứ tự trong `rows` (mô phỏng
+      `df[df.age > limit]["name"]`). Ví dụ `rows = [{"name": "An", "age": 20}, {"name": "Binh", "age": 15}]`,
+      `limit = 18` cho `["An"]`.
+    entry: names_older
+    starter: |
+      def names_older(rows, limit):
+          # TODO: giữ dòng có age > limit rồi lấy cột name
+          pass
+    guidance_md: |
+      - Dùng list comprehension: `[r["name"] for r in rows if r["age"] > limit]`.
+      - So sánh `>` (không phải `>=`), giữ thứ tự gốc.
+    hints:
+      - level: nudge
+        md: "Mỗi phần tử của `rows` là một dict; truy cập bằng `r[\"age\"]` và `r[\"name\"]`."
+      - level: approach
+        md: "Duyệt `rows`, chỉ giữ dòng có `age > limit`, rồi lấy `name`."
+      - level: near_solution
+        md: "`return [r[\"name\"] for r in rows if r[\"age\"] > limit]`."
+    tests:
+      - {args: [[{"name": "An", "age": 20}, {"name": "Binh", "age": 15}], 18], expected: ["An"]}
+      - {args: [[], 18], expected: []}
+      - {args: [[{"name": "An", "age": 18}], 18], expected: []}
+      - {args: [[{"name": "An", "age": 30}, {"name": "Binh", "age": 40}, {"name": "Chi", "age": 5}], 10], expected: ["An", "Binh"]}
+    solution: |
+      def names_older(rows, limit):
+          return [r["name"] for r in rows if r["age"] > limit]
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Để chọn ô theo vị trí số nguyên trong DataFrame, dùng thuộc tính `df.___`."
+    blanks: [{accept: ["iloc", ".iloc", "df.iloc"]}]
+    explain_md: "`iloc` chọn theo vị trí số nguyên; `loc` chọn theo nhãn."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Series là một cột, DataFrame là bảng; tạo từ dict hoặc read_csv."
+      - "Chọn cột bằng df[\"col\"], lọc dòng bằng mask boolean df[df.x > 0], kết hợp bằng & và |."
+      - "loc chọn theo nhãn, iloc chọn theo vị trí; groupby gộp theo nhóm, sort_values sắp theo giá trị."
+      - "Phía sau pandas vẫn là ý tưởng quen thuộc: duyệt, lọc, cộng dồn theo key."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [Q249], l2: [X751], l3: [X752]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-07"
