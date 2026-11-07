@@ -1,0 +1,176 @@
+id: py.ecosystem.django
+version: 1
+status: published
+title_vi: "Django: MTV, ORM, QuerySet và view"
+est_minutes: 15
+objectives_vi:
+  - "Giải thích kiến trúc MTV của Django: Model (dữ liệu), Template (giao diện), View (xử lý request) và URL routing nối chúng lại."
+  - "Định nghĩa model bằng ORM (Model, field, migration) và truy vấn bằng QuerySet với filter(), exclude(), order_by()."
+  - "Hiểu QuerySet là lazy (chỉ chạy SQL khi cần kết quả) và tránh lỗi N+1 bằng select_related/prefetch_related."
+  - "Viết function view và class-based view, khai báo URL bằng path(\"users/<int:id>/\", view); biết admin và forms làm gì."
+blocks:
+  - id: s_model
+    type: section
+    title_vi: "MTV, model, QuerySet và view"
+    summary_vi: "Django chia app thành Model, Template, View; ORM biến bảng thành class, QuerySet là truy vấn lười."
+  - id: t01
+    type: text
+    md: |
+      **Django** là web framework "đầy đủ đồ nghề". Kiến trúc của nó gọi là **MTV**:
+      **Model** (dữ liệu, nói chuyện với database), **Template** (HTML hiển thị),
+      **View** (nhận request, lấy dữ liệu từ model, trả response). **URL routing** quyết định request nào vào view nào.
+      Lưu ý: bài này dạy API Django thật dưới dạng đọc và "chạy tay"; phần bài tập chấm điểm chỉ mô phỏng bằng Python thuần.
+
+      **Model và migration.** Mỗi class kế thừa `models.Model` là một bảng, mỗi field là một cột:
+
+      ```
+      from django.db import models
+
+      class User(models.Model):
+          name = models.CharField(max_length=50)
+          age = models.IntegerField()
+          active = models.BooleanField(default=True)
+      ```
+
+      Sau khi sửa model, chạy `python manage.py makemigrations` (sinh file migration mô tả thay đổi cấu trúc bảng)
+      rồi `python manage.py migrate` (áp dụng vào database).
+
+      **QuerySet.** `User.objects` là manager; các hàm trả về **QuerySet**:
+
+      ```
+      qs = User.objects.filter(age=30, active=True)   # AND mọi điều kiện
+      qs = qs.exclude(name="an")                       # loại các dòng khớp
+      qs = qs.order_by("name", "-age")                 # name tăng dần, age giảm dần
+      for u in qs:                                     # đến đây mới chạy SQL
+          print(u.name)
+      ```
+
+      QuerySet là **lazy**: `filter()`/`exclude()`/`order_by()` chỉ ghép thêm điều kiện, SQL chỉ chạy khi bạn lặp,
+      `list(qs)`, `len(qs)`, cắt lát hoặc `.get()`. Có thể xích nhiều lần, mỗi lần trả QuerySet mới.
+      Lưu ý `exclude(a=1, b=2)` loại dòng thoả **cả hai** điều kiện (tức NOT (a AND b)), không phải loại từng cái.
+
+      **View và URL.** View nhận `request`, trả `HttpResponse`:
+
+      ```
+      from django.http import JsonResponse
+      from django.urls import path
+      from django.views import View
+
+      def user_detail(request, id):                   # function view
+          u = User.objects.get(pk=id)
+          return JsonResponse({"name": u.name})
+
+      class UserList(View):                           # class-based view
+          def get(self, request):
+              names = list(User.objects.values_list("name", flat=True))
+              return JsonResponse({"names": names})
+
+      urlpatterns = [
+          path("users/<int:id>/", user_detail),       # <int:id> bắt số và truyền vào view
+          path("users/", UserList.as_view()),
+      ]
+      ```
+
+      **Admin và forms (awareness).** Đăng ký `admin.site.register(User)` là có ngay trang quản trị CRUD.
+      `forms.ModelForm` sinh form từ model, kiểm tra dữ liệu (validate) và có sẵn bảo vệ CSRF trong template.
+
+      **N+1 (awareness).** Lấy 100 bài viết rồi mỗi vòng lặp đọc `post.author.name` sinh 1 + 100 câu SQL.
+      Sửa bằng `Post.objects.select_related("author")` (JOIN cho quan hệ ForeignKey) hoặc `prefetch_related` (cho quan hệ nhiều).
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Dòng nào sau đây thực sự chạy câu SQL tới database?"
+    options:
+      - {id: a, text_md: "`qs = User.objects.filter(age=30)`"}
+      - {id: b, text_md: "`qs = qs.order_by(\"name\")`"}
+      - {id: c, text_md: "`names = list(qs)`"}
+    answer: [c]
+    explain_md: "QuerySet lazy: filter và order_by chỉ ghép điều kiện. Chỉ khi lặp hoặc `list(qs)` thì SQL mới chạy."
+  - id: q02
+    type: predict_output
+    code: |
+      qs = [{"n": "a", "p": 3}, {"n": "b", "p": 1}, {"n": "c", "p": 3}]
+      eager = [r["n"] for r in qs if r["p"] == 3]
+      lazy = (r["n"] for r in qs if r["p"] == 3)
+      qs.append({"n": "d", "p": 3})
+      print(eager)
+      print(list(lazy))
+    expected_output: |
+      ['a', 'c']
+      ['a', 'c', 'd']
+    explain_md: "List comprehension chạy ngay nên không thấy `d`. Generator lười chỉ chạy khi `list(lazy)`, lúc đó `qs` đã có `d`, giống QuerySet chỉ chạy khi cần kết quả."
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Khai báo URL `path(\"users/<int:id>/\", user_detail)` thì request `/users/7/` gọi gì?"
+    options:
+      - {id: a, text_md: "`user_detail(request, id=7)` với `id` là số nguyên 7"}
+      - {id: b, text_md: "`user_detail(request)` và `id` phải tự đọc từ chuỗi URL"}
+      - {id: c, text_md: "Lỗi, vì URL không được chứa số"}
+    answer: [a]
+    explain_md: "`<int:id>` là path converter: bắt phần URL, đổi sang int và truyền vào view như keyword argument."
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: exclude() mô phỏng bằng Python thuần"
+    summary_vi: "Viết hàm loại các dòng khớp mọi điều kiện, giống Model.objects.exclude(**conds)."
+    exercise_ref: ex_exclude
+  - id: t02
+    type: text
+    md: |
+      Bản mô phỏng bằng Python thuần (không cần Django). `exclude(**conds)` loại dòng thoả **mọi** điều kiện:
+
+      ```
+      def exclude_rows(rows, conds):
+          return [r for r in rows if not all(r[k] == v for k, v in conds.items())]
+      ```
+
+      Chú ý: `all(...)` kiểm tra AND; `not all(...)` giữ lại dòng chỉ cần lệch một điều kiện.
+      Ở bài này `conds` luôn có ít nhất một khoá.
+  - id: ex_exclude
+    type: code_exercise
+    md: |
+      Cài `exclude_rows(rows, conds)` mô phỏng `Model.objects.exclude(**conds)`. `rows` là list dict, `conds` là dict
+      `{khoá: giá trị}` (luôn có ít nhất một khoá). Loại bỏ các dòng mà **mọi** khoá trong `conds` đều bằng giá trị
+      yêu cầu; giữ các dòng còn lại theo đúng thứ tự ban đầu. Ví dụ `rows = [{"name": "a", "age": 30}, {"name": "b", "age": 25}]`,
+      `conds = {"age": 30}` cho `[{"name": "b", "age": 25}]`.
+    entry: exclude_rows
+    starter: |
+      def exclude_rows(rows, conds):
+          # TODO: giữ dòng KHÔNG thoả toàn bộ conds
+          pass
+    guidance_md: |
+      - Dòng bị loại khi `all(r[k] == v for k, v in conds.items())` là True.
+      - Dùng list comprehension với `not all(...)`.
+    hints:
+      - level: nudge
+        md: "Hãy nghĩ: một dòng bị loại khi nào? Khi khớp tất cả điều kiện, không phải một điều kiện."
+      - level: approach
+        md: "Dùng `all(r[k] == v for k, v in conds.items())` để biết dòng khớp mọi điều kiện, rồi giữ dòng ngược lại."
+      - level: near_solution
+        md: "`[r for r in rows if not all(r[k] == v for k, v in conds.items())]`."
+    tests:
+      - {args: [[{"name": "a", "age": 30}, {"name": "b", "age": 25}, {"name": "c", "age": 30}], {"age": 30}], expected: [{"name": "b", "age": 25}]}
+      - {args: [[{"name": "a", "age": 30}, {"name": "b", "age": 25}, {"name": "c", "age": 30}], {"age": 30, "name": "a"}], expected: [{"name": "b", "age": 25}, {"name": "c", "age": 30}]}
+      - {args: [[{"name": "a", "age": 30}, {"name": "b", "age": 25}], {"age": 99}], expected: [{"name": "a", "age": 30}, {"name": "b", "age": 25}]}
+      - {args: [[], {"age": 30}], expected: []}
+    solution: |
+      def exclude_rows(rows, conds):
+          return [r for r in rows if not all(r[k] == v for k, v in conds.items())]
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Trong Django, hàm của QuerySet để sắp xếp kết quả là ___ (điền tên hàm, không cần dấu ngoặc)."
+    blanks: [{accept: ["order_by", "order_by()", ".order_by"]}]
+    explain_md: "`order_by(\"name\", \"-age\")`: tên cột, thêm dấu `-` để giảm dần."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "MTV: Model (dữ liệu/ORM), Template (HTML), View (xử lý request); URL routing nối request tới view."
+      - "Model là class, field là cột; makemigrations rồi migrate để đồng bộ cấu trúc bảng."
+      - "QuerySet lazy: filter/exclude/order_by chỉ ghép điều kiện, SQL chạy khi cần kết quả; filter AND nhiều điều kiện."
+      - "Tránh N+1 bằng select_related/prefetch_related; admin và ModelForm cho CRUD và validate nhanh."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X765], l2: [X766], l3: [X767]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-07"

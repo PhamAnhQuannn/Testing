@@ -1,0 +1,158 @@
+id: py.ecosystem.fastapi
+version: 1
+status: published
+title_vi: "FastAPI, API bất đồng bộ và pydantic"
+est_minutes: 15
+objectives_vi:
+  - "Khai báo endpoint bằng @app.get/@app.post, đọc path param và query param qua type hint."
+  - "Dùng Pydantic model cho request body và response_model; hiểu validation tự động trả 422."
+  - "Phân biệt async def và def endpoint, biết status code, trang /docs (OpenAPI) và Depends."
+  - "Hiểu cách router khớp đường dẫn: tách segment, so khớp literal, bắt {param}, route khai báo trước thắng."
+blocks:
+  - id: s_model
+    type: section
+    title_vi: "Endpoint, tham số và Pydantic"
+    summary_vi: "Decorator gắn hàm với đường dẫn, type hint quyết định cách đọc và kiểm tra dữ liệu."
+  - id: t01
+    type: text
+    md: |
+      **FastAPI** là framework web Python: bạn viết hàm, gắn decorator với đường dẫn, FastAPI lo phần nhận
+      request, kiểm tra dữ liệu và trả JSON. Mỗi cặp (đường dẫn + method + hàm) gọi là một **endpoint**.
+      Đoạn code dưới đây là FastAPI thật (cần cài `fastapi`, chỉ để đọc hiểu, không chạy trong bài này).
+
+      ```
+      from fastapi import FastAPI, HTTPException
+      from pydantic import BaseModel
+
+      app = FastAPI()
+
+      class Item(BaseModel):            # Pydantic model: khuôn dữ liệu
+          name: str
+          price: float
+          qty: int = 1                  # có default nên không bắt buộc
+
+      @app.get("/items/{item_id}")      # {item_id} là path param
+      async def read_item(item_id: int, verbose: bool = False):   # verbose là query param
+          if item_id > 100:
+              raise HTTPException(status_code=404, detail="not found")
+          return {"id": item_id, "verbose": verbose}
+
+      @app.post("/items", response_model=Item, status_code=201)
+      async def create_item(item: Item):    # body JSON được ép thành Item
+          return item
+      ```
+
+      **Path param vs query param.** Tên nằm trong `{...}` của đường dẫn là **path param**
+      (`/items/7` cho `item_id = 7`). Tham số còn lại của hàm là **query param**, lấy từ phần sau dấu `?`
+      (`/items/7?verbose=true`). Type hint (`int`, `bool`) làm FastAPI tự ép kiểu: path chỉ có chuỗi `"7"`
+      nhưng hàm nhận số `7`.
+
+      **Pydantic và validation tự động.** Nếu client gửi `item_id = "abc"` hoặc body thiếu `name`, FastAPI trả
+      **422 Unprocessable Entity** kèm lý do, hàm của bạn không bị gọi. `response_model` lọc và kiểm tra dữ
+      liệu trả về, `status_code=201` đặt mã thành công cho POST. Lỗi nghiệp vụ dùng `HTTPException`.
+
+      **async def hay def.** `async def` phù hợp khi bên trong có `await` (gọi DB/HTTP async); FastAPI chạy
+      trên event loop. Hàm `def` thường được đẩy sang thread pool nên không chặn loop. Đừng gọi code chặn lâu
+      (như `time.sleep`) bên trong `async def`.
+
+      **Docs và Depends.** FastAPI tự sinh đặc tả **OpenAPI** và trang `/docs` (Swagger UI) từ type hint.
+      **Dependency injection**: `def get_db(): ...` rồi `def f(db = Depends(get_db))` để dùng chung kết nối
+      hoặc kiểm tra đăng nhập. Test bằng `TestClient(app).get("/items/7")`. Chạy server: `uvicorn main:app`.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Với `@app.get(\"/items/{item_id}\")` và hàm `read_item(item_id: int, q: str = \"\")`, `q` là gì?"
+    options:
+      - {id: a, text_md: "Query param, lấy từ phần sau dấu `?` của URL"}
+      - {id: b, text_md: "Path param, vì nó nằm trong tham số hàm"}
+      - {id: c, text_md: "Request body JSON"}
+    answer: [a]
+    explain_md: "Chỉ tên có trong `{...}` của đường dẫn mới là path param; tham số kiểu đơn giản còn lại là query param."
+  - id: q02
+    type: predict_output
+    code: |
+      path = "/items/42"
+      parts = path.split("/")
+      print(parts)
+      print(int(parts[2]) + 1)
+    expected_output: |
+      ['', 'items', '42']
+      43
+    explain_md: "Chuỗi bắt đầu bằng `/` nên segment đầu là chuỗi rỗng. Giá trị path luôn là chuỗi, nên cần `int(...)` (FastAPI làm bước này nhờ type hint)."
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Client gọi `POST /items` với body thiếu trường bắt buộc `name`. FastAPI làm gì?"
+    options:
+      - {id: a, text_md: "Trả 422 và không gọi hàm endpoint"}
+      - {id: b, text_md: "Gọi hàm với `name = None`"}
+      - {id: c, text_md: "Trả 500 vì Python raise KeyError"}
+    answer: [a]
+    explain_md: "Pydantic validate body trước khi gọi hàm; dữ liệu sai dạng cho ra 422 kèm chi tiết lỗi."
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: parse query string"
+    summary_vi: "Mô phỏng thuần Python cách framework đọc query param từ chuỗi sau dấu ?."
+    exercise_ref: ex_query
+  - id: t02
+    type: text
+    md: |
+      Server nhận URL `/items/7?verbose=true&page=2`; phần sau `?` là **query string**
+      `"verbose=true&page=2"`. Framework tách nó thành dict `{"verbose": "true", "page": "2"}` (mọi giá trị là
+      chuỗi), rồi type hint mới ép sang `bool`/`int`.
+
+      Gợi ý: `qs.split("&")` tách cặp, `part.partition("=")` tách khoá và giá trị (khoá không có `=` cho giá
+      trị `""`). Trong bài này không dùng thư viện, chỉ thuần Python.
+  - id: ex_query
+    type: code_exercise
+    md: |
+      Cài `parse_query(qs)`. `qs` là query string (không có dấu `?` đầu), các cặp `key=value` cách nhau bởi `&`.
+      Trả về dict `{key: value}` với mọi giá trị là **chuỗi**. Khoá không có `=` cho giá trị `""`; phần rỗng bị
+      bỏ qua; khoá lặp thì lấy giá trị **cuối**; `qs` rỗng cho `{}`. Ví dụ `"a=1&b=2"` cho `{"a": "1", "b": "2"}`.
+    entry: parse_query
+    starter: |
+      def parse_query(qs):
+          # TODO: tách bằng "&", mỗi phần dùng partition("=") rồi gom vào dict
+          pass
+    guidance_md: |
+      - `for part in qs.split("&")`, bỏ qua `part` rỗng.
+      - `k, _, v = part.partition("=")` rồi `out[k] = v`.
+    hints:
+      - level: nudge
+        md: "Chuỗi rỗng `split(\"&\")` cho `[\"\"]`, nên cần bỏ qua phần rỗng."
+      - level: approach
+        md: "Lặp qua từng phần, `partition(\"=\")` tách khoá và giá trị, gán vào dict (khoá lặp sẽ bị ghi đè)."
+      - level: near_solution
+        md: "`k, _, v = part.partition(\"=\")`; `out[k] = v`; trả `out`."
+    tests:
+      - {args: ["a=1&b=2"], expected: {a: "1", b: "2"}}
+      - {args: [""], expected: {}}
+      - {args: ["x=1&x=2"], expected: {x: "2"}}
+      - {args: ["flag&n=5"], expected: {flag: "", n: "5"}}
+    solution: |
+      def parse_query(qs):
+          out = {}
+          for part in qs.split("&"):
+              if not part:
+                  continue
+              k, _, v = part.partition("=")
+              out[k] = v
+          return out
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Khi dữ liệu request không hợp lệ, FastAPI trả status code ___ (điền số)."
+    blanks: [{accept: ["422"]}]
+    explain_md: "422 Unprocessable Entity là mã mặc định cho lỗi validation của Pydantic."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Endpoint = decorator (@app.get/@app.post) + đường dẫn + hàm; {name} trong đường dẫn là path param, tham số còn lại là query param."
+      - "Pydantic BaseModel mô tả body; validation sai tự động trả 422; response_model lọc dữ liệu trả về."
+      - "async def cho code có await, def thường chạy trong thread pool; /docs và OpenAPI được sinh tự động; Depends dùng cho dependency injection."
+      - "Router tách path theo `/`, khớp literal, bắt {param} bằng chuỗi; route khai báo trước thắng."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X759], l2: [X760], l3: [X761]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-07"

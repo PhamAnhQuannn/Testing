@@ -1,0 +1,78 @@
+id: check-x766-orm-filter
+subtopic_id: py.ecosystem.django
+secondary_subtopics: []
+kind: check
+title: 'Check X766: ORM-style filter'
+title_vi: 'Kiểm tra X766: filter và order_by kiểu ORM'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Implement `orm_filter(rows, conds, order_by)`, a pure-Python imitation of Django's
+  `Model.objects.filter(**conds).order_by(*order_by)`. `rows` is a list of dicts that all share the same string keys
+  (values are `int` or `str`). `conds` is a dict `{key: required_value}`: a row **qualifies** iff for **every** key in
+  `conds`, `row[key] == required_value` (AND semantics; an empty `conds` keeps all rows). `order_by` is a list of keys
+  to sort the qualifying rows by, in priority order, all ascending, using a **stable** sort (equal rows keep their
+  input order; an empty `order_by` keeps the filtered order). Return the resulting list of the **same** dict objects;
+  do not mutate them.
+  For `rows = [{"name": "a", "age": 30}, {"name": "b", "age": 25}, {"name": "c", "age": 30}]`,
+  `conds = {"age": 30}`, `order_by = ["name"]` the result is `[{"name": "a", "age": 30}, {"name": "c", "age": 30}]`.
+  For empty `rows` the result is `[]`.
+statement_vi_md: |
+  Cài `orm_filter(rows, conds, order_by)` mô phỏng bằng Python thuần câu `Model.objects.filter(**conds).order_by(*order_by)`
+  của Django. `rows` là list dict cùng bộ khoá chuỗi (giá trị là `int` hoặc `str`). `conds` là dict
+  `{khoá: giá trị yêu cầu}`: một dòng **đạt** khi với **mọi** khoá trong `conds` có `row[khoá] == giá trị yêu cầu`
+  (điều kiện AND; `conds` rỗng giữ mọi dòng). `order_by` là list khoá để sắp xếp các dòng đạt theo thứ tự ưu tiên, tất cả
+  tăng dần, dùng sắp xếp **ổn định** (dòng bằng nhau giữ thứ tự đầu vào; `order_by` rỗng giữ nguyên thứ tự sau khi lọc).
+  Trả về list chính các dict đó, không sửa chúng. Với
+  `rows = [{"name": "a", "age": 30}, {"name": "b", "age": 25}, {"name": "c", "age": 30}]`, `conds = {"age": 30}`,
+  `order_by = ["name"]` kết quả là `[{"name": "a", "age": 30}, {"name": "c", "age": 30}]`; `rows` rỗng cho `[]`.
+constraints:
+- 'Điều kiện trong conds là AND; conds rỗng giữ mọi dòng'
+- 'order_by rỗng giữ thứ tự đầu vào; sắp xếp ổn định, tất cả khoá tăng dần'
+- 'Không sửa các dict đầu vào; rows có thể rỗng'
+examples:
+- input: 'rows = [{"name": "a", "age": 30}, {"name": "b", "age": 25}, {"name": "c", "age": 30}], conds = {"age": 30}, order_by = ["name"]'
+  output: '[{"name": "a", "age": 30}, {"name": "c", "age": 30}]'
+  explain_vi: 'Giữ hai dòng age = 30 rồi sắp theo name tăng dần.'
+io:
+  mode: function
+  entry: orm_filter
+  params:
+  - name: rows
+    type: list
+  - name: conds
+    type: dict
+  - name: order_by
+    type: list
+  returns: list
+  compare: exact
+starter:
+  python: |
+    def orm_filter(rows, conds, order_by):
+        # TODO: lọc dòng thoả mọi điều kiện trong conds, rồi sắp xếp theo order_by
+        pass
+time_target_min: 6
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+hints:
+- "Một dòng đạt khi `all(r[k] == v for k, v in conds.items())`; conds rỗng thì `all` trả True nên giữ mọi dòng."
+- "Dùng `sorted(kept, key=lambda r: [r[k] for k in order_by])`; `sorted` ổn định và key rỗng giữ nguyên thứ tự."
+- "Dùng list comprehension để lọc rồi `sorted`, đừng sửa các dict gốc."
+solution:
+  file: solution.py
+  approach_vi: Lọc bằng all() trên từng điều kiện, rồi sorted với key là list giá trị các khoá order_by (sort ổn định).
+  complexity: "O(n log n) / O(n)"
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x766
+status: validated
+version: 1
