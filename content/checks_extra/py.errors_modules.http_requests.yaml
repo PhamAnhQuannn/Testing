@@ -1,0 +1,40 @@
+subtopic_id: py.errors_modules.http_requests
+items:
+  - id: X743
+    difficulty: 1
+    type: read_code
+    minutes: 3
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng.
+    code: |-
+      base = "https://api.example.com/users"
+      params = {"page": 2, "limit": 10}
+      query = "&".join(k + "=" + str(v) for k, v in params.items())
+      print(base + "?" + query)
+      print(len(query))
+    expected_output: "https://api.example.com/users?page=2&limit=10\n15"
+    answer_md: "Query ghép từ các cặp thành `page=2&limit=10` (đây là điều requests làm với `params=`). Độ dài: `page=2` 6 ký tự + `&` 1 + `limit=10` 8 = 15."
+    rubric_md: "Output khớp từng dòng. Đúng: bằng chứng điểm 1; sai: tối đa điểm 0."
+  - id: X744
+    difficulty: 2
+    type: write_code
+    minutes: 6
+    prompt_md: |
+      Viết hàm `parse_query(url)`. `url` là chuỗi URL. Lấy query string (phần sau `?`, trước `#` nếu có) và trả về dict ánh xạ mỗi tên tham số sang giá trị là chuỗi đã giải mã percent-encoding (ví dụ `%20` thành khoảng trắng). Nếu một khoá lặp lại thì giá trị cuối cùng thắng. Không có query thì trả `{}`. Gợi ý: `urllib.parse` (`urlsplit`, `parse_qsl`). Ví dụ `"https://api.example.com/search?q=python&page=2"` cho `{"q": "python", "page": "2"}`; `"https://x.io/a"` cho `{}`.
+    problem_id: check-x744-parse-query
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 6 phút: bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X745
+    difficulty: 3
+    type: read_code
+    minutes: 5
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng và giải thích vì sao 404 không được retry còn 429 thì có.
+    code: |-
+      def should_retry(status):
+          return status == 429 or status >= 500
+
+      for c in [200, 404, 429, 500, 503]:
+          print(c, should_retry(c))
+      delays = [0.5 * 2 ** i for i in range(3)]
+      print(delays)
+    expected_output: "200 False\n404 False\n429 True\n500 True\n503 True\n[0.5, 1.0, 2.0]"
+    answer_md: "429 (quá nhiều request) và 5xx là lỗi tạm thời nên chờ rồi thử lại có thể thành công; 200 đã thành công và 404 là lỗi do request (không tìm thấy) nên thử lại vẫn sai. Backoff nhân đôi: 0.5 * 2**0, 2**1, 2**2 = 0.5, 1.0, 2.0."
+    rubric_md: "Output khớp từng dòng VÀ giải thích đúng: 404 là lỗi client cố định (retry vô ích), 429/5xx là tạm thời (retry có backoff); backoff tăng dần. Đúng: bằng chứng điểm 3; sai: tối đa điểm 2."

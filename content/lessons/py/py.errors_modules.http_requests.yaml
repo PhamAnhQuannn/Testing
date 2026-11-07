@@ -1,0 +1,170 @@
+id: py.errors_modules.http_requests
+version: 1
+status: published
+title_vi: "Gọi HTTP/API bằng Python (requests)"
+est_minutes: 14
+objectives_vi:
+  - "Dùng requests.get/post với params, json, headers; hiểu params tạo query string ?k=v&k2=v2 ở cuối URL."
+  - "Đọc status code (2xx ok, 4xx lỗi phía client, 5xx lỗi phía server) và dùng raise_for_status() để biến lỗi thành exception."
+  - "Luôn đặt timeout; thử lại (retry) với backoff chỉ cho lỗi tạm thời (429, 5xx, timeout)."
+  - "Biết phân trang theo page/offset và theo cursor; để API key trong biến môi trường, không viết vào code; đọc được query string từ URL."
+blocks:
+  - id: s_model
+    type: section
+    title_vi: "Gọi API: request, status, timeout, retry"
+    summary_vi: "requests.get/post, mã trạng thái, timeout bắt buộc, retry có backoff."
+  - id: t01
+    type: text
+    md: |
+      **API** là cách chương trình hỏi dữ liệu từ máy khác qua mạng bằng **HTTP**: bạn gửi **request** (method, URL,
+      header, có thể có body), máy chủ trả **response** gồm **status code** và nội dung (thường là JSON).
+      `GET` để lấy dữ liệu, `POST` để gửi dữ liệu lên.
+
+      `requests` là thư viện **ngoài**, không có sẵn: cài bằng `pip install requests` (trong venv). Bài này chỉ
+      "chạy tay" phần dùng `requests` (trong app không chạy mạng thật); phần thuần Python ở bài tập bên dưới.
+
+      ```
+      import requests
+
+      r = requests.get(
+          "https://api.example.com/search",
+          params={"q": "python", "page": 2},   # thành ?q=python&page=2
+          headers={"Accept": "application/json"},
+          timeout=5,                            # giây; LUÔN đặt
+      )
+      r.raise_for_status()      # 4xx/5xx -> raise requests.HTTPError
+      data = r.json()           # JSON -> dict/list
+
+      requests.post(url, json={"name": "An"}, timeout=5)   # json= tự mã hoá body và đặt Content-Type
+      ```
+
+      **Status code**: `2xx` thành công (200 OK, 201 Created), `4xx` lỗi do request (400, 401, 403, 404, 429 quá
+      nhiều request), `5xx` lỗi ở máy chủ (500, 503). `r.status_code` là số; `raise_for_status()` ném lỗi nếu
+      là 4xx/5xx nên bạn không quên kiểm tra.
+
+      **Timeout**: mặc định `requests` chờ vô hạn, một máy chủ treo sẽ làm chương trình treo theo. Luôn truyền
+      `timeout=` (số giây, hoặc cặp `(connect, read)`). Hết giờ thì ném `requests.Timeout`.
+
+      **Retry với backoff**: lỗi tạm thời (mạng chập chờn, `429`, `5xx`, timeout) nên thử lại, chờ lâu dần giữa các
+      lần (ví dụ 0.5s, 1s, 2s). **Không** retry `4xx` kiểu 400/404 vì thử lại vẫn sai. Giới hạn số lần thử, và với
+      POST chỉ retry khi thao tác idempotent (an toàn lặp lại).
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Vì sao luôn nên truyền `timeout=` cho `requests.get`?"
+    options:
+      - {id: a, text_md: "Mặc định requests chờ vô hạn, máy chủ không trả lời sẽ làm chương trình treo mãi"}
+      - {id: b, text_md: "Vì không có timeout thì requests không gửi được request"}
+      - {id: c, text_md: "Vì timeout làm máy chủ trả về nhanh hơn"}
+    answer: [a]
+    explain_md: "Không đặt timeout, lời gọi có thể chờ vô hạn. Timeout chỉ giới hạn thời gian CHỜ phía client, không làm máy chủ nhanh hơn."
+  - id: q02
+    type: predict_output
+    code: |
+      url = "https://x.io/a?q=py&page=2"
+      path, query = url.split("?")
+      print(query.split("&"))
+      print(dict(p.split("=") for p in query.split("&")))
+    expected_output: |
+      ['q=py', 'page=2']
+      {'q': 'py', 'page': '2'}
+    explain_md: "Cắt URL ở `?` lấy query `q=py&page=2`, tách theo `&` được 2 cặp, mỗi cặp tách ở `=`. Mọi giá trị là chuỗi, kể cả '2'."
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Status code nào nên retry (với backoff)?"
+    options:
+      - {id: a, text_md: "404 Not Found"}
+      - {id: b, text_md: "503 Service Unavailable"}
+      - {id: c, text_md: "400 Bad Request"}
+    answer: [b]
+    explain_md: "503 (và 429, 500, 502, 504) là lỗi tạm thời nên thử lại có thể thành công. 400/404 là lỗi do request nên thử lại vẫn sai."
+  - id: s_gate
+    type: section
+    title_vi: "Đọc query string từ URL"
+    summary_vi: "Phần params của requests chính là query string; tự đọc nó bằng urllib.parse."
+    exercise_ref: ex_parse
+  - id: t02
+    type: text
+    md: |
+      `params={"q": "python", "page": 2}` được `requests` ghép thành query string `?q=python&page=2` (có
+      **percent-encoding**: khoảng trắng thành `%20`, ký tự đặc biệt được mã hoá). Chiều ngược lại cũng cần: server
+      và log đọc query string trở lại thành dict.
+
+      Thư viện chuẩn có sẵn `urllib.parse`:
+
+      ```
+      from urllib.parse import urlsplit, parse_qsl
+
+      parts = urlsplit("https://x.io/s?q=a%20b&page=2#top")
+      parts.query                  # 'q=a%20b&page=2'  (đã bỏ phần #top)
+      parse_qsl(parts.query)       # [('q', 'a b'), ('page', '2')]  (đã giải mã %20)
+      ```
+
+      `parse_qsl` trả list cặp (tên, giá trị) đã giải mã; dựng dict thì khoá lặp lại **cái sau thắng**. URL không có
+      `?` thì query rỗng, kết quả `{}`. Khi dùng `requests`, bạn không phải tự ghép chuỗi: cứ đưa dict vào `params`.
+
+      **Phân trang** (pagination): API trả dữ liệu theo trang. Kiểu `page`/`offset` (`?page=3` hoặc `?offset=40`)
+      đơn giản nhưng có thể lặp/sót nếu dữ liệu đổi giữa chừng; kiểu **cursor** (`?cursor=abc`, mỗi response trả
+      cursor kế tiếp, hết thì rỗng) ổn định hơn. Vòng lặp: gọi, gom kết quả, lấy cursor mới, dừng khi không còn.
+
+      **API key**: lấy từ biến môi trường, không viết vào code hay commit lên git:
+      `key = os.environ["API_KEY"]` rồi `headers={"Authorization": "Bearer " + key}`.
+
+      Nâng cao: `requests.Session()` dùng lại kết nối (connection pooling) cho nhiều request nhanh hơn; `httpx` có
+      API giống `requests` và có bản async.
+  - id: ex_parse
+    type: code_exercise
+    md: |
+      Cài `parse_query(url)`. `url` là chuỗi. Lấy query string (phần sau `?`, trước `#` nếu có) và trả về dict ánh xạ
+      mỗi tên tham số sang giá trị (chuỗi, đã giải mã percent-encoding). Khoá lặp lại: cái cuối cùng thắng.
+      Không có query thì trả `{}`. Dùng `urllib.parse`.
+      Ví dụ `"https://api.example.com/search?q=python&page=2"` cho `{"q": "python", "page": "2"}`.
+    entry: parse_query
+    starter: |
+      def parse_query(url):
+          # TODO: tách query bằng urlsplit, đọc bằng parse_qsl, trả dict (khoá lặp: cái cuối thắng)
+          pass
+    guidance_md: |
+      - `from urllib.parse import urlsplit, parse_qsl`; `urlsplit(url).query` đã bỏ phần `#fragment`.
+      - Duyệt các cặp từ `parse_qsl(...)` và gán `result[k] = v` để cái sau ghi đè cái trước.
+    hints:
+      - level: nudge
+        md: "Thư viện chuẩn đã có hàm tách URL và hàm đọc query string, không cần tự cắt chuỗi."
+      - level: approach
+        md: "`urlsplit(url).query` cho chuỗi query; `parse_qsl` biến nó thành list cặp (tên, giá trị) đã giải mã."
+      - level: near_solution
+        md: "Tạo `result = {}`, `for k, v in parse_qsl(urlsplit(url).query): result[k] = v`, rồi `return result`."
+    tests:
+      - {args: ["https://api.example.com/search?q=python&page=2"], expected: {"q": "python", "page": "2"}}
+      - {args: ["https://x.io/a"], expected: {}}
+      - {args: ["https://x.io/a?k=1&k=2"], expected: {"k": "2"}}
+      - {args: ["https://x.io/s?q=a%20b#top"], expected: {"q": "a b"}}
+    solution: |
+      from urllib.parse import urlsplit, parse_qsl
+
+
+      def parse_query(url):
+          result = {}
+          for k, v in parse_qsl(urlsplit(url).query):
+              result[k] = v
+          return result
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Status code lớp ___xx là lỗi ở phía máy chủ (điền một chữ số)."
+    blanks: [{accept: ["5"]}]
+    explain_md: "5xx là lỗi phía server (500, 502, 503...); 4xx là lỗi do request của client."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "requests.get/post nhận params (thành query string), json (body), headers; r.json() đọc JSON trả về."
+      - "2xx thành công, 4xx lỗi client, 5xx lỗi server; raise_for_status() ném lỗi để không bỏ sót."
+      - "Luôn đặt timeout; retry với backoff chỉ cho lỗi tạm thời (429, 5xx, timeout), có giới hạn số lần."
+      - "Phân trang theo page/offset hoặc cursor; API key lấy từ os.environ, không viết vào code."
+      - "Đọc query string bằng urllib.parse (urlsplit + parse_qsl); khoá lặp thì dict giữ cái cuối."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X743], l2: [X744], l3: [X745]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-07"

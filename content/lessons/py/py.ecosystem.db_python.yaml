@@ -1,0 +1,163 @@
+id: py.ecosystem.db_python
+version: 1
+status: published
+title_vi: "Làm việc với database bằng Python (DB-API, SQLAlchemy)"
+est_minutes: 15
+objectives_vi:
+  - "Dùng sqlite3 (DB-API): connect, cursor, execute, fetchall, và hiểu thay đổi chỉ được lưu khi commit()."
+  - "Viết câu SQL có tham số (dấu ?) thay vì ghép chuỗi để tránh SQL injection."
+  - "Giải thích transaction: nhiều thay đổi cùng thành công hoặc cùng bị hoàn tác bằng rollback()."
+  - "Biết SQLAlchemy engine/session/ORM làm gì và nhận ra lỗi N+1."
+blocks:
+  - id: s_model
+    type: section
+    title_vi: "DB-API, tham số hoá và transaction"
+    summary_vi: "Cursor gửi SQL, dấu ? chống injection, commit/rollback điều khiển transaction."
+  - id: t01
+    type: text
+    md: |
+      **DB-API** là giao diện chuẩn để Python nói chuyện với database; `sqlite3` (có sẵn trong thư viện chuẩn)
+      là một driver theo chuẩn đó. Luồng cơ bản: **connect**, tạo **cursor**, `execute` câu SQL, đọc kết quả
+      bằng `fetchone()` / `fetchall()`.
+
+      ```
+      import sqlite3
+      con = sqlite3.connect(":memory:")      # database tạm trong RAM
+      cur = con.cursor()
+      cur.execute("CREATE TABLE hs (ten TEXT, diem INTEGER)")
+      cur.execute("INSERT INTO hs VALUES (?, ?)", ("An", 8))
+      con.commit()                            # không commit thì thay đổi chưa được lưu
+      cur.execute("SELECT * FROM hs WHERE ten = ?", ("An",))
+      print(cur.fetchall())                   # [('An', 8)]
+      ```
+
+      **Câu SQL có tham số.** Dấu `?` là chỗ giữ chỗ, giá trị truyền riêng trong một tuple. Driver coi giá trị
+      là **dữ liệu**, không bao giờ là một phần của câu lệnh. **Không** ghép chuỗi bằng `+` hay f-string: nếu
+      `ten = "x' OR '1'='1"` thì câu ghép thành `... WHERE ten = 'x' OR '1'='1'` và trả về mọi dòng. Đó là
+      **SQL injection**. Lưu ý: tham số chỉ thay được **giá trị**, không thay được tên bảng hay tên cột.
+      `executemany(sql, list_of_tuples)` chèn nhiều dòng với cùng một câu SQL tham số.
+
+      **Transaction.** Nhiều thay đổi nên cùng thành công hoặc cùng bị huỷ. `commit()` chốt tất cả,
+      `rollback()` hoàn tác mọi thay đổi từ lần commit trước. Ví dụ chuyển tiền: trừ tài khoản A rồi cộng tài
+      khoản B, nếu lỗi giữa chừng thì `rollback()` để không mất tiền. Hay viết `with con:` để tự commit khi
+      thành công và rollback khi có exception.
+
+      **SQLAlchemy (awareness).** `engine` quản lý kết nối (kèm connection pool); `Session` là phiên làm việc:
+      `s.add(obj)` rồi `s.commit()`. **ORM** coi mỗi bảng là một class, mỗi dòng là một object, nên việc thường
+      gặp không cần viết SQL tay. Cạm bẫy kinh điển là **N+1**: 1 câu lấy danh sách lớp rồi N câu nữa lấy học
+      sinh của từng lớp; sửa bằng cách tải kèm dữ liệu liên quan trong một lần (ví dụ `selectinload`/`joinedload`).
+      Nâng cao: Alembic quản lý migration cấu trúc bảng, driver async như asyncpg.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Cách nào đúng để tìm học sinh theo tên do người dùng nhập?"
+    options:
+      - {id: a, text_md: "`cur.execute(\"SELECT * FROM hs WHERE ten = ?\", (ten,))`"}
+      - {id: b, text_md: "`cur.execute(\"SELECT * FROM hs WHERE ten = '\" + ten + \"'\")`"}
+      - {id: c, text_md: "`cur.execute(f\"SELECT * FROM hs WHERE ten = '{ten}'\")`"}
+    answer: [a]
+    explain_md: "Chỉ cách a để driver xử lý giá trị như dữ liệu. Cách b và c ghép chuỗi nên dễ bị SQL injection."
+  - id: q02
+    type: predict_output
+    code: |
+      rows = [("an", 8), ("binh", 5), ("an", 2)]
+      total = {}
+      for name, score in rows:
+          total[name] = total.get(name, 0) + score
+      print(total)
+      print(len(rows))
+    expected_output: |
+      {'an': 10, 'binh': 5}
+      3
+    explain_md: "Gộp theo tên giống `GROUP BY ten` với `SUM(diem)`: an = 8 + 2 = 10. `rows` vẫn có 3 phần tử."
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Sau `INSERT` mà chưa `commit()` rồi chương trình có lỗi và gọi `rollback()`, điều gì xảy ra?"
+    options:
+      - {id: a, text_md: "Thay đổi chưa commit bị hoàn tác, database như trước lần commit gần nhất"}
+      - {id: b, text_md: "Dòng vừa chèn vẫn được lưu vĩnh viễn"}
+      - {id: c, text_md: "Toàn bộ bảng bị xoá"}
+    answer: [a]
+    explain_md: "`rollback()` huỷ mọi thay đổi trong transaction hiện tại (từ lần commit trước)."
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: sqlite3 với câu SQL tham số"
+    summary_vi: "Chèn bằng executemany, truy vấn bằng dấu ?, đọc kết quả thành list."
+    exercise_ref: ex_count
+  - id: t02
+    type: text
+    md: |
+      Mẫu làm việc an toàn với `sqlite3` trong bộ nhớ:
+
+      ```
+      con = sqlite3.connect(":memory:")
+      cur = con.cursor()
+      cur.execute("CREATE TABLE t (name TEXT)")
+      cur.executemany("INSERT INTO t(name) VALUES (?)", [(n,) for n in names])
+      cur.execute("SELECT COUNT(*) FROM t WHERE name = ?", (target,))
+      result = cur.fetchone()[0]
+      ```
+
+      Chú ý: `executemany` cần list các **tuple** (kể cả một cột cũng là `(n,)`), và tuple một phần tử phải có dấu
+      phẩy. Giá trị chứa dấu nháy hay `DROP TABLE` vẫn chỉ là một chuỗi bình thường nhờ tham số hoá.
+  - id: ex_count
+    type: code_exercise
+    md: |
+      Cài `count_name(names, target)`. `names` là list chuỗi, `target` là một chuỗi. Dùng `sqlite3` trong bộ nhớ:
+      tạo bảng, chèn mọi tên bằng câu SQL **tham số hoá**, rồi đếm số dòng có `name = target` (cũng bằng tham
+      số). Trả về số nguyên. Ví dụ `names = ["an", "binh", "an"]`, `target = "an"` cho `2`.
+    entry: count_name
+    starter: |
+      import sqlite3
+
+
+      def count_name(names, target):
+          # TODO: connect(":memory:"), CREATE TABLE, executemany INSERT với ?, rồi SELECT COUNT(*) ... WHERE name = ?
+          pass
+    guidance_md: |
+      - `executemany("INSERT INTO t(name) VALUES (?)", [(n,) for n in names])`.
+      - `cur.execute("SELECT COUNT(*) FROM t WHERE name = ?", (target,))` rồi `fetchone()[0]`.
+    hints:
+      - level: nudge
+        md: "Dùng `sqlite3.connect(\":memory:\")` và để driver nhận giá trị qua dấu `?`, đừng ghép chuỗi."
+      - level: approach
+        md: "Tạo bảng một cột, `executemany` với list các tuple một phần tử, rồi `SELECT COUNT(*)` có `WHERE name = ?`."
+      - level: near_solution
+        md: "`cur.fetchone()[0]` là số nguyên cần trả về; nhớ truyền `(target,)` với dấu phẩy."
+    tests:
+      - {args: [["an", "binh", "an"], "an"], expected: 2}
+      - {args: [[], "an"], expected: 0}
+      - {args: [["x'; DROP TABLE t;--"], "x'; DROP TABLE t;--"], expected: 1}
+      - {args: [["an"], "binh"], expected: 0}
+    solution: |
+      import sqlite3
+
+
+      def count_name(names, target):
+          con = sqlite3.connect(":memory:")
+          cur = con.cursor()
+          cur.execute("CREATE TABLE t (name TEXT)")
+          cur.executemany("INSERT INTO t(name) VALUES (?)", [(n,) for n in names])
+          cur.execute("SELECT COUNT(*) FROM t WHERE name = ?", (target,))
+          result = cur.fetchone()[0]
+          con.close()
+          return result
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Trong sqlite3, ký hiệu ___ là chỗ giữ chỗ tham số trong câu SQL (điền một ký tự)."
+    blanks: [{accept: ["?", "dấu ?", "dau ?"]}]
+    explain_md: "Dấu `?` giữ chỗ cho giá trị truyền riêng trong tuple; đây là cách chống SQL injection."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "DB-API: connect, cursor, execute, fetchone/fetchall; thay đổi chỉ được lưu khi commit()."
+      - "Luôn dùng câu SQL tham số hoá (dấu ?), không ghép chuỗi, để tránh SQL injection; tham số chỉ thay giá trị."
+      - "Transaction: nhiều thay đổi cùng thành công hoặc cùng bị huỷ; rollback() hoàn tác khi có lỗi."
+      - "SQLAlchemy: engine/session/ORM coi bảng là class; cẩn thận N+1 và sửa bằng tải kèm dữ liệu liên quan."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X746], l2: [X747], l3: [X748]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-07"

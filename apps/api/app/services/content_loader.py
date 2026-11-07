@@ -73,6 +73,7 @@ MODULE_NAMES: dict[str, str] = {
     "py.errors_modules": "Lỗi, ngoại lệ & module",
     "py.typing_testing": "Kiểu tĩnh & kiểm thử",
     "py.concurrency": "Đồng thời",
+    "py.ecosystem": "Hệ sinh thái Python",
     "cs.complexity": "Độ phức tạp",
     "dsa.foundations": "Nền tảng DSA",
     "dsa.arrays_strings": "Mảng & chuỗi",

@@ -1,0 +1,65 @@
+id: check-x744-parse-query
+subtopic_id: py.errors_modules.http_requests
+secondary_subtopics: []
+kind: check
+title: 'Check X744: parse query'
+title_vi: 'Kiểm tra X744: đọc query string từ URL'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Implement `parse_query(url)`. `url` is a string. Extract the query string (the part after `?` and before any
+  `#` fragment) and return a dict mapping each parameter name to its percent-decoded string value
+  (for example `%20` becomes a space). If a key is repeated, the last occurrence wins. If there is no query
+  string, return `{}`. Use `urllib.parse` (`urlsplit` + `parse_qsl`).
+  For `url = "https://api.example.com/search?q=python&page=2"` the result is `{"q": "python", "page": "2"}`.
+statement_vi_md: |
+  Cài `parse_query(url)`. `url` là chuỗi. Lấy query string (phần sau `?`, trước `#` nếu có) và trả về dict ánh xạ
+  mỗi tên tham số sang giá trị chuỗi đã giải mã percent-encoding (ví dụ `%20` thành khoảng trắng). Khoá lặp lại thì
+  giá trị cuối cùng thắng. Không có query thì trả `{}`. Dùng `urllib.parse` (`urlsplit` + `parse_qsl`).
+  Với `url = "https://api.example.com/search?q=python&page=2"` kết quả là `{"q": "python", "page": "2"}`.
+constraints:
+- 'url là chuỗi; có thể không có `?`, có thể có `#fragment` sau query'
+- 'Giá trị là chuỗi (không ép kiểu số), đã percent-decode; khoá lặp: giá trị cuối thắng'
+- 'Mỗi khoá chỉ một giá trị (dict, không phải list)'
+examples:
+- input: 'url = "https://api.example.com/search?q=python&page=2"'
+  output: '{"q": "python", "page": "2"}'
+  explain_vi: 'Query là q=python&page=2; mọi giá trị là chuỗi, kể cả "2".'
+io:
+  mode: function
+  entry: parse_query
+  params:
+  - name: url
+    type: str
+  returns: dict
+  compare: exact
+starter:
+  python: |
+    def parse_query(url):
+        # TODO: tách query bằng urlsplit, đọc bằng parse_qsl, trả dict (khoá lặp: cái cuối thắng)
+        pass
+time_target_min: 6
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+hints:
+- Thư viện chuẩn đã có hàm tách URL và hàm đọc query string; đừng tự cắt chuỗi.
+- "`urlsplit(url).query` cho chuỗi query (đã bỏ `#fragment`); `parse_qsl` trả list cặp (tên, giá trị) đã giải mã."
+- "Dựng `result = {}` rồi gán `result[k] = v` cho từng cặp để cái cuối ghi đè; trả `result`."
+solution:
+  file: solution.py
+  approach_vi: Tách query bằng urlsplit, đọc các cặp bằng parse_qsl và gán vào dict để khoá lặp lấy giá trị cuối.
+  complexity: O(n) / O(n)
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x744
+status: validated
+version: 1
