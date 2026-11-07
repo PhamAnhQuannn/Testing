@@ -1,0 +1,76 @@
+id: check-x747-top-products
+subtopic_id: py.ecosystem.db_python
+secondary_subtopics: []
+kind: check
+title: 'Check X747: top products'
+title_vi: 'Kiểm tra X747: sản phẩm bán chạy bằng SQLite'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Implement `top_products(rows)`. `rows` is a list of `[product, qty]` records (product is a string, qty an int),
+  each one a sale line. Using the standard-library `sqlite3` module with an in-memory database
+  (`sqlite3.connect(":memory:")`), create a table `sales(product, qty)`, insert every row with a **parameterized**
+  query (`cur.executemany("INSERT INTO sales(product, qty) VALUES (?, ?)", rows)`), then run
+  `SELECT product, SUM(qty) AS total FROM sales GROUP BY product ORDER BY total DESC, product ASC`.
+  Return the result as a list of `[product, total]` pairs, each pair a 2-element **list** (not a tuple), in that
+  order (total descending, product ascending to break ties).
+  For `rows = [["apple", 3], ["banana", 2], ["apple", 5]]` the result is `[["apple", 8], ["banana", 2]]`;
+  for `[]` the result is `[]`.
+statement_vi_md: |
+  Cài `top_products(rows)`. `rows` là list các bản ghi `[product, qty]` (product là chuỗi, qty là số nguyên), mỗi bản
+  ghi là một dòng bán hàng. Dùng module `sqlite3` của thư viện chuẩn với database trong bộ nhớ
+  (`sqlite3.connect(":memory:")`): tạo bảng `sales(product, qty)`, chèn mọi dòng bằng câu SQL tham số hoá
+  (`cur.executemany("INSERT INTO sales(product, qty) VALUES (?, ?)", rows)`), rồi chạy
+  `SELECT product, SUM(qty) AS total FROM sales GROUP BY product ORDER BY total DESC, product ASC`.
+  Trả về list các cặp `[product, total]`, mỗi cặp là **list** 2 phần tử (không phải tuple), theo đúng thứ tự đó
+  (tổng giảm dần, hòa thì tên tăng dần). Với `rows = [["apple", 3], ["banana", 2], ["apple", 5]]` kết quả là
+  `[["apple", 8], ["banana", 2]]`; với `[]` kết quả là `[]`.
+constraints:
+- 'Dùng sqlite3 trong bộ nhớ và truy vấn GROUP BY / ORDER BY như đề; chèn bằng câu SQL tham số hoá (dấu ?)'
+- 'rows có thể rỗng (kết quả []); qty có thể bằng 0; tên sản phẩm có thể chứa dấu nháy'
+- 'Mỗi phần tử kết quả phải là list [product, total], không phải tuple'
+examples:
+- input: 'rows = [["apple", 3], ["banana", 2], ["apple", 5]]'
+  output: '[["apple", 8], ["banana", 2]]'
+  explain_vi: 'apple = 3 + 5 = 8, banana = 2; sắp theo tổng giảm dần.'
+io:
+  mode: function
+  entry: top_products
+  params:
+  - name: rows
+    type: list
+  returns: list
+  compare: exact
+starter:
+  python: |
+    import sqlite3
+
+
+    def top_products(rows):
+        # TODO: sqlite3.connect(":memory:"), CREATE TABLE, executemany INSERT với ?, rồi SELECT ... GROUP BY ... ORDER BY
+        pass
+time_target_min: 6
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+hints:
+- "Chèn nhiều dòng bằng câu SQL tham số hoá: `cur.executemany(\"INSERT INTO sales(product, qty) VALUES (?, ?)\", rows)`."
+- "Truy vấn: `SELECT product, SUM(qty) AS total FROM sales GROUP BY product ORDER BY total DESC, product ASC`."
+- "`cur.fetchall()` trả list các tuple; đổi thành `[list(r) for r in cur.fetchall()]` để so sánh JSON khớp."
+solution:
+  file: solution.py
+  approach_vi: Dùng sqlite3 trong bộ nhớ, chèn bằng executemany tham số hoá, gom nhóm bằng GROUP BY với SUM, sắp xếp ổn định rồi đổi tuple thành list.
+  complexity: O(n log n) / O(n)
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x747
+status: validated
+version: 1

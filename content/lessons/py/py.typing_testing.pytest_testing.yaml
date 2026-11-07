@@ -1,0 +1,181 @@
+id: py.typing_testing.pytest_testing
+version: 1
+status: published
+title_vi: "Unit test với pytest: assert, fixture, parametrize"
+est_minutes: 14
+objectives_vi:
+  - "Viết test là hàm test_... trong file test_*.py, dùng assert thường; hiểu pytest tự giải thích giá trị hai vế khi assert sai."
+  - "Dùng fixture (có yield cho teardown, scope) để chuẩn bị dữ liệu dùng chung và dọn dẹp."
+  - "Dùng @pytest.mark.parametrize để chạy một test trên nhiều bộ dữ liệu, kể cả trường hợp biên."
+  - "Biết monkeypatch tạm đổi hàm hoặc biến trong test, và cấu trúc arrange-act-assert."
+blocks:
+  - id: s_basics
+    type: section
+    title_vi: "Test, assert và pytest"
+    summary_vi: "Hàm test_..., assert thường, pytest tự báo giá trị hai vế khi sai."
+  - id: t01
+    type: text
+    md: |
+      Một **test** là hàm nhỏ gọi code của bạn rồi kiểm tra kết quả. Với **pytest**, bạn chỉ cần viết hàm
+      thường và dùng câu lệnh `assert` của Python. pytest tự **tìm** test theo tên: file `test_*.py` (hoặc
+      `*_test.py`), hàm `test_...` (và method `test_...` trong class `Test...`). Chạy bằng lệnh `pytest`.
+
+      ```
+      # test_cong.py
+      def cong(a, b):
+          return a + b
+
+      def test_cong():
+          assert cong(1, 2) == 3
+      ```
+
+      Khi `assert` sai, pytest **viết lại (rewrite) assert** lúc import để in ra giá trị của từng vế
+      (ví dụ `assert 4 == 5`, hoặc diff của list/dict), nên bạn không cần tự viết thông báo lỗi. Test **pass** nếu
+      không có exception nào bay ra, **fail** nếu có `AssertionError` (hoặc exception khác).
+
+      So với `unittest` (có sẵn trong thư viện chuẩn): unittest cần class kế thừa `TestCase` và nhiều
+      method `assertEqual`, `assertTrue`...; pytest dùng `assert` trần nên ngắn hơn và vẫn chạy được test unittest.
+
+      Cấu trúc test dễ đọc là **arrange-act-assert**: chuẩn bị dữ liệu, gọi hàm cần test, rồi kiểm tra kết quả.
+      Một test nên kiểm tra một hành vi; tên test nói rõ hành vi đó. Lệnh hay dùng: `pytest -k ten` (chạy theo
+      tên), `pytest -x` (dừng ở lỗi đầu tiên).
+
+      Kiểm tra code phải báo lỗi: `with pytest.raises(ZeroDivisionError): chia(1, 0)`. So sánh float dùng
+      `pytest.approx(0.3)` thay vì `==`.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "pytest tự tìm và chạy những hàm nào?"
+    options:
+      - {id: a, text_md: "Hàm tên `test_...` nằm trong file `test_*.py` (hoặc `*_test.py`)"}
+      - {id: b, text_md: "Mọi hàm trong thư mục hiện tại"}
+      - {id: c, text_md: "Chỉ hàm có decorator `@pytest.test`"}
+    answer: [a]
+    explain_md: "pytest dò file và hàm theo quy ước tên. Hàm không bắt đầu bằng `test` sẽ không được chạy."
+  - id: q02
+    type: predict_output
+    code: |
+      def cong(a, b):
+          return a + b
+
+      results = []
+      for got, want in [(cong(1, 2), 3), (cong(2, 2), 5), (cong(0, 0), 0)]:
+          results.append(got == want)
+      print(results)
+      print(all(results))
+    expected_output: |
+      [True, False, True]
+      False
+    explain_md: "Mỗi cặp là một assert thu nhỏ: 2 + 2 = 4 khác 5 nên False. `all` chỉ True khi mọi test pass, giống một lượt pytest chỉ xanh khi không test nào đỏ."
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Vì sao `assert x == 5` thất bại trong pytest lại in được giá trị của `x`?"
+    options:
+      - {id: a, text_md: "pytest viết lại (rewrite) câu lệnh assert khi import để ghi lại giá trị từng vế"}
+      - {id: b, text_md: "Python tự in giá trị biến khi assert sai"}
+      - {id: c, text_md: "Vì bạn phải truyền thông báo lỗi vào assert"}
+    answer: [a]
+    explain_md: "Đó là assert rewriting của pytest. Python thuần chỉ ném AssertionError không kèm giá trị."
+  - id: s_gate
+    type: section
+    title_vi: "Từ assert đến báo cáo test"
+    summary_vi: "Mỗi test là một phép so sánh got == want; runner gom pass/fail."
+    exercise_ref: ex_asserts
+  - id: t02
+    type: text
+    md: |
+      Lõi của mọi test là so sánh **kết quả thực (got)** với **kết quả mong đợi (want)**. pytest bọc quanh đó
+      cả bộ máy: tìm test, chạy từng cái độc lập (một test fail không làm dừng các test khác), rồi in báo cáo
+      "bao nhiêu passed, bao nhiêu failed, cái nào failed".
+
+      ```
+      results = [got == want for got, want in cases]
+      ```
+
+      **Fixture** là hàm đánh dấu `@pytest.fixture`; test khai báo tên fixture làm tham số và pytest tự truyền
+      vào. Dùng `yield` để chạy phần dọn dẹp (teardown) sau test. `scope` quyết định tần suất tạo lại:
+      mặc định `"function"` (mỗi test một lần), còn `"module"` hoặc `"session"` dùng chung lâu hơn.
+
+      ```
+      @pytest.fixture
+      def du_lieu():
+          data = [1, 2, 3]       # setup
+          yield data             # test chạy ở đây
+          data.clear()           # teardown
+      ```
+
+      **parametrize** chạy cùng một test trên nhiều bộ dữ liệu, mỗi bộ thành một test riêng trong báo cáo:
+
+      ```
+      @pytest.mark.parametrize("n, kq", [(2, True), (9, False), (0, False)])
+      def test_nt(n, kq):
+          assert la_nguyen_to(n) == kq
+      ```
+
+      Nhớ thêm trường hợp biên (rỗng, 0, số âm).
+
+      **Mock cơ bản.** Fixture `monkeypatch` tạm đổi hàm hoặc biến và tự khôi phục sau test:
+      `monkeypatch.setattr(module, "ten_ham", gia)`. Dùng nó để thay thứ chậm hoặc không ổn định (mạng, đồng hồ).
+      Đừng mock quá tay: test mà mock hết mọi thứ chỉ kiểm tra chính cái mock. Thiết kế code dễ mock
+      (dependency injection) có bài riêng.
+
+      Nâng cao: `tmp_path` (thư mục tạm sạch), `capsys` (bắt output in ra), `skip`/`xfail`, `conftest.py` chứa
+      fixture dùng chung cho cả thư mục, `pytest-cov` đo độ phủ. Độ phủ cao **không** chứng minh code đúng, chỉ
+      cho biết dòng nào đã được chạy.
+  - id: ex_asserts
+    type: code_exercise
+    md: |
+      Cài `run_asserts(cases)`. `cases` là list các cặp `[got, want]`. Trả về list bool cùng độ dài, phần tử
+      thứ i là `True` nếu `got == want` ở cặp thứ i. Ví dụ `[[3, 3], [1, 2]]` cho `[True, False]`;
+      `[]` cho `[]`.
+    entry: run_asserts
+    starter: |
+      def run_asserts(cases):
+          # TODO: với mỗi cặp [got, want], trả True nếu bằng nhau
+          pass
+    guidance_md: |
+      - Mỗi cặp bung được bằng `for got, want in cases`.
+      - Kết quả là list có cùng thứ tự với đầu vào.
+    hints:
+      - level: nudge
+        md: "Mỗi test chỉ là một phép so sánh `got == want`."
+      - level: approach
+        md: "Duyệt từng cặp, tính `got == want` rồi gom vào list theo thứ tự."
+      - level: near_solution
+        md: "`return [got == want for got, want in cases]`"
+    tests:
+      - {args: [[[3, 3], [1, 2]]], expected: [true, false]}
+      - {args: [[]], expected: []}
+      - {args: [[["a", "a"], ["1", 1], [[1], [1]]]], expected: [true, false, true]}
+      - {args: [[[0, 0]]], expected: [true]}
+    solution: |
+      def run_asserts(cases):
+          return [got == want for got, want in cases]
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Trong fixture, từ khoá ___ đặt giữa phần setup và teardown để trả dữ liệu cho test (điền một từ)."
+    blanks: [{accept: ["yield"]}]
+    explain_md: "`yield` trả giá trị cho test; code sau `yield` chạy như teardown khi test kết thúc."
+  - id: q05
+    type: quiz_mcq
+    prompt_md: "`@pytest.mark.parametrize(\"n, kq\", [(2, True), (9, False), (0, False)])` tạo ra bao nhiêu test trong báo cáo?"
+    options:
+      - {id: a, text_md: "3, mỗi bộ dữ liệu là một test riêng"}
+      - {id: b, text_md: "1, gộp cả ba bộ lại"}
+      - {id: c, text_md: "2, vì chỉ bộ khác nhau mới tính"}
+    answer: [a]
+    explain_md: "Mỗi bộ tham số thành một test case độc lập, nên một bộ fail không che các bộ còn lại."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Test là hàm test_... trong file test_*.py, dùng assert trần; pytest rewrite assert để in giá trị hai vế khi sai."
+      - "Cấu trúc arrange-act-assert; mỗi test một hành vi; pytest.raises cho exception, pytest.approx cho float."
+      - "Fixture chuẩn bị dữ liệu (yield cho teardown, scope mặc định function); parametrize chạy một test trên nhiều bộ dữ liệu."
+      - "monkeypatch tạm thay hàm/biến và tự khôi phục; đừng mock quá tay; coverage cao chưa chứng minh code đúng."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [Q171], l2: [X741], l3: [X742]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-07"
