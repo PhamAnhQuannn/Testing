@@ -1,0 +1,170 @@
+id: cs.sql.dml_ddl
+version: 1
+status: published
+title_vi: "Ghi dữ liệu: INSERT, UPDATE, DELETE và CREATE TABLE (DML/DDL)"
+est_minutes: 15
+objectives_vi:
+  - "Viết INSERT INTO ... VALUES, UPDATE ... SET ... WHERE và DELETE FROM ... WHERE đúng, nhớ rằng thiếu WHERE là sửa/xóa mọi dòng."
+  - "Tạo bảng bằng CREATE TABLE với kiểu cột, PRIMARY KEY, NOT NULL, DEFAULT và thêm cột bằng ALTER TABLE ADD COLUMN."
+  - "Hiểu transaction: nhiều thay đổi gom lại, COMMIT để giữ, ROLLBACK để hủy."
+  - "Chạy DML/DDL bằng sqlite3 trong Python với câu SQL tham số hoá."
+blocks:
+  - id: s_model
+    type: section
+    title_vi: "DML, DDL và transaction"
+    summary_vi: "DDL định nghĩa cấu trúc bảng; DML thêm, sửa, xóa dòng; transaction gom thay đổi."
+  - id: t01
+    type: text
+    md: |
+      **DDL** (Data Definition Language) định nghĩa **cấu trúc**; **DML** (Data Manipulation Language) thay đổi **dữ liệu**.
+
+      ```text
+      CREATE TABLE users (
+        id    INTEGER PRIMARY KEY,        -- khóa chính: duy nhất, không NULL
+        name  TEXT    NOT NULL,           -- bắt buộc có giá trị
+        score INTEGER NOT NULL DEFAULT 0  -- không ghi thì mặc định 0
+      );
+      ALTER TABLE users ADD COLUMN email TEXT;   -- thêm cột, dòng cũ có email = NULL
+      ```
+
+      **DML**:
+
+      ```text
+      INSERT INTO users(name, score) VALUES ('an', 5);
+      UPDATE users SET score = score + 1 WHERE name = 'an';
+      DELETE FROM users WHERE score < 0;
+      ```
+
+      **Cạm bẫy lớn nhất**: `UPDATE users SET score = 0;` hoặc `DELETE FROM users;` **không có WHERE** sẽ tác động lên
+      **mọi dòng**. Luôn kiểm tra WHERE; nếu chưa chắc, chạy `SELECT ... WHERE ...` trước để xem dòng nào bị ảnh hưởng.
+
+      Vi phạm ràng buộc sẽ báo lỗi: chèn trùng `PRIMARY KEY` hoặc để `NOT NULL` trống đều làm câu lệnh thất bại.
+      Dạng `INSERT OR REPLACE INTO ...` thay dòng cũ khi trùng khóa.
+
+      **Transaction** gom nhiều lệnh thành một đơn vị tất cả-hoặc-không:
+
+      ```text
+      BEGIN;
+      UPDATE acct SET bal = bal - 50 WHERE id = 1;
+      UPDATE acct SET bal = bal + 50 WHERE id = 2;
+      COMMIT;      -- giữ cả hai thay đổi
+      -- hoặc ROLLBACK;  -- hủy cả hai nếu có lỗi giữa chừng
+      ```
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Câu lệnh `DELETE FROM users;` (không có WHERE) làm gì?"
+    options:
+      - {id: a, text_md: "Xóa mọi dòng của bảng `users` nhưng giữ cấu trúc bảng"}
+      - {id: b, text_md: "Báo lỗi vì thiếu WHERE"}
+      - {id: c, text_md: "Xóa luôn bảng `users`"}
+    answer: [a]
+    explain_md: "DELETE không có WHERE xóa mọi dòng, bảng vẫn còn. Xóa cả bảng là DROP TABLE (DDL)."
+  - id: q02
+    type: predict_output
+    code: |
+      t = {"an": 5, "binh": 3}
+      t["an"] = t["an"] + 1
+      del t["binh"]
+      print(t)
+    expected_output: |
+      {'an': 6}
+    explain_md: "Mô phỏng UPDATE score = score + 1 WHERE name = 'an' rồi DELETE WHERE name = 'binh'."
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Sau `BEGIN; UPDATE ...; UPDATE ...;` có lỗi ở lệnh thứ hai. Muốn hủy cả hai thay đổi, dùng gì?"
+    options:
+      - {id: a, text_md: "`ROLLBACK`"}
+      - {id: b, text_md: "`COMMIT`"}
+      - {id: c, text_md: "`ALTER TABLE`"}
+    answer: [a]
+    explain_md: "ROLLBACK hủy mọi thay đổi từ BEGIN; COMMIT sẽ giữ lại chúng."
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: INSERT rồi UPDATE với sqlite3"
+    summary_vi: "Tạo bảng, chèn bằng executemany, UPDATE có WHERE, rồi SELECT."
+    exercise_ref: ex_bump
+  - id: t02
+    type: text
+    md: |
+      Mẫu chạy DDL và DML bằng `sqlite3` trong bộ nhớ:
+
+      ```text
+      con = sqlite3.connect(":memory:")
+      cur = con.cursor()
+      cur.execute("CREATE TABLE t (name TEXT PRIMARY KEY, score INTEGER NOT NULL DEFAULT 0)")
+      cur.executemany("INSERT INTO t(name, score) VALUES (?, ?)", rows)
+      cur.execute("UPDATE t SET score = score + 1 WHERE name = ?", (who,))
+      con.commit()      # chốt transaction
+      cur.execute("SELECT name, score FROM t ORDER BY name")
+      ```
+
+      Luôn truyền giá trị qua dấu `?`, không ghép chuỗi (tránh SQL injection và lỗi dấu nháy). `UPDATE`/`DELETE` không
+      khớp dòng nào thì **không lỗi**, chỉ tác động 0 dòng.
+  - id: ex_bump
+    type: code_exercise
+    md: |
+      Cài `bump(rows, names)`. `rows` là list `[name, score]` (name không trùng nhau), `names` là list tên cần tăng điểm.
+      Dùng `sqlite3` trong bộ nhớ: `CREATE TABLE t (name TEXT PRIMARY KEY, score INTEGER NOT NULL DEFAULT 0)`, chèn mọi
+      `rows` bằng câu SQL tham số hoá, rồi với **mỗi** tên trong `names` chạy `UPDATE t SET score = score + 1 WHERE name = ?`
+      (tên lặp thì tăng nhiều lần, tên không có thì bỏ qua). Cuối cùng `SELECT name, score FROM t ORDER BY name` và trả về
+      list các cặp `[name, score]` (mỗi cặp là list). Ví dụ `rows = [["an", 5], ["binh", 3]]`, `names = ["an"]` cho
+      `[["an", 6], ["binh", 3]]`.
+    entry: bump
+    starter: |
+      import sqlite3
+
+
+      def bump(rows, names):
+          # TODO: CREATE TABLE, executemany INSERT, mỗi tên một UPDATE ... SET score = score + 1 WHERE name = ?, rồi SELECT ... ORDER BY name
+          pass
+    guidance_md: |
+      - `executemany("INSERT INTO t(name, score) VALUES (?, ?)", rows)`.
+      - `for n in names: cur.execute("UPDATE t SET score = score + 1 WHERE name = ?", (n,))`.
+    hints:
+      - level: nudge
+        md: "Chèn bằng `executemany`, rồi chạy `UPDATE` trong một vòng lặp qua `names`."
+      - level: approach
+        md: "Mỗi lần gọi `UPDATE ... WHERE name = ?` tăng thêm 1; tên lặp được gọi nhiều lần nên tăng nhiều lần."
+      - level: near_solution
+        md: "Cuối cùng `SELECT name, score FROM t ORDER BY name` và đổi tuple thành list bằng `list(r)`."
+    tests:
+      - {args: [[["an", 5], ["binh", 3]], ["an"]], expected: [["an", 6], ["binh", 3]]}
+      - {args: [[], []], expected: []}
+      - {args: [[["c", 1]], ["x"]], expected: [["c", 1]]}
+      - {args: [[["an", 5]], ["an", "an"]], expected: [["an", 7]]}
+      - {args: [[["b", 0], ["a", -1]], ["a", "b"]], expected: [["a", 0], ["b", 1]]}
+    solution: |
+      import sqlite3
+
+
+      def bump(rows, names):
+          con = sqlite3.connect(":memory:")
+          cur = con.cursor()
+          cur.execute("CREATE TABLE t (name TEXT PRIMARY KEY, score INTEGER NOT NULL DEFAULT 0)")
+          cur.executemany("INSERT INTO t(name, score) VALUES (?, ?)", rows)
+          for n in names:
+              cur.execute("UPDATE t SET score = score + 1 WHERE name = ?", (n,))
+          cur.execute("SELECT name, score FROM t ORDER BY name")
+          result = [list(r) for r in cur.fetchall()]
+          con.close()
+          return result
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Để thêm cột mới vào bảng đã có, dùng `ALTER TABLE t ___ COLUMN c INTEGER`."
+    blanks: [{accept: ["ADD", "add"]}]
+    explain_md: "ALTER TABLE t ADD COLUMN c INTEGER thêm cột; các dòng cũ nhận NULL (hoặc DEFAULT nếu có)."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "DDL (CREATE/ALTER TABLE) định nghĩa cấu trúc; DML (INSERT/UPDATE/DELETE) thay đổi dữ liệu."
+      - "UPDATE và DELETE không có WHERE tác động mọi dòng; kiểm tra bằng SELECT ... WHERE trước."
+      - "PRIMARY KEY, NOT NULL, DEFAULT là ràng buộc; vi phạm làm câu lệnh lỗi; INSERT OR REPLACE thay dòng trùng khóa."
+      - "Transaction gom lệnh: COMMIT để giữ, ROLLBACK để hủy; trong sqlite3 nhớ con.commit() và dùng dấu ? thay vì ghép chuỗi."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X789], l2: [X790], l3: [X791]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-07"

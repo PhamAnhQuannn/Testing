@@ -1,0 +1,44 @@
+subtopic_id: cs.sql.window_functions
+items:
+  - id: X786
+    difficulty: 1
+    type: read_code
+    minutes: 3
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng.
+    code: |-
+      rows = [("a", "x", 5), ("b", "z", 1), ("a", "y", 9), ("a", "w", 5)]
+      rows.sort(key=lambda r: (r[0], -r[2], r[1]))
+      prev = None
+      n = 0
+      for g, name, s in rows:
+          n = n + 1 if g == prev else 1
+          prev = g
+          print(g, name, n)
+    expected_output: "a y 1\na w 2\na x 3\nb z 1"
+    answer_md: "Đây mô phỏng ROW_NUMBER() OVER (PARTITION BY g ORDER BY s DESC, name ASC). Sau khi sắp: (a,y,9), (a,w,5), (a,x,5), (b,z,1). Bộ đếm n tính lại từ 1 mỗi khi sang nhóm mới nên a có 1, 2, 3 và b có 1. Hai dòng a cùng điểm 5 được phá hoà bằng name nên w đứng trước x."
+    rubric_md: "Output khớp từng dòng. Đúng: bằng chứng điểm 1; sai: tối đa điểm 0."
+  - id: X787
+    difficulty: 2
+    type: write_code
+    minutes: 6
+    prompt_md: |
+      Viết hàm `rank_within(rows)` bằng `sqlite3` trong bộ nhớ. `rows` là list các bản ghi `[grp, name, score]` (grp và name là chuỗi, score là số nguyên). Tạo bảng `t(grp TEXT, name TEXT, score INTEGER)`, chèn bằng `executemany` tham số hoá, rồi chạy `SELECT grp, name, ROW_NUMBER() OVER (PARTITION BY grp ORDER BY score DESC, name ASC) AS rn FROM t ORDER BY grp ASC, rn ASC`. Trả về list các bộ ba `[grp, name, rn]`, mỗi bộ là list. Ví dụ `[["a","x",5],["a","y",9],["b","z",1]]` cho `[["a","y",1],["a","x",2],["b","z",1]]`.
+    problem_id: check-x787-rank-within
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 6 phút: bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X788
+    difficulty: 3
+    type: read_code
+    minutes: 5
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng và giải thích ROW_NUMBER, RANK, DENSE_RANK khác nhau thế nào khi có điểm trùng.
+    code: |-
+      scores = [90, 80, 80, 70]
+      row_number = list(range(1, len(scores) + 1))
+      rank = [1 + sum(1 for t in scores if t > s) for s in scores]
+      dense = [1 + len({t for t in scores if t > s}) for s in scores]
+      print(row_number)
+      print(rank)
+      print(dense)
+      print(max(rank), max(dense))
+    expected_output: "[1, 2, 3, 4]\n[1, 2, 2, 4]\n[1, 2, 2, 3]\n4 3"
+    answer_md: "ROW_NUMBER luôn là 1..n nên hai điểm 80 vẫn nhận 2 và 3. RANK = 1 + số dòng có điểm lớn hơn nên hai điểm 80 cùng hạng 2 và điểm 70 nhảy tới 4 (có 3 dòng cao hơn). DENSE_RANK = 1 + số giá trị điểm khác nhau lớn hơn nên điểm 70 là 3, không nhảy cách. Do đó max(rank) = 4 còn max(dense) = 3. Với bài lương cao thứ N, DENSE_RANK là lựa chọn đúng vì không bỏ sót hạng khi có trùng."
+    rubric_md: "Output khớp từng dòng VÀ giải thích đúng: ROW_NUMBER không trùng, RANK trùng hạng rồi nhảy cách (2,2,4), DENSE_RANK trùng hạng không nhảy (2,2,3). Đúng: bằng chứng điểm 3; sai: tối đa điểm 2."

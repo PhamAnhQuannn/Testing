@@ -236,6 +236,11 @@ EXTRA_IDS = {
     "cs.sql.select_where",
     "cs.sql.aggregation",
     "cs.sql.joins",
+    # Wave 6 Round 42: cs.sql B (closes cs.sql — subqueries/windows/dml/puzzles).
+    "cs.sql.subqueries_sets",
+    "cs.sql.window_functions",
+    "cs.sql.dml_ddl",
+    "cs.sql.classic_puzzles",
 }
 
 # Expected shipped counts, asserted so an upstream tree edit can't silently change the snapshot.
@@ -243,7 +248,7 @@ PLAN_MVP_COUNT = 40
 EXPECTED_SD = 86
 EXPECTED_ML4 = 39
 EXPECTED_EXTRA_IDS = len(EXTRA_IDS)  # Wave 2 additions
-EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 329
+EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 333
 
 # Node fields the app uses (SPEC 4.2); optional ones are skipped when a node lacks them.
 NODE_FIELDS = [
