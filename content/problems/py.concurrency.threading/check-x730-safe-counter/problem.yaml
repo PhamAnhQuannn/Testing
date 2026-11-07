@@ -1,0 +1,69 @@
+id: check-x730-safe-counter
+subtopic_id: py.concurrency.threading
+secondary_subtopics: []
+kind: check
+title: 'Check X730: safe counter'
+title_vi: 'Kiểm tra X730: bộ đếm an toàn với lock'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Implement `apply_locked_ops(ops)`, a deterministic simulation of a lock-protected counter. `ops` is a list of
+  `[op, tid]` pairs where `op` is `"acq"`, `"inc"` or `"rel"` and `tid` is an integer thread id. Start with
+  `holder = None` and `counter = 0` and process the ops left to right:
+  `"acq"` sets `holder = tid` only if `holder is None` (otherwise the lock is busy and the acquire fails silently);
+  `"inc"` does `counter += 1` only if `holder == tid`; `"rel"` sets `holder = None` only if `holder == tid`.
+  Return `counter` (an int).
+  For `[["acq",0],["inc",0],["inc",0],["rel",0],["acq",1],["inc",1]]` the result is `3`.
+statement_vi_md: |
+  Cài `apply_locked_ops(ops)`, mô phỏng xác định một bộ đếm được bảo vệ bằng lock. `ops` là list các cặp
+  `[op, tid]` với `op` là `"acq"`, `"inc"` hoặc `"rel"`, `tid` là id thread (số nguyên). Bắt đầu `holder = None`,
+  `counter = 0`, xử lý từ trái sang phải: `"acq"` đặt `holder = tid` chỉ khi `holder is None` (nếu bận thì acquire
+  thất bại, không làm gì); `"inc"` tăng `counter` 1 chỉ khi `holder == tid`; `"rel"` đặt `holder = None` chỉ khi
+  `holder == tid`. Trả về `counter` (int). Với `[["acq",0],["inc",0],["inc",0],["rel",0],["acq",1],["inc",1]]`
+  kết quả là `3`.
+constraints:
+- 'op chỉ là "acq", "inc" hoặc "rel"; tid là số nguyên; ops có thể rỗng (kết quả 0)'
+- 'Chỉ holder hiện tại mới được inc hoặc rel; acquire khi khóa đang bận bị bỏ qua'
+- 'Trả về int'
+examples:
+- input: 'ops = [["acq", 0], ["inc", 0], ["inc", 0], ["rel", 0], ["acq", 1], ["inc", 1]]'
+  output: '3'
+  explain_vi: 'Thread 0 giữ khóa và tăng 2 lần, nhả; thread 1 acquire được và tăng 1 lần, tổng 3.'
+io:
+  mode: function
+  entry: apply_locked_ops
+  params:
+  - name: ops
+    type: list
+  returns: int
+  compare: exact
+starter:
+  python: |
+    def apply_locked_ops(ops):
+        # TODO: giữ holder và counter, xử lý từng [op, tid] theo luật acq/inc/rel, trả counter
+        pass
+time_target_min: 6
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+hints:
+- Chỉ cần hai biến trạng thái (holder, counter) và một vòng lặp qua từng thao tác.
+- "Với mỗi `[op, tid]`, kiểm tra điều kiện holder trước khi đổi trạng thái; điều kiện sai thì bỏ qua."
+- "`acq` cần `holder is None`; `inc` và `rel` cần `holder == tid`; cuối cùng trả `counter`."
+solution:
+  file: solution.py
+  approach_vi: Duyệt tuần tự các thao tác, giữ holder và counter; chỉ holder mới tăng counter hoặc nhả khóa.
+  complexity: O(n) / O(1)
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x730
+status: validated
+version: 1

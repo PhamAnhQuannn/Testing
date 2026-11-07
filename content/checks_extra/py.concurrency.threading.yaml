@@ -1,0 +1,49 @@
+subtopic_id: py.concurrency.threading
+items:
+  - id: X729
+    difficulty: 1
+    type: read_code
+    minutes: 3
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng.
+    code: |-
+      from queue import Queue
+      q = Queue()
+      for x in [3, 1, 2]:
+          q.put(x)
+      out = []
+      while not q.empty():
+          out.append(q.get() * 10)
+      print(out)
+      print(q.qsize())
+    expected_output: "[30, 10, 20]\n0"
+    answer_md: "Queue là FIFO nên lấy ra theo thứ tự vào: 3, 1, 2, nhân 10 được [30, 10, 20]. Vòng lặp chạy đến khi rỗng nên qsize() là 0."
+    rubric_md: "Output khớp từng dòng. Đúng: bằng chứng điểm 1; sai: tối đa điểm 0."
+  - id: X730
+    difficulty: 2
+    type: write_code
+    minutes: 6
+    prompt_md: |
+      Viết hàm `apply_locked_ops(ops)` mô phỏng lock. `ops` là list các cặp `[op, tid]`, `op` là `"acq"`, `"inc"` hoặc `"rel"`, `tid` là id thread (số nguyên). Bắt đầu với `holder = None` và `counter = 0`, xử lý từ trái sang phải: `"acq"` đặt `holder = tid` nếu khóa đang rảnh (`holder is None`), bận thì không làm gì; `"inc"` tăng `counter` thêm 1 chỉ khi `holder == tid`; `"rel"` đặt `holder = None` chỉ khi `holder == tid`. Trả về `counter`. Ví dụ `[["acq",0],["inc",0],["inc",0],["rel",0],["acq",1],["inc",1]]` cho `3`.
+    problem_id: check-x730-safe-counter
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 6 phút: bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X731
+    difficulty: 3
+    type: read_code
+    minutes: 5
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng và giải thích vì sao các lần inc của thread 1 lúc đầu không được tính (đây là ý tưởng lock tuần tự hóa việc sửa, tránh lost update).
+    code: |-
+      holder = None
+      counter = 0
+      ops = [("acq", 0), ("acq", 1), ("inc", 1), ("inc", 0), ("rel", 0), ("acq", 1), ("inc", 1), ("rel", 1)]
+      for op, tid in ops:
+          if op == "acq" and holder is None:
+              holder = tid
+          elif op == "inc" and holder == tid:
+              counter += 1
+          elif op == "rel" and holder == tid:
+              holder = None
+      print(counter)
+      print(holder)
+    expected_output: "2\nNone"
+    answer_md: "Thread 0 acquire trước nên giữ khóa; acquire của thread 1 thất bại và inc của thread 1 bị bỏ qua vì nó không phải holder. inc của thread 0 tính (counter = 1), rồi thread 0 rel. Sau đó thread 1 acquire được, inc (counter = 2) và rel nên holder về None. Mỗi lần chỉ holder sửa counter, nên không có lost update."
+    rubric_md: "Output khớp từng dòng VÀ giải thích đúng: chỉ holder được sửa counter, thread không giữ khóa phải chờ (inc bị bỏ qua) nên mỗi lần tăng đều được tính và không bị mất. Đúng: bằng chứng điểm 3; sai: tối đa điểm 2."

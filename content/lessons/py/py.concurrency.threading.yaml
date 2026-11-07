@@ -1,0 +1,182 @@
+id: py.concurrency.threading
+version: 1
+status: published
+title_vi: "Thread, lock và đồng bộ (threading)"
+est_minutes: 14
+objectives_vi:
+  - "Tạo thread bằng threading.Thread(target=...), dùng start() để chạy và join() để chờ thread xong."
+  - "Giải thích race condition: counter += 1 là đọc, cộng, ghi nên hai thread có thể làm mất một lần cập nhật (lost update), kể cả khi có GIL."
+  - "Dùng Lock với with lock: để mỗi lúc chỉ một thread (holder) được sửa dữ liệu chung."
+  - "Dùng queue.Queue cho producer-consumer và ThreadPoolExecutor cho việc IO-bound; biết thread không tăng tốc việc tính toán nặng."
+blocks:
+  - id: s_model
+    type: section
+    title_vi: "Thread, race condition, Lock, Queue và pool"
+    summary_vi: "Thread cho việc chờ IO; sửa dữ liệu chung thì cần Lock; chia việc thì dùng Queue hoặc pool."
+  - id: t01
+    type: text
+    md: |
+      **Thread** (luồng) cho chương trình làm nhiều việc chờ đợi cùng lúc, như một quán ăn có nhiều nhân viên.
+
+      ```
+      import threading
+
+      def work(name):
+          print("hello", name)
+
+      t = threading.Thread(target=work, args=("a",))
+      t.start()     # chạy work("a") ở thread mới
+      t.join()      # chờ thread đó xong
+      ```
+
+      `start()` bắt đầu thread, `join()` chờ nó kết thúc. **Daemon thread** là thread nền, tự tắt khi chương trình
+      chính kết thúc nên không được dùng cho việc cần làm cho xong.
+
+      **Race condition (tranh chấp).** Khi nhiều thread cùng sửa một biến chung, kết quả có thể sai và khó đoán.
+      Câu `counter += 1` thực ra gồm ba bước: **đọc** giá trị, **cộng** 1, **ghi** lại. Nếu thread A đọc 5, rồi
+      thread B cũng đọc 5, cả hai cùng ghi 6 thì mất một lần tăng (**lost update**).
+
+      Lưu ý trung thực: GIL không cứu bạn. GIL chỉ đảm bảo từng lệnh bytecode nhỏ không bị xé đôi, còn cả chuỗi
+      đọc-cộng-ghi vẫn có thể bị thread khác chen vào. Trên Python 3.10+ một vòng lặp đơn giản thường vẫn ra đúng
+      vì CPython chỉ đổi thread ở một số điểm nhất định, nhưng đó là chi tiết cài đặt, **không được đảm bảo**,
+      đừng tin vào kết quả thử đó.
+
+      **Lock** là cách sửa: chỉ một thread cầm khóa một lúc; thread khác gọi acquire sẽ phải chờ.
+
+      ```
+      lock = threading.Lock()
+      counter = 0
+
+      def add():
+          global counter
+          with lock:            # acquire khi vào, release khi ra (kể cả khi có lỗi)
+              counter += 1
+      ```
+
+      Chỉ **holder** (thread đang cầm khóa) mới sửa `counter`, nên không còn lost update.
+
+      **queue.Queue** là hàng đợi an toàn cho thread, hợp mẫu **producer-consumer**: một bên `put` việc vào, một
+      bên `get` việc ra làm, không cần tự khóa. Lấy ra theo thứ tự FIFO (vào trước ra trước).
+
+      **ThreadPoolExecutor** (trong `concurrent.futures`) là nhóm thread có sẵn: `pool.submit(f, x)` giao một việc
+      và trả về future (`future.result()` lấy kết quả); `pool.map(f, ds)` giao cả danh sách và trả kết quả theo
+      đúng thứ tự `ds`.
+
+      **Khi nào dùng thread?** Hợp với việc chờ mạng hoặc đĩa (IO-bound): trong lúc một thread chờ, thread khác chạy.
+      Việc tính toán nặng (CPU-bound) thì GIL khiến thread không nhanh hơn; dùng process.
+
+      Nâng cao: **deadlock** (hai thread chờ khóa của nhau) tránh bằng thứ tự lấy khóa cố định; `RLock` (cùng
+      một thread lấy lại được), `Semaphore` (tối đa N thread cùng vào), `Event` (cờ báo hiệu), `Condition` (chờ
+      đến khi điều kiện đúng), `threading.local` (biến riêng cho mỗi thread).
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Việc nào hợp nhất với thread trong CPython?"
+    options:
+      - {id: a, text_md: "Tải nhiều trang web cùng lúc (IO-bound, phần lớn thời gian là chờ mạng)"}
+      - {id: b, text_md: "Tính tổng bình phương của 100 triệu số (CPU-bound)"}
+      - {id: c, text_md: "Cả hai đều nhanh gấp N lần với N thread"}
+    answer: [a]
+    explain_md: "Khi một thread chờ mạng, thread khác chạy được. Việc tính toán nặng bị GIL giới hạn nên thread không tăng tốc; dùng process."
+  - id: q02
+    type: predict_output
+    code: |
+      from queue import Queue
+      q = Queue()
+      for i in (1, 2, 3):
+          q.put(i)
+      print(q.get())
+      print(q.qsize())
+      print(q.empty())
+    expected_output: |
+      1
+      2
+      False
+    explain_md: "Queue lấy ra theo thứ tự vào trước ra trước nên get() trả 1. Còn lại 2 phần tử nên qsize() là 2 và empty() là False."
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Vì sao `counter += 1` không an toàn khi nhiều thread cùng chạy?"
+    options:
+      - {id: a, text_md: "Nó gồm đọc, cộng, ghi; thread khác có thể chen vào giữa nên một lần tăng bị mất (lost update)"}
+      - {id: b, text_md: "Vì Python không cho thread truy cập biến global"}
+      - {id: c, text_md: "Vì GIL đảm bảo mọi câu lệnh Python là nguyên tử nên nó luôn an toàn"}
+    answer: [a]
+    explain_md: "GIL không biến cả chuỗi đọc-cộng-ghi thành một bước không chia cắt được. Cần Lock (with lock:) quanh đoạn sửa dữ liệu chung."
+  - id: s_gate
+    type: section
+    title_vi: "Lock: chỉ holder mới được sửa"
+    summary_vi: "Mô phỏng lock: acquire thất bại khi bận, chỉ holder được tăng counter."
+    exercise_ref: ex_lock
+  - id: t02
+    type: text
+    md: |
+      Ta mô phỏng lock bằng một danh sách thao tác tuần tự (không cần chạy thread thật, nên kết quả xác định).
+      Trạng thái gồm `holder` (id thread đang cầm khóa, ban đầu `None`) và `counter`. Mỗi thao tác là cặp
+      `[op, tid]`:
+
+      ```
+      "acq": nếu holder là None thì holder = tid   (bận thì acquire không được, thread đó KHÔNG có khóa)
+      "inc": nếu holder == tid thì counter += 1    (chỉ holder được sửa)
+      "rel": nếu holder == tid thì holder = None   (người không giữ khóa thì không nhả được)
+      ```
+
+      Ý nghĩa: bọc phép tăng trong lock nghĩa là chỉ một thread sửa tại một thời điểm, nên không mất lần tăng nào.
+      Thao tác `inc` của thread không giữ khóa bị bỏ qua, giống như thread đó phải chờ.
+  - id: ex_lock
+    type: code_exercise
+    md: |
+      Cài `apply_locked_ops(ops)`. `ops` là list các cặp `[op, tid]` với `op` là `"acq"`, `"inc"` hoặc `"rel"`,
+      `tid` là số nguyên. Bắt đầu với `holder = None`, `counter = 0`; xử lý từ trái sang phải theo luật ở trên
+      và trả về `counter`.
+      Ví dụ `[["acq",0],["inc",0],["inc",0],["rel",0],["acq",1],["inc",1]]` cho `3`.
+    entry: apply_locked_ops
+    starter: |
+      def apply_locked_ops(ops):
+          # TODO: giữ holder và counter, xử lý từng [op, tid] theo luật acq/inc/rel, trả counter
+          pass
+    guidance_md: |
+      - Dùng hai biến `holder = None` và `counter = 0`, và một vòng `for op, tid in ops`.
+      - Mỗi nhánh kiểm tra điều kiện (holder is None, holder == tid) trước khi đổi trạng thái.
+    hints:
+      - level: nudge
+        md: "Chỉ cần hai biến trạng thái và một vòng lặp duyệt từng thao tác từ trái sang phải."
+      - level: approach
+        md: "Với mỗi [op, tid], kiểm tra op rồi mới xét điều kiện holder; nếu điều kiện sai thì bỏ qua thao tác."
+      - level: near_solution
+        md: "`if op == 'acq' and holder is None: holder = tid`; `elif op == 'inc' and holder == tid: counter += 1`; `elif op == 'rel' and holder == tid: holder = None`."
+    tests:
+      - {args: [[["acq", 0], ["inc", 0], ["inc", 0], ["rel", 0], ["acq", 1], ["inc", 1]]], expected: 3}
+      - {args: [[["acq", 0], ["acq", 1], ["inc", 1], ["rel", 0], ["inc", 0]]], expected: 0}
+      - {args: [[]], expected: 0}
+      - {args: [[["inc", 0]]], expected: 0}
+    solution: |
+      def apply_locked_ops(ops):
+          holder = None
+          counter = 0
+          for op, tid in ops:
+              if op == "acq" and holder is None:
+                  holder = tid
+              elif op == "inc" and holder == tid:
+                  counter += 1
+              elif op == "rel" and holder == tid:
+                  holder = None
+          return counter
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Phương thức ___() của Thread làm thread hiện tại chờ cho đến khi thread đó kết thúc."
+    blanks: [{accept: ["join", "join()"]}]
+    explain_md: "start() chạy thread, join() chờ nó xong."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Thread.start() chạy hàm ở thread mới, join() chờ xong; thread hợp với việc IO-bound, việc CPU nặng thì dùng process."
+      - "counter += 1 là đọc, cộng, ghi nên có thể lost update khi nhiều thread cùng sửa, kể cả khi có GIL."
+      - "Lock với with lock: chỉ cho holder sửa dữ liệu chung, nên không mất lần cập nhật nào."
+      - "queue.Queue cho producer-consumer (FIFO, an toàn thread); ThreadPoolExecutor có submit (future.result) và map (giữ thứ tự)."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X729], l2: [X730], l3: [X731]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-06"

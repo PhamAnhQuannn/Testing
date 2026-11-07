@@ -1,0 +1,184 @@
+id: py.typing_testing.envs_packaging
+version: 1
+status: published
+title_vi: "Môi trường ảo, pip, requirements và đóng gói"
+est_minutes: 14
+objectives_vi:
+  - "Giải thích vì sao mỗi dự án nên có một virtual environment riêng, và tạo/bật nó bằng python -m venv."
+  - "Dùng pip install, pip freeze và requirements.txt để cài lại đúng bộ thư viện trên máy khác."
+  - "Đọc được một dòng requirements: ghim bằng ==, khoảng phiên bản bằng >=, extras dạng pkg[extra]."
+  - "Hiểu semantic versioning (major.minor.patch) và cài hàm parse requirements.txt thuần Python."
+blocks:
+  - id: s_model
+    type: section
+    title_vi: "venv, pip và requirements.txt"
+    summary_vi: "Mỗi dự án một ngăn riêng, danh sách thư viện ghi vào file để cài lại y hệt."
+  - id: t01
+    type: text
+    md: |
+      Thư viện ngoài (như `requests`, `flask`) chưa có sẵn trong Python; bạn tải về bằng **pip**:
+      `pip install requests`. Nếu cài tất cả vào một chỗ chung, dự án A cần `flask 2.x` còn dự án B cần
+      `flask 3.x` sẽ **đụng nhau**. Lời giải là **virtual environment (venv)**: mỗi dự án có một "ngăn riêng"
+      chứa bản Python và thư viện của chính nó, cô lập với các dự án khác.
+
+      ```
+      python -m venv .venv               # tạo môi trường trong thư mục .venv
+      source .venv/bin/activate          # bật (macOS/Linux)
+      .venv\Scripts\activate             # bật (Windows)
+      pip install requests               # chỉ cài vào .venv này
+      pip freeze > requirements.txt      # ghi lại thư viện + phiên bản đang cài
+      pip install -r requirements.txt    # cài lại y hệt (máy khác, hoặc venv mới)
+      ```
+
+      Khi venv đang bật, tên `(.venv)` hiện ở đầu dòng lệnh. **conda** là công cụ tương tự nhưng cài được cả
+      phần mềm không phải Python. Không commit thư mục `.venv` lên git; chỉ commit `requirements.txt`.
+
+      **Một dòng trong requirements.txt** có dạng `tên` + toán tử + `phiên bản`:
+
+      - `requests==2.31.0`: **ghim (pin)** đúng một phiên bản, mọi người cài giống nhau, tránh "máy tôi chạy
+        được mà máy bạn không".
+      - `flask>=2.0`: từ 2.0 trở lên (linh hoạt hơn nhưng kém lặp lại được). Còn có `<=`, `~=`, `!=`, `>`, `<`.
+      - `uvicorn[standard]==0.23.0`: **extras** trong ngoặc vuông cài thêm nhóm phụ thuộc tuỳ chọn.
+      - `numpy`: không ghim, pip lấy bản mới nhất.
+      - Dòng bắt đầu bằng `#` là comment, dòng trống bị bỏ qua.
+
+      **Semantic versioning**: `major.minor.patch` (vd `2.31.0`). Tăng **major** khi có thay đổi phá vỡ
+      tương thích, **minor** khi thêm tính năng cũ vẫn chạy, **patch** khi sửa lỗi. Khi so sánh phiên bản phải
+      so từng số nguyên: `1.10.0` lớn hơn `1.9.5`, nhưng so chuỗi thì ngược lại.
+
+      Nâng cao (biết là đủ): **pyproject.toml** là file cấu hình dự án và khai báo build backend; **wheel** và
+      **sdist** là hai dạng gói để phát hành; `uv`, `poetry` là công cụ quản lý môi trường/thư viện có thêm
+      lock file (ghim cả thư viện con); **PEP 668** khiến `pip` từ chối cài vào Python hệ thống (môi trường bị đánh dấu externally-managed), buộc dùng venv.
+      File `.env` giữ khoá bí mật, không đưa lên git.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Vì sao mỗi dự án Python nên dùng một venv riêng?"
+    options:
+      - {id: a, text_md: "Để thư viện và phiên bản của các dự án không đụng nhau"}
+      - {id: b, text_md: "Để code chạy nhanh hơn"}
+      - {id: c, text_md: "Vì Python bắt buộc phải có venv mới chạy được"}
+    answer: [a]
+    explain_md: "venv cô lập thư viện theo từng dự án nên dự án cần flask 2 và dự án cần flask 3 không ảnh hưởng nhau. Nó không làm code nhanh hơn và Python vẫn chạy được không cần venv."
+  - id: q02
+    type: predict_output
+    code: |
+      line = "flask>=2.0"
+      print(line.startswith("#"))
+      print(">=" in line)
+      print(line.split(">="))
+    expected_output: |
+      False
+      True
+      ['flask', '2.0']
+    explain_md: "Dòng không bắt đầu bằng `#` nên không phải comment. `>=` có trong dòng, và `split(\">=\")` tách thành tên thư viện và phiên bản."
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Dòng nào trong requirements.txt ghim chính xác một phiên bản?"
+    options:
+      - {id: a, text_md: "`requests==2.31.0`"}
+      - {id: b, text_md: "`requests>=2.31.0`"}
+      - {id: c, text_md: "`requests`"}
+    answer: [a]
+    explain_md: "`==` ghim đúng một phiên bản. `>=` cho phép bản mới hơn và dòng chỉ có tên không ràng buộc gì."
+  - id: s_gate
+    type: section
+    title_vi: "Cài hàm đọc requirements.txt"
+    summary_vi: "Bỏ comment và dòng trống, bỏ extras, tách tên, toán tử, phiên bản."
+    exercise_ref: ex_parse
+  - id: t02
+    type: text
+    md: |
+      Công cụ như pip làm một việc tương tự khi đọc `requirements.txt`: duyệt từng dòng, bỏ qua dòng trống và
+      comment, tách tên khỏi ràng buộc phiên bản. Các bước:
+
+      1. `line.strip()`; bỏ nếu rỗng hoặc bắt đầu bằng `#`.
+      2. Cắt comment cuối dòng (`#` đứng sau khoảng trắng).
+      3. Tìm toán tử, **thử toán tử dài trước** (`==`, `>=`, `<=`, `~=`, `!=` rồi mới `>`, `<`) để `>=` không bị
+         đọc nhầm thành `>`.
+      4. Bỏ extras: `name.split("[")[0]`.
+
+      ```
+      "flask>=2.0".split(">=")        # ['flask', '2.0']
+      "uvicorn[standard]".split("[")[0]   # 'uvicorn'
+      ```
+  - id: ex_parse
+    type: code_exercise
+    md: |
+      Cài `parse_requirements(lines)`. `lines` là list chuỗi, mỗi chuỗi là một dòng của requirements.txt.
+      Với mỗi dòng: strip; **bỏ** dòng trống và dòng comment (bắt đầu bằng `#`); cắt comment cuối dòng (`#` đứng
+      sau khoảng trắng); bỏ extras `pkg[a,b]` chỉ giữ `pkg`. Rồi tách `name OP version` với OP thuộc
+      `==`, `>=`, `<=`, `~=`, `!=`, `>`, `<` (thử toán tử dài trước). Có toán tử thì thêm `[name, op, version]`
+      (đã strip), chỉ có tên thì thêm `[name, "", ""]`. Trả list theo thứ tự đầu vào.
+      Ví dụ `["requests==2.31.0", "# c", "", "flask>=2.0", "uvicorn[standard]==0.23.0", "numpy"]` cho
+      `[["requests","==","2.31.0"],["flask",">=","2.0"],["uvicorn","==","0.23.0"],["numpy","",""]]`.
+    entry: parse_requirements
+    starter: |
+      def parse_requirements(lines):
+          # TODO: bỏ dòng trống/comment, bỏ extras, tách [name, op, version]
+          pass
+    guidance_md: |
+      - Với mỗi dòng: `strip()`, bỏ nếu rỗng hoặc `startswith("#")`, cắt comment cuối dòng.
+      - Tìm toán tử bằng cách thử danh sách `["==", ">=", "<=", "~=", "!=", ">", "<"]` (dài trước) tại từng vị trí.
+    hints:
+      - level: nudge
+        md: "Làm từng dòng: lọc dòng bỏ qua trước, rồi mới tách. Thứ tự thử toán tử quan trọng."
+      - level: approach
+        md: "Quét từng vị trí i của dòng; tại i thử các toán tử theo thứ tự dài trước, gặp toán tử đầu tiên thì cắt name ở trước, version ở sau."
+      - level: near_solution
+        md: "Sau khi tách, `name = name.split(\"[\")[0].strip()`; nếu không có toán tử thì `[name, \"\", \"\"]`."
+    tests:
+      - {args: [["requests==2.31.0", "# a comment", "", "flask>=2.0", "uvicorn[standard]==0.23.0", "numpy"]], expected: [["requests", "==", "2.31.0"], ["flask", ">=", "2.0"], ["uvicorn", "==", "0.23.0"], ["numpy", "", ""]]}
+      - {args: [[]], expected: []}
+      - {args: [["a>1", "b<=2  # old", "c~=1.4", "d!=3"]], expected: [["a", ">", "1"], ["b", "<=", "2"], ["c", "~=", "1.4"], ["d", "!=", "3"]]}
+      - {args: [["# only", "   ", "pkg[a,b]>=1.0"]], expected: [["pkg", ">=", "1.0"]]}
+    solution: |
+      def parse_requirements(lines):
+          ops = ["==", ">=", "<=", "~=", "!=", ">", "<"]
+          out = []
+          for raw in lines:
+              line = raw.strip()
+              if not line or line.startswith("#"):
+                  continue
+              for i, ch in enumerate(line):
+                  if ch == "#" and i > 0 and line[i - 1].isspace():
+                      line = line[:i].strip()
+                      break
+              if not line:
+                  continue
+              found = None
+              for i in range(len(line)):
+                  for op in ops:
+                      if line.startswith(op, i):
+                          found = (i, op)
+                          break
+                  if found:
+                      break
+              if found:
+                  i, op = found
+                  name = line[:i].strip()
+                  version = line[i + len(op):].strip()
+              else:
+                  name, op, version = line, "", ""
+              name = name.split("[")[0].strip()
+              out.append([name, op, version])
+          return out
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Lệnh `pip ___ > requirements.txt` ghi lại các thư viện đang cài (điền một từ)."
+    blanks: [{accept: ["freeze"]}]
+    explain_md: "`pip freeze` in ra mọi thư viện đang cài kèm phiên bản dạng `tên==phiên bản`; chuyển hướng `>` ghi vào file."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "venv (python -m venv .venv, rồi activate) cô lập thư viện theo từng dự án; không commit .venv, chỉ commit requirements.txt."
+      - "pip install cài thư viện; pip freeze > requirements.txt ghi lại; pip install -r requirements.txt cài lại y hệt."
+      - "Dòng requirements: == ghim, >= khoảng phiên bản, pkg[extra] cài thêm nhóm phụ thuộc; # là comment."
+      - "Semantic versioning major.minor.patch; so sánh phiên bản theo từng số nguyên, không so chuỗi. pyproject.toml, wheel/sdist, uv/poetry chỉ cần biết ở mức nhận diện."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X738], l2: [X739], l3: [X740]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-06"

@@ -1,0 +1,42 @@
+subtopic_id: py.typing_testing.envs_packaging
+items:
+  - id: X738
+    difficulty: 1
+    type: read_code
+    minutes: 3
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng.
+    code: |-
+      line = "requests==2.31.0"
+      name, version = line.split("==")
+      print(name)
+      print(version)
+      print(version.split("."))
+    expected_output: "requests\n2.31.0\n['2', '31', '0']"
+    answer_md: "`split(\"==\")` tách thành name = requests và version = 2.31.0. `version.split(\".\")` cho list ba chuỗi (major, minor, patch)."
+    rubric_md: "Output khớp từng dòng. Đúng: bằng chứng điểm 1; sai: tối đa điểm 0."
+  - id: X739
+    difficulty: 2
+    type: write_code
+    minutes: 6
+    prompt_md: |
+      Viết hàm `parse_requirements(lines)`. `lines` là list chuỗi, mỗi chuỗi là một dòng của file requirements.txt. Với mỗi dòng: strip; **bỏ** dòng trống và dòng comment (bắt đầu bằng `#`); cắt comment cuối dòng (`#` đứng sau khoảng trắng); bỏ extras dạng `pkg[extra]` hoặc `pkg[a,b]` chỉ giữ `pkg`. Rồi tách `name OP version` với OP thuộc `==`, `>=`, `<=`, `~=`, `!=`, `>`, `<` (thử toán tử dài trước để `>=` không bị đọc thành `>`). Có toán tử thì thêm `[name, op, version]` (name và version đã strip), chỉ là tên thư viện thì thêm `[name, "", ""]`. Trả list theo thứ tự đầu vào. Ví dụ `["requests==2.31.0", "# a comment", "", "flask>=2.0", "uvicorn[standard]==0.23.0", "numpy"]` cho `[["requests","==","2.31.0"],["flask",">=","2.0"],["uvicorn","==","0.23.0"],["numpy","",""]]`.
+    problem_id: check-x739-parse-requirements
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 6 phút: bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X740
+    difficulty: 3
+    type: read_code
+    minutes: 5
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng và giải thích vì sao hai phép so sánh phiên bản cho kết quả khác nhau.
+    code: |-
+      def vt(s):
+          return tuple(int(p) for p in s.split("."))
+
+      print(vt("1.10.0") > vt("1.9.5"))
+      print("1.10.0" > "1.9.5")
+      lines = ["# dev", "flask>=2.0", "", "numpy==1.26.4  # pinned"]
+      deps = [l.split("#")[0].strip() for l in lines if l.strip() and not l.startswith("#")]
+      print(deps)
+      print(len(deps))
+    expected_output: "True\nFalse\n['flask>=2.0', 'numpy==1.26.4']\n2"
+    answer_md: "So tuple số nguyên: (1, 10, 0) > (1, 9, 5) vì 10 > 9, nên True. So chuỗi so từng ký tự: tới '1' với '9' thì '1' < '9' nên False; đó là lý do phải so phiên bản theo từng số nguyên. Lọc dòng: bỏ '# dev' (comment) và dòng trống; 'numpy==1.26.4  # pinned' bị cắt phần sau '#' rồi strip, còn 2 dòng."
+    rubric_md: "Output khớp từng dòng VÀ giải thích đúng: so chuỗi so từng ký tự ('1' < '9') nên cho False, còn so tuple int cho True. Đúng: bằng chứng điểm 3; sai: tối đa điểm 2."

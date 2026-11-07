@@ -1,0 +1,186 @@
+id: py.concurrency.asyncio_basics
+version: 1
+status: published
+title_vi: "asyncio: coroutine, task và event loop"
+est_minutes: 14
+objectives_vi:
+  - "Phân biệt coroutine function với coroutine object, và biết await là điểm duy nhất coroutine nhường quyền cho việc khác."
+  - "Giải thích asyncio.run, event loop, và khác biệt giữa await tuần tự với create_task / gather chạy chồng lên nhau."
+  - "Chỉ ra vì sao time.sleep (hay mọi lời gọi chặn) làm treo cả vòng lặp còn asyncio.sleep thì không."
+  - "Dùng Semaphore để giới hạn số việc chạy cùng lúc; mô phỏng event loop round-robin thuần Python."
+blocks:
+  - id: s_model
+    type: section
+    title_vi: "Coroutine, event loop và điểm await"
+    summary_vi: "Một luồng, nhiều việc chờ đợi: nhường quyền ở mỗi await."
+  - id: t01
+    type: text
+    md: |
+      **asyncio** cho một chương trình xử lý nhiều việc **chờ đợi** (gọi mạng, đọc file) bằng **một luồng**. Khi một
+      việc đang chờ, chương trình quay sang việc khác thay vì đứng im, như đầu bếp vừa đặt nồi cơm vừa rửa rau.
+
+      ```
+      import asyncio
+
+      async def viec(ten):                 # coroutine function
+          await asyncio.sleep(1)           # điểm await: nhường quyền
+          return ten
+
+      c = viec("A")                        # coroutine object, CHƯA chạy gì
+      print(asyncio.run(c))                # event loop chạy nó: in A
+      ```
+
+      - `async def` định nghĩa **coroutine function**. Gọi nó **không chạy thân hàm**, chỉ trả về **coroutine object**.
+      - Coroutine chỉ tạm dừng ở các **điểm `await`**. Giữa hai `await`, code chạy liền không bị ngắt.
+      - **Event loop** (vòng lặp sự kiện) là bộ điều phối: nó lấy một việc sẵn sàng, chạy tới `await` kế tiếp, rồi
+        chuyển sang việc khác. `asyncio.run(main())` tạo loop, chạy `main()` tới khi xong rồi đóng loop.
+      - Đây là **cooperative** scheduling: việc nào không chịu `await` thì không ai ngắt được nó.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Gọi `viec(\"A\")` với `async def viec(ten): ...` (không có `await` phía trước) thì chuyện gì xảy ra?"
+    options:
+      - {id: a, text_md: "Thân hàm chạy ngay và trả về kết quả"}
+      - {id: b, text_md: "Trả về một coroutine object, thân hàm chưa chạy dòng nào"}
+      - {id: c, text_md: "Tạo một thread mới để chạy hàm"}
+    answer: [b]
+    explain_md: "Gọi coroutine function chỉ tạo coroutine object. Phải `await` nó hoặc đưa cho event loop (asyncio.run, create_task) thì thân hàm mới chạy."
+  - id: q02
+    type: predict_output
+    code: |
+      order = []
+      ready = [("A", 2), ("B", 1)]
+      while ready:
+          name, left = ready.pop(0)
+          order.append(name)
+          if left > 1:
+              ready.append((name, left - 1))
+      print("".join(order))
+    expected_output: |
+      ABA
+    explain_md: "Mô phỏng loop round-robin: A chạy một bước rồi xếp lại cuối hàng, B chạy một bước và xong, A chạy bước cuối. Thứ tự A, B, A."
+  - id: s_gate
+    type: section
+    title_vi: "Mô phỏng event loop"
+    summary_vi: "Hàng đợi FIFO các việc sẵn sàng, mỗi lần chạy một bước."
+    exercise_ref: ex_loop
+  - id: t02
+    type: text
+    md: |
+      Bên trong, event loop giữ một **hàng đợi các việc sẵn sàng**. Mỗi vòng: lấy việc ở **đầu** hàng, chạy **một
+      bước** tới `await` kế tiếp; nếu việc chưa xong, nó quay lại **cuối** hàng; xong thì bỏ đi.
+
+      ```
+      from collections import deque
+      q = deque(tasks)
+      while q:
+          tid, left = q.popleft()
+          trace.append(tid)        # chạy một bước
+          if left > 1:
+              q.append((tid, left - 1))
+      ```
+
+      Đây chính là lý do `create_task` hoặc `gather` làm các việc **xen kẽ**: mỗi việc dừng ở `await`, loop chuyển
+      sang việc kế. (Thực tế loop còn dùng selector như epoll để biết khi nào việc chờ I/O sẵn sàng; bài này chỉ mô
+      phỏng thứ tự.)
+  - id: ex_loop
+    type: code_exercise
+    md: |
+      Cài `event_loop_order(tasks)`. `tasks` là list các cặp `[tid, nsteps]` (tid là id số nguyên, `nsteps >= 1` là số
+      bước/await mà coroutine chạy trước khi xong). Mô phỏng event loop một luồng với hàng đợi FIFO: ban đầu các task
+      xếp theo thứ tự cho trước; lặp lại: lấy task ở đầu, chạy MỘT bước (ghi `tid` vào trace), giảm số bước còn lại;
+      còn bước thì đẩy xuống cuối hàng, hết thì xong. Trả về list tid theo đúng thứ tự các bước đã chạy.
+      Ví dụ `tasks = [[0, 2], [1, 3]]` cho `[0, 1, 0, 1, 1]`.
+    entry: event_loop_order
+    starter: |
+      def event_loop_order(tasks):
+          # TODO: hàng đợi FIFO, mỗi lần chạy một bước rồi xếp lại cuối nếu còn bước
+          pass
+    guidance_md: |
+      - Dùng `collections.deque` với `popleft()` và `append()`.
+      - Lưu mỗi phần tử là `(tid, còn_lại)`; ghi `tid` vào trace trước khi kiểm tra còn bước hay không.
+    hints:
+      - level: nudge
+        md: "Mỗi task chạy một bước rồi nhường chỗ: hãy nghĩ tới một hàng đợi xoay vòng."
+      - level: approach
+        md: "Đưa mọi task vào deque; vòng `while q:` popleft, ghi tid, giảm bước; nếu còn bước thì append lại."
+      - level: near_solution
+        md: "`q = deque((t[0], t[1]) for t in tasks)`; trong vòng lặp `tid, left = q.popleft()`, `trace.append(tid)`, `if left > 1: q.append((tid, left - 1))`."
+    tests:
+      - {args: [[[0, 2], [1, 3]]], expected: [0, 1, 0, 1, 1]}
+      - {args: [[[5, 1], [6, 1], [7, 2]]], expected: [5, 6, 7, 7]}
+      - {args: [[]], expected: []}
+      - {args: [[[3, 3]]], expected: [3, 3, 3]}
+    solution: |
+      from collections import deque
+
+
+      def event_loop_order(tasks):
+          q = deque((t[0], t[1]) for t in tasks)
+          trace = []
+          while q:
+              tid, left = q.popleft()
+              trace.append(tid)
+              if left > 1:
+                  q.append((tid, left - 1))
+          return trace
+  - id: t03
+    type: text
+    md: |
+      **await tuần tự và chạy chồng lên nhau.**
+
+      ```
+      await viec("A")
+      await viec("B")          # B chỉ bắt đầu khi A xong: tổng ~2 giây
+
+      await asyncio.gather(viec("A"), viec("B"))   # cùng chờ chồng lên: ~1 giây
+      ```
+
+      - `await coro` chạy coroutine đó tới khi xong rồi mới đi tiếp, nên hai `await` liên tiếp là tuần tự.
+      - `asyncio.create_task(coro)` **lên lịch** coroutine chạy trên loop ngay, không cần await ngay; sau đó
+        `await task` để lấy kết quả. `asyncio.gather(a, b, c)` chạy nhiều coroutine cùng lúc và gom kết quả theo thứ tự đưa vào.
+      - Task là một Future đặc biệt bọc coroutine; coroutine thuần chưa được lên lịch thì chưa chạy.
+
+      **Chặn cả vòng lặp.** `asyncio.sleep(1)` có `await` nên nhường quyền; `time.sleep(1)` **không** nhường, nó
+      giữ luôn luồng duy nhất nên mọi task khác đứng im 1 giây. Quy tắc: không gọi hàm chặn (time.sleep, requests,
+      tính toán nặng) trong coroutine; nếu bắt buộc, đẩy sang `asyncio.to_thread(f)`.
+
+      **Semaphore** giới hạn số việc chạy cùng lúc, ví dụ tối đa 5 lời gọi mạng một lượt:
+
+      ```
+      sem = asyncio.Semaphore(5)
+      async def goi(url):
+          async with sem:              # quá 5 việc thì chờ ở đây
+              return await fetch(url)
+      ```
+
+      Lưu ý trung thực: asyncio chỉ hợp với việc **IO-bound** và số lượng việc lớn; nó **không** giúp tính toán
+      nặng vì vẫn chỉ có một luồng.
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Trong một coroutine bạn gọi `time.sleep(2)` thay vì `await asyncio.sleep(2)`. Hệ quả?"
+    options:
+      - {id: a, text_md: "Chỉ coroutine đó chờ, các task khác vẫn chạy bình thường"}
+      - {id: b, text_md: "Cả event loop bị chặn 2 giây, mọi task khác cũng đứng im"}
+      - {id: c, text_md: "Python tự động chuyển lời gọi đó sang thread khác"}
+    answer: [b]
+    explain_md: "time.sleep không có await nên không nhường quyền; vì chỉ có một luồng, cả loop bị đóng băng. asyncio.sleep mới nhường."
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Để chạy hai coroutine chồng lên nhau và gom kết quả, dùng `asyncio.___(a, b)` (điền tên hàm)."
+    blanks: [{accept: ["gather"]}]
+    explain_md: "`asyncio.gather` chạy nhiều coroutine cùng lúc trên event loop và trả list kết quả theo thứ tự truyền vào."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "async def tạo coroutine function; gọi nó trả coroutine object chưa chạy. Coroutine chỉ nhường quyền ở điểm await."
+      - "asyncio.run tạo event loop; loop round-robin các việc sẵn sàng trên một luồng (cooperative scheduling)."
+      - "await tuần tự thì chạy lần lượt; create_task và gather cho nhiều việc chờ chồng lên nhau."
+      - "time.sleep (mọi lời gọi chặn) đóng băng cả loop; Semaphore giới hạn số việc đồng thời; asyncio hợp IO-bound, không giúp CPU-bound."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X732], l2: [X733], l3: [X734]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-06"

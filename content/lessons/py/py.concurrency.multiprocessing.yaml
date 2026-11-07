@@ -1,0 +1,156 @@
+id: py.concurrency.multiprocessing
+version: 1
+status: published
+title_vi: "Multiprocessing: process, Pool và map-reduce"
+est_minutes: 14
+objectives_vi:
+  - "Phân biệt process (bộ nhớ riêng, GIL riêng) với thread (chung bộ nhớ, chung GIL) và biết vì sao việc tính toán nặng (CPU-bound) nên dùng process."
+  - "Dùng được mẫu multiprocessing.Pool + Pool.map cùng khối if __name__ == '__main__'."
+  - "Giải thích chi phí của process: khởi động, pickle dữ liệu qua IPC, nên chỉ đáng khi mỗi việc đủ nặng."
+  - "Cài mẫu map-reduce: chia dữ liệu thành chunk, map mỗi chunk độc lập, reduce gộp kết quả riêng lẻ."
+blocks:
+  - id: s_model
+    type: section
+    title_vi: "Process, Pool và chi phí"
+    summary_vi: "Mỗi process có bộ nhớ và GIL riêng nên chạy song song thật trên nhiều lõi, đổi lại tốn chi phí khởi động và truyền dữ liệu."
+  - id: t01
+    type: text
+    md: |
+      **Process** là một bản chương trình Python chạy riêng, có **bộ nhớ riêng** và **GIL riêng**. **Thread** thì nằm
+      trong cùng một process, dùng chung bộ nhớ và chung một GIL. Vì GIL, hai thread không chạy bytecode Python
+      song song được; việc **CPU-bound** (tính toán nặng) dùng thread thường không nhanh hơn. Dùng **nhiều process**
+      thì mỗi bản có GIL riêng nên chạy song song thật trên nhiều lõi CPU.
+
+      Công cụ cơ bản là `multiprocessing.Pool`: tạo sẵn vài process worker, rồi `Pool.map(ham, danh_sach)` chia danh sách
+      cho các worker và trả kết quả **theo đúng thứ tự đầu vào**.
+
+      ```
+      from multiprocessing import Pool
+
+      def square(x):
+          return x * x
+
+      if __name__ == "__main__":      # bắt buộc trên Windows/macOS (spawn)
+          with Pool(4) as p:
+              print(p.map(square, [1, 2, 3]))   # [1, 4, 9]
+      ```
+
+      Vài điều cần nhớ, nói thẳng:
+      - Process **không chia sẻ** biến: worker sửa một biến global thì process chính không thấy.
+      - Hàm và dữ liệu gửi qua lại phải **pickle** được (đóng gói thành bytes). `lambda` hay hàm lồng bên trong hàm khác
+        thường không pickle được; hàm định nghĩa ở top-level module thì được.
+      - **Chi phí**: khởi động process, pickle và gửi dữ liệu (IPC) đều tốn thời gian. Nếu mỗi việc chỉ vài micro giây thì
+        multiprocessing còn **chậm hơn** chạy tuần tự. Chỉ đáng khi mỗi việc đủ nặng.
+      - Việc **chờ mạng/đĩa** (IO-bound) hợp với thread hoặc asyncio hơn; process dành cho CPU-bound.
+      - Nâng cao (chỉ cần biết tên): `ProcessPoolExecutor`, tham số `chunksize`, `Queue`/`Pipe`, `shared_memory`,
+        các kiểu khởi động fork/spawn/forkserver.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Vì sao dùng nhiều process có thể tăng tốc việc tính toán nặng, còn nhiều thread thường thì không?"
+    options:
+      - {id: a, text_md: "Mỗi process có GIL riêng nên các process chạy bytecode song song thật trên nhiều lõi"}
+      - {id: b, text_md: "Process luôn tạo nhanh hơn thread"}
+      - {id: c, text_md: "Thread không dùng được CPU"}
+    answer: [a]
+    explain_md: "GIL chỉ cho một thread chạy bytecode tại một thời điểm trong cùng process. Mỗi process có GIL riêng nên chạy song song được. Process không hề tạo nhanh hơn thread, ngược lại còn tốn hơn."
+  - id: q02
+    type: predict_output
+    code: |
+      counter = 0
+
+      def work(x):
+          global counter
+          counter += x      # chạy trong worker process
+
+      # Giả sử work(1), work(2), work(3) chạy trong 3 process worker khác nhau,
+      # mỗi process có một bản sao riêng của biến counter.
+      # Process chính không chạy work. In counter ở process chính:
+      print(counter)
+    expected_output: |
+      0
+    explain_md: "Mỗi process có bộ nhớ riêng nên worker sửa `counter` của nó không ảnh hưởng process chính. Muốn lấy kết quả thì để worker `return` giá trị rồi gộp ở process chính."
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Trường hợp nào multiprocessing dễ làm chương trình chậm hơn?"
+    options:
+      - {id: a, text_md: "Mỗi việc rất nhẹ (vài micro giây) nhưng có hàng triệu việc nhỏ gửi qua process"}
+      - {id: b, text_md: "Mỗi việc tính toán nặng vài giây trên dữ liệu nhỏ"}
+      - {id: c, text_md: "Máy có nhiều lõi CPU"}
+    answer: [a]
+    explain_md: "Chi phí pickle và IPC cho mỗi việc lớn hơn thời gian tính, nên tổng thời gian tăng. Gom nhiều việc nhỏ thành chunk (chunksize) giúp giảm chi phí này."
+  - id: s_gate
+    type: section
+    title_vi: "Map-reduce: chia chunk, map, reduce"
+    summary_vi: "Chia dữ liệu thành chunk, mỗi chunk xử lý độc lập (map), rồi gộp kết quả riêng (reduce)."
+    exercise_ref: ex_mr
+  - id: t02
+    type: text
+    md: |
+      **Map-reduce** là mẫu chuẩn để song song hoá: (1) **chia** dữ liệu thành các **chunk**; (2) **map**: mỗi chunk được
+      xử lý **độc lập** ra một kết quả riêng (đây là phần chạy song song trên các process); (3) **reduce**: gộp mọi
+      kết quả riêng thành kết quả cuối ở process chính.
+
+      ```
+      nums = [1, 2, 3, 4, 5]
+      size = 2
+      chunks = [nums[i:i + size] for i in range(0, len(nums), size)]   # [[1, 2], [3, 4], [5]]
+      partial = [sum(c) for c in chunks]     # map (có thể là p.map(sum, chunks))
+      total = sum(partial)                   # reduce
+      ```
+
+      Điều kiện: phép gộp phải đúng khi chia nhỏ. Cộng thì ổn (tổng các tổng riêng bằng tổng chung). Chunk có thể
+      rỗng, nên code phải chịu được chunk rỗng. Thay `[sum(c) for c in chunks]` bằng `Pool.map(sum, chunks)` là
+      được bản đa process mà **logic không đổi**; ở đây ta chỉ luyện phần logic map và reduce thuần Python.
+  - id: ex_mr
+    type: code_exercise
+    md: |
+      Cài `chunk_sums(nums, size)`. Chia `nums` thành các chunk liên tiếp, mỗi chunk dài tối đa `size` (chunk cuối có thể
+      ngắn hơn). **Map**: tính tổng mỗi chunk. **Reduce**: cộng các tổng riêng. Trả về dict
+      `{"partial": [tổng từng chunk], "total": tổng chung}`. `size` luôn >= 1; `nums` rỗng cho
+      `{"partial": [], "total": 0}`.
+      Ví dụ `nums = [1, 2, 3, 4, 5]`, `size = 2` cho `{"partial": [3, 7, 5], "total": 15}`.
+    entry: chunk_sums
+    starter: |
+      def chunk_sums(nums, size):
+          # TODO: chia chunk, map (sum mỗi chunk), reduce (cộng các tổng riêng)
+          pass
+    guidance_md: |
+      - Cắt chunk bằng `nums[i:i + size]` với `i` chạy `range(0, len(nums), size)`.
+      - `partial` là list tổng từng chunk; `total` là `sum(partial)`.
+    hints:
+      - level: nudge
+        md: "Chia nhỏ rồi gộp: bước nào xử lý từng chunk độc lập, bước nào gộp kết quả?"
+      - level: approach
+        md: "List comprehension cắt chunk theo bước `size`, rồi `partial = [sum(c) for c in chunks]`."
+      - level: near_solution
+        md: "`return {\"partial\": partial, \"total\": sum(partial)}`."
+    tests:
+      - {args: [[1, 2, 3, 4, 5], 2], expected: {partial: [3, 7, 5], total: 15}}
+      - {args: [[], 3], expected: {partial: [], total: 0}}
+      - {args: [[4], 5], expected: {partial: [4], total: 4}}
+      - {args: [[1, 1, 1, 1], 2], expected: {partial: [2, 2], total: 4}}
+    solution: |
+      def chunk_sums(nums, size):
+          chunks = [nums[i:i + size] for i in range(0, len(nums), size)]
+          partial = [sum(c) for c in chunks]
+          return {"partial": partial, "total": sum(partial)}
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Trong map-reduce, bước ___ chạy độc lập trên từng chunk (nên song song được), còn bước kia gộp kết quả (điền map hoặc reduce)."
+    blanks: [{accept: ["map"]}]
+    explain_md: "Map xử lý từng chunk độc lập nên chia cho nhiều process được; reduce gộp kết quả riêng ở process chính."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Process có bộ nhớ và GIL riêng nên chạy song song thật cho việc CPU-bound; thread chung GIL phù hợp việc chờ IO hơn."
+      - "Pool.map(ham, ds) chia việc cho các worker, trả kết quả theo thứ tự đầu vào; cần khối if __name__ == '__main__'."
+      - "Dữ liệu và hàm gửi qua process phải pickle được; khởi động và IPC tốn chi phí nên chỉ đáng khi mỗi việc đủ nặng."
+      - "Map-reduce: chia chunk, map độc lập từng chunk, reduce gộp kết quả riêng; chunk rỗng vẫn phải xử lý đúng."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X735], l2: [X736], l3: [X737]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-06"
