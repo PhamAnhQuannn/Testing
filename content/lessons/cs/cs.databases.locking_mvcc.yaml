@@ -1,0 +1,188 @@
+id: cs.databases.locking_mvcc
+version: 1
+status: published
+title_vi: "Locking và MVCC"
+est_minutes: 15
+objectives_vi:
+  - "Phân biệt shared lock và exclusive lock, biết cặp nào xung đột."
+  - "Giải thích two-phase locking (2PL) và vì sao nó cho serializability, nhưng có thể gây deadlock."
+  - "Mô tả MVCC: mỗi lần ghi tạo version mới, reader đọc snapshot nhất quán mà không chặn writer."
+  - "Mô phỏng việc chọn version nhìn thấy được theo timestamp."
+blocks:
+  - id: s_lock
+    type: section
+    title_vi: "Lock, two-phase locking và deadlock"
+    summary_vi: "Cách database dùng lock để các transaction song song không giẫm nhau, và cái giá phải trả."
+  - id: t01
+    type: text
+    md: |
+      Khi nhiều transaction cùng đụng vào một dòng dữ liệu, cách cổ điển để giữ **Isolation** là **lock** (khóa).
+      Có hai loại lock cơ bản:
+
+      - **Shared lock (S, khóa đọc)**: nhiều transaction cùng giữ được; dùng khi đọc.
+      - **Exclusive lock (X, khóa ghi)**: chỉ một transaction giữ; dùng khi ghi.
+
+      Bảng tương thích (một yêu cầu mới có được cấp không, khi đã có lock đang giữ):
+
+      ```text
+                    đang giữ S    đang giữ X
+      xin S         OK            CHỜ
+      xin X         CHỜ           CHỜ
+      ```
+
+      Quy tắc nhớ nhanh: **chỉ S với S là tương thích**; mọi tổ hợp có X đều xung đột và bên đến sau phải chờ.
+
+      **Two-phase locking (2PL)** là giao thức: mỗi transaction có hai pha.
+
+      ```text
+      Pha 1 (growing):   chỉ xin thêm lock, không nhả lock nào
+      Pha 2 (shrinking): chỉ nhả lock, không xin thêm
+      (strict 2PL: giữ mọi lock đến lúc COMMIT/ROLLBACK rồi nhả một lượt)
+      ```
+
+      Nếu mọi transaction tuân thủ 2PL thì lịch chạy song song **tương đương một thứ tự chạy tuần tự** (serializable).
+      Cái giá: chờ lock làm giảm throughput, và có thể xảy ra **deadlock**:
+
+      ```text
+      T1: lock(A) ... muốn lock(B)  -> chờ T2
+      T2: lock(B) ... muốn lock(A)  -> chờ T1     (vòng chờ, không ai đi tiếp)
+      ```
+
+      Database phát hiện vòng chờ (wait-for graph) rồi chọn một transaction làm nạn nhân và `ROLLBACK` nó; ứng dụng nên thử lại.
+      Cách tránh: luôn xin lock theo cùng một thứ tự.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Transaction T1 đang giữ shared lock trên một dòng. Yêu cầu nào dưới đây được cấp NGAY?"
+    options:
+      - {id: a, text_md: "T2 xin shared lock trên dòng đó"}
+      - {id: b, text_md: "T2 xin exclusive lock trên dòng đó"}
+      - {id: c, text_md: "Không yêu cầu nào được cấp"}
+    answer: [a]
+    explain_md: "Shared với shared tương thích nên nhiều reader cùng đọc được. Exclusive xung đột với mọi lock đang giữ."
+  - id: q02
+    type: quiz_mcq
+    prompt_md: "Cách đơn giản và phổ biến nhất để tránh deadlock giữa các transaction cùng khóa nhiều dòng là gì?"
+    options:
+      - {id: a, text_md: "Luôn xin lock theo cùng một thứ tự cố định"}
+      - {id: b, text_md: "Chỉ dùng shared lock"}
+      - {id: c, text_md: "Nhả lock ngay sau mỗi câu lệnh rồi xin lại"}
+    answer: [a]
+    explain_md: "Vòng chờ cần hai transaction xin lock theo thứ tự ngược nhau; thứ tự thống nhất loại bỏ vòng chờ. Nhả sớm phá vỡ 2PL và mất serializability."
+  - id: s_mvcc
+    type: section
+    title_vi: "MVCC và snapshot"
+    summary_vi: "Giữ nhiều version của dữ liệu để reader không chặn writer."
+  - id: t02
+    type: text
+    md: |
+      **MVCC (multi-version concurrency control)** giải quyết bằng cách khác: **không ghi đè** mà mỗi lần ghi
+      **tạo một version mới** gắn với timestamp (hoặc transaction id) lúc commit.
+
+      ```text
+      key = x:
+        version @ts=10  value=100
+        version @ts=20  value=200   (một writer commit lúc 20)
+        version @ts=30  value=300
+      ```
+
+      Transaction đọc lấy một **snapshot timestamp** lúc bắt đầu. Với mỗi key, nó thấy **version có commit_ts lớn nhất
+      mà vẫn `<=` snapshot timestamp**; version commit sau đó là vô hình với nó.
+
+      ```text
+      reader bắt đầu @ts=25  -> đọc x thấy 200 (version @20), dù writer commit @30 sau đó
+      reader bắt đầu @ts=5   -> chưa có version nào <= 5: không thấy gì
+      ```
+
+      Lợi ích: **reader không chặn writer và writer không chặn reader**; mỗi transaction thấy một snapshot nhất quán
+      nên đọc lặp lại cho cùng kết quả. PostgreSQL và MySQL InnoDB đều dùng MVCC.
+
+      Cái giá:
+
+      - Version cũ chiếm chỗ. Phải **garbage-collect** (PostgreSQL gọi là `VACUUM`) các version không còn transaction nào
+        cần: version cũ hơn snapshot cũ nhất đang chạy và đã bị version mới hơn che.
+      - Hai writer sửa cùng một dòng vẫn xung đột (vẫn cần lock ghi hoặc kiểm tra conflict lúc commit).
+      - Snapshot isolation vẫn có thể cho phép lỗi như write skew; muốn serializable đầy đủ cần thêm cơ chế.
+  - id: q03
+    type: predict_output
+    code: |
+      versions = [(10, "a"), (20, "b"), (30, "c")]
+      ts = 25
+      visible = [v for t, v in versions if t <= ts]
+      print(visible[-1], len(visible))
+    expected_output: |
+      b 2
+    explain_md: "Chỉ hai version có commit_ts <= 25 (@10 và @20); version mới nhất trong số đó là 'b'. Version @30 vô hình với snapshot 25."
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Trong MVCC, vì sao một câu SELECT dài không chặn các UPDATE cùng bảng?"
+    options:
+      - {id: a, text_md: "SELECT đọc snapshot cũ, UPDATE tạo version mới nên không đụng nhau"}
+      - {id: b, text_md: "SELECT giữ exclusive lock nhưng rất nhanh"}
+      - {id: c, text_md: "UPDATE luôn bị rollback khi có SELECT"}
+    answer: [a]
+    explain_md: "Reader dùng version cũ theo snapshot timestamp, writer ghi version mới; không cần khóa đọc nên không chặn nhau."
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: lock compatibility"
+    summary_vi: "Cài hàm quyết định một yêu cầu lock có được cấp hay phải chờ."
+    exercise_ref: ex_grant
+  - id: t03
+    type: text
+    md: |
+      Lock manager chỉ cần so yêu cầu mới với **tất cả** lock đang giữ trên cùng một dòng:
+
+      ```text
+      xin "X": được cấp khi chưa ai giữ gì
+      xin "S": được cấp khi không ai giữ "X"
+      ```
+  - id: ex_grant
+    type: code_exercise
+    md: |
+      Cài `can_grant(held, req)`. `held` là list các lock đang được giữ trên một dòng, mỗi phần tử là chuỗi `"S"` hoặc
+      `"X"` (có thể rỗng). `req` là `"S"` hoặc `"X"`, lock mới được xin. Trả về `True` nếu yêu cầu **tương thích với mọi**
+      lock đang giữ (chỉ S với S là tương thích), ngược lại `False`. Ví dụ `(["S", "S"], "S")` cho `True`,
+      `(["S"], "X")` cho `False`.
+    entry: can_grant
+    starter: |
+      def can_grant(held, req):
+          # TODO: True nếu req tương thích với mọi lock trong held
+          pass
+    guidance_md: |
+      - Danh sách rỗng thì luôn cấp được.
+      - `"S"` chỉ bị chặn bởi `"X"`; `"X"` bị chặn bởi bất kỳ lock nào.
+    hints:
+      - level: nudge
+        md: "Cặp duy nhất tương thích là S với S."
+      - level: approach
+        md: "Duyệt từng lock đang giữ; nếu cả hai đều là S thì ổn, còn lại thì xung đột."
+      - level: near_solution
+        md: "`return all(h == 'S' and req == 'S' for h in held)` (rỗng thì `all` trả True)."
+    tests:
+      - {args: [[], "X"], expected: true}
+      - {args: [["S", "S"], "S"], expected: true}
+      - {args: [["S"], "X"], expected: false}
+      - {args: [["X"], "S"], expected: false}
+      - {args: [["S", "S", "S"], "X"], expected: false}
+    solution: |
+      def can_grant(held, req):
+          return all(h == "S" and req == "S" for h in held)
+  - id: q05
+    type: quiz_fill
+    prompt_md: "Giao thức mà mỗi transaction chỉ xin lock ở pha đầu và chỉ nhả lock ở pha sau gọi là ___ locking."
+    blanks: [{accept: ["two-phase", "Two-phase", "two phase", "2-phase", "2PL"]}]
+    explain_md: "Two-phase locking (2PL): pha growing chỉ xin, pha shrinking chỉ nhả; đảm bảo serializability."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Shared lock (đọc) tương thích với nhau; exclusive lock (ghi) xung đột với mọi lock khác."
+      - "Two-phase locking (growing rồi shrinking) cho serializability nhưng có thể deadlock; tránh bằng thứ tự xin lock cố định, database phát hiện vòng chờ và rollback một nạn nhân."
+      - "MVCC: mỗi lần ghi tạo version mới; transaction đọc version có commit_ts lớn nhất <= snapshot timestamp, nên reader và writer không chặn nhau."
+      - "Version cũ không còn ai cần phải được garbage-collect (VACUUM)."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X810], l2: [X811], l3: [X812]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-07"

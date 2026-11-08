@@ -1,0 +1,182 @@
+id: cs.databases.nosql
+version: 1
+status: published
+title_vi: "Các họ NoSQL, mô hình dữ liệu và CAP (NoSQL)"
+est_minutes: 15
+objectives_vi:
+  - "Phân biệt bốn họ NoSQL (key-value, document, column-family, graph) và biết khi nào nên chọn chúng thay vì relational."
+  - "Phát biểu định lý CAP, phân biệt ACID với BASE và giải thích eventual consistency."
+  - "Giải thích horizontal scaling bằng sharding (hash partitioning) và rủi ro hot shard."
+  - "Mô hình hóa dữ liệu denormalized/embedded và truy cập giá trị lồng nhau trong document."
+blocks:
+  - id: s_model
+    type: section
+    title_vi: "Bốn họ NoSQL và khi nào dùng"
+    summary_vi: "NoSQL không phải một công nghệ mà là nhiều mô hình dữ liệu, mỗi loại tối ưu cho một kiểu truy cập."
+  - id: t01
+    type: text
+    md: |
+      **NoSQL** ("not only SQL") là tên chung của các database không dùng mô hình bảng quan hệ cố định.
+      Chúng ra đời để **scale ngang** (thêm máy) và để lưu dữ liệu có hình dạng linh hoạt. Có bốn họ chính:
+
+      ```text
+      Họ             Mô hình                       Ví dụ              Hợp với
+      key-value      key -> blob/giá trị           Redis, DynamoDB    cache, session, giỏ hàng
+      document       key -> JSON lồng nhau         MongoDB, Couchbase hồ sơ user, catalog sản phẩm
+      column-family  hàng -> nhóm cột (wide row)   Cassandra, HBase   log, time-series, ghi cực nhiều
+      graph          node + edge                   Neo4j              mạng xã hội, gợi ý, phát hiện gian lận
+      ```
+
+      **Document store** lưu một thực thể **denormalized/embedded**: thay vì tách `orders` và `order_items` thành hai bảng
+      rồi JOIN, ta nhúng items vào ngay trong document của order.
+
+      ```text
+      {"_id": 7, "user": "an", "items": [{"sku": "A1", "qty": 2}, {"sku": "B9", "qty": 1}]}
+      ```
+
+      Đọc một order chỉ cần **một lần truy cập theo key**, không JOIN. Đổi lại, dữ liệu bị lặp (tên sản phẩm có thể nằm trong
+      nhiều order) nên cập nhật phải sửa nhiều chỗ.
+
+      **Khi nào chọn NoSQL, khi nào relational?**
+
+      - Relational: dữ liệu có quan hệ chặt, cần JOIN/ad-hoc query, cần transaction nhiều bảng (ACID).
+      - NoSQL: truy cập theo key đã biết trước, khối lượng ghi/dữ liệu vượt một máy, schema thay đổi nhanh, chấp nhận consistency yếu hơn.
+      - Không có "tốt hơn tuyệt đối": phỏng vấn muốn nghe bạn nói **theo pattern truy cập**.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Hệ thống lưu session đăng nhập, luôn tra theo session id, cần độ trễ cực thấp và dữ liệu mất thì đăng nhập lại được. Họ NoSQL nào hợp nhất?"
+    options:
+      - {id: a, text_md: "key-value (ví dụ Redis)"}
+      - {id: b, text_md: "graph (ví dụ Neo4j)"}
+      - {id: c, text_md: "column-family với JOIN nhiều bảng"}
+    answer: [a]
+    explain_md: "Truy cập theo một key duy nhất là đúng sở trường của key-value store; graph dành cho truy vấn quan hệ nhiều bước, và NoSQL thường không có JOIN."
+  - id: t02
+    type: text
+    md: |
+      **Sharding** (partitioning ngang) chia dữ liệu ra nhiều máy. Cách đơn giản là **hash partitioning**: tính hash của key
+      rồi lấy phần dư theo số shard.
+
+      ```text
+      shard = hash(key) % n          # n = số shard
+      "a"  -> 97  -> 97 % 3  = 1
+      "bb" -> 196 -> 196 % 3 = 1     # hai key khác nhau có thể trùng shard
+      ```
+
+      Ưu điểm: key phân bố đều nên tải chia đều. Rủi ro:
+
+      - **Hot shard**: một key quá nóng (hoặc hash lệch) đẩy hết tải vào một máy.
+      - Đổi `n` thì gần như mọi key đổi shard. Hệ thống thật dùng **consistent hashing** để chỉ di chuyển một phần nhỏ.
+      - Query theo khoảng hay theo field khác key sẽ phải hỏi mọi shard (scatter-gather).
+
+      **Định lý CAP**: khi mạng bị chia cắt (**P**artition), hệ phân tán chỉ giữ được một trong hai:
+
+      - **C**onsistency: mọi lần đọc thấy ghi mới nhất.
+      - **A**vailability: mọi request đều nhận được phản hồi.
+
+      Partition là thứ không tránh được, nên thực tế là chọn **CP** (từ chối phục vụ để giữ đúng) hay **AP** (vẫn phục vụ nhưng có thể trả dữ liệu cũ).
+
+      ```text
+      ACID  (relational)       BASE  (nhiều NoSQL kiểu AP)
+      Atomic, Consistent...    Basically Available, Soft state, Eventually consistent
+      ```
+
+      **Eventual consistency**: nếu ngừng ghi, mọi replica rồi sẽ hội tụ về cùng giá trị. Trong lúc đó hai replica có thể
+      trả lời khác nhau. Một cách giải xung đột là **last-write-wins** (giữ bản ghi có timestamp lớn hơn), đơn giản nhưng có thể
+      làm mất một lần ghi.
+  - id: q02
+    type: predict_output
+    code: |
+      shards = [0, 0, 0]
+      for k in ["a", "d", "g"]:
+          shards[ord(k) % 3] += 1
+      print(shards)
+    expected_output: |
+      [0, 3, 0]
+    explain_md: "ord('a')=97, ord('d')=100, ord('g')=103; cả ba chia 3 dư 1 nên đều vào shard 1: đây là hot shard do hash lệch."
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Mạng giữa hai datacenter bị đứt. Hệ thống vẫn nhận ghi ở cả hai phía và hòa giải sau khi mạng nối lại. Theo CAP đó là lựa chọn nào?"
+    options:
+      - {id: a, text_md: "AP: giữ availability, chấp nhận inconsistency tạm thời"}
+      - {id: b, text_md: "CP: giữ consistency, từ chối ghi"}
+      - {id: c, text_md: "CA: không bị ảnh hưởng bởi partition"}
+    answer: [a]
+    explain_md: "Vẫn nhận ghi khi bị chia cắt nghĩa là ưu tiên Availability; hai phía tạm thời khác nhau rồi hội tụ (eventual consistency). CA không tồn tại khi partition xảy ra."
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: đọc giá trị lồng trong document"
+    summary_vi: "Document store lưu JSON lồng nhau; ta mô phỏng truy cập một giá trị sâu bằng đường dẫn."
+    exercise_ref: ex_get_path
+  - id: t03
+    type: text
+    md: |
+      Với document lồng nhau, ta thường đọc một giá trị sâu qua **đường dẫn** (path), ví dụ `user.tags.1`.
+      Dạng list-of-keys: khóa `str` cho dict, chỉ số `int` cho list. Thiếu bất kỳ bước nào thì trả `None`
+      (schema linh hoạt nên field có thể không tồn tại).
+
+      ```text
+      doc = {"user": {"name": "An", "tags": ["x", "y"]}}
+      get_path(doc, ["user", "name"])     # "An"
+      get_path(doc, ["user", "tags", 1])  # "y"
+      get_path(doc, ["user", "email"])    # None
+      ```
+  - id: ex_get_path
+    type: code_exercise
+    md: |
+      Cài `get_path(doc, path)`. `doc` là dict/list/giá trị lồng nhau (kiểu JSON), `path` là list các bước: khóa `str`
+      để vào dict, chỉ số `int` để vào list. Trả về giá trị tại đường dẫn đó; nếu một bước không tồn tại (khóa thiếu,
+      chỉ số ngoài phạm vi, hoặc đang ở giá trị không thể đi tiếp) thì trả `None`. `path` rỗng trả chính `doc`.
+      Ví dụ `get_path({"a": {"b": 5}}, ["a", "b"])` trả `5`.
+    entry: get_path
+    starter: |
+      def get_path(doc, path):
+          # TODO: đi từng bước theo path; thiếu bước nào thì trả None
+          pass
+    guidance_md: |
+      - Giữ biến `cur = doc`, với mỗi bước kiểm tra `cur` là dict hay list.
+      - Với list, chỉ số phải là `int` và nằm trong `0 <= k < len(cur)`.
+    hints:
+      - level: nudge
+        md: "Lặp qua từng phần tử của `path` và cập nhật một biến `cur`."
+      - level: approach
+        md: "Nếu `cur` là dict và khóa có trong `cur` thì `cur = cur[k]`; nếu là list và `k` là int hợp lệ thì lấy phần tử; còn lại trả `None`."
+      - level: near_solution
+        md: "Kết thúc vòng lặp mà không bị `return None` thì trả `cur`."
+    tests:
+      - {args: [{"a": {"b": 5}}, ["a", "b"]], expected: 5}
+      - {args: [{"a": {"b": 5}}, ["a", "c"]], expected: null}
+      - {args: [{"user": {"tags": ["x", "y"]}}, ["user", "tags", 1]], expected: "y"}
+      - {args: [{"a": 1}, []], expected: {"a": 1}}
+      - {args: [{"a": [1, 2]}, ["a", 5]], expected: null}
+    solution: |
+      def get_path(doc, path):
+          cur = doc
+          for k in path:
+              if isinstance(cur, dict) and k in cur:
+                  cur = cur[k]
+              elif isinstance(cur, list) and isinstance(k, int) and 0 <= k < len(cur):
+                  cur = cur[k]
+              else:
+                  return None
+          return cur
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Mô hình nhất quán mà các replica chỉ đảm bảo hội tụ về cùng giá trị nếu ngừng ghi gọi là ___ consistency."
+    blanks: [{accept: ["eventual", "Eventual"]}]
+    explain_md: "Eventual consistency: không đảm bảo đọc thấy ghi mới nhất ngay, nhưng cuối cùng mọi replica giống nhau."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Bốn họ NoSQL: key-value, document, column-family, graph; chọn theo pattern truy cập, relational vẫn tốt cho quan hệ chặt và ACID nhiều bảng."
+      - "Document store dùng dữ liệu denormalized/embedded: đọc nhanh một lần theo key, đổi lại lặp dữ liệu."
+      - "Sharding: shard = hash(key) % n; coi chừng hot shard và việc đổi n làm di chuyển gần hết key (consistent hashing giải quyết)."
+      - "CAP: khi partition phải chọn CP hoặc AP; BASE và eventual consistency đi cùng AP, last-write-wins có thể làm mất một lần ghi."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X813], l2: [X814], l3: [X815]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-07"

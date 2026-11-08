@@ -1,0 +1,69 @@
+id: check-x811-snapshot-reads
+subtopic_id: cs.databases.locking_mvcc
+secondary_subtopics: []
+kind: check
+title: 'Check X811: MVCC snapshot reads'
+title_vi: 'Kiểm tra X811: đọc snapshot MVCC'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Implement `snapshot_reads(versions, read_tss)`, modelling MVCC snapshot reads of ONE key. `versions` is a list of
+  `[commit_ts, value]` pairs (integer `commit_ts`, strictly ascending and unique; integer `value`): the committed
+  versions over time. `read_tss` is a list of integer read timestamps. For each `ts` return the `value` of the version
+  with the LARGEST `commit_ts` that is `<= ts`; if no version has `commit_ts <= ts`, return `None`. Return the list of
+  results in the order of `read_tss` (`[]` if `read_tss` is empty).
+  For `versions = [[10,100],[20,200],[30,300]]` and `read_tss = [25,10,5,30]` the result is `[200, 100, None, 300]`.
+statement_vi_md: |
+  Cài `snapshot_reads(versions, read_tss)`, mô phỏng đọc snapshot MVCC của MỘT key. `versions` là list các cặp
+  `[commit_ts, value]` (commit_ts số nguyên, tăng ngặt và không trùng; value số nguyên): các version đã commit theo
+  thời gian. `read_tss` là list timestamp đọc. Với mỗi `ts`, trả `value` của version có `commit_ts` LỚN NHẤT mà vẫn
+  `<= ts`; nếu không có thì trả `None`. Trả list kết quả theo đúng thứ tự `read_tss` (rỗng thì `[]`). Với ví dụ trên
+  kết quả là `[200, 100, None, 300]`.
+constraints:
+- 'commit_ts tăng ngặt và không trùng; value và timestamp đều là số nguyên'
+- 'Không có version nào <= ts thì trả None'
+- 'Chỉ dùng thư viện chuẩn của Python'
+examples:
+- input: 'versions = [[10,100],[20,200],[30,300]], read_tss = [25,10,5,30]'
+  output: '[200, 100, null, 300]'
+  explain_vi: 'ts=25 thấy version @20 (200); ts=10 thấy @10 (100); ts=5 chưa có version nào (None); ts=30 thấy @30 (300).'
+io:
+  mode: function
+  entry: snapshot_reads
+  params:
+  - name: versions
+    type: list
+  - name: read_tss
+    type: list
+  returns: list
+  compare: exact
+starter:
+  python: |
+    def snapshot_reads(versions, read_tss):
+        # TODO: với mỗi ts, tìm version có commit_ts lớn nhất <= ts; không có thì None
+        pass
+time_target_min: 6
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+hints:
+- "Với mỗi `ts`, chỉ các version có `commit_ts <= ts` là nhìn thấy được; lấy cái cuối cùng trong số đó."
+- "`versions` đã sắp tăng dần nên có thể duyệt tuyến tính hoặc dùng `bisect.bisect_right` trên list các commit_ts."
+- "Với `i = bisect_right(tss, ts)`: nếu `i == 0` thì kết quả là `None`, ngược lại là `versions[i - 1][1]`."
+solution:
+  file: solution.py
+  approach_vi: Tách list commit_ts, với mỗi timestamp đọc dùng bisect_right để tìm vị trí version nhìn thấy được cuối cùng; không có thì None.
+  complexity: "O(v + r*log v) / O(1)"
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x811
+status: validated
+version: 1

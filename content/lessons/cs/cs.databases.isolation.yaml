@@ -1,0 +1,155 @@
+id: cs.databases.isolation
+version: 1
+status: published
+title_vi: "Mức cách ly giao dịch (isolation levels)"
+est_minutes: 15
+objectives_vi:
+  - "Mô tả bốn anomaly: dirty read, non-repeatable read, phantom, lost update."
+  - "Nêu bốn isolation level của ANSI và anomaly nào mỗi mức chặn được."
+  - "Giải thích đánh đổi giữa tính đúng đắn và hiệu năng khi chọn isolation level."
+  - "Mô phỏng một anomaly (non-repeatable read) bằng Python thuần."
+blocks:
+  - id: s_anomalies
+    type: section
+    title_vi: "Các anomaly của giao dịch đồng thời"
+    summary_vi: "Khi nhiều transaction chạy song song mà không cách ly đủ, dữ liệu có thể bị đọc hoặc ghi sai theo bốn kiểu."
+  - id: t01
+    type: text
+    md: |
+      Chữ **I** trong ACID (Isolation) nói rằng các transaction chạy đồng thời không được làm hỏng nhau. Cách ly
+      hoàn toàn rất tốn kém, nên database cho chọn **isolation level**: càng cách ly nhiều càng ít lỗi nhưng càng chậm.
+      Bốn anomaly kinh điển:
+
+      - **Dirty read**: đọc dữ liệu mà transaction khác **chưa commit**; nếu nó rollback thì bạn đã đọc giá trị chưa từng tồn tại.
+      - **Non-repeatable read**: trong cùng một transaction, đọc **cùng một dòng** hai lần nhưng ra hai giá trị, vì transaction khác đã commit sửa dòng đó ở giữa.
+      - **Phantom**: đọc **cùng một điều kiện** (ví dụ `WHERE age > 30`) hai lần nhưng ra tập dòng khác nhau, vì transaction khác đã commit thêm hoặc xóa dòng.
+      - **Lost update**: hai transaction cùng đọc rồi cùng ghi lại, lần ghi sau đè mất lần ghi trước.
+
+      ```text
+      Dirty read:           T1: UPDATE x = 50 (chưa commit)    T2: SELECT x -> 50    T1: ROLLBACK
+      Non-repeatable read:  T1: SELECT x -> 100                T2: UPDATE x = 50; COMMIT    T1: SELECT x -> 50
+      Phantom:              T1: SELECT COUNT(*) WHERE age>30 -> 2    T2: INSERT age=40; COMMIT    T1: lại -> 3
+      Lost update:          T1: đọc x=10   T2: đọc x=10   T1: ghi x=11   T2: ghi x=11   (mất một lần +1)
+      ```
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "T1 sửa x nhưng chưa commit, T2 đọc x thấy giá trị mới, rồi T1 ROLLBACK. T2 gặp anomaly nào?"
+    options:
+      - {id: a, text_md: "Dirty read"}
+      - {id: b, text_md: "Phantom"}
+      - {id: c, text_md: "Lost update"}
+    answer: [a]
+    explain_md: "T2 đọc dữ liệu chưa commit và sau đó bị rollback: đúng định nghĩa dirty read."
+  - id: s_levels
+    type: section
+    title_vi: "Bốn isolation level của ANSI"
+    summary_vi: "Mỗi mức chặn thêm một loại anomaly, đổi lại bằng hiệu năng thấp hơn."
+  - id: t02
+    type: text
+    md: |
+      Bảng ANSI SQL (mức nào **chặn** được anomaly nào):
+
+      ```text
+      Mức                 dirty read   non-repeatable   phantom
+      READ UNCOMMITTED    không chặn   không chặn       không chặn
+      READ COMMITTED      chặn         không chặn       không chặn
+      REPEATABLE READ     chặn         chặn             không chặn
+      SERIALIZABLE        chặn         chặn             chặn
+      ```
+
+      - **READ UNCOMMITTED**: nhanh nhất, ai cũng thấy dữ liệu chưa commit. Hiếm khi dùng.
+      - **READ COMMITTED**: chỉ đọc dữ liệu đã commit; mỗi câu lệnh thấy bản mới nhất. Mặc định của PostgreSQL và Oracle.
+      - **REPEATABLE READ**: đọc lại một dòng luôn ra cùng giá trị trong transaction. Mặc định của MySQL InnoDB.
+      - **SERIALIZABLE**: kết quả như thể các transaction chạy lần lượt từng cái một; an toàn nhất, nhiều xung đột và rollback nhất.
+
+      **Đánh đổi**: mức cao cần nhiều lock hoặc snapshot hơn, giảm throughput và tăng khả năng chờ hoặc phải retry. Chọn mức
+      thấp nhất mà nghiệp vụ còn đúng (báo cáo thống kê chịu được READ COMMITTED; chuyển tiền thường cần cao hơn).
+      Lưu ý: bảng trên là chuẩn ANSI; thực tế mỗi database hiện thực khác nhau (ví dụ MVCC có thể chặn thêm một số anomaly,
+      và lost update vẫn có thể xảy ra ở mức thấp nếu không dùng `SELECT ... FOR UPDATE` hoặc version check).
+  - id: q02
+    type: quiz_mcq
+    prompt_md: "Mức nào là thấp nhất vẫn chặn được non-repeatable read?"
+    options:
+      - {id: a, text_md: "READ COMMITTED"}
+      - {id: b, text_md: "REPEATABLE READ"}
+      - {id: c, text_md: "SERIALIZABLE"}
+    answer: [b]
+    explain_md: "READ COMMITTED vẫn cho non-repeatable read; REPEATABLE READ là mức thấp nhất chặn nó. Phantom thì phải đến SERIALIZABLE (theo ANSI)."
+  - id: q03
+    type: predict_output
+    code: |
+      PREVENTS = {"RC": {"dirty"}, "RR": {"dirty", "non_repeatable"}}
+      print(sorted(PREVENTS["RR"] - PREVENTS["RC"]))
+    expected_output: |
+      ['non_repeatable']
+    explain_md: "Hiệu hai tập cho biết REPEATABLE READ chặn thêm gì so với READ COMMITTED: non_repeatable."
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: phát hiện non-repeatable read"
+    summary_vi: "Quét danh sách các lần đọc và tìm transaction đọc cùng một key ra giá trị khác nhau."
+    exercise_ref: ex_nonrep
+  - id: t03
+    type: text
+    md: |
+      Mô hình: mỗi lần đọc là bộ ba `[txn, key, value]`. Non-repeatable read xảy ra khi **cùng một txn** đọc **cùng một key**
+      và thấy **ít nhất hai giá trị khác nhau**.
+
+      ```text
+      seen = {}                              # (txn, key) -> tập giá trị đã thấy
+      for txn, key, value in reads:
+          seen.setdefault((txn, key), set()).add(value)
+      # (txn, key) nào có len(tập) > 1 là non-repeatable read
+      ```
+  - id: ex_nonrep
+    type: code_exercise
+    md: |
+      Cài `non_repeatable(reads)`. `reads` là list các bộ ba `[txn, key, value]` theo thứ tự thời gian (txn và key là chuỗi,
+      value là số nguyên). Trả về list đã sắp xếp các cặp `[txn, key]` mà `txn` đã đọc `key` và thấy **ít nhất hai giá trị khác nhau**
+      (sắp theo txn rồi theo key; không có thì `[]`). Ví dụ `[["T1","x",5],["T1","x",7]]` cho `[["T1", "x"]]`.
+    entry: non_repeatable
+    starter: |
+      def non_repeatable(reads):
+          # TODO: gom các giá trị đã thấy theo (txn, key); trả các cặp có hơn một giá trị
+          pass
+    guidance_md: |
+      - Dùng dict từ `(txn, key)` sang `set` các giá trị.
+      - Lọc `len(values) > 1`, đổi key thành list và `sorted`.
+    hints:
+      - level: nudge
+        md: "Mỗi cặp (txn, key) cần nhớ những giá trị khác nhau đã đọc."
+      - level: approach
+        md: "Dùng dict của set; sau khi quét hết, giữ cặp có kích thước set lớn hơn 1."
+      - level: near_solution
+        md: "Trả `sorted([list(k) for k, v in seen.items() if len(v) > 1])`."
+    tests:
+      - {args: [[["T1", "x", 5], ["T1", "x", 7]]], expected: [["T1", "x"]]}
+      - {args: [[]], expected: []}
+      - {args: [[["T1", "x", 5], ["T1", "x", 5]]], expected: []}
+      - {args: [[["T1", "x", 1], ["T2", "x", 2], ["T1", "y", 3], ["T1", "x", 1]]], expected: []}
+      - {args: [[["T2", "y", 1], ["T2", "y", 2], ["T1", "x", 1], ["T1", "x", 2], ["T1", "x", 3]]], expected: [["T1", "x"], ["T2", "y"]]}
+    solution: |
+      def non_repeatable(reads):
+          seen = {}
+          for txn, key, value in reads:
+              seen.setdefault((txn, key), set()).add(value)
+          return sorted([list(k) for k, v in seen.items() if len(v) > 1])
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Mức cách ly duy nhất theo ANSI chặn được cả phantom là ___."
+    blanks: [{accept: ["SERIALIZABLE", "serializable"]}]
+    explain_md: "SERIALIZABLE làm các transaction có kết quả như chạy tuần tự nên chặn cả dirty read, non-repeatable read và phantom."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Bốn anomaly: dirty read (đọc chưa commit), non-repeatable read (cùng dòng khác giá trị), phantom (cùng điều kiện khác tập dòng), lost update (ghi đè mất)."
+      - "Bốn mức ANSI: READ UNCOMMITTED, READ COMMITTED, REPEATABLE READ, SERIALIZABLE; mỗi mức chặn thêm một anomaly."
+      - "Mức cao hơn đúng đắn hơn nhưng giảm throughput và tăng xung đột; chọn mức thấp nhất còn đúng nghiệp vụ."
+      - "Thực tế mỗi database khác chuẩn một chút (MVCC); lost update cần FOR UPDATE hoặc version check."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X807], l2: [X808], l3: [X809]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-07"

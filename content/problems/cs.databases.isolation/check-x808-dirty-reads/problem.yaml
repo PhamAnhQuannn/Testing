@@ -1,0 +1,83 @@
+id: check-x808-dirty-reads
+subtopic_id: cs.databases.isolation
+secondary_subtopics: []
+kind: check
+title: 'Check X808: detect dirty reads'
+title_vi: 'Kiểm tra X808: phát hiện dirty read'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Implement `dirty_reads(ops)` that detects dirty reads in a schedule of concurrent transactions. `ops` is a
+  list applied in order; each op is one of:
+
+  - `["write", txn, key, value]`: `txn` (string) writes `value` (int) to `key` (string) and becomes the current
+    **uncommitted writer** of `key` (replacing any previous uncommitted writer of that key);
+  - `["read", txn, key]`: if `key` has an uncommitted writer `w` and `w != txn`, record the pair
+    (reader `txn`, writer `w`); otherwise nothing happens;
+  - `["commit", txn]`: `txn` is no longer the uncommitted writer of any key (its values are clean);
+  - `["abort", txn]`: `txn` is no longer the uncommitted writer of any key, and every pair recorded so far whose
+    writer is `txn` becomes a **confirmed dirty read** (the reader saw data that was rolled back).
+
+  Return the sorted list of distinct reader transactions with at least one confirmed dirty read (`[]` if none).
+  For `[["write","T1","x",5],["read","T2","x"],["abort","T1"]]` the result is `["T2"]`; if `T1` commits instead
+  the result is `[]`.
+statement_vi_md: |
+  Cài `dirty_reads(ops)` phát hiện dirty read trong một lịch (schedule) các transaction chạy đồng thời. `ops` là
+  list thao tác áp dụng theo thứ tự, mỗi thao tác là một trong:
+
+  - `["write", txn, key, value]`: `txn` (chuỗi) ghi `value` (số nguyên) vào `key` (chuỗi) và trở thành
+    **người ghi chưa commit** hiện tại của `key` (thay người ghi chưa commit trước đó của key này);
+  - `["read", txn, key]`: nếu `key` có người ghi chưa commit `w` và `w != txn` thì ghi nhận cặp
+    (reader `txn`, writer `w`); ngược lại không làm gì;
+  - `["commit", txn]`: `txn` không còn là người ghi chưa commit của key nào (dữ liệu đã sạch);
+  - `["abort", txn]`: `txn` không còn là người ghi chưa commit của key nào, và mọi cặp đã ghi nhận có writer là
+    `txn` trở thành **dirty read đã xác nhận** (reader đã đọc dữ liệu bị rollback).
+
+  Trả về list đã sắp xếp các reader khác nhau có ít nhất một dirty read đã xác nhận (không có thì `[]`). Với
+  `[["write","T1","x",5],["read","T2","x"],["abort","T1"]]` kết quả là `["T2"]`; nếu `T1` commit thì kết quả là `[]`.
+constraints:
+- 'Mỗi thao tác là list: ["write", txn, key, value], ["read", txn, key], ["commit", txn] hoặc ["abort", txn]'
+- 'Mỗi key có tối đa một người ghi chưa commit tại một thời điểm'
+- 'Chỉ dùng thư viện chuẩn của Python'
+examples:
+- input: 'ops = [["write","T1","x",5],["read","T2","x"],["abort","T1"]]'
+  output: '["T2"]'
+  explain_vi: 'T2 đọc x khi T1 chưa commit, sau đó T1 abort nên giá trị T2 đọc đã bị rollback: dirty read.'
+io:
+  mode: function
+  entry: dirty_reads
+  params:
+  - name: ops
+    type: list
+  returns: list
+  compare: exact
+starter:
+  python: |
+    def dirty_reads(ops):
+        # TODO: theo dõi người ghi chưa commit của mỗi key, các cặp (reader, writer); khi abort thì xác nhận
+        pass
+time_target_min: 6
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+hints:
+- "Giữ dict `uncommitted` (key sang txn đang ghi chưa commit) và list `pairs` các cặp (reader, writer)."
+- "Khi `read`, chỉ ghi cặp nếu key có writer khác `txn`; khi `commit` hoặc `abort` thì xóa mọi key mà `txn` đang giữ."
+- "Khi `abort txn`, thêm vào tập `confirmed` mọi reader trong `pairs` có writer là `txn`; cuối cùng trả `sorted(confirmed)`."
+solution:
+  file: solution.py
+  approach_vi: Theo dõi người ghi chưa commit của từng key và các cặp reader/writer; khi một writer abort thì xác nhận các reader của nó, cuối cùng sắp xếp tập reader.
+  complexity: "O(n) / O(n)"
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x808
+status: validated
+version: 1
