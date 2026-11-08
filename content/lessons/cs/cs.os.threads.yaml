@@ -1,0 +1,173 @@
+id: cs.os.threads
+version: 1
+status: published
+title_vi: "Luồng và mô hình luồng"
+est_minutes: 15
+objectives_vi:
+  - "Định nghĩa thread và so sánh thread với process (chia sẻ address space, chi phí context switch)."
+  - "Phân biệt user-level thread và kernel-level thread, nắm các mô hình ánh xạ 1:1, N:1, M:N."
+  - "Giải thích race condition vì sao xảy ra khi nhiều thread cùng sửa dữ liệu chung."
+  - "Mô tả thread pool và mô phỏng việc chia việc cho worker có tải nhỏ nhất."
+blocks:
+  - id: s_model
+    type: section
+    title_vi: "Thread là gì và khác process ở đâu"
+    summary_vi: "Thread là đơn vị thực thi nhẹ nằm trong process, chia sẻ bộ nhớ với các thread cùng process."
+  - id: t01
+    type: text
+    md: |
+      **Thread** (luồng) là đơn vị thực thi nhỏ nhất mà OS lập lịch. Một process có thể chứa nhiều thread, tất cả
+      **chia sẻ cùng address space** (code, heap, global data, file descriptor đang mở), nhưng mỗi thread có riêng:
+
+      - **Program counter** và tập thanh ghi.
+      - **Stack** riêng (biến cục bộ, call frame).
+      - **TCB** (Thread Control Block): trạng thái, id, con trỏ stack, độ ưu tiên, con trỏ về PCB của process.
+
+      ```text
+      Process
+      +-------------------------------------------+
+      | code | heap | globals | open files         |   <- dùng chung
+      +-------------------------------------------+
+      |  Thread 1     |  Thread 2     |  Thread 3  |
+      |  PC, regs     |  PC, regs     |  PC, regs  |   <- riêng
+      |  stack        |  stack        |  stack     |
+      +-------------------------------------------+
+      ```
+
+      **Thread vs process**:
+
+      - Process: cô lập bộ nhớ (một process hỏng không kéo process khác), tạo và context switch tốn kém hơn.
+      - Thread: chia sẻ bộ nhớ nên giao tiếp nhanh (đọc ghi biến chung), tạo và context switch rẻ hơn
+        (không đổi address space, ít phải xả TLB). Đổi lại, một thread lỗi có thể làm sập cả process.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Tài nguyên nào MỖI thread có riêng, không chia sẻ với thread khác cùng process?"
+    options:
+      - {id: a, text_md: "Stack và thanh ghi (program counter)"}
+      - {id: b, text_md: "Heap"}
+      - {id: c, text_md: "Biến global"}
+    answer: [a]
+    explain_md: "Heap, global data và file descriptor dùng chung trong process. Stack và thanh ghi là riêng của từng thread."
+  - id: t02
+    type: text
+    md: |
+      **User-level thread** do thư viện ở user space quản lý, kernel không biết chúng tồn tại. Chuyển đổi nhanh,
+      nhưng nếu một thread gọi system call chặn (blocking I/O) thì kernel chặn cả process, và không tận dụng nhiều core.
+
+      **Kernel-level thread** do kernel lập lịch trực tiếp. Chặn một thread không chặn cả process, chạy song song được
+      trên nhiều core, nhưng mỗi thao tác tốn một lần vào kernel.
+
+      **Mô hình ánh xạ** user thread sang kernel thread:
+
+      ```text
+      1:1   mỗi user thread = 1 kernel thread     (Linux pthread, Windows)   song song thật, tốn tài nguyên
+      N:1   nhiều user thread -> 1 kernel thread   nhanh, nhưng không song song, blocking chặn tất cả
+      M:N   M user thread -> N kernel thread       linh hoạt, phức tạp (goroutine kiểu Go)
+      ```
+
+      Hầu hết OS hiện đại dùng **1:1** vì đơn giản và tận dụng được multicore.
+  - id: q02
+    type: predict_output
+    code: |
+      user_threads = 8
+      kernel_threads = 2
+      print(user_threads // kernel_threads)
+    expected_output: |
+      4
+    explain_md: "Mô hình M:N với 8 user thread trên 2 kernel thread: trung bình mỗi kernel thread phục vụ 8 // 2 = 4 user thread."
+  - id: t03
+    type: text
+    md: |
+      Vì các thread chia sẻ bộ nhớ, hai thread cùng sửa một biến sẽ gặp **race condition**: kết quả phụ thuộc vào
+      thứ tự xen kẽ của các lệnh. Phép `counter += 1` thực ra gồm ba bước: **đọc**, **cộng**, **ghi**.
+
+      ```text
+      counter = 0
+      Thread A: đọc 0             Thread B: đọc 0
+      Thread A: ghi 1             Thread B: ghi 1     -> counter = 1, mất một lần cộng!
+      ```
+
+      Đoạn code cần chạy nguyên vẹn không bị xen vào gọi là **critical section**. Cách bảo vệ (mutex, semaphore,
+      lock) là chủ đề của bài kế tiếp, **cs.os.sync**. Điểm cần nhớ ở đây: dữ liệu chung có thể sửa (shared mutable state)
+      luôn cần đồng bộ hoá.
+
+      **Thread pool**: thay vì tạo thread mới cho mỗi việc (tốn kém, dễ quá tải), ta giữ một số worker thread cố định
+      và đẩy task vào hàng đợi; worker rảnh lấy task tiếp theo. Lợi ích: giới hạn số thread, tái sử dụng thread,
+      giảm chi phí tạo huỷ.
+
+      ```text
+      tasks -> [ hàng đợi ] -> worker 0
+                            -> worker 1
+                            -> worker 2   (worker rảnh nhất lấy việc kế tiếp)
+      ```
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Hai thread cùng thực hiện `counter += 1` trên biến chung mà không có khoá. Vì sao có thể mất một lần cộng?"
+    options:
+      - {id: a, text_md: "Vì phép cộng gồm đọc, cộng, ghi và hai thread có thể cùng đọc giá trị cũ"}
+      - {id: b, text_md: "Vì mỗi thread có bản sao riêng của heap"}
+      - {id: c, text_md: "Vì CPU không cộng được số nguyên song song"}
+    answer: [a]
+    explain_md: "Cả hai đọc 0, cùng ghi 1: một cập nhật bị ghi đè. Đó là race condition do thiếu đồng bộ hoá."
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: chọn worker rảnh nhất"
+    summary_vi: "Tìm worker có tải nhỏ nhất, hoà thì lấy chỉ số thấp nhất."
+    exercise_ref: ex_least
+  - id: t04
+    type: text
+    md: |
+      Một thread pool đơn giản chia việc cho worker đang có **tổng tải nhỏ nhất**. Khi hai worker bằng tải thì lấy
+      worker có chỉ số thấp hơn cho kết quả xác định.
+
+      ```text
+      loads = [3, 1, 2]  -> worker 1 (tải 1)
+      loads = [0, 0]     -> worker 0 (hoà, chọn chỉ số thấp)
+      ```
+  - id: ex_least
+    type: code_exercise
+    md: |
+      Cài `least_loaded(loads)`: `loads` là list số nguyên không âm, tải hiện tại của từng worker (không rỗng).
+      Trả về chỉ số của worker có tải nhỏ nhất; nếu hoà thì trả chỉ số nhỏ nhất. Ví dụ `least_loaded([3, 1, 2])` trả `1`.
+    entry: least_loaded
+    starter: |
+      def least_loaded(loads):
+          # TODO: trả về chỉ số worker có tải nhỏ nhất (hoà thì chỉ số thấp nhất)
+          pass
+    guidance_md: |
+      - `min(...)` trả giá trị nhỏ nhất, `list.index(...)` trả vị trí xuất hiện đầu tiên.
+    hints:
+      - level: nudge
+        md: "Tìm tải nhỏ nhất trước, rồi tìm vị trí của nó."
+      - level: approach
+        md: "`list.index` trả vị trí đầu tiên nên tự xử lý hoà theo chỉ số thấp."
+      - level: near_solution
+        md: "Trả `loads.index(min(loads))`."
+    tests:
+      - {args: [[3, 1, 2]], expected: 1}
+      - {args: [[0, 0]], expected: 0}
+      - {args: [[5]], expected: 0}
+      - {args: [[4, 2, 2, 9]], expected: 1}
+    solution: |
+      def least_loaded(loads):
+          return loads.index(min(loads))
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Đoạn code không được phép bị xen vào bởi thread khác khi truy cập dữ liệu chung gọi là ___ section."
+    blanks: [{accept: ["critical", "Critical"]}]
+    explain_md: "Critical section là đoạn truy cập tài nguyên chung cần loại trừ lẫn nhau (mutual exclusion)."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Thread chia sẻ address space của process (code, heap, global) nhưng có stack, thanh ghi và TCB riêng; rẻ hơn process nhưng không cô lập."
+      - "User-level thread nhanh nhưng blocking chặn cả process; kernel-level thread song song được. Mô hình 1:1, N:1, M:N; OS hiện đại thường dùng 1:1."
+      - "Nhiều thread sửa dữ liệu chung không đồng bộ gây race condition (đọc-cộng-ghi bị xen kẽ); cần khoá, sẽ học ở cs.os.sync."
+      - "Thread pool giữ số worker cố định, chia task cho worker rảnh nhất để giới hạn tài nguyên và tái sử dụng thread."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X846], l2: [X847], l3: [X848]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-08"

@@ -1,0 +1,172 @@
+id: cs.os.scheduling
+version: 1
+status: published
+title_vi: "Lập lịch CPU"
+est_minutes: 15
+objectives_vi:
+  - "Giải thích vai trò của CPU scheduler và phân biệt preemptive với non-preemptive."
+  - "Mô tả FCFS, SJF/SRTF, Round Robin (time quantum) và Priority, kèm ưu nhược điểm."
+  - "Tính turnaround time, waiting time, response time và hiểu throughput."
+  - "Nhận ra convoy effect, starvation và mô phỏng FCFS để tính waiting time."
+blocks:
+  - id: s_model
+    type: section
+    title_vi: "Scheduler làm gì và đo bằng gì"
+    summary_vi: "Nhiều process chờ CPU; scheduler chọn process nào chạy tiếp, và ta đo chất lượng lựa chọn bằng vài metric."
+  - id: t01
+    type: text
+    md: |
+      CPU chỉ chạy được một process mỗi lõi tại một thời điểm, trong khi có nhiều process ở trạng thái **ready**.
+      **CPU scheduler** là phần của OS chọn process nào trong ready queue được cấp CPU tiếp theo. Việc đổi sang
+      process khác gọi là **context switch** (có chi phí).
+
+      Hai kiểu lập lịch:
+
+      - **Non-preemptive**: process đã được cấp CPU thì chạy cho đến khi xong hoặc tự nhường (ví dụ chờ I/O).
+      - **Preemptive**: OS có thể lấy CPU lại giữa chừng (hết time slice, hoặc có process ưu tiên cao hơn đến).
+
+      Các metric thường dùng cho mỗi process:
+
+      ```text
+      turnaround time = completion - arrival      (tổng thời gian từ lúc đến đến lúc xong)
+      waiting time    = turnaround - burst        (thời gian chờ trong ready queue)
+      response time   = first run - arrival       (từ lúc đến đến lần đầu được chạy)
+      throughput      = số process hoàn thành / đơn vị thời gian
+      ```
+
+      Trong đó **burst** là thời gian CPU mà process cần. Không có thuật toán tốt nhất cho mọi metric: giảm waiting
+      trung bình thường làm tăng response time của job dài, và ngược lại.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Lập lịch kiểu preemptive khác non-preemptive ở điểm nào?"
+    options:
+      - {id: a, text_md: "OS có thể thu hồi CPU từ process đang chạy trước khi nó xong"}
+      - {id: b, text_md: "Process luôn chạy đến khi xong, OS không can thiệp"}
+      - {id: c, text_md: "Preemptive không cần context switch"}
+    answer: [a]
+    explain_md: "Preemptive cho phép OS ngắt process (hết time slice hoặc có process ưu tiên cao hơn). Non-preemptive thì không, và preemptive vẫn tốn context switch."
+  - id: t02
+    type: text
+    md: |
+      **Các thuật toán phổ biến**:
+
+      - **FCFS** (First-Come-First-Served): ai đến trước chạy trước, non-preemptive. Đơn giản, công bằng theo thứ tự đến,
+        nhưng một job dài đứng đầu làm mọi job ngắn phía sau phải chờ: **convoy effect**.
+      - **SJF** (Shortest Job First): chọn job có burst ngắn nhất. Cho waiting time trung bình nhỏ nhất, nhưng cần biết
+        trước burst và job dài có thể bị bỏ đói. Bản preemptive là **SRTF** (Shortest Remaining Time First).
+      - **Round Robin**: mỗi process chạy tối đa một **time quantum** rồi quay lại cuối queue. Preemptive, response time tốt,
+        phù hợp hệ chia sẻ thời gian. Quantum quá lớn thì giống FCFS; quá nhỏ thì tốn context switch.
+      - **Priority**: chọn process có độ ưu tiên cao nhất. Có thể preemptive hoặc không. Nguy cơ **starvation**: process ưu
+        tiên thấp không bao giờ được chạy; cách chữa là **aging** (tăng dần priority theo thời gian chờ).
+
+      ```text
+      Cả ba job đến t=0, burst = 6, 2, 4
+
+      FCFS (6,2,4):  waiting = 0, 6, 8   -> trung bình 4.67
+      SJF  (2,4,6):  waiting = 0, 2, 6   -> trung bình 2.67
+      ```
+  - id: q02
+    type: predict_output
+    code: |
+      arrival = 2
+      burst = 3
+      completion = 9
+      print(completion - arrival - burst)
+    expected_output: |
+      4
+    explain_md: "Turnaround = 9 - 2 = 7, waiting = turnaround - burst = 7 - 3 = 4."
+  - id: t03
+    type: text
+    md: |
+      **FCFS từng bước**: giữ đồng hồ `t`. Với mỗi job theo thứ tự đến, job bắt đầu ở `max(t, arrival)`
+      (nếu CPU rảnh trước khi job đến thì CPU idle), waiting time là `start - arrival`, rồi đồng hồ nhảy tới `start + burst`.
+
+      ```text
+      jobs (arrival, burst): (0,4) (1,3) (2,1)
+
+      job0: start 0, wait 0, t = 4
+      job1: start 4, wait 3, t = 7
+      job2: start 7, wait 5, t = 8
+      ```
+
+      Job cuối chỉ cần 1 đơn vị CPU nhưng chờ 5 vì job đầu giữ CPU lâu: đó là convoy effect.
+
+      **Round Robin**: một job có burst `b` với quantum `q` cần `ceil(b / q)` lượt chạy nếu chạy một mình. Ví dụ burst 5,
+      quantum 2 cần 3 lượt (2, 2, 1).
+
+      **Chọn gì**: hệ batch ưu tiên throughput có thể dùng FCFS/SJF; hệ interactive (desktop, server) ưu tiên response time
+      nên dùng Round Robin hoặc biến thể nhiều hàng đợi có priority. Linux hiện đại dùng scheduler chia công bằng (CFS/EEVDF), tư
+      tưởng gần với Round Robin có trọng số.
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Job dài đến trước làm các job ngắn phía sau chờ rất lâu trong FCFS. Hiện tượng này gọi là gì?"
+    options:
+      - {id: a, text_md: "Convoy effect"}
+      - {id: b, text_md: "Starvation"}
+      - {id: c, text_md: "Context switch"}
+    answer: [a]
+    explain_md: "Convoy effect: nhiều job ngắn xếp hàng sau một job dài. Starvation là process bị bỏ đói vô hạn (thường do priority)."
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: số lượt Round Robin"
+    summary_vi: "Tính một job cần bao nhiêu lượt chạy dưới Round Robin với quantum cho trước."
+    exercise_ref: ex_rr
+  - id: t04
+    type: text
+    md: |
+      Mỗi lượt chạy tối đa `quantum` đơn vị, nên số lượt là phép chia làm tròn lên. Trong số nguyên:
+      `(burst + quantum - 1) // quantum`.
+
+      ```text
+      burst=5, quantum=2 -> 3 lượt
+      burst=4, quantum=2 -> 2 lượt
+      burst=1, quantum=3 -> 1 lượt
+      ```
+  - id: ex_rr
+    type: code_exercise
+    md: |
+      Cài `rr_turns(burst, quantum)`: `burst` và `quantum` là số nguyên dương. Trả về số lượt CPU mà một job cần dưới
+      Round Robin nếu nó chạy một mình (mỗi lượt tối đa `quantum`). Ví dụ `rr_turns(5, 2)` trả `3`.
+    entry: rr_turns
+    starter: |
+      def rr_turns(burst, quantum):
+          # TODO: trả về số lượt = burst chia quantum làm tròn lên
+          pass
+    guidance_md: |
+      - Chia làm tròn lên: nếu còn dư thì cần thêm một lượt.
+      - Có thể dùng `(burst + quantum - 1) // quantum`.
+    hints:
+      - level: nudge
+        md: "Mỗi lượt xử lý tối đa quantum đơn vị burst."
+      - level: approach
+        md: "Cần chia làm tròn lên: 5 chia 2 là 3, không phải 2."
+      - level: near_solution
+        md: "Trả `(burst + quantum - 1) // quantum`."
+    tests:
+      - {args: [5, 2], expected: 3}
+      - {args: [4, 2], expected: 2}
+      - {args: [1, 3], expected: 1}
+      - {args: [7, 7], expected: 1}
+    solution: |
+      def rr_turns(burst, quantum):
+          return (burst + quantum - 1) // quantum
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Trong Priority scheduling, process ưu tiên thấp có thể không bao giờ được chạy: đó là ___."
+    blanks: [{accept: ["starvation", "Starvation"]}]
+    explain_md: "Starvation (bỏ đói). Aging tăng dần priority theo thời gian chờ để tránh tình trạng này."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Scheduler chọn process ready nào chạy tiếp; preemptive có thể thu hồi CPU, non-preemptive thì không."
+      - "FCFS đơn giản nhưng có convoy effect; SJF/SRTF tối ưu waiting time trung bình nhưng cần biết burst; Round Robin dùng time quantum cho response time tốt; Priority có nguy cơ starvation (chữa bằng aging)."
+      - "Turnaround = completion - arrival; waiting = turnaround - burst; response = first run - arrival; throughput = số job xong trên đơn vị thời gian."
+      - "Mô phỏng FCFS: start = max(t, arrival), wait = start - arrival, rồi t = start + burst."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X852], l2: [X853], l3: [X854]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-08"

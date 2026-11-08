@@ -1,0 +1,67 @@
+id: check-x850-semaphore
+subtopic_id: cs.os.sync
+secondary_subtopics: []
+kind: check
+title: 'Check X850: counting semaphore'
+title_vi: 'Kiểm tra X850: counting semaphore'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Implement `semaphore(ops, initial)`, a model of a counting semaphore. `ops` is a list of strings, each `"P"`
+  (wait / down) or `"V"` (signal / up); `initial` is the starting count (an int `>= 0`). Process the ops in order:
+  on `"V"` do `count += 1`; on `"P"`, if `count > 0` then `count -= 1`, otherwise the P is BLOCKED (it has no effect
+  on `count`; add 1 to a blocked counter). Return `[final_count, blocked_P_count]`.
+  For `semaphore(["P", "P", "V", "P"], 1)` the result is `[0, 1]`.
+statement_vi_md: |
+  Cài `semaphore(ops, initial)`, mô phỏng một counting semaphore. `ops` là list chuỗi, mỗi phần tử là `"P"` (wait,
+  down) hoặc `"V"` (signal, up); `initial` là giá trị đếm ban đầu (số nguyên `>= 0`). Xử lý lần lượt: với `"V"` thì
+  `count += 1`; với `"P"` thì nếu `count > 0` thì `count -= 1`, ngược lại P bị BLOCK (không đổi `count`, tăng bộ đếm
+  số P bị block thêm 1). Trả về `[count_cuối, số_P_bị_block]`. Với ví dụ trên kết quả là `[0, 1]`.
+constraints:
+- 'ops chỉ gồm "P" và "V"; initial là số nguyên không âm'
+- 'P bị block không làm thay đổi count và không được thực hiện lại về sau'
+- 'Chỉ dùng thư viện chuẩn của Python'
+examples:
+- input: 'ops = ["P", "P", "V", "P"], initial = 1'
+  output: '[0,1]'
+  explain_vi: 'P: 1 thành 0. P: count = 0 nên bị block. V: thành 1. P: thành 0. Cuối cùng count = 0, 1 P bị block.'
+io:
+  mode: function
+  entry: semaphore
+  params:
+  - name: ops
+    type: list
+  - name: initial
+    type: int
+  returns: list
+  compare: exact
+starter:
+  python: |
+    def semaphore(ops, initial):
+        # TODO: duyệt ops; V tăng count; P giảm nếu count > 0, ngược lại đếm là bị block
+        pass
+time_target_min: 6
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+hints:
+- "Giữ hai biến: `count = initial` và `blocked = 0`, rồi duyệt `ops` theo thứ tự."
+- "Nếu `op == \"V\"` thì `count += 1`; ngược lại (là P) mà `count > 0` thì `count -= 1`."
+- "P khi `count == 0` chỉ tăng `blocked` thêm 1 và không đổi `count`; cuối cùng trả `[count, blocked]`."
+solution:
+  file: solution.py
+  approach_vi: Duyệt ops một lần; V tăng count, P giảm count nếu còn dương, ngược lại tăng bộ đếm P bị block.
+  complexity: "O(n) / O(1)"
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x850
+status: validated
+version: 1

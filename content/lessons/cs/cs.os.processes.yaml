@@ -1,0 +1,173 @@
+id: cs.os.processes
+version: 1
+status: published
+title_vi: "Tiến trình, kernel và system call"
+est_minutes: 15
+objectives_vi:
+  - "Mô tả process là chương trình đang chạy: address space, PCB, và phân biệt với program trên đĩa."
+  - "Giải thích ranh giới user mode và kernel mode, và system call đi qua trap như thế nào."
+  - "Mô tả fork()/exec()/wait(), cây process cha con, zombie và orphan."
+  - "Đọc được vòng đời process (new, ready, running, waiting, terminated) và tính độ sâu của cây process."
+blocks:
+  - id: s_model
+    type: section
+    title_vi: "Process, kernel và system call"
+    summary_vi: "Process là chương trình đang chạy; mọi việc đụng tới phần cứng phải xin kernel qua system call."
+  - id: t01
+    type: text
+    md: |
+      **Program** là file nằm trên đĩa (code và dữ liệu tĩnh). **Process** là chương trình **đang thực thi**: một program được nạp vào
+      bộ nhớ cùng trạng thái chạy của nó. Một program có thể sinh ra nhiều process (mở trình duyệt hai lần).
+
+      Mỗi process có:
+
+      - **Address space** riêng: code, data, heap, stack. Process này không đọc được bộ nhớ của process kia (cô lập).
+      - **PCB** (Process Control Block, do kernel giữ): pid, ppid, state, giá trị thanh ghi và program counter khi bị dừng,
+        thông tin bộ nhớ, bảng file descriptor đang mở.
+
+      Hệ điều hành chia CPU thành hai chế độ:
+
+      - **User mode**: code ứng dụng, không được chạm trực tiếp phần cứng hay bộ nhớ của kernel.
+      - **Kernel mode**: kernel chạy đặc quyền, quản lý CPU, bộ nhớ, đĩa, mạng.
+
+      Khi ứng dụng cần dịch vụ của kernel (đọc file, tạo process, gửi gói tin) nó gọi **system call**. Lệnh gọi này thực hiện
+      một **trap**: CPU chuyển sang kernel mode, nhảy vào handler của kernel, xong thì trở về user mode.
+
+      ```text
+      user mode:    read(fd, buf, n)  --trap-->  |  kernel mode: kiểm tra, đọc đĩa, copy dữ liệu
+                    <----- trả kết quả --------  |
+      ```
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Vì sao ứng dụng phải gọi system call thay vì tự đọc đĩa trực tiếp?"
+    options:
+      - {id: a, text_md: "User mode không được truy cập phần cứng; chỉ kernel mode làm được, nên phải trap vào kernel"}
+      - {id: b, text_md: "Vì system call luôn nhanh hơn gọi hàm thường"}
+      - {id: c, text_md: "Vì ngôn ngữ lập trình cấm truy cập đĩa"}
+    answer: [a]
+    explain_md: "Ranh giới user/kernel mode bảo vệ hệ thống: chỉ kernel mới chạm phần cứng, và system call (trap) là cổng vào duy nhất có kiểm soát."
+  - id: t02
+    type: text
+    md: |
+      **Tạo process** trên Unix dùng hai bước:
+
+      - **fork()**: tạo process **con** là bản sao của process cha (address space sao chép, thường copy-on-write). Cả hai
+        tiếp tục chạy từ ngay sau `fork()`. Cha nhận về pid của con, con nhận về `0`.
+      - **exec()**: thay chương trình đang chạy trong process hiện tại bằng một program mới (pid giữ nguyên).
+      - **wait()**: cha chờ con kết thúc và thu lấy exit status.
+
+      Mỗi process có **pid** và **ppid** (pid của cha). Chuỗi fork tạo thành **cây process**; gốc là `init`/`systemd` (pid 1).
+
+      ```text
+      1 (init)
+      ├── 2
+      │   └── 4
+      └── 3          edges = [[1,0],[2,1],[3,1],[4,2]]   (pid, ppid)
+      ```
+
+      Shell chạy lệnh bằng chính cặp này: `fork()` ra con, con `exec()` chương trình, shell `wait()`.
+  - id: q02
+    type: predict_output
+    code: |
+      pid = 1
+      children = []
+      for k in range(3):
+          children.append(pid * 10 + k)
+      print(children)
+    expected_output: |
+      [10, 11, 12]
+    explain_md: "Vòng lặp thêm 10, 11, 12 theo thứ tự k = 0, 1, 2."
+  - id: t03
+    type: text
+    md: |
+      **Trạng thái process** (process state):
+
+      ```text
+      new --admit--> ready --dispatch--> running --exit--> terminated
+                       ^                    |
+                       |                    | chờ I/O hoặc sự kiện
+                       +---- waiting <------+      (xong I/O: waiting -> ready)
+      ```
+
+      - **ready**: sẵn sàng, chờ CPU. **running**: đang chiếm CPU. **waiting** (blocked): chờ I/O hay sự kiện.
+      - Hết time slice, scheduler đưa running về ready rồi chọn process khác.
+
+      **Context switch**: kernel lưu thanh ghi và program counter của process cũ vào PCB, nạp của process mới. Nhờ vậy nhiều process
+      chia sẻ một CPU. Context switch là chi phí thuần (không làm việc hữu ích), nên không nên diễn ra quá dày.
+
+      **Zombie và orphan**:
+
+      - **Zombie**: process đã `exit` nhưng cha chưa `wait()`. Kernel còn giữ PCB nhỏ để cha lấy exit status. Cha luôn quên `wait()` thì zombie tích tụ.
+      - **Orphan**: cha chết trước con. Con được **init** (pid 1) nhận nuôi (reparent), và init sẽ `wait()` giúp.
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Process con đã exit nhưng process cha chưa gọi wait(). Con ở trạng thái nào?"
+    options:
+      - {id: a, text_md: "Zombie: còn PCB để cha đọc exit status"}
+      - {id: b, text_md: "Orphan: con được init nhận nuôi"}
+      - {id: c, text_md: "Ready: chờ CPU để chạy tiếp"}
+    answer: [a]
+    explain_md: "Zombie = đã chết nhưng chưa được cha thu (reap). Orphan là trường hợp ngược lại: cha chết trước."
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: con của một process"
+    summary_vi: "Từ danh sách [pid, ppid], liệt kê các process con trực tiếp của một pid."
+    exercise_ref: ex_children
+  - id: t04
+    type: text
+    md: |
+      Cây process được lưu dưới dạng danh sách cạnh `[pid, ppid]`. Con trực tiếp của `p` là mọi `pid` có `ppid == p`.
+
+      ```text
+      edges = [[1,0],[2,1],[3,1],[4,2]]
+      con của 1 -> [2, 3]      con của 2 -> [4]      con của 4 -> []
+      ```
+  - id: ex_children
+    type: code_exercise
+    md: |
+      Cài `children_of(edges, p)`: `edges` là list các `[pid, ppid]`, `p` là một pid. Trả về list **đã sắp xếp tăng dần**
+      các pid là con trực tiếp của `p` (rỗng nếu không có). Ví dụ với cây trên, `children_of(edges, 1)` trả `[2, 3]`.
+    entry: children_of
+    starter: |
+      def children_of(edges, p):
+          # TODO: các pid có ppid == p, sắp xếp tăng dần
+          pass
+    guidance_md: |
+      - Duyệt từng cặp `[pid, ppid]` và giữ pid nếu `ppid == p`.
+      - Nhớ sắp xếp kết quả.
+    hints:
+      - level: nudge
+        md: "Con trực tiếp của p là process có ppid bằng p."
+      - level: approach
+        md: "Lọc các cặp có ppid == p rồi lấy pid."
+      - level: near_solution
+        md: "Trả `sorted(pid for pid, ppid in edges if ppid == p)`."
+    tests:
+      - {args: [[[1, 0], [2, 1], [3, 1], [4, 2]], 1], expected: [2, 3]}
+      - {args: [[[1, 0], [2, 1], [3, 1], [4, 2]], 2], expected: [4]}
+      - {args: [[[1, 0], [2, 1], [3, 1], [4, 2]], 4], expected: []}
+      - {args: [[[1, 0], [5, 1], [3, 1]], 1], expected: [3, 5]}
+      - {args: [[], 1], expected: []}
+    solution: |
+      def children_of(edges, p):
+          return sorted(pid for pid, ppid in edges if ppid == p)
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Sau fork(), process con nhận giá trị trả về là ___ còn cha nhận pid của con."
+    blanks: [{accept: ["0", "không", "zero"]}]
+    explain_md: "fork() trả 0 trong process con và trả pid của con trong process cha; nhờ đó code phân biệt được hai bên."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Process là chương trình đang chạy với address space riêng và PCB do kernel giữ; program chỉ là file trên đĩa."
+      - "User mode không chạm phần cứng; system call gây trap vào kernel mode rồi trở về user mode."
+      - "fork() nhân bản process, exec() thay chương trình, wait() thu con; các process tạo thành cây theo [pid, ppid]."
+      - "Trạng thái: new, ready, running, waiting, terminated; context switch lưu/nạp PCB; zombie chưa được wait(), orphan được init nhận nuôi."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X843], l2: [X844], l3: [X845]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-08"

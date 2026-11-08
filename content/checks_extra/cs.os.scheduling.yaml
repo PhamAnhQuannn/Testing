@@ -1,0 +1,48 @@
+subtopic_id: cs.os.scheduling
+items:
+  - id: X852
+    difficulty: 1
+    type: read_code
+    minutes: 3
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng.
+    code: |-
+      jobs = [(0, 4), (1, 3), (2, 1)]
+      t = 0
+      for arrival, burst in jobs:
+          start = max(t, arrival)
+          print(start - arrival)
+          t = start + burst
+    expected_output: "0\n3\n5"
+    answer_md: "Đây là FCFS. Job (0,4): start 0, wait 0, t=4. Job (1,3): start max(4,1)=4, wait 3, t=7. Job (2,1): start max(7,2)=7, wait 5, t=8."
+    rubric_md: "Output khớp từng dòng. Đúng: bằng chứng điểm 1; sai: tối đa điểm 0."
+  - id: X853
+    difficulty: 2
+    type: write_code
+    minutes: 6
+    prompt_md: |
+      Viết hàm `fcfs_waiting(jobs)` mô phỏng lập lịch CPU First-Come-First-Served (non-preemptive). `jobs` là list các `[arrival, burst]` (số nguyên). Lập lịch các job theo `arrival` tăng dần (cùng `arrival` thì job có chỉ số đầu vào nhỏ hơn chạy trước). Giữ đồng hồ `t = 0`; với mỗi job theo thứ tự lập lịch: `start = max(t, arrival)`, `wait = start - arrival`, rồi `t = start + burst` (CPU idle nếu có khoảng trống trước lần đến kế tiếp). Trả về list waiting time theo THỨ TỰ ĐẦU VÀO ban đầu của `jobs` (không phải thứ tự arrival). Ví dụ `fcfs_waiting([[0,4],[1,3],[2,1]])` cho `[0,3,5]`; `fcfs_waiting([[2,2],[0,3]])` cho `[1,0]`; danh sách rỗng cho `[]`.
+    problem_id: check-x853-fcfs-waiting
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 6 phút: bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X854
+    difficulty: 3
+    type: read_code
+    minutes: 5
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng và giải thích vì sao thứ tự job ảnh hưởng đến tổng waiting time (convoy effect).
+    code: |-
+      def total_wait(bursts):
+          t = 0
+          total = 0
+          for b in bursts:
+              total += t
+              t += b
+          return total
+
+
+      bursts = [6, 2, 4]
+      print(total_wait(bursts))
+      print(total_wait(sorted(bursts)))
+      print(total_wait(sorted(bursts)) < total_wait(bursts))
+      print(total_wait([]))
+    expected_output: "14\n8\nTrue\n0"
+    answer_md: "Cả ba job đến t=0. Thứ tự 6,2,4: wait 0, 6, 8 nên tổng 14. Thứ tự 2,4,6 (SJF): wait 0, 2, 6 nên tổng 8. 8 < 14 nên in True. Danh sách rỗng cho 0. Khi job dài 6 đứng đầu, hai job ngắn phải chờ sau nó (convoy effect), còn chạy job ngắn trước thì ít job phải chờ lâu."
+    rubric_md: "Output khớp từng dòng VÀ giải thích đúng: job dài đứng đầu làm các job sau chờ lâu (convoy effect); chạy job ngắn trước (SJF) giảm tổng waiting time. Đúng: bằng chứng điểm 3; sai: tối đa điểm 2."
