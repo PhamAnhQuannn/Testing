@@ -1,0 +1,67 @@
+id: check-x820-merge-runs
+subtopic_id: cs.databases.lsm_storage
+secondary_subtopics: []
+kind: check
+title: 'Check X820: merge LSM runs'
+title_vi: 'Kiểm tra X820: gộp các run của LSM-tree'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Implement `merge_runs(runs)`, a model of LSM-tree compaction. `runs` is a list of runs ordered **oldest to
+  newest**; each run is a list of `[key, value]` pairs (string key, int value) with unique keys inside one run.
+  Merge all runs into one: when a key appears in several runs, the value from the **newest** run (the latest in
+  `runs`) wins. Return the merged pairs as a list of `[key, value]` lists sorted by key ascending (`[]` if there
+  is no data).
+  For `[[["a",1],["b",2]], [["b",9],["c",3]]]` the result is `[["a", 1], ["b", 9], ["c", 3]]`.
+statement_vi_md: |
+  Cài `merge_runs(runs)`, mô hình compaction của LSM-tree. `runs` là list các run xếp theo thứ tự **cũ đến mới**;
+  mỗi run là list các cặp `[key, value]` (key chuỗi, value số nguyên), key không trùng trong cùng một run. Gộp tất
+  cả thành một: khi một key có ở nhiều run thì giá trị của run **mới nhất** (đứng sau trong `runs`) thắng. Trả về
+  list các cặp `[key, value]` (mỗi cặp là list) sắp theo key tăng dần (không có dữ liệu thì `[]`). Với ví dụ trên
+  kết quả là `[["a", 1], ["b", 9], ["c", 3]]`.
+constraints:
+- 'runs xếp từ cũ đến mới; mỗi run là list các cặp [key, value], key không trùng trong một run'
+- 'Key là chuỗi, value là số nguyên (có thể âm)'
+- 'Chỉ dùng thư viện chuẩn của Python'
+examples:
+- input: 'runs = [[["a",1],["b",2]], [["b",9],["c",3]]]'
+  output: '[["a", 1], ["b", 9], ["c", 3]]'
+  explain_vi: 'b có ở cả hai run; run mới hơn thắng nên b = 9. a và c chỉ có ở một run nên giữ nguyên.'
+io:
+  mode: function
+  entry: merge_runs
+  params:
+  - name: runs
+    type: list
+  returns: list
+  compare: exact
+starter:
+  python: |
+    def merge_runs(runs):
+        # TODO: gộp các run từ cũ đến mới (run mới ghi đè), trả list [key, value] sắp theo key
+        pass
+time_target_min: 6
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+hints:
+- "Dùng một dict `merged`; duyệt các run theo đúng thứ tự cũ đến mới."
+- "Với mỗi cặp `key, value` trong mỗi run, gán `merged[key] = value`: run đến sau tự ghi đè run trước."
+- "Cuối cùng trả `[[k, merged[k]] for k in sorted(merged)]`."
+solution:
+  file: solution.py
+  approach_vi: Duyệt run từ cũ đến mới vào một dict để bản mới ghi đè bản cũ, rồi sắp key và trả list các cặp.
+  complexity: "O(total) / O(keys)"
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x820
+status: validated
+version: 1

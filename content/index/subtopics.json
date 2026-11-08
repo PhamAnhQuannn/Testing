@@ -11221,6 +11221,494 @@
       "plan_hours": 4
     },
     {
+      "id": "cs.databases.lsm_storage",
+      "section": "cs",
+      "module": "cs.databases",
+      "name_vi": "Storage engine: LSM-tree và B-tree (storage engines)",
+      "order": 10,
+      "summary_vi": "Database có hai cách lưu xuống đĩa: B-tree sửa dữ liệu ngay tại chỗ nên đọc nhanh; LSM-tree chỉ ghi nối tiếp (vào bộ nhớ rồi đổ thành file mới) và thỉnh thoảng gộp file nên ghi rất nhanh. Học xong bạn chọn kiểu lưu cho hệ nhiều đọc hay nhiều ghi.",
+      "mastery_bar_vi": "Mức 3: giải thích đường ghi và đường đọc của LSM-tree, so sánh với B-tree và chọn kiểu lưu theo hệ nhiều đọc hay nhiều ghi.",
+      "prerequisites": [
+        "cs.databases.indexing_btree",
+        "cs.databases.transactions_acid"
+      ],
+      "lang_prereqs": {
+        "python": [],
+        "java": []
+      },
+      "key_concepts": [
+        "write-ahead log (WAL)",
+        "LSM: memtable, SSTable, compaction",
+        "bloom filter",
+        "write/read/space amplification",
+        "B-tree vs LSM trade-offs",
+        "row store vs column store (OLTP vs OLAP)",
+        "in-memory databases",
+        "which index serves WHERE user_id=? ORDER BY ts DESC LIMIT 20"
+      ],
+      "concepts_vi": [
+        {
+          "text": "Đĩa ghi nối tiếp nhanh hơn nhiều so với sửa rải rác nhiều chỗ (nhảy cóc): ổ quay (HDD) vì phải dời đầu đọc, SSD vì ghi theo khối. Đây là lý do LSM ghi nhanh.",
+          "level": "co_ban"
+        },
+        {
+          "text": "B-tree (cây B+ ở mục index) sửa tại chỗ: mỗi khóa nằm đúng một nơi nên đọc nhanh, nhưng ghi phải nhảy tới nơi đó nên chậm hơn.",
+          "level": "co_ban"
+        },
+        {
+          "text": "LSM-tree chỉ ghi nối tiếp rồi gộp sau: ghi nhanh, nhưng một khóa có thể nằm ở nhiều file nên đọc phải xem nhiều nơi.",
+          "level": "co_ban"
+        },
+        {
+          "text": "WAL (write-ahead log): xem cs.databases.transactions_acid; LSM ghi vào WAL trước để mất điện không mất dữ liệu đang nằm trong RAM.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Đường ghi LSM: ghi vào WAL rồi vào memtable (bảng nháp đã sắp xếp trong RAM); đầy thì đổ ra file đã sắp xếp, không sửa nữa, gọi là SSTable.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Đường đọc và compaction: đọc tìm memtable rồi các SSTable từ mới đến cũ; compaction gộp nhiều SSTable, bỏ bản cũ của cùng một khóa.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Bloom filter: bộ lọc nhỏ trả lời 'chắc chắn không có' hoặc 'có thể có', giúp bỏ qua SSTable không cần đọc.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Khuếch đại ghi (write amplification): ghi 1 KB mà compaction viết lại 5 lần thì đĩa ghi 5 KB, khuếch đại 5 lần; đọc cũng có khuếch đại (xem nhiều file).",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Lưu theo hàng và theo cột (chủ đề kề bên): hàng hợp OLTP (nhiều giao dịch nhỏ như bán hàng); cột hợp OLAP (ít báo cáo tổng hợp lớn như trung bình một cột).",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "B-tree vs LSM-tree",
+          "vi": "Memtable chứa tối đa 3 khóa. Ghi lần lượt a=1, b=2, c=3 (đầy, đổ thành SSTable1: a1 b2 c3), rồi a=5, d=4, e=6 (đổ thành SSTable2: a5 d4 e6). Đọc khóa a tìm ở đâu trước và ra giá trị gì? Compaction gộp hai file ra gì? Đáp án: tìm SSTable2 (mới nhất) trước, ra 5; gộp ra a5 b2 c3 d4 e6."
+        },
+        {
+          "title": "What is a Bloom filter for",
+          "vi": "Giải thích Bloom filter giúp LSM-tree tránh việc gì khi đọc một khóa không có trong database (mà không phải mở từng SSTable)."
+        },
+        {
+          "title": "Row vs column store",
+          "vi": "Báo cáo tính trung bình một cột trên 100 triệu dòng, mỗi dòng 20 cột: nên lưu theo hàng hay theo cột, vì sao (gợi ý: phải đọc bao nhiêu dữ liệu)."
+        }
+      ],
+      "beginner_note_vi": "Intern bỏ qua; fresher chỉ cần hai ý Cơ bản; phần còn lại cho junior trở lên và nằm cuối module.",
+      "example_problems": [
+        "B-tree vs LSM-tree",
+        "What is a bloom filter for?",
+        "Row vs columnar storage",
+        "What is WAL?",
+        "Why is Cassandra write-optimised?"
+      ],
+      "bank_topics": [
+        "cs_fundamentals.db_concepts",
+        "system_design.concepts",
+        "system_design.infra_components"
+      ],
+      "bank_counts": {
+        "cs_fundamentals.db_concepts": {
+          "total": 104,
+          "y2026": 20
+        },
+        "system_design.concepts": {
+          "total": 84,
+          "y2026": 32
+        },
+        "system_design.infra_components": {
+          "total": 132,
+          "y2026": 72
+        }
+      },
+      "target_swe": {
+        "intern": 0,
+        "fresher": 1,
+        "junior": 2,
+        "senior": 3
+      },
+      "target_ai": {
+        "intern": 0,
+        "fresher": 1,
+        "junior": 2,
+        "senior": 3
+      },
+      "est_hours": 6,
+      "plan_order": 98,
+      "plan_day": null,
+      "plan_hours": 6
+    },
+    {
+      "id": "cs.networks.models",
+      "section": "cs",
+      "module": "cs.networks",
+      "name_vi": "Mô hình OSI, TCP/IP và đặc tính mạng (OSI and TCP/IP)",
+      "order": 1,
+      "summary_vi": "Dữ liệu đi qua mạng được bọc nhiều lớp như gửi thư: nội dung (ứng dụng), cách vận chuyển (TCP), địa chỉ (IP) và dây hoặc sóng (vật lý). Latency là thời gian một gói đi tới nơi, bandwidth là mỗi giây chở được bao nhiêu.",
+      "mastery_bar_vi": "Mức 3: kể đúng chức năng từng tầng, giao thức hay thiết bị tương ứng và mô tả đóng gói khi gửi một gói tin.",
+      "prerequisites": [],
+      "lang_prereqs": {
+        "python": [],
+        "java": []
+      },
+      "key_concepts": [
+        "OSI 7 layers vs TCP/IP 4 layers",
+        "PDU: frame, packet, segment, data",
+        "encapsulation / decapsulation",
+        "switch vs router vs hub vs bridge",
+        "LAN, WAN, topologies",
+        "client-server vs peer-to-peer",
+        "latency, bandwidth, throughput, RTT",
+        "RTT by distance: same AZ vs cross-region vs cross-continent",
+        "payload size, compression and bandwidth vs latency",
+        "request lifecycle: DNS, TCP, TLS, HTTP, response",
+        "timeouts, retries and connection limits (file descriptors, ports)"
+      ],
+      "concepts_vi": [
+        {
+          "text": "Mô hình phân lớp: mỗi tầng lo một việc; TCP/IP có 4 tầng (ứng dụng, vận chuyển, mạng, liên kết); OSI có 7 tầng: ứng dụng, trình bày, phiên, vận chuyển, mạng, liên kết dữ liệu, vật lý.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Đóng gói (encapsulation): mỗi tầng bọc thêm một 'phong bì' (header) quanh dữ liệu của tầng trên; bên nhận gỡ ngược lại.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Thiết bị: switch nối các máy trong cùng mạng nội bộ (LAN); router nối các mạng với nhau.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Client–server và peer-to-peer: máy khách gửi yêu cầu cho máy chủ / các máy ngang hàng trao đổi trực tiếp.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Độ trễ (latency): thời gian một gói đi tới nơi; RTT là thời gian đi và về.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Băng thông (bandwidth) và thông lượng (throughput): sức chở tối đa mỗi giây / tốc độ thực tế; giống số làn đường, khác với thời gian đi hết đường.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Xa thì chậm: cùng thành phố chỉ vài mili giây, khác châu lục có thể hàng trăm mili giây mỗi lần đi về.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Tên gói ở mỗi tầng (PDU): tầng ứng dụng gọi data, vận chuyển gọi segment (TCP) hay datagram (UDP), tầng mạng gọi packet, tầng liên kết gọi frame.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "LAN, WAN, topology (hình dạng mạng); hub và bridge.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Timeout, retry và giới hạn số kết nối đồng thời.",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "Describe TCP/IP layers",
+          "vi": "Khi mở một trang web, nêu mỗi tầng TCP/IP làm gì và giao thức ví dụ ở tầng đó (HTTP, TCP, IP, Wi-Fi)."
+        },
+        {
+          "title": "Switch vs router",
+          "vi": "Phân biệt switch và router bằng ví dụ mạng ở nhà."
+        },
+        {
+          "title": "Why far is slow",
+          "vi": "Giải thích vì sao gọi máy chủ ở châu Âu từ Việt Nam chậm hơn gọi máy chủ trong nước."
+        }
+      ],
+      "example_problems": [
+        "Describe OSI layers",
+        "OSI vs TCP/IP",
+        "Switch vs router",
+        "Why is a cross-region call slower than a same-AZ call?"
+      ],
+      "bank_topics": [
+        "cs_fundamentals.networking",
+        "system_design.concepts"
+      ],
+      "bank_counts": {
+        "cs_fundamentals.networking": {
+          "total": 61,
+          "y2026": 16
+        },
+        "system_design.concepts": {
+          "total": 84,
+          "y2026": 32
+        }
+      },
+      "target_swe": {
+        "intern": 1,
+        "fresher": 3,
+        "junior": 3,
+        "senior": 3
+      },
+      "target_ai": {
+        "intern": 1,
+        "fresher": 2,
+        "junior": 2,
+        "senior": 2
+      },
+      "est_hours": 4,
+      "plan_order": 99,
+      "plan_day": null,
+      "plan_hours": 4
+    },
+    {
+      "id": "cs.networks.ip_routing",
+      "section": "cs",
+      "module": "cs.networks",
+      "name_vi": "IP, subnet, ARP và định tuyến (IP and routing)",
+      "order": 2,
+      "summary_vi": "Mỗi máy trên mạng có địa chỉ IP như địa chỉ nhà; một dải địa chỉ chung 'con phố' gọi là subnet (ghi dạng /24, /26). Trong nhà các máy dùng IP riêng và ra internet qua một IP chung nhờ NAT. Router nhìn địa chỉ đích để chuyển gói sang chặng tiếp theo, như bưu điện.",
+      "mastery_bar_vi": "Mức 3: chia subnet bằng CIDR, giải thích NAT, ARP, DHCP và cách router chọn đường.",
+      "prerequisites": [
+        "cs.networks.models"
+      ],
+      "lang_prereqs": {
+        "python": [],
+        "java": []
+      },
+      "key_concepts": [
+        "IPv4 vs IPv6",
+        "CIDR and subnet mask calculation",
+        "private vs public IP and NAT",
+        "MAC vs IP address",
+        "ARP and DHCP",
+        "routing table, longest prefix match",
+        "ICMP, ping, traceroute",
+        "TTL",
+        "fragmentation and MTU"
+      ],
+      "concepts_vi": [
+        {
+          "text": "Địa chỉ IP: IPv4 gồm 4 số từ 0 đến 255 (32 bit); IPv6 dài hơn (128 bit) vì IPv4 sắp hết.",
+          "level": "co_ban"
+        },
+        {
+          "text": "IP riêng và IP công cộng (private, public): IP riêng dùng trong nhà hay công ty, không ra thẳng internet; IP công cộng là duy nhất toàn cầu.",
+          "level": "co_ban"
+        },
+        {
+          "text": "NAT: router đổi IP riêng thành IP công cộng khi ra internet, nên nhiều máy dùng chung một IP công cộng.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Subnet và CIDR: /24 nghĩa là 24 bit đầu là 'con phố', còn 8 bit đánh số máy → 256 địa chỉ; /26 cho 64 địa chỉ.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Số máy trong subnet: 2 mũ (32 − tiền tố) địa chỉ, trừ 2 địa chỉ dành riêng (địa chỉ mạng và địa chỉ phát sóng).",
+          "level": "co_ban"
+        },
+        {
+          "text": "Ví dụ 192.168.1.0/24: ba số đầu cố định, máy dùng .1 đến .254 (.0 là địa chỉ mạng, .255 là địa chỉ phát sóng gửi tới mọi máy trong mạng).",
+          "level": "co_ban"
+        },
+        {
+          "text": "MAC và IP: MAC gắn với card mạng, dùng trong mạng cục bộ; IP là địa chỉ logic để đi xa.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Bảng định tuyến (routing table): router tra bảng để biết gửi gói tới đâu, chọn dòng khớp dài nhất (longest prefix match).",
+          "level": "co_ban"
+        },
+        {
+          "text": "ARP và DHCP: ARP hỏi 'IP này có MAC nào?' trong mạng cục bộ; DHCP tự cấp IP cho máy mới vào mạng.",
+          "level": "co_ban"
+        },
+        {
+          "text": "ICMP, ping, traceroute và TTL: kiểm tra đường đi; TTL giảm một sau mỗi chặng để gói không chạy vòng mãi.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Phân mảnh và MTU: kích thước gói tối đa trên một đường truyền.",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "Hosts in a /26",
+          "vi": "Một mạng /26 có bao nhiêu địa chỉ dùng được cho máy?"
+        },
+        {
+          "title": "MAC vs IP",
+          "vi": "Giải thích MAC khác IP ở đâu và khi nào dùng cái nào."
+        },
+        {
+          "title": "What is NAT",
+          "vi": "Nhà bạn có 5 thiết bị mà chỉ có 1 IP công cộng: NAT giúp cả 5 ra internet thế nào?"
+        },
+        {
+          "title": "How traceroute works",
+          "vi": "Giải thích traceroute dùng TTL để liệt kê các chặng đường đi như thế nào. Gợi ý: traceroute gửi gói với TTL = 1, rồi 2, 3...; router làm TTL về 0 sẽ báo lỗi ICMP về nên lộ ra từng chặng."
+        }
+      ],
+      "beginner_note_vi": "Intern có thể bỏ qua; fresher nên nắm IP, subnet, NAT và vai trò của router.",
+      "example_problems": [
+        "MAC vs IP address",
+        "What is ARP?",
+        "How many hosts in /26?",
+        "What is NAT?",
+        "How does traceroute work?"
+      ],
+      "bank_topics": [
+        "cs_fundamentals.networking"
+      ],
+      "bank_counts": {
+        "cs_fundamentals.networking": {
+          "total": 61,
+          "y2026": 16
+        }
+      },
+      "target_swe": {
+        "intern": 0,
+        "fresher": 3,
+        "junior": 3,
+        "senior": 3
+      },
+      "target_ai": {
+        "intern": 0,
+        "fresher": 1,
+        "junior": 2,
+        "senior": 2
+      },
+      "est_hours": 5,
+      "plan_order": 100,
+      "plan_day": null,
+      "plan_hours": 5
+    },
+    {
+      "id": "cs.networks.tcp_udp",
+      "section": "cs",
+      "module": "cs.networks",
+      "name_vi": "TCP, UDP và tầng giao vận (transport layer)",
+      "order": 3,
+      "summary_vi": "TCP là gửi dữ liệu kiểu gọi điện: chào nhau 3 lượt trước (handshake), mỗi gói có số thứ tự và được xác nhận, mất thì gửi lại nên chắc chắn nhưng chậm hơn. UDP là gửi bưu thiếp: không chào, không xác nhận, nhanh nhưng có thể mất.",
+      "mastery_bar_vi": "Mức 3: giải thích handshake, phân biệt flow control và congestion control, chọn TCP hay UDP có lý do cho từng ca sử dụng.",
+      "prerequisites": [
+        "cs.networks.models"
+      ],
+      "lang_prereqs": {
+        "python": [],
+        "java": []
+      },
+      "key_concepts": [
+        "TCP vs UDP and use cases",
+        "3-way handshake and 4-way close",
+        "TIME_WAIT",
+        "sequence/ack numbers, retransmission",
+        "sliding window, flow control",
+        "congestion control: slow start, AIMD",
+        "ports and sockets, socket API",
+        "head-of-line blocking",
+        "SYN flood",
+        "connection setup cost in RTTs: TCP handshake, TLS handshake, keep-alive and pooling"
+      ],
+      "concepts_vi": [
+        {
+          "text": "TCP và UDP: TCP đáng tin, đúng thứ tự (web, email); UDP nhanh, chấp nhận mất (gọi video, game).",
+          "level": "co_ban"
+        },
+        {
+          "text": "Port và socket: port là 'số phòng' xác định ứng dụng trên máy; socket là một đầu của kết nối (IP và port).",
+          "level": "co_ban"
+        },
+        {
+          "text": "Bắt tay 3 bước (3-way handshake): SYN (xin kết nối) → SYN-ACK (đồng ý) → ACK (xác nhận), rồi mới gửi dữ liệu.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Tin cậy: gói có số thứ tự; bên nhận gửi xác nhận (ACK); không thấy ACK thì gửi lại (retransmission).",
+          "level": "co_ban"
+        },
+        {
+          "text": "Kiểm soát luồng (flow control): bên nhận báo 'chậm lại, tôi chưa kịp xử lý' qua kích thước cửa sổ (window).",
+          "level": "co_ban"
+        },
+        {
+          "text": "Kiểm soát tắc nghẽn (congestion control): bên gửi tăng tốc dần và giảm khi thấy mất gói để không làm nghẽn mạng.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Chi phí kết nối: mỗi lần bắt tay tốn thêm thời gian khứ hồi, nên người ta dùng lại kết nối (keep-alive, connection pool).",
+          "level": "co_ban"
+        },
+        {
+          "text": "Đóng kết nối 4 bước và trạng thái TIME_WAIT.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Head-of-line blocking: một gói bị mất làm các gói sau phải chờ.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "SYN flood: tấn công gửi hàng loạt yêu cầu kết nối giả.",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "TCP vs UDP",
+          "vi": "Chọn TCP hay UDP cho: tải file, gọi video, game bắn súng online; giải thích từng lựa chọn."
+        },
+        {
+          "title": "3-way handshake",
+          "vi": "Viết lại ba bước handshake như một cuộc hội thoại giữa client và server."
+        },
+        {
+          "title": "Flow vs congestion control",
+          "vi": "Phân biệt kiểm soát luồng và kiểm soát tắc nghẽn bằng một ví dụ đời thường. Gợi ý: flow là người nghe nói 'chậm lại, tôi chưa kịp nghe'; congestion là đường tắc nên người gửi tự đi chậm."
+        },
+        {
+          "title": "Echo server",
+          "vi": "Viết server Python dùng socket nhận một dòng chữ rồi gửi lại đúng dòng đó. Chạy khung dưới ở một terminal, mở terminal khác gõ: nc 127.0.0.1 5000 (hoặc viết client socket 4 dòng).",
+          "starter_code_vi": {
+            "lang": "python",
+            "code": "import socket\nsrv = socket.socket()                 # TCP\nsrv.bind((\"127.0.0.1\", 5000))         # IP và port của server\nsrv.listen()\nconn, addr = srv.accept()             # chờ một client nối vào\ndata = conn.recv(1024)                # nhận tối đa 1024 byte\n# TODO: gửi lại đúng data cho client bằng conn.sendall(...)\nconn.close()\nsrv.close()"
+          }
+        }
+      ],
+      "example_problems": [
+        "TCP vs UDP",
+        "Explain the 3-way handshake",
+        "Flow vs congestion control",
+        "Why TIME_WAIT exists?"
+      ],
+      "bank_topics": [
+        "cs_fundamentals.networking"
+      ],
+      "bank_counts": {
+        "cs_fundamentals.networking": {
+          "total": 61,
+          "y2026": 16
+        }
+      },
+      "target_swe": {
+        "intern": 1,
+        "fresher": 3,
+        "junior": 3,
+        "senior": 3
+      },
+      "target_ai": {
+        "intern": 1,
+        "fresher": 2,
+        "junior": 2,
+        "senior": 2
+      },
+      "est_hours": 5,
+      "plan_order": 101,
+      "plan_day": null,
+      "plan_hours": 5
+    },
+    {
       "id": "dsa.arrays_strings.matrix_traversal",
       "section": "dsa",
       "module": "dsa.arrays_strings",
@@ -11330,7 +11818,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 98,
+      "plan_order": 102,
       "plan_day": null,
       "plan_hours": 1.5
     },
@@ -11436,7 +11924,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 99,
+      "plan_order": 103,
       "plan_day": null,
       "plan_hours": 1.0
     },
@@ -11546,7 +12034,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 100,
+      "plan_order": 104,
       "plan_day": null,
       "plan_hours": 1.5
     },
@@ -11658,7 +12146,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 101,
+      "plan_order": 105,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -11782,7 +12270,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 102,
+      "plan_order": 106,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -11894,7 +12382,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 103,
+      "plan_order": 107,
       "plan_day": null,
       "plan_hours": 1.5
     },
@@ -11999,7 +12487,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 104,
+      "plan_order": 108,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -12110,7 +12598,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 105,
+      "plan_order": 109,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -12213,7 +12701,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 106,
+      "plan_order": 110,
       "plan_day": null,
       "plan_hours": 1.0
     },
@@ -12334,7 +12822,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 107,
+      "plan_order": 111,
       "plan_day": null,
       "plan_hours": 2.0
     },
@@ -12450,7 +12938,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 108,
+      "plan_order": 112,
       "plan_day": null,
       "plan_hours": 1.0
     },
@@ -12567,7 +13055,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 109,
+      "plan_order": 113,
       "plan_day": null,
       "plan_hours": 1.5
     },
@@ -12680,7 +13168,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 110,
+      "plan_order": 114,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -12793,7 +13281,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 111,
+      "plan_order": 115,
       "plan_day": null,
       "plan_hours": 1.0
     },
@@ -12898,7 +13386,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 112,
+      "plan_order": 116,
       "plan_day": null,
       "plan_hours": 1.0
     },
@@ -13014,7 +13502,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 113,
+      "plan_order": 117,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -13127,7 +13615,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 114,
+      "plan_order": 118,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -13235,7 +13723,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 115,
+      "plan_order": 119,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -13355,7 +13843,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 116,
+      "plan_order": 120,
       "plan_day": null,
       "plan_hours": 1.0
     },
@@ -13482,7 +13970,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 117,
+      "plan_order": 121,
       "plan_day": null,
       "plan_hours": 1.5
     },
@@ -13606,7 +14094,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 118,
+      "plan_order": 122,
       "plan_day": null,
       "plan_hours": 1.5
     },
@@ -13717,7 +14205,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 119,
+      "plan_order": 123,
       "plan_day": null,
       "plan_hours": 1.5
     },
@@ -13833,7 +14321,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 120,
+      "plan_order": 124,
       "plan_day": null,
       "plan_hours": 2.0
     },
@@ -13954,7 +14442,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 121,
+      "plan_order": 125,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -14070,7 +14558,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 122,
+      "plan_order": 126,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -14174,7 +14662,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 123,
+      "plan_order": 127,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -14270,7 +14758,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 124,
+      "plan_order": 128,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -14386,7 +14874,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 125,
+      "plan_order": 129,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -14514,7 +15002,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 126,
+      "plan_order": 130,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -14623,7 +15111,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 127,
+      "plan_order": 131,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -14746,7 +15234,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 128,
+      "plan_order": 132,
       "plan_day": null,
       "plan_hours": 1.5
     },
@@ -14853,7 +15341,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 129,
+      "plan_order": 133,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -14978,7 +15466,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 130,
+      "plan_order": 134,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -15101,7 +15589,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 131,
+      "plan_order": 135,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -15209,7 +15697,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 132,
+      "plan_order": 136,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -15322,7 +15810,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 133,
+      "plan_order": 137,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -15434,7 +15922,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 134,
+      "plan_order": 138,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -15556,7 +16044,7 @@
         "senior": 2
       },
       "est_hours": 6,
-      "plan_order": 135,
+      "plan_order": 139,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -15673,7 +16161,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 136,
+      "plan_order": 140,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -15781,7 +16269,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 137,
+      "plan_order": 141,
       "plan_day": null,
       "plan_hours": 1.0
     },
@@ -15900,7 +16388,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 138,
+      "plan_order": 142,
       "plan_day": null,
       "plan_hours": 1.5
     },
@@ -16017,7 +16505,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 139,
+      "plan_order": 143,
       "plan_day": null,
       "plan_hours": 2.0
     },
@@ -16127,7 +16615,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 140,
+      "plan_order": 144,
       "plan_day": null,
       "plan_hours": 1.5
     },
@@ -16243,7 +16731,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 141,
+      "plan_order": 145,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -16363,7 +16851,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 142,
+      "plan_order": 146,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -16465,7 +16953,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 143,
+      "plan_order": 147,
       "plan_day": null,
       "plan_hours": 1.0
     },
@@ -16592,7 +17080,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 144,
+      "plan_order": 148,
       "plan_day": null,
       "plan_hours": 1.5
     },
@@ -16716,7 +17204,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 145,
+      "plan_order": 149,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -16833,7 +17321,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 146,
+      "plan_order": 150,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -16941,7 +17429,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 147,
+      "plan_order": 151,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -17062,7 +17550,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 148,
+      "plan_order": 152,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -17183,7 +17671,7 @@
         "senior": 2
       },
       "est_hours": 6,
-      "plan_order": 149,
+      "plan_order": 153,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -17309,7 +17797,7 @@
         "senior": 2
       },
       "est_hours": 6,
-      "plan_order": 150,
+      "plan_order": 154,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -17402,7 +17890,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 151,
+      "plan_order": 155,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -17538,7 +18026,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 152,
+      "plan_order": 156,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -17653,7 +18141,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 153,
+      "plan_order": 157,
       "plan_day": null,
       "plan_hours": 1.5
     },
@@ -17769,7 +18257,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 154,
+      "plan_order": 158,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -17896,7 +18384,7 @@
         "senior": 2
       },
       "est_hours": 6,
-      "plan_order": 155,
+      "plan_order": 159,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -18008,7 +18496,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 156,
+      "plan_order": 160,
       "plan_day": null,
       "plan_hours": 1.0
     },
@@ -18123,7 +18611,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 157,
+      "plan_order": 161,
       "plan_day": null,
       "plan_hours": 1.0
     },
@@ -18253,7 +18741,7 @@
         "senior": 2
       },
       "est_hours": 6,
-      "plan_order": 158,
+      "plan_order": 162,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -18377,7 +18865,7 @@
         "senior": 2
       },
       "est_hours": 6,
-      "plan_order": 159,
+      "plan_order": 163,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -18490,7 +18978,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 160,
+      "plan_order": 164,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -18623,7 +19111,7 @@
         "senior": 1
       },
       "est_hours": 5,
-      "plan_order": 161,
+      "plan_order": 165,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -18754,7 +19242,7 @@
         "senior": 1
       },
       "est_hours": 6,
-      "plan_order": 162,
+      "plan_order": 166,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -18863,7 +19351,7 @@
         "senior": 0
       },
       "est_hours": 3,
-      "plan_order": 163,
+      "plan_order": 167,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -18980,7 +19468,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 164,
+      "plan_order": 168,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -19097,7 +19585,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 165,
+      "plan_order": 169,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -19209,7 +19697,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 166,
+      "plan_order": 170,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -19326,7 +19814,7 @@
         "senior": 1
       },
       "est_hours": 5,
-      "plan_order": 167,
+      "plan_order": 171,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -19447,7 +19935,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 168,
+      "plan_order": 172,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -19558,7 +20046,7 @@
         "senior": 1
       },
       "est_hours": 4,
-      "plan_order": 169,
+      "plan_order": 173,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -19661,7 +20149,7 @@
         "senior": 1
       },
       "est_hours": 2,
-      "plan_order": 170,
+      "plan_order": 174,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -19790,7 +20278,7 @@
         "senior": 1
       },
       "est_hours": 5,
-      "plan_order": 171,
+      "plan_order": 175,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -19899,7 +20387,7 @@
         "senior": 1
       },
       "est_hours": 5,
-      "plan_order": 172,
+      "plan_order": 176,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -20017,7 +20505,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 173,
+      "plan_order": 177,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -20116,7 +20604,7 @@
         "senior": 0
       },
       "est_hours": 3,
-      "plan_order": 174,
+      "plan_order": 178,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -20219,7 +20707,7 @@
         "senior": 1
       },
       "est_hours": 3,
-      "plan_order": 175,
+      "plan_order": 179,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -20321,7 +20809,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 176,
+      "plan_order": 180,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -20421,7 +20909,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 177,
+      "plan_order": 181,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -20535,7 +21023,7 @@
         "senior": 0
       },
       "est_hours": 6,
-      "plan_order": 178,
+      "plan_order": 182,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -20631,7 +21119,7 @@
         "senior": 0
       },
       "est_hours": 3,
-      "plan_order": 179,
+      "plan_order": 183,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -20741,7 +21229,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 180,
+      "plan_order": 184,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -20856,7 +21344,7 @@
         "senior": 0
       },
       "est_hours": 6,
-      "plan_order": 181,
+      "plan_order": 185,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -20974,7 +21462,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 182,
+      "plan_order": 186,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -21091,7 +21579,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 183,
+      "plan_order": 187,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -21200,7 +21688,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 184,
+      "plan_order": 188,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -21308,7 +21796,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 185,
+      "plan_order": 189,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -21415,7 +21903,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 186,
+      "plan_order": 190,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -21525,7 +22013,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 187,
+      "plan_order": 191,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -21636,7 +22124,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 188,
+      "plan_order": 192,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -21753,7 +22241,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 189,
+      "plan_order": 193,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -21865,7 +22353,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 190,
+      "plan_order": 194,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -21965,7 +22453,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 191,
+      "plan_order": 195,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -22071,7 +22559,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 192,
+      "plan_order": 196,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -22180,7 +22668,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 193,
+      "plan_order": 197,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -22325,7 +22813,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 194,
+      "plan_order": 198,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -22438,7 +22926,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 195,
+      "plan_order": 199,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -22551,7 +23039,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 196,
+      "plan_order": 200,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -22656,7 +23144,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 197,
+      "plan_order": 201,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -22764,7 +23252,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 198,
+      "plan_order": 202,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -22881,7 +23369,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 199,
+      "plan_order": 203,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -22989,7 +23477,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 200,
+      "plan_order": 204,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -23093,7 +23581,7 @@
         "senior": 0
       },
       "est_hours": 3,
-      "plan_order": 201,
+      "plan_order": 205,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -23205,7 +23693,7 @@
         "senior": 1
       },
       "est_hours": 3,
-      "plan_order": 202,
+      "plan_order": 206,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -23322,7 +23810,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 203,
+      "plan_order": 207,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -23431,7 +23919,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 204,
+      "plan_order": 208,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -23537,7 +24025,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 205,
+      "plan_order": 209,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -23672,7 +24160,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 206,
+      "plan_order": 210,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -23791,7 +24279,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 207,
+      "plan_order": 211,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -23919,7 +24407,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 208,
+      "plan_order": 212,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -24024,7 +24512,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 209,
+      "plan_order": 213,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -24137,7 +24625,7 @@
         "senior": 0
       },
       "est_hours": 2,
-      "plan_order": 210,
+      "plan_order": 214,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -24261,7 +24749,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 211,
+      "plan_order": 215,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -24369,7 +24857,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 212,
+      "plan_order": 216,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -24486,7 +24974,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 213,
+      "plan_order": 217,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -24591,7 +25079,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 214,
+      "plan_order": 218,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -24700,7 +25188,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 215,
+      "plan_order": 219,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -24836,7 +25324,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 216,
+      "plan_order": 220,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -24955,7 +25443,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 217,
+      "plan_order": 221,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -25080,7 +25568,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 218,
+      "plan_order": 222,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -25177,7 +25665,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 219,
+      "plan_order": 223,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -25299,7 +25787,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 220,
+      "plan_order": 224,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -25416,7 +25904,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 221,
+      "plan_order": 225,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -25525,7 +26013,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 222,
+      "plan_order": 226,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -25635,7 +26123,7 @@
         "senior": 1
       },
       "est_hours": 4,
-      "plan_order": 223,
+      "plan_order": 227,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -25740,7 +26228,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 224,
+      "plan_order": 228,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -25850,7 +26338,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 225,
+      "plan_order": 229,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -25955,7 +26443,7 @@
         "senior": 0
       },
       "est_hours": 3,
-      "plan_order": 226,
+      "plan_order": 230,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -26080,7 +26568,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 227,
+      "plan_order": 231,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -26203,7 +26691,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 228,
+      "plan_order": 232,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -26308,7 +26796,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 229,
+      "plan_order": 233,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -26410,7 +26898,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 230,
+      "plan_order": 234,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -26513,7 +27001,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 231,
+      "plan_order": 235,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -26631,7 +27119,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 232,
+      "plan_order": 236,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -26736,7 +27224,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 233,
+      "plan_order": 237,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -26828,7 +27316,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 234,
+      "plan_order": 238,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -26940,7 +27428,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 235,
+      "plan_order": 239,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -27058,7 +27546,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 236,
+      "plan_order": 240,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -27167,7 +27655,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 237,
+      "plan_order": 241,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -27277,7 +27765,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 238,
+      "plan_order": 242,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -27387,7 +27875,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 239,
+      "plan_order": 243,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -27495,7 +27983,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 240,
+      "plan_order": 244,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -27604,7 +28092,7 @@
         "senior": 1
       },
       "est_hours": 4,
-      "plan_order": 241,
+      "plan_order": 245,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -27714,7 +28202,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 242,
+      "plan_order": 246,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -27813,7 +28301,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 243,
+      "plan_order": 247,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -27917,7 +28405,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 244,
+      "plan_order": 248,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -28025,7 +28513,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 245,
+      "plan_order": 249,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -28135,7 +28623,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 246,
+      "plan_order": 250,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -28234,7 +28722,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 247,
+      "plan_order": 251,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -28337,7 +28825,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 248,
+      "plan_order": 252,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -28439,7 +28927,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 249,
+      "plan_order": 253,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -28543,7 +29031,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 250,
+      "plan_order": 254,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -28649,7 +29137,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 251,
+      "plan_order": 255,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -28753,7 +29241,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 252,
+      "plan_order": 256,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -28853,7 +29341,7 @@
         "senior": 0
       },
       "est_hours": 3,
-      "plan_order": 253,
+      "plan_order": 257,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -28958,7 +29446,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 254,
+      "plan_order": 258,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -29069,7 +29557,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 255,
+      "plan_order": 259,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -29176,7 +29664,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 256,
+      "plan_order": 260,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -29287,7 +29775,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 257,
+      "plan_order": 261,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -29397,7 +29885,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 258,
+      "plan_order": 262,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -29500,7 +29988,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 259,
+      "plan_order": 263,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -29604,7 +30092,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 260,
+      "plan_order": 264,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -29718,7 +30206,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 261,
+      "plan_order": 265,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -29837,7 +30325,7 @@
         "senior": 0
       },
       "est_hours": 6,
-      "plan_order": 262,
+      "plan_order": 266,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -29946,7 +30434,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 263,
+      "plan_order": 267,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -30047,7 +30535,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 264,
+      "plan_order": 268,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -30152,7 +30640,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 265,
+      "plan_order": 269,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -30258,7 +30746,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 266,
+      "plan_order": 270,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -30369,7 +30857,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 267,
+      "plan_order": 271,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -30475,7 +30963,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 268,
+      "plan_order": 272,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -30577,7 +31065,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 269,
+      "plan_order": 273,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -30695,7 +31183,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 270,
+      "plan_order": 274,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -30813,7 +31301,7 @@
       },
       "est_hours": 3,
       "est_hours_beginner": 5,
-      "plan_order": 271,
+      "plan_order": 275,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -30939,7 +31427,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 272,
+      "plan_order": 276,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -31051,7 +31539,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 273,
+      "plan_order": 277,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -31176,7 +31664,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 274,
+      "plan_order": 278,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -31292,7 +31780,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 275,
+      "plan_order": 279,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -31407,7 +31895,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 276,
+      "plan_order": 280,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -31534,7 +32022,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 277,
+      "plan_order": 281,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -31659,7 +32147,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 278,
+      "plan_order": 282,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -31785,7 +32273,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 279,
+      "plan_order": 283,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -31915,7 +32403,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 280,
+      "plan_order": 284,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -32012,7 +32500,7 @@
       },
       "est_hours": 2,
       "est_hours_beginner": 3,
-      "plan_order": 281,
+      "plan_order": 285,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -32130,7 +32618,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 282,
+      "plan_order": 286,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -32243,7 +32731,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 283,
+      "plan_order": 287,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -32357,7 +32845,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 284,
+      "plan_order": 288,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -32472,7 +32960,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 285,
+      "plan_order": 289,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -32581,7 +33069,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 286,
+      "plan_order": 290,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -32694,7 +33182,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 287,
+      "plan_order": 291,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -32804,7 +33292,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 288,
+      "plan_order": 292,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -32911,7 +33399,7 @@
       },
       "est_hours": 3,
       "est_hours_beginner": 4,
-      "plan_order": 289,
+      "plan_order": 293,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -33033,7 +33521,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 290,
+      "plan_order": 294,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -33152,7 +33640,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 291,
+      "plan_order": 295,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -33279,7 +33767,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 292,
+      "plan_order": 296,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -33405,7 +33893,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 293,
+      "plan_order": 297,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -33528,7 +34016,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 294,
+      "plan_order": 298,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -33645,7 +34133,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 295,
+      "plan_order": 299,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -33752,7 +34240,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 296,
+      "plan_order": 300,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -33867,7 +34355,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 297,
+      "plan_order": 301,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -33983,7 +34471,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 298,
+      "plan_order": 302,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -34098,7 +34586,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 299,
+      "plan_order": 303,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -34230,7 +34718,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 300,
+      "plan_order": 304,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -34349,7 +34837,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 301,
+      "plan_order": 305,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -34455,7 +34943,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 302,
+      "plan_order": 306,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -34570,7 +35058,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 303,
+      "plan_order": 307,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -34687,7 +35175,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 304,
+      "plan_order": 308,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -34810,7 +35298,7 @@
         "senior": 3
       },
       "est_hours": 2,
-      "plan_order": 305,
+      "plan_order": 309,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -34938,7 +35426,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 306,
+      "plan_order": 310,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -35058,7 +35546,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 307,
+      "plan_order": 311,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -35172,7 +35660,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 308,
+      "plan_order": 312,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -35294,7 +35782,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 309,
+      "plan_order": 313,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -35420,7 +35908,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 310,
+      "plan_order": 314,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -35540,7 +36028,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 311,
+      "plan_order": 315,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -35657,7 +36145,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 312,
+      "plan_order": 316,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -35776,7 +36264,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 313,
+      "plan_order": 317,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -35888,7 +36376,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 314,
+      "plan_order": 318,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -36010,7 +36498,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 315,
+      "plan_order": 319,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -36135,7 +36623,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 316,
+      "plan_order": 320,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -36252,7 +36740,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 317,
+      "plan_order": 321,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -36363,7 +36851,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 318,
+      "plan_order": 322,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -36475,7 +36963,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 319,
+      "plan_order": 323,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -36582,7 +37070,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 320,
+      "plan_order": 324,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -36702,7 +37190,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 321,
+      "plan_order": 325,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -36825,7 +37313,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 322,
+      "plan_order": 326,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -36935,7 +37423,7 @@
         "senior": 3
       },
       "est_hours": 2,
-      "plan_order": 323,
+      "plan_order": 327,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -37045,7 +37533,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 324,
+      "plan_order": 328,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -37161,7 +37649,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 325,
+      "plan_order": 329,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -37286,7 +37774,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 326,
+      "plan_order": 330,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -37400,7 +37888,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 327,
+      "plan_order": 331,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -37517,7 +38005,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 328,
+      "plan_order": 332,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -37615,7 +38103,7 @@
         "senior": 3
       },
       "est_hours": 2,
-      "plan_order": 329,
+      "plan_order": 333,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -37733,7 +38221,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 330,
+      "plan_order": 334,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -37857,7 +38345,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 331,
+      "plan_order": 335,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -37982,7 +38470,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 332,
+      "plan_order": 336,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -38110,7 +38598,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 333,
+      "plan_order": 337,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -38226,7 +38714,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 334,
+      "plan_order": 338,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -38330,7 +38818,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 335,
+      "plan_order": 339,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -38447,7 +38935,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 336,
+      "plan_order": 340,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -38559,7 +39047,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 337,
+      "plan_order": 341,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -38659,7 +39147,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 338,
+      "plan_order": 342,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -38793,7 +39281,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 339,
+      "plan_order": 343,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -38929,7 +39417,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 340,
+      "plan_order": 344,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -39074,7 +39562,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 341,
+      "plan_order": 345,
       "plan_day": null,
       "plan_hours": 6
     }

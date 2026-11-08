@@ -1,0 +1,161 @@
+id: cs.networks.models
+version: 1
+status: published
+title_vi: "Mô hình OSI và TCP/IP (network models)"
+est_minutes: 15
+objectives_vi:
+  - "Kể đúng 7 tầng của mô hình OSI theo thứ tự và chức năng từng tầng."
+  - "Đối chiếu OSI 7 tầng với TCP/IP 4 tầng và xếp các giao thức phổ biến (HTTP, TLS, TCP, UDP, IP, ARP, Ethernet) vào đúng tầng."
+  - "Mô tả encapsulation khi gửi và decapsulation khi nhận: header được thêm dần từ trên xuống, bóc dần từ dưới lên."
+  - "Mô phỏng đóng gói bằng Python: header của tầng thấp nằm ngoài cùng."
+blocks:
+  - id: s_model
+    type: section
+    title_vi: "Mô hình OSI 7 tầng"
+    summary_vi: "OSI chia việc truyền dữ liệu thành 7 tầng, mỗi tầng một nhiệm vụ rõ ràng."
+  - id: t01
+    type: text
+    md: |
+      **Mô hình OSI** (Open Systems Interconnection) chia việc truyền dữ liệu qua mạng thành **7 tầng** (layer).
+      Mỗi tầng chỉ lo một việc và chỉ "nói chuyện" với tầng sát trên và sát dưới. Đánh số từ **dưới lên**:
+
+      ```text
+      7  Application   giao thức mà ứng dụng dùng        HTTP, DNS, FTP, SMTP
+      6  Presentation  định dạng, mã hóa, nén dữ liệu    TLS/SSL, JSON/UTF-8 (về mặt khái niệm)
+      5  Session       mở, giữ, đóng phiên trao đổi      (thường gộp vào Application)
+      4  Transport     chuyển dữ liệu giữa hai tiến trình TCP, UDP (có số port)
+      3  Network       địa chỉ logic và định tuyến       IP, ICMP, ARP (hay xếp ở ranh giới 2-3)
+      2  Data Link     chuyển khung trong cùng một mạng  Ethernet, MAC address, switch
+      1  Physical      bit trên dây, sóng, điện áp       cáp, WiFi radio, hub
+      ```
+
+      Mẹo nhớ: **P**lease **D**o **N**ot **T**hrow **S**ausage **P**izza **A**way (Physical đến Application).
+
+      Đơn vị dữ liệu (PDU) đổi tên theo tầng: **segment** (Transport, TCP) hoặc **datagram** (UDP), **packet** (Network),
+      **frame** (Data Link), **bit** (Physical). Thiết bị tiêu biểu: **switch** làm việc ở tầng 2, **router** ở tầng 3.
+
+      Lưu ý: OSI là mô hình **khái niệm** để học và gỡ lỗi ("lỗi ở tầng nào?"), còn internet thật chạy theo TCP/IP.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Router chuyển gói tin dựa trên địa chỉ IP đích. Router làm việc chủ yếu ở tầng OSI nào?"
+    options:
+      - {id: a, text_md: "Tầng 2 (Data Link)"}
+      - {id: b, text_md: "Tầng 3 (Network)"}
+      - {id: c, text_md: "Tầng 4 (Transport)"}
+    answer: [b]
+    explain_md: "IP là giao thức tầng Network (tầng 3), nên router định tuyến theo IP là thiết bị tầng 3. Switch dùng MAC address ở tầng 2."
+  - id: t02
+    type: text
+    md: |
+      **Mô hình TCP/IP** là mô hình thực tế của internet, chỉ có **4 tầng**. Nó gộp các tầng OSI lại:
+
+      ```text
+      OSI                          TCP/IP
+      7 Application  \
+      6 Presentation  >----------  Application   (HTTP, DNS, TLS, SMTP)
+      5 Session      /
+      4 Transport    ------------  Transport     (TCP, UDP)
+      3 Network      ------------  Internet      (IP, ICMP)
+      2 Data Link    \
+      1 Physical     /-----------  Link          (Ethernet, WiFi, ARP)
+      ```
+
+      Khi gửi, dữ liệu đi **từ tầng trên xuống tầng dưới**. Mỗi tầng **bọc thêm header** của mình quanh dữ liệu
+      của tầng trên: đó là **encapsulation** (đóng gói). Bên nhận làm ngược lại, mỗi tầng **bóc header** của mình
+      rồi đưa phần còn lại lên: **decapsulation**.
+
+      ```text
+      Gửi một request HTTP:
+      Application : [HTTP header | dữ liệu]
+      Transport   : [TCP header | HTTP header | dữ liệu]                      (segment)
+      Network     : [IP header | TCP header | HTTP header | dữ liệu]          (packet)
+      Data Link   : [Eth header | IP | TCP | HTTP | dữ liệu | Eth trailer]    (frame)
+
+      Thứ tự trên dây: header tầng THẤP nhất nằm NGOÀI CÙNG, header tầng cao nằm sát dữ liệu.
+      ```
+
+      Hệ quả thực tế: switch chỉ đọc header Ethernet, router bóc đến header IP, chỉ hai đầu cuối mới đọc TCP và HTTP.
+  - id: q02
+    type: predict_output
+    code: |
+      sent = ["data"]
+      for header in ["HTTP", "TCP", "IP"]:
+          sent = [header] + sent
+      print(sent)
+    expected_output: |
+      ['IP', 'TCP', 'HTTP', 'data']
+    explain_md: "Mỗi lần đóng gói, header mới đứng đầu danh sách (ngoài cùng). IP được thêm cuối nên nằm ngoài cùng."
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Trong TCP/IP, giao thức nào sau đây thuộc tầng Transport?"
+    options:
+      - {id: a, text_md: "UDP"}
+      - {id: b, text_md: "ICMP"}
+      - {id: c, text_md: "Ethernet"}
+    answer: [a]
+    explain_md: "TCP và UDP là hai giao thức tầng Transport. ICMP thuộc tầng Network/Internet, Ethernet thuộc tầng Data Link/Link."
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: mô phỏng encapsulation"
+    summary_vi: "Cài hàm đóng gói: header tầng thấp nằm ngoài cùng, dữ liệu ở cuối."
+    exercise_ref: ex_encap
+  - id: t03
+    type: text
+    md: |
+      Mô hình hóa gói tin bằng list: mỗi tầng chèn header của mình vào **đầu** list. Nếu danh sách header được liệt kê
+      theo thứ tự thêm vào (tầng cao trước, tầng thấp sau), thì thứ tự trên dây là **đảo ngược**.
+
+      ```text
+      headers = ["HTTP", "TCP", "IP", "ETH"]     # thứ tự thêm vào, từ trên xuống
+      wire    = ["ETH", "IP", "TCP", "HTTP", payload]
+      ```
+  - id: ex_encap
+    type: code_exercise
+    md: |
+      Cài `encapsulate(headers, payload)`. `headers` là list chuỗi theo **thứ tự được thêm vào** (tầng cao nhất
+      trước, tầng thấp nhất sau), `payload` là một chuỗi. Trả về list thứ tự **trên dây**: header được thêm sau cùng
+      nằm ngoài cùng (đứng đầu), payload đứng cuối. Không sửa list đầu vào. Ví dụ `["UDP", "IP"]`, `"dns"` cho
+      `["IP", "UDP", "dns"]`.
+    entry: encapsulate
+    starter: |
+      def encapsulate(headers, payload):
+          # TODO: trả list thứ tự trên dây: header thêm sau cùng ở đầu, payload ở cuối
+          pass
+    guidance_md: |
+      - Header thêm sau cùng phải đứng đầu, nên cần đảo thứ tự `headers`.
+      - Ghép phần đã đảo với `[payload]`.
+    hints:
+      - level: nudge
+        md: "Tầng thấp (thêm sau cùng) nằm ngoài cùng, tức đứng đầu danh sách."
+      - level: approach
+        md: "Đảo `headers` rồi nối thêm payload ở cuối."
+      - level: near_solution
+        md: "`list(reversed(headers)) + [payload]` không sửa list đầu vào."
+    tests:
+      - {args: [["HTTP", "TCP", "IP", "ETH"], "data"], expected: ["ETH", "IP", "TCP", "HTTP", "data"]}
+      - {args: [[], "x"], expected: ["x"]}
+      - {args: [["UDP", "IP"], "dns"], expected: ["IP", "UDP", "dns"]}
+      - {args: [["TLS"], "p"], expected: ["TLS", "p"]}
+    solution: |
+      def encapsulate(headers, payload):
+          return list(reversed(headers)) + [payload]
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Quá trình bọc thêm header khi dữ liệu đi từ tầng trên xuống tầng dưới gọi là ___."
+    blanks: [{accept: ["encapsulation", "Encapsulation", "đóng gói"]}]
+    explain_md: "Encapsulation (đóng gói) là thêm header ở mỗi tầng khi gửi; bên nhận làm ngược lại gọi là decapsulation."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "OSI có 7 tầng: Physical, Data Link, Network, Transport, Session, Presentation, Application; TCP/IP gộp thành 4 tầng (Link, Internet, Transport, Application)."
+      - "Giao thức tiêu biểu: HTTP/DNS (Application), TLS (Presentation), TCP/UDP (Transport), IP/ICMP (Network), Ethernet/MAC (Data Link), WiFi/cáp (Physical)."
+      - "Encapsulation thêm header từ trên xuống, decapsulation bóc từ dưới lên; header tầng thấp nằm ngoài cùng trên dây."
+      - "Switch làm việc ở tầng 2 (MAC), router ở tầng 3 (IP); OSI là mô hình khái niệm, internet thật chạy TCP/IP."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X822], l2: [X823], l3: [X824]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-07"

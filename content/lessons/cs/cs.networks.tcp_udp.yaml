@@ -1,0 +1,174 @@
+id: cs.networks.tcp_udp
+version: 1
+status: published
+title_vi: "TCP và UDP (transport layer)"
+est_minutes: 15
+objectives_vi:
+  - "So sánh TCP (connection-oriented, đáng tin cậy, có thứ tự) với UDP (connectionless, best-effort)."
+  - "Mô tả 3-way handshake SYN, SYN-ACK, ACK và vai trò của sequence number và acknowledgement number."
+  - "Giải thích retransmission, flow control và congestion control ở mức ý tưởng."
+  - "Chọn TCP hay UDP cho từng bài toán và mô phỏng việc sắp xếp lại segment theo thứ tự."
+blocks:
+  - id: s_model
+    type: section
+    title_vi: "TCP và UDP khác nhau ở đâu"
+    summary_vi: "TCP đổi tốc độ lấy độ tin cậy và thứ tự; UDP gửi nhanh, nhẹ, không hứa gì."
+  - id: t01
+    type: text
+    md: |
+      Ở tầng transport, hai giao thức chính là **TCP** (Transmission Control Protocol) và **UDP** (User Datagram Protocol).
+      Cả hai chạy trên IP, dùng **port** để chuyển dữ liệu đến đúng ứng dụng.
+
+      **TCP**:
+
+      - **Connection-oriented**: phải thiết lập kết nối trước khi gửi dữ liệu.
+      - **Reliable**: mất gói thì gửi lại, dữ liệu đến đủ, không trùng.
+      - **Ordered**: ứng dụng nhận byte stream đúng thứ tự gửi, dù các gói đến lộn xộn.
+      - Có **flow control** (không làm người nhận ngợp) và **congestion control** (không làm nghẽn mạng).
+
+      **UDP**:
+
+      - **Connectionless**: không handshake, gửi datagram là đi.
+      - **Best-effort**: có thể mất, trùng hoặc đến sai thứ tự; UDP không sửa giúp.
+      - Header chỉ 8 byte (TCP tối thiểu 20 byte), độ trễ thấp, không giữ trạng thái kết nối.
+
+      ```text
+      TCP: ứng dụng <-> [kết nối, ack, retransmit, sắp xếp] <-> ứng dụng
+      UDP: ứng dụng ---- datagram ----> ứng dụng   (gửi xong là xong)
+      ```
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Giao thức nào KHÔNG đảm bảo gói đến đúng thứ tự và không tự gửi lại gói bị mất?"
+    options:
+      - {id: a, text_md: "UDP"}
+      - {id: b, text_md: "TCP"}
+      - {id: c, text_md: "Cả hai đều đảm bảo"}
+    answer: [a]
+    explain_md: "UDP là best-effort: không ack, không retransmit, không sắp xếp lại. TCP làm cả ba việc đó."
+  - id: t02
+    type: text
+    md: |
+      **3-way handshake** thiết lập kết nối TCP và đồng bộ **sequence number** ban đầu của hai bên:
+
+      ```text
+      Client                     Server
+        | --- SYN, seq=x ---------> |     "tôi muốn kết nối, byte đầu của tôi bắt đầu từ x"
+        | <-- SYN-ACK, seq=y, ack=x+1 |   "đồng ý; tôi bắt đầu từ y; tôi đã nhận đến x"
+        | --- ACK, ack=y+1 ------> |     "đã nhận, kết nối mở"
+      ```
+
+      Sau đó dữ liệu chảy theo hai nguyên tắc:
+
+      - **Sequence number** đánh số **byte** (không phải số gói). Segment có `seq=1000` và 200 byte dữ liệu chứa các byte 1000 đến 1199.
+      - **Acknowledgement number** là **byte kế tiếp mà người nhận mong đợi**. Nhận xong byte 1199 thì ack = 1200.
+
+      ```text
+      A gửi: seq=1000, 200 byte   -> B trả ack=1200
+      A gửi: seq=1200, 100 byte   -> B trả ack=1300
+      ```
+
+      Ack là **cumulative**: ack=1300 nghĩa là mọi byte trước 1300 đã đến đủ. Nếu segment 1200 bị mất mà 1300 đã đến,
+      B vẫn trả ack=1200 (duplicate ack), báo cho A biết chỗ thiếu.
+  - id: q02
+    type: predict_output
+    code: |
+      seq = 1000
+      length = 200
+      print(seq + length)
+    expected_output: |
+      1200
+    explain_md: "Ack là byte kế tiếp mong đợi: seq + length = 1200."
+  - id: t03
+    type: text
+    md: |
+      **Retransmission**: người gửi giữ bộ đếm thời gian cho mỗi segment chưa được ack. Hết hạn (timeout) hoặc nhận 3 duplicate
+      ack thì gửi lại segment đó. Vì vậy người nhận có thể gặp segment **trùng** hoặc **đến lộn xộn**, TCP phải loại trùng và
+      sắp xếp lại trước khi giao cho ứng dụng (reassembly).
+
+      **Flow control**: người nhận quảng bá **receive window**, số byte nó còn chỗ chứa. Người gửi không gửi quá cửa sổ này.
+
+      **Congestion control**: người gửi tự giới hạn tốc độ bằng **congestion window**. Bắt đầu nhỏ (slow start), tăng dần;
+      khi phát hiện mất gói thì giảm mạnh. Mục tiêu là không làm nghẽn mạng chung.
+
+      ```text
+      Tốc độ gửi tối đa ~ min(receive window, congestion window)
+      ```
+
+      **Khi nào chọn gì**:
+
+      - **TCP**: web (HTTP/1.1, HTTP/2), email, SSH, truyền file, database; cần đủ và đúng thứ tự.
+      - **UDP**: DNS (một câu hỏi, một câu trả lời nhỏ), streaming video/voice call, game online; thà mất vài gói còn hơn chờ gói cũ.
+      - HTTP/3 chạy trên QUIC (xây trên UDP) để tự làm retransmission mà không bị head-of-line blocking của TCP.
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Cuộc gọi video: một vài frame đến trễ thì không còn giá trị. Nên chọn gì?"
+    options:
+      - {id: a, text_md: "UDP: chấp nhận mất vài gói, giữ độ trễ thấp"}
+      - {id: b, text_md: "TCP: để retransmit đảm bảo đủ mọi gói"}
+      - {id: c, text_md: "TCP, vì UDP không gửi được video"}
+    answer: [a]
+    explain_md: "Với dữ liệu thời gian thực, gói cũ vô dụng; retransmission của TCP chỉ làm tăng độ trễ."
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: ack kế tiếp"
+    summary_vi: "Tính byte kế tiếp mà người nhận mong đợi từ seq và độ dài segment."
+    exercise_ref: ex_ack
+  - id: t04
+    type: text
+    md: |
+      Quy tắc ack gói gọn trong một phép cộng. Segment bắt đầu ở byte `seq` mang `length` byte thì byte cuối là
+      `seq + length - 1`, nên byte kế tiếp cần là `seq + length`.
+
+      ```text
+      seq=500, length=0   -> ack = 500   (segment rỗng, chưa nhận thêm byte nào)
+      seq=0,   length=100 -> ack = 100
+      ```
+  - id: ex_ack
+    type: code_exercise
+    md: |
+      Cài `next_ack(seq, length)`: segment bắt đầu ở byte `seq` (số nguyên không âm) và mang `length` byte
+      (số nguyên không âm). Trả về acknowledgement number, tức byte kế tiếp người nhận mong đợi. Ví dụ
+      `next_ack(1000, 200)` trả `1200`.
+    entry: next_ack
+    starter: |
+      def next_ack(seq, length):
+          # TODO: trả về byte kế tiếp mong đợi
+          pass
+    guidance_md: |
+      - Byte cuối của segment là `seq + length - 1`.
+      - Byte kế tiếp là ngay sau đó.
+    hints:
+      - level: nudge
+        md: "Ack là vị trí byte đầu tiên chưa nhận."
+      - level: approach
+        md: "Segment chiếm các byte từ seq đến seq + length - 1."
+      - level: near_solution
+        md: "Trả `seq + length`."
+    tests:
+      - {args: [1000, 200], expected: 1200}
+      - {args: [0, 100], expected: 100}
+      - {args: [500, 0], expected: 500}
+      - {args: [4294, 1], expected: 4295}
+    solution: |
+      def next_ack(seq, length):
+          return seq + length
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Chuỗi 3-way handshake của TCP gồm SYN, SYN-ACK và ___."
+    blanks: [{accept: ["ACK", "ack"]}]
+    explain_md: "Client gửi SYN, server trả SYN-ACK, client xác nhận bằng ACK rồi kết nối mở."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "TCP: connection-oriented, reliable, ordered, có flow control và congestion control. UDP: connectionless, best-effort, header nhẹ."
+      - "3-way handshake: SYN, SYN-ACK, ACK; sequence number đánh số byte, acknowledgement number là byte kế tiếp mong đợi (cumulative)."
+      - "Retransmission làm segment có thể trùng hoặc lộn xộn; TCP loại trùng và sắp xếp lại trước khi giao cho ứng dụng."
+      - "Chọn TCP khi cần đủ và đúng thứ tự (web, file); chọn UDP khi cần độ trễ thấp và chấp nhận mất gói (DNS, video, game)."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X828], l2: [X829], l3: [X830]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-07"

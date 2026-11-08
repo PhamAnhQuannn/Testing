@@ -1,0 +1,165 @@
+id: cs.databases.lsm_storage
+version: 1
+status: published
+title_vi: "LSM-tree và storage engine tối ưu ghi"
+est_minutes: 15
+objectives_vi:
+  - "So sánh LSM-tree (tối ưu ghi) với B-tree (tối ưu đọc) và biết khi nào chọn cái nào."
+  - "Mô tả write path (memtable rồi flush thành SSTable) và read path (memtable, rồi SSTable từ mới đến cũ, có bloom filter)."
+  - "Giải thích compaction: gộp SSTable, giữ giá trị mới nhất và bỏ key đã bị xoá (tombstone), kèm khái niệm write amplification."
+  - "Mô phỏng đọc một key qua nhiều run: run mới hơn thắng run cũ."
+blocks:
+  - id: s_model
+    type: section
+    title_vi: "Memtable, SSTable và hai đường đi"
+    summary_vi: "LSM-tree biến ghi ngẫu nhiên thành ghi tuần tự: gom trong RAM rồi đẩy xuống đĩa thành các file bất biến."
+  - id: t01
+    type: text
+    md: |
+      **B-tree** (MySQL InnoDB, PostgreSQL) cập nhật dữ liệu **tại chỗ**: mỗi lần ghi phải tìm đúng trang và sửa nó,
+      tức là ghi ngẫu nhiên xuống đĩa. Đọc rất nhanh (một cây nông), nhưng ghi nặng thì chậm.
+
+      **LSM-tree** (Log-Structured Merge-tree; dùng trong RocksDB, LevelDB, Cassandra, HBase) làm ngược lại: **không bao giờ sửa file
+      trên đĩa**. Mọi ghi chỉ là thao tác thêm vào, nên rất nhanh và tuần tự.
+
+      ```text
+      RAM   : memtable          (cấu trúc có thứ tự, ví dụ skip list; nhận ghi mới)
+      Đĩa   : SSTable 3 (mới)   (Sorted String Table: file bất biến, key đã sắp xếp)
+              SSTable 2
+              SSTable 1 (cũ)
+      Ngoài ra: WAL ghi trước để memtable không mất khi crash
+      ```
+
+      **Write path**:
+
+      1. Ghi vào WAL (tuần tự) rồi chèn vào **memtable**.
+      2. Khi memtable đầy, nó trở thành **immutable** và được **flush** xuống đĩa thành một SSTable mới (đã sắp xếp theo key).
+
+      **Read path**: tìm trong memtable trước, rồi các SSTable **từ mới đến cũ**; gặp key ở đâu thì dừng, vì bản mới hơn
+      luôn che bản cũ. Để khỏi mở mọi file, mỗi SSTable có một **bloom filter**: nó trả lời "chắc chắn không có key này" hoặc
+      "có thể có", nên bỏ qua được phần lớn SSTable không liên quan (có thể báo nhầm "có thể có", không bao giờ báo nhầm "không có").
+
+      ```text
+      get("b"): memtable? không -> SSTable 3? bloom nói không -> SSTable 2? có b=9 -> trả 9 (SSTable 1 có b=2 bị che)
+      ```
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Vì sao LSM-tree ghi nhanh hơn B-tree trên đĩa?"
+    options:
+      - {id: a, text_md: "Mọi ghi chỉ là thêm vào (memtable rồi flush tuần tự), không phải sửa trang tại chỗ"}
+      - {id: b, text_md: "Vì LSM-tree không cần lưu dữ liệu xuống đĩa"}
+      - {id: c, text_md: "Vì LSM-tree đọc nhanh hơn B-tree nên ghi cũng nhanh theo"}
+    answer: [a]
+    explain_md: "Ghi tuần tự rẻ hơn ghi ngẫu nhiên nhiều lần. Đổi lại, đọc phải xem nhiều chỗ nên thường chậm hơn B-tree."
+  - id: q02
+    type: predict_output
+    code: |
+      newest_first = [{"b": 9}, {"a": 1, "b": 2}]
+      key = "b"
+      for run in newest_first:
+          if key in run:
+              print(run[key])
+              break
+    expected_output: |
+      9
+    explain_md: "Duyệt từ run mới đến cũ và dừng ở lần gặp đầu tiên: b = 9 che b = 2 ở run cũ."
+  - id: t02
+    type: text
+    md: |
+      **Compaction** là tiến trình nền gộp nhiều SSTable thành ít SSTable hơn. Nếu không, số file tăng mãi và đọc ngày càng chậm.
+      Khi gộp (merge các file đã sắp xếp), với mỗi key ta **giữ bản mới nhất** và vứt các bản cũ bị che.
+
+      **Xoá** cũng chỉ là một lần ghi: ta thêm một **tombstone** (dấu xoá) cho key đó. Tombstone phải sống đủ lâu để che các bản cũ
+      nằm ở SSTable sâu hơn; chỉ khi compaction đã gộp tới mức không còn bản cũ nào bên dưới thì mới được bỏ cả key lẫn tombstone.
+
+      ```text
+      SSTable 2 (mới): b = <tombstone>, c = 3
+      SSTable 1 (cũ) : a = 1, b = 2
+      Compaction -> a = 1, c = 3            (b biến mất hẳn)
+      Nếu bỏ tombstone quá sớm khi chưa gộp SSTable 1, b = 2 sẽ "sống lại".
+      ```
+
+      **Write amplification** (khuếch đại ghi): một byte do người dùng ghi bị compaction ghi lại nhiều lần xuống đĩa
+      (mỗi lần gộp qua từng tầng). Đó là cái giá của LSM-tree: ghi ban đầu rẻ nhưng tổng lượng ghi thật lớn hơn. Hai chiến lược phổ biến:
+      **size-tiered** (gộp các file cùng cỡ, ghi ít hơn nhưng tốn chỗ) và **leveled** (mỗi tầng có khoảng key không chồng nhau, đọc tốt hơn nhưng write amplification cao hơn).
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Một key bị xoá bằng cách nào trong LSM-tree?"
+    options:
+      - {id: a, text_md: "Ghi thêm một tombstone; key thật sự biến mất khi compaction gộp xuống mức cũ nhất"}
+      - {id: b, text_md: "Sửa trực tiếp SSTable chứa key để xoá dòng đó"}
+      - {id: c, text_md: "Xoá ngay key khỏi mọi SSTable lúc nhận lệnh delete"}
+    answer: [a]
+    explain_md: "SSTable là bất biến nên không sửa được; xoá là ghi thêm một dấu xoá, dọn dẹp thật sự để compaction lo."
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: đọc một key qua nhiều run"
+    summary_vi: "Cài point read: duyệt các run từ mới đến cũ và trả về giá trị ở lần gặp đầu tiên."
+    exercise_ref: ex_point_read
+  - id: t03
+    type: text
+    md: |
+      Mô hình đơn giản: mỗi SSTable là một **run**, là list các cặp `[key, value]`; list các run xếp theo thứ tự **cũ đến mới**.
+      Đọc một key nghĩa là duyệt run từ cuối về đầu.
+
+      ```text
+      for run in reversed(runs):        # mới nhất trước
+          for k, v in run:
+              if k == key:
+                  return v              # bản mới nhất che các bản cũ
+      return None                       # không run nào có key
+      ```
+  - id: ex_point_read
+    type: code_exercise
+    md: |
+      Cài `point_read(runs, key)`. `runs` là list các run xếp theo thứ tự **cũ đến mới**; mỗi run là list các cặp `[key, value]`
+      (key là chuỗi, value là số nguyên, key không trùng trong cùng một run; run có thể rỗng). Trả về `value` của `key` ở
+      run **mới nhất** có chứa nó, hoặc `None` nếu không run nào có. Ví dụ `[[["a", 1], ["b", 2]], [["b", 9]]]` với `"b"` cho `9`.
+    entry: point_read
+    starter: |
+      def point_read(runs, key):
+          # TODO: duyệt runs từ mới đến cũ, trả value ở lần gặp key đầu tiên, không có thì None
+          pass
+    guidance_md: |
+      - Dùng `reversed(runs)` để đi từ run mới nhất.
+      - Trả về ngay khi gặp key; hết vòng lặp mà chưa gặp thì trả `None`.
+    hints:
+      - level: nudge
+        md: "Run mới hơn che run cũ, nên hãy xét run cuối cùng trước."
+      - level: approach
+        md: "Vòng ngoài `for run in reversed(runs)`, vòng trong duyệt từng cặp `[k, v]`."
+      - level: near_solution
+        md: "Nếu `k == key` thì `return v`; sau hai vòng lặp thì `return None`."
+    tests:
+      - {args: [[[["a", 1], ["b", 2]], [["b", 9]]], "b"], expected: 9}
+      - {args: [[[["a", 1], ["b", 2]], [["b", 9]]], "a"], expected: 1}
+      - {args: [[[["a", 1], ["b", 2]], [["b", 9]]], "z"], expected: null}
+      - {args: [[], "a"], expected: null}
+      - {args: [[[["k", 5]], [], [["j", 1]]], "k"], expected: 5}
+    solution: |
+      def point_read(runs, key):
+          for run in reversed(runs):
+              for k, v in run:
+                  if k == key:
+                      return v
+          return None
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Tiến trình nền gộp nhiều SSTable lại và bỏ các bản cũ bị che gọi là ___."
+    blanks: [{accept: ["compaction", "Compaction"]}]
+    explain_md: "Compaction giữ bản mới nhất của mỗi key và dọn tombstone khi an toàn, đổi lại tạo write amplification."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "B-tree sửa tại chỗ, đọc nhanh; LSM-tree chỉ thêm vào, ghi nhanh, hợp workload nặng ghi."
+      - "Write path: WAL, memtable, flush thành SSTable bất biến đã sắp xếp. Read path: memtable rồi SSTable từ mới đến cũ, bloom filter bỏ qua file không chứa key."
+      - "Xoá là ghi tombstone; compaction gộp SSTable, giữ bản mới nhất, và chỉ bỏ tombstone khi không còn bản cũ bên dưới."
+      - "Write amplification là cái giá của compaction; size-tiered ghi ít hơn, leveled đọc tốt hơn."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X819], l2: [X820], l3: [X821]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-07"
