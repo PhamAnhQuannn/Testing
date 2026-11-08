@@ -1,0 +1,72 @@
+id: check-x838-verify-chain
+subtopic_id: cs.networks.tls_security
+secondary_subtopics: []
+kind: check
+title: 'Check X838: verify a certificate chain'
+title_vi: 'Kiểm tra X838: xác minh certificate chain'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Implement `verify_chain(certs)`, a model of X.509 certificate-chain verification. `certs` is a list of
+  `[subject, issuer]` (strings) ordered leaf-first: `certs[0]` is the leaf (server certificate) and `certs[-1]` is
+  the root CA. The chain is valid iff for every adjacent pair the `issuer` of `certs[i]` equals the `subject` of
+  `certs[i+1]` (each certificate is signed by the next one up) AND the root is self-signed (`certs[-1]` has
+  subject equal to issuer). Return `True` or `False`; an empty list returns `False`.
+  For `[["leaf", "int"], ["int", "root"], ["root", "root"]]` the result is `True`; for
+  `[["leaf", "int"], ["int", "root"]]` it is `False` because the last certificate is not self-signed.
+statement_vi_md: |
+  Cài `verify_chain(certs)`, mô phỏng việc kiểm tra certificate chain X.509. `certs` là list các
+  `[subject, issuer]` (chuỗi), xếp từ leaf đến root: `certs[0]` là leaf (server cert), `certs[-1]` là root CA.
+  Chain hợp lệ khi với mọi cặp liền kề, `issuer` của `certs[i]` bằng `subject` của `certs[i+1]` (mỗi cert được
+  cert kế tiếp ký) VÀ root tự ký (`certs[-1]` có subject bằng issuer). Trả `True` hoặc `False`; list rỗng trả
+  `False`. Với `[["leaf", "int"], ["int", "root"], ["root", "root"]]` kết quả là `True`; với
+  `[["leaf", "int"], ["int", "root"]]` là `False` vì cert cuối không tự ký.
+constraints:
+- 'Mỗi phần tử của certs là list [subject, issuer] gồm hai chuỗi'
+- 'List rỗng trả False; một cert tự ký duy nhất trả True'
+- 'Chỉ dùng thư viện chuẩn của Python'
+examples:
+- input: 'certs = [["leaf", "int"], ["int", "root"], ["root", "root"]]'
+  output: 'true'
+  explain_vi: 'leaf do int ký, int do root ký, root tự ký, nên chain hợp lệ.'
+- input: 'certs = [["leaf", "int"], ["x", "root"], ["root", "root"]]'
+  output: 'false'
+  explain_vi: 'Issuer của leaf là int nhưng cert kế tiếp có subject x, nên chain đứt.'
+io:
+  mode: function
+  entry: verify_chain
+  params:
+  - name: certs
+    type: list
+  returns: bool
+  compare: exact
+starter:
+  python: |
+    def verify_chain(certs):
+        # TODO: rỗng -> False; mỗi issuer phải bằng subject kế tiếp; root phải tự ký
+        pass
+time_target_min: 6
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+hints:
+- "Trường hợp rỗng trả `False` ngay; các trường hợp còn lại cần duyệt các cặp liền kề."
+- "Với mỗi `i` từ 0 đến `len(certs) - 2`, so `certs[i][1]` (issuer) với `certs[i + 1][0]` (subject); lệch thì trả `False`."
+- "Sau vòng lặp, trả `certs[-1][0] == certs[-1][1]` để kiểm tra root tự ký."
+solution:
+  file: solution.py
+  approach_vi: Rỗng thì False; duyệt các cặp liền kề kiểm tra issuer bằng subject kế tiếp; cuối cùng kiểm tra cert gốc tự ký.
+  complexity: "O(n) / O(1)"
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x838
+status: validated
+version: 1

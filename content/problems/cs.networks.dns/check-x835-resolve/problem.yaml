@@ -1,0 +1,74 @@
+id: check-x835-resolve
+subtopic_id: cs.networks.dns
+secondary_subtopics: []
+kind: check
+title: 'Check X835: resolve a DNS name through CNAME records'
+title_vi: 'Kiểm tra X835: phân giải tên DNS qua chuỗi CNAME'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Implement `resolve(records, name)`, a model of DNS resolution that follows a CNAME chain to an A record.
+  `records` is a dict mapping a name (str) to `[type, value]`, where `type` is `"CNAME"` or `"A"`. For a `"CNAME"`,
+  `value` is another name; for an `"A"`, `value` is an IP address string. Starting from `name`, follow CNAME links
+  until you reach an `"A"` record and return its `value`. Return `null` (`None`) if `name` has no record, if a CNAME
+  points to a name that has no record, or if a loop is detected (you revisit a name already seen).
+  For `records = {"www": ["CNAME", "web"], "web": ["A", "1.2.3.4"]}` and `name = "www"` the result is `"1.2.3.4"`;
+  for `records = {"a": ["CNAME", "b"]}` and `name = "a"` it is `null` because `b` has no record.
+statement_vi_md: |
+  Cài `resolve(records, name)`, mô phỏng việc DNS phân giải tên bằng cách đi theo chuỗi CNAME đến bản ghi A.
+  `records` là dict ánh xạ một tên (str) sang `[type, value]`, với `type` là `"CNAME"` hoặc `"A"`. Với `"CNAME"`,
+  `value` là một tên khác; với `"A"`, `value` là chuỗi địa chỉ IP. Bắt đầu từ `name`, đi theo các liên kết CNAME cho
+  đến khi gặp bản ghi `"A"` rồi trả về `value` của nó. Trả `null` (`None`) nếu `name` không có bản ghi, nếu một CNAME
+  trỏ đến tên không có bản ghi, hoặc nếu phát hiện vòng lặp (gặp lại một tên đã đi qua). Với ví dụ trên kết quả là
+  `"1.2.3.4"`; với `records = {"a": ["CNAME", "b"]}` thì là `null` vì `b` không có bản ghi.
+constraints:
+- 'type chỉ là "CNAME" hoặc "A"; mỗi tên có tối đa một bản ghi'
+- 'Thiếu bản ghi ở bất kỳ bước nào, hoặc có vòng lặp CNAME, thì trả None'
+- 'Chỉ dùng thư viện chuẩn của Python'
+examples:
+- input: 'records = {"www": ["CNAME", "web"], "web": ["A", "1.2.3.4"]}, name = "www"'
+  output: '"1.2.3.4"'
+  explain_vi: 'www là CNAME trỏ đến web; web là bản ghi A nên trả về 1.2.3.4.'
+- input: 'records = {"a": ["CNAME", "b"], "b": ["CNAME", "a"]}, name = "a"'
+  output: 'null'
+  explain_vi: 'a trỏ đến b rồi b trỏ về a: gặp lại tên đã đi qua nên là vòng lặp, trả None.'
+io:
+  mode: function
+  entry: resolve
+  params:
+  - name: records
+    type: dict
+  - name: name
+    type: str
+  returns: any
+  compare: exact
+starter:
+  python: |
+    def resolve(records, name):
+        # TODO: đi theo CNAME đến bản ghi A; thiếu bản ghi hoặc vòng lặp thì trả None
+        pass
+time_target_min: 6
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+hints:
+- "Giữ một `seen` (set) các tên đã đi qua và biến `cur = name`; lặp trong khi `cur` có trong `records`."
+- "Mỗi vòng: nếu `cur` đã trong `seen` thì dừng (vòng lặp); thêm vào `seen`, lấy `rtype, value = records[cur]`; nếu `rtype == \"A\"` thì trả `value`."
+- "Nếu là CNAME thì `cur = value` rồi lặp tiếp; khi thoát vòng lặp (thiếu bản ghi hoặc vòng lặp) trả `None`."
+solution:
+  file: solution.py
+  approach_vi: Đi theo từng CNAME, ghi nhớ tên đã thăm trong set để phát hiện vòng lặp; trả value của bản ghi A đầu tiên, ngược lại None.
+  complexity: "O(k) / O(k)"
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x835
+status: validated
+version: 1

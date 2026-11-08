@@ -1,0 +1,53 @@
+subtopic_id: cs.networks.tls_security
+items:
+  - id: X837
+    difficulty: 1
+    type: read_code
+    minutes: 3
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng.
+    code: |-
+      chain = [("leaf", "int"), ("x", "root"), ("root", "root")]
+      for i in range(len(chain) - 1):
+          print(chain[i][1] == chain[i + 1][0])
+      print(chain[-1][0] == chain[-1][1])
+    expected_output: "False\nTrue\nTrue"
+    answer_md: "Mỗi cert là (subject, issuer). i=0: issuer của leaf là int, subject kế tiếp là x nên False (chain đứt). i=1: issuer root bằng subject root nên True. Cuối cùng cert gốc có subject == issuer nên True."
+    rubric_md: "Output khớp từng dòng. Đúng: bằng chứng điểm 1; sai: tối đa điểm 0."
+  - id: X838
+    difficulty: 2
+    type: write_code
+    minutes: 6
+    prompt_md: |
+      Viết hàm `verify_chain(certs)` mô phỏng việc kiểm tra certificate chain. `certs` là list các `[subject, issuer]` (chuỗi), xếp từ leaf đến root: `certs[0]` là leaf, `certs[-1]` là root CA. Chain hợp lệ khi mỗi cặp liền kề thỏa `certs[i]` có `issuer` bằng `subject` của `certs[i+1]` (mỗi cert được cert kế tiếp ký) VÀ root tự ký (`certs[-1]` có subject bằng issuer). Trả `True` nếu hợp lệ, ngược lại `False`; list rỗng trả `False`. Ví dụ `[["leaf","int"],["int","root"],["root","root"]]` cho `True`, còn `[["leaf","int"],["int","root"]]` cho `False` vì root không tự ký.
+    problem_id: check-x838-verify-chain
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 6 phút: bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X839
+    difficulty: 3
+    type: read_code
+    minutes: 5
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng và giải thích vì sao đảo thứ tự chain làm nó không hợp lệ.
+    code: |-
+      def verify(certs):
+          if not certs:
+              return False
+          for i in range(len(certs) - 1):
+              if certs[i][1] != certs[i + 1][0]:
+                  return False
+          return certs[-1][0] == certs[-1][1]
+
+
+      a = [["site", "ca1"], ["ca1", "root"], ["root", "root"]]
+      b = [["site", "ca1"], ["ca1", "root"]]
+      c = [["root", "root"]]
+      d = [["site", "ca1"], ["ca1", "root"], ["root", "root"], ["root", "root"]]
+      e = [["site", "ca1"], ["ca2", "root"], ["root", "root"]]
+      print(verify(a))
+      print(verify(b))
+      print(verify(c))
+      print(verify(d))
+      print(verify(e))
+      print(verify([]))
+      print(verify(a[::-1]))
+    expected_output: "True\nFalse\nTrue\nTrue\nFalse\nFalse\nFalse"
+    answer_md: "a: mọi mắt xích khớp và root tự ký nên True. b: cert cuối (ca1, root) không tự ký nên False. c: một root tự ký nên True. d: thêm root lặp (root, root) vẫn khớp (issuer root == subject root) và cuối tự ký nên True. e: issuer ca1 khác subject ca2 nên chain đứt, False. Danh sách rỗng trả False. a[::-1] bắt đầu bằng root: issuer root khác subject ca1 nên False, vì chain phải đi từ leaf lên root."
+    rubric_md: "Output khớp từng dòng VÀ giải thích đúng: chain phải theo hướng leaf tới root, mỗi issuer phải là subject của cert kế tiếp, nên đảo thứ tự làm mắt xích đầu không khớp. Đúng: bằng chứng điểm 3; sai: tối đa điểm 2."

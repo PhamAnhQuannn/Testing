@@ -1,0 +1,143 @@
+id: cs.networks.web_flow
+version: 1
+status: published
+title_vi: "Chuyện gì xảy ra khi gõ URL"
+est_minutes: 15
+objectives_vi:
+  - "Kể đúng thứ tự các bước từ lúc gõ URL đến lúc trang hiện ra: parse URL, DNS, TCP, TLS, HTTP, render."
+  - "Gắn mỗi bước với giao thức tương ứng (DNS, TCP 3-way handshake, TLS handshake, HTTP request/response)."
+  - "Giải thích HTTP caching với Cache-Control: no-store, no-cache, max-age, fresh và stale."
+  - "Mô phỏng quyết định cache của trình duyệt: dùng cache, revalidate hay đi ra network."
+blocks:
+  - id: s_flow
+    type: section
+    title_vi: "Hành trình của một URL"
+    summary_vi: "Một lần gõ URL kích hoạt cả chuỗi giao thức bạn đã học: DNS, TCP, TLS, HTTP."
+  - id: t01
+    type: text
+    md: |
+      Gõ `https://example.com/index.html` rồi nhấn Enter, trình duyệt làm lần lượt các bước sau:
+
+      1. **Parse URL**: tách `scheme` (https), `host` (example.com), `port` (mặc định 443), `path` (/index.html).
+      2. **DNS resolution**: đổi `example.com` thành địa chỉ IP (xem bài DNS). Có cache ở trình duyệt, OS và resolver.
+      3. **TCP connection**: 3-way handshake SYN, SYN-ACK, ACK tới IP:443 (xem bài TCP/UDP).
+      4. **TLS handshake** (chỉ với HTTPS): thương lượng cipher, kiểm tra certificate, trao đổi khóa (xem bài TLS).
+      5. **HTTP request/response**: gửi `GET /index.html`, nhận status code, header và body (xem bài HTTP).
+      6. **Render**: parse HTML thành DOM, tải thêm CSS, JS, ảnh (mỗi sub-resource lại có thể cần request riêng), rồi vẽ trang.
+
+      ```text
+      URL -> DNS (tên -> IP) -> TCP (handshake) -> TLS (mã hóa) -> HTTP (request/response) -> HTML -> sub-resources -> render
+      ```
+
+      Mỗi bước tốn ít nhất một round trip, nên tối ưu web phần lớn là **bỏ bớt bước** (cache, keep-alive, HTTP/2, CDN).
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Với URL HTTPS, thứ tự đúng của các bước mạng là gì?"
+    options:
+      - {id: a, text_md: "DNS, TCP handshake, TLS handshake, HTTP request"}
+      - {id: b, text_md: "TCP handshake, DNS, HTTP request, TLS handshake"}
+      - {id: c, text_md: "HTTP request, DNS, TCP handshake, TLS handshake"}
+    answer: [a]
+    explain_md: "Phải biết IP (DNS) trước khi mở TCP; TLS chạy trên kết nối TCP đã mở; HTTP được gửi sau cùng, bên trong kênh đã mã hóa."
+  - id: t02
+    type: text
+    md: |
+      **Caching** giúp bỏ cả chuỗi trên. Server điều khiển bằng header `Cache-Control` trong response:
+
+      - `no-store`: **không bao giờ lưu**; mỗi lần đều lấy từ network (dữ liệu nhạy cảm).
+      - `no-cache`: có thể lưu, nhưng **phải revalidate** với server (ví dụ gửi `If-None-Match` với ETag) trước khi dùng; server trả `304 Not Modified` thì dùng lại bản đã lưu.
+      - `max-age=N`: bản lưu còn **fresh** trong N giây; hết hạn là **stale**, phải lấy lại.
+
+      Bản lưu có `age` (số giây đã lưu). Quy tắc quyết định, theo thứ tự ưu tiên:
+
+      ```text
+      1. có no-store          -> network
+      2. có no-cache          -> revalidate
+      3. age < max-age        -> cache   (fresh)
+      4. còn lại              -> network (stale hoặc không có thông tin)
+      ```
+
+      Lưu ý `age == max-age` đã là **stale** (so sánh nghiêm ngặt `<`). Cache hit loại bỏ DNS, TCP, TLS và HTTP trên đường đi.
+  - id: q02
+    type: predict_output
+    code: |
+      age = 30
+      max_age = 60
+      print(age < max_age)
+      print(60 < max_age)
+    expected_output: |
+      True
+      False
+    explain_md: "30 < 60 nên còn fresh. Khi age bằng max-age thì bản lưu đã stale, nên 60 < 60 là False."
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Response có `Cache-Control: no-cache`. Trình duyệt làm gì với bản đã lưu?"
+    options:
+      - {id: a, text_md: "Hỏi lại server (revalidate) rồi mới dùng bản lưu nếu server trả 304"}
+      - {id: b, text_md: "Không bao giờ lưu response này"}
+      - {id: c, text_md: "Dùng thẳng bản lưu mà không cần hỏi server"}
+    answer: [a]
+    explain_md: "no-cache KHÔNG có nghĩa là không lưu (đó là no-store). Nó nghĩa là phải revalidate trước mỗi lần dùng."
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: bản lưu còn fresh không"
+    summary_vi: "Cài phép so sánh age với max-age, lõi của quyết định cache."
+    exercise_ref: ex_fresh
+  - id: t03
+    type: text
+    md: |
+      Lõi của quyết định cache là một phép so sánh nghiêm ngặt giữa tuổi bản lưu và `max-age`.
+
+      ```text
+      age=10,  max_age=60 -> True  (fresh)
+      age=60,  max_age=60 -> False (vừa hết hạn)
+      ```
+  - id: ex_fresh
+    type: code_exercise
+    md: |
+      Cài `is_fresh(age, max_age)`: `age` là số giây bản lưu đã tồn tại, `max_age` là thời gian sống tối đa (cả hai là
+      số nguyên không âm). Trả `True` nếu bản lưu còn fresh (`age < max_age`), ngược lại `False`. Ví dụ
+      `is_fresh(10, 60)` trả `True`.
+    entry: is_fresh
+    starter: |
+      def is_fresh(age, max_age):
+          # TODO: bản lưu còn fresh khi nào?
+          pass
+    guidance_md: |
+      - Fresh nghĩa là chưa hết hạn.
+      - Đúng bằng max_age thì đã stale.
+    hints:
+      - level: nudge
+        md: "So sánh age với max_age."
+      - level: approach
+        md: "Hết hạn tại đúng max_age, nên dùng so sánh nghiêm ngặt."
+      - level: near_solution
+        md: "Trả `age < max_age`."
+    tests:
+      - {args: [10, 60], expected: true}
+      - {args: [60, 60], expected: false}
+      - {args: [100, 60], expected: false}
+      - {args: [0, 1], expected: true}
+    solution: |
+      def is_fresh(age, max_age):
+          return age < max_age
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Header Cache-Control: ___ cấm trình duyệt lưu response, mỗi lần đều lấy từ network."
+    blanks: [{accept: ["no-store", "no store"]}]
+    explain_md: "no-store cấm lưu hoàn toàn; no-cache chỉ bắt buộc revalidate."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Gõ URL: parse URL, DNS (tên sang IP), TCP handshake, TLS handshake (HTTPS), HTTP request/response, rồi render và tải sub-resource."
+      - "Mỗi bước dùng một giao thức đã học: DNS, TCP 3-way handshake, TLS, HTTP; tối ưu web chủ yếu là bỏ bớt bước."
+      - "Cache-Control: no-store (không lưu), no-cache (lưu nhưng phải revalidate), max-age (fresh trong N giây)."
+      - "Quyết định cache: no-store thì network, no-cache thì revalidate, age < max-age thì cache, còn lại network."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X840], l2: [X841], l3: [X842]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-07"

@@ -1,0 +1,70 @@
+subtopic_id: cs.networks.dns
+items:
+  - id: X834
+    difficulty: 1
+    type: read_code
+    minutes: 3
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng.
+    code: |-
+      records = {
+          "www": ["CNAME", "web"],
+          "web": ["CNAME", "app"],
+          "app": ["A", "10.0.0.5"],
+      }
+      name = "www"
+      hops = 0
+      while records[name][0] == "CNAME":
+          name = records[name][1]
+          hops += 1
+          print(name)
+      print(records[name][1])
+      print(hops)
+    expected_output: "web\napp\n10.0.0.5\n2"
+    answer_md: "www là CNAME trỏ đến web nên in web (hops=1); web là CNAME trỏ đến app nên in app (hops=2); app là bản ghi A nên vòng lặp dừng. Sau đó in địa chỉ 10.0.0.5 và số bước nhảy 2."
+    rubric_md: "Output khớp từng dòng. Đúng: bằng chứng điểm 1; sai: tối đa điểm 0."
+  - id: X835
+    difficulty: 2
+    type: write_code
+    minutes: 6
+    prompt_md: |
+      Viết hàm `resolve(records, name)` mô phỏng việc DNS phân giải tên qua chuỗi CNAME. `records` là dict ánh xạ tên (str) sang `[type, value]`, với `type` là `"CNAME"` (value là một tên khác) hoặc `"A"` (value là chuỗi IP). Bắt đầu từ `name`, đi theo các CNAME đến khi gặp bản ghi `"A"` rồi trả về `value` (chuỗi IP). Trả `None` nếu `name` không có bản ghi, nếu một CNAME trỏ đến tên không có bản ghi, hoặc nếu có vòng lặp (gặp lại một tên đã đi qua). Ví dụ `resolve({"www":["CNAME","web"],"web":["A","1.2.3.4"]}, "www")` cho `"1.2.3.4"`; `resolve({"a":["CNAME","b"]}, "a")` cho `None`.
+    problem_id: check-x835-resolve
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 6 phút: bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X836
+    difficulty: 3
+    type: read_code
+    minutes: 5
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng và giải thích vì sao vòng lặp CNAME không làm hàm chạy mãi và TTL quyết định điều gì ở ba dòng cuối.
+    code: |-
+      def resolve(rec, name):
+          seen = []
+          while name in rec:
+              if name in seen:
+                  return "loop"
+              seen.append(name)
+              rtype, value = rec[name]
+              if rtype == "A":
+                  return value
+              name = value
+          return "missing:" + name
+
+
+      rec = {
+          "a": ["CNAME", "b"],
+          "b": ["CNAME", "c"],
+          "c": ["A", "9.9.9.9"],
+          "x": ["CNAME", "y"],
+          "y": ["CNAME", "x"],
+          "p": ["CNAME", "q"],
+      }
+      print(resolve(rec, "a"))
+      print(resolve(rec, "x"))
+      print(resolve(rec, "p"))
+      print(resolve(rec, "zz"))
+
+      cache = {"a": ("1.1.1.1", 100)}
+      for now in (99, 100, 101):
+          print(cache["a"][0] if cache["a"][1] > now else "expired")
+    expected_output: "9.9.9.9\nloop\nmissing:q\nmissing:zz\n1.1.1.1\nexpired\nexpired"
+    answer_md: "a đi qua b rồi c là bản ghi A nên ra 9.9.9.9. x và y trỏ vòng nhau: lần thứ hai gặp x thì x đã nằm trong seen nên trả loop (nhờ seen mà không chạy mãi). p trỏ đến q không có bản ghi nên vòng lặp thoát và trả missing:q; zz không có bản ghi ngay từ đầu nên ra missing:zz. Với cache, bản ghi chỉ dùng được khi hạn (expiry) còn lớn hơn now: now=99 còn hạn nên in 1.1.1.1; now=100 và 101 đã hết hạn nên expired (resolver phải hỏi lại, đó là vai trò của TTL)."
+    rubric_md: "Output khớp từng dòng VÀ giải thích đúng: seen phát hiện vòng lặp CNAME; tên thiếu bản ghi cho missing; TTL hết hạn thì bản ghi cache không còn dùng được. Đúng: bằng chứng điểm 3; sai: tối đa điểm 2."
