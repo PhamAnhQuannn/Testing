@@ -1,0 +1,222 @@
+id: cs.os.sync
+version: 1
+status: published
+title_vi: "Đồng bộ hóa và bài toán kinh điển"
+est_minutes: 15
+objectives_vi:
+  - "Giải thích race condition, critical section và ba yêu cầu của lời giải: mutual exclusion, progress, bounded waiting."
+  - "Phân biệt mutex (lock), counting semaphore, binary semaphore và mô tả thao tác P/V (wait/signal)."
+  - "Mô tả monitor và condition variable; cài producer-consumer với bounded buffer bằng semaphore."
+  - "Nhận ra readers-writers, dining philosophers và 4 điều kiện gây deadlock ở mức ý tưởng; mô phỏng một counting semaphore."
+blocks:
+  - id: s_race
+    type: section
+    title_vi: "Race condition và critical section"
+    summary_vi: "Nhiều thread cùng sửa dữ liệu chung mà không phối hợp thì kết quả phụ thuộc thứ tự chạy."
+  - id: t01
+    type: text
+    md: |
+      Khi nhiều thread (hoặc process) cùng đọc và ghi **dữ liệu chia sẻ**, kết quả có thể phụ thuộc vào thứ tự các lệnh
+      xen kẽ nhau. Đó là **race condition**. Ví dụ kinh điển: `counter += 1` thực ra gồm ba bước (load, cộng, store).
+
+      ```text
+      counter = 0, hai thread cùng chạy counter += 1
+
+      Thread A: load counter (0)
+      Thread B: load counter (0)
+      Thread A: store 0 + 1 -> counter = 1
+      Thread B: store 0 + 1 -> counter = 1     (mất một lần cộng: lost update)
+      ```
+
+      Đoạn code truy cập dữ liệu chia sẻ gọi là **critical section**. Lời giải đúng cho bài toán critical section cần ba điều:
+
+      - **Mutual exclusion**: tại một thời điểm chỉ một thread ở trong critical section.
+      - **Progress**: nếu critical section trống và có thread muốn vào, quyết định ai vào không bị trì hoãn vô hạn.
+      - **Bounded waiting**: một thread chờ không bị bỏ đói mãi; số lần thread khác chen vào trước nó có giới hạn.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Hai thread cùng chạy `counter += 1` trên biến chung không có khóa. Vì sao kết quả có thể thiếu?"
+    options:
+      - {id: a, text_md: "Cả hai load cùng giá trị cũ rồi cùng store, nên một lần cộng bị ghi đè (lost update)"}
+      - {id: b, text_md: "CPU không cộng được hai số cùng lúc"}
+      - {id: c, text_md: "Thread thứ hai luôn bị hệ điều hành hủy"}
+    answer: [a]
+    explain_md: "`counter += 1` không atomic (load, cộng, store). Xen kẽ đúng chỗ thì hai thread đọc cùng giá trị cũ và một cập nhật bị mất."
+  - id: t02
+    type: text
+    md: |
+      **Mutex** (lock) là công cụ đơn giản nhất để đạt mutual exclusion: `lock()` trước critical section, `unlock()` sau đó.
+      Chỉ thread đang giữ lock mới được vào; thread khác gọi `lock()` sẽ **block** đến khi lock được nhả. Nguyên tắc: người
+      khóa là người mở khóa.
+
+      ```text
+      lock(m)
+        counter += 1        # critical section
+      unlock(m)
+      ```
+
+      **Semaphore** (Dijkstra) là một biến nguyên không âm kèm hai thao tác atomic:
+
+      - **P** (wait, down): nếu `count > 0` thì `count -= 1` và đi tiếp; nếu `count == 0` thì **block** đến khi có V.
+      - **V** (signal, up): `count += 1` và đánh thức một thread đang chờ (nếu có).
+
+      ```text
+      counting semaphore: count = số tài nguyên còn trống (vd 3 kết nối DB trong pool)
+      binary semaphore:   count chỉ 0 hoặc 1, dùng như lock (nhưng ai cũng có thể gọi V)
+      ```
+
+      Semaphore dùng cho hai việc: **mutual exclusion** (khởi tạo 1) và **signaling/đếm tài nguyên** (khởi tạo N, hoặc 0 để
+      "chờ sự kiện").
+  - id: q02
+    type: predict_output
+    code: |
+      count = 1
+      for op in ["P", "P", "V", "P"]:
+          if op == "V":
+              count += 1
+          elif count > 0:
+              count -= 1
+      print(count)
+    expected_output: |
+      0
+    explain_md: "P: 1 thành 0. P: count = 0 nên bị block, không đổi. V: thành 1. P: thành 0. Kết quả 0."
+  - id: t03
+    type: text
+    md: |
+      **Monitor** là cấu trúc mức cao hơn: gói dữ liệu chia sẻ cùng các thao tác trên nó, và **tự động** bảo đảm mỗi lúc chỉ
+      một thread chạy trong monitor (ngôn ngữ như Java `synchronized` dựa trên ý tưởng này). Để chờ một điều kiện (vd "buffer
+      không còn rỗng"), monitor dùng **condition variable** với hai thao tác:
+
+      - `wait(cond)`: nhả lock của monitor và ngủ; khi được đánh thức thì lấy lại lock.
+      - `signal(cond)` (hoặc `notify`): đánh thức một thread đang chờ cond.
+
+      ```text
+      while buffer.empty():     # luôn dùng while, không dùng if
+          wait(not_empty)
+      item = buffer.pop()
+      ```
+
+      Dùng `while` vì khi tỉnh dậy điều kiện có thể đã bị thread khác làm sai lại (spurious wakeup hoặc bị tranh mất), nên phải
+      kiểm tra lại.
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Vì sao điều kiện chờ trên condition variable nên đặt trong vòng `while` thay vì `if`?"
+    options:
+      - {id: a, text_md: "Sau khi được đánh thức, điều kiện có thể không còn đúng nên phải kiểm tra lại"}
+      - {id: b, text_md: "`if` không biên dịch được với condition variable"}
+      - {id: c, text_md: "`while` làm thread chạy nhanh hơn"}
+    answer: [a]
+    explain_md: "Thread tỉnh dậy có thể gặp trạng thái đã đổi (thread khác đã lấy mất item, hoặc spurious wakeup). Vòng while kiểm tra lại trước khi đi tiếp."
+  - id: s_classic
+    type: section
+    title_vi: "Các bài toán kinh điển và deadlock"
+    summary_vi: "Producer-consumer, readers-writers, dining philosophers; deadlock cần bốn điều kiện cùng lúc."
+  - id: t04
+    type: text
+    md: |
+      **Producer-consumer (bounded buffer)**: producer đẩy item vào buffer có sức chứa N, consumer lấy ra. Dùng ba semaphore:
+
+      ```text
+      empty = Semaphore(N)    # số ô trống
+      full  = Semaphore(0)    # số ô có item
+      mutex = Semaphore(1)    # bảo vệ buffer
+
+      producer:  P(empty); P(mutex); push(item); V(mutex); V(full)
+      consumer:  P(full);  P(mutex); item = pop(); V(mutex); V(empty)
+      ```
+
+      Buffer đầy thì producer block ở `P(empty)`; buffer rỗng thì consumer block ở `P(full)`. Thứ tự rất quan trọng: nếu producer
+      lấy `mutex` trước rồi mới `P(empty)` khi buffer đầy, nó giữ mutex trong lúc ngủ và consumer không vào được để lấy item: **deadlock**.
+
+      **Readers-writers**: nhiều reader đọc đồng thời được, nhưng writer cần độc quyền. Ưu tiên reader có thể làm writer bị
+      **starvation**; ưu tiên writer thì ngược lại.
+
+      **Dining philosophers**: 5 triết gia, 5 cái đũa; ai cũng cần 2 đũa bên cạnh. Nếu mọi người cùng cầm đũa trái rồi chờ đũa phải thì
+      tất cả chờ nhau mãi. Cách tránh: đánh số đũa và luôn lấy đũa số nhỏ trước, hoặc chỉ cho tối đa 4 người ngồi vào bàn.
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Trong bounded buffer có `empty = Semaphore(N)` và `full = Semaphore(0)`. Khi buffer đang rỗng, ai bị block?"
+    options:
+      - {id: a, text_md: "Consumer, ở `P(full)`"}
+      - {id: b, text_md: "Producer, ở `P(empty)`"}
+      - {id: c, text_md: "Không ai bị block"}
+    answer: [a]
+    explain_md: "Buffer rỗng thì full = 0, consumer gọi P(full) sẽ block đến khi producer gọi V(full). Producer vẫn còn N ô trống nên không bị chặn."
+  - id: t05
+    type: text
+    md: |
+      **Deadlock** xảy ra khi một nhóm thread chờ nhau mãi. Cần **cả bốn** điều kiện (Coffman):
+
+      - **Mutual exclusion**: tài nguyên chỉ một thread dùng tại một thời điểm.
+      - **Hold and wait**: giữ một tài nguyên trong khi chờ tài nguyên khác.
+      - **No preemption**: không thể giật tài nguyên khỏi thread đang giữ.
+      - **Circular wait**: tồn tại vòng chờ T1 chờ T2 chờ ... chờ T1.
+
+      Phá một trong bốn điều kiện là đủ ngăn deadlock; cách phổ biến nhất là **lock ordering** (phá circular wait). Chi tiết phát hiện
+      và xử lý deadlock nằm ở bài kế tiếp.
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: một lần P"
+    summary_vi: "Mô phỏng thao tác P trên counting semaphore: giảm count hoặc bị block."
+    exercise_ref: ex_p
+  - id: t06
+    type: text
+    md: |
+      Thao tác P chỉ có hai kết cục. Nếu `count > 0` thì giảm 1 và thread đi tiếp. Nếu `count == 0` thì thread bị block, và
+      count giữ nguyên (không bao giờ âm).
+
+      ```text
+      count=3 -> P -> count=2, đi tiếp
+      count=0 -> P -> count=0, BLOCK
+      ```
+  - id: ex_p
+    type: code_exercise
+    md: |
+      Cài `after_p(count)`: `count` là giá trị hiện tại của counting semaphore (số nguyên không âm). Trả về list
+      `[count_mới, bị_block]` với `bị_block` là `1` nếu P bị block và `0` nếu không. Ví dụ `after_p(3)` trả `[2, 0]`
+      còn `after_p(0)` trả `[0, 1]`.
+    entry: after_p
+    starter: |
+      def after_p(count):
+          # TODO: trả về [count_mới, bị_block]
+          pass
+    guidance_md: |
+      - Nếu `count > 0` thì count giảm 1 và không block.
+      - Ngược lại count giữ nguyên và thread bị block.
+    hints:
+      - level: nudge
+        md: "P chỉ giảm được khi count lớn hơn 0."
+      - level: approach
+        md: "Tách hai trường hợp: count > 0 và count == 0."
+      - level: near_solution
+        md: "Nếu count > 0 trả [count - 1, 0], ngược lại trả [count, 1]."
+    tests:
+      - {args: [3], expected: [2, 0]}
+      - {args: [1], expected: [0, 0]}
+      - {args: [0], expected: [0, 1]}
+      - {args: [10], expected: [9, 0]}
+    solution: |
+      def after_p(count):
+          if count > 0:
+              return [count - 1, 0]
+          return [count, 1]
+  - id: q05
+    type: quiz_fill
+    prompt_md: "Lời giải critical section cần mutual exclusion, progress và ___ waiting."
+    blanks: [{accept: ["bounded", "Bounded"]}]
+    explain_md: "Bounded waiting: một thread không phải chờ vô hạn vì các thread khác liên tục chen vào trước."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Race condition: nhiều thread sửa dữ liệu chung không phối hợp thì kết quả phụ thuộc thứ tự xen kẽ (vd lost update); critical section cần mutual exclusion, progress, bounded waiting."
+      - "Mutex khóa/mở bởi cùng một thread; semaphore là bộ đếm với P (wait, giảm hoặc block) và V (signal, tăng và đánh thức); binary semaphore dùng như lock."
+      - "Monitor gói dữ liệu và khóa; condition variable wait/signal luôn kiểm tra điều kiện trong vòng while."
+      - "Producer-consumer dùng empty/full/mutex; readers-writers có nguy cơ starvation; dining philosophers minh họa deadlock; deadlock cần mutual exclusion, hold and wait, no preemption, circular wait."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X849], l2: [X850], l3: [X851]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-08"

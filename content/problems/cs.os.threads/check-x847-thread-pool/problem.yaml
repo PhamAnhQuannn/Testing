@@ -1,0 +1,70 @@
+id: check-x847-thread-pool
+subtopic_id: cs.os.threads
+secondary_subtopics: []
+kind: check
+title: 'Check X847: distribute tasks across a thread pool'
+title_vi: 'Kiểm tra X847: chia task cho thread pool'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Implement `thread_pool(tasks, workers)`, a model of distributing work across a fixed thread pool. `tasks` is a
+  list of ints (task durations) and `workers` is the number of worker threads (an int >= 1). Assign each task IN
+  ORDER to the worker with the SMALLEST current total load (ties go to the lowest worker index). Return a list of
+  length `workers` where element `i` is the sum of the durations assigned to worker `i`.
+  For `thread_pool([3, 1, 2, 4], 2)` the result is `[7, 3]`.
+statement_vi_md: |
+  Cài `thread_pool(tasks, workers)`, mô phỏng việc chia việc cho một thread pool cố định. `tasks` là list số nguyên
+  (thời lượng từng task), `workers` là số worker thread (số nguyên >= 1). Gán lần lượt từng task THEO THỨ TỰ cho
+  worker có tổng tải hiện tại NHỎ NHẤT (hoà thì chọn worker có chỉ số thấp nhất). Trả về list độ dài `workers`,
+  phần tử `i` là tổng thời lượng các task gán cho worker `i`. Với ví dụ trên kết quả là `[7, 3]`.
+constraints:
+- 'tasks là list số nguyên không âm (có thể rỗng); workers là số nguyên >= 1'
+- 'Hoà tải thì chọn worker có chỉ số thấp nhất'
+- 'Chỉ dùng thư viện chuẩn của Python'
+examples:
+- input: 'tasks = [3, 1, 2, 4], workers = 2'
+  output: '[7,3]'
+  explain_vi: 'Task 3 vào w0 [3,0]; task 1 vào w1 [3,1]; task 2 vào w1 (tải 1 nhỏ nhất) [3,3]; task 4 hoà 3-3 nên vào w0 [7,3].'
+- input: 'tasks = [], workers = 3'
+  output: '[0,0,0]'
+  explain_vi: 'Không có task nào nên mọi worker có tải 0.'
+io:
+  mode: function
+  entry: thread_pool
+  params:
+  - name: tasks
+    type: list
+  - name: workers
+    type: int
+  returns: list
+  compare: exact
+starter:
+  python: |
+    def thread_pool(tasks, workers):
+        # TODO: giữ list tải của từng worker; mỗi task gán cho worker có tải nhỏ nhất (hoà: chỉ số thấp)
+        pass
+time_target_min: 6
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+hints:
+- "Tạo `loads = [0] * workers` để lưu tổng tải của từng worker."
+- "Với mỗi task, chọn worker nhỏ nhất bằng `min(range(workers), key=lambda i: loads[i])` (hoà thì tự lấy chỉ số thấp)."
+- "Cộng thời lượng task vào `loads[w]`; cuối cùng trả `loads`."
+solution:
+  file: solution.py
+  approach_vi: Giữ mảng tải của từng worker; với mỗi task chọn worker có tải nhỏ nhất (hoà lấy chỉ số thấp) rồi cộng thời lượng vào.
+  complexity: "O(k * workers) / O(workers)"
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x847
+status: validated
+version: 1

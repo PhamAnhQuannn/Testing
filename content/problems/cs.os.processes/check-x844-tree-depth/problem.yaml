@@ -1,0 +1,69 @@
+id: check-x844-tree-depth
+subtopic_id: cs.os.processes
+secondary_subtopics: []
+kind: check
+title: 'Check X844: depth of the fork process tree'
+title_vi: 'Kiểm tra X844: độ sâu của cây process'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Implement `tree_depth(edges)`, a model of the process tree built by `fork()`. `edges` is a list of
+  `[pid, ppid]` (ints): each process and the pid of its parent. The root (init) is the process whose
+  `ppid == 0`, or whose `ppid` is not any pid in the list. Assume exactly one root and a valid tree
+  (no cycles). Return the maximum depth of the tree: the root alone has depth 1 and each fork level
+  adds 1; an empty list gives `0`.
+  For `[[1, 0], [2, 1], [3, 1], [4, 2]]` the result is `3` (path 1 -> 2 -> 4).
+statement_vi_md: |
+  Cài `tree_depth(edges)`, mô phỏng cây process do `fork()` tạo ra. `edges` là list các `[pid, ppid]` (số nguyên):
+  mỗi process và pid của cha nó. Gốc (init) là process có `ppid == 0`, hoặc có `ppid` không trùng với pid nào trong
+  danh sách. Giả sử đúng một gốc và cây hợp lệ (không có chu trình). Trả về độ sâu tối đa của cây: chỉ riêng gốc thì
+  độ sâu là 1, mỗi tầng fork thêm 1; danh sách rỗng trả `0`. Với ví dụ trên kết quả là `3` (đường 1 -> 2 -> 4).
+constraints:
+- 'pid và ppid là số nguyên; các pid đều khác nhau'
+- 'Gốc có ppid = 0 hoặc ppid không nằm trong tập pid; thứ tự các cạnh là tuỳ ý'
+- 'Chỉ dùng thư viện chuẩn của Python'
+examples:
+- input: 'edges = [[1, 0], [2, 1], [3, 1], [4, 2]]'
+  output: '3'
+  explain_vi: 'Đường dài nhất là 1 -> 2 -> 4 gồm 3 process nên độ sâu là 3.'
+- input: 'edges = []'
+  output: '0'
+  explain_vi: 'Không có process nào nên độ sâu là 0.'
+io:
+  mode: function
+  entry: tree_depth
+  params:
+  - name: edges
+    type: list
+  returns: int
+  compare: exact
+starter:
+  python: |
+    def tree_depth(edges):
+        # TODO: map pid -> ppid, độ sâu của một process = số bước đi lên tới gốc + 1
+        pass
+time_target_min: 6
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+hints:
+- "Lập dict `parent` từ pid sang ppid; danh sách rỗng trả 0."
+- "Độ sâu của một process: đi lên theo `parent` cho tới khi ppid không còn là pid trong dict, đếm số process trên đường."
+- "Lấy max độ sâu của mọi process; có thể memo hoá để không đi lại cùng một đoạn."
+solution:
+  file: solution.py
+  approach_vi: Lập bản đồ pid sang ppid, tính độ sâu mỗi process bằng cách đi lên tới gốc (có memo), trả về độ sâu lớn nhất.
+  complexity: "O(n) / O(n)"
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x844
+status: validated
+version: 1

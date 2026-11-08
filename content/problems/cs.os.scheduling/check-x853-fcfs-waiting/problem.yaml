@@ -1,0 +1,70 @@
+id: check-x853-fcfs-waiting
+subtopic_id: cs.os.scheduling
+secondary_subtopics: []
+kind: check
+title: 'Check X853: FCFS waiting times'
+title_vi: 'Kiểm tra X853: waiting time của FCFS'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Implement `fcfs_waiting(jobs)`, a model of First-Come-First-Served (non-preemptive) CPU scheduling. `jobs` is a
+  list of `[arrival, burst]` integers. Schedule jobs by `arrival` ascending (ties: lower input index first). Keep a
+  clock `t = 0`; for each job in scheduled order: `start = max(t, arrival)`, `wait = start - arrival`, then
+  `t = start + burst` (the CPU idles if there is a gap before the next arrival). Return the list of waiting times in
+  the ORIGINAL INPUT order of `jobs` (not arrival order).
+  For `[[0, 4], [1, 3], [2, 1]]` the result is `[0, 3, 5]`.
+statement_vi_md: |
+  Cài `fcfs_waiting(jobs)`, mô phỏng lập lịch CPU First-Come-First-Served (non-preemptive). `jobs` là list các
+  `[arrival, burst]` (số nguyên). Lập lịch theo `arrival` tăng dần (cùng `arrival` thì chỉ số đầu vào nhỏ hơn chạy
+  trước). Giữ đồng hồ `t = 0`; với mỗi job theo thứ tự lập lịch: `start = max(t, arrival)`, `wait = start - arrival`,
+  rồi `t = start + burst` (CPU idle nếu có khoảng trống trước lần đến kế tiếp). Trả về list waiting time theo THỨ TỰ
+  ĐẦU VÀO ban đầu của `jobs` (không phải thứ tự arrival). Với ví dụ trên kết quả là `[0, 3, 5]`.
+constraints:
+- 'arrival >= 0 và burst >= 1, đều là số nguyên'
+- 'Kết quả theo thứ tự đầu vào, không theo thứ tự arrival'
+- 'Chỉ dùng thư viện chuẩn của Python'
+examples:
+- input: 'jobs = [[0, 4], [1, 3], [2, 1]]'
+  output: '[0,3,5]'
+  explain_vi: 'Job0 chạy ngay (wait 0). Job1 bắt đầu ở t=4 nên chờ 3. Job2 bắt đầu ở t=7 nên chờ 5.'
+- input: 'jobs = [[2, 2], [0, 3]]'
+  output: '[1,0]'
+  explain_vi: 'Job1 (arrival 0) chạy trước, xong ở t=3. Job0 (arrival 2) bắt đầu ở t=3 nên chờ 1. Trả theo thứ tự đầu vào: [1, 0].'
+io:
+  mode: function
+  entry: fcfs_waiting
+  params:
+  - name: jobs
+    type: list
+  returns: list
+  compare: exact
+starter:
+  python: |
+    def fcfs_waiting(jobs):
+        # TODO: lập lịch theo (arrival, chỉ số), start = max(t, arrival), trả wait theo thứ tự đầu vào
+        pass
+time_target_min: 6
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+hints:
+- "Sắp xếp danh sách chỉ số `range(len(jobs))` theo khóa `(arrival, chỉ số)` để có thứ tự lập lịch."
+- "Duyệt theo thứ tự đó với `t = 0`: `start = max(t, arrival)`, `wait[idx] = start - arrival`, rồi `t = start + burst`."
+- "Lưu wait vào vị trí `idx` của job gốc để kết quả theo thứ tự đầu vào, không phải thứ tự arrival."
+solution:
+  file: solution.py
+  approach_vi: Sắp xếp chỉ số theo (arrival, chỉ số), duyệt với đồng hồ t, ghi waiting time vào đúng vị trí đầu vào.
+  complexity: "O(n log n) / O(n)"
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x853
+status: validated
+version: 1
