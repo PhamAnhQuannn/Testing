@@ -251,6 +251,11 @@ EXTRA_IDS = {
     "cs.databases.locking_mvcc",
     "cs.databases.nosql",
     "cs.databases.query_optimisation",
+    # Wave 7 Round 45: close cs.databases (lsm) + open cs.networks (concept).
+    "cs.databases.lsm_storage",
+    "cs.networks.models",
+    "cs.networks.ip_routing",
+    "cs.networks.tcp_udp",
 }
 
 # Expected shipped counts, asserted so an upstream tree edit can't silently change the snapshot.
@@ -258,7 +263,7 @@ PLAN_MVP_COUNT = 40
 EXPECTED_SD = 86
 EXPECTED_ML4 = 39
 EXPECTED_EXTRA_IDS = len(EXTRA_IDS)  # Wave 2 additions
-EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 341
+EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 345
 
 # Node fields the app uses (SPEC 4.2); optional ones are skipped when a node lacks them.
 NODE_FIELDS = [

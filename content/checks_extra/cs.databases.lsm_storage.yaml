@@ -1,0 +1,46 @@
+subtopic_id: cs.databases.lsm_storage
+items:
+  - id: X819
+    difficulty: 1
+    type: read_code
+    minutes: 3
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng.
+    code: |-
+      old = {"a": 1, "b": 2}
+      new = {"b": 9, "c": 3}
+      merged = {}
+      merged.update(old)
+      merged.update(new)
+      print(merged)
+      print(sorted(merged.items()))
+    expected_output: "{'a': 1, 'b': 9, 'c': 3}\n[('a', 1), ('b', 9), ('c', 3)]"
+    answer_md: "Gộp run cũ trước rồi run mới sau: `update` ghi đè nên b = 9 (bản mới nhất thắng), a giữ 1, c thêm vào. Dòng 2 là cùng nội dung đã sắp theo key."
+    rubric_md: "Output khớp từng dòng. Đúng: bằng chứng điểm 1; sai: tối đa điểm 0."
+  - id: X820
+    difficulty: 2
+    type: write_code
+    minutes: 6
+    prompt_md: |
+      Viết hàm `merge_runs(runs)` mô phỏng compaction của LSM-tree. `runs` là list các run xếp theo thứ tự CŨ đến MỚI; mỗi run là list các cặp `[key, value]` (key là chuỗi, value là số nguyên, key không trùng trong cùng một run). Gộp tất cả run thành một: khi cùng một key xuất hiện ở nhiều run, giá trị của run MỚI nhất (đứng sau trong `runs`) thắng. Trả về list các cặp `[key, value]` (mỗi cặp là list) sắp xếp theo key tăng dần; không có dữ liệu thì trả `[]`. Ví dụ `[[["a",1],["b",2]], [["b",9],["c",3]]]` cho `[["a", 1], ["b", 9], ["c", 3]]`.
+    problem_id: check-x820-merge-runs
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 6 phút: bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X821
+    difficulty: 3
+    type: read_code
+    minutes: 5
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng và giải thích vì sao dòng cuối cho thấy bỏ tombstone quá sớm là sai.
+    code: |-
+      runs = [{"a": 1, "b": 2}, {"b": None}, {"c": 3}]
+      merged = {}
+      for run in runs:
+          merged.update(run)
+      print(merged)
+      live = {k: v for k, v in merged.items() if v is not None}
+      print(live)
+      print(len(merged), len(live))
+      newer = {**runs[1], **runs[2]}
+      newer = {k: v for k, v in newer.items() if v is not None}
+      print({**runs[0], **newer})
+    expected_output: "{'a': 1, 'b': None, 'c': 3}\n{'a': 1, 'c': 3}\n3 2\n{'a': 1, 'b': 2, 'c': 3}"
+    answer_md: "Gộp đủ cả ba run: b = None (tombstone) thắng b = 2, nên `merged` còn tombstone và `live` (sau khi bỏ tombstone) chỉ có a và c: 3 mục và 2 mục. Ở đoạn cuối ta chỉ compaction hai run mới và lọc tombstone NGAY, rồi mới gộp với run cũ nhất: tombstone đã mất nên không che được b = 2 và key b đã xoá bị sống lại. Tombstone chỉ được bỏ khi đã gộp tới mức không còn bản cũ bên dưới."
+    rubric_md: "Output khớp từng dòng VÀ giải thích đúng: tombstone phải được giữ để che bản cũ ở SSTable sâu hơn; bỏ nó khi chưa gộp run cũ làm key đã xoá sống lại. Đúng: bằng chứng điểm 3; sai: tối đa điểm 2."

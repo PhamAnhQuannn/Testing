@@ -77,6 +77,7 @@ MODULE_NAMES: dict[str, str] = {
     "cs.complexity": "Độ phức tạp",
     "cs.sql": "SQL",
     "cs.databases": "Cơ sở dữ liệu",
+    "cs.networks": "Mạng máy tính",
     "dsa.foundations": "Nền tảng DSA",
     "dsa.arrays_strings": "Mảng & chuỗi",
     "dsa.two_pointers_window": "Hai con trỏ & cửa sổ trượt",

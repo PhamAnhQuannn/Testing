@@ -1,0 +1,158 @@
+id: cs.networks.ip_routing
+version: 1
+status: published
+title_vi: "Địa chỉ IP và định tuyến (IP routing)"
+est_minutes: 15
+objectives_vi:
+  - "Đọc địa chỉ IPv4 dạng dotted quad như một số 32 bit và tách phần network với phần host bằng subnet mask."
+  - "Đọc ký hiệu CIDR (a.b.c.d/len) và tính được một subnet chứa bao nhiêu địa chỉ."
+  - "Giải thích router chọn next hop theo longest-prefix match và vai trò của default route 0.0.0.0/0."
+  - "Cài đặt phép chuyển dotted quad sang số nguyên 32 bit bằng Python."
+blocks:
+  - id: s_addr
+    type: section
+    title_vi: "IPv4, subnet và CIDR"
+    summary_vi: "Một địa chỉ IPv4 là 32 bit; CIDR cho biết bao nhiêu bit đầu là phần network."
+  - id: t01
+    type: text
+    md: |
+      Địa chỉ **IPv4** là một số **32 bit**, viết thành bốn byte (octet) ngăn cách bằng dấu chấm, gọi là **dotted quad**.
+      Mỗi octet từ 0 đến 255.
+
+      ```text
+      192.168.1.10
+      = 11000000 . 10101000 . 00000001 . 00001010
+      = 192*2^24 + 168*2^16 + 1*2^8 + 10 = 3232235786
+      ```
+
+      Một địa chỉ gồm hai phần: **network bits** (các bit đầu, xác định mạng) và **host bits** (các bit còn lại, xác định máy trong mạng đó).
+      Ranh giới do **subnet mask** hoặc ký hiệu **CIDR** (`/prefix`) chỉ ra:
+
+      ```text
+      192.168.1.0/24       prefix = 24 bit đầu là network, 8 bit cuối là host
+      subnet mask /24      = 255.255.255.0 = 11111111.11111111.11111111.00000000
+      số địa chỉ           = 2^(32-24) = 256
+      network address      = ip AND mask  (host bits = 0)
+      ```
+
+      Hai địa chỉ thuộc cùng một subnet khi **`len` bit đầu của chúng giống nhau**. Ví dụ `/8` giữ lại 8 bit đầu: `10.x.x.x`
+      đều thuộc `10.0.0.0/8`. Prefix càng dài thì mạng càng nhỏ và càng cụ thể: `/32` là đúng một máy, `/0` là mọi địa chỉ.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Subnet `172.16.0.0/20` có bao nhiêu địa chỉ (kể cả network address)?"
+    options:
+      - {id: a, text_md: "2^12 = 4096"}
+      - {id: b, text_md: "2^20 = 1048576"}
+      - {id: c, text_md: "20"}
+    answer: [a]
+    explain_md: "Còn 32 - 20 = 12 host bit, nên có 2^12 = 4096 địa chỉ."
+  - id: q02
+    type: predict_output
+    code: |
+      n = 0
+      for p in "10.0.1.2".split("."):
+          n = n * 256 + int(p)
+      print(n)
+      print(n >> 24)
+    expected_output: |
+      167772418
+      10
+    explain_md: "Mỗi octet dịch thêm 8 bit: 10*2^24 + 0*2^16 + 1*2^8 + 2 = 167772418. Dịch phải 24 bit chỉ còn octet đầu là 10."
+  - id: s_route
+    type: section
+    title_vi: "Định tuyến: longest-prefix match"
+    summary_vi: "Router so địa chỉ đích với mọi dòng trong routing table và chọn dòng có prefix dài nhất."
+  - id: t02
+    type: text
+    md: |
+      **Router** giữ một **routing table**: danh sách các dòng `(prefix CIDR, next hop)`. Khi nhận gói tin có địa chỉ đích `ip`,
+      router tìm các dòng mà `ip` **thuộc prefix đó**, rồi chọn dòng có **prefix dài nhất**. Đó là **longest-prefix match**:
+      dòng càng cụ thể càng được ưu tiên.
+
+      ```text
+      table:
+        0.0.0.0/0      -> R0     (default route)
+        10.0.0.0/8     -> R1
+        10.1.0.0/16    -> R2
+
+      đích 10.1.2.3 : khớp /0, /8, /16 -> chọn /16 -> R2
+      đích 10.9.9.9 : khớp /0, /8      -> chọn /8  -> R1
+      đích 8.8.8.8  : khớp /0          -> R0
+      ```
+
+      Kiểm tra khớp bằng bit: dòng `net/len` khớp `ip` khi `ip >> (32 - len) == net >> (32 - len)`; riêng `len = 0` thì khớp tất cả.
+
+      **Default route** `0.0.0.0/0` có prefix dài 0 nên khớp mọi địa chỉ nhưng luôn thua mọi dòng cụ thể hơn: đây là "đường cuối cùng"
+      khi không có dòng nào khác. Nếu table không có default route và không dòng nào khớp, gói tin bị **drop** (không có next hop).
+
+      Lưu ý: hai dòng cùng độ dài prefix và cùng khớp là cấu hình mơ hồ; thực tế router dùng thêm quy tắc phụ (metric, thứ tự cấu hình).
+      Ở bài tập dùng quy tắc đơn giản: dòng xuất hiện trước thắng.
+
+      Một ghi chú ngắn về **IPv6**: địa chỉ dài **128 bit** (viết hex, ví dụ `2001:db8::1`), cùng khái niệm prefix và longest-prefix match
+      (ví dụ `2001:db8::/32`), chỉ khác độ rộng; dùng để giải quyết việc IPv4 (2^32 địa chỉ) bị cạn.
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Table có `10.0.0.0/8 -> A`, `10.1.0.0/16 -> B`, `0.0.0.0/0 -> D`. Gói tin đến `10.1.7.7` đi next hop nào?"
+    options:
+      - {id: a, text_md: "B: /16 là prefix dài nhất khớp"}
+      - {id: b, text_md: "A: dòng đầu tiên khớp"}
+      - {id: c, text_md: "D: default route luôn ưu tiên"}
+    answer: [a]
+    explain_md: "Cả ba dòng đều khớp, nhưng /16 dài hơn /8 và /0 nên thắng, không phụ thuộc thứ tự dòng."
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Default route có CIDR là 0.0.0.0/___."
+    blanks: [{accept: ["0"]}]
+    explain_md: "Prefix dài 0 bit nghĩa là không cần bit nào khớp, nên mọi địa chỉ đều thuộc default route."
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: dotted quad sang số nguyên"
+    summary_vi: "Cài ip_to_int, viên gạch đầu tiên để so prefix bằng phép dịch bit."
+    exercise_ref: ex_ip_to_int
+  - id: ex_ip_to_int
+    type: code_exercise
+    md: |
+      Cài `ip_to_int(ip)`. `ip` là chuỗi dotted quad hợp lệ `"A.B.C.D"` (mỗi octet 0 đến 255). Trả về số nguyên 32 bit
+      `A<<24 | B<<16 | C<<8 | D`. Ví dụ `"0.0.1.0"` cho `256`, `"10.0.0.1"` cho `167772161`.
+    entry: ip_to_int
+    starter: |
+      def ip_to_int(ip):
+          # TODO: tách ip theo dấu chấm, gộp bốn octet thành một số 32 bit
+          pass
+    guidance_md: |
+      - `ip.split(".")` cho bốn chuỗi; đổi sang `int`.
+      - Gộp lần lượt: `n = n * 256 + octet`.
+    hints:
+      - level: nudge
+        md: "Mỗi octet chiếm 8 bit, octet đầu nằm ở vị trí cao nhất."
+      - level: approach
+        md: "Duyệt bốn octet, mỗi bước nhân `n` với 256 rồi cộng octet."
+      - level: near_solution
+        md: "`n = 0; for p in ip.split('.'): n = n * 256 + int(p); return n`."
+    tests:
+      - {args: ["0.0.0.0"], expected: 0}
+      - {args: ["0.0.1.0"], expected: 256}
+      - {args: ["10.0.0.1"], expected: 167772161}
+      - {args: ["192.168.1.1"], expected: 3232235777}
+      - {args: ["255.255.255.255"], expected: 4294967295}
+    solution: |
+      def ip_to_int(ip):
+          n = 0
+          for p in ip.split("."):
+              n = n * 256 + int(p)
+          return n
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "IPv4 là số 32 bit viết dạng dotted quad; subnet mask hoặc /prefix tách network bits khỏi host bits."
+      - "Subnet /len chứa 2^(32-len) địa chỉ; hai địa chỉ cùng subnet khi len bit đầu giống nhau."
+      - "Router chọn next hop theo longest-prefix match: trong các dòng khớp, prefix dài nhất thắng."
+      - "Default route 0.0.0.0/0 khớp mọi thứ nhưng ưu tiên thấp nhất; không khớp dòng nào và không có default thì gói tin bị drop. IPv6 cùng ý tưởng với 128 bit."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X825], l2: [X826], l3: [X827]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-07"

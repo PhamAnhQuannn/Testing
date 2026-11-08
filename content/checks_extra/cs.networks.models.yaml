@@ -1,0 +1,44 @@
+subtopic_id: cs.networks.models
+items:
+  - id: X822
+    difficulty: 1
+    type: read_code
+    minutes: 3
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng.
+    code: |-
+      layer = {"HTTP": 7, "TCP": 4, "IP": 3, "ARP": 3}
+      for p in ["IP", "HTTP", "FOO", "TCP"]:
+          print(p, layer.get(p, 0))
+      print(sorted(set(layer.values())))
+    expected_output: "IP 3\nHTTP 7\nFOO 0\nTCP 4\n[3, 4, 7]"
+    answer_md: "Mỗi vòng lặp tra layer của giao thức; `FOO` không có trong dict nên `get` trả mặc định 0. `set(layer.values())` bỏ trùng (IP và ARP cùng là 3) nên sorted cho `[3, 4, 7]`."
+    rubric_md: "Output khớp từng dòng. Đúng: bằng chứng điểm 1; sai: tối đa điểm 0."
+  - id: X823
+    difficulty: 2
+    type: write_code
+    minutes: 6
+    prompt_md: |
+      Viết hàm `osi_layers(protocols)` trả về list số tầng OSI (1-7) của từng giao thức trong `protocols` (list chuỗi viết hoa), giữ nguyên thứ tự. Dùng đúng bảng sau: `HTTP`, `DNS`, `FTP`, `SMTP` là 7; `TLS`, `SSL` là 6; `TCP`, `UDP` là 4; `IP`, `ICMP`, `ARP` là 3; `ETHERNET`, `MAC` là 2; `WIFI`, `ETHERNET_PHY` là 1. Giao thức không có trong bảng cho `0`. Rỗng thì trả `[]`. Ví dụ `["HTTP", "TCP", "IP", "FOO"]` cho `[7, 4, 3, 0]`.
+    problem_id: check-x823-osi-layers
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 6 phút: bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X824
+    difficulty: 3
+    type: read_code
+    minutes: 5
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng và giải thích vì sao header của tầng thấp nhất lại đứng đầu sau khi đóng gói.
+    code: |-
+      stack = ["HTTP", "TCP", "IP", "ETH"]
+      packet = ["data"]
+      for h in stack:
+          packet = [h] + packet
+      print(packet)
+      received = list(packet)
+      layers = []
+      while len(received) > 1:
+          layers.append(received.pop(0))
+      print(layers)
+      print(received)
+      print(packet[::-1] == ["data"] + stack)
+    expected_output: "['ETH', 'IP', 'TCP', 'HTTP', 'data']\n['ETH', 'IP', 'TCP', 'HTTP']\n['data']\nTrue"
+    answer_md: "Mỗi tầng chèn header vào ĐẦU list: HTTP trước rồi TCP, IP, ETH sau cùng, nên ETH (tầng thấp nhất, thêm sau cùng) nằm ngoài cùng. Decapsulation bóc từ đầu theo thứ tự ETH, IP, TCP, HTTP cho tới khi còn `['data']`. Đảo ngược packet cho `['data', 'HTTP', 'TCP', 'IP', 'ETH']` đúng bằng `['data'] + stack`, nên in `True`."
+    rubric_md: "Output khớp từng dòng VÀ giải thích đúng: tầng thấp thêm sau cùng nên header của nó ở ngoài cùng; bên nhận bóc từ ngoài vào trong. Đúng: bằng chứng điểm 3; sai: tối đa điểm 2."

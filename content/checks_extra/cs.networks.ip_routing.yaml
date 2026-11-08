@@ -1,0 +1,65 @@
+subtopic_id: cs.networks.ip_routing
+items:
+  - id: X825
+    difficulty: 1
+    type: read_code
+    minutes: 3
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng.
+    code: |-
+      ip = "192.168.1.10"
+      n = 0
+      for p in ip.split("."):
+          n = n * 256 + int(p)
+      print(n)
+      print(n >> 24)
+      print(n & 255)
+      mask = (0xFFFFFFFF << (32 - 24)) & 0xFFFFFFFF
+      print(mask)
+      print((n & mask) == (192 << 24 | 168 << 16 | 1 << 8))
+    expected_output: "3232235786\n192\n10\n4294967040\nTrue"
+    answer_md: "n = 192*2^24 + 168*2^16 + 1*2^8 + 10 = 3232235786. `n >> 24` bỏ 24 bit thấp nên còn octet đầu 192; `n & 255` giữ octet cuối 10. Mask /24 là 24 bit 1 rồi 8 bit 0 = 255.255.255.0 = 4294967040. `n & mask` xóa host bits, cho đúng network address 192.168.1.0 nên so sánh là True."
+    rubric_md: "Output khớp từng dòng. Đúng: bằng chứng điểm 1; sai: tối đa điểm 0."
+  - id: X826
+    difficulty: 2
+    type: write_code
+    minutes: 6
+    prompt_md: |
+      Viết hàm `route(table, ip)` mô phỏng longest-prefix match. `table` là list các cặp `[cidr, next_hop]`, `cidr` là chuỗi `"A.B.C.D/len"` (len từ 0 đến 32), `next_hop` là chuỗi. `ip` là chuỗi `"A.B.C.D"`. Đổi ip và địa chỉ mạng sang số 32 bit (`a<<24 | b<<16 | c<<8 | d`). Một dòng khớp khi `len` bit đầu giống nhau: `len = 0` khớp tất cả, ngược lại `(ip_int >> (32-len)) == (net_int >> (32-len))`. Trả về `next_hop` của dòng khớp có `len` LỚN NHẤT; nếu nhiều dòng khớp cùng `len` lớn nhất thì lấy dòng xuất hiện TRƯỚC trong `table`; không dòng nào khớp thì trả `None`. Ví dụ `table = [["0.0.0.0/0","R0"],["10.0.0.0/8","R1"],["10.1.0.0/16","R2"]]`, `ip = "10.1.2.3"` cho `"R2"`; `ip = "8.8.8.8"` cho `"R0"`.
+    problem_id: check-x826-route
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 6 phút: bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X827
+    difficulty: 3
+    type: read_code
+    minutes: 5
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng và giải thích vì sao `10.1.0.0` đi B (không phải C) và vì sao dòng cuối là `None`.
+    code: |-
+      def to_int(ip):
+          n = 0
+          for p in ip.split("."):
+              n = n * 256 + int(p)
+          return n
+
+
+      def route(ip, tbl):
+          x = to_int(ip)
+          best = -1
+          hop = None
+          for cidr, nh in tbl:
+              net, ln = cidr.split("/")
+              ln = int(ln)
+              if ln == 0 or x >> (32 - ln) == to_int(net) >> (32 - ln):
+                  if ln > best:
+                      best = ln
+                      hop = nh
+          return hop
+
+
+      table = [("10.0.0.0/8", "A"), ("10.1.0.0/16", "B"), ("10.1.0.0/16", "C"), ("0.0.0.0/0", "D")]
+      print(route("10.1.5.5", table))
+      print(route("10.2.0.1", table))
+      print(route("11.0.0.1", table))
+      print(route("10.1.0.0", table))
+      print(route("11.0.0.1", table[:3]))
+    expected_output: "B\nA\nD\nB\nNone"
+    answer_md: "`10.1.5.5`: /8 khớp (A), /16 khớp (B) và thắng vì dài hơn; dòng C cùng /16 nhưng điều kiện `ln > best` là so sánh chặt nên không ghi đè, tức dòng đến trước thắng khi hòa, còn D (/0) ngắn hơn nên thua. `10.2.0.1` chỉ khớp /8 và /0, chọn /8 nên A. `11.0.0.1` chỉ khớp default route nên D. `10.1.0.0` (đúng network address) vẫn khớp /16 nên B. Với `table[:3]` không có default route và `11.0.0.1` không khớp dòng nào nên giữ `hop = None`. `best` khởi tạo -1 (không phải 0) để default /0 vẫn được nhận."
+    rubric_md: "Output khớp từng dòng VÀ giải thích đúng: longest prefix thắng; hòa thì dòng đầu (do `>` chặt); không khớp thì None. Đúng: bằng chứng điểm 3; sai: tối đa điểm 2."

@@ -1,0 +1,71 @@
+id: check-x829-reassemble
+subtopic_id: cs.networks.tcp_udp
+secondary_subtopics: []
+kind: check
+title: 'Check X829: reassemble TCP segments'
+title_vi: 'Kiểm tra X829: ghép lại các segment TCP'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Implement `reassemble(segments)`, a model of TCP in-order byte-stream reassembly. `segments` is a list of
+  `[seq, data]` where `seq` is a non-negative int byte offset and `data` is a string whose bytes occupy offsets
+  `seq .. seq + len(data) - 1`. Segments may arrive out of order or duplicated. Sort the segments by `seq`
+  ascending (stable: equal `seq` keep input order), then walk with `nxt = 0`: if `seq == nxt` append `data` and
+  set `nxt += len(data)`; if `seq < nxt` (already covered, duplicate or overlap) skip the whole segment; if
+  `seq > nxt` there is a gap, so stop. Return the reassembled string from offset 0 up to the first gap
+  (`""` if there is none).
+  For `[[5, "world"], [0, "hello"]]` the result is `"helloworld"`.
+statement_vi_md: |
+  Cài `reassemble(segments)`, mô phỏng việc TCP ghép lại byte stream theo thứ tự. `segments` là list các
+  `[seq, data]`: `seq` là số nguyên không âm (offset byte), `data` là chuỗi có các byte chiếm offset `seq` đến
+  `seq + len(data) - 1`. Segment có thể đến lộn xộn hoặc bị trùng. Sắp xếp theo `seq` tăng dần (stable: cùng `seq`
+  giữ thứ tự đầu vào), rồi duyệt với `nxt = 0`: nếu `seq == nxt` thì nối `data` và `nxt += len(data)`; nếu
+  `seq < nxt` (đã phủ, trùng hoặc chồng lấn) thì bỏ qua cả segment; nếu `seq > nxt` (có khoảng trống) thì DỪNG.
+  Trả về chuỗi đã ghép từ offset 0 đến khoảng trống đầu tiên (rỗng thì `""`). Với ví dụ trên kết quả là
+  `"helloworld"`.
+constraints:
+- 'seq là số nguyên không âm; data là chuỗi'
+- 'Segment có seq < nxt bị bỏ qua hoàn toàn, kể cả khi nó chồng lấn một phần'
+- 'Chỉ dùng thư viện chuẩn của Python'
+examples:
+- input: 'segments = [[5, "world"], [0, "hello"]]'
+  output: '"helloworld"'
+  explain_vi: 'Sắp theo seq: hello (offset 0, nxt=5) rồi world (offset 5), nên ghép thành helloworld.'
+io:
+  mode: function
+  entry: reassemble
+  params:
+  - name: segments
+    type: list
+  returns: str
+  compare: exact
+starter:
+  python: |
+    def reassemble(segments):
+        # TODO: sắp xếp theo seq, duyệt với nxt = 0: nối nếu seq == nxt, bỏ nếu seq < nxt, dừng nếu seq > nxt
+        pass
+time_target_min: 6
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+hints:
+- "Sắp xếp bản sao bằng `sorted(segments, key=lambda s: s[0])` (stable), rồi duyệt với `nxt = 0`."
+- "Với mỗi `seq, data`: nếu `seq == nxt` thì nối data và tăng `nxt` thêm `len(data)`; nếu `seq < nxt` thì bỏ qua (trùng)."
+- "Nếu `seq > nxt` là có khoảng trống nên `break`; cuối cùng trả chuỗi đã nối."
+solution:
+  file: solution.py
+  approach_vi: Sắp xếp stable theo seq rồi duyệt với nxt; nối segment đúng offset, bỏ segment đã phủ, dừng ở khoảng trống đầu tiên.
+  complexity: "O(k log k + total) / O(total)"
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x829
+status: validated
+version: 1

@@ -1,0 +1,73 @@
+id: check-x826-route
+subtopic_id: cs.networks.ip_routing
+secondary_subtopics: []
+kind: check
+title: 'Check X826: longest-prefix match routing'
+title_vi: 'Kiểm tra X826: định tuyến longest-prefix match'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Implement `route(table, ip)` performing longest-prefix-match routing. `table` is a list of `[cidr, next_hop]`
+  pairs: `cidr` is a string `"A.B.C.D/len"` (len 0 to 32) and `next_hop` is a string. `ip` is a dotted-quad string
+  `"A.B.C.D"`. Convert the ip and each network address to a 32-bit integer (`a<<24 | b<<16 | c<<8 | d`). A route
+  matches iff the top `len` bits agree: `len = 0` matches everything, otherwise
+  `(ip_int >> (32-len)) == (net_int >> (32-len))`. Return the `next_hop` of the matching route with the largest
+  `len`; if several matching routes share that largest `len`, return the one appearing first in `table`; if no
+  route matches, return `null` (`None`).
+  For `table = [["0.0.0.0/0","R0"],["10.0.0.0/8","R1"],["10.1.0.0/16","R2"]]` and `ip = "10.1.2.3"` the result is
+  `"R2"`; for `ip = "8.8.8.8"` it is `"R0"`.
+statement_vi_md: |
+  Cài `route(table, ip)` mô phỏng định tuyến longest-prefix match. `table` là list các cặp `[cidr, next_hop]`:
+  `cidr` là chuỗi `"A.B.C.D/len"` (len từ 0 đến 32), `next_hop` là chuỗi. `ip` là chuỗi dotted quad `"A.B.C.D"`.
+  Đổi ip và địa chỉ mạng sang số 32 bit (`a<<24 | b<<16 | c<<8 | d`). Một dòng khớp khi `len` bit đầu giống nhau:
+  `len = 0` khớp tất cả, ngược lại `(ip_int >> (32-len)) == (net_int >> (32-len))`. Trả về `next_hop` của dòng khớp
+  có `len` lớn nhất; nếu nhiều dòng khớp cùng `len` lớn nhất thì lấy dòng đứng trước trong `table`; không dòng nào
+  khớp thì trả `null` (`None`). Với ví dụ trên kết quả là `"R2"`; với `ip = "8.8.8.8"` là `"R0"`.
+constraints:
+- 'cidr có dạng "A.B.C.D/len", mỗi octet 0 đến 255, len từ 0 đến 32'
+- 'Hòa về len thì dòng xuất hiện trước trong table thắng; không khớp thì trả None'
+- 'Chỉ dùng thư viện chuẩn của Python'
+examples:
+- input: 'table = [["0.0.0.0/0","R0"],["10.0.0.0/8","R1"],["10.1.0.0/16","R2"]], ip = "10.1.2.3"'
+  output: '"R2"'
+  explain_vi: 'Cả ba dòng đều khớp; /16 là prefix dài nhất nên next hop là R2.'
+io:
+  mode: function
+  entry: route
+  params:
+  - name: table
+    type: list
+  - name: ip
+    type: str
+  returns: any
+  compare: exact
+starter:
+  python: |
+    def route(table, ip):
+        # TODO: đổi ip và mạng sang số 32 bit, chọn dòng khớp có prefix dài nhất (hòa thì dòng đầu), không khớp trả None
+        pass
+time_target_min: 6
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+hints:
+- "Viết hàm phụ đổi dotted quad sang số: `n = n * 256 + int(octet)` cho từng octet."
+- "Dòng `net/len` khớp khi `len == 0` hoặc `(x >> (32 - len)) == (net >> (32 - len))`; duyệt table và nhớ `best` (len lớn nhất) cùng `hop`."
+- "Khởi tạo `best = -1`, `hop = None` và chỉ cập nhật khi `len > best` (so sánh chặt) để hòa thì dòng đầu thắng; default /0 vẫn được nhận."
+solution:
+  file: solution.py
+  approach_vi: Đổi ip và từng network sang số 32 bit, kiểm tra khớp bằng dịch bit, giữ dòng khớp có len lớn nhất (cập nhật khi len > best nên hòa thì dòng đầu thắng).
+  complexity: "O(k) / O(1)"
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x826
+status: validated
+version: 1
