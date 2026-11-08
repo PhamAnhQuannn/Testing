@@ -1,0 +1,68 @@
+id: check-x817-estimate-rows
+subtopic_id: cs.databases.query_optimisation
+secondary_subtopics: []
+kind: check
+title: 'Check X817: estimate rows'
+title_vi: 'Kiểm tra X817: ước lượng số dòng'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Implement `estimate_rows(n, sels)`, a tiny cardinality estimate like a query planner's. `n` is a non-negative
+  int (rows of the base table). `sels` is a list of selectivities, each a 2-element list `[num, den]` of ints with
+  `0 <= num <= den` and `den >= 1`. Start with `result = n` and apply every selectivity in order as
+  `result = result * num // den` (integer floor division). Return the final `result` as an int. An empty `sels`
+  returns `n`. For `n = 1000`, `sels = [[1,2],[3,10]]`: 1000*1//2 = 500, then 500*3//10 = 150, so the answer is `150`.
+statement_vi_md: |
+  Cài `estimate_rows(n, sels)`, ước lượng cardinality đơn giản như query planner. `n` là số nguyên không âm (số
+  dòng của bảng gốc). `sels` là list các selectivity, mỗi phần tử là list `[num, den]` gồm hai số nguyên với
+  `0 <= num <= den` và `den >= 1`. Bắt đầu từ `result = n`, áp dụng lần lượt từng selectivity theo thứ tự:
+  `result = result * num // den` (chia nguyên làm tròn xuống). Trả về `result` (số nguyên). `sels` rỗng thì trả `n`.
+  Với `n = 1000`, `sels = [[1,2],[3,10]]`: 1000*1//2 = 500, rồi 500*3//10 = 150, nên kết quả là `150`.
+constraints:
+- 'n là số nguyên không âm; mỗi selectivity là [num, den] với 0 <= num <= den, den >= 1'
+- 'Áp dụng theo đúng thứ tự, mỗi bước chia nguyên (làm tròn xuống) nên thứ tự có thể ảnh hưởng kết quả'
+- 'Chỉ dùng thư viện chuẩn của Python'
+examples:
+- input: 'n = 1000, sels = [[1,2],[3,10]]'
+  output: '150'
+  explain_vi: '1000 * 1 // 2 = 500, rồi 500 * 3 // 10 = 150.'
+io:
+  mode: function
+  entry: estimate_rows
+  params:
+  - name: n
+    type: int
+  - name: sels
+    type: list
+  returns: int
+  compare: exact
+starter:
+  python: |
+    def estimate_rows(n, sels):
+        # TODO: bắt đầu result = n, với mỗi [num, den] cập nhật result = result * num // den, trả result
+        pass
+time_target_min: 6
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+hints:
+- "Giữ một biến `result` bắt đầu bằng `n`, rồi duyệt `sels` theo thứ tự."
+- "Mỗi phần tử `sel` là `[num, den]`; cập nhật `result = result * num // den` (nhân trước rồi mới chia nguyên)."
+- "`sels` rỗng thì vòng lặp không chạy và `result` vẫn là `n`; cuối cùng `return result`."
+solution:
+  file: solution.py
+  approach_vi: Duyệt từng selectivity theo thứ tự, nhân result với num rồi chia nguyên cho den; trả result cuối cùng.
+  complexity: "O(k) / O(1)"
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x817
+status: validated
+version: 1

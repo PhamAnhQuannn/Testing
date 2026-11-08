@@ -1,0 +1,208 @@
+id: cs.databases.query_optimisation
+version: 1
+status: published
+title_vi: "Tối ưu truy vấn (query optimisation)"
+est_minutes: 15
+objectives_vi:
+  - "Phân biệt logical plan và physical plan; đọc ý nghĩa của EXPLAIN ở mức khái niệm."
+  - "Giải thích cost model (I/O + CPU) và cách ước lượng cardinality từ selectivity."
+  - "Chọn access path (sequential scan hay index scan) và giải thích khi nào index không giúp ích."
+  - "So sánh nested-loop, hash và merge join; hiểu predicate pushdown và thứ tự join."
+blocks:
+  - id: s_planner
+    type: section
+    title_vi: "Query planner: từ SQL đến kế hoạch thực thi"
+    summary_vi: "SQL chỉ nói muốn gì; query planner chọn cách làm rẻ nhất dựa trên cost model và thống kê."
+  - id: t01
+    type: text
+    md: |
+      SQL là ngôn ngữ **khai báo**: bạn nói *muốn dữ liệu gì*, không nói *lấy bằng cách nào*. Việc chọn cách làm là của
+      **query optimizer / query planner**.
+
+      Quy trình điển hình:
+
+      1. **Parse** câu SQL thành cây quan hệ. Đây là **logical plan**: các phép toán đại số (scan, filter, join, project) chưa nói dùng thuật toán nào.
+      2. **Rewrite**: biến đổi tương đương, ví dụ đẩy điều kiện xuống gần bảng (**predicate pushdown**).
+      3. **Enumerate**: liệt kê nhiều **physical plan** (mỗi phép toán gắn một thuật toán cụ thể: seq scan hay index scan, nested-loop hay hash join, thứ tự join nào).
+      4. **Cost**: chấm điểm mỗi plan bằng **cost model**, chọn plan rẻ nhất.
+
+      Muốn xem plan, dùng `EXPLAIN` (không chạy truy vấn) hoặc `EXPLAIN ANALYZE` (chạy thật và in số dòng thực tế):
+
+      ```text
+      EXPLAIN SELECT * FROM orders WHERE user_id = 42;
+
+      Index Scan using idx_orders_user on orders
+        Index Cond: (user_id = 42)
+        (cost=0.43..8.45 rows=3 width=40)
+      ```
+
+      Con số `rows=3` là **ước lượng cardinality** của planner. Nếu khác xa số dòng thực (`EXPLAIN ANALYZE`), plan thường sai.
+
+      **Cost model** gộp hai thành phần: chi phí **I/O** (đọc page từ đĩa, thường chiếm ưu thế) và chi phí **CPU** (xử lý từng dòng, so sánh điều kiện). Cost là đơn vị tương đối, không phải mili giây.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Điểm khác nhau giữa logical plan và physical plan là gì?"
+    options:
+      - {id: a, text_md: "Logical plan là các phép toán quan hệ; physical plan gắn thuật toán cụ thể (index scan, hash join...)"}
+      - {id: b, text_md: "Logical plan chạy trên đĩa, physical plan chạy trong RAM"}
+      - {id: c, text_md: "Logical plan do người dùng viết, physical plan do database sinh ra từ index"}
+    answer: [a]
+    explain_md: "Logical plan mô tả phép toán; physical plan chọn cách thực hiện. Optimizer sinh nhiều physical plan cho cùng một logical plan rồi chọn plan rẻ nhất."
+  - id: s_card
+    type: section
+    title_vi: "Cardinality và selectivity"
+    summary_vi: "Planner ước lượng số dòng qua mỗi toán tử bằng selectivity lấy từ thống kê."
+  - id: t02
+    type: text
+    md: |
+      **Selectivity** của một điều kiện là tỉ lệ dòng thỏa điều kiện, từ 0 đến 1. **Cardinality** là số dòng đầu ra:
+
+      ```text
+      rows_out = rows_in * selectivity
+      ```
+
+      Planner lấy selectivity từ **thống kê** (`ANALYZE`): số dòng bảng, số giá trị khác nhau (n_distinct), histogram, most common values.
+
+      ```text
+      bảng users: 10000 dòng, country có 20 giá trị khác nhau, phân bố giả định đều
+      country = 'VN'          -> selectivity ~ 1/20 = 0.05  -> ~500 dòng
+      age > 30  (khoảng 40%)  -> selectivity ~ 0.4
+      country = 'VN' AND age > 30
+        giả định ĐỘC LẬP: 0.05 * 0.4 = 0.02 -> ~200 dòng
+      ```
+
+      Với nhiều điều kiện `AND`, planner thường **nhân** các selectivity (giả định độc lập). Giả định này sai khi các cột tương quan
+      (ví dụ `city = 'Hanoi' AND country = 'VN'`), nên cardinality bị đánh giá thấp. Thống kê cũ (quên `ANALYZE`) cũng gây sai số lớn.
+
+      Sai số cardinality lan truyền: ước lượng thấp 100 lần ở tầng dưới có thể khiến planner chọn nested-loop join thay vì hash join.
+  - id: q02
+    type: predict_output
+    code: |
+      rows = 10000
+      for num, den in [(1, 20), (2, 5)]:
+          rows = rows * num // den
+      print(rows)
+    expected_output: |
+      200
+    explain_md: "10000 * 1 // 20 = 500, rồi 500 * 2 // 5 = 200. Đây là cách nhân selectivity liên tiếp của planner."
+  - id: t03
+    type: text
+    md: |
+      **Access path** là cách đọc dữ liệu từ một bảng:
+
+      - **Sequential scan** (seq scan): đọc toàn bộ bảng theo thứ tự page. I/O tuần tự, rẻ trên mỗi page, nhưng đọc hết.
+      - **Index scan**: đi theo B-tree đến các dòng khớp, rồi nhảy tới heap lấy dòng. Mỗi dòng khớp có thể là một lần đọc ngẫu nhiên.
+
+      ```text
+      bảng 1,000,000 dòng
+      WHERE id = 7                    -> khớp 1 dòng      -> index scan thắng
+      WHERE status = 'active' (60%)   -> khớp 600,000     -> seq scan thắng
+      ```
+
+      Quy tắc ngón tay cái: index chỉ có lợi khi điều kiện **chọn lọc** (khớp một phần nhỏ của bảng). Khi khớp quá nhiều dòng,
+      random I/O đắt hơn việc quét tuần tự cả bảng, nên planner **bỏ qua index**. Đó không phải bug.
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Cột `status` có index nhưng truy vấn `WHERE status = 'active'` (khớp 60% bảng) vẫn dùng seq scan. Vì sao?"
+    options:
+      - {id: a, text_md: "Planner tính ra seq scan rẻ hơn vì index scan phải random I/O cho quá nhiều dòng"}
+      - {id: b, text_md: "Index bị hỏng và cần REINDEX"}
+      - {id: c, text_md: "Index chỉ dùng được với phép so sánh lớn hơn hoặc nhỏ hơn"}
+    answer: [a]
+    explain_md: "Selectivity thấp (khớp nhiều dòng) làm index scan đắt hơn seq scan; chọn seq scan là quyết định đúng của cost model."
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: chọn access path"
+    summary_vi: "Mô phỏng quy tắc cost đơn giản để chọn giữa index scan và seq scan."
+    exercise_ref: ex_access
+  - id: t04
+    type: text
+    md: |
+      Mô hình rất đơn giản của lựa chọn access path: nếu **không có index** thì chỉ còn seq scan; nếu có index thì
+      index thắng khi số dòng khớp là **một phần nhỏ** của bảng.
+
+      ```text
+      has_index = False                 -> "scan"
+      match_rows * 10 < n_rows          -> "index"   (khớp dưới 10% bảng)
+      ngược lại                         -> "scan"
+      ```
+  - id: ex_access
+    type: code_exercise
+    md: |
+      Cài `choose_access(n_rows, match_rows, has_index)` trả về chuỗi `"index"` hoặc `"scan"`. `n_rows` là số dòng của
+      bảng, `match_rows` là số dòng khớp điều kiện (số nguyên, `0 <= match_rows <= n_rows`), `has_index` là `bool`.
+      Nếu `has_index` là `False` trả `"scan"`. Nếu có index, trả `"index"` khi `match_rows * 10 < n_rows`
+      (khớp **dưới 10%** bảng, so sánh nghiêm ngặt), ngược lại `"scan"`. Ví dụ `(1000, 50, True)` cho `"index"`,
+      `(1000, 100, True)` cho `"scan"`.
+    entry: choose_access
+    starter: |
+      def choose_access(n_rows, match_rows, has_index):
+          # TODO: không có index thì "scan"; có index thì "index" nếu match_rows * 10 < n_rows, ngược lại "scan"
+          pass
+    guidance_md: |
+      - Xử lý trường hợp `has_index` là `False` trước.
+      - Dùng phép nhân `match_rows * 10` thay vì chia để tránh số thực.
+    hints:
+      - level: nudge
+        md: "Không có index thì chỉ có một lựa chọn."
+      - level: approach
+        md: "So sánh `match_rows * 10` với `n_rows`; nhỏ hơn hẳn thì index có lợi."
+      - level: near_solution
+        md: "`return \"index\" if has_index and match_rows * 10 < n_rows else \"scan\"`."
+    tests:
+      - {args: [1000, 50, true], expected: "index"}
+      - {args: [1000, 100, true], expected: "scan"}
+      - {args: [1000, 5, false], expected: "scan"}
+      - {args: [100, 0, true], expected: "index"}
+      - {args: [1000, 500, true], expected: "scan"}
+    solution: |
+      def choose_access(n_rows, match_rows, has_index):
+          if not has_index:
+              return "scan"
+          if match_rows * 10 < n_rows:
+              return "index"
+          return "scan"
+  - id: t05
+    type: text
+    md: |
+      **Join algorithms**: ba thuật toán chính, với bảng ngoài R (m dòng) và bảng trong S (n dòng).
+
+      - **Nested-loop join**: với mỗi dòng của R, quét S tìm dòng khớp. Chi phí ~ `m * n`. Tốt khi R rất nhỏ hoặc S có index trên cột join (index nested-loop: mỗi dòng R chỉ tra index S).
+      - **Hash join**: build hash table từ bảng nhỏ hơn, rồi probe bằng từng dòng bảng kia. Chi phí ~ `m + n`. Chỉ cho điều kiện bằng (`=`).
+      - **Merge join**: sắp xếp hai bên theo cột join (hoặc dùng index đã sắp xếp) rồi trộn như merge sort. Chi phí ~ `m log m + n log n`, hoặc `m + n` nếu đã có thứ tự. Tốt cho dữ liệu lớn, đã sort.
+
+      **Thứ tự join** quan trọng vì kích thước kết quả trung gian: join các bảng sinh ra ít dòng trước, để các join sau xử lý ít dữ liệu.
+      Với n bảng có n! thứ tự, planner dùng dynamic programming (hoặc heuristic/genetic khi n lớn).
+
+      **Predicate pushdown**: lọc sớm nhất có thể, trước khi join.
+
+      ```text
+      -- viết thế này
+      SELECT * FROM users u JOIN orders o ON u.id = o.user_id
+      WHERE u.country = 'VN';
+
+      -- planner viết lại: lọc users trước khi join
+      Join( Filter(users, country='VN'), orders )
+      ```
+
+      Lọc trước khi join làm bảng đầu vào nhỏ đi, nên cả chi phí join lẫn kết quả trung gian đều giảm.
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Việc đẩy điều kiện WHERE xuống thấp nhất có thể, trước khi join, gọi là predicate ___."
+    blanks: [{accept: ["pushdown", "Pushdown", "push-down", "push down"]}]
+    explain_md: "Predicate pushdown giảm số dòng đi vào join, nên giảm chi phí và kích thước kết quả trung gian."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "SQL khai báo; query planner sinh nhiều physical plan từ logical plan rồi chọn plan rẻ nhất theo cost model (I/O + CPU). EXPLAIN cho xem plan, EXPLAIN ANALYZE so sánh ước lượng với thực tế."
+      - "Cardinality = rows_in * selectivity; nhiều điều kiện AND thường nhân selectivity (giả định độc lập, sai khi cột tương quan hoặc thống kê cũ)."
+      - "Index scan chỉ thắng khi điều kiện chọn lọc; khớp nhiều dòng thì seq scan rẻ hơn."
+      - "Nested-loop (m*n, tốt khi có index), hash join (m+n, chỉ điều kiện bằng), merge join (cần sort); lọc trước khi join (predicate pushdown) và chọn thứ tự join tốt để thu nhỏ kết quả trung gian."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X816], l2: [X817], l3: [X818]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-07"

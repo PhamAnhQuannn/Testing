@@ -246,6 +246,11 @@ EXTRA_IDS = {
     "cs.databases.normalization",
     "cs.databases.indexing_btree",
     "cs.databases.transactions_acid",
+    # Wave 7 Round 44: cs.databases B (concept, isolation/locking/nosql/query-opt).
+    "cs.databases.isolation",
+    "cs.databases.locking_mvcc",
+    "cs.databases.nosql",
+    "cs.databases.query_optimisation",
 }
 
 # Expected shipped counts, asserted so an upstream tree edit can't silently change the snapshot.
@@ -253,7 +258,7 @@ PLAN_MVP_COUNT = 40
 EXPECTED_SD = 86
 EXPECTED_ML4 = 39
 EXPECTED_EXTRA_IDS = len(EXTRA_IDS)  # Wave 2 additions
-EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 337
+EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 341
 
 # Node fields the app uses (SPEC 4.2); optional ones are skipped when a node lacks them.
 NODE_FIELDS = [

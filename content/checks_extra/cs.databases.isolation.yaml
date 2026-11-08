@@ -1,0 +1,51 @@
+subtopic_id: cs.databases.isolation
+items:
+  - id: X807
+    difficulty: 1
+    type: read_code
+    minutes: 3
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng.
+    code: |-
+      db = {"x": 100}
+      undo = dict(db)
+      db["x"] = 50
+      seen = db["x"]
+      db = undo
+      print(seen, db["x"])
+      print(seen == db["x"])
+    expected_output: "50 100\nFalse"
+    answer_md: "T1 ghi x = 50 nhưng chưa commit; T2 đọc `seen = 50` (dirty read). Sau đó T1 rollback (`db = undo`) nên x trở về 100. T2 đang giữ giá trị 50 chưa từng được commit, nên `seen == db[\"x\"]` là False."
+    rubric_md: "Output khớp từng dòng. Đúng: bằng chứng điểm 1; sai: tối đa điểm 0."
+  - id: X808
+    difficulty: 2
+    type: write_code
+    minutes: 6
+    prompt_md: |
+      Viết hàm `dirty_reads(ops)` phát hiện dirty read trong một lịch các transaction. `ops` là list thao tác áp dụng theo thứ tự, mỗi thao tác là một trong: `["write", txn, key, value]` (txn và key là chuỗi, value là số nguyên; txn trở thành người ghi chưa commit của key, thay người trước đó), `["read", txn, key]` (nếu key có người ghi chưa commit `w` khác `txn` thì ghi nhận cặp reader `txn` và writer `w`), `["commit", txn]` (txn không còn giữ key nào chưa commit), `["abort", txn]` (txn không còn giữ key nào chưa commit, và mọi cặp đã ghi nhận có writer là `txn` thành dirty read đã xác nhận). Trả về list đã sắp xếp các reader khác nhau có ít nhất một dirty read đã xác nhận; không có thì `[]`. Ví dụ `[["write","T1","x",5],["read","T2","x"],["abort","T1"]]` cho `["T2"]`.
+    problem_id: check-x808-dirty-reads
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 6 phút: bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X809
+    difficulty: 3
+    type: read_code
+    minutes: 5
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng và giải thích vì sao ở mức READ COMMITTED vẫn còn phantom và non-repeatable read.
+    code: |-
+      ALL = {"dirty", "non_repeatable", "phantom"}
+      PREVENTS = {
+          "READ UNCOMMITTED": set(),
+          "READ COMMITTED": {"dirty"},
+          "REPEATABLE READ": {"dirty", "non_repeatable"},
+          "SERIALIZABLE": {"dirty", "non_repeatable", "phantom"},
+      }
+
+
+      def allowed(level):
+          return sorted(ALL - PREVENTS[level])
+
+
+      for lvl in PREVENTS:
+          print(lvl, allowed(lvl))
+      print([lvl for lvl in PREVENTS if "phantom" in PREVENTS[lvl]])
+    expected_output: "READ UNCOMMITTED ['dirty', 'non_repeatable', 'phantom']\nREAD COMMITTED ['non_repeatable', 'phantom']\nREPEATABLE READ ['phantom']\nSERIALIZABLE []\n['SERIALIZABLE']"
+    answer_md: "Mỗi mức chặn thêm một loại anomaly: READ COMMITTED chỉ chặn dirty read nên mỗi câu SELECT có thể thấy dữ liệu mới đã commit (non_repeatable) và dòng mới (phantom). REPEATABLE READ chặn thêm non_repeatable; chỉ SERIALIZABLE chặn cả phantom (theo bảng ANSI dùng trong code). Dict giữ thứ tự chèn nên in đúng thứ tự bốn mức."
+    rubric_md: "Output khớp từng dòng VÀ giải thích đúng: mỗi mức cao hơn chặn thêm anomaly; READ COMMITTED chỉ chặn dirty read nên non-repeatable read và phantom vẫn xảy ra. Đúng: bằng chứng điểm 3; sai: tối đa điểm 2."
