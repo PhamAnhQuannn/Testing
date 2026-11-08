@@ -1,0 +1,200 @@
+id: cs.networks.http
+version: 1
+status: published
+title_vi: "HTTP (application layer)"
+est_minutes: 15
+objectives_vi:
+  - "Đọc được request line (method, path, version), status line và header của một HTTP message."
+  - "Phân biệt các method GET/POST/PUT/DELETE theo tính safe và idempotent, và nhóm status code 2xx/3xx/4xx/5xx."
+  - "Giải thích keep-alive (tái sử dụng kết nối) và caching: Cache-Control, ETag, conditional GET trả 304."
+  - "Mô tả same-origin policy, CORS preflight (OPTIONS) và mô phỏng việc dispatch request đến handler theo method + path."
+blocks:
+  - id: s_model
+    type: section
+    title_vi: "Cấu trúc một HTTP message"
+    summary_vi: "HTTP là giao thức request/response dạng text chạy trên TCP: một request line, các header, rồi body."
+  - id: t01
+    type: text
+    md: |
+      **HTTP** (HyperText Transfer Protocol) là giao thức tầng application theo mô hình **request/response**: client gửi
+      request, server trả response. HTTP/1.1 chạy trên TCP (đã học ở bài trước), cổng mặc định 80 (HTTPS là 443).
+
+      Một **request** gồm request line, các header, một dòng trống rồi body (có thể rỗng):
+
+      ```text
+      POST /orders HTTP/1.1          <- request line: method, path, version
+      Host: shop.example.com         <- header
+      Content-Type: application/json
+      Content-Length: 17
+
+      {"item": "book"}               <- body
+      ```
+
+      Một **response** gồm status line, header và body:
+
+      ```text
+      HTTP/1.1 201 Created           <- status line: version, status code, reason
+      Content-Type: application/json
+      Location: /orders/42
+
+      {"id": 42}
+      ```
+
+      **Method** nói client muốn làm gì với resource ở `path`:
+
+      - `GET`: đọc resource. **Safe** (không đổi trạng thái server) và **idempotent**.
+      - `POST`: tạo mới hoặc kích hoạt một hành động. Không safe, **không** idempotent (gửi hai lần có thể tạo hai bản).
+      - `PUT`: thay thế toàn bộ resource. Idempotent (gửi lại cho cùng kết quả).
+      - `DELETE`: xoá resource. Idempotent (xoá lần hai vẫn ở trạng thái "không còn").
+
+      ```text
+      safe       = không làm thay đổi gì ở server      (GET)
+      idempotent = gọi N lần cho cùng kết quả như 1 lần (GET, PUT, DELETE)
+      ```
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Method nào KHÔNG idempotent, tức gửi hai lần giống hệt nhau có thể tạo ra hai resource?"
+    options:
+      - {id: a, text_md: "POST"}
+      - {id: b, text_md: "PUT"}
+      - {id: c, text_md: "DELETE"}
+    answer: [a]
+    explain_md: "POST thường tạo resource mới mỗi lần gọi. PUT và DELETE idempotent: gọi lại không đổi kết quả cuối."
+  - id: t02
+    type: text
+    md: |
+      **Status code** cho biết kết quả, chia theo chữ số đầu:
+
+      ```text
+      2xx  thành công          200 OK, 201 Created, 204 No Content
+      3xx  chuyển hướng        301 Moved Permanently, 302 Found, 304 Not Modified
+      4xx  lỗi phía client     400 Bad Request, 401 Unauthorized, 403 Forbidden, 404 Not Found
+      5xx  lỗi phía server     500 Internal Server Error, 502 Bad Gateway, 503 Service Unavailable
+      ```
+
+      Quy tắc nhớ: 4xx là do request sai (client sửa rồi gửi lại), 5xx là server hỏng (có thể thử lại sau).
+
+      **Header** là các cặp `Tên: giá trị` mang metadata: `Host` (bắt buộc ở HTTP/1.1), `Content-Type`, `Content-Length`,
+      `Authorization`, `Cache-Control`, `Location`...
+  - id: q02
+    type: predict_output
+    code: |
+      line = "POST /orders HTTP/1.1"
+      method, path, version = line.split()
+      print(method, path)
+    expected_output: |
+      POST /orders
+    explain_md: "Request line tách theo khoảng trắng thành method, path, version; chỉ in method và path."
+  - id: t03
+    type: text
+    md: |
+      **Kết nối (keep-alive)**: HTTP/1.0 mở một TCP connection mới cho mỗi request, mỗi lần phải tốn 3-way handshake.
+      HTTP/1.1 mặc định **persistent connection** (`Connection: keep-alive`): nhiều request/response đi qua cùng một
+      kết nối TCP, tiết kiệm handshake và tận dụng congestion window đã "ấm". HTTP/2 còn **multiplex** nhiều request
+      song song trên một kết nối.
+
+      **Caching** giúp tránh tải lại dữ liệu không đổi:
+
+      - `Cache-Control: max-age=3600`: client/proxy được dùng lại bản đã lưu trong 3600 giây mà không hỏi server.
+      - `Cache-Control: no-store`: cấm lưu; `no-cache`: được lưu nhưng phải hỏi lại server trước khi dùng.
+      - **ETag**: server gắn một "dấu vân tay" của nội dung vào response. Lần sau client gửi lại bằng
+        `If-None-Match: <etag>` (**conditional GET**). Nếu nội dung chưa đổi, server trả `304 Not Modified` không kèm
+        body; nếu đã đổi, trả `200` với body mới và ETag mới.
+
+      ```text
+      Lần 1: GET /logo.png                        -> 200, ETag: "v1", body
+      Lần 2: GET /logo.png, If-None-Match: "v1"   -> 304 (không body, dùng bản cache)
+      Sau khi sửa: If-None-Match: "v1"            -> 200, ETag: "v2", body mới
+      ```
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Client gửi `If-None-Match: \"v1\"` và nội dung trên server vẫn có ETag `\"v1\"`. Server trả gì?"
+    options:
+      - {id: a, text_md: "304 Not Modified, không có body"}
+      - {id: b, text_md: "200 OK kèm body đầy đủ"}
+      - {id: c, text_md: "404 Not Found"}
+    answer: [a]
+    explain_md: "ETag khớp nghĩa là bản cache còn mới nên server chỉ trả 304 để tiết kiệm băng thông."
+  - id: t04
+    type: text
+    md: |
+      **CORS** (Cross-Origin Resource Sharing). Trình duyệt áp dụng **same-origin policy**: JavaScript ở origin
+      `https://app.example.com` không được đọc response từ origin khác. Origin = scheme + host + port, nên
+      `https://api.example.com` hay cổng khác đều là cross-origin.
+
+      Server có thể cho phép bằng header `Access-Control-Allow-Origin`:
+
+      ```text
+      Trang ở https://app.example.com gọi https://api.example.com/data
+      Response: Access-Control-Allow-Origin: https://app.example.com   -> trình duyệt cho JS đọc
+      Không có header này                                              -> trình duyệt chặn JS đọc response
+      ```
+
+      Với request "không đơn giản" (method như PUT/DELETE, hoặc header tuỳ biến, Content-Type JSON), trình duyệt
+      gửi trước một **preflight** là request `OPTIONS` để hỏi server có cho phép không. Server trả
+      `Access-Control-Allow-Methods` và `Access-Control-Allow-Headers`; nếu đồng ý, trình duyệt mới gửi request thật.
+
+      Lưu ý: CORS là cơ chế của **trình duyệt**; nó không ngăn `curl` hay server khác gọi API của bạn.
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: phân loại status code"
+    summary_vi: "Viết hàm trả nhóm status code (2xx, 3xx, 4xx, 5xx) từ mã số."
+    exercise_ref: ex_class
+  - id: t05
+    type: text
+    md: |
+      Nhóm của status code là chữ số hàng trăm, tức phép chia nguyên cho 100.
+
+      ```text
+      404 // 100 = 4  -> "4xx"
+      204 // 100 = 2  -> "2xx"
+      ```
+  - id: ex_class
+    type: code_exercise
+    md: |
+      Cài `status_class(code)`: `code` là số nguyên HTTP status code từ 100 đến 599. Trả về chuỗi nhóm của nó,
+      gồm chữ số đầu và `"xx"`. Ví dụ `status_class(404)` trả `"4xx"`.
+    entry: status_class
+    starter: |
+      def status_class(code):
+          # TODO: trả về nhóm như "2xx", "4xx"
+          pass
+    guidance_md: |
+      - Chữ số đầu của một số 3 chữ số là `code // 100`.
+      - Ghép với chuỗi `"xx"`.
+    hints:
+      - level: nudge
+        md: "Nhóm được quyết định bởi chữ số hàng trăm."
+      - level: approach
+        md: "Dùng phép chia nguyên cho 100 rồi chuyển sang chuỗi."
+      - level: near_solution
+        md: "Trả `str(code // 100) + \"xx\"`."
+    tests:
+      - {args: [200], expected: "2xx"}
+      - {args: [301], expected: "3xx"}
+      - {args: [404], expected: "4xx"}
+      - {args: [500], expected: "5xx"}
+      - {args: [204], expected: "2xx"}
+    solution: |
+      def status_class(code):
+          return str(code // 100) + "xx"
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Mã trạng thái HTTP ___ nghĩa là Not Found (không tìm thấy resource)."
+    blanks: [{accept: ["404"]}]
+    explain_md: "404 thuộc nhóm 4xx: lỗi phía client (URL hoặc resource không tồn tại)."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "HTTP là request/response trên TCP: request line (method, path, version), header, body; response có status line."
+      - "GET safe và idempotent; PUT/DELETE idempotent; POST không idempotent. Status: 2xx ok, 3xx chuyển hướng, 4xx lỗi client, 5xx lỗi server."
+      - "Keep-alive tái sử dụng một TCP connection cho nhiều request; cache dùng Cache-Control và ETag, conditional GET trả 304 khi chưa đổi."
+      - "Same-origin policy chặn JS đọc response cross-origin; CORS dùng Access-Control-Allow-Origin và preflight OPTIONS để cho phép."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X831], l2: [X832], l3: [X833]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-07"

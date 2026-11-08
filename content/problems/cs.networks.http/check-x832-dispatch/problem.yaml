@@ -1,0 +1,76 @@
+id: check-x832-dispatch
+subtopic_id: cs.networks.http
+secondary_subtopics: []
+kind: check
+title: 'Check X832: dispatch HTTP request to handler'
+title_vi: 'Kiểm tra X832: chọn handler cho HTTP request'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Implement `dispatch(routes, method, path)`, a model of HTTP method + path routing. `routes` is a list of
+  `[method, path, handler_name]` (all strings), e.g. `[["GET", "/users", "list_users"], ["POST", "/users", "create_user"]]`.
+  Return the `handler_name` of the FIRST route whose `method` equals the given `method` AND whose `path` equals the
+  given `path` (exact string match, no wildcards). If no route matches, return `None`.
+  For `routes = [["GET", "/u", "h1"], ["POST", "/u", "h2"]]`, `method = "POST"`, `path = "/u"` the result is `"h2"`.
+statement_vi_md: |
+  Cài `dispatch(routes, method, path)`, mô phỏng việc server HTTP chọn handler theo method và path. `routes` là list các
+  `[method, path, handler_name]` (đều là chuỗi). Trả về `handler_name` của route ĐẦU TIÊN có `method` và `path` đều
+  khớp chính xác (so sánh chuỗi bằng nhau, không wildcard). Không route nào khớp thì trả `None`.
+  Với ví dụ trên kết quả là `"h2"`.
+constraints:
+- 'routes là list các [method, path, handler_name], tất cả là chuỗi; routes có thể rỗng'
+- 'So khớp chính xác theo chuỗi (phân biệt hoa thường), không có wildcard'
+- 'Nhiều route trùng method và path thì lấy route xuất hiện đầu tiên'
+- 'Chỉ dùng thư viện chuẩn của Python'
+examples:
+- input: 'routes = [["GET", "/u", "h1"], ["POST", "/u", "h2"]], method = "POST", path = "/u"'
+  output: '"h2"'
+  explain_vi: 'Route đầu có method GET khác POST nên bị bỏ qua; route thứ hai khớp cả method và path nên trả h2.'
+- input: 'routes = [["GET", "/u", "h1"]], method = "GET", path = "/x"'
+  output: 'null'
+  explain_vi: 'Method khớp nhưng path /x khác /u nên không có route nào khớp, trả None (null).'
+- input: 'routes = [], method = "GET", path = "/"'
+  output: 'null'
+  explain_vi: 'Không có route nào nên trả None (null).'
+io:
+  mode: function
+  entry: dispatch
+  params:
+  - name: routes
+    type: list
+  - name: method
+    type: str
+  - name: path
+    type: str
+  returns: any
+  compare: exact
+starter:
+  python: |
+    def dispatch(routes, method, path):
+        # TODO: trả handler_name của route đầu tiên khớp cả method và path, không có thì None
+        pass
+time_target_min: 6
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+hints:
+- "Duyệt routes theo thứ tự và giải nén mỗi route thành `m, p, h`."
+- "Chỉ khi `m == method and p == path` (cả hai) thì mới trả `h` ngay; nhớ là route đầu tiên khớp thắng."
+- "Nếu duyệt hết mà không có route nào khớp thì trả `None`."
+solution:
+  file: solution.py
+  approach_vi: Duyệt tuần tự các route, trả handler của route đầu tiên khớp cả method và path, không khớp thì None.
+  complexity: "O(k) / O(1)"
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x832
+status: validated
+version: 1

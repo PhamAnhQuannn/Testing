@@ -1,0 +1,77 @@
+id: check-x841-cache-decision
+subtopic_id: cs.networks.web_flow
+secondary_subtopics: []
+kind: check
+title: 'Check X841: HTTP cache decision'
+title_vi: 'Kiểm tra X841: quyết định HTTP cache'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Implement `cache_decision(req_headers, resp_headers)`, a model of the browser's HTTP Cache-Control decision.
+  Both arguments are dicts mapping a header name (str) to its value (str). Decide in this priority order and
+  return a string:
+  1. If `resp_headers` has the key `"no-store"` (any value) return `"network"`.
+  2. Else if `resp_headers` has the key `"no-cache"` return `"revalidate"`.
+  3. Else if `resp_headers` has `"max-age"` AND `req_headers` has `"age"` and `int(age) < int(max-age)` return `"cache"`.
+  4. Otherwise return `"network"` (this includes a missing `age` header, and `age` equal to `max-age`).
+  For `cache_decision({"age": "10"}, {"max-age": "60"})` the result is `"cache"`.
+statement_vi_md: |
+  Cài `cache_decision(req_headers, resp_headers)`, mô phỏng quyết định HTTP Cache-Control của trình duyệt. Cả hai
+  tham số là dict ánh xạ tên header (str) sang giá trị (str). Quyết định theo thứ tự ưu tiên và trả về một chuỗi:
+  1. `resp_headers` có khóa `"no-store"` (bất kể giá trị) thì trả `"network"`.
+  2. Nếu không, có khóa `"no-cache"` thì trả `"revalidate"`.
+  3. Nếu không, có `"max-age"` trong `resp_headers` VÀ có `"age"` trong `req_headers` với `int(age) < int(max-age)` thì
+     trả `"cache"`.
+  4. Còn lại trả `"network"` (kể cả thiếu header `age`, hoặc `age` bằng `max-age`).
+  Với ví dụ trên kết quả là `"cache"`.
+constraints:
+- 'Giá trị của max-age và age là chuỗi số nguyên không âm'
+- 'no-store thắng mọi thứ; so sánh age với max-age là nghiêm ngặt (age bằng max-age là stale)'
+- 'Chỉ dùng thư viện chuẩn của Python'
+examples:
+- input: 'req_headers = {"age": "10"}, resp_headers = {"max-age": "60"}'
+  output: '"cache"'
+  explain_vi: 'Không có no-store hay no-cache; age 10 < max-age 60 nên bản lưu còn fresh.'
+- input: 'req_headers = {"age": "100"}, resp_headers = {"max-age": "60"}'
+  output: '"network"'
+  explain_vi: 'age 100 không nhỏ hơn 60 nên bản lưu đã stale, phải lấy lại từ network.'
+io:
+  mode: function
+  entry: cache_decision
+  params:
+  - name: req_headers
+    type: dict
+  - name: resp_headers
+    type: dict
+  returns: str
+  compare: exact
+starter:
+  python: |
+    def cache_decision(req_headers, resp_headers):
+        # TODO: no-store -> network; no-cache -> revalidate; age < max-age -> cache; còn lại network
+        pass
+time_target_min: 6
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+hints:
+- "Kiểm tra theo thứ tự ưu tiên: `\"no-store\" in resp_headers` trước, rồi `\"no-cache\"`."
+- "Với max-age, cần cả `\"max-age\" in resp_headers` và `\"age\" in req_headers` trước khi gọi `int(...)`."
+- "Fresh khi `int(req_headers[\"age\"]) < int(resp_headers[\"max-age\"])` (nghiêm ngặt); mọi trường hợp còn lại trả `\"network\"`."
+solution:
+  file: solution.py
+  approach_vi: Xét lần lượt no-store, no-cache, rồi so sánh age với max-age (nghiêm ngặt); thiếu thông tin thì network.
+  complexity: "O(1) / O(1)"
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x841
+status: validated
+version: 1

@@ -1,0 +1,187 @@
+id: cs.networks.dns
+version: 1
+status: published
+title_vi: "DNS (Domain Name System)"
+est_minutes: 15
+objectives_vi:
+  - "Mô tả phân cấp tên miền (root, TLD, authoritative) và cách resolver phân giải đệ quy một tên."
+  - "Phân biệt các loại bản ghi A, AAAA, CNAME, NS, MX, TXT và biết mỗi loại dùng để làm gì."
+  - "Giải thích TTL và caching, cùng lý do DNS thường chạy trên UDP và chuyển sang TCP khi cần."
+  - "Mô phỏng việc đi theo chuỗi CNAME đến bản ghi A, xử lý tên thiếu và vòng lặp."
+blocks:
+  - id: s_model
+    type: section
+    title_vi: "DNS là danh bạ phân tán toàn cầu"
+    summary_vi: "DNS đổi tên dễ nhớ thành địa chỉ IP bằng một hệ thống phân cấp và có cache."
+  - id: t01
+    type: text
+    md: |
+      Máy tính định tuyến bằng địa chỉ IP, còn con người nhớ tên như `www.example.com`. **DNS** (Domain Name System)
+      là hệ thống chuyển tên thành địa chỉ (và nhiều thông tin khác). Nó không nằm ở một server duy nhất mà là
+      một cơ sở dữ liệu **phân cấp và phân tán** trên toàn thế giới.
+
+      Tên miền đọc từ phải sang trái là một cây:
+
+      ```text
+      www.example.com.
+       |     |     |  └── root (dấu chấm cuối, 13 nhóm root server)
+       |     |     └───── TLD (.com, .org, .vn ...)
+       |     └─────────── domain (example.com), do chủ miền quản lý
+       └───────────────── host (www)
+      ```
+
+      Ba tầng server chính:
+
+      - **Root server**: biết server nào phụ trách từng **TLD** (top-level domain).
+      - **TLD server**: biết **authoritative server** của từng domain dưới nó (ví dụ `.com` biết ai quản lý `example.com`).
+      - **Authoritative server**: nắm bản ghi thật của domain và trả lời dứt khoát.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Server nào giữ bản ghi gốc, chính xác của `example.com` và trả lời có thẩm quyền?"
+    options:
+      - {id: a, text_md: "Authoritative server của example.com"}
+      - {id: b, text_md: "Root server"}
+      - {id: c, text_md: "Recursive resolver của nhà mạng"}
+    answer: [a]
+    explain_md: "Authoritative server nắm bản ghi thật của domain. Root chỉ chỉ đường đến TLD, resolver chỉ đi hỏi và cache hộ client."
+  - id: t02
+    type: text
+    md: |
+      Ứng dụng của bạn không tự đi hỏi từng tầng. Nó hỏi một **recursive resolver** (thường của nhà mạng hoặc 8.8.8.8,
+      1.1.1.1). Resolver làm việc nặng thay bạn:
+
+      ```text
+      Client -> Resolver: "www.example.com là IP nào?"
+        Resolver -> Root:          "www.example.com?"  <- "hỏi server .com này"   (NS của .com)
+        Resolver -> TLD (.com):    "www.example.com?"  <- "hỏi server của example.com" (NS)
+        Resolver -> Authoritative: "www.example.com?"  <- "A 93.184.216.34, TTL 300"
+      Resolver -> Client: 93.184.216.34   (và nhớ vào cache 300 giây)
+      ```
+
+      Client gửi truy vấn **recursive** (hãy trả lời cuối cùng cho tôi); resolver gửi truy vấn **iterative** (mỗi
+      server trả lời "tôi biết đến đâu, hãy hỏi tiếp ai").
+
+      **Các loại bản ghi** (resource record) thường gặp:
+
+      - **A**: tên sang địa chỉ IPv4. **AAAA**: tên sang IPv6.
+      - **CNAME**: tên là **bí danh** của một tên khác (`www` là CNAME trỏ đến `web`); resolver phải phân giải tiếp tên đích.
+      - **NS**: server nào có thẩm quyền cho domain. **MX**: mail server nhận email của domain.
+      - **TXT**: văn bản tự do, hay dùng cho xác minh domain, SPF/DKIM chống giả mạo email.
+  - id: q02
+    type: predict_output
+    code: |
+      records = {"www": ["CNAME", "web"], "web": ["A", "1.2.3.4"]}
+      target = records["www"][1]
+      print(records[target][1])
+    expected_output: |
+      1.2.3.4
+    explain_md: "www là CNAME trỏ đến web; tra tiếp web là bản ghi A nên ra 1.2.3.4."
+  - id: t03
+    type: text
+    md: |
+      **TTL** (time to live) là số giây mà một bản ghi được phép nằm trong cache. Hết TTL, resolver phải hỏi lại.
+
+      - TTL dài: ít truy vấn, nhanh, nhưng đổi IP mất lâu mới lan ra khắp nơi.
+      - TTL ngắn: đổi IP nhanh (hữu ích khi failover hoặc chuyển server) nhưng tải truy vấn tăng.
+      - Cache có ở nhiều tầng: trình duyệt, hệ điều hành, resolver. Phần lớn truy vấn không bao giờ chạm đến root hay TLD.
+
+      **Vì sao DNS thường dùng UDP**: một câu hỏi và một câu trả lời đều nhỏ (thường dưới vài trăm byte), nên một
+      cặp datagram UDP là đủ, không tốn 3-way handshake của TCP. Nếu phản hồi quá lớn (bị cắt, cờ truncated) hoặc
+      khi truyền zone giữa các server, DNS **chuyển sang TCP** (cổng 53 cả hai). DNS over TLS/HTTPS thêm mã hóa trên TCP.
+
+      ```text
+      Thông thường:  UDP/53   truy vấn nhỏ, 1 vòng
+      Dự phòng:      TCP/53   phản hồi lớn, zone transfer
+      ```
+
+      **Toàn cầu và định tuyến**: 13 địa chỉ root thực ra được nhân bản ra hàng trăm máy bằng **anycast**, nhiều
+      server ở nhiều nơi cùng quảng bá chung một địa chỉ IP, và định tuyến mạng (BGP) đưa truy vấn đến bản sao gần nhất.
+      Nhờ vậy DNS vừa nhanh vừa chịu lỗi tốt.
+
+      **Cạm bẫy khi đi theo CNAME**: CNAME có thể trỏ đến tên không tồn tại (dangling) hoặc trỏ vòng
+      (`a -> b -> a`). Resolver thật phải giới hạn độ sâu và phát hiện vòng lặp, nếu không sẽ chạy mãi.
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Vì sao truy vấn DNS thông thường dùng UDP thay vì TCP?"
+    options:
+      - {id: a, text_md: "Truy vấn và phản hồi nhỏ nên một cặp datagram là đủ, bỏ được chi phí handshake"}
+      - {id: b, text_md: "UDP đảm bảo bản ghi luôn được gửi lại khi mất gói"}
+      - {id: c, text_md: "TCP không thể dùng cổng 53"}
+    answer: [a]
+    explain_md: "Truy vấn nhỏ, độ trễ thấp là ưu tiên; UDP tránh được handshake. TCP vẫn được dùng làm dự phòng cho phản hồi lớn và zone transfer."
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: phân giải qua CNAME"
+    summary_vi: "Đi theo chuỗi CNAME đến bản ghi A, xử lý thiếu bản ghi và vòng lặp."
+    exercise_ref: ex_resolve
+  - id: t04
+    type: text
+    md: |
+      Mô hình đơn giản: `records` là dict `tên -> [type, value]`. Từ `name`, lặp: nếu bản ghi là `A` thì trả
+      IP; nếu là `CNAME` thì chuyển sang tên đích. Để chặn vòng lặp, nhớ các tên đã thăm trong một `set`; gặp lại
+      là dừng.
+
+      ```text
+      {www: CNAME web, web: A 1.2.3.4}  www -> web -> 1.2.3.4
+      {a: CNAME b}                       a -> b (không có bản ghi)  => None
+      {a: CNAME b, b: CNAME a}           a -> b -> a (đã thăm)      => None
+      ```
+  - id: ex_resolve
+    type: code_exercise
+    md: |
+      Cài `resolve(records, name)`: `records` là dict ánh xạ tên sang `[type, value]` với `type` là `"CNAME"`
+      hoặc `"A"`. Đi theo CNAME từ `name` đến bản ghi `"A"` và trả về IP (chuỗi). Trả `None` nếu thiếu bản ghi ở
+      bất kỳ bước nào hoặc có vòng lặp. Ví dụ `resolve({"www": ["CNAME", "web"], "web": ["A", "1.2.3.4"]}, "www")`
+      trả `"1.2.3.4"`.
+    entry: resolve
+    starter: |
+      def resolve(records, name):
+          # TODO: đi theo CNAME đến bản ghi A; thiếu hoặc vòng lặp thì trả None
+          pass
+    guidance_md: |
+      - Dùng một `set` để nhớ các tên đã thăm.
+      - Thoát vòng lặp mà chưa gặp A thì trả `None`.
+    hints:
+      - level: nudge
+        md: "Mỗi bước tra `records[cur]`; nếu `cur` không có thì kết quả là None."
+      - level: approach
+        md: "Giữ `seen`; nếu gặp lại một tên trong `seen` thì đó là vòng lặp."
+      - level: near_solution
+        md: "Lặp `while cur in records and cur not in seen`: thêm vào seen, nếu type là A trả value, ngược lại `cur = value`; cuối hàm trả None."
+    tests:
+      - {args: [{"www": ["CNAME", "web"], "web": ["A", "1.2.3.4"]}, "www"], expected: "1.2.3.4"}
+      - {args: [{"a": ["A", "5.6.7.8"]}, "a"], expected: "5.6.7.8"}
+      - {args: [{"a": ["CNAME", "b"]}, "a"], expected: null}
+      - {args: [{"a": ["CNAME", "b"], "b": ["CNAME", "a"]}, "a"], expected: null}
+      - {args: [{}, "x"], expected: null}
+    solution: |
+      def resolve(records, name):
+          seen = set()
+          cur = name
+          while cur in records and cur not in seen:
+              seen.add(cur)
+              rtype, value = records[cur]
+              if rtype == "A":
+                  return value
+              cur = value
+          return None
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Loại bản ghi DNS dùng để tạo bí danh, trỏ một tên sang một tên khác, là ___."
+    blanks: [{accept: ["CNAME", "cname"]}]
+    explain_md: "CNAME biến một tên thành bí danh của tên khác; resolver phải phân giải tiếp tên đích để ra A hoặc AAAA."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "DNS là cơ sở dữ liệu phân cấp, phân tán: root biết TLD, TLD biết authoritative, authoritative giữ bản ghi thật; anycast nhân bản root ra toàn cầu."
+      - "Client hỏi recursive resolver; resolver đi hỏi iterative qua root, TLD, authoritative rồi cache kết quả."
+      - "Bản ghi chính: A/AAAA (IP), CNAME (bí danh), NS (server có thẩm quyền), MX (mail), TXT (văn bản/xác minh)."
+      - "TTL quyết định thời gian cache; DNS thường dùng UDP/53 cho truy vấn nhỏ và chuyển sang TCP khi phản hồi lớn; đi theo CNAME phải xử lý thiếu bản ghi và vòng lặp."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X834], l2: [X835], l3: [X836]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-07"

@@ -1,0 +1,167 @@
+id: cs.networks.tls_security
+version: 1
+status: published
+title_vi: "TLS/HTTPS và bảo mật mạng"
+est_minutes: 15
+objectives_vi:
+  - "Giải thích TLS/HTTPS bảo vệ điều gì: confidentiality, integrity, authentication."
+  - "Mô tả handshake TLS ở mức ý tưởng: ClientHello/ServerHello, certificate, key exchange, Finished."
+  - "Phân biệt asymmetric và symmetric key, và vì sao TLS dùng public-key để thỏa thuận session key rồi mã hóa bằng symmetric."
+  - "Hiểu certificate authority, chain of trust (leaf, intermediate, root) và mô phỏng việc kiểm tra chain; biết MITM và eavesdropping bị chặn thế nào."
+blocks:
+  - id: s_model
+    type: section
+    title_vi: "TLS/HTTPS bảo vệ điều gì"
+    summary_vi: "TLS biến kênh TCP trần thành kênh mã hóa, toàn vẹn và biết rõ mình đang nói chuyện với ai."
+  - id: t01
+    type: text
+    md: |
+      **HTTPS** là HTTP chạy trên **TLS** (Transport Layer Security), và TLS chạy trên TCP. Không có TLS, mọi byte đi qua
+      Wi-Fi, router, ISP đều đọc và sửa được. TLS đem lại ba đảm bảo:
+
+      - **Confidentiality** (bí mật): người nghe lén (eavesdropper) chỉ thấy byte mã hóa.
+      - **Integrity** (toàn vẹn): dữ liệu bị sửa giữa đường sẽ bị phát hiện.
+      - **Authentication** (xác thực): client biết chắc mình nói chuyện với đúng server (ví dụ `example.com`), nhờ certificate.
+
+      ```text
+      HTTP : trình duyệt ---- "password=123" ----> server     (ai cũng đọc được)
+      HTTPS: trình duyệt ==== [bytes mã hóa] ====> server     (chỉ hai đầu đọc được)
+      ```
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Đảm bảo nào của TLS giúp client chắc chắn mình đang nói chuyện với đúng server chứ không phải kẻ giả mạo?"
+    options:
+      - {id: a, text_md: "Authentication (qua certificate)"}
+      - {id: b, text_md: "Compression"}
+      - {id: c, text_md: "Load balancing"}
+    answer: [a]
+    explain_md: "Authentication dựa trên certificate do một CA đáng tin cậy ký. Confidentiality và integrity bảo vệ nội dung, không chứng minh danh tính."
+  - id: t02
+    type: text
+    md: |
+      **Asymmetric vs symmetric key**:
+
+      - **Symmetric** (ví dụ AES): cùng một khóa mã hóa và giải mã. Rất nhanh, nhưng hai bên phải có chung khóa trước.
+      - **Asymmetric** (ví dụ RSA, ECDHE): cặp **public key** (công khai) và **private key** (giữ bí mật). Chậm hơn nhiều,
+        nhưng cho phép hai bên chưa từng gặp nhau thỏa thuận được bí mật chung.
+
+      TLS dùng cả hai: asymmetric để **thỏa thuận một session key**, rồi symmetric để mã hóa toàn bộ dữ liệu.
+
+      **Handshake** (ý tưởng, TLS 1.3 gọn hơn nhưng cùng tinh thần):
+
+      ```text
+      Client                                   Server
+        | --- ClientHello (phiên bản, cipher) --> |
+        | <-- ServerHello (chọn cipher) --------- |
+        | <-- Certificate (public key + chữ ký CA) |
+        |  (client kiểm tra chain of trust)       |
+        | <-> Key exchange (cùng tính session key) |
+        | --- Finished (đã mã hóa) -------------> |
+        | <-- Finished (đã mã hóa) -------------- |
+        | ======== dữ liệu mã hóa bằng session key ======== |
+      ```
+  - id: q02
+    type: predict_output
+    code: |
+      steps = ["ClientHello", "ServerHello", "Certificate", "Finished"]
+      print(steps[2])
+      print(len(steps))
+    expected_output: |
+      Certificate
+      4
+    explain_md: "steps[2] là phần tử thứ ba, Certificate; list có 4 phần tử."
+  - id: t03
+    type: text
+    md: |
+      **Certificate** gắn một **public key** với một danh tính (domain). Ai bảo đảm gắn đúng? Một **CA** (certificate authority)
+      ký certificate đó. Client không biết hết mọi server, nhưng sẵn có một danh sách **root CA** tin cậy trong hệ điều hành/trình duyệt.
+
+      **Chain of trust**: server thường gửi chuỗi certificate đi từ lá lên gốc:
+
+      ```text
+      leaf          subject=example.com   issuer=Intermediate CA   (server cert)
+      intermediate  subject=Intermediate CA issuer=Root CA
+      root          subject=Root CA       issuer=Root CA           (tự ký, nằm sẵn trong trust store)
+      ```
+
+      Mỗi certificate do **issuer** ký, và issuer đó chính là **subject** của certificate kế tiếp. Chain hợp lệ khi mọi mắt xích khớp
+      và gốc là root tự ký đáng tin cậy. Thực tế còn kiểm tra chữ ký, hạn dùng, tên domain, thu hồi (revocation).
+
+      **Các tấn công TLS chặn được**:
+
+      - **Eavesdropping**: nghe lén chỉ thấy byte mã hóa.
+      - **Tampering**: sửa gói sẽ làm kiểm tra integrity thất bại.
+      - **MITM** (man-in-the-middle): kẻ chen giữa giả làm server cần certificate hợp lệ cho domain đó, nhưng không có private key
+        và không được CA tin cậy ký, nên client từ chối (cảnh báo certificate).
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Kẻ tấn công MITM đưa certificate tự tạo cho `bank.com`. Vì sao trình duyệt vẫn phát hiện?"
+    options:
+      - {id: a, text_md: "Certificate không nối được tới một root CA tin cậy qua chain of trust"}
+      - {id: b, text_md: "Vì TCP handshake bị lỗi"}
+      - {id: c, text_md: "Vì HTTP không cho phép certificate"}
+    answer: [a]
+    explain_md: "Chain không kết thúc ở root CA có sẵn trong trust store (hoặc chữ ký không khớp), nên xác thực thất bại."
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: certificate tự ký"
+    summary_vi: "Nhận ra root certificate: subject trùng issuer."
+    exercise_ref: ex_self
+  - id: t04
+    type: text
+    md: |
+      Một certificate được biểu diễn bằng `[subject, issuer]`. **Root** là certificate **tự ký**: subject bằng issuer.
+      Leaf và intermediate thì không, vì chúng do cấp trên ký.
+
+      ```text
+      ["root", "root"] -> tự ký (root)
+      ["leaf", "int"]  -> không tự ký
+      ```
+  - id: ex_self
+    type: code_exercise
+    md: |
+      Cài `is_self_signed(cert)`: `cert` là list `[subject, issuer]` gồm hai chuỗi. Trả `True` nếu certificate tự ký
+      (subject bằng issuer), ngược lại `False`. Ví dụ `is_self_signed(["root", "root"])` trả `True`.
+    entry: is_self_signed
+    starter: |
+      def is_self_signed(cert):
+          # TODO: so sánh subject với issuer
+          pass
+    guidance_md: |
+      - `cert[0]` là subject, `cert[1]` là issuer.
+      - Tự ký nghĩa là hai giá trị bằng nhau.
+    hints:
+      - level: nudge
+        md: "Root tự ký: người ký chính là bản thân."
+      - level: approach
+        md: "Lấy subject và issuer từ cert rồi so sánh."
+      - level: near_solution
+        md: "Trả `cert[0] == cert[1]`."
+    tests:
+      - {args: [["root", "root"]], expected: true}
+      - {args: [["leaf", "int"]], expected: false}
+      - {args: [["int", "root"]], expected: false}
+      - {args: [["a", "a"]], expected: true}
+    solution: |
+      def is_self_signed(cert):
+          return cert[0] == cert[1]
+  - id: q04
+    type: quiz_fill
+    prompt_md: "TLS dùng asymmetric key để thỏa thuận session key, rồi dùng ___ key để mã hóa dữ liệu vì nó nhanh."
+    blanks: [{accept: ["symmetric", "Symmetric"]}]
+    explain_md: "Asymmetric chậm nên chỉ dùng cho bước thỏa thuận; dữ liệu được mã hóa bằng symmetric key (ví dụ AES)."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "TLS/HTTPS cho confidentiality, integrity và authentication trên nền TCP."
+      - "Handshake: ClientHello/ServerHello, Certificate, key exchange, Finished; sau đó dữ liệu mã hóa bằng session key."
+      - "Asymmetric (public/private) để thỏa thuận khóa, symmetric (ví dụ AES) để mã hóa dữ liệu nhanh."
+      - "Chain of trust: leaf, intermediate, root; mỗi issuer là subject của cert kế tiếp và root tự ký. Chain hợp lệ chặn MITM và eavesdropping."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X837], l2: [X838], l3: [X839]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-07"
