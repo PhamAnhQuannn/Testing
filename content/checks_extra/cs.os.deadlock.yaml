@@ -1,0 +1,47 @@
+subtopic_id: cs.os.deadlock
+items:
+  - id: X855
+    difficulty: 1
+    type: read_code
+    minutes: 3
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng.
+    code: |-
+      edges = [[1, 2], [2, 3], [3, 2], [4, 1]]
+      pairs = []
+      for a, b in edges:
+          if [b, a] in edges and a < b:
+              pairs.append((a, b))
+      print(pairs)
+      print(len(edges))
+    expected_output: "[(2, 3)]\n4"
+    answer_md: "Chỉ cặp [2, 3] và [3, 2] chờ nhau (hai chiều). Với a < b chỉ giữ (2, 3). Các cạnh [1, 2] và [4, 1] không có cạnh ngược. Có 4 cạnh."
+    rubric_md: "Output khớp từng dòng. Đúng: bằng chứng điểm 1; sai: tối đa điểm 0."
+  - id: X856
+    difficulty: 2
+    type: write_code
+    minutes: 6
+    prompt_md: |
+      Viết hàm `has_deadlock(wait_for)` phát hiện deadlock trên wait-for graph. `wait_for` là list các `[a, b]` (số nguyên) nghĩa là process `a` đang chờ process `b`. Trả `True` khi và chỉ khi đồ thị có hướng này chứa một **chu trình** (deadlock), ngược lại `False`. Danh sách rỗng trả `False`; cạnh tự trỏ `[a, a]` là chu trình. Ví dụ `has_deadlock([[1,2],[2,3],[3,1]])` cho `True`, còn `has_deadlock([[1,2],[2,3]])` cho `False`.
+    problem_id: check-x856-has-deadlock
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 6 phút: bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X857
+    difficulty: 3
+    type: read_code
+    minutes: 5
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng và giải thích vì sao tình huống này là deadlock (điều kiện Coffman nào được thể hiện bởi vòng trong kết quả).
+    code: |-
+      holds = {"A": "R1", "B": "R2", "C": "R3"}
+      wants = {"A": "R2", "B": "R3", "C": "R1"}
+      owner = {r: p for p, r in holds.items()}
+      waits = {p: owner[r] for p, r in wants.items()}
+      print(waits)
+      p = "A"
+      seen = []
+      while p not in seen:
+          seen.append(p)
+          p = waits[p]
+      print(seen)
+      print(p)
+    expected_output: "{'A': 'B', 'B': 'C', 'C': 'A'}\n['A', 'B', 'C']\nA"
+    answer_md: "owner: R1->A, R2->B, R3->C. A muốn R2 do B giữ nên A chờ B; B muốn R3 do C giữ nên B chờ C; C muốn R1 do A giữ nên C chờ A. Đi từ A: seen = [A, B, C], rồi quay lại A đã thăm nên dừng và in A. Vòng A -> B -> C -> A là circular wait: mỗi process giữ một resource (hold-and-wait, mutual exclusion, no preemption) và chờ resource của process kế, nên cả ba kẹt vĩnh viễn. Với resource đơn instance, chu trình trong wait-for graph chính là deadlock."
+    rubric_md: "Output khớp từng dòng VÀ giải thích đúng: vòng A -> B -> C -> A là circular wait (chu trình trong wait-for graph) nên là deadlock. Đúng: bằng chứng điểm 3; sai: tối đa điểm 2."

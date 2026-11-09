@@ -1,0 +1,73 @@
+id: check-x862-fifo-faults
+subtopic_id: cs.os.page_replacement
+secondary_subtopics: []
+kind: check
+title: 'Check X862: FIFO page replacement faults'
+title_vi: 'Kiểm tra X862: số page fault của FIFO'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Implement `fifo_faults(refs, frames)`, a simulation of FIFO page replacement. `refs` is a list of
+  ints (the page reference string) and `frames` is an int >= 1 (the number of page frames). If the
+  referenced page is already resident there is no fault. Otherwise it is a page fault: if the frames
+  are full, evict the page that entered earliest, then load the new page. Return the total number of
+  page faults; an empty `refs` gives `0`.
+  For `refs = [1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5]` and `frames = 3` the result is `9`.
+statement_vi_md: |
+  Cài `fifo_faults(refs, frames)`, mô phỏng page replacement FIFO. `refs` là list số nguyên (reference string),
+  `frames` là số nguyên >= 1 (số frame). Nếu page đang nằm trong frame thì không fault. Nếu không, đó là một
+  page fault: khi frame đầy thì đuổi page vào sớm nhất rồi nạp page mới. Trả về tổng số page fault; `refs` rỗng
+  trả `0`. Với ví dụ trên (3 frame) kết quả là `9`.
+constraints:
+- 'refs là list số nguyên (có thể rỗng); frames là số nguyên >= 1'
+- 'Chỉ dùng thư viện chuẩn của Python'
+examples:
+- input: 'refs = [1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5], frames = 3'
+  output: '9'
+  explain_vi: 'Fault ở 1,2,3,4,1,2,5,3,4 (9 lần); hai lần 1,2 sau khi nạp 5 và lần cuối 5 là hit.'
+- input: 'refs = [1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5], frames = 4'
+  output: '10'
+  explain_vi: 'Belady anomaly: nhiều frame hơn nhưng FIFO fault 10 lần.'
+- input: 'refs = [], frames = 2'
+  output: '0'
+  explain_vi: 'Không có truy cập nào nên không có fault.'
+io:
+  mode: function
+  entry: fifo_faults
+  params:
+  - name: refs
+    type: list
+  - name: frames
+    type: int
+  returns: int
+  compare: exact
+starter:
+  python: |
+    def fifo_faults(refs, frames):
+        # TODO: giữ tập page đang nằm trong frame và hàng đợi thứ tự vào, đếm fault
+        pass
+time_target_min: 6
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+hints:
+- "Giữ một set các page đang nằm trong frame để kiểm tra hit trong O(1)."
+- "Giữ thêm một hàng đợi (deque) theo thứ tự page vào; khi fault mà đã đầy, popleft để lấy victim."
+- "Hit thì không đổi gì (FIFO không cập nhật thứ tự khi hit); chỉ cộng 1 vào bộ đếm khi fault."
+solution:
+  file: solution.py
+  approach_vi: Dùng set để kiểm tra page có mặt và deque lưu thứ tự vào; mỗi fault khi đầy thì đuổi phần tử đầu hàng đợi.
+  complexity: "O(n) / O(frames)"
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x862
+status: validated
+version: 1

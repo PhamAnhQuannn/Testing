@@ -1,0 +1,199 @@
+id: cs.os.memory
+version: 1
+status: published
+title_vi: "Quản lý bộ nhớ: paging, segmentation, virtual memory"
+est_minutes: 15
+objectives_vi:
+  - "Phân biệt logical address và physical address, và giải thích vì sao OS cần quản lý bộ nhớ."
+  - "Mô tả contiguous allocation, external fragmentation, và các chính sách first-fit, best-fit, worst-fit."
+  - "Giải thích paging (page, frame, page table), internal fragmentation, segmentation và dịch địa chỉ virtual sang physical."
+  - "Nắm ý tưởng virtual memory và demand paging ở mức khái niệm (page fault, không cần nạp hết process)."
+blocks:
+  - id: s_model
+    type: section
+    title_vi: "Địa chỉ và cấp phát liên tục"
+    summary_vi: "Mỗi process thấy một không gian địa chỉ riêng; OS và phần cứng (MMU) dịch sang bộ nhớ vật lý."
+  - id: t01
+    type: text
+    md: |
+      RAM là tài nguyên chung: nhiều process cùng chạy, mỗi process cần bộ nhớ riêng và không được đọc/ghi bộ nhớ của process khác.
+      OS phải làm ba việc: **cấp phát** (ai dùng vùng nào), **bảo vệ** (không vượt biên), và **cho phép chương trình lớn hơn RAM** chạy được.
+
+      Hai loại địa chỉ:
+
+      - **Logical (virtual) address**: địa chỉ mà chương trình sinh ra. Với process, không gian này bắt đầu từ 0.
+      - **Physical address**: địa chỉ thật trên chip RAM.
+
+      Phần cứng **MMU** (Memory Management Unit) dịch logical sang physical trên mỗi lần truy cập, nên chương trình không cần biết nó nằm ở đâu trong RAM.
+
+      Sơ đồ đơn giản nhất là **base + limit**: mỗi process có thanh ghi `base` (địa chỉ vật lý bắt đầu) và `limit` (kích thước).
+
+      ```text
+      physical = base + offset      nếu 0 <= offset < limit
+      trap (lỗi bảo vệ)             nếu offset >= limit
+
+      base = 1000, limit = 200:   offset 50  -> 1050
+                                  offset 250 -> TRAP (ngoài vùng)
+      ```
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Với base = 1000, limit = 200, truy cập offset 200 cho kết quả gì?"
+    options:
+      - {id: a, text_md: "Trap: offset phải nhỏ hơn limit (chỉ 0..199 hợp lệ)"}
+      - {id: b, text_md: "Địa chỉ vật lý 1200, hợp lệ"}
+      - {id: c, text_md: "Địa chỉ vật lý 200"}
+    answer: [a]
+    explain_md: "Vùng hợp lệ là offset từ 0 đến limit - 1. Offset 200 vượt biên nên MMU gây trap."
+  - id: t02
+    type: text
+    md: |
+      **Contiguous allocation**: mỗi process nằm trọn trong một khối liền nhau. OS giữ danh sách các **free block** (hole). Khi có yêu cầu kích thước `n`,
+      OS chọn một hole theo chính sách:
+
+      - **First-fit**: hole đầu tiên đủ lớn (quét từ trái sang). Nhanh, hay dùng.
+      - **Best-fit**: hole nhỏ nhất vẫn đủ lớn. Để lại mảnh dư nhỏ nhất nhưng phải quét hết và sinh nhiều mảnh vụn.
+      - **Worst-fit**: hole lớn nhất, hy vọng mảnh dư còn dùng được. Thường kém.
+
+      Vấn đề của cấp phát liên tục là **external fragmentation**: tổng bộ nhớ trống đủ, nhưng bị chia thành nhiều mảnh nhỏ không liền nhau.
+
+      ```text
+      | P1 | free 100 | P2 | free 200 | P3 | free 150 |
+      Cần 300 liên tục: tổng trống = 450 nhưng không hole nào >= 300  -> thất bại
+      ```
+
+      Cách chữa: **compaction** (dồn các process lại, tốn chi phí copy) hoặc cho phép cấp phát **không liên tục** (paging).
+  - id: q02
+    type: quiz_mcq
+    prompt_md: "External fragmentation là gì?"
+    options:
+      - {id: a, text_md: "Tổng bộ nhớ trống đủ nhưng bị chia thành các mảnh rời nhau, không có mảnh nào đủ lớn"}
+      - {id: b, text_md: "Phần trống bên trong một khối đã cấp phát nhưng process không dùng hết"}
+      - {id: c, text_md: "RAM bị hỏng một phần"}
+    answer: [a]
+    explain_md: "Phần (b) là internal fragmentation. External nằm bên ngoài các khối đã cấp, giữa các hole."
+  - id: s_paging
+    type: section
+    title_vi: "Paging, segmentation và virtual memory"
+    summary_vi: "Chia bộ nhớ thành page/frame cố định để cấp phát không liên tục; virtual memory cho phép chỉ nạp phần đang dùng."
+  - id: t03
+    type: text
+    md: |
+      **Paging**: chia không gian logical thành các **page** cùng kích thước (ví dụ 4 KB), chia RAM thành các **frame** cùng kích thước đó.
+      Một page có thể vào frame bất kỳ, nên không còn external fragmentation. **Page table** của mỗi process ánh xạ số page sang số frame.
+
+      Địa chỉ logical gồm hai phần: `page number = addr // page_size` và `offset = addr % page_size`.
+
+      ```text
+      page_size = 4096, địa chỉ logical 8200
+      page = 8200 // 4096 = 2,  offset = 8200 % 4096 = 8
+
+      page table:  page 0 -> frame 7
+                   page 1 -> frame 3
+                   page 2 -> frame 9
+
+      physical = frame * page_size + offset = 9 * 4096 + 8 = 36872
+      ```
+
+      Cái giá phải trả là **internal fragmentation**: page cuối của process thường không đầy. Process 10 KB với page 4 KB cần 3 page (12 KB), lãng phí 2 KB.
+      Page table nằm trong RAM nên mỗi truy cập tốn thêm một lần đọc; **TLB** (cache các mục page table) giảm chi phí đó.
+  - id: q03
+    type: predict_output
+    code: |
+      page_size = 1024
+      addr = 3000
+      print(addr // page_size, addr % page_size)
+    expected_output: |
+      2 952
+    explain_md: "3000 // 1024 = 2 (page 2) và 3000 - 2048 = 952 (offset)."
+  - id: t04
+    type: text
+    md: |
+      **Segmentation**: chia không gian logical theo **ý nghĩa** (code, data, stack, heap) thay vì theo kích thước cố định. Mỗi segment có `base` và `limit` riêng,
+      địa chỉ logical là cặp `(segment, offset)`. Segment gần với cách người lập trình nhìn chương trình và dễ chia sẻ/bảo vệ theo từng phần,
+      nhưng kích thước khác nhau nên lại quay về external fragmentation. Nhiều hệ thống kết hợp cả hai (segmented paging).
+
+      **Virtual memory**: không cần nạp cả process vào RAM. Chỉ các page đang dùng nằm ở RAM, phần còn lại ở đĩa (swap).
+      Ý tưởng **demand paging**: nạp page khi cần.
+
+      ```text
+      page table có bit valid:   page 5 -> valid=0  (chưa trong RAM)
+      CPU truy cập page 5 -> PAGE FAULT -> OS nạp page từ đĩa vào một frame trống
+                          -> cập nhật page table -> chạy lại lệnh bị lỗi
+      ```
+
+      Nếu RAM đầy, OS phải chọn một page để đuổi ra (page replacement, chủ đề riêng). Nhờ virtual memory, tổng không gian logical có thể lớn hơn RAM,
+      nhưng nếu page fault quá dày thì hệ thống bị **thrashing** (mất hết thời gian cho I/O).
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Điều gì xảy ra khi process truy cập một page có bit valid = 0 (chưa nằm trong RAM)?"
+    options:
+      - {id: a, text_md: "Page fault: OS nạp page từ đĩa vào frame, cập nhật page table, rồi chạy lại lệnh"}
+      - {id: b, text_md: "Process bị kill ngay lập tức"}
+      - {id: c, text_md: "CPU tự đọc đĩa mà không cần OS"}
+    answer: [a]
+    explain_md: "Page fault là cơ chế của demand paging: trap vào kernel, nạp page, rồi tiếp tục. Chỉ khi địa chỉ thật sự không hợp lệ thì process mới bị kết thúc."
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: dịch địa chỉ base + limit"
+    summary_vi: "Cài phép dịch logical sang physical có kiểm tra biên."
+    exercise_ref: ex_translate
+  - id: t05
+    type: text
+    md: |
+      MMU với base + limit làm đúng hai việc: kiểm tra biên rồi cộng base.
+
+      ```text
+      translate(1000, 200, 50)  -> 1050
+      translate(1000, 200, 200) -> -1     (offset >= limit: trap, ở đây trả -1)
+      ```
+  - id: ex_translate
+    type: code_exercise
+    md: |
+      Cài `translate(base, limit, offset)`: trả về địa chỉ vật lý `base + offset` nếu `0 <= offset < limit`, ngược lại trả `-1` (mô phỏng trap).
+      Ví dụ `translate(1000, 200, 50)` trả `1050`.
+    entry: translate
+    starter: |
+      def translate(base, limit, offset):
+          # TODO: kiểm tra offset trong [0, limit) rồi trả base + offset, ngược lại -1
+          pass
+    guidance_md: |
+      - Offset hợp lệ khi `0 <= offset < limit`.
+      - Offset bằng `limit` đã là ngoài biên.
+    hints:
+      - level: nudge
+        md: "Biên hợp lệ là từ 0 đến limit - 1."
+      - level: approach
+        md: "Nếu offset nằm ngoài khoảng đó thì trả -1."
+      - level: near_solution
+        md: "Trả `base + offset if 0 <= offset < limit else -1`."
+    tests:
+      - {args: [1000, 200, 50], expected: 1050}
+      - {args: [1000, 200, 199], expected: 1199}
+      - {args: [1000, 200, 200], expected: -1}
+      - {args: [0, 10, 0], expected: 0}
+      - {args: [300, 1, 0], expected: 300}
+    solution: |
+      def translate(base, limit, offset):
+          if 0 <= offset < limit:
+              return base + offset
+          return -1
+  - id: q05
+    type: quiz_fill
+    prompt_md: "Paging loại bỏ external fragmentation nhưng gây ra ___ fragmentation ở page cuối của mỗi process."
+    blanks: [{accept: ["internal", "nội", "nội bộ"]}]
+    explain_md: "Page có kích thước cố định nên phần thừa trong page cuối bị lãng phí: đó là internal fragmentation."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Logical address do chương trình sinh ra, MMU dịch sang physical address; base + limit là sơ đồ đơn giản nhất và có kiểm tra biên."
+      - "Contiguous allocation gặp external fragmentation; first-fit, best-fit, worst-fit là các chính sách chọn hole."
+      - "Paging chia thành page/frame cố định, page table ánh xạ page sang frame; đánh đổi là internal fragmentation."
+      - "Segmentation chia theo ý nghĩa; virtual memory dùng demand paging và page fault để chạy process lớn hơn RAM, quá nhiều fault gây thrashing."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X858], l2: [X859], l3: [X860]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-08"

@@ -266,6 +266,11 @@ EXTRA_IDS = {
     "cs.os.threads",
     "cs.os.sync",
     "cs.os.scheduling",
+    # Wave 7 Round 48: cs.os B (concept, deadlock/memory/page_replacement/io_models).
+    "cs.os.deadlock",
+    "cs.os.memory",
+    "cs.os.page_replacement",
+    "cs.os.io_models",
 }
 
 # Expected shipped counts, asserted so an upstream tree edit can't silently change the snapshot.
@@ -273,7 +278,7 @@ PLAN_MVP_COUNT = 40
 EXPECTED_SD = 86
 EXPECTED_ML4 = 39
 EXPECTED_EXTRA_IDS = len(EXTRA_IDS)  # Wave 2 additions
-EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 353
+EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 357
 
 # Node fields the app uses (SPEC 4.2); optional ones are skipped when a node lacks them.
 NODE_FIELDS = [

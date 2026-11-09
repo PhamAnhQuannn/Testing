@@ -1,0 +1,149 @@
+id: cs.os.io_models
+version: 1
+status: published
+title_vi: "Mô hình I/O: blocking, non-blocking, multiplexing, async"
+est_minutes: 15
+objectives_vi:
+  - "Mô tả process thực hiện I/O qua system call và vì sao thiết bị chậm hơn CPU nhiều bậc."
+  - "Phân biệt blocking I/O, non-blocking I/O, I/O multiplexing (select/poll/epoll) và asynchronous I/O."
+  - "Phân biệt readiness model (báo khi sẵn sàng) với completion model (báo khi làm xong), và polling với interrupt-driven I/O, DMA."
+  - "Giải thích vì sao event loop dùng select/poll để một thread theo dõi nhiều file descriptor, và mô phỏng việc lọc fd sẵn sàng."
+blocks:
+  - id: s_model
+    type: section
+    title_vi: "I/O qua kernel và các mô hình I/O"
+    summary_vi: "Mọi I/O đều đi qua system call; các mô hình I/O khác nhau ở chỗ thread có bị chặn lúc chờ hay không."
+  - id: t01
+    type: text
+    md: |
+      Ứng dụng không tự chạm thiết bị. Để đọc socket hay file, nó gọi **system call** (`read`, `write`, `recv`...) và trap vào kernel.
+      Dữ liệu thường đi qua **buffer** trong kernel (page cache, socket buffer) rồi mới được copy sang buffer của ứng dụng.
+      Thiết bị chậm hơn CPU rất nhiều (đĩa mili-giây, mạng có thể lâu hơn), nên câu hỏi chính là: **trong lúc chờ, thread làm gì?**
+
+      Cách phần cứng báo xong cũng khác nhau:
+
+      - **Polling / busy-waiting**: CPU liên tục hỏi thiết bị "xong chưa?". Đơn giản nhưng đốt CPU vô ích.
+      - **Interrupt-driven I/O**: CPU làm việc khác; thiết bị xong thì gửi **interrupt**, kernel chạy handler.
+      - **DMA** (Direct Memory Access): controller chép dữ liệu thẳng giữa thiết bị và RAM, không chiếm CPU từng byte; xong mới ngắt CPU một lần.
+
+      Bốn mô hình I/O ở tầng ứng dụng:
+
+      - **Blocking I/O**: `read()` đặt thread vào trạng thái waiting tới khi có dữ liệu và đã copy xong. Đơn giản, nhưng một thread chỉ phục vụ một fd.
+      - **Non-blocking I/O**: `read()` trả về ngay; chưa có dữ liệu thì trả lỗi kiểu `EAGAIN`/`EWOULDBLOCK`. Ứng dụng phải tự hỏi lại (busy loop) nên thường kết hợp với multiplexing.
+      - **I/O multiplexing** (`select`, `poll`, `epoll`, `kqueue`): một lời gọi chờ **nhiều fd cùng lúc**, trả về tập fd đã **sẵn sàng**. Sau đó `read()` trên fd sẵn sàng không bị chặn.
+      - **Asynchronous I/O** (`io_uring`, POSIX AIO, IOCP): ứng dụng nộp yêu cầu rồi đi làm việc khác; kernel làm **toàn bộ** việc (kể cả copy dữ liệu) và báo **khi đã hoàn thành**.
+
+      ```text
+      Blocking read (1 thread, 1 fd):
+        app:    read(fd) ........ (waiting) ........ nhận dữ liệu -> xử lý
+        kernel:          chờ thiết bị -> copy vào buffer app
+
+      Select loop (1 thread, nhiều fd):
+        app:    select([3,5,8]) ... -> ready = [3,8] -> read(3), read(8) -> quay lại select
+        fd 5 chưa có dữ liệu: không ai bị chặn vì fd 5
+      ```
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Một thread gọi read() trên socket chưa có dữ liệu và bị đưa vào trạng thái waiting cho tới khi dữ liệu tới. Đây là mô hình nào?"
+    options:
+      - {id: a, text_md: "Blocking I/O"}
+      - {id: b, text_md: "Non-blocking I/O"}
+      - {id: c, text_md: "Asynchronous I/O"}
+    answer: [a]
+    explain_md: "Blocking I/O chặn thread tới khi sẵn sàng. Non-blocking trả về ngay với EAGAIN; async nộp yêu cầu rồi được báo khi xong."
+  - id: t02
+    type: text
+    md: |
+      **Readiness model và completion model** là điểm hay bị nhầm:
+
+      - **Readiness** (select/poll/epoll): kernel báo "fd này **có thể** đọc/ghi mà không bị chặn". Ứng dụng vẫn tự gọi `read()` để copy dữ liệu.
+      - **Completion** (async I/O, IOCP, `io_uring`): kernel báo "việc đọc **đã xong**, dữ liệu đã nằm trong buffer của bạn".
+
+      Vì thế `select` thuộc nhóm **synchronous** I/O (bước copy vẫn chặn thread), dù nó cho phép phục vụ nhiều kết nối.
+
+      **Event loop** (Node.js, nginx, asyncio) dựa trên readiness: giữ danh sách fd đang theo dõi, gọi `select`/`epoll` để chờ, nhận tập fd sẵn sàng, chạy callback cho từng fd rồi lặp lại. Một thread phục vụ hàng nghìn kết nối vì phần lớn thời gian kết nối nhàn rỗi, và không cần một thread (cùng stack, context switch) cho mỗi kết nối.
+
+      So sánh `select`, `poll`, `epoll`: `select`/`poll` duyệt toàn bộ danh sách fd mỗi lần gọi, tốn O(n); `epoll` giữ danh sách trong kernel và chỉ trả fd sẵn sàng, mở rộng tốt với nhiều kết nối. Lưu ý event loop bị chặn nếu callback tính toán nặng: một callback chậm làm mọi kết nối khác đứng chờ.
+  - id: q02
+    type: predict_output
+    code: |
+      watched = [4, 7, 9]
+      ready = {7, 9, 12}
+      print([fd for fd in watched if fd in ready])
+    expected_output: |
+      [7, 9]
+    explain_md: "Chỉ 7 và 9 vừa được theo dõi vừa sẵn sàng; 4 chưa sẵn sàng, 12 không nằm trong danh sách theo dõi."
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Điều gì phân biệt asynchronous I/O (completion model) với select/epoll (readiness model)?"
+    options:
+      - {id: a, text_md: "Async I/O báo khi thao tác đã hoàn thành (kể cả copy dữ liệu); select/epoll chỉ báo fd sẵn sàng để ứng dụng tự gọi read"}
+      - {id: b, text_md: "select/epoll không bao giờ chặn thread, còn async I/O luôn chặn"}
+      - {id: c, text_md: "Async I/O chỉ dùng được với file, select chỉ dùng được với socket"}
+    answer: [a]
+    explain_md: "Readiness: được phép đọc mà không chặn. Completion: việc đọc đã làm xong. select vẫn là synchronous vì bước read/copy chặn thread."
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: có fd nào sẵn sàng không"
+    summary_vi: "Mô phỏng kết quả của select(): kiểm tra xem có fd được theo dõi nào sẵn sàng hay không."
+    exercise_ref: ex_any_ready
+  - id: t04
+    type: text
+    md: |
+      `select(fds)` trả về tập con của `fds` đang sẵn sàng. Event loop quyết định ngủ tiếp hay xử lý dựa vào tập này có rỗng không.
+
+      ```text
+      fds   = [5, 3, 8]      ready = [8, 9]
+      fd sẵn sàng  -> [8]     (9 không được theo dõi nên bị bỏ qua)
+      any_ready    -> True
+      ```
+  - id: ex_any_ready
+    type: code_exercise
+    md: |
+      Cài `any_ready(fds, ready)`: `fds` là list fd đang được theo dõi (có thể trùng), `ready` là list fd đang có dữ liệu.
+      Trả về `True` nếu có ít nhất một fd nằm trong cả hai, ngược lại `False`. Ví dụ `any_ready([5, 3, 8], [8, 9])` trả `True`.
+    entry: any_ready
+    starter: |
+      def any_ready(fds, ready):
+          # TODO: True nếu có fd vừa được theo dõi vừa sẵn sàng
+          pass
+    guidance_md: |
+      - Dùng `set` để tra cứu nhanh.
+      - Danh sách rỗng thì kết quả là `False`.
+    hints:
+      - level: nudge
+        md: "Cần biết hai danh sách có phần tử chung không."
+      - level: approach
+        md: "Đổi ready thành set rồi kiểm tra từng fd trong fds."
+      - level: near_solution
+        md: "Trả any(fd in set(ready) for fd in fds)."
+    tests:
+      - {args: [[5, 3, 8], [8, 9]], expected: true}
+      - {args: [[1, 2], [3, 4]], expected: false}
+      - {args: [[], [1]], expected: false}
+      - {args: [[4], [4]], expected: true}
+      - {args: [[7, 7], [7]], expected: true}
+    solution: |
+      def any_ready(fds, ready):
+          ready_set = set(ready)
+          return any(fd in ready_set for fd in fds)
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Cơ chế phần cứng cho phép controller chép dữ liệu thẳng giữa thiết bị và RAM rồi chỉ ngắt CPU khi xong gọi là ___."
+    blanks: [{accept: ["DMA", "dma", "Direct Memory Access"]}]
+    explain_md: "DMA giải phóng CPU khỏi việc chép từng byte; thiết bị gửi interrupt một lần khi chuyển xong."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "I/O đi qua system call và buffer trong kernel; polling đốt CPU, interrupt-driven và DMA để CPU làm việc khác trong lúc chờ."
+      - "Blocking chặn thread tới khi có dữ liệu; non-blocking trả về ngay (EAGAIN); multiplexing chờ nhiều fd cùng lúc; async báo khi đã xong."
+      - "Readiness (select/poll/epoll) báo fd có thể đọc; completion (async I/O) báo thao tác đã hoàn thành."
+      - "Event loop dùng select/epoll để một thread phục vụ nhiều kết nối, nhưng callback nặng sẽ chặn tất cả."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X864], l2: [X865], l3: [X866]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-08"
