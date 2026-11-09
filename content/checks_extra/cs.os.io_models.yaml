@@ -1,0 +1,46 @@
+subtopic_id: cs.os.io_models
+items:
+  - id: X864
+    difficulty: 1
+    type: read_code
+    minutes: 3
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng.
+    code: |-
+      fds = [4, 2, 4, 9]
+      ready = [9, 4, 7]
+      ready_set = set(ready)
+      hits = sorted({fd for fd in fds if fd in ready_set})
+      print(hits)
+      print(len(hits))
+      for fd in hits:
+          print("read", fd)
+    expected_output: "[4, 9]\n2\nread 4\nread 9"
+    answer_md: "fds có 4, 2, 4, 9; ready có 9, 4, 7. Giao là {4, 9}, sắp xếp tăng dần được [4, 9] (fd 4 trùng chỉ tính một lần), độ dài 2, rồi đọc từng fd sẵn sàng."
+    rubric_md: "Output khớp từng dòng. Đúng: bằng chứng điểm 1; sai: tối đa điểm 0."
+  - id: X865
+    difficulty: 2
+    type: write_code
+    minutes: 6
+    prompt_md: |
+      Viết hàm `select_ready(fds, ready)` mô phỏng `select()`/`poll()` của readiness model. `fds` là list số nguyên: các file descriptor đang được theo dõi (có thể trùng và không theo thứ tự). `ready` là list số nguyên: các fd hiện đang có dữ liệu. Trả về list các fd nằm trong **cả** `fds` và `ready`, **sắp xếp tăng dần** và **không trùng lặp**. `fds` rỗng trả `[]`. Ví dụ `select_ready([5, 3, 8, 3], [8, 3, 9])` cho `[3, 8]` (fd 3 trùng chỉ tính một lần; fd 9 không được theo dõi nên bị bỏ qua; fd 5 chưa sẵn sàng).
+    problem_id: check-x865-select-ready
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 6 phút: bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X866
+    difficulty: 3
+    type: read_code
+    minutes: 5
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng và giải thích vì sao mô hình select/event loop này cho phép một thread phục vụ nhiều kết nối mà không bị chặn bởi fd 8 (khái niệm gì).
+    code: |-
+      pending = {3: ["a", "b"], 5: ["c"], 8: []}
+      served = []
+      rounds = 0
+      while any(pending.values()):
+          rounds += 1
+          ready = sorted(fd for fd, q in pending.items() if q)
+          for fd in ready:
+              served.append(pending[fd].pop(0))
+          print(rounds, ready)
+      print(served)
+    expected_output: "1 [3, 5]\n2 [3]\n['a', 'c', 'b']"
+    answer_md: "Vòng 1: fd 3 và 5 có dữ liệu (fd 8 rỗng), phục vụ a rồi c; fd 3 còn b. Vòng 2: chỉ fd 3 sẵn sàng, phục vụ b. Kết quả served là ['a', 'c', 'b']. Đây là readiness model (I/O multiplexing): thread chỉ làm việc với fd sẵn sàng (đọc không bị chặn) nên fd 8 nhàn rỗi không làm ai phải chờ; blocking read trên fd 8 sẽ chặn cả thread."
+    rubric_md: "Output khớp từng dòng VÀ giải thích đúng: select/poll/epoll cho biết fd nào sẵn sàng (readiness, I/O multiplexing) nên một thread không bị chặn bởi fd nhàn rỗi, trái với blocking read trên từng fd. Đúng: bằng chứng điểm 3; sai: tối đa điểm 2."

@@ -1,0 +1,164 @@
+id: cs.os.page_replacement
+version: 1
+status: published
+title_vi: "Page replacement: demand paging và page fault"
+est_minutes: 15
+objectives_vi:
+  - "Giải thích demand paging, page fault và vì sao khi hết frame phải chọn một page để đuổi (evict)."
+  - "Chạy tay các thuật toán FIFO, Optimal (Belady), LRU và hiểu ý tưởng Clock (second-chance)."
+  - "Giải thích Belady's anomaly: với FIFO, thêm frame có thể làm số page fault tăng."
+  - "Mô tả thrashing và working-set model, rồi mô phỏng FIFO để đếm page fault."
+blocks:
+  - id: s_model
+    type: section
+    title_vi: "Demand paging và bài toán thay trang"
+    summary_vi: "Page chỉ được nạp khi cần; hết frame thì phải chọn page nạn nhân để đuổi."
+  - id: t01
+    type: text
+    md: |
+      Bộ nhớ ảo chia address space thành **page** và RAM thành **frame** cùng kích thước. Với **demand paging**, một page chỉ được
+      nạp từ đĩa vào RAM khi process thực sự truy cập nó lần đầu (hoặc sau khi đã bị đuổi).
+
+      Mỗi page table entry có bit **valid/present**. Khi CPU truy cập page chưa nằm trong RAM, MMU báo **page fault** (một dạng trap):
+
+      1. Kernel kiểm tra địa chỉ hợp lệ; nếu không hợp lệ thì kết thúc process (segmentation fault).
+      2. Tìm một frame trống. Nếu **không còn frame trống**, chạy thuật toán **page replacement** để chọn **victim**; nếu victim bị
+         sửa (dirty bit) thì ghi ra đĩa trước.
+      3. Đọc page cần thiết từ đĩa vào frame, cập nhật page table, chạy lại lệnh bị lỗi.
+
+      Page fault rất đắt: đọc đĩa mất cỡ hàng triệu chu kỳ CPU, nên mục tiêu của thuật toán thay trang là **giảm số page fault**.
+      Người ta đánh giá thuật toán bằng một **reference string** (chuỗi số hiệu page được truy cập) và số frame cố định.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Khi xảy ra page fault mà mọi frame đều đang bị chiếm, kernel phải làm gì?"
+    options:
+      - {id: a, text_md: "Chọn một victim page theo thuật toán thay trang, đuổi nó (ghi ra đĩa nếu dirty), rồi nạp page mới vào frame đó"}
+      - {id: b, text_md: "Kết thúc process vì hết bộ nhớ"}
+      - {id: c, text_md: "Bỏ qua lệnh truy cập và chạy tiếp"}
+    answer: [a]
+    explain_md: "Page fault do page vắng mặt không phải lỗi: kernel đuổi một page đang nằm trong RAM để lấy chỗ cho page cần dùng."
+  - id: t02
+    type: text
+    md: |
+      Các thuật toán chính (reference string, số frame cố định):
+
+      - **FIFO**: đuổi page vào RAM **sớm nhất**. Cài đặt bằng một hàng đợi; đơn giản nhưng có thể đuổi page đang được dùng liên tục.
+      - **Optimal (OPT, Belady)**: đuổi page sẽ **được dùng lại xa nhất trong tương lai** (hoặc không bao giờ). Cho số fault ít nhất,
+        là cận dưới để so sánh, nhưng không cài được thật vì cần biết tương lai.
+      - **LRU** (Least Recently Used): đuổi page **lâu nhất chưa được dùng**. Xấp xỉ OPT dựa trên locality (quá khứ gần dự báo
+        tương lai gần). LRU chính xác tốn chi phí cập nhật ở mỗi truy cập.
+      - **Clock / second-chance**: xấp xỉ LRU rẻ. Các frame xếp vòng, mỗi frame có **reference bit**. Con trỏ "kim đồng hồ" quét:
+        bit = 1 thì xoá về 0 và bỏ qua (cho cơ hội thứ hai); bit = 0 thì chọn làm victim.
+
+      Chạy tay FIFO với 3 frame, reference string `1 2 3 4 1 2 5 1 2 3 4 5` (F = fault, h = hit; frame liệt kê theo thứ tự vào):
+
+      ```text
+      ref:   1   2   3   4   1   2   5   1   2   3   4   5
+      F/h:   F   F   F   F   F   F   F   h   h   F   F   h
+      frames [1] [1,2] [1,2,3] [2,3,4] [3,4,1] [4,1,2] [1,2,5] [1,2,5] [1,2,5] [2,5,3] [5,3,4] [5,3,4]
+      faults = 9
+      ```
+
+      Cùng chuỗi đó, OPT với 3 frame chỉ có 7 fault, LRU có 10 fault.
+  - id: q02
+    type: predict_output
+    code: |
+      resident = [2, 3]
+      for page in [3, 4, 2]:
+          print(page in resident)
+    expected_output: |
+      True
+      False
+      True
+    explain_md: "3 và 2 đang có trong resident (hit), còn 4 thì không (sẽ là page fault). Vòng lặp này không cập nhật resident."
+  - id: t03
+    type: text
+    md: |
+      **Belady's anomaly**: trực giác nói thêm frame thì ít fault hơn, nhưng với **FIFO** điều đó có thể sai. Cùng reference string
+      ở trên, FIFO với **4 frame** cho **10 fault**, nhiều hơn 9 fault của 3 frame:
+
+      ```text
+      3 frame -> 9 fault
+      4 frame -> [1,2,3,4] hit hit [2,3,4,5] [3,4,5,1] [4,5,1,2] [5,1,2,3] [1,2,3,4] [2,3,4,5] -> 10 fault
+      ```
+
+      LRU và OPT là **stack algorithm**: tập page trong n frame luôn là tập con của n+1 frame, nên không bao giờ gặp anomaly này.
+
+      **Thrashing**: khi tổng bộ nhớ các process đang chạy cần lớn hơn RAM, mỗi process thiếu frame, liên tục page fault, CPU phần lớn
+      thời gian chờ đĩa nên throughput tụt mạnh. Hệ thống có thể hiểu nhầm là CPU rảnh và nạp thêm process, làm tệ hơn.
+
+      **Working-set model**: working set `W(t, Δ)` là tập page process dùng trong `Δ` lần truy cập gần nhất. Nếu kernel cấp đủ frame cho
+      working set của mỗi process thì fault thấp; nếu tổng working set vượt RAM, hãy tạm dừng (swap out) bớt process thay vì để thrashing.
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Belady's anomaly là gì?"
+    options:
+      - {id: a, text_md: "Với một số thuật toán như FIFO, tăng số frame có thể làm số page fault tăng lên"}
+      - {id: b, text_md: "LRU luôn có nhiều fault hơn FIFO"}
+      - {id: c, text_md: "Thrashing xảy ra khi có quá nhiều frame"}
+    answer: [a]
+    explain_md: "Đó là phản ví dụ cho trực giác 'nhiều frame hơn thì tốt hơn'. FIFO bị, còn LRU và OPT (stack algorithm) thì không."
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: đếm page khác nhau"
+    summary_vi: "Đếm số page phân biệt trong reference string: đây là số fault tối thiểu (compulsory miss)."
+    exercise_ref: ex_distinct
+  - id: t04
+    type: text
+    md: |
+      Mỗi page phân biệt phải bị nạp ít nhất một lần, nên số page khác nhau là cận dưới của số fault (các **compulsory miss**).
+      Nếu số frame >= số page phân biệt thì không bao giờ phải đuổi page.
+
+      ```text
+      refs = [1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5]
+      page phân biệt = {1, 2, 3, 4, 5} -> 5   (mọi thuật toán có ít nhất 5 fault)
+      ```
+  - id: ex_distinct
+    type: code_exercise
+    md: |
+      Cài `distinct_pages(refs)`: `refs` là list số nguyên (reference string). Trả về số page **khác nhau** trong đó
+      (rỗng thì trả `0`). Ví dụ `distinct_pages([1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5])` trả `5`.
+    entry: distinct_pages
+    starter: |
+      def distinct_pages(refs):
+          # TODO: đếm số page khác nhau
+          pass
+    guidance_md: |
+      - Page lặp lại chỉ tính một lần.
+      - Dùng `set` để loại trùng.
+    hints:
+      - level: nudge
+        md: "Cần bỏ các page lặp lại."
+      - level: approach
+        md: "Đưa refs vào một set rồi lấy kích thước."
+      - level: near_solution
+        md: "Trả `len(set(refs))`."
+    tests:
+      - {args: [[1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5]], expected: 5}
+      - {args: [[]], expected: 0}
+      - {args: [[7, 7, 7]], expected: 1}
+      - {args: [[1, 2, 3]], expected: 3}
+      - {args: [[3, 1, 3, 1, 2]], expected: 3}
+    solution: |
+      def distinct_pages(refs):
+          return len(set(refs))
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Thuật toán đuổi page được dùng lại xa nhất trong tương lai, cho số fault ít nhất nhưng không cài được thật, tên là ___."
+    blanks: [{accept: ["optimal", "opt", "min", "belady"]}]
+    explain_md: "Optimal (OPT hay MIN của Belady) cần biết tương lai nên chỉ dùng làm cận dưới để so sánh với FIFO, LRU, Clock."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Demand paging chỉ nạp page khi cần; truy cập page vắng mặt gây page fault, kernel tìm frame trống hoặc đuổi một victim."
+      - "FIFO đuổi page vào sớm nhất; OPT đuổi page dùng lại xa nhất (cận dưới, không cài được); LRU đuổi page lâu nhất chưa dùng; Clock xấp xỉ LRU bằng reference bit."
+      - "Belady's anomaly: FIFO với nhiều frame hơn có thể fault nhiều hơn; LRU/OPT là stack algorithm nên không bị."
+      - "Thrashing là fault liên tục do thiếu frame; working-set model cấp đủ frame cho tập page đang dùng hoặc giảm số process."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X861], l2: [X862], l3: [X863]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-08"

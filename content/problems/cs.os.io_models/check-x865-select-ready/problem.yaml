@@ -1,0 +1,71 @@
+id: check-x865-select-ready
+subtopic_id: cs.os.io_models
+secondary_subtopics: []
+kind: check
+title: 'Check X865: select() returns the ready descriptors'
+title_vi: 'Kiểm tra X865: select() trả về các fd sẵn sàng'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Implement `select_ready(fds, ready)`, a model of `select()`/`poll()` in the readiness I/O model.
+  `fds` is a list of ints: the file descriptors being watched (may contain duplicates and be
+  unsorted). `ready` is a list of ints: the descriptors that currently have data available.
+  Return the list of descriptors that are in both `fds` and `ready`, in ascending order and
+  without duplicates. An empty `fds` gives `[]`.
+  For `fds = [5, 3, 8, 3]` and `ready = [8, 3, 9]` the result is `[3, 8]`.
+statement_vi_md: |
+  Cài `select_ready(fds, ready)`, mô phỏng `select()`/`poll()` của readiness I/O model. `fds` là list số nguyên:
+  các file descriptor đang được theo dõi (có thể trùng và không theo thứ tự). `ready` là list số nguyên: các
+  descriptor hiện đang có dữ liệu. Trả về list các descriptor nằm trong cả `fds` và `ready`, sắp xếp tăng dần
+  và không trùng lặp. `fds` rỗng trả `[]`. Với ví dụ trên kết quả là `[3, 8]`.
+constraints:
+- 'fds và ready là list số nguyên; có thể trùng lặp và không theo thứ tự'
+- 'Kết quả sắp xếp tăng dần, không trùng lặp'
+- 'Chỉ dùng thư viện chuẩn của Python'
+examples:
+- input: 'fds = [5, 3, 8, 3], ready = [8, 3, 9]'
+  output: '[3, 8]'
+  explain_vi: 'fd 3 và 8 vừa được theo dõi vừa sẵn sàng (3 chỉ tính một lần); 5 chưa sẵn sàng; 9 không được theo dõi.'
+- input: 'fds = [], ready = [1, 2]'
+  output: '[]'
+  explain_vi: 'Không theo dõi fd nào nên kết quả rỗng.'
+io:
+  mode: function
+  entry: select_ready
+  params:
+  - name: fds
+    type: list
+  - name: ready
+    type: list
+  returns: list
+  compare: exact
+starter:
+  python: |
+    def select_ready(fds, ready):
+        # TODO: các fd vừa trong fds vừa trong ready, tăng dần, không trùng
+        pass
+time_target_min: 6
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+hints:
+- "Đổi `ready` thành set để tra cứu nhanh."
+- "Giữ các fd trong `fds` có mặt trong tập ready; dùng set để loại trùng."
+- "Sắp xếp kết quả tăng dần trước khi trả về."
+solution:
+  file: solution.py
+  approach_vi: Lấy giao của fds và ready bằng set, rồi sắp xếp tăng dần.
+  complexity: "O(n log n) / O(n)"
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x865
+status: validated
+version: 1

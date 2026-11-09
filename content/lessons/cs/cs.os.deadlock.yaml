@@ -1,0 +1,161 @@
+id: cs.os.deadlock
+version: 1
+status: published
+title_vi: "Deadlock: điều kiện, phòng tránh và phát hiện"
+est_minutes: 15
+objectives_vi:
+  - "Định nghĩa deadlock và nêu đủ 4 điều kiện Coffman: mutual exclusion, hold-and-wait, no preemption, circular wait."
+  - "Đọc resource-allocation graph và wait-for graph, nhận ra deadlock là chu trình trong wait-for graph."
+  - "Phân biệt bốn cách xử lý: prevention, avoidance (Banker's algorithm, safe state), detection kèm recovery, và ostrich approach."
+  - "Cài được phát hiện chu trình bằng DFS trên wait-for graph."
+blocks:
+  - id: s_model
+    type: section
+    title_vi: "Deadlock và 4 điều kiện Coffman"
+    summary_vi: "Deadlock là tập process chờ nhau theo vòng tròn nên không ai tiến được."
+  - id: t01
+    type: text
+    md: |
+      **Deadlock** xảy ra khi một tập process bị **chặn vĩnh viễn** vì mỗi process đang giữ một resource và chờ một resource
+      do process khác trong tập đó giữ. Không ai nhả, không ai tiến lên được.
+
+      Ví dụ kinh điển với hai mutex `R1`, `R2`:
+
+      ```text
+      P1: lock(R1); lock(R2); ...     P2: lock(R2); lock(R1); ...
+      Xen kẽ: P1 giữ R1, P2 giữ R2, rồi P1 chờ R2, P2 chờ R1  -> kẹt mãi mãi
+      ```
+
+      Deadlock chỉ có thể xảy ra khi **cả bốn** điều kiện Coffman cùng đúng:
+
+      - **Mutual exclusion**: resource chỉ một process dùng tại một thời điểm (mutex, printer).
+      - **Hold and wait**: process đang giữ ít nhất một resource và chờ thêm resource khác.
+      - **No preemption**: không thể cưỡng đoạt resource, process phải tự nhả.
+      - **Circular wait**: tồn tại vòng P0 chờ P1, P1 chờ P2, ..., Pn chờ P0.
+
+      Bốn điều kiện là **cần**; chúng chưa chắc **đủ** nếu resource có nhiều instance, nhưng với resource đơn instance thì
+      chu trình là điều kiện cần và đủ.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Điều kiện Coffman nào nói rằng có vòng P0 chờ P1, P1 chờ P2, ..., Pn chờ P0?"
+    options:
+      - {id: a, text_md: "Circular wait"}
+      - {id: b, text_md: "Mutual exclusion"}
+      - {id: c, text_md: "No preemption"}
+    answer: [a]
+    explain_md: "Circular wait là vòng chờ khép kín. Mutual exclusion nói về việc resource không chia sẻ, no preemption nói về việc không thể cưỡng đoạt."
+  - id: t02
+    type: text
+    md: |
+      **Resource-allocation graph** (RAG) có hai loại node: process và resource. Cạnh `R -> P` nghĩa là P đang **giữ** R;
+      cạnh `P -> R` nghĩa là P đang **yêu cầu** R.
+
+      **Wait-for graph** là bản rút gọn chỉ còn process: cạnh `Pa -> Pb` nghĩa là Pa đang chờ resource mà Pb giữ.
+      Ta có thể biểu diễn bằng danh sách cạnh `[a, b]`.
+
+      ```text
+      RAG:   P1 -> R2 -> P2 -> R1 -> P1        wait-for:  P1 -> P2 -> P1
+      wait_for = [[1, 2], [2, 1]]              (vòng 2 process = deadlock)
+      ```
+
+      Với resource đơn instance: **wait-for graph có chu trình khi và chỉ khi có deadlock**.
+  - id: q02
+    type: predict_output
+    code: |
+      wf = [[1, 2], [2, 1]]
+      print(any([b, a] in wf for a, b in wf))
+    expected_output: |
+      True
+    explain_md: "Cạnh [1, 2] có cạnh ngược [2, 1] trong wf, tức hai process chờ nhau: một chu trình độ dài 2."
+  - id: t03
+    type: text
+    md: |
+      Bốn cách xử lý deadlock:
+
+      - **Prevention**: phá ít nhất một điều kiện Coffman. Ví dụ phá hold-and-wait bằng cách xin mọi resource một lần;
+        phá circular wait bằng cách **đánh thứ tự** resource và luôn khoá theo thứ tự tăng dần (cách phổ biến nhất trong code thật).
+      - **Avoidance**: chỉ cấp phát khi hệ thống vẫn ở **safe state** (tồn tại một thứ tự chạy để mọi process đều hoàn tất).
+        **Banker's algorithm** cần biết trước nhu cầu tối đa của mỗi process; unsafe state chưa phải deadlock nhưng có nguy cơ.
+      - **Detection + recovery**: cho phép deadlock xảy ra, định kỳ **tìm chu trình** trong wait-for graph. Recovery:
+        kill một process trong vòng, rollback, hoặc cưỡng đoạt resource.
+      - **Ostrich approach**: bỏ qua, coi deadlock hiếm và chi phí xử lý cao (Unix/Linux thường làm vậy cho tài nguyên hạt nhân; lập trình viên tự lo).
+
+      ```text
+      safe state:    còn thứ tự P_a, P_b, ... mà mỗi process xin đủ phần còn thiếu và hoàn tất
+      unsafe state:  không tồn tại thứ tự như vậy  (có thể, không bắt buộc, dẫn tới deadlock)
+      ```
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Luôn khoá các mutex theo một thứ tự toàn cục cố định (ví dụ theo id tăng dần) phá điều kiện Coffman nào?"
+    options:
+      - {id: a, text_md: "Circular wait: không thể có vòng vì mọi process xin theo cùng thứ tự"}
+      - {id: b, text_md: "Mutual exclusion"}
+      - {id: c, text_md: "No preemption"}
+    answer: [a]
+    explain_md: "Nếu ai cũng xin resource theo thứ tự tăng dần thì không thể có vòng chờ khép kín; đây là prevention bằng cách phá circular wait."
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: đọc wait-for graph"
+    summary_vi: "Từ danh sách [a, b], liệt kê các process mà một process đang chờ."
+    exercise_ref: ex_waits_on
+  - id: t04
+    type: text
+    md: |
+      Detection bắt đầu bằng việc đọc đồ thị. Từ `wait_for`, process `p` đang chờ mọi `b` với cạnh `[p, b]`.
+
+      ```text
+      wait_for = [[1,2],[1,3],[2,3]]
+      1 chờ [2, 3]      2 chờ [3]      3 chờ []   (không có vòng: 3 chạy xong, rồi 2, rồi 1)
+      ```
+
+      Để tìm chu trình ta chạy **DFS** với ba màu: trắng (chưa thăm), xám (đang ở trong đường đi hiện tại), đen (xong).
+      Gặp node **xám** nghĩa là quay lại một node trên đường đi: có chu trình.
+  - id: ex_waits_on
+    type: code_exercise
+    md: |
+      Cài `waits_on(wait_for, p)`: `wait_for` là list các `[a, b]` (a đang chờ b), `p` là một process. Trả về list **đã sắp xếp tăng dần**
+      các process mà `p` đang chờ trực tiếp (rỗng nếu không chờ ai). Ví dụ `waits_on([[1,2],[1,3],[2,3]], 1)` trả `[2, 3]`.
+    entry: waits_on
+    starter: |
+      def waits_on(wait_for, p):
+          # TODO: các b có cạnh [p, b], sắp xếp tăng dần
+          pass
+    guidance_md: |
+      - Duyệt từng cặp `[a, b]` và giữ `b` nếu `a == p`.
+      - Nhớ sắp xếp kết quả.
+    hints:
+      - level: nudge
+        md: "p chờ b khi có cạnh [p, b] trong danh sách."
+      - level: approach
+        md: "Lọc các cặp có a == p rồi lấy b."
+      - level: near_solution
+        md: "Trả `sorted(b for a, b in wait_for if a == p)`."
+    tests:
+      - {args: [[[1, 2], [2, 3], [3, 1]], 1], expected: [2]}
+      - {args: [[[1, 2], [2, 3], [3, 1]], 2], expected: [3]}
+      - {args: [[[1, 3], [1, 2]], 1], expected: [2, 3]}
+      - {args: [[[1, 2]], 2], expected: []}
+      - {args: [[], 1], expected: []}
+    solution: |
+      def waits_on(wait_for, p):
+          return sorted(b for a, b in wait_for if a == p)
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Với resource đơn instance, deadlock xảy ra khi và chỉ khi wait-for graph có một ___."
+    blanks: [{accept: ["chu trình", "cycle", "vòng", "chu trinh"]}]
+    explain_md: "Chu trình (cycle) trong wait-for graph chính là circular wait, và với resource đơn instance nó vừa cần vừa đủ cho deadlock."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Deadlock là tập process chờ nhau theo vòng; cần đủ 4 điều kiện Coffman: mutual exclusion, hold-and-wait, no preemption, circular wait."
+      - "Wait-for graph rút gọn từ resource-allocation graph; với resource đơn instance, chu trình = deadlock."
+      - "Prevention phá một điều kiện (thường là đánh thứ tự khoá để phá circular wait); avoidance dùng Banker's algorithm giữ safe state."
+      - "Detection tìm chu trình bằng DFS 3 màu rồi recovery (kill, rollback, preempt); ostrich approach bỏ qua vì hiếm."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X855], l2: [X856], l3: [X857]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-08"
