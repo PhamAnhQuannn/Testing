@@ -1,0 +1,219 @@
+id: cs.onramp.computer_programming_model
+version: 1
+status: published
+title_vi: "Chương trình là gì: thông dịch, biên dịch, bộ nhớ và file"
+est_minutes: 15
+objectives_vi:
+  - "Giải thích chương trình là dãy lệnh CPU làm theo từng bước; phân biệt source code, bytecode và executable."
+  - "So sánh interpreter và compiler; mô tả bytecode chạy trên máy ảo (VM)."
+  - "Mô tả biến là ô nhớ có tên trong RAM, khác với file lưu bền trên disk; phân biệt đường dẫn tuyệt đối và tương đối."
+  - "Phân biệt process, stdin/stdout/stderr và ba loại lỗi (cú pháp, lúc chạy, logic); đọc được stack trace."
+blocks:
+  - id: s_model
+    type: section
+    title_vi: "Chương trình, dịch và chạy"
+    summary_vi: "Từ file code tới chương trình đang chạy: source, compiler, interpreter, bytecode, VM."
+  - id: t01
+    type: text
+    md: |
+      **Chương trình** là một danh sách lệnh để máy làm theo từng bước, giống công thức nấu ăn. CPU chỉ hiểu các lệnh rất nhỏ (cộng, so sánh, nhảy, đọc/ghi bộ nhớ),
+      và luôn lặp một vòng: **fetch** (lấy lệnh kế) -> **decode** (hiểu lệnh) -> **execute** (thực thi). Chương trình cũng được lưu trong bộ nhớ như dữ liệu (mô hình von Neumann).
+
+      Mọi chương trình đều có dạng **input -> processing -> output**: nhận dữ liệu vào, xử lý, rồi đưa kết quả ra.
+
+      ```python
+      name = input()          # input
+      msg = "Xin chao " + name  # processing
+      print(msg)              # output
+      ```
+
+      Ba dạng của một chương trình:
+
+      - **Source code**: file chữ do người viết (`main.py`, `Main.java`).
+      - **Executable** (mã máy): file nhị phân CPU chạy trực tiếp (`.exe`, ELF).
+      - **Bytecode**: mã trung gian, gọn hơn source, chưa phải mã máy; chạy trên **máy ảo (VM)** như Python VM hay JVM.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Vòng lặp cơ bản mà CPU thực hiện với mỗi lệnh là gì?"
+    options:
+      - {id: a, text_md: "fetch -> decode -> execute"}
+      - {id: b, text_md: "compile -> link -> run"}
+      - {id: c, text_md: "read -> save -> close"}
+    answer: [a]
+    explain_md: "CPU lấy lệnh (fetch), hiểu lệnh (decode) rồi thực thi (execute), lặp lại cho lệnh kế tiếp."
+  - id: t02
+    type: text
+    md: |
+      CPU không đọc được source code, nên phải **dịch** nó. Có hai cách chính:
+
+      - **Compiler** (biên dịch): dịch **cả chương trình** thành executable trước, rồi mới chạy. Chạy nhanh, lỗi cú pháp bị bắt trước khi chạy (ví dụ C, C++, Go).
+      - **Interpreter** (thông dịch): đọc và thực thi **từng câu lúc chạy**. Tiện thử nghiệm, nhưng thường chậm hơn.
+
+      Thực tế hay lai: **Python** biên dịch source thành bytecode (`.pyc`) rồi VM thông dịch bytecode. **Java** biên dịch `.java` thành bytecode `.class`, JVM chạy bytecode (có thêm JIT dịch phần nóng thành mã máy).
+
+      ```text
+      Java:   Main.java --javac--> Main.class (bytecode) --JVM--> chạy
+      Python: main.py --(tự động)--> bytecode --Python VM--> chạy
+      ```
+
+      Lợi ích của bytecode + VM: cùng một bytecode chạy được trên nhiều hệ điều hành có VM tương ứng.
+  - id: q02
+    type: quiz_mcq
+    prompt_md: "Điều nào mô tả đúng interpreter?"
+    options:
+      - {id: a, text_md: "Đọc và thực thi chương trình từng câu lệnh lúc chạy"}
+      - {id: b, text_md: "Dịch toàn bộ chương trình ra executable trước khi chạy"}
+      - {id: c, text_md: "Chỉ kiểm tra lỗi chính tả mà không chạy"}
+    answer: [a]
+    explain_md: "Interpreter thực thi từng phần lúc chạy; dịch cả chương trình trước là việc của compiler."
+  - id: s_mem
+    type: section
+    title_vi: "Bộ nhớ, file và process"
+    summary_vi: "Biến nằm ở RAM, dữ liệu bền nằm ở disk; đường dẫn file; process và stdin/stdout/stderr."
+  - id: t03
+    type: text
+    md: |
+      **Biến** là một ô nhớ có tên trong **RAM**. Gán `x = 5` là ghi 5 vào ô tên x; gán `y = x` chép giá trị sang ô khác.
+
+      - **RAM**: nhanh, **tạm thời** (mất khi tắt máy hay khi chương trình kết thúc).
+      - **Disk** (ổ lưu trữ): chậm hơn, **bền** (còn sau khi tắt máy). Dữ liệu cần giữ lâu phải ghi vào **file**.
+
+      File nằm trong **folder** tạo thành cây thư mục. **Đường dẫn** chỉ ra vị trí file:
+
+      - **Tuyệt đối**: bắt đầu từ gốc, như `/home/quan/data.txt` hay `C:\Users\quan\data.txt`; luôn trỏ đúng một chỗ.
+      - **Tương đối**: tính từ thư mục hiện hành, như `data/in.txt` hay `../in.txt`; nghĩa phụ thuộc bạn đang đứng ở đâu.
+
+      ```python
+      with open("notes.txt", "w") as f:   # đường dẫn tương đối
+          f.write("hello")                 # ghi xuống disk
+      ```
+  - id: q03
+    type: predict_output
+    code: |
+      a = 3
+      b = a
+      a = a + 4
+      print(a, b)
+    expected_output: |
+      7 3
+    explain_md: "b = a chép giá trị 3 vào ô riêng. Sau đó a đổi thành 7 nhưng b vẫn là 3."
+  - id: t04
+    type: text
+    md: |
+      **Process** là một chương trình **đang chạy**: mỗi process có vùng RAM riêng và các luồng dữ liệu chuẩn:
+
+      - **stdin**: dữ liệu vào (mặc định là bàn phím), ví dụ `input()`.
+      - **stdout**: kết quả ra (mặc định là màn hình), ví dụ `print()`.
+      - **stderr**: thông báo lỗi, tách riêng khỏi stdout để có thể lưu hoặc chuyển hướng riêng.
+
+      Một file `main.py` là chương trình; mỗi lần bạn chạy nó sẽ tạo ra một process mới. Chạy hai lần là hai process độc lập, mỗi cái có biến riêng của nó.
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Dữ liệu nào còn nguyên sau khi tắt máy?"
+    options:
+      - {id: a, text_md: "Nội dung đã ghi vào file trên disk"}
+      - {id: b, text_md: "Giá trị của biến x trong RAM"}
+      - {id: c, text_md: "Các process đang chạy"}
+    answer: [a]
+    explain_md: "RAM và process mất khi tắt máy; chỉ dữ liệu trên disk (file) là bền."
+  - id: s_err
+    type: section
+    title_vi: "Ba loại lỗi và đọc stack trace"
+    summary_vi: "Cú pháp, lúc chạy, logic; đọc error message ở đâu."
+  - id: t05
+    type: text
+    md: |
+      Có ba loại lỗi, phát hiện ở thời điểm khác nhau:
+
+      1. **Lỗi cú pháp (syntax error)**: viết sai ngữ pháp, chương trình không chạy được. Python từ chối chạy ngay từ đầu.
+         ```python
+         print("hi"      # thiếu dấu ngoặc đóng -> SyntaxError
+         ```
+      2. **Lỗi lúc chạy (runtime error)**: cú pháp đúng, nhưng một lệnh không thực hiện được khi chạy, ví dụ chia cho 0, chỉ số ngoài danh sách. Chương trình dừng và in lỗi.
+         ```python
+         print(10 // 0)   # ZeroDivisionError
+         ```
+      3. **Lỗi logic (logic error)**: chạy suôn sẻ, không báo lỗi, nhưng **kết quả sai** vì ý tưởng sai. Khó nhất vì máy không cảnh báo.
+         ```python
+         avg = (a + b) / 3   # muốn chia 2
+         ```
+
+      **Đọc error message và stack trace**: stack trace liệt kê chuỗi lời gọi hàm dẫn tới lỗi. Trong **Python**, loại lỗi và thông điệp ở **dòng cuối**, các dòng trên chỉ ra file và số dòng. Trong **Java**, loại lỗi (exception) ở **dòng đầu**, các dòng `at ...` bên dưới là chuỗi gọi hàm. Hãy đọc loại lỗi trước, rồi nhìn dòng code ở vị trí gần nhất của bạn.
+  - id: q05
+    type: quiz_mcq
+    prompt_md: "Chương trình chạy xong, không báo lỗi nào nhưng in ra kết quả sai. Đây là loại lỗi gì?"
+    options:
+      - {id: a, text_md: "Lỗi logic"}
+      - {id: b, text_md: "Lỗi cú pháp"}
+      - {id: c, text_md: "Lỗi lúc chạy"}
+    answer: [a]
+    explain_md: "Không có lỗi cú pháp (chương trình chạy được) và không có exception lúc chạy, chỉ có kết quả sai: đó là lỗi logic."
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: chương trình là dãy bước đổi trạng thái"
+    summary_vi: "Mỗi bước sửa giá trị trong bộ nhớ; chạy lần lượt ra kết quả."
+    exercise_ref: ex_steps
+  - id: t06
+    type: text
+    md: |
+      Chương trình chạy từng bước, mỗi bước thay đổi **trạng thái** (giá trị biến). Thứ tự các bước quan trọng: cộng rồi nhân khác với nhân rồi cộng.
+
+      ```text
+      start = 2, steps = [add 3, mul 4]  ->  (2 + 3) * 4 = 20
+      start = 2, steps = [mul 4, add 3]  ->  (2 * 4) + 3 = 11
+      ```
+  - id: ex_steps
+    type: code_exercise
+    md: |
+      Cài `apply_steps(start, steps)`: bắt đầu với giá trị `start` (số nguyên). `steps` là list các bước, mỗi bước là list `[op, n]` với `op` là `"add"` (cộng n) hoặc `"mul"` (nhân n).
+      Áp dụng lần lượt các bước và trả về giá trị cuối cùng. Ví dụ `apply_steps(2, [["add", 3], ["mul", 4]])` trả `20`.
+    entry: apply_steps
+    starter: |
+      def apply_steps(start, steps):
+          # TODO: giữ một biến acc, áp dụng từng bước theo thứ tự
+          pass
+    guidance_md: |
+      - Khởi tạo acc = start.
+      - Với mỗi bước, đọc op và n rồi cập nhật acc.
+    hints:
+      - level: nudge
+        md: "Dùng một biến acc bắt đầu bằng start."
+      - level: approach
+        md: "Duyệt từng bước [op, n]: nếu op là add thì acc += n, nếu là mul thì acc *= n."
+      - level: near_solution
+        md: "Trả acc sau vòng lặp."
+    tests:
+      - {args: [2, [["add", 3], ["mul", 4]]], expected: 20}
+      - {args: [5, []], expected: 5}
+      - {args: [1, [["mul", 5], ["add", 1], ["mul", 2]]], expected: 12}
+      - {args: [10, [["add", -4], ["add", -6]]], expected: 0}
+      - {args: [3, [["mul", 0], ["add", 7]]], expected: 7}
+    solution: |
+      def apply_steps(start, steps):
+          acc = start
+          for op, n in steps:
+              if op == "add":
+                  acc += n
+              elif op == "mul":
+                  acc *= n
+          return acc
+  - id: q06
+    type: quiz_fill
+    prompt_md: "Lỗi chia cho 0 khi chương trình đang chạy thuộc loại lỗi ___ (cú pháp / lúc chạy / logic)."
+    blanks: [{accept: ["lúc chạy", "runtime", "luc chay", "lỗi lúc chạy"]}]
+    explain_md: "Cú pháp đúng nên chương trình bắt đầu chạy, nhưng phép chia cho 0 không thực hiện được và ném exception: đó là lỗi lúc chạy (runtime)."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Chương trình là dãy lệnh CPU làm theo (fetch, decode, execute); source code được dịch thành mã máy hoặc bytecode chạy trên VM."
+      - "Compiler dịch cả chương trình trước khi chạy; interpreter thực thi từng câu lúc chạy; Python và Java đều dùng bytecode + VM."
+      - "Biến là ô nhớ có tên trong RAM (tạm); dữ liệu bền nằm trong file trên disk; đường dẫn tuyệt đối từ gốc, tương đối từ thư mục hiện hành."
+      - "Process là chương trình đang chạy, có stdin/stdout/stderr; lỗi gồm cú pháp, lúc chạy, logic; Python đọc loại lỗi ở dòng cuối stack trace, Java ở dòng đầu."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X873], l2: [X874], l3: [X875]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-10"

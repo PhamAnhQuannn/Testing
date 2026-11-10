@@ -1,0 +1,199 @@
+id: cs.complexity.ds_costs
+version: 1
+status: published
+title_vi: "Chi phí thao tác của cấu trúc dữ liệu (data structure costs)"
+est_minutes: 14
+objectives_vi:
+  - "Nêu đúng chi phí các thao tác chính của list, dict, set (index, append, chèn đầu, tìm giá trị, tra khóa)."
+  - "Giải thích vì sao dict và set nhanh nhờ hàm băm (hash), và khi nào trường hợp xấu nhất là O(n)."
+  - "So sánh array với linked list, stack/queue/deque, BST với balanced BST và các thao tác của heap."
+  - "Chọn cấu trúc dữ liệu phù hợp cho một yêu cầu: tra khóa, kiểm tra có/không, giữ thứ tự và vị trí."
+blocks:
+  - id: s_seq
+    type: section
+    title_vi: "List, array và linked list"
+    summary_vi: "Lấy theo vị trí rất nhanh, nhưng chèn đầu hay tìm giá trị phải duyệt hoặc dịch cả dãy."
+  - id: t01
+    type: text
+    md: |
+      Mỗi cấu trúc dữ liệu có thao tác **nhanh** và thao tác **chậm**. Biết bảng này giúp chọn đúng cấu trúc trước khi viết code.
+
+      **list** của Python là một **array** động: các phần tử nằm liền nhau trong bộ nhớ.
+
+      | Thao tác trên list | Chi phí | Lý do |
+      |---|---|---|
+      | `lst[i]` (index) | O(1) | Nhảy thẳng tới ô thứ i |
+      | `lst.append(x)` | O(1) (amortized) | Thêm ở cuối, thỉnh thoảng phải mở rộng mảng |
+      | `lst.insert(0, x)` / `lst.pop(0)` | O(n) | Phải dịch mọi phần tử còn lại |
+      | `x in lst` / `lst.index(x)` | O(n) | Duyệt từng phần tử |
+      | duyệt toàn bộ | O(n) | Đi qua mỗi phần tử một lần |
+      | `sorted(lst)` | O(n log n) | Sắp xếp so sánh |
+
+      ```python
+      lst = [1, 2, 3, 4]
+      lst.insert(0, 9)   # dịch 4 phần tử sang phải -> O(n)
+      lst.append(7)      # O(1)
+      print(lst[2])      # O(1) -> 2
+      ```
+
+      **Linked list** đảo ngược đánh đổi: chèn/xóa đầu danh sách là O(1) (chỉ đổi con trỏ) nhưng lấy phần tử thứ i phải đi từ đầu, O(n).
+      **Array** lấy theo vị trí O(1) nhưng chèn đầu O(n).
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Thao tác nào trên list Python là O(n) trong trường hợp thường gặp?"
+    options:
+      - {id: a, text_md: "`lst.insert(0, x)`, vì phải dịch toàn bộ phần tử sang phải"}
+      - {id: b, text_md: "`lst[5]`"}
+      - {id: c, text_md: "`lst.append(x)`"}
+    answer: [a]
+    explain_md: "Index và append cuối là O(1). Chèn vào đầu phải dịch n phần tử nên O(n). Nếu cần chèn/lấy ở hai đầu nhiều, dùng deque."
+  - id: s_hash
+    type: section
+    title_vi: "Dict, set và hàm băm"
+    summary_vi: "Dict và set tra cứu gần như tức thì nhờ băm."
+  - id: t02
+    type: text
+    md: |
+      **dict** và **set** lưu dữ liệu trong **hash table**. Hàm băm (hash) biến khóa thành một số, số đó cho biết ô trong bảng nên nhìn: **nhảy thẳng tới ô**, không duyệt các phần tử khác.
+
+      | Thao tác | Chi phí trung bình | Trường hợp xấu nhất |
+      |---|---|---|
+      | `d[k]`, `d[k] = v`, `del d[k]` | O(1) | O(n) |
+      | `x in s`, `s.add(x)`, `s.remove(x)` | O(1) | O(n) |
+
+      Trường hợp xấu nhất xảy ra khi nhiều khóa va chạm vào cùng một ô (**collision**). Có hai cách xử lý: **chaining** (mỗi ô giữ một danh sách) và **open addressing** (tìm ô trống kế tiếp). Khi **load factor** (số phần tử / số ô) quá cao, bảng **resize** (nhân đôi rồi băm lại), nên mỗi thao tác vẫn O(1) amortized.
+
+      ```python
+      data = ["a", "b", "c", "d", "e"]
+      look = set(data)
+      print("d" in data)   # duyệt tới phần tử thứ 4 -> O(n)
+      print("d" in look)   # băm rồi nhảy tới ô -> O(1)
+
+      tbl = {}
+      for w in ["x", "y", "x"]:
+          tbl[w] = tbl.get(w, 0) + 1   # mỗi lần O(1)
+      ```
+
+      Khóa của dict/set phải **hashable** (bất biến): int, str, tuple được; list thì không.
+
+      **str** không sửa tại chỗ (immutable): nối hay cắt tạo ra chuỗi mới, tốn O(độ dài).
+
+      ```python
+      s = "ab"
+      t = s
+      s += "c"
+      print(s, t)   # abc ab : t không đổi vì s trỏ sang chuỗi mới
+      ```
+  - id: q02
+    type: predict_output
+    code: |
+      data = ["a", "b", "c", "d", "e"]
+      look = set(data)
+      steps = 0
+      for x in data:
+          steps += 1
+          if x == "d":
+              break
+      print(steps, "d" in look)
+    expected_output: |
+      4 True
+    explain_md: "Tìm d trong list phải duyệt 4 phần tử (O(n)), còn kiểm tra trong set là một phép băm O(1)."
+  - id: q03
+    type: quiz_fill
+    prompt_md: "Dict tra khóa trung bình O(1) vì hàm ___ cho biết ngay ô cần nhìn mà không phải duyệt từng phần tử."
+    blanks: [{accept: ["băm", "hash", "hàm băm"]}]
+    explain_md: "Hàm băm (hash) ánh xạ khóa thành vị trí ô trong bảng. Va chạm nhiều có thể làm xấu nhất thành O(n)."
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: chọn cấu trúc theo yêu cầu"
+    summary_vi: "Ánh xạ yêu cầu của bài toán sang cấu trúc dữ liệu phù hợp."
+    exercise_ref: ex_pick
+  - id: t03
+    type: text
+    md: |
+      Quy tắc chọn nhanh:
+
+      - Cần **tra theo khóa** (key -> value): `dict`.
+      - Chỉ cần biết **có hay không** (membership), loại trùng: `set`.
+      - Cần **thứ tự và truy cập theo vị trí** (position): `list`.
+
+      ```text
+      pick_structure("key")        -> "dict"
+      pick_structure("membership") -> "set"
+      pick_structure("position")   -> "list"
+      ```
+  - id: ex_pick
+    type: code_exercise
+    md: |
+      Cài `pick_structure(need)`: nhận chuỗi mô tả yêu cầu và trả tên cấu trúc phù hợp.
+      `"key"` trả `"dict"`, `"membership"` trả `"set"`, mọi yêu cầu khác (kể cả `"position"`, `"order"`) trả `"list"`.
+      Ví dụ `pick_structure("key")` trả `"dict"`.
+    entry: pick_structure
+    starter: |
+      def pick_structure(need):
+          # TODO: "key" -> "dict", "membership" -> "set", còn lại -> "list"
+          pass
+    guidance_md: |
+      - Chỉ có hai yêu cầu đặc biệt; mọi thứ khác về list.
+      - So sánh chuỗi bằng `==`.
+    hints:
+      - level: nudge
+        md: "Kiểm tra need có bằng \"key\" hay \"membership\" không."
+      - level: approach
+        md: "if need == \"key\": trả \"dict\"; if need == \"membership\": trả \"set\"; còn lại trả \"list\"."
+      - level: near_solution
+        md: "Dùng hai nhánh if rồi return \"list\" ở cuối hàm."
+    tests:
+      - {args: ["key"], expected: "dict"}
+      - {args: ["membership"], expected: "set"}
+      - {args: ["position"], expected: "list"}
+      - {args: ["order"], expected: "list"}
+      - {args: [""], expected: "list"}
+    solution: |
+      def pick_structure(need):
+          if need == "key":
+              return "dict"
+          if need == "membership":
+              return "set"
+          return "list"
+  - id: s_more
+    type: section
+    title_vi: "Stack, queue, heap và cây tìm kiếm"
+    summary_vi: "Chi phí các cấu trúc có thứ tự đặc biệt."
+  - id: t04
+    type: text
+    md: |
+      - **Stack** (LIFO): push/pop ở cùng một đầu, O(1) (dùng list `append`/`pop`).
+      - **Queue** (FIFO): dùng `collections.deque`; `append`/`popleft` O(1). Dùng `list.pop(0)` làm queue là O(n).
+      - **Heap**: `push` O(log n), `pop_min` O(log n), `peek` (xem min) O(1); tạo heap từ n phần tử O(n).
+      - **BST** (binary search tree): tìm/chèn/xóa O(h) với h là chiều cao. BST lệch thành một đường thẳng có h = n nên O(n); **balanced BST** (AVL, red-black) giữ h = O(log n) nên mọi thao tác O(log n).
+      - Dãy đã **sắp xếp**: `binary search` O(log n), nhưng chèn vào giữa vẫn O(n).
+
+      ```text
+      heap: push O(log n) | pop_min O(log n) | peek O(1)
+      balanced BST: search / insert / delete O(log n)
+      ```
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Cần tra tên người dùng có trong danh sách 1 triệu tên hay không, lặp lại rất nhiều lần. Nên chọn gì?"
+    options:
+      - {id: a, text_md: "`set` (O(1) trung bình mỗi lần kiểm tra)"}
+      - {id: b, text_md: "`list` (O(n) mỗi lần kiểm tra)"}
+      - {id: c, text_md: "`str` nối tất cả tên lại"}
+    answer: [a]
+    explain_md: "Chỉ cần câu hỏi có/không nên set là hợp lý: mỗi lần kiểm tra O(1) thay vì quét cả 1 triệu phần tử."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "List: index và append cuối O(1); chèn/xóa đầu hoặc giữa và tìm giá trị O(n); sorted O(n log n)."
+      - "Dict/set: thêm, xóa, tra O(1) trung bình nhờ hàm băm; collision và load factor có thể đẩy xấu nhất lên O(n), resize giữ amortized O(1)."
+      - "Linked list chèn đầu O(1) nhưng index O(n); deque cho queue O(1) hai đầu; heap push/pop O(log n), peek O(1)."
+      - "BST lệch O(n), balanced BST (AVL/red-black) O(log n). Chọn cấu trúc theo yêu cầu: key -> dict, có/không -> set, thứ tự và vị trí -> list."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X882], l2: [X883], l3: [X884]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-10"

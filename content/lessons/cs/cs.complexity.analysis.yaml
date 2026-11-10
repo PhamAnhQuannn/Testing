@@ -1,0 +1,172 @@
+id: cs.complexity.analysis
+version: 1
+status: published
+title_vi: "Phân tích độ phức tạp của code"
+est_minutes: 15
+objectives_vi:
+  - "Đếm số bước của vòng lặp đơn, lồng nhau (n x m) và vòng chia đôi (log n)."
+  - "Nhận ra chi phí ẩn trong Python: x in list, s += c, list.insert(0, x), slice."
+  - "Từ giới hạn n của đề suy ra Big-O cần đạt trước khi viết code."
+  - "Hiểu đánh đổi time-space, amortised O(1) của append, và best/average/worst case."
+blocks:
+  - id: s_loops
+    type: section
+    title_vi: "Đếm bước từ cấu trúc vòng lặp"
+    summary_vi: "Vòng lồng nhân số bước, vòng chia đôi chỉ tốn log n."
+  - id: t01
+    type: text
+    md: |
+      Phân tích code là đếm xem số phép toán tăng thế nào theo kích thước đầu vào n, rồi bỏ hệ số và số hạng bậc thấp (Big-O).
+
+      - **Một vòng lặp** chạy n lần: O(n).
+      - **Hai vòng lồng nhau** n x m lần: O(n * m); nếu cả hai chạy n thì O(n^2).
+      - **Vòng chia đôi**: mỗi lần n giảm một nửa nên sau khoảng log2(n) lần thì dừng: O(log n).
+
+      ```python
+      # O(n * m): thân vòng chạy n * m lần
+      for i in range(n):
+          for j in range(m):
+              work()
+
+      # O(log n): n giảm một nửa mỗi lần
+      while n > 1:
+          n //= 2
+      ```
+
+      Vòng lồng mà vòng trong phụ thuộc vòng ngoài (`for j in range(i)`) cộng 0 + 1 + ... + (n-1) = n(n-1)/2 bước, vẫn là O(n^2).
+      Vòng ngoài nhân đôi `i *= 2` (log n lần) với vòng trong n lần cho O(n log n).
+  - id: q01
+    type: predict_output
+    code: |
+      n = 100
+      k = 0
+      while n > 1:
+          n //= 2
+          k += 1
+      print(k)
+    expected_output: |
+      6
+    explain_md: "100 -> 50 -> 25 -> 12 -> 6 -> 3 -> 1: sáu lần chia đôi, khớp với log2(100) khoảng 6,6."
+  - id: q02
+    type: quiz_mcq
+    prompt_md: "Vòng `for i in range(n): for j in range(i, n): ...` chạy bao nhiêu bước theo Big-O?"
+    options:
+      - {id: a, text_md: "O(n^2), vì tổng n + (n-1) + ... + 1 = n(n+1)/2"}
+      - {id: b, text_md: "O(n log n)"}
+      - {id: c, text_md: "O(n)"}
+    answer: [a]
+    explain_md: "Vòng trong ngắn dần nhưng tổng vẫn cỡ n^2 / 2; bỏ hệ số 1/2 còn O(n^2)."
+  - id: s_hidden
+    type: section
+    title_vi: "Chi phí ẩn và giới hạn n"
+    summary_vi: "Vài dòng ngắn lại tốn O(n); giới hạn của đề cho biết cần Big-O nào."
+  - id: t02
+    type: text
+    md: |
+      **Chi phí ẩn trong Python** (một dòng nhưng không O(1)):
+
+      - `x in lst` quét cả list: O(n). Trong một vòng n lần thì thành O(n^2). Đổi sang `set`/`dict` thì `x in s` là O(1) trung bình.
+      - `s += c` trong vòng lặp tạo chuỗi mới, chép toàn bộ: O(n^2) tổng. Gom vào list rồi `"".join(parts)` cho O(n).
+      - `lst.insert(0, x)` dịch cả dãy: O(n). `collections.deque.appendleft` là O(1).
+      - Slice `a[i:j]` tạo bản sao: O(j - i).
+
+      ```python
+      seen = set(nums)          # O(n) để dựng
+      for x in queries:         # q lần
+          if x in seen:         # O(1) mỗi lần -> O(n + q) thay vì O(n * q)
+              hit += 1
+      ```
+
+      **Time-space trade-off**: tốn thêm bộ nhớ (set, memo, bảng precompute) để đổi lấy thời gian. **Amortised**: `list.append` có lúc phải cấp lại mảng (O(n)) nhưng trung bình mỗi lần O(1).
+      **Bộ nhớ phụ**: in-place là O(1) extra, còn tạo bản sao hay bảng thì O(n).
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Đoạn `for x in a: if x in b: ...` với a, b là list độ dài n có độ phức tạp thời gian là?"
+    options:
+      - {id: a, text_md: "O(n^2), vì `x in b` quét list O(n) và chạy n lần"}
+      - {id: b, text_md: "O(n)"}
+      - {id: c, text_md: "O(log n)"}
+    answer: [a]
+    explain_md: "Đổi b thành set thì mỗi phép kiểm tra O(1) và tổng còn O(n)."
+  - id: t03
+    type: text
+    md: |
+      **Từ giới hạn n suy ra Big-O cần đạt.** Máy chạy khoảng 10^8 phép đơn giản mỗi giây (Python khoảng 10^7). Đề thường cho 1 đến 2 giây:
+
+      | Giới hạn n | Big-O cần |
+      |---|---|
+      | n <= 20 | O(2^n) hoặc O(n!) nhỏ |
+      | n <= 500 | O(n^3) |
+      | n <= 5000 | O(n^2) |
+      | n <= 10^5 | O(n log n) hoặc O(n) |
+      | n <= 10^6 hoặc hơn | O(n) hoặc O(log n) |
+
+      Ví dụ n = 10^5: n^2 = 10^10, quá chậm; n log n khoảng 1,7 x 10^6, thoải mái. Vậy phải nghĩ tới sort, hash map, two pointers thay vì hai vòng lồng.
+
+      Với đệ quy, ta viết **recurrence** (T(n) = 2T(n/2) + n cho merge sort giải ra O(n log n) theo recursion tree hoặc Master theorem). Cùng một thuật toán còn có **best / average / worst case** (quicksort: O(n log n) trung bình, O(n^2) tệ nhất).
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Với n <= 10^5 và Python, thuật toán hai vòng lồng O(n^2) thường quá chậm; ta cần cỡ O(n ___ n)."
+    blanks: [{accept: ["log", "log n", "logn"]}]
+    explain_md: "10^5 phần tử cần O(n log n) hoặc tốt hơn."
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: đếm bước vòng chia đôi"
+    summary_vi: "Viết hàm đếm số lần chia đôi."
+    exercise_ref: ex_steps
+  - id: t04
+    type: text
+    md: |
+      Số lần một vòng chia đôi chạy chính là phần nguyên của log2(n) khi n >= 1.
+
+      ```text
+      count_steps(8)    -> 3   (8 -> 4 -> 2 -> 1)
+      count_steps(1000) -> 9
+      ```
+  - id: ex_steps
+    type: code_exercise
+    md: |
+      Cài `count_steps(n)`: chạy vòng `while n > 1: n //= 2` và trả về số lần thân vòng lặp thực hiện (kiểu int). Ví dụ `count_steps(8)` trả `3`, `count_steps(1)` trả `0`.
+    entry: count_steps
+    starter: |
+      def count_steps(n):
+          # TODO: đếm số lần chia đôi cho tới khi n <= 1
+          pass
+    guidance_md: |
+      - Dùng biến đếm bắt đầu từ 0.
+      - Mỗi lần n //= 2 thì cộng 1.
+    hints:
+      - level: nudge
+        md: "Cần một biến đếm và một vòng while n > 1."
+      - level: approach
+        md: "Trong vòng lặp: n //= 2 rồi tăng đếm lên 1."
+      - level: near_solution
+        md: "Trả biến đếm sau khi vòng lặp kết thúc."
+    tests:
+      - {args: [1], expected: 0}
+      - {args: [2], expected: 1}
+      - {args: [8], expected: 3}
+      - {args: [1000], expected: 9}
+      - {args: [1024], expected: 10}
+    solution: |
+      def count_steps(n):
+          count = 0
+          while n > 1:
+              n //= 2
+              count += 1
+          return count
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Vòng lồng nhân số bước (n x m), vòng chia đôi cho O(log n), vòng ngoài nhân đôi x vòng trong n cho O(n log n)."
+      - "Chi phí ẩn: x in list O(n), s += c O(n^2) tổng, insert(0, x) O(n), slice sao chép."
+      - "Giới hạn n cho biết Big-O cần: n <= 10^5 cần O(n log n), n <= 20 cho phép O(2^n); đổi list sang set/dict để x in O(1)."
+      - "Time-space trade-off, amortised append O(1), và best/average/worst case; recurrence giải bằng recursion tree hoặc Master theorem."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X879], l2: [X880], l3: [X881]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-10"
