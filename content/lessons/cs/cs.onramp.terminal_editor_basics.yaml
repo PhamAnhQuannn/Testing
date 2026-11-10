@@ -1,0 +1,189 @@
+id: cs.onramp.terminal_editor_basics
+version: 1
+status: published
+title_vi: "Terminal, trình soạn thảo/IDE và chạy chương trình"
+est_minutes: 14
+objectives_vi:
+  - "Đọc được prompt, biết thư mục hiện tại và di chuyển bằng pwd/ls/cd với đường dẫn tuyệt đối và tương đối."
+  - "Tạo, sao chép, di chuyển và xoá file/thư mục bằng touch/mkdir/cp/mv/rm, biết rm xoá hẳn không có thùng rác."
+  - "Phân biệt editor với IDE, chạy chương trình từ terminal và đọc output, exit code, argument, environment variable."
+  - "Dùng Ctrl+C, lịch sử lệnh, tab completion; biết khác biệt Git Bash/WSL với PowerShell trên Windows."
+blocks:
+  - id: s_nav
+    type: section
+    title_vi: "Terminal và điều hướng"
+    summary_vi: "Terminal là cửa sổ gõ lệnh bằng chữ; mọi lệnh đều chạy trong một thư mục hiện tại."
+  - id: t01
+    type: text
+    md: |
+      **Terminal** là cửa sổ để bạn gõ lệnh bằng chữ thay cho bấm chuột. Chương trình đọc lệnh gọi là **shell** (bash, zsh, PowerShell).
+      Dòng chờ lệnh gọi là **prompt**, thường cho biết tên người dùng, máy và thư mục hiện tại.
+
+      ```text
+      an@laptop:~/projects$ _
+      ```
+
+      Ký hiệu `~` là **thư mục home** của bạn. Mọi lệnh chạy trong một **thư mục hiện tại** (current working directory, cwd).
+
+      ```bash
+      pwd            # in thư mục hiện tại, ví dụ /home/an
+      ls             # liệt kê file trong thư mục hiện tại
+      ls -l          # liệt kê chi tiết
+      cd projects    # đi vào thư mục con projects
+      cd ..          # lên một cấp
+      cd             # về thư mục home (trên Linux/macOS)
+      ```
+
+      **Đường dẫn tuyệt đối** bắt đầu từ gốc `/` (ví dụ `/home/an/projects`) và luôn trỏ tới cùng một nơi.
+      **Đường dẫn tương đối** tính từ cwd (ví dụ `projects/app` hay `../notes`). `.` là thư mục hiện tại, `..` là thư mục cha.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Đang ở `/home/an/projects`, lệnh `cd ../notes` đưa bạn tới đâu?"
+    options:
+      - {id: a, text_md: "/home/an/notes"}
+      - {id: b, text_md: "/home/an/projects/notes"}
+      - {id: c, text_md: "/notes"}
+    answer: [a]
+    explain_md: "`..` lên một cấp thành /home/an rồi đi vào notes, ra /home/an/notes. Đường dẫn tương đối luôn tính từ cwd."
+  - id: s_files
+    type: section
+    title_vi: "Quản lý file và xem nội dung"
+    summary_vi: "Tạo, sao chép, di chuyển, xoá file; xem và tìm nội dung ngay trong terminal."
+  - id: t02
+    type: text
+    md: |
+      ```bash
+      mkdir app            # tạo thư mục app
+      touch app/bai.py     # tạo file rỗng
+      cp bai.py bak.py     # sao chép file
+      mv bak.py old.py     # đổi tên hoặc di chuyển file
+      rm old.py            # xoá file
+      rm -r app            # xoá cả thư mục (đệ quy)
+      ```
+
+      **Cẩn thận với `rm`:** nó xoá hẳn, không có thùng rác để khôi phục. Hãy kiểm tra bằng `ls` và `pwd` trước khi xoá.
+
+      Xem và tìm nội dung:
+
+      ```bash
+      cat bai.py             # in toàn bộ file
+      less log.txt           # xem từng trang (phím q để thoát)
+      grep "loi" log.txt     # in các dòng chứa chữ "loi"
+      ```
+
+      **Editor** (như VS Code, Notepad++) là chương trình để viết và sửa văn bản/code. **IDE** (như PyCharm, IntelliJ) là editor kèm
+      sẵn trình chạy, debugger, gợi ý code và quản lý dự án. Với người mới, VS Code (editor có terminal tích hợp) là lựa chọn gọn nhẹ.
+
+      **Windows:** Git Bash và WSL cho các lệnh kiểu Linux ở trên. PowerShell cũng có `ls`, `cd`, `cat`, `mkdir`, nhưng không có `touch` và `grep`;
+      thay bằng `ni bai.py` (New-Item) và `Select-String`.
+  - id: q02
+    type: quiz_mcq
+    prompt_md: "Vì sao cần cẩn thận với `rm`?"
+    options:
+      - {id: a, text_md: "Nó xoá hẳn file, không có thùng rác để khôi phục"}
+      - {id: b, text_md: "Nó chỉ di chuyển file vào thư mục ẩn"}
+      - {id: c, text_md: "Nó chỉ đổi tên file"}
+    answer: [a]
+    explain_md: "rm gỡ file khỏi hệ thống file ngay, không qua thùng rác. Luôn kiểm tra đường dẫn trước khi xoá."
+  - id: s_run
+    type: section
+    title_vi: "Chạy chương trình"
+    summary_vi: "Chạy file từ terminal, đọc output và exit code, truyền argument và environment variable."
+  - id: t03
+    type: text
+    md: |
+      Sau khi lưu file trong editor, bạn chạy nó bằng một lệnh. Điều quan trọng là phải đứng đúng thư mục (hoặc ghi đúng đường dẫn).
+
+      ```bash
+      python bai.py          # chạy chương trình Python
+      javac Bai.java         # biên dịch Java thành bytecode
+      java Bai               # chạy chương trình Java đã biên dịch
+      ```
+
+      Chương trình in ra **output** trên terminal. Khi kết thúc nó trả một **exit code**: `0` là thành công, khác `0` là lỗi. Xem bằng `echo $?`
+      (bash) hoặc `echo $LASTEXITCODE` (PowerShell). Thông báo lỗi thường nêu tên file, số dòng và loại lỗi; đọc dòng cuối của traceback trước.
+
+      **Command-line argument** là các từ viết sau tên chương trình, ví dụ `python bai.py 5 7`.
+      **Environment variable** là biến cấu hình của môi trường mà chương trình có thể đọc, ví dụ `PATH`, `HOME`.
+
+      ```bash
+      export GREETING=Hello      # bash: đặt biến môi trường
+      python bai.py An           # An là argument
+      ```
+
+      Mẹo làm việc nhanh: **Ctrl+C** dừng chương trình đang chạy, phím **mũi tên lên** gọi lại lệnh cũ, phím **Tab** tự hoàn thành tên file.
+  - id: q03
+    type: predict_output
+    code: |
+      cmd = "python bai.py 5 7"
+      parts = cmd.split()
+      print(parts[1], len(parts) - 2)
+    expected_output: |
+      bai.py 2
+    explain_md: "split tách thành ['python', 'bai.py', '5', '7']. parts[1] là bai.py; len(parts) = 4 nên 4 - 2 = 2 là số argument (5 và 7)."
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: ghép đường dẫn"
+    summary_vi: "Viết hàm ghép thư mục với tên file thành một đường dẫn."
+    exercise_ref: ex_join
+  - id: t04
+    type: text
+    md: |
+      Khi ghép đường dẫn, cần tránh hai dấu `/` liền nhau. Nếu tên đã là đường dẫn tuyệt đối (bắt đầu bằng `/`) thì nó thắng, không ghép với thư mục.
+
+      ```text
+      join_path("/home/an", "bai.py")    -> /home/an/bai.py
+      join_path("/home/an/", "bai.py")   -> /home/an/bai.py
+      join_path("/home", "/etc/hosts")   -> /etc/hosts
+      ```
+  - id: ex_join
+    type: code_exercise
+    md: |
+      Cài `join_path(base, name)`: nếu `name` bắt đầu bằng `/` thì trả luôn `name`; ngược lại trả `base` (bỏ các `/` ở cuối) nối với `/` rồi `name`.
+      Ví dụ `join_path("/home/an/", "bai.py")` trả `"/home/an/bai.py"`.
+    entry: join_path
+    starter: |
+      def join_path(base, name):
+          # TODO: name tuyệt đối thì trả name; ngược lại ghép base + "/" + name
+          pass
+    guidance_md: |
+      - `str.startswith("/")` kiểm tra đường dẫn tuyệt đối.
+      - `str.rstrip("/")` bỏ các dấu `/` ở cuối base để không bị `//`.
+    hints:
+      - level: nudge
+        md: "Xử lý trường hợp name tuyệt đối trước."
+      - level: approach
+        md: "Nếu name.startswith('/') thì return name; còn lại ghép base.rstrip('/') với '/' và name."
+      - level: near_solution
+        md: "return name nếu name bắt đầu bằng '/', ngược lại return base.rstrip('/') + '/' + name."
+    tests:
+      - {args: ["/home/user", "a.py"], expected: "/home/user/a.py"}
+      - {args: ["/home/user/", "a.py"], expected: "/home/user/a.py"}
+      - {args: ["/home", "/etc/hosts"], expected: "/etc/hosts"}
+      - {args: ["/", "x"], expected: "/x"}
+      - {args: [".", "a.py"], expected: "./a.py"}
+    solution: |
+      def join_path(base, name):
+          if name.startswith("/"):
+              return name
+          return base.rstrip("/") + "/" + name
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Một chương trình kết thúc thành công trả exit code ___."
+    blanks: [{accept: ["0", "không", "zero"]}]
+    explain_md: "Exit code 0 là thành công; khác 0 báo lỗi để script và CI phát hiện."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Terminal chạy lệnh trong thư mục hiện tại; dùng pwd/ls/cd, đường dẫn tuyệt đối bắt đầu từ / còn tương đối tính từ cwd (. và ..)."
+      - "touch/mkdir/cp/mv/rm quản lý file; rm xoá hẳn không có thùng rác. cat/less/grep để xem và tìm nội dung."
+      - "Editor để viết code, IDE thêm debugger và công cụ dự án; chạy bằng python bai.py hoặc javac + java, đọc output và exit code (0 = thành công)."
+      - "Argument truyền cho từng lần chạy, environment variable là cấu hình môi trường; Ctrl+C dừng, mũi tên lên gọi lại lệnh, Tab hoàn thành; Windows dùng Git Bash/WSL hoặc PowerShell (ni, Select-String)."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X876], l2: [X877], l3: [X878]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-10"

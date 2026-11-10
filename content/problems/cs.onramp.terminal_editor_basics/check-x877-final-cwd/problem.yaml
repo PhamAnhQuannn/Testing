@@ -1,0 +1,73 @@
+id: check-x877-final-cwd
+subtopic_id: cs.onramp.terminal_editor_basics
+secondary_subtopics: []
+kind: check
+title: 'Check X877: final working directory after cd commands'
+title_vi: 'Kiểm tra X877: thư mục hiện tại sau một chuỗi lệnh cd'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Implement `final_cwd(start, cmds)`. `start` is an absolute POSIX path (for example `"/home/user"`) and
+  `cmds` is a list of shell command strings. Only `cd` changes the working directory:
+  `"cd /abs/path"` jumps to an absolute path; `"cd name"` (relative, possibly with `/` like `"cd a/b"`) descends
+  each segment; `"cd .."` goes up one level (staying at `/` if already at the root); `"cd ."` does nothing;
+  a bare `"cd"` goes to the root `/`. Any other command (`ls`, `echo ...`) is ignored. Return the normalized
+  final path: a leading `/`, no trailing slash except for the root which is `"/"`.
+  For `start = "/home"` and `cmds = ["cd projects", "cd ..", "cd /etc", "cd .."]` the result is `"/"`.
+statement_vi_md: |
+  Cài `final_cwd(start, cmds)`. `start` là đường dẫn tuyệt đối kiểu POSIX (ví dụ `"/home/user"`), `cmds` là list
+  các chuỗi lệnh shell. Chỉ `cd` làm đổi thư mục hiện tại: `"cd /abs/path"` nhảy tới đường dẫn tuyệt đối;
+  `"cd name"` (tương đối, có thể chứa `/` như `"cd a/b"`) đi xuống từng đoạn; `"cd .."` lên một cấp (đang ở `/` thì
+  giữ nguyên); `"cd ."` không làm gì; `"cd"` trần về gốc `/`. Mọi lệnh khác (`ls`, `echo ...`) bị bỏ qua. Trả về
+  đường dẫn cuối đã chuẩn hoá: bắt đầu bằng `/`, không có `/` ở cuối trừ gốc là `"/"`. Với ví dụ trên kết quả là `"/"`.
+constraints:
+- 'start luôn là đường dẫn tuyệt đối hợp lệ'
+- 'Mỗi lệnh là một chuỗi; chỉ lệnh bắt đầu bằng token "cd" mới đổi thư mục'
+- 'Chỉ dùng thư viện chuẩn của Python'
+examples:
+- input: 'start = "/home", cmds = ["cd projects", "cd ..", "cd /etc", "cd .."]'
+  output: '"/"'
+  explain_vi: 'projects rồi lên lại /home, nhảy tới /etc, lên một cấp về gốc /.'
+- input: 'start = "/a/b", cmds = ["cd c", "ls", "cd .."]'
+  output: '"/a/b"'
+  explain_vi: 'Xuống c, ls bị bỏ qua, lên một cấp trở về /a/b.'
+io:
+  mode: function
+  entry: final_cwd
+  params:
+  - name: start
+    type: str
+  - name: cmds
+    type: list
+  returns: str
+  compare: exact
+starter:
+  python: |
+    def final_cwd(start, cmds):
+        # TODO: tách đường dẫn thành list các đoạn rồi xử lý từng lệnh cd
+        pass
+time_target_min: 6
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+hints:
+- "Lưu đường dẫn hiện tại dưới dạng list các đoạn (tách bằng /, bỏ đoạn rỗng); cuối cùng nối lại bằng '/' + '/'.join(parts)."
+- "Tách lệnh bằng split(); bỏ qua nếu token đầu không phải cd; cd trần đặt parts = []; đối số bắt đầu bằng / thì thay parts bằng các đoạn của nó."
+- "Với đối số tương đối, duyệt từng đoạn: bỏ qua '' và '.', '..' thì pop nếu parts không rỗng, còn lại append."
+solution:
+  file: solution.py
+  approach_vi: Biểu diễn đường dẫn bằng list đoạn, xử lý cd tuyệt đối, tương đối, .., . và cd trần, bỏ qua lệnh khác rồi nối lại.
+  complexity: "O(tổng độ dài lệnh) / O(độ sâu)"
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x877
+status: validated
+version: 1

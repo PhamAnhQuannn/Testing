@@ -74,6 +74,7 @@ MODULE_NAMES: dict[str, str] = {
     "py.typing_testing": "Kiểu tĩnh & kiểm thử",
     "py.concurrency": "Đồng thời",
     "py.ecosystem": "Hệ sinh thái Python",
+    "cs.onramp": "Nhập môn",
     "cs.complexity": "Độ phức tạp",
     "cs.sql": "SQL",
     "cs.databases": "Cơ sở dữ liệu",

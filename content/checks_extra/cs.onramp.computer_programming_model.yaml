@@ -1,0 +1,60 @@
+subtopic_id: cs.onramp.computer_programming_model
+items:
+  - id: X873
+    difficulty: 1
+    type: read_code
+    minutes: 3
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng.
+    code: |-
+      x = 5
+      y = x
+      x = x + 1
+      y = y * 2
+      print(x, y)
+      steps = [3, 0, 4]
+      total = 0
+      for s in steps:
+          total += s
+          print(total)
+    expected_output: "6 10\n3\n3\n7"
+    answer_md: "y = x chép giá trị 5 vào ô nhớ riêng. Sau x = 6 và y = 10 nên in 6 10. Vòng lặp cộng dồn: 3, rồi 3 + 0 = 3, rồi 3 + 4 = 7."
+    rubric_md: "Output khớp từng dòng. Đúng: bằng chứng điểm 1; sai: tối đa điểm 0."
+  - id: X874
+    difficulty: 2
+    type: write_code
+    minutes: 6
+    prompt_md: |
+      Viết hàm `run_machine(program)` mô phỏng một máy tính nhỏ chạy từng lệnh theo thứ tự (fetch-decode-execute). `program` là list các lệnh, mỗi lệnh là một list: `["set", var, val]` gán biến `var` bằng số nguyên `val`; `["add", var, src]` thực hiện `var += giá trị biến src`; `["sub", var, src]` thực hiện `var -= giá trị biến src`; `["out", var]` thêm giá trị hiện tại của `var` vào output. Biến chưa được gán đọc ra `0`. Trả về output là list số nguyên; chương trình rỗng trả `[]`. Ví dụ `run_machine([["set","x",5],["set","y",3],["add","x","y"],["out","x"]])` trả `[8]`, còn `run_machine([["out","z"]])` trả `[0]`.
+    problem_id: check-x874-run-machine
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 6 phút: bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X875
+    difficulty: 3
+    type: read_code
+    minutes: 5
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng và phân loại lỗi liên quan đến dòng thứ 3 và dòng thứ 4 của output (cú pháp, lúc chạy hay logic).
+    code: |-
+      def run(lines):
+          mem = {}
+          for line in lines:
+              name, expr = line.split("=")
+              a, op, b = expr.split()
+              va = mem.get(a, int(a) if a.isdigit() else 0)
+              vb = mem.get(b, int(b) if b.isdigit() else 0)
+              mem[name] = va + vb if op == "+" else va - vb
+          return mem
+
+
+      m = run(["x=4 + 6", "y=x - 3", "z=y + q"])
+      print(m)
+      print(sorted(m))
+      try:
+          print(10 // (m["x"] - m["z"] - 3))
+      except ZeroDivisionError:
+          print("runtime error")
+      total = 0
+      for n in [1, 2, 3]:
+          total = n
+      print("avg", total / 3)
+    expected_output: "{'x': 10, 'y': 7, 'z': 7}\n['x', 'y', 'z']\nruntime error\navg 1.0"
+    answer_md: "x = 4 + 6 = 10; y = x - 3 = 7; z = y + q với q chưa gán nên đọc 0, z = 7. Biểu thức m['x'] - m['z'] - 3 = 10 - 7 - 3 = 0 nên 10 // 0 ném ZeroDivisionError và in runtime error. Vòng lặp cuối dùng total = n thay vì total += n nên total = 3 và in avg 1.0 thay vì 2.0. Chia 0 là lỗi lúc chạy (runtime); avg sai là lỗi logic (chương trình chạy bình thường nhưng ra kết quả sai)."
+    rubric_md: "Output khớp từng dòng VÀ phân loại đúng: chia cho 0 là lỗi runtime (ném exception lúc chạy), avg 1.0 là lỗi logic (không báo lỗi nhưng sai kết quả; lỗi cú pháp thì Python từ chối chạy ngay từ đầu). Đúng: bằng chứng điểm 3; sai: tối đa điểm 2."
