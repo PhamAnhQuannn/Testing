@@ -1,0 +1,74 @@
+id: check-x871-sstf-order
+subtopic_id: cs.os.storage_devices
+secondary_subtopics: []
+kind: check
+title: 'Check X871: SSTF disk scheduling order'
+title_vi: 'Kiểm tra X871: thứ tự disk scheduling SSTF'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Implement `sstf_order(requests, head)`, a model of SSTF (shortest seek time first) disk scheduling.
+  `requests` is a list of ints: the cylinder numbers to service. `head` is an int: the current head
+  position. Repeatedly pick the pending request nearest to the current head position (smallest
+  `abs(cylinder - head)`; on a tie, the smaller cylinder), service it (the head moves there), until all
+  requests are served. Return the list of cylinders in service order. Every request is serviced once,
+  including duplicates; an empty `requests` gives `[]`.
+  For `requests = [98, 183, 37, 122, 14, 124, 65, 67]`, `head = 53` the result is
+  `[65, 67, 37, 14, 98, 122, 124, 183]`.
+statement_vi_md: |
+  Cài `sstf_order(requests, head)`, mô phỏng disk scheduling SSTF (shortest seek time first). `requests` là list số
+  nguyên: các số cylinder cần phục vụ. `head` là số nguyên: vị trí đầu đọc hiện tại. Lặp lại: chọn yêu cầu đang chờ
+  gần đầu đọc nhất (nhỏ nhất theo `abs(cylinder - head)`; nếu hòa thì chọn cylinder nhỏ hơn), phục vụ nó (đầu đọc chuyển
+  tới đó), cho đến khi phục vụ hết. Trả về list thứ tự phục vụ. Mỗi yêu cầu được phục vụ đúng một lần, kể cả giá trị
+  trùng nhau; `requests` rỗng trả `[]`. Với ví dụ trên kết quả là `[65, 67, 37, 14, 98, 122, 124, 183]`.
+constraints:
+- 'requests là list số nguyên không âm, head là số nguyên không âm'
+- 'Khi hòa khoảng cách thì chọn cylinder nhỏ hơn'
+- 'Chỉ dùng thư viện chuẩn của Python'
+examples:
+- input: 'requests = [98, 183, 37, 122, 14, 124, 65, 67], head = 53'
+  output: '[65, 67, 37, 14, 98, 122, 124, 183]'
+  explain_vi: 'Từ 53 gần nhất là 65; rồi 67; rồi 37 (cách 30, gần hơn 98 cách 31); rồi 14; rồi 98, 122, 124, 183.'
+- input: 'requests = [10, 20, 30], head = 25'
+  output: '[20, 10, 30]'
+  explain_vi: 'Từ 25, cả 20 và 30 cùng cách 5: hòa nên lấy 20. Từ 20, cả 10 và 30 cùng cách 10: hòa nên lấy 10; cuối cùng 30.'
+io:
+  mode: function
+  entry: sstf_order
+  params:
+  - name: requests
+    type: list
+  - name: head
+    type: int
+  returns: list
+  compare: exact
+starter:
+  python: |
+    def sstf_order(requests, head):
+        # TODO: lặp lại chọn yêu cầu đang chờ gần head nhất (hòa thì cylinder nhỏ hơn)
+        pass
+time_target_min: 6
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+hints:
+- "Sao chép requests thành list pending để không sửa đầu vào, và giữ biến pos là vị trí đầu đọc hiện tại."
+- "Mỗi vòng lặp chọn phần tử có khóa (abs(c - pos), c) nhỏ nhất; khóa thứ hai xử lý trường hợp hòa."
+- "Xoá phần tử đã chọn khỏi pending (pop theo chỉ số để giữ giá trị trùng), gán pos = c rồi thêm vào kết quả."
+solution:
+  file: solution.py
+  approach_vi: Giữ list pending và vị trí đầu đọc; mỗi vòng chọn yêu cầu có khóa (khoảng cách, cylinder) nhỏ nhất, phục vụ rồi cập nhật vị trí.
+  complexity: "O(n^2) / O(n)"
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x871
+status: validated
+version: 1

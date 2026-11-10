@@ -271,6 +271,9 @@ EXTRA_IDS = {
     "cs.os.memory",
     "cs.os.page_replacement",
     "cs.os.io_models",
+    # Wave 7 Round 49: cs.os C (concept, file_systems/storage_devices; closes cs.os + Wave 7).
+    "cs.os.file_systems",
+    "cs.os.storage_devices",
 }
 
 # Expected shipped counts, asserted so an upstream tree edit can't silently change the snapshot.
@@ -278,7 +281,7 @@ PLAN_MVP_COUNT = 40
 EXPECTED_SD = 86
 EXPECTED_ML4 = 39
 EXPECTED_EXTRA_IDS = len(EXTRA_IDS)  # Wave 2 additions
-EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 357
+EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 359
 
 # Node fields the app uses (SPEC 4.2); optional ones are skipped when a node lacks them.
 NODE_FIELDS = [

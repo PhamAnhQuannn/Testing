@@ -1,0 +1,186 @@
+id: cs.os.file_systems
+version: 1
+status: published
+title_vi: "Hệ thống file: inode, link, journaling, page cache"
+est_minutes: 15
+objectives_vi:
+  - "Phân biệt file, directory và inode; giải thích directory ánh xạ tên sang số inode còn inode giữ metadata và con trỏ khối dữ liệu."
+  - "So sánh hard link và soft (symbolic) link: link count, chuyện gì xảy ra khi xóa file gốc, dangling link."
+  - "Mô tả ba cách cấp phát khối cho file: contiguous, linked, indexed và đánh đổi của từng cách."
+  - "Giải thích journaling (write-ahead log) cho crash consistency, page cache/buffering và vai trò của fsync."
+blocks:
+  - id: s_model
+    type: section
+    title_vi: "File, directory và inode"
+    summary_vi: "Tên file nằm trong directory; mọi thứ còn lại (kích thước, quyền, vị trí khối dữ liệu) nằm trong inode."
+  - id: t01
+    type: text
+    md: |
+      Hệ thống file (file system) biến đĩa là một dãy khối thô thành cây thư mục và file có tên. Ba khái niệm cần phân biệt:
+
+      - **File**: dữ liệu + metadata.
+      - **Directory**: một file đặc biệt, nội dung là bảng ánh xạ **tên -> số inode**.
+      - **Inode**: cấu trúc metadata của file: kích thước, chủ sở hữu, quyền, thời gian, **link count** và các **con trỏ tới khối dữ liệu**. Inode **không chứa tên file**.
+
+      ```text
+      directory /home:   "a.txt" -> inode 12
+                         "b.txt" -> inode 12     (hai tên, cùng một inode)
+                         "c.txt" -> inode 40
+
+      inode 12: size=9000, mode=rw-r--r--, links=2, blocks=[88, 89, 90]
+      ```
+
+      Vì tên tách khỏi inode, một file có thể có nhiều tên, và đổi tên (rename) chỉ sửa directory chứ không đụng dữ liệu.
+      File chỉ bị giải phóng khi **link count về 0** (và không process nào còn mở nó).
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Tên file được lưu ở đâu?"
+    options:
+      - {id: a, text_md: "Trong directory entry (tên -> số inode), không nằm trong inode"}
+      - {id: b, text_md: "Trong inode của chính file đó"}
+      - {id: c, text_md: "Trong khối dữ liệu đầu tiên của file"}
+    answer: [a]
+    explain_md: "Directory ánh xạ tên sang số inode. Inode chỉ giữ metadata và con trỏ khối, nên một inode có thể có nhiều tên."
+  - id: t02
+    type: text
+    md: |
+      **Hard link**: thêm một tên mới trỏ cùng inode, `link count` tăng 1. Xóa một tên (`unlink`) giảm link count; dữ liệu chỉ mất khi count = 0.
+      Hard link không vượt qua ranh giới file system và thường không cho phép trên directory.
+
+      **Soft (symbolic) link**: một file riêng có inode riêng, nội dung là **chuỗi đường dẫn** tới đích. Nó có thể trỏ sang file system khác hay tới thư mục,
+      nhưng nếu đích bị xóa thì thành **dangling link** (đường dẫn trỏ vào hư vô).
+
+      ```text
+      create a          -> inode 0, links=1
+      ln a b   (hard)   -> b cũng trỏ inode 0, links=2
+      ln -s a s (soft)  -> s là file chứa chữ "a"
+      rm a              -> links=1, b vẫn đọc được; s -> "a" không còn: DANGLING
+      rm b              -> links=0, inode và dữ liệu được giải phóng
+      ```
+  - id: q02
+    type: quiz_mcq
+    prompt_md: "File có hai hard link a và b. Xóa a thì điều gì xảy ra với dữ liệu?"
+    options:
+      - {id: a, text_md: "Dữ liệu vẫn còn, truy cập được qua b; link count giảm từ 2 xuống 1"}
+      - {id: b, text_md: "Dữ liệu bị xóa vì tên gốc đã mất"}
+      - {id: c, text_md: "b trở thành dangling link"}
+    answer: [a]
+    explain_md: "Hard link ngang hàng, không có tên gốc. Chỉ khi link count về 0 thì inode mới được giải phóng. Dangling là chuyện của soft link."
+  - id: s_alloc
+    type: section
+    title_vi: "Cấp phát khối, journaling và page cache"
+    summary_vi: "Cách đặt khối dữ liệu trên đĩa, giữ hệ thống nhất quán sau crash và vì sao cần fsync."
+  - id: t03
+    type: text
+    md: |
+      **Cách cấp phát khối cho file** (block là đơn vị nhỏ nhất, ví dụ 4 KB; số khối = `ceil(size / block)`):
+
+      - **Contiguous**: file nằm trong dãy khối liền nhau. Đọc tuần tự và truy cập ngẫu nhiên nhanh, nhưng bị external fragmentation và khó lớn thêm.
+      - **Linked**: mỗi khối chứa con trỏ tới khối kế. Không phân mảnh ngoài, nhưng truy cập ngẫu nhiên chậm (phải đi từng khối); FAT là biến thể với bảng riêng.
+      - **Indexed**: inode (hoặc index block) chứa danh sách con trỏ tới các khối. Truy cập ngẫu nhiên tốt, file lớn dùng indirect block (Unix: direct, single/double/triple indirect).
+
+      ```text
+      block = 4096, file 10000 byte -> ceil(10000/4096) = 3 khối (12288), lãng phí 2288 byte ở khối cuối
+      ```
+  - id: q03
+    type: predict_output
+    code: |
+      block = 1024
+      size = 2500
+      n = -(-size // block)
+      print(n, n * block - size)
+    expected_output: |
+      3 572
+    explain_md: "2500 / 1024 làm tròn lên là 3 khối (3072 byte), phần thừa 3072 - 2500 = 572."
+  - id: t04
+    type: text
+    md: |
+      **Journaling**: một thao tác như tạo file cần sửa nhiều cấu trúc (inode, bitmap, directory). Nếu mất điện giữa chừng, metadata có thể mâu thuẫn.
+      File system ghi **write-ahead log** (journal) trước:
+
+      1. **Log**: ghi ý định thay đổi vào journal.
+      2. **Commit**: ghi bản ghi commit vào journal.
+      3. **Checkpoint**: áp dụng thay đổi vào vị trí thật, rồi giải phóng mục journal.
+
+      Sau crash: giao dịch **đã commit** nhưng chưa checkpoint thì **redo** (chạy lại); chưa commit thì bỏ qua. Nhờ đó không cần quét cả đĩa (fsck) mỗi lần khởi động.
+
+      **Page cache và buffering**: `write()` thường chỉ ghi vào page cache trong RAM và trả về ngay; kernel flush xuống đĩa sau (write-back). Nhanh, nhưng mất điện có thể mất dữ liệu chưa flush.
+      `fsync(fd)` ép dữ liệu (và metadata) của file xuống thiết bị trước khi trả về, đây là cách đảm bảo **durability**. Đổi lại, fsync chậm.
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Sau khi write() trả về thành công mà chưa gọi fsync, điều nào đúng?"
+    options:
+      - {id: a, text_md: "Dữ liệu có thể mới chỉ nằm trong page cache, mất điện có thể làm mất nó"}
+      - {id: b, text_md: "Dữ liệu chắc chắn đã nằm trên đĩa"}
+      - {id: c, text_md: "Dữ liệu đã được journaling đảm bảo bền vững tuyệt đối"}
+    answer: [a]
+    explain_md: "write chỉ đưa dữ liệu vào page cache. Journaling bảo vệ tính nhất quán của metadata, còn durability của dữ liệu cần fsync."
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: đếm link count"
+    summary_vi: "Mô phỏng link count của một inode qua chuỗi thao tác link và unlink."
+    exercise_ref: ex_links
+  - id: t05
+    type: text
+    md: |
+      Một file mới tạo có link count 1. Mỗi `link` cộng 1, mỗi `unlink` trừ 1; khi count về 0 file bị giải phóng.
+
+      ```text
+      link_count(["link", "link", "unlink"]) -> 2
+      link_count(["unlink"])                 -> 0   (file bị xóa)
+      ```
+  - id: ex_links
+    type: code_exercise
+    md: |
+      Cài `link_count(ops)`: file mới tạo có link count 1. `ops` là list chuỗi `"link"` hoặc `"unlink"`; `"link"` cộng 1, `"unlink"` trừ 1.
+      Trả về link count cuối cùng. Ví dụ `link_count(["link", "link", "unlink"])` trả `2`. Đầu vào không bao giờ unlink khi count đã là 0.
+    entry: link_count
+    starter: |
+      def link_count(ops):
+          # TODO: bắt đầu từ 1, link thì +1, unlink thì -1
+          pass
+    guidance_md: |
+      - Bắt đầu với count = 1.
+      - Duyệt từng thao tác và cập nhật count.
+    hints:
+      - level: nudge
+        md: "Dùng một biến count khởi tạo là 1."
+      - level: approach
+        md: "Với mỗi op: nếu là link thì tăng, nếu là unlink thì giảm."
+      - level: near_solution
+        md: "Trả count sau vòng lặp."
+    tests:
+      - {args: [["link", "link", "unlink"]], expected: 2}
+      - {args: [["unlink"]], expected: 0}
+      - {args: [[]], expected: 1}
+      - {args: [["link", "unlink", "unlink"]], expected: 0}
+      - {args: [["link", "link", "link"]], expected: 4}
+    solution: |
+      def link_count(ops):
+          count = 1
+          for op in ops:
+              if op == "link":
+                  count += 1
+              elif op == "unlink":
+                  count -= 1
+          return count
+  - id: q05
+    type: quiz_fill
+    prompt_md: "Để ép dữ liệu đã ghi xuống đĩa (durability) thay vì chỉ nằm trong page cache, ta gọi ___."
+    blanks: [{accept: ["fsync", "fsync()"]}]
+    explain_md: "fsync flush dữ liệu và metadata của file xuống thiết bị trước khi trả về."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Directory ánh xạ tên -> số inode; inode giữ metadata, link count và con trỏ khối, không giữ tên."
+      - "Hard link là thêm tên cùng inode (file sống đến khi link count = 0); soft link là chuỗi đường dẫn và có thể dangling."
+      - "Cấp phát khối: contiguous (nhanh nhưng phân mảnh), linked (truy cập ngẫu nhiên chậm), indexed (inode + indirect block)."
+      - "Journaling dùng write-ahead log (log, commit, checkpoint, redo sau crash); write đi qua page cache nên cần fsync để bền vững."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X867], l2: [X868], l3: [X869]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-09"
