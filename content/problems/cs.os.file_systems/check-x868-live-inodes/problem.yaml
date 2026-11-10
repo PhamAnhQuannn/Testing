@@ -1,0 +1,73 @@
+id: check-x868-live-inodes
+subtopic_id: cs.os.file_systems
+secondary_subtopics: []
+kind: check
+title: 'Check X868: live inodes with hard links'
+title_vi: 'Kiểm tra X868: đếm inode còn sống với hard link'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Implement `live_inodes(ops)`, a model of inode reference counting with hard links. `ops` is a list of
+  operations, each itself a list: `["create", name]` makes a new inode reachable by `name` with link count 1;
+  `["link", new_name, existing_name]` adds a hard link: `new_name` points to the same inode as `existing_name`
+  and that inode's link count increases by 1 (ignore the op if `existing_name` does not exist);
+  `["unlink", name]` removes `name` and decreases its inode's link count by 1; the inode is freed when the
+  count reaches 0 (ignore the op if `name` does not exist). Return the number of inodes still alive
+  (link count > 0) after all operations. An empty `ops` gives `0`.
+  For `ops = [["create","a"],["link","b","a"],["unlink","a"]]` the result is `1`.
+statement_vi_md: |
+  Cài `live_inodes(ops)`, mô phỏng đếm tham chiếu của inode với hard link. `ops` là list các thao tác, mỗi thao tác
+  là một list: `["create", name]` tạo inode mới truy cập được qua `name`, link count = 1;
+  `["link", new_name, existing_name]` thêm hard link: `new_name` trỏ cùng inode với `existing_name`, link count của
+  inode tăng 1 (bỏ qua nếu `existing_name` không tồn tại); `["unlink", name]` xóa tên `name`, link count của inode
+  giảm 1, inode được giải phóng khi count về 0 (bỏ qua nếu `name` không tồn tại). Trả về số inode còn sống
+  (link count > 0) sau mọi thao tác; `ops` rỗng trả `0`. Với ví dụ trên kết quả là `1`.
+constraints:
+- 'Mỗi phần tử của ops là list bắt đầu bằng "create", "link" hoặc "unlink"'
+- 'Tên là chuỗi; một tên có thể được tạo lại sau khi đã unlink'
+- 'Chỉ dùng thư viện chuẩn của Python'
+examples:
+- input: 'ops = [["create", "a"], ["link", "b", "a"], ["unlink", "a"]]'
+  output: '1'
+  explain_vi: 'Inode có link count 2 sau khi link, unlink a còn 1 nên vẫn sống qua tên b.'
+- input: 'ops = [["create", "a"], ["unlink", "a"]]'
+  output: '0'
+  explain_vi: 'Link count về 0 nên inode bị giải phóng.'
+io:
+  mode: function
+  entry: live_inodes
+  params:
+  - name: ops
+    type: list
+  returns: int
+  compare: exact
+starter:
+  python: |
+    def live_inodes(ops):
+        # TODO: giữ ánh xạ tên -> inode và link count của từng inode
+        pass
+time_target_min: 6
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+hints:
+- "Dùng hai dict: name_to_inode (tên -> id inode) và ref (id inode -> link count)."
+- "create gán id mới với ref = 1; link bỏ qua nếu tên gốc vắng, ngược lại trỏ tên mới vào cùng inode và ref += 1; unlink bỏ qua nếu tên vắng, ngược lại pop tên và ref -= 1."
+- "Kết quả là số inode có ref > 0; mỗi lần create dùng id mới nên tạo lại tên sau unlink là inode khác."
+solution:
+  file: solution.py
+  approach_vi: Giữ ánh xạ tên sang inode và link count từng inode, xử lý create/link/unlink rồi đếm inode có count lớn hơn 0.
+  complexity: "O(n) / O(n)"
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x868
+status: validated
+version: 1

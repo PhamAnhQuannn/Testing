@@ -1,0 +1,61 @@
+subtopic_id: cs.os.storage_devices
+items:
+  - id: X870
+    difficulty: 1
+    type: read_code
+    minutes: 3
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng.
+    code: |-
+      head = 50
+      reqs = [60, 40, 90]
+      total = 0
+      for r in reqs:
+          d = abs(r - head)
+          total += d
+          head = r
+          print(r, d)
+      print(total)
+    expected_output: "60 10\n40 20\n90 50\n80"
+    answer_md: "Từ 50 tới 60 là 10; từ 60 tới 40 là 20; từ 40 tới 90 là 50. Tổng quãng đường FCFS là 10 + 20 + 50 = 80."
+    rubric_md: "Output khớp từng dòng. Đúng: bằng chứng điểm 1; sai: tối đa điểm 0."
+  - id: X871
+    difficulty: 2
+    type: write_code
+    minutes: 6
+    prompt_md: |
+      Viết hàm `sstf_order(requests, head)` mô phỏng disk scheduling SSTF (shortest seek time first). `requests` là list số nguyên: các số cylinder cần phục vụ. `head` là số nguyên: vị trí đầu đọc hiện tại. Lặp lại: chọn yêu cầu **đang chờ** gần đầu đọc nhất (nhỏ nhất theo `abs(cylinder - head)`; nếu hòa thì chọn cylinder **nhỏ hơn**), phục vụ nó (đầu đọc chuyển tới đó), cho đến khi phục vụ hết. Trả về list thứ tự phục vụ. Mỗi yêu cầu được phục vụ đúng một lần, kể cả giá trị trùng nhau; `requests` rỗng trả `[]`. Ví dụ `sstf_order([98,183,37,122,14,124,65,67], 53)` cho `[65, 67, 37, 14, 98, 122, 124, 183]`, và `sstf_order([10,20,30], 25)` cho `[20, 10, 30]` (25 cách 20 và 30 đều 5, hòa nên lấy 20; từ 20, hai yêu cầu 10 và 30 cùng cách 10, hòa nên lấy 10).
+    problem_id: check-x871-sstf-order
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 6 phút: bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X872
+    difficulty: 3
+    type: read_code
+    minutes: 5
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng và giải thích vì sao SSTF cho tổng quãng đường nhỏ hơn FCFS nhưng vẫn có rủi ro gì (khái niệm gì).
+    code: |-
+      def total(order, head):
+          t = 0
+          for c in order:
+              t += abs(c - head)
+              head = c
+          return t
+
+
+      def sstf(reqs, head):
+          pending = list(reqs)
+          out = []
+          while pending:
+              nxt = min(pending, key=lambda c: abs(c - head))
+              pending.remove(nxt)
+              out.append(nxt)
+              head = nxt
+          return out
+
+
+      reqs = [98, 183, 37, 122, 14, 124, 65, 67]
+      order = sstf(reqs, 53)
+      print(order)
+      print(total(reqs, 53))
+      print(total(order, 53))
+    expected_output: "[65, 67, 37, 14, 98, 122, 124, 183]\n640\n236"
+    answer_md: "SSTF từ 53 đi 65 (12), 67 (2), 37 (30), 14 (23), 98 (84), 122 (24), 124 (2), 183 (59): tổng 236. FCFS theo thứ tự đến: 45 + 85 + 146 + 85 + 108 + 110 + 59 + 2 = 640. SSTF tham lam chọn yêu cầu gần nhất nên đầu đọc ít nhảy qua lại, nhưng có thể gây starvation: yêu cầu ở xa bị bỏ đói nếu liên tục có yêu cầu mới ở gần. SCAN/C-SCAN tránh được điều này."
+    rubric_md: "Output khớp từng dòng VÀ giải thích đúng: SSTF giảm seek nhưng có thể starvation yêu cầu ở xa (SCAN/C-SCAN công bằng hơn). Đúng: bằng chứng điểm 3; sai: tối đa điểm 2."

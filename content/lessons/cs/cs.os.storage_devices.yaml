@@ -1,0 +1,193 @@
+id: cs.os.storage_devices
+version: 1
+status: published
+title_vi: "Thiết bị lưu trữ: HDD, SSD, disk scheduling, RAID"
+est_minutes: 14
+objectives_vi:
+  - "So sánh HDD (seek, rotational latency) với SSD (NAND flash, erase-before-write, wear leveling, TRIM)."
+  - "Mô tả các thuật toán disk scheduling FCFS, SSTF, SCAN, C-SCAN và đánh đổi giữa hiệu năng với công bằng (starvation)."
+  - "Tính dung lượng khả dụng và khả năng chịu lỗi của RAID 0, 1, 5, 6, 10."
+  - "Tính tổng quãng đường đầu đọc di chuyển để so sánh các chính sách lập lịch đĩa."
+blocks:
+  - id: s_devices
+    type: section
+    title_vi: "HDD và SSD"
+    summary_vi: "HDD tốn thời gian cơ học để di chuyển đầu đọc; SSD không có phần chuyển động nhưng có luật ghi riêng."
+  - id: t01
+    type: text
+    md: |
+      **HDD** (hard disk drive) gồm các **platter** quay quanh một trục. Mỗi mặt platter chia thành các **track** (vòng tròn đồng tâm),
+      mỗi track chia thành các **sector** (đơn vị nhỏ nhất, thường 512 B hoặc 4 KB). Các track cùng bán kính trên mọi platter tạo thành một **cylinder**.
+
+      Thời gian một lần truy cập HDD gồm ba phần:
+
+      - **Seek time**: đưa đầu đọc tới đúng cylinder (vài ms, phần đắt nhất).
+      - **Rotational latency**: chờ sector quay tới dưới đầu đọc (trung bình nửa vòng quay).
+      - **Transfer time**: đọc/ghi dữ liệu thực sự.
+
+      ```text
+      access time = seek + rotational latency + transfer
+      Đọc tuần tự: ít seek -> nhanh.   Đọc ngẫu nhiên: seek liên tục -> chậm.
+      ```
+
+      Vì seek đắt nên OS **sắp xếp thứ tự các yêu cầu I/O** (disk scheduling) để giảm quãng đường đầu đọc di chuyển.
+  - id: t02
+    type: text
+    md: |
+      **SSD** lưu dữ liệu trong chip **NAND flash**, không có phần cơ học nên **không có seek và rotational latency**; truy cập ngẫu nhiên nhanh hơn HDD rất nhiều.
+      Đổi lại, flash có luật riêng:
+
+      - Dữ liệu ghi theo **page** (vài KB) nhưng chỉ xoá được theo **block** (nhiều page).
+      - **Erase-before-write**: không ghi đè tại chỗ; phải xoá block rồi mới ghi lại. Controller ghi page mới vào chỗ khác và đánh dấu bản cũ là rác.
+      - Mỗi ô nhớ chịu được số lần xoá hữu hạn, nên controller dùng **wear leveling** để dàn đều số lần xoá giữa các block.
+      - **TRIM**: OS báo cho SSD biết block nào file system đã bỏ, để garbage collection dọn trước và không phải copy dữ liệu vô ích.
+
+      Vì SSD không có seek, các thuật toán disk scheduling theo vị trí đầu đọc gần như không còn ý nghĩa với SSD; chúng dành cho HDD.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Vì sao SSD không thể ghi đè trực tiếp lên một page đã có dữ liệu?"
+    options:
+      - {id: a, text_md: "Flash chỉ xoá được theo block, nên phải xoá (erase) trước khi ghi lại (erase-before-write); controller ghi bản mới sang chỗ khác"}
+      - {id: b, text_md: "Vì đầu đọc SSD quá chậm"}
+      - {id: c, text_md: "Vì SSD có cylinder và sector cố định"}
+    answer: [a]
+    explain_md: "Page ghi được, nhưng xoá phải theo block. Do đó SSD cần wear leveling, garbage collection và TRIM để quản lý các page cũ."
+  - id: s_sched
+    type: section
+    title_vi: "Disk scheduling"
+    summary_vi: "Chọn thứ tự phục vụ yêu cầu để giảm tổng quãng đường seek, nhưng phải cân nhắc công bằng."
+  - id: t03
+    type: text
+    md: |
+      Giả sử các yêu cầu là số cylinder và đầu đọc đang ở vị trí `head`. Chi phí gần đúng là **tổng quãng đường** `|c - head|` cộng dồn khi đầu đọc nhảy từ yêu cầu này sang yêu cầu kế.
+
+      - **FCFS** (first come first served): phục vụ theo thứ tự đến. Công bằng, đơn giản, nhưng đầu đọc nhảy qua lại nhiều.
+      - **SSTF** (shortest seek time first): luôn chọn yêu cầu gần đầu đọc nhất. Giảm quãng đường mạnh, nhưng có thể gây **starvation**: yêu cầu ở xa bị bỏ đói nếu liên tục có yêu cầu mới ở gần.
+      - **SCAN** (thuật toán thang máy): đầu đọc quét về một phía, phục vụ mọi yêu cầu trên đường, chạm cuối đĩa thì quay đầu. Không bị bỏ đói, hiệu năng tốt.
+      - **C-SCAN**: chỉ phục vụ khi quét theo một chiều; tới cuối thì nhảy về đầu bên kia rồi quét tiếp. Thời gian chờ đồng đều hơn SCAN.
+
+      ```text
+      head = 53, yêu cầu = 98 183 37 122 14 124 65 67
+      FCFS tổng = 640 cylinder
+      SSTF thứ tự = 65 67 37 14 98 122 124 183, tổng = 236
+      ```
+
+      Nhận xét: SSTF giảm hơn 60% quãng đường so với FCFS trong ví dụ này, nhưng không có bảo đảm công bằng.
+  - id: q02
+    type: quiz_mcq
+    prompt_md: "Nhược điểm chính của SSTF là gì?"
+    options:
+      - {id: a, text_md: "Có thể gây starvation cho các yêu cầu ở xa đầu đọc"}
+      - {id: b, text_md: "Luôn cho tổng quãng đường lớn hơn FCFS"}
+      - {id: c, text_md: "Chỉ chạy được trên SSD"}
+    answer: [a]
+    explain_md: "SSTF tham lam theo khoảng cách nên yêu cầu xa có thể chờ mãi nếu liên tục có yêu cầu gần. SCAN/C-SCAN tránh điều này."
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: tổng quãng đường FCFS"
+    summary_vi: "Tính tổng số cylinder đầu đọc di chuyển khi phục vụ theo thứ tự đến."
+    exercise_ref: ex_seek
+  - id: t04
+    type: text
+    md: |
+      Tổng quãng đường FCFS là cộng `abs(c - head)` rồi cập nhật `head = c` sau mỗi yêu cầu.
+
+      ```text
+      total_seek([60, 40, 90], 50)
+      50 -> 60: 10,  60 -> 40: 20,  40 -> 90: 50   => 80
+      ```
+  - id: ex_seek
+    type: code_exercise
+    md: |
+      Cài `total_seek(requests, head)`: phục vụ các yêu cầu đúng theo thứ tự trong list (FCFS), trả về tổng quãng đường đầu đọc di chuyển. Danh sách rỗng trả `0`.
+      Ví dụ `total_seek([60, 40, 90], 50)` trả `80`.
+    entry: total_seek
+    starter: |
+      def total_seek(requests, head):
+          # TODO: cộng abs(c - head) cho từng yêu cầu rồi cập nhật head
+          pass
+    guidance_md: |
+      - Sau mỗi yêu cầu, vị trí đầu đọc là cylinder vừa phục vụ.
+      - Không sắp xếp lại yêu cầu: FCFS giữ nguyên thứ tự.
+    hints:
+      - level: nudge
+        md: "Giữ một biến total và cập nhật head sau mỗi yêu cầu."
+      - level: approach
+        md: "Với mỗi c trong requests: total += abs(c - head); head = c."
+      - level: near_solution
+        md: "Duyệt requests theo thứ tự, cộng khoảng cách tới head hiện tại rồi gán head = c, cuối cùng trả total."
+    tests:
+      - {args: [[], 5], expected: 0}
+      - {args: [[60, 40, 90], 50], expected: 80}
+      - {args: [[10], 10], expected: 0}
+      - {args: [[98, 183, 37, 122, 14, 124, 65, 67], 53], expected: 640}
+      - {args: [[5, 1], 3], expected: 6}
+    solution: |
+      def total_seek(requests, head):
+          total = 0
+          for c in requests:
+              total += abs(c - head)
+              head = c
+          return total
+  - id: s_raid
+    type: section
+    title_vi: "RAID"
+    summary_vi: "Ghép nhiều đĩa để tăng tốc độ hoặc chịu lỗi; mỗi cấp RAID đánh đổi dung lượng, an toàn và hiệu năng."
+  - id: t05
+    type: text
+    md: |
+      **RAID** (redundant array of independent disks) ghép `n` đĩa cùng dung lượng `s` thành một đĩa logic.
+
+      | Cấp | Cách làm | Dung lượng khả dụng | Chịu hỏng |
+      |---|---|---|---|
+      | RAID 0 | **striping**, chia dữ liệu xen kẽ | `n * s` | 0 đĩa (một đĩa hỏng là mất hết) |
+      | RAID 1 | **mirroring**, ghi trùng | `s` (với 2 đĩa) | n - 1 đĩa |
+      | RAID 5 | striping + **parity phân tán** | `(n - 1) * s` (n >= 3) | 1 đĩa |
+      | RAID 6 | striping + **parity kép** | `(n - 2) * s` (n >= 4) | 2 đĩa |
+      | RAID 10 | **stripe của các cặp mirror** | `n / 2 * s` (n chẵn >= 4) | 1 đĩa mỗi cặp |
+
+      Parity là XOR của các khối dữ liệu cùng stripe, nên khi một đĩa hỏng có thể tính lại khối bị mất từ các khối còn lại.
+
+      ```text
+      4 đĩa 2 TB:   RAID 0 = 8 TB,  RAID 5 = 6 TB,  RAID 6 = 4 TB,  RAID 10 = 4 TB
+      ```
+
+      Đánh đổi: RAID 0 nhanh nhất nhưng không an toàn; RAID 5/6 tiết kiệm dung lượng nhưng ghi chậm hơn vì phải cập nhật parity; RAID 10 ghi nhanh và an toàn nhưng tốn một nửa dung lượng. RAID không thay thế backup (xoá nhầm hay ransomware vẫn nhân bản trên mọi đĩa).
+  - id: q03
+    type: predict_output
+    code: |
+      disks = 5
+      size = 4
+      print((disks - 1) * size)
+    expected_output: |
+      16
+    explain_md: "RAID 5 dùng một đĩa dung lượng cho parity nên khả dụng (5 - 1) * 4 = 16."
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Cấp RAID nào chịu được hỏng đồng thời bất kỳ 2 đĩa?"
+    options:
+      - {id: a, text_md: "RAID 6 (parity kép)"}
+      - {id: b, text_md: "RAID 0"}
+      - {id: c, text_md: "RAID 5"}
+    answer: [a]
+    explain_md: "RAID 6 giữ hai parity độc lập nên sống sót khi mất 2 đĩa bất kỳ. RAID 5 chỉ chịu 1 đĩa, RAID 0 không chịu đĩa nào."
+  - id: q05
+    type: quiz_fill
+    prompt_md: "SSD không có thời gian ___ vì không có đầu đọc cơ học di chuyển giữa các cylinder."
+    blanks: [{accept: ["seek", "tìm", "seek time"]}]
+    explain_md: "Seek time là thời gian đưa đầu đọc tới cylinder, chỉ có ở HDD."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "HDD tốn seek + rotational latency + transfer; SSD dùng NAND flash, không có seek nhưng bị ràng buộc erase-before-write, cần wear leveling và TRIM."
+      - "Disk scheduling: FCFS công bằng nhưng tốn quãng đường; SSTF ngắn nhưng có thể starvation; SCAN/C-SCAN quét một chiều và công bằng hơn."
+      - "Tổng quãng đường là tổng abs(c - head) với head cập nhật sau mỗi yêu cầu."
+      - "RAID 0 tăng tốc không dự phòng, RAID 1 mirror, RAID 5 chịu 1 đĩa, RAID 6 chịu 2 đĩa, RAID 10 là stripe của các cặp mirror; RAID không thay thế backup."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X870], l2: [X871], l3: [X872]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-09"
