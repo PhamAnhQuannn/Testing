@@ -1,0 +1,69 @@
+subtopic_id: eng.testing_quality.code_review
+items:
+  - id: E130
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      **Code review** là gì và mục đích chính là gì? Nêu ba điều bạn nên kiểm tra đầu tiên khi review
+      một PR, và một loại việc nên để **linter** làm thay.
+    answer_md: |
+      - **Code review** là đọc thay đổi của người khác (thường là PR) trước khi gộp để tìm lỗi, góp ý
+        và để cả nhóm hiểu thay đổi.
+      - Kiểm tra trước: **correctness** (code có làm đúng không), **edge cases/error handling**
+        (rỗng, null, lỗi), và **tests** (có test cho hành vi mới và trường hợp biên không).
+      - Việc nên để máy làm: định dạng, thụt lề, thứ tự import (**linter/formatter** trong CI).
+    rubric_md: "Đạt khi nêu đúng: review = đọc PR trước khi gộp để tìm lỗi; ba điều gồm correctness, edge cases (hoặc error handling), tests; và style/format giao cho linter. Đủ ý: bằng chứng điểm 1. Chỉ nói về style/đặt tên mà bỏ qua correctness và tests: điểm 0."
+  - id: E131
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Bạn review PR "thêm hàm đăng nhập" và thấy bốn vấn đề: (1) câu SQL được nối chuỗi từ input của
+      người dùng; (2) không có test nào cho hàm mới; (3) dòng 30 có hai dấu cách thừa; (4) tên biến
+      `tmp` khó hiểu. Hãy **xếp thứ tự ưu tiên** và gắn nhãn **blocker** hoặc **nit** cho từng vấn đề.
+      Sau đó **viết lại** comment cộc lốc "Code này dở, viết lại đi" cho vấn đề (1) thành một góp ý
+      tử tế, cụ thể.
+    answer_md: |
+      **Thứ tự:**
+      1. Nối chuỗi SQL từ input: lỗ hổng **SQL injection**, **blocker** (security + correctness).
+      2. Thiếu test: **blocker** (hoặc ít nhất phải sửa trước khi gộp), vì không ai chứng minh được hàm đúng.
+      3. Tên biến `tmp`: **nit** (readability), sửa nếu tiện.
+      4. Dấu cách thừa: **nit** và nên để linter/formatter tự xử lý, không cần comment tay.
+
+      **Viết lại comment:** "Ở dòng 12, câu SQL đang nối trực tiếp `username` từ người dùng, nên có thể
+      bị SQL injection (ví dụ nhập `' OR '1'='1`). Bạn dùng truy vấn có tham số (parameterized query)
+      được không? Mình nghĩ nên thêm một test cho input có dấu nháy nữa. (blocker)"
+    rubric_md: "Đạt khi: đặt injection (security) và thiếu test lên trước và gắn blocker; style/dấu cách và tên biến là nit, nêu được linter lo định dạng; comment viết lại có đủ ba yếu tố: cụ thể (dòng/lý do), gợi ý cách sửa (parameterized query), giọng tôn trọng (hỏi/gợi ý, không nhắm vào người). Đủ cả hai phần trong time-box: bằng chứng điểm 2. Xếp style trên security hoặc comment viết lại vẫn cộc lốc: tối đa điểm 1."
+  - id: E132
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      Một đồng nghiệp gửi PR 1500 dòng: thêm tính năng giảm giá, đổi tên trường `price` thành `unit_price`
+      trong một API đang có client dùng, sửa luôn định dạng nhiều file, và chỉ có một test cho trường hợp
+      bình thường. Hãy mô tả bạn sẽ **review thế nào**: (a) bạn đề nghị gì về kích thước PR, (b) những rủi
+      ro chính cần chỉ ra và mức độ (blocker hay nit), (c) bạn sẽ kiểm tra những edge case và test nào,
+      (d) bạn phrase phần phản hồi tổng thể ra sao. Đồng thời nêu bạn sẽ làm gì nếu là **author** để PR dễ
+      review hơn.
+    answer_md: |
+      **(a) Kích thước:** đề nghị **tách** thành các PR nhỏ: một PR cho tính năng giảm giá, một PR riêng
+      cho việc đổi tên trường, một PR (hoặc commit) riêng cho format hàng loạt; PR nhỏ review kỹ hơn và
+      rollback dễ hơn.
+
+      **(b) Rủi ro:** đổi `price` thành `unit_price` trong API đang dùng có thể **làm vỡ client** (vi phạm
+      backward compatibility): **blocker**, nên thêm trường mới và giữ trường cũ một thời gian. Chỉ một
+      test cho trường hợp bình thường: **blocker** vì thiếu bao phủ. Format hàng loạt làm nhiễu diff, che
+      thay đổi thật: nên tách, mức **nit**/quy trình.
+
+      **(c) Edge case/test:** giảm giá 0%, 100%, lớn hơn 100%, số âm, giá làm tròn, danh sách rỗng,
+      cộng dồn nhiều mã giảm; test phải **thất bại** khi logic sai (assert thật sự), kiểm tra cả lỗi.
+
+      **(d) Phản hồi:** mở bằng điều tốt, rồi nêu vấn đề cụ thể, ghi nhãn blocker/nit, hỏi và gợi ý thay vì
+      ra lệnh. Ví dụ: "Cảm ơn bạn, ý tưởng giảm giá rất rõ. PR hơi lớn nên mình khó review kỹ, bạn tách
+      giúp mình được không? Riêng việc đổi `price` thành `unit_price` có thể làm vỡ client cũ, mình nghĩ
+      nên giữ cả hai trường tạm thời (blocker)."
+
+      **Với vai author:** giữ PR nhỏ, viết mô tả (làm gì, vì sao, cách test), tự review diff trước khi
+      mời người khác, và trả lời mọi comment.
+    rubric_md: "Đạt mức 3 khi: (a) đề nghị tách PR nhỏ, tách format khỏi logic; (b) chỉ ra đổi tên trường API có thể làm vỡ client và thiếu test là blocker, xếp style/format là nit; (c) nêu được ít nhất 3 edge case hợp lý và test phải thật sự kiểm tra kết quả; (d) phản hồi tôn trọng, cụ thể, có gợi ý, có khen, có nhãn blocker/nit; và nêu được việc author nên làm (PR nhỏ, mô tả, tự review, trả lời comment). Đủ cả năm trong time-box: bằng chứng điểm 3. Thiếu phần backward compatibility hoặc blocker/nit, hoặc phản hồi gay gắt: chưa đạt mức 3."

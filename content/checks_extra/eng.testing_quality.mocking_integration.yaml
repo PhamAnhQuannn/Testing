@@ -1,0 +1,63 @@
+subtopic_id: eng.testing_quality.mocking_integration
+items:
+  - id: E121
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Phân biệt ngắn gọn **stub**, **mock**, **fake** và **spy**. Vì sao khi test ta thường dùng
+      chúng thay cho phụ thuộc thật?
+    answer_md: |
+      - **Stub**: trả **đáp án định sẵn**, không kiểm tra cuộc gọi.
+      - **Mock**: kiểm tra **tương tác** (có được gọi không, mấy lần, với tham số gì).
+      - **Fake**: bản cài đặt **chạy thật nhưng đơn giản**, ví dụ database in-memory.
+      - **Spy**: **ghi lại** các cuộc gọi để kiểm tra sau.
+      - Dùng double để **cô lập** code khỏi phụ thuộc chậm, tốn tiền hoặc không tất định (mạng, đồng
+        hồ, DB, API ngoài), giúp test nhanh và ổn định.
+    rubric_md: "Đạt khi nêu đúng vai trò của ít nhất stub (đáp án định sẵn), mock (kiểm tra tương tác), fake (bản chạy thật đơn giản) và lý do cô lập khỏi phụ thuộc chậm/không ổn định. Đủ ý: bằng chứng điểm 1; nhầm mock với fake hoặc không nêu lý do: điểm 0."
+  - id: E122
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Chọn **stub, mock, fake hay integration test** cho từng tình huống và giải thích ngắn:
+      (1) hàm `tinh_gia` gọi API tỷ giá bên ngoài, cần test với tỷ giá cố định;
+      (2) kiểm tra `dat_hang` có gọi `mailer.send` đúng một lần;
+      (3) service lưu và đọc đơn hàng, muốn test nhanh mà vẫn có hành vi lưu/đọc thật;
+      (4) endpoint `POST /orders` thật sự ghi vào database và trả `201`.
+    answer_md: |
+      1. **Stub** cho API tỷ giá: trả đáp án định sẵn, test không phụ thuộc mạng.
+      2. **Mock** (hoặc spy) cho `mailer`: kiểm tra tương tác (`assert_called_once_with`).
+      3. **Fake** repository (ví dụ lưu bằng `dict` hoặc DB in-memory): có logic lưu/đọc thật nhưng nhanh.
+      4. **Integration test**: gọi endpoint bằng test client với database thử thật (SQLite in-memory
+         hoặc Testcontainers), kiểm tra cả status code lẫn dữ liệu đã ghi. Mock database ở đây sẽ
+         không chứng minh được việc ghi thật.
+    rubric_md: "Đạt khi chọn đúng cả 4: stub cho đáp án cố định, mock/spy cho kiểm tra cuộc gọi, fake cho bản lưu trữ chạy thật đơn giản, integration cho endpoint + DB thật, kèm lý do. Đúng 4/4 có lý do: bằng chứng điểm 2. Chọn mock cho (4) hoặc dùng stub cho (2): tối đa điểm 1."
+  - id: E123
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      Một service `OrderService` dùng `OrderRepository` (SQL) và `PaymentClient` (API thanh toán bên
+      ngoài). Team mock **cả hai** trong mọi test, test đều xanh nhưng sau deploy việc lưu đơn bị
+      lỗi. Giải thích nguyên nhân (over-mocking), đề xuất chiến lược test hợp lý (cái nào dùng
+      double, cái nào chạy thật, cần integration test nào), và nêu khi nào **không** nên mock. Nhắc
+      tới dependency injection và chi phí của E2E.
+    answer_md: |
+      **Nguyên nhân:** mock repository chỉ trả giá trị định sẵn nên test chỉ kiểm tra "code gọi mock
+      đúng như đã viết", không chạy câu SQL hay schema thật. SQL sai/schema lệch không bị bắt =>
+      **over-mocking** làm test xanh giả.
+
+      **Chiến lược:**
+      - Logic nghiệp vụ trong `OrderService`: unit test, truyền phụ thuộc qua **dependency injection**.
+      - `PaymentClient` (bên ngoài, tốn tiền, không tất định): **stub** cho đáp án và **mock** để
+        kiểm tra đã gọi đúng tham số; không gọi thật trong CI.
+      - `OrderRepository` (code của mình): dùng **fake** (in-memory) cho unit test nhanh, và thêm
+        **integration test** với DB thật (SQLite hoặc Testcontainers) cho SQL/schema, dọn dữ liệu
+        bằng rollback sau mỗi test.
+      - Vài integration test cho endpoint (test client) đi qua service tới DB thật; chỉ ít **E2E**
+        vì chậm và dễ flaky.
+
+      **Khi không nên mock:** với code/DB của chính mình, hoặc khi mock phải sao chép gần hết logic
+      thật; mock quá nhiều cũng làm test vỡ khi refactor dù hành vi không đổi.
+    rubric_md: "Đạt mức 3 khi: (a) giải thích đúng over-mocking (test chỉ kiểm tra mock, không bắt lỗi tích hợp thật); (b) phân vai đúng: stub/mock cho dịch vụ ngoài, fake hoặc DB thật cho repository; (c) đề xuất integration test cho SQL/endpoint với DB thật và dọn dữ liệu; (d) nêu khi nào không nên mock, nhắc DI và chi phí/flaky của E2E. Đủ cả bốn trong time-box: bằng chứng điểm 3. Đề xuất mock mọi thứ hoặc bỏ unit test hoàn toàn: chưa đạt mức 3."

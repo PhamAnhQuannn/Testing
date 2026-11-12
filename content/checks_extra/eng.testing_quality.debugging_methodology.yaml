@@ -1,0 +1,62 @@
+subtopic_id: eng.testing_quality.debugging_methodology
+items:
+  - id: E127
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Vì sao khi debug phải **tái hiện (reproduce)** lỗi trước khi sửa, và vì sao mỗi lần chỉ nên đổi
+      **một thứ**?
+    answer_md: |
+      - **Reproduce** cho ta một bước kiểm tra ổn định: sau khi sửa, chạy lại để biết lỗi đã hết thật
+        hay chỉ là "tình cờ không xuất hiện".
+      - Đổi **một thứ mỗi lần** để biết chính xác thay đổi nào làm lỗi biến mất (hoặc xấu đi); đổi
+        nhiều thứ cùng lúc thì không kết luận được và dễ sinh bug mới.
+    rubric_md: "Đạt khi nêu đủ hai ý: (1) tái hiện để kiểm chứng bản sửa/biết lỗi có thật hết; (2) đổi một biến mỗi lần để xác định nguyên nhân. Chỉ nêu một ý hoặc nói chung chung 'cho chắc': điểm 0. Đủ hai ý: bằng chứng điểm 1."
+  - id: E128
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Bug report: "Chức năng tính tổng giỏ hàng trả sai số từ tuần trước; hôm qua vẫn đúng." Hãy
+      **sắp xếp các bước debug theo thứ tự** bạn sẽ làm, và nêu **công cụ thu hẹp** phù hợp để tìm ra
+      thay đổi gây lỗi trong 150 commit gần đây. Sau khi sửa, bạn làm gì để lỗi không quay lại?
+    answer_md: |
+      1. **Reproduce**: tìm giỏ hàng cụ thể cho kết quả sai, rút gọn còn ít món nhất mà vẫn sai (và ghi
+         kết quả đúng mong đợi).
+      2. **Đọc** error/stack trace và log nếu có; kiểm tra deploy/config gần đây.
+      3. **Thu hẹp** bằng `git bisect`: đánh dấu commit hôm qua là good, bản hiện tại là bad; kiểm tra
+         từng commit git đưa ra (khoảng 7-8 bước cho 150 commit) đến khi ra **commit đầu tiên gây lỗi**.
+      4. Đọc diff của commit đó, đặt **giả thuyết** về nguyên nhân, đổi **một thứ** và kiểm chứng bằng
+         bước tái hiện.
+      5. Sửa **nguyên nhân gốc** (không chỉ che kết quả sai).
+      6. Thêm **regression test** dùng giỏ hàng ở bước 1 (fail trước khi sửa, pass sau khi sửa).
+    rubric_md: "Đạt khi: (a) tái hiện lỗi trước tiên; (b) dùng git bisect (hoặc chia đôi tương đương) để thu hẹp commit; (c) giả thuyết rồi kiểm chứng từng thay đổi một; (d) sửa nguyên nhân gốc; (e) thêm regression test. Đúng thứ tự và đủ (a),(b),(e): bằng chứng điểm 2. Nhảy thẳng vào sửa code khi chưa tái hiện, hoặc không nhắc regression test: tối đa điểm 1."
+  - id: E129
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      Một API đôi khi trả kết quả sai chỉ khi có nhiều request đến cùng lúc, và bạn không tái hiện
+      được trên máy mình. Nêu cách tiếp cận có hệ thống: làm sao tăng khả năng tái hiện, những lớp bug
+      nào bạn nghi ngờ (ít nhất ba, kể cả mutable default argument và race condition), cách cô lập
+      client/server, và vì sao "thêm `try/except` bỏ qua lỗi" là sửa triệu chứng.
+    answer_md: |
+      **Tái hiện:** viết script gửi nhiều request song song (hoặc test đồng thời) với cùng dữ liệu,
+      thêm log có **timestamp/request id** để nhìn thứ tự thực thi; so sánh môi trường (config, phiên bản,
+      dữ liệu) vì "works on my machine".
+
+      **Nghi ngờ (theo lớp bug):**
+      - **Race condition/lost update**: hai request đọc-sửa-ghi cùng dữ liệu; sửa bằng lock, giao dịch
+        (transaction), cập nhật nguyên tử.
+      - **Shared state / mutable default argument**: biến global hoặc list/dict mặc định dùng chung giữa
+        các request nên dữ liệu request này rò sang request khác.
+      - **Cache cũ (stale cache)** hoặc async quên `await`; ngoài ra có thể là type coercion/timezone.
+
+      **Cô lập:** dùng `curl`/Postman gọi thẳng API để loại trừ client; xem tab Network để biết request
+      gửi gì; xem log server theo request id.
+
+      **Vì sao try/except là sửa triệu chứng:** nó nuốt lỗi nhưng dữ liệu sai vẫn được tạo ra; nguyên
+      nhân gốc (trạng thái chia sẻ không an toàn) còn nguyên. Sửa gốc rồi thêm **regression test** (có
+      thể là test đồng thời).
+    rubric_md: "Đạt mức 3 khi: (a) có kế hoạch tăng khả năng tái hiện (chạy song song, log timestamp/request id); (b) nêu đúng ít nhất ba lớp bug gồm race condition và shared state/mutable default; (c) cô lập client vs server (curl, network tab, log); (d) giải thích đúng vì sao nuốt lỗi chỉ che triệu chứng, cần sửa root cause; (e) thêm regression test. Đủ các ý trong time-box: bằng chứng điểm 3. Thiếu cách tái hiện hoặc đề xuất bỏ qua lỗi: chưa đạt mức 3."

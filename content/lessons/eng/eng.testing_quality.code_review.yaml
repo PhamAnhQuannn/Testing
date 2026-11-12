@@ -1,0 +1,133 @@
+id: eng.testing_quality.code_review
+version: 1
+status: published
+title_vi: "Code review: review một PR đúng thứ tự ưu tiên và góp ý tử tế"
+est_minutes: 12
+objectives_vi:
+  - "Biết **code review** là gì và vì sao cần làm trước khi gộp **PR** (pull request)."
+  - "Xếp thứ tự ưu tiên khi review: **correctness**, **edge cases**, **tests**, readability, security, performance; không sa vào **style nit** mà **linter** đã bắt."
+  - "Phân biệt **blocker** với **nit** và viết góp ý **cụ thể, tử tế**, dạng gợi ý hoặc câu hỏi."
+  - "Làm tốt vai **author**: PR nhỏ, mô tả rõ, tự review trước, trả lời mọi comment."
+blocks:
+  - id: s_what_to_look
+    type: section
+    title_vi: "Review để tìm gì, theo thứ tự nào"
+    summary_vi: "Code review là đọc code của người khác trước khi gộp. Ưu tiên correctness, edge cases và tests; để linter lo định dạng."
+  - id: b01
+    type: text
+    md: |
+      **Code review** là đọc thay đổi của người khác (thường là một **PR**, tức pull request) để tìm
+      lỗi và góp ý **trước khi gộp** vào nhánh chính, giống bạn đọc soát bài giúp bạn cùng lớp.
+      Mục tiêu là code tốt hơn và cả nhóm hiểu thay đổi, không phải "bắt lỗi" ai đó.
+
+      Khi đọc **diff**, hãy xem theo thứ tự ưu tiên:
+      1. **Correctness**: code có làm đúng điều PR nói không? Lỗi **off-by-one**, xử lý `null`/rỗng.
+      2. **Edge cases** và **error handling**: input rỗng, số âm, lỗi mạng, nhớ đóng file/kết nối.
+      3. **Tests**: có test cho hành vi mới và cho trường hợp biên không? Test có thật sự kiểm tra
+         kết quả không?
+      4. **Readability**: tên biến, hàm có dễ hiểu không?
+      5. **Security**: nối chuỗi vào SQL (**injection**), lộ **secret**, thiếu kiểm tra quyền (**authz**).
+      6. **Performance**: truy vấn lặp trong vòng for (**N+1**), vòng lặp không giới hạn, **blocking IO**.
+
+      Đây là **thứ tự chú ý**, không phải mức nghiêm trọng tuyệt đối: một lỗ hổng **security** hay lỗi
+      **logic** luôn là **blocker** dù nằm ở mục nào.
+
+      Những thứ **máy làm được** (thụt lề, dấu cách, thứ tự import) nên giao cho **linter/formatter**
+      và CI, không tốn thời gian của người review.
+  - id: b02
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Trong một PR, bạn thấy cả hai vấn đề sau. Vấn đề nào nên được ưu tiên nêu trước?"
+    options:
+      - {id: a, text_md: "Hàm tính tổng bị lỗi off-by-one nên bỏ sót phần tử cuối, và không có test nào bao phủ"}
+      - {id: b, text_md: "Có hai dòng thừa dấu cách ở cuối dòng"}
+      - {id: c, text_md: "Tên biến `tmp` bạn không thích"}
+    answer: [a]
+    explain_md: "Correctness và tests quan trọng hơn style. Lỗi off-by-one làm kết quả sai, còn dấu cách thừa là việc của formatter, tên biến chỉ là nit."
+  - id: b03
+    type: quiz_fill
+    graded: true
+    prompt_md: "Điền một từ tiếng Anh: lỗi định dạng như thụt lề hay dấu cách thừa nên để công cụ tự động gọi là ______ kiểm tra, thay vì người review nhắc từng dòng."
+    blanks:
+      - accept: ["linter", "formatter", "lint", "linters"]
+    explain_md: "Dùng **linter/formatter** trong CI để bắt lỗi style tự động; người review tập trung vào logic, tests và thiết kế."
+  - id: s_size_behavior
+    type: section
+    title_vi: "PR nhỏ, review hành vi và tests"
+    summary_vi: "PR nhỏ dễ review kỹ hơn. Đừng chỉ đọc từng dòng: hỏi hành vi có đúng không và tests có chứng minh được không."
+  - id: b04
+    type: text
+    md: |
+      **PR nhỏ** (vài chục đến vài trăm dòng, một mục đích) được review kỹ hơn nhiều. PR hàng nghìn
+      dòng thường chỉ được lướt qua rồi bấm "LGTM" (looks good to me) và lỗi lọt vào.
+
+      Review **hành vi** chứ không chỉ từng dòng:
+      - PR này **muốn đạt gì**? Đọc mô tả và test trước, rồi mới đọc code.
+      - Với input bình thường, input biên (rỗng, lớn, sai) thì chuyện gì xảy ra?
+      - Nếu đổi API hoặc tên trường đang có người dùng, có làm **vỡ** client cũ không (backward compatibility)?
+      - **Tests** có thất bại khi code sai không? Một test không kiểm tra gì thì không bảo vệ được gì.
+      - Nếu PR quá lớn, hãy đề nghị **tách** thành các PR nhỏ.
+  - id: b05
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao nên giữ PR nhỏ?"
+    options:
+      - {id: a, text_md: "Vì PR nhỏ dễ đọc kỹ hơn nên review tìm được nhiều lỗi hơn và dễ rollback khi cần"}
+      - {id: b, text_md: "Vì PR nhỏ không cần viết test"}
+      - {id: c, text_md: "Vì PR nhỏ không cần ai review"}
+    answer: [a]
+    explain_md: "PR nhỏ giảm tải nhận thức cho người review, nên chất lượng review cao hơn. Mọi PR vẫn cần test và review."
+  - id: s_feedback
+    type: section
+    title_vi: "Cách góp ý và vai trò author"
+    summary_vi: "Góp ý cụ thể, tử tế, gợi ý thay vì ra lệnh, ghi rõ blocker hay nit, khen điều tốt. Author giữ PR nhỏ, mô tả rõ và tự review trước."
+  - id: b06
+    type: text
+    md: |
+      **Cách góp ý** (khi là reviewer):
+      - **Bình luận về code, không về người**: "hàm này chưa xử lý list rỗng" thay vì "bạn quên xử lý".
+      - **Cụ thể**: chỉ ra dòng nào, vì sao có vấn đề, và nếu được thì gợi ý cách sửa.
+      - **Hỏi thay vì phán**: "Nếu `items` rỗng thì chỗ này có lỗi không nhỉ?"; **gợi ý** ("cân nhắc dùng...") thay vì ra lệnh.
+      - **Ghi rõ mức độ**: **blocker** (phải sửa trước khi gộp, ví dụ lỗi logic, lỗ hổng bảo mật) với
+        **nit** (nhỏ, tùy chọn, thường ghi tiền tố `nit:`).
+      - **Khen** điều làm tốt: một test hay, một đoạn code gọn.
+
+      Ví dụ: comment cộc lốc "Sai rồi, viết lại đi" nên đổi thành "Mình nghĩ nếu `user` là `null`
+      thì dòng 24 sẽ ném lỗi. Bạn thêm kiểm tra và một test cho trường hợp đó được không? (blocker)".
+
+      **Khi là author:** giữ PR **nhỏ**; viết **mô tả** rõ (làm gì, vì sao, cách test); **tự review**
+      diff của mình trước khi mời người khác; **trả lời mọi comment** (sửa xong thì nói, không đồng ý
+      thì giải thích lịch sự); đừng coi góp ý là chỉ trích cá nhân.
+  - id: b07
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Comment nào là cách góp ý tốt nhất?"
+    options:
+      - {id: a, text_md: "\"Code này tệ, viết lại đi.\""}
+      - {id: b, text_md: "\"Dòng 24: nếu `user` là null thì sẽ ném lỗi. Bạn thêm kiểm tra và một test cho trường hợp này được không? (blocker)\""}
+      - {id: c, text_md: "\"nit nit nit: dấu cách, dấu cách, tên biến.\" kèm 30 comment style"}
+    answer: [b]
+    explain_md: "(b) cụ thể, nêu lý do, gợi ý cách sửa và ghi rõ mức blocker. (a) không cụ thể và thiếu tôn trọng; (c) sa vào style mà linter xử lý được."
+  - id: b08
+    type: callout
+    kind: interview
+    md: |
+      **Thanh điểm mức 3 (level-3 bar).** Cho một diff nhỏ, bạn tìm được các lỗi chính, **xếp blocker
+      trước nit** (correctness, security, thiếu test lên trước; style xuống cuối) và viết góp ý
+      **tôn trọng, cụ thể**, có gợi ý sửa.
+  - id: b09
+    type: summary
+    bullets_vi:
+      - "**Code review** là đọc PR của người khác trước khi gộp để tìm lỗi và cùng hiểu thay đổi."
+      - "Ưu tiên: **correctness**, edge cases/error handling, **tests**, rồi readability, security, performance; để **linter** lo style."
+      - "**PR nhỏ** được review kỹ hơn; xem **hành vi** và tests, không chỉ từng dòng."
+      - "Góp ý **cụ thể, tử tế**, hỏi hoặc gợi ý thay vì ra lệnh, ghi rõ **blocker** hay **nit**, và khen điều tốt."
+      - "Là **author**: PR nhỏ, mô tả rõ, tự review trước, trả lời mọi comment."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [E130], l2: [E131], l3: [E132]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-12"

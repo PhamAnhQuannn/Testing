@@ -22,12 +22,13 @@ EXTRA_MODULES = {
     "ml.system_design",
     "eng.workflow",
     "eng.apis",
+    "eng.testing_quality",
 }
 
 
 def test_index_starts_with_the_40_subtopics_of_spec_4_1():
     ids = [s["id"] for s in SUBTOPICS]
-    assert len(ids) == 373  # 40 plan + 86 sd + 39 ml + 6 eng + 202 Wave-2..8 py+dsa+lld+ml+cs
+    assert len(ids) == 378  # 40 plan + 86 sd + 39 ml + 11 eng + 202 Wave-2..8 py+dsa+lld+ml+cs
     assert ids[:40] == spec_table_ids()
 
 
@@ -35,7 +36,7 @@ def test_extra_track_section_counts():
     sections = [s["section"] for s in SUBTOPICS]
     assert sections.count("sd") == 86
     assert sections.count("ml") == 72  # 39 LLM + 12 math + 8 fund + 7 classical + 6 nlp (EXTRA_IDS)
-    assert sections.count("eng") == 6  # eng.workflow + eng.apis (concept track)
+    assert sections.count("eng") == 11  # eng concept modules (workflow/apis/testing_quality)
     assert sum(1 for s in SUBTOPICS if s["module"] in EXTRA_MODULES and s["section"] == "ml") == 39
 
 
