@@ -1,0 +1,148 @@
+id: eng.workflow.git_basics
+version: 1
+status: published
+title_vi: "Git cơ bản: commit, branch, merge/rebase, revert và PR"
+est_minutes: 12
+objectives_vi:
+  - "Giải thích **commit**, **branch** và **HEAD** là gì và vì sao branch/HEAD chỉ là **con trỏ** (pointer)."
+  - "Phân biệt **merge** và **rebase**, và biết khi nào dùng cái nào."
+  - "Chọn đúng **revert** hay **reset** để hoàn tác, đặc biệt khi commit đã push."
+  - "Mô tả cách sửa **conflict** và luồng **Pull Request** (PR) cơ bản."
+blocks:
+  - id: s_commit_branch
+    type: section
+    title_vi: "Commit, branch và HEAD"
+    summary_vi: "Commit là bản chụp kèm lời nhắn; branch là con trỏ tới một commit; HEAD là chỗ bạn đang đứng. Thay đổi đi từ working tree qua index (git add) vào lịch sử (git commit)."
+  - id: b01
+    type: text
+    md: |
+      **Git** lưu lịch sử thay đổi code thành từng **commit**: mỗi commit là một **bản chụp**
+      (snapshot) của thư mục kèm lời nhắn. Nhờ vậy bạn quay lại được khi code hỏng, và nhiều người
+      cùng sửa mà không đè lên nhau — thay cho việc chép `bai_tap_v1`, `v2`, `final`. Thư mục được
+      Git theo dõi cùng toàn bộ lịch sử gọi là **repository** (repo).
+
+      Thay đổi đi qua ba vùng: **working tree** (file bạn đang sửa) → **index** (vùng chờ, nơi
+      `git add hello.py` chọn thay đổi) → **repository** (`git commit -m "lời nhắn"` ghi vào lịch sử).
+      `git log` liệt kê các commit từ mới đến cũ.
+  - id: b02
+    type: text
+    md: |
+      **Branch** (nhánh) thực chất chỉ là một **con trỏ** (pointer) tới một commit — rất rẻ để tạo.
+      Bạn làm tính năng riêng trên nhánh riêng mà không đụng nhánh chính. **HEAD** là con trỏ cho
+      biết bạn **đang đứng ở đâu** (thường trỏ vào nhánh hiện tại). Khi bạn commit, nhánh hiện tại
+      (và HEAD theo nó) dời tới commit mới.
+      - Tạo và chuyển sang nhánh mới: `git checkout -b ten_nhanh` hoặc `git switch -c ten_nhanh`.
+      - **Remote** (như GitHub) là kho trên máy chủ: `clone` tải về, `push` gửi commit lên, `pull` kéo commit mới về.
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Trong Git, **branch** và **HEAD** là gì?"
+    options:
+      - {id: a, text_md: "Branch là một bản sao đầy đủ của toàn bộ thư mục; HEAD là commit đầu tiên của repo."}
+      - {id: b, text_md: "Branch là con trỏ tới một commit; HEAD là con trỏ cho biết bạn đang đứng ở đâu (thường là nhánh hiện tại)."}
+      - {id: c, text_md: "Branch là một commit đặc biệt chứa code mới; HEAD là tên của remote."}
+    answer: [b]
+    explain_md: "Branch và HEAD đều là con trỏ nên tạo nhánh rất rẻ. (a) sai — branch không sao chép thư mục; HEAD không phải commit đầu tiên. (c) sai — branch không phải một commit, và remote thường tên là origin, không phải HEAD."
+  - id: s_merge_rebase
+    type: section
+    title_vi: "Merge và rebase"
+    summary_vi: "Merge giữ nguyên lịch sử hai nhánh và thêm commit gộp (hoặc fast-forward); rebase viết lại commit của nhánh bạn để nối sau đầu nhánh kia, lịch sử thẳng. Không rebase nhánh đã chia sẻ."
+  - id: b04
+    type: text
+    md: |
+      Khi cần đưa công việc của nhánh này vào nhánh kia có hai cách:
+      - **merge**: đứng ở nhánh nhận, gõ `git merge ten_nhanh`. Git **giữ nguyên lịch sử của cả hai
+        nhánh** và thêm một **commit gộp** (merge commit). Nếu nhánh nhận chưa có gì mới thì Git chỉ
+        dời con trỏ tới trước (**fast-forward**), không cần commit gộp.
+      - **rebase**: `git rebase main` **viết lại** các commit của nhánh bạn để chúng **nối tiếp sau
+        đầu nhánh main**. Lịch sử thành **một đường thẳng**, không có commit gộp. Vì commit được tạo
+        lại (hash mới) nên đây là **viết lại lịch sử**.
+
+      Quy tắc thực dụng: dùng **rebase** để làm sạch nhánh **riêng của bạn** trước khi mở PR;
+      dùng **merge** khi nhánh đã **chia sẻ** với người khác — đừng rebase commit người khác đã kéo về.
+  - id: b05
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Điểm khác biệt chính giữa `git merge` và `git rebase` ở lịch sử kết quả là gì?"
+    options:
+      - {id: a, text_md: "Merge giữ lịch sử của cả hai nhánh và thêm commit gộp; rebase tạo lại commit của nhánh bạn nối sau đầu nhánh kia, cho lịch sử thẳng."}
+      - {id: b, text_md: "Merge xóa nhánh được gộp; rebase giữ nguyên mọi commit với hash cũ."}
+      - {id: c, text_md: "Merge luôn gây conflict còn rebase thì không bao giờ gây conflict."}
+    answer: [a]
+    explain_md: "Merge bảo toàn lịch sử và thêm merge commit (trừ khi fast-forward); rebase viết lại commit nên hash đổi và lịch sử thẳng. (b) sai — merge không xóa nhánh, còn rebase đổi hash. (c) sai — cả hai đều có thể gặp conflict."
+  - id: s_undo_conflict
+    type: section
+    title_vi: "Hoàn tác (revert vs reset) và sửa conflict"
+    summary_vi: "revert tạo commit mới hoàn tác commit cũ (an toàn khi đã push); reset lùi con trỏ nhánh, viết lại lịch sử (nguy hiểm khi đã push). Conflict xảy ra khi cả hai sửa cùng dòng: chọn nội dung đúng, git add, commit."
+  - id: b06
+    type: text
+    md: |
+      Hai cách hoàn tác khác hẳn nhau:
+      - **`git revert <commit>`** tạo **commit mới** làm ngược lại commit cũ. Lịch sử vẫn nguyên,
+        chỉ dài thêm — nên **an toàn khi đã push** và người khác đã kéo về.
+      - **`git reset`** **lùi con trỏ nhánh** về một commit cũ, tức **viết lại lịch sử**. Có ba mức:
+        `--soft` (giữ thay đổi trong index), `--mixed` (mặc định, giữ trong working tree), `--hard`
+        (**bỏ luôn** thay đổi). Chỉ hợp cho commit **chưa push**; reset rồi force-push nhánh chung sẽ
+        làm đồng đội rối lịch sử.
+  - id: b07
+    type: quiz_fill
+    graded: true
+    prompt_md: "Điền một từ: một commit sai đã được push lên nhánh chung. Để hoàn tác nó an toàn mà không viết lại lịch sử, bạn dùng lệnh `git ______ <commit>`."
+    blanks:
+      - accept: ["revert"]
+    explain_md: "`git revert` tạo commit mới hoàn tác commit cũ nên lịch sử không bị viết lại — an toàn sau khi push. `git reset` lùi con trỏ nhánh và viết lại lịch sử, nguy hiểm với nhánh đã chia sẻ."
+  - id: b08
+    type: text
+    md: |
+      **Conflict** (xung đột) xảy ra khi hai nhánh **cùng sửa một vùng** của một file và Git không
+      tự quyết được. Git đánh dấu trong file bằng `<<<<<<<`, `=======`, `>>>>>>>`: phần giữa
+      `<<<<<<<` và `=======` là phiên bản **nhánh hiện tại (HEAD)**, phần tới `>>>>>>>` là phiên bản
+      **nhánh được gộp vào**. Lưu ý khi **rebase** thì hai phía **đảo ngược** (top là nhánh đích,
+      bottom là commit của bạn đang được replay) — luôn đọc kỹ cả hai rồi tự quyết.
+      Cách xử lý:
+      1. Mở file, đọc cả hai phiên bản, **sửa thành nội dung đúng** và xóa các dòng đánh dấu.
+      2. `git add <file>` để báo đã xử lý xong.
+      3. Hoàn tất bằng `git commit` (với merge) hoặc `git rebase --continue` (với rebase).
+  - id: s_pr_flow
+    type: section
+    title_vi: "Luồng Pull Request"
+    summary_vi: "Tạo nhánh riêng, commit nhỏ, push, mở PR để đồng đội xem diff và duyệt, sửa theo góp ý rồi gộp; PR nhỏ dễ duyệt hơn. .gitignore giữ file bí mật/tạm ngoài repo."
+  - id: b09
+    type: text
+    md: |
+      **Pull request (PR)** là đề nghị gộp nhánh của bạn vào nhánh chung; đồng đội xem **diff** (phần
+      code thay đổi) và duyệt. Luồng chuẩn:
+      1. Từ nhánh chính cập nhật mới nhất, tạo **nhánh riêng** cho một việc.
+      2. Làm việc bằng các **commit nhỏ**, lời nhắn rõ ràng.
+      3. `git push` nhánh lên remote rồi **mở PR**.
+      4. Reviewer để lại góp ý; bạn **commit thêm** vào cùng nhánh (PR tự cập nhật).
+      5. Khi được duyệt (và CI qua), PR được **gộp** vào nhánh chính.
+
+      **PR nhỏ** (một ý, diff ngắn) dễ duyệt và ít conflict hơn. Dùng **`.gitignore`** để file mật
+      khẩu, thư mục thư viện tải về và file tạm **chưa theo dõi** không bị `git add` nhầm. Lưu ý
+      `.gitignore` chỉ có tác dụng với file **chưa được theo dõi**; nếu đã lỡ commit mật khẩu thì
+      phải `git rm --cached <file>` và **đổi mật khẩu** vì nó vẫn còn trong lịch sử.
+  - id: b10
+    type: callout
+    kind: interview
+    md: |
+      **Thanh điểm mức 3 (level-3 bar).** Bạn tự tạo repo, làm trên **nhánh riêng**, mở **PR**, sửa
+      **conflict**, **hoàn tác commit đã push bằng revert** (không dùng reset) và giải thích được
+      khác nhau giữa **merge** (giữ lịch sử, thêm commit gộp) và **rebase** (viết lại, lịch sử thẳng)
+      kèm khi nào dùng cái nào.
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "**Commit** là bản chụp kèm lời nhắn; **branch** và **HEAD** chỉ là **con trỏ** (HEAD = bạn đang đứng đâu). Luồng: working tree → index (`git add`) → repo (`git commit`)."
+      - "**merge** giữ lịch sử và thêm commit gộp (hoặc fast-forward); **rebase** viết lại commit của nhánh bạn cho lịch sử thẳng — dùng rebase cho nhánh riêng, đừng rebase nhánh đã chia sẻ."
+      - "**revert** tạo commit mới hoàn tác commit cũ (an toàn sau khi push); **reset** lùi con trỏ nhánh, viết lại lịch sử (chỉ cho commit chưa push)."
+      - "**Conflict**: mở file, chọn nội dung đúng, xóa dấu `<<<<<<<`, `git add`, rồi commit (hoặc `rebase --continue`)."
+      - "**PR**: nhánh riêng, commit nhỏ, push, mở PR, review diff, sửa theo góp ý, gộp; PR nhỏ dễ duyệt."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [E100], l2: [E101], l3: [E102]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-11"
