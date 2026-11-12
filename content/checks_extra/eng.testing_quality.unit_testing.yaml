@@ -1,0 +1,55 @@
+subtopic_id: eng.testing_quality.unit_testing
+items:
+  - id: E118
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      **Unit test** là gì và vì sao nên viết? Nêu ba bước của mẫu **Arrange-Act-Assert** (AAA).
+    answer_md: |
+      - **Unit test** là hàm nhỏ tự gọi một đơn vị code (thường một hàm) với đầu vào cụ thể rồi
+        `assert` kết quả đúng như mong đợi; chạy lại bao nhiêu lần cũng được.
+      - Lý do: **phản hồi nhanh** khi sửa code và chống **regression** (sửa chỗ này không làm hỏng chỗ cũ).
+      - **AAA**: **Arrange** chuẩn bị dữ liệu/đối tượng, **Act** gọi hành động cần kiểm, **Assert** so kết
+        quả với mong đợi.
+    rubric_md: "Đạt khi nêu đúng: unit test tự gọi code và so kết quả với mong đợi; ít nhất một lý do (phản hồi nhanh hoặc chống regression); đúng ba bước Arrange/Act/Assert với ý nghĩa đúng. Đủ ý: bằng chứng điểm 1; nhầm vai trò các bước hoặc không nêu lý do: điểm 0."
+  - id: E119
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Hàm `shipping_fee(weight_kg)` ném `ValueError` nếu `weight_kg <= 0`; ngược lại phí là
+      `15000` nếu `0 < weight_kg <= 2`, và `30000` nếu `weight_kg > 2`. Hãy liệt kê bộ **test case**
+      (đầu vào -> kết quả mong đợi), nhớ gồm các **biên**, và đặt tên rõ cho ít nhất hai test.
+    answer_md: |
+      - **Biên dưới**: `0` -> `ValueError`; số âm `-1` -> `ValueError`; ngay trên 0 như `0.1` -> `15000`.
+      - **Ca thường nhóm 1**: `1` -> `15000`.
+      - **Biên giữa**: `2` -> `15000` (đúng ngưỡng, vì `<= 2`); `2.01` -> `30000` (sát trên ngưỡng).
+      - **Ca thường nhóm 2**: `10` -> `30000`.
+      - Tên ví dụ: `test_shipping_fee_is_15000_at_exactly_2kg`, `test_shipping_fee_raises_for_zero_weight`.
+      - Mỗi test theo AAA và kiểm **một hành vi**.
+    rubric_md: "Đạt khi: có ca lỗi (0 và/hoặc âm -> ValueError), có ca đúng ngưỡng 2 -> 15000 và sát trên ngưỡng (2.01 hoặc 3) -> 30000, có ít nhất một ca thường mỗi nhóm, tên test nói rõ tình huống. Đúng gần đủ: bằng chứng điểm 2. Chỉ có ca thường mà thiếu biên (0 và đúng 2), hoặc đặt tên test1/test2: tối đa điểm 1."
+  - id: E120
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      Một đội có bộ test chạy 40 phút, gần như toàn **e2e** qua trình duyệt, và vài test **lúc pass lúc fail**:
+      (a) test báo cáo kiểm "ngày hôm nay" bằng `datetime.now()`; (b) test `test_delete_user` chỉ pass nếu
+      `test_create_user` chạy trước và dùng chung một database; (c) test gọi API thanh toán thật.
+      Hãy: giải thích vấn đề của cấu trúc test theo **test pyramid** và đề xuất cấu trúc tốt hơn;
+      chẩn đoán nguyên nhân từng test flaky và cách sửa; và giải thích vì sao **coverage 100%** vẫn chưa chắc hết lỗi.
+    answer_md: |
+      **Pyramid:** đội đang ngược kim tự tháp (nhiều e2e chậm, đắt, mong manh). Nên có **nhiều unit test**
+      nhanh cho logic, **vừa phải integration** (code + database), và **ít e2e** cho vài luồng quan trọng.
+
+      **Flaky:**
+      - (a) **phụ thuộc thời gian**: truyền giờ vào như tham số hoặc dùng đồng hồ giả/cố định để kết quả xác định.
+      - (b) **order dependence + shared state**: mỗi test tự tạo dữ liệu (Arrange) và dọn sau, không dựa vào test khác.
+      - (c) **phụ thuộc mạng/dịch vụ ngoài**: giả lập (mock/fake) API thanh toán trong unit test; chỉ gọi thật
+        (sandbox) ở số ít integration test.
+      Cũng tránh `sleep` cố định và ngẫu nhiên không cố định seed.
+
+      **Coverage:** chỉ đo dòng code đã **được chạy**, không đo **assert có đủ và đúng không**. Test có thể chạy
+      qua mọi dòng mà không kiểm gì, hoặc bỏ sót ca biên/tổ hợp đầu vào, nên 100% vẫn có thể còn lỗi.
+    rubric_md: "Đạt mức 3 khi: (a) nêu đúng cấu trúc pyramid (nhiều unit, vừa integration, ít e2e) và vì sao e2e chậm/mong manh; (b) chẩn đoán đúng cả ba flaky (thời gian, thứ tự/shared state, mạng) với cách sửa phù hợp (đồng hồ cố định, test độc lập, mock); (c) giải thích coverage chỉ đo dòng được chạy chứ không đo chất lượng assert/ca biên. Đủ cả ba trong time-box: bằng chứng điểm 3. Thiếu một nguyên nhân flaky hoặc chỉ nói 'chạy lại cho pass': chưa đạt mức 3."

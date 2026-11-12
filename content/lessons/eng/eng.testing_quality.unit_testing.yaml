@@ -1,0 +1,157 @@
+id: eng.testing_quality.unit_testing
+version: 1
+status: published
+title_vi: "Unit test và thiết kế test case: AAA, biên, test pyramid, flaky test"
+est_minutes: 12
+objectives_vi:
+  - "Giải thích **unit test** là gì và vì sao nó cho **phản hồi nhanh** cùng lớp bảo vệ chống **regression**."
+  - "Viết test theo cấu trúc **Arrange-Act-Assert**, mỗi test kiểm **một hành vi** và có **tên rõ ràng**."
+  - "Chọn test case gồm ca thường, ca **biên** (rỗng, 0, âm, off-by-one) và ca lỗi."
+  - "Mô tả **test pyramid** và nhận diện nguyên nhân **flaky test** cùng cách khắc phục."
+blocks:
+  - id: s_unit_aaa
+    type: section
+    title_vi: "Unit test và cấu trúc Arrange-Act-Assert"
+    summary_vi: "Unit test là hàm nhỏ tự gọi code cần kiểm tra rồi so với kết quả mong đợi. Mỗi test theo AAA, kiểm một hành vi, tên nói rõ tình huống."
+  - id: b01
+    type: text
+    md: |
+      **Unit test** là một hàm nhỏ tự gọi một đơn vị code (thường là một hàm) với đầu vào cụ thể rồi
+      dùng **assert** để khẳng định kết quả đúng như mong đợi, ví dụ `assert add(2, 3) == 5`. Test
+      chạy lại bao nhiêu lần cũng được, giống chấm bài tự động.
+
+      Vì sao cần?
+      - **Phản hồi nhanh** (fast feedback): unit test chạy trong mili-giây, biết ngay mình vừa sửa sai.
+      - **Chống regression**: sau này sửa code, chạy lại test để biết chức năng cũ có bị hỏng không.
+
+      Cấu trúc **AAA**:
+      - **Arrange**: chuẩn bị dữ liệu, đối tượng đầu vào.
+      - **Act**: gọi đúng một hành động cần kiểm.
+      - **Assert**: so kết quả với mong đợi.
+
+      ```python
+      def test_total_applies_discount():
+          cart = [100, 50]                 # Arrange
+          result = total(cart, discount_pct=10)  # Act (giảm 10%)
+          assert result == 135             # Assert (dùng số nguyên, tránh so sánh float)
+      ```
+
+      Quy tắc tốt: **một hành vi mỗi test** (test fail thì biết ngay hỏng chỗ nào) và **đặt tên rõ**
+      như `test_total_applies_discount`, thay vì `test1`.
+  - id: b02
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Trong mẫu **Arrange-Act-Assert**, bước **Act** làm gì?"
+    options:
+      - {id: a, text_md: "Chuẩn bị dữ liệu và đối tượng đầu vào"}
+      - {id: b, text_md: "Gọi hành động cần kiểm tra (ví dụ gọi hàm)"}
+      - {id: c, text_md: "So sánh kết quả với giá trị mong đợi"}
+    answer: [b]
+    explain_md: "Act là bước thực hiện hành động cần kiểm. Chuẩn bị dữ liệu là Arrange (a), so sánh kết quả là Assert (c)."
+  - id: b03
+    type: quiz_fill
+    graded: true
+    prompt_md: "Điền một từ tiếng Anh: khi sửa code mà làm hỏng chức năng cũ đang chạy đúng, ta gọi đó là lỗi ______ (hồi quy); unit test giúp phát hiện sớm loại lỗi này."
+    blanks:
+      - accept: ["regression"]
+    explain_md: "Đó là **regression**. Bộ test chạy lại sau mỗi thay đổi cho biết chức năng cũ còn đúng không."
+  - id: s_cases_pyramid
+    type: section
+    title_vi: "Test case biên và test pyramid"
+    summary_vi: "Chọn ca thường, ca biên (rỗng, 0, âm, off-by-one) và ca lỗi. Test pyramid: nhiều unit test, ít integration test, rất ít e2e test."
+  - id: b04
+    type: text
+    md: |
+      **Chọn test case** không phải gõ thật nhiều ví dụ, mà chọn ví dụ đại diện. Lỗi hay nằm ở **biên**
+      (boundary), nên luôn thử:
+      - Đầu vào **rỗng** (danh sách `[]`, chuỗi `""`).
+      - Giá trị **0**, số **âm**, số rất lớn.
+      - Sát ngưỡng điều kiện: nếu hàm nói "từ 18 tuổi trở lên" thì thử **17, 18, 19** (lỗi
+        **off-by-one** như viết `>` thay vì `>=` chỉ lộ ra ở đúng 18).
+      - Ca **lỗi**: đầu vào sai thì hàm có ném đúng exception không.
+
+      Ngoài ra nên có ít nhất một ca **thường** (happy path).
+  - id: b05
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Hàm `is_adult(age)` trả `True` khi `age >= 18`. Bộ giá trị nào kiểm đúng các **biên** nhất?"
+    options:
+      - {id: a, text_md: "`age = 5, 30, 60`"}
+      - {id: b, text_md: "`age = 17, 18, 19`"}
+      - {id: c, text_md: "`age = 100, 200, 300`"}
+    answer: [b]
+    explain_md: "Lỗi off-by-one (`>` thay `>=`) chỉ lộ ở đúng ngưỡng 18, nên cần thử sát hai bên: 17, 18, 19."
+  - id: b06
+    type: text
+    md: |
+      **Test pyramid** chia test thành ba tầng:
+      - **Unit** (đáy): kiểm từng hàm riêng lẻ, **nhanh, rẻ, ổn định** → viết **nhiều nhất**.
+      - **Integration** (giữa): kiểm nhiều thành phần chạy cùng nhau (ví dụ code + database) → **vừa phải**.
+      - **End-to-end (e2e)** (đỉnh): mô phỏng người dùng thật qua cả hệ thống → **ít nhất**, vì
+        **chậm, tốn kém, dễ hỏng vặt**.
+
+      Hình kim tự tháp nhắc: càng lên cao càng chậm và mong manh, nên dồn phần lớn công sức vào
+      unit test và chỉ giữ vài e2e cho luồng quan trọng nhất.
+  - id: b07
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Theo **test pyramid**, loại test nào nên có **nhiều nhất**?"
+    options:
+      - {id: a, text_md: "Unit test"}
+      - {id: b, text_md: "Integration test"}
+      - {id: c, text_md: "End-to-end test"}
+    answer: [a]
+    explain_md: "Unit test nhanh, rẻ, ổn định nên là đáy kim tự tháp và nhiều nhất; e2e chậm và dễ hỏng nên ít nhất."
+  - id: s_flaky
+    type: section
+    title_vi: "Flaky test: nguyên nhân và cách tránh"
+    summary_vi: "Flaky test lúc pass lúc fail dù code không đổi. Nguyên nhân: thời gian, thứ tự chạy, trạng thái dùng chung, ngẫu nhiên, mạng. Cách tránh: cô lập, cố định đầu vào, giả lập."
+  - id: b08
+    type: text
+    md: |
+      **Flaky test** là test **lúc pass lúc fail** dù code không đổi. Nó làm mất niềm tin: mọi người
+      quen bỏ qua test đỏ, và lỗi thật bị bỏ sót. Nguyên nhân thường gặp:
+      - **Thời gian**: phụ thuộc giờ hiện tại (`now()`), hoặc `sleep` chờ cố định.
+      - **Thứ tự chạy** (order dependence): test B chỉ pass nếu test A chạy trước.
+      - **Trạng thái dùng chung** (shared state): biến toàn cục, file, database chung giữa các test.
+      - **Ngẫu nhiên** (randomness): dùng số ngẫu nhiên không cố định seed.
+      - **Mạng / dịch vụ ngoài**: gọi API thật có thể chậm hoặc lỗi.
+
+      Cách khắc phục: mỗi test **độc lập** và tự dọn dẹp; **cố định** thời gian và seed (truyền
+      giờ vào như tham số hoặc dùng đồng hồ giả); **giả lập** (mock/fake) mạng và dịch vụ ngoài;
+      không dùng `sleep` cố định mà chờ theo điều kiện.
+  - id: b09
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một test gọi API thật trên Internet, đôi khi fail vì mạng chậm dù code không đổi. Cách sửa hợp lý nhất?"
+    options:
+      - {id: a, text_md: "Chạy lại cho tới khi pass rồi bỏ qua"}
+      - {id: b, text_md: "Giả lập (mock/fake) phản hồi của API để test không phụ thuộc mạng"}
+      - {id: c, text_md: "Thêm `sleep(30)` trước khi gọi"}
+    answer: [b]
+    explain_md: "Gốc rễ là phụ thuộc vào mạng. Giả lập dịch vụ ngoài làm test ổn định và nhanh; chạy lại hay sleep chỉ che triệu chứng."
+  - id: b10
+    type: callout
+    kind: interview
+    md: |
+      **Thanh điểm mức 3 (level-3 bar).** Với một hàm có điều kiện và biên, bạn viết được bộ test đủ
+      ca theo **AAA** (thường, biên, lỗi) với tên rõ ràng; giải thích **test pyramid**; chẩn đoán
+      **flaky test** theo nguyên nhân (thời gian, thứ tự, shared state, ngẫu nhiên, mạng) và nêu cách
+      sửa. Coverage 100% vẫn chưa chắc hết lỗi vì nó chỉ cho biết dòng nào đã chạy, không cho biết
+      assert đã đủ chưa.
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "**Unit test** tự gọi một đơn vị code rồi `assert` kết quả; cho **phản hồi nhanh** và chống **regression**."
+      - "Cấu trúc **AAA**: Arrange (chuẩn bị), Act (gọi), Assert (so sánh); **một hành vi mỗi test**, tên rõ ràng."
+      - "Test case gồm ca thường, ca **biên** (rỗng, 0, âm, sát ngưỡng như 17/18/19) và ca lỗi."
+      - "**Test pyramid**: nhiều unit, vừa integration, ít e2e vì lên cao càng chậm và mong manh."
+      - "**Flaky test** do thời gian, thứ tự, shared state, ngẫu nhiên, mạng; sửa bằng cô lập, cố định đầu vào, giả lập."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [E118], l2: [E119], l3: [E120]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-12"

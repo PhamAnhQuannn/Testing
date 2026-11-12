@@ -1,0 +1,139 @@
+id: eng.testing_quality.debugging_methodology
+version: 1
+status: published
+title_vi: "Phương pháp debug: tái hiện, thu hẹp, sửa gốc và các lớp bug thường gặp"
+est_minutes: 12
+objectives_vi:
+  - "Áp dụng quy trình debug có hệ thống: **reproduce** → giả thuyết → đổi **một thứ mỗi lần** → kiểm chứng."
+  - "Thu hẹp phạm vi tìm lỗi bằng **binary search**, `git bisect`, log và **breakpoint**; đọc **stack trace** trước tiên."
+  - "Sửa **nguyên nhân gốc** (root cause) thay vì triệu chứng và thêm **regression test** sau khi sửa."
+  - "Nhận ra các lớp bug hay gặp: off-by-one, `None`/null, mutable default argument, shared state, type coercion, race condition."
+blocks:
+  - id: s_method
+    type: section
+    title_vi: "Quy trình debug có hệ thống"
+    summary_vi: "Tái hiện lỗi ổn định trước, đọc lỗi thật, đặt giả thuyết, đổi một thứ mỗi lần và kiểm chứng. Không thử bừa."
+  - id: b01
+    type: text
+    md: |
+      **Debug** là tìm và sửa **nguyên nhân** gây lỗi, giống thám tử: thu thập dấu vết, đoán, kiểm
+      chứng. Thử bừa (đổi lung tung rồi chạy lại) tốn thời gian và dễ sinh bug mới. Quy trình gọn:
+      1. **Reproduce** (tái hiện): tìm các bước làm lỗi xuất hiện **ổn định**. Chưa tái hiện được thì
+         chưa biết mình đã sửa được hay chưa. Rút gọn đầu vào đến mức **nhỏ nhất** vẫn lỗi (minimize).
+      2. **Đọc lỗi thật**: đọc kỹ **error message** và **stack trace** (dòng gần nhất với code của bạn
+         thường là manh mối đầu tiên), xem log.
+      3. **Hypothesis** (giả thuyết): "Tôi nghĩ lỗi do X vì Y".
+      4. **Đổi MỘT thứ mỗi lần** rồi kiểm tra. Đổi nhiều thứ cùng lúc thì không biết thứ nào có tác dụng.
+      5. **Verify**: chạy lại bước tái hiện, xác nhận lỗi biến mất và không hỏng chỗ khác.
+      6. Hỏi nhanh: gần đây có **deploy** hay đổi **config** nào không?
+  - id: b02
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Bạn nhận báo cáo lỗi \"thỉnh thoảng app bị crash\". Việc đầu tiên nên làm là gì?"
+    options:
+      - {id: a, text_md: "Sửa ngay đoạn code nghi ngờ nhất rồi deploy"}
+      - {id: b, text_md: "Tìm cách **tái hiện lỗi** ổn định (và đọc log/stack trace)"}
+      - {id: c, text_md: "Viết lại toàn bộ module cho chắc"}
+    answer: [b]
+    explain_md: "Phải tái hiện được lỗi trước thì mới kiểm chứng được bản sửa. (a) là đoán mò; (c) tốn công và có thể không đụng tới nguyên nhân."
+  - id: b03
+    type: quiz_fill
+    graded: true
+    prompt_md: "Điền một số: khi thử giả thuyết, mỗi lần chỉ nên thay đổi ______ thứ để biết chính xác thay đổi nào có tác dụng."
+    blanks:
+      - accept: ["1", "một", "mot", "one"]
+    explain_md: "Đổi **một** thứ mỗi lần (one variable at a time). Đổi nhiều thứ cùng lúc thì khi lỗi hết, bạn không biết do thay đổi nào."
+  - id: s_narrow
+    type: section
+    title_vi: "Thu hẹp phạm vi tìm lỗi"
+    summary_vi: "Chia đôi để loại bỏ một nửa không gian tìm kiếm: bisect commit bằng git bisect, bisect đầu vào, log/breakpoint để xem trạng thái thật."
+  - id: b04
+    type: text
+    md: |
+      Khi không biết lỗi nằm đâu, đừng đọc hết code; hãy **thu hẹp** bằng cách chia đôi:
+      - **`git bisect`**: biết một commit cũ còn tốt (good) và commit hiện tại lỗi (bad); git tự
+        chọn commit ở giữa để bạn kiểm tra, lặp lại như **binary search** đến khi chỉ ra **commit đầu
+        tiên gây lỗi** (khoảng `log2(n)` bước).
+      - **Bisect đầu vào**: cắt dữ liệu vào làm đôi, nửa nào còn lỗi thì tiếp tục cắt.
+      - **Bisect code**: tạm vô hiệu hóa một nửa logic để xem lỗi còn không.
+      - **Quan sát trạng thái**: dùng **debugger** với **breakpoint** để dừng và xem giá trị biến
+        thật; hoặc thêm **logging** (có mức độ, có thể tắt) thay cho `print` rải rác.
+      - **Cô lập client vs server**: mở tab Network của trình duyệt hoặc gọi `curl` trực tiếp để biết
+        lỗi nằm ở phía nào.
+      - **Rubber duck debugging**: giải thích code cho một vật vô tri (hoặc đồng nghiệp); khi nói to
+        từng bước, bạn thường tự thấy chỗ sai.
+  - id: b05
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một test pass ở release tuần trước nhưng fail ở bản hiện tại, giữa hai mốc có 200 commit. Công cụ nào tìm commit gây lỗi hiệu quả nhất?"
+    options:
+      - {id: a, text_md: "`git bisect` (tìm kiếm nhị phân qua các commit)"}
+      - {id: b, text_md: "Đọc từng commit từ đầu đến cuối"}
+      - {id: c, text_md: "`git stash`"}
+    answer: [a]
+    explain_md: "`git bisect` chia đôi khoảng commit, chỉ cần khoảng 8 lần kiểm tra cho 200 commit. (b) chậm; (c) chỉ cất thay đổi chưa commit, không tìm lỗi."
+  - id: s_root_patterns
+    type: section
+    title_vi: "Sửa gốc, regression test và các lớp bug hay gặp"
+    summary_vi: "Sửa nguyên nhân gốc, không che triệu chứng; thêm regression test. Bug hay gặp: off-by-one, None, mutable default, shared state, type coercion, race condition."
+  - id: b06
+    type: text
+    md: |
+      **Sửa nguyên nhân gốc (root cause), không sửa triệu chứng.** Bọc `try/except` để nuốt lỗi hay
+      thêm `if x is not None` ở chỗ crash chỉ che bug; hãy hỏi "vì sao `x` lại là `None`?". Sau khi sửa,
+      viết **regression test**: một test fail với bug cũ và pass với bản sửa, để bug không quay lại.
+
+      Các lớp bug hay gặp:
+      - **Off-by-one**: sai biên vòng lặp/index (`range(n)` vs `range(n + 1)`, `<` vs `<=`).
+      - **None/null**: gọi method trên giá trị rỗng (`AttributeError`, `NullPointerException`).
+      - **Mutable default argument** (Python): `def f(x, acc=[])` dùng chung **một** list cho mọi lần
+        gọi; nên dùng `acc=None` rồi tạo list mới trong hàm.
+      - **Shared state / aliasing**: hai biến trỏ cùng một đối tượng nên sửa cái này đổi cái kia.
+      - **Type coercion / ép kiểu**: ghép hoặc so sánh chuỗi với số (JS: `"5" + 1` → `"51"`; Python:
+        `"5" + 1` **ném TypeError**), và float precision (`0.1 + 0.2 != 0.3`).
+      - **Race condition**: kết quả phụ thuộc thứ tự chạy của các luồng/async (lost update, quên
+        `await`); khó tái hiện nên hay cần log có timestamp.
+  - id: b07
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Sau khi tìm ra và sửa xong một bug, bước nào giúp bug không quay lại?"
+    options:
+      - {id: a, text_md: "Xóa log để code gọn hơn"}
+      - {id: b, text_md: "Thêm một **regression test** tái hiện đúng bug đó"}
+      - {id: c, text_md: "Bọc đoạn code bằng `try/except` rỗng"}
+    answer: [b]
+    explain_md: "Regression test fail với code cũ và pass với bản sửa, nên nếu ai đó làm hỏng lại sẽ bị CI bắt. (c) chỉ che lỗi."
+  - id: b08
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Hàm `def add(x, items=[]): items.append(x); return items` trả về kết quả bất ngờ ở lần gọi thứ hai (list đã chứa phần tử của lần trước). Đây là lớp bug nào?"
+    options:
+      - {id: a, text_md: "Off-by-one"}
+      - {id: b, text_md: "**Mutable default argument** (list mặc định được dùng chung giữa các lần gọi)"}
+      - {id: c, text_md: "Race condition"}
+    answer: [b]
+    explain_md: "Giá trị mặc định chỉ được tạo một lần khi định nghĩa hàm nên list bị dùng chung. Sửa: `items=None` rồi `if items is None: items = []`."
+  - id: b09
+    type: callout
+    kind: interview
+    md: |
+      **Thanh điểm mức 3 (level-3 bar).** Cho một bug report mơ hồ, bạn nêu được quy trình theo
+      thứ tự: **reproduce** → đọc **stack trace**/log → giả thuyết → **thu hẹp** (`git bisect`, bisect
+      đầu vào) → đổi **một thứ mỗi lần** → sửa **nguyên nhân gốc** → thêm **regression test**; và gọi
+      tên được vài lớp bug hay gặp cùng cách phòng.
+  - id: b10
+    type: summary
+    bullets_vi:
+      - "**Tái hiện** lỗi ổn định trước khi sửa; đọc **stack trace**/log thật chứ đừng đoán."
+      - "Đặt **giả thuyết**, đổi **một thứ mỗi lần**, kiểm chứng sau mỗi bước."
+      - "Thu hẹp bằng **binary search**: `git bisect`, bisect đầu vào, breakpoint/logging, `curl` để tách client/server."
+      - "Sửa **root cause**, không che triệu chứng; thêm **regression test** sau khi sửa."
+      - "Bug hay gặp: off-by-one, None, mutable default argument, shared state, type coercion, race condition."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [E127], l2: [E128], l3: [E129]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-12"

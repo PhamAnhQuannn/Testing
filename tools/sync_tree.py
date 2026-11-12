@@ -33,6 +33,7 @@ EXTRA_MODULES = {
     "ml.system_design",
     "eng.workflow",
     "eng.apis",
+    "eng.testing_quality",
 }
 
 # Individual nodes materialized beyond the MVP plan window (Wave 2+ fundamentals additions).
@@ -297,11 +298,11 @@ EXTRA_IDS = {
 PLAN_MVP_COUNT = 40
 EXPECTED_SD = 86
 EXPECTED_ML4 = 39
-EXPECTED_ENG = 6  # eng concept modules shipped so far (eng.workflow + eng.apis)
+EXPECTED_ENG = 11  # eng modules shipped (workflow + apis + testing_quality)
 EXPECTED_EXTRA_IDS = len(EXTRA_IDS)  # Wave 2 additions
 EXPECTED_TOTAL = (
     PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_ENG + EXPECTED_EXTRA_IDS
-)  # 373
+)  # 378
 
 # Node fields the app uses (SPEC 4.2); optional ones are skipped when a node lacks them.
 NODE_FIELDS = [

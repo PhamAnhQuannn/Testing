@@ -1,0 +1,122 @@
+id: eng.testing_quality.mocking_integration
+version: 1
+status: published
+title_vi: "Mock, stub, fake và integration test: khi nào dùng đồ giả, khi nào chạy thật"
+est_minutes: 12
+objectives_vi:
+  - "Giải thích vì sao dùng **test double** (đồ giả) để cô lập code khỏi phụ thuộc chậm hoặc không ổn định (mạng, đồng hồ, database)."
+  - "Phân biệt **stub**, **mock**, **fake** và **spy**."
+  - "Nhận ra rủi ro của **over-mocking**: test xanh nhưng hệ thống thật vẫn hỏng."
+  - "Biết **integration test** là gì và khi nào nên ưu tiên nó hơn mock."
+blocks:
+  - id: s_doubles
+    type: section
+    title_vi: "Test double: stub, mock, fake, spy"
+    summary_vi: "Test double là bản giả thay phần phụ thuộc thật. Stub trả đáp án định sẵn, mock kiểm tra tương tác, fake là bản chạy thật đơn giản, spy ghi lại cuộc gọi."
+  - id: b01
+    type: text
+    md: |
+      Giả sử hàm `gui_thong_bao(user, mailer)` gửi email qua một dịch vụ bên ngoài. Nếu test gọi
+      dịch vụ thật thì test **chậm**, **tốn tiền** và **không ổn định** (mạng rớt là test đỏ). Giải
+      pháp: dùng **test double** (đồ giả) thay cho `mailer` thật. Muốn làm được điều này, hàm nên
+      nhận phụ thuộc qua tham số (**dependency injection**) thay vì tự tạo bên trong.
+
+      Bốn loại double hay gặp:
+      - **Stub**: trả về **đáp án định sẵn** (canned answer), ví dụ luôn trả `{"price": 100}`. Dùng để
+        cấp dữ liệu đầu vào cho code đang test.
+      - **Mock**: giống stub nhưng còn **kiểm tra tương tác**: có được gọi không, gọi mấy lần, với
+        tham số gì. Ví dụ `mailer.send.assert_called_once_with("an", "Xin chào")`.
+      - **Fake**: một bản cài đặt **chạy thật nhưng đơn giản**, ví dụ database **in-memory** hoặc
+        repository lưu bằng `dict`. Có logic thật, chỉ không dùng cho production.
+      - **Spy**: bọc đối tượng thật (hoặc double) và **ghi lại** các cuộc gọi để kiểm tra sau.
+
+      Cách nhớ: stub = "trả lời", mock = "kiểm tra đã gọi đúng", fake = "bản thật thu nhỏ", spy =
+      "ghi âm".
+  - id: b02
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Bạn muốn test rằng sau khi đặt hàng, hàm `dat_hang` **đã gọi đúng một lần** `mailer.send(...)`. Loại test double nào phù hợp nhất để kiểm tra điều đó?"
+    options:
+      - {id: a, text_md: "**Mock**, vì nó kiểm tra tương tác (số lần gọi, tham số)"}
+      - {id: b, text_md: "**Stub**, vì nó luôn trả đáp án định sẵn"}
+      - {id: c, text_md: "**Fake**, vì nó là database in-memory"}
+    answer: [a]
+    explain_md: "Mock dùng để xác nhận **tương tác** (đã gọi, gọi mấy lần, với tham số gì). Stub chỉ cấp đáp án canned và không kiểm tra cuộc gọi; fake là bản cài đặt chạy thật đơn giản, không phải công cụ kiểm tra cuộc gọi."
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "**Fake** khác stub ở điểm nào?"
+    options:
+      - {id: a, text_md: "Fake là bản cài đặt **chạy thật** có logic (ví dụ DB in-memory), còn stub chỉ trả giá trị định sẵn"}
+      - {id: b, text_md: "Fake luôn gọi dịch vụ thật qua mạng"}
+      - {id: c, text_md: "Fake không bao giờ lưu dữ liệu"}
+    answer: [a]
+    explain_md: "Fake có hành vi thật nhưng đơn giản (ví dụ lưu và đọc bằng `dict`), nên test thấy dữ liệu ghi vào rồi đọc ra. Stub chỉ trả đáp án cố định."
+  - id: s_overmock
+    type: section
+    title_vi: "Over-mocking và integration test"
+    summary_vi: "Mock quá nhiều làm test chỉ kiểm tra chính mock; test xanh nhưng tích hợp thật vẫn hỏng. Integration test chạy nhiều phần thật cùng nhau để bắt lỗi ở chỗ nối."
+  - id: b04
+    type: text
+    md: |
+      **Vì sao mock?** Để **cô lập** đơn vị đang test khỏi thứ **chậm** (mạng, database) hoặc
+      **không tất định** (đồng hồ, số ngẫu nhiên, API bên thứ ba). Nhờ đó unit test nhanh và lặp lại
+      được.
+
+      **Rủi ro over-mocking**: nếu mock mọi thứ, test chỉ kiểm tra rằng "code gọi mock đúng như mình
+      đã viết", không kiểm tra hệ thống thật có chạy không. Ví dụ mock repository luôn trả
+      `{"id": 1}` nhưng câu SQL thật sai: unit test **vẫn xanh**, production **vẫn hỏng**. Mock cũng
+      gắn chặt với cách cài đặt: refactor nội bộ mà hành vi không đổi, test vẫn có thể vỡ.
+
+      **Integration test** chạy **nhiều thành phần thật cùng nhau**, ví dụ gọi endpoint bằng test
+      client, đi qua service, tới một database thử thật (có thể dựng bằng **Testcontainers** hoặc
+      SQLite in-memory), rồi dọn dữ liệu sau mỗi test (rollback). Chúng bắt lỗi ở **chỗ nối** (SQL
+      sai, serialization, cấu hình) mà unit test với mock bỏ sót; đổi lại chậm hơn và setup phức tạp
+      hơn.
+
+      Khi nào ưu tiên gì:
+      - Logic thuần (tính toán, quy tắc) → unit test, ít hoặc không cần mock.
+      - Phụ thuộc chậm/không tất định hoặc tốn tiền (API bên ngoài, email, đồng hồ) → double (stub/mock/fake).
+      - Code của **chính bạn** như database, repository → ưu tiên **fake hoặc DB thật** trong integration test thay vì mock.
+      - Cả luồng quan trọng → vài **integration test**; **E2E** (chạy như người dùng) giữ ít vì chậm và dễ flaky.
+  - id: b05
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một nhóm mock toàn bộ database trong mọi test. Mọi test đều xanh nhưng sau khi deploy, truy vấn thật lỗi. Nguyên nhân chính là gì?"
+    options:
+      - {id: a, text_md: "**Over-mocking**: test chỉ kiểm tra mock nên không bắt được lỗi tích hợp thật (SQL sai, schema lệch)"}
+      - {id: b, text_md: "Database thật luôn chậm hơn nên test không chạy"}
+      - {id: c, text_md: "Mock luôn kiểm tra cả truy vấn thật"}
+    answer: [a]
+    explain_md: "Khi mọi thứ bị mock, test không chạy qua database thật nên không phát hiện SQL sai hay schema lệch. Cần ít nhất vài **integration test** với DB thật hoặc fake đủ trung thực."
+  - id: b06
+    type: quiz_fill
+    graded: true
+    prompt_md: "Điền một từ tiếng Anh: loại test chạy nhiều thành phần **thật** cùng nhau (ví dụ endpoint + database thử) để bắt lỗi ở chỗ nối gọi là ______ test."
+    blanks:
+      - accept: ["integration"]
+    explain_md: "Đó là **integration** test. Nó chậm hơn unit test nhưng bắt được lỗi mà test với mock bỏ sót."
+  - id: b07
+    type: callout
+    kind: interview
+    md: |
+      **Thanh điểm mức 3 (level-3 bar).** Cho một hàm phụ thuộc API bên ngoài và một endpoint dùng
+      database, bạn chọn được **stub/mock/fake/integration** cho từng chỗ và giải thích lý do: đồ
+      giả cho thứ chậm/không tất định, DB thật hoặc fake cho code của mình, và nêu được **khi nào
+      không nên mock** (over-mocking).
+  - id: b08
+    type: summary
+    bullets_vi:
+      - "**Test double** thay phần phụ thuộc thật để test nhanh, ổn định; cần **dependency injection** để thay được."
+      - "**Stub** trả đáp án định sẵn; **mock** kiểm tra tương tác; **fake** là bản chạy thật đơn giản (DB in-memory); **spy** ghi lại cuộc gọi."
+      - "Mock để cô lập khỏi thứ chậm hoặc không tất định (mạng, đồng hồ, DB, API ngoài)."
+      - "**Over-mocking** làm test xanh nhưng tích hợp thật vẫn hỏng; ưu tiên fake hoặc DB thật cho code của mình."
+      - "**Integration test** chạy nhiều phần thật cùng nhau; giữ ít **E2E** vì chậm và dễ flaky."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [E121], l2: [E122], l3: [E123]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-12"

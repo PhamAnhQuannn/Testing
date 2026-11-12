@@ -128,6 +128,7 @@ MODULE_NAMES: dict[str, str] = {
     "ml.system_design": "Thiết kế hệ thống AI",
     "eng.workflow": "Quy trình & Git",
     "eng.apis": "Thiết kế API",
+    "eng.testing_quality": "Kiểm thử & chất lượng",
 }
 
 
