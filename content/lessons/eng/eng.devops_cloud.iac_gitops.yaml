@@ -1,0 +1,149 @@
+id: eng.devops_cloud.iac_gitops
+version: 1
+status: published
+title_vi: "Hạ tầng bằng code và GitOps: IaC, declarative, plan/apply/state, GitOps, drift, promotion"
+est_minutes: 12
+objectives_vi:
+  - "Giải thích **IaC** (Infrastructure as Code) giải quyết vấn đề gì so với bấm tay trên giao diện web."
+  - "Phân biệt **declarative** (mô tả trạng thái mong muốn) với **imperative** (liệt kê từng bước) và đọc được luồng **plan/apply/state**."
+  - "Nêu nguyên tắc **GitOps**: Git là **source of truth**, một agent liên tục **reconcile** hạ tầng thật về đúng trạng thái trong Git, **drift** bị sửa lại."
+  - "Mô tả một thay đổi hạ tầng đi từ Git qua review, các môi trường dev, staging đến production (**promotion**)."
+blocks:
+  - id: s_iac
+    type: section
+    title_vi: "IaC: hạ tầng được mô tả bằng code"
+    summary_vi: "IaC mô tả hạ tầng (máy chủ, mạng, database) bằng file code hoặc cấu hình, lưu trong Git. Nhờ vậy hạ tầng được review, có lịch sử và dựng lại giống hệt khi cần."
+  - id: b01
+    type: text
+    md: |
+      **Infrastructure as Code (IaC)** là mô tả hạ tầng (máy chủ, mạng, database, quyền truy cập) bằng **file code hoặc
+      cấu hình** thay vì bấm chuột trên giao diện web của nhà cung cấp cloud. Các file này được lưu trong **Git**
+      như mã nguồn thông thường.
+
+      Bấm tay gây ra các vấn đề quen thuộc: không ai nhớ đã bấm gì, môi trường dev và prod dần lệch nhau,
+      khó dựng lại khi sự cố, không có người review. IaC giải quyết bằng cách:
+      - **Lặp lại được**: chạy lại cùng file thì dựng ra cùng một hạ tầng.
+      - **Có lịch sử và review**: mỗi thay đổi là một commit/pull request, biết ai đổi gì và vì sao, có thể revert.
+      - **Nhất quán giữa môi trường**: dev, staging, prod dùng chung định nghĩa, chỉ khác tham số.
+
+      Ví dụ ý tưởng (viết dưới dạng mô tả, không phải lệnh để chạy): một file khai báo "1 máy chủ cỡ nhỏ,
+      mở cổng 443, đặt trong mạng riêng X". Công cụ đọc file và tạo đúng như vậy.
+  - id: b02
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Lợi ích **chính** của việc mô tả hạ tầng bằng code lưu trong Git so với bấm tay trên giao diện web là gì?"
+    options:
+      - {id: a, text_md: "Hạ tầng luôn rẻ hơn mà không cần thay đổi cấu hình"}
+      - {id: b, text_md: "Thay đổi được review, có lịch sử, và dựng lại giống hệt khi cần"}
+      - {id: c, text_md: "Không cần ai hiểu hạ tầng nữa vì công cụ tự lo hết"}
+    answer: [b]
+    explain_md: "IaC mang thực hành của code (review, version, tái lập) vào hạ tầng. Nó không tự làm hạ tầng rẻ hơn (a) và vẫn cần người hiểu hạ tầng để viết và review (c)."
+  - id: s_declarative
+    type: section
+    title_vi: "Declarative, plan/apply và state"
+    summary_vi: "Declarative: nói trạng thái mong muốn, công cụ tự tính phần cần đổi. Plan xem trước, apply thực hiện, state ghi lại hạ tầng công cụ đang quản lý."
+  - id: b03
+    type: text
+    md: |
+      Hai cách viết:
+      - **Declarative**: bạn mô tả **trạng thái cuối mong muốn** ("muốn có 3 máy chủ"). Công cụ **so sánh** với
+        hiện tại rồi tự tính cần tạo, sửa hay xóa gì. Terraform và Kubernetes manifest theo kiểu này.
+      - **Imperative**: bạn liệt kê **từng bước** ("tạo máy chủ", "tạo thêm máy chủ"...). Chạy lại có thể
+        làm lặp việc (tạo thêm máy chủ nữa) vì kịch bản không biết hiện đã có gì.
+
+      Declarative có tính **idempotent** tự nhiên: chạy lại khi hạ tầng đã đúng thì không có gì thay đổi.
+
+      Luồng của một công cụ như **Terraform**:
+      1. **plan**: tính khác biệt giữa file mô tả và hạ tầng hiện có, **chỉ cho xem** (ví dụ "+ 1 to add, - 1 to destroy"), chưa đổi gì.
+      2. Người **review plan**: có phần nào bị xóa hoặc tạo lại ngoài ý muốn không?
+      3. **apply**: thực hiện đúng các thay đổi đó.
+
+      **State** là bản ghi công cụ giữ về các tài nguyên nó đang quản lý (tài nguyên nào ứng với khối nào trong file).
+      Plan dựa vào state và hạ tầng thật để tính khác biệt. State có thể chứa dữ liệu nhạy cảm nên phải được **bảo vệ**, thường
+      lưu ở **remote backend** chung cho cả nhóm, có khóa (lock) để hai người không apply cùng lúc, và **không** commit tùy tiện vào Git.
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Plan hiển thị `+ 1 to add, - 1 to destroy`. Bước hợp lý nhất tiếp theo là gì?"
+    options:
+      - {id: a, text_md: "Apply ngay vì plan do công cụ tính nên luôn đúng ý"}
+      - {id: b, text_md: "Xem tài nguyên nào bị xóa và tạo mới, xác nhận đúng ý định (có mất dữ liệu không) rồi mới apply"}
+      - {id: c, text_md: "Bỏ qua plan và xóa file state cho sạch"}
+    answer: [b]
+    explain_md: "Plan là chỗ để review: một tài nguyên bị destroy rồi tạo lại có thể làm mất dữ liệu hoặc gây gián đoạn. Apply mù (a) bỏ phí mục đích của plan; xóa state (c) làm công cụ mất dấu hạ tầng đang quản lý."
+  - id: b05
+    type: quiz_fill
+    graded: true
+    prompt_md: "Điền một từ tiếng Anh: kiểu mô tả mà bạn chỉ nói trạng thái cuối mong muốn và để công cụ tự tính các bước cần làm gọi là ______."
+    blanks:
+      - accept: ["declarative", "declarative style", "declarative approach"]
+    explain_md: "Đó là **declarative**. Khác với **imperative** là liệt kê từng bước; declarative cho phép công cụ so sánh trạng thái và chỉ làm phần cần thiết."
+  - id: s_gitops
+    type: section
+    title_vi: "GitOps, drift và promotion giữa môi trường"
+    summary_vi: "GitOps: Git là source of truth, agent liên tục reconcile hạ tầng thật về trạng thái trong Git và sửa drift. Thay đổi đi qua pull request, dev, staging rồi production."
+  - id: b06
+    type: text
+    md: |
+      **GitOps** áp dụng IaC theo cách: **Git là nguồn sự thật duy nhất (single source of truth)** cho trạng thái mong muốn.
+      - Muốn đổi hạ tầng thì **sửa file trong Git** qua pull request (có review, có lịch sử), không đổi trực tiếp trên hệ thống thật.
+      - Một **agent/controller** chạy trong hệ thống (ví dụ Argo CD, Flux cho Kubernetes) **liên tục so sánh** trạng thái thật với Git và
+        **reconcile**: kéo trạng thái thật về đúng như Git.
+      - **Drift** là khi hạ tầng thật lệch khỏi Git (ví dụ ai đó sửa tay trên production). Agent phát hiện và có thể **tự sửa lại**
+        theo Git (hoặc ít nhất cảnh báo).
+      - **Rollback** thành việc `git revert`: hệ thống tự quay về trạng thái cũ.
+
+      **Environment promotion**: một thay đổi đi lần lượt qua các môi trường, ví dụ **dev** (thử nghiệm nhanh),
+      **staging** (giống production để kiểm thử), rồi **production** (người dùng thật). Mỗi bước kiểm tra tự động hoặc
+      duyệt tay; không thử thẳng trên production vì lỗi ảnh hưởng người dùng thật.
+
+      Luồng điển hình của một thay đổi: sửa file → mở pull request → review và chạy kiểm tra (CI, `plan`) → merge vào nhánh chính
+      → agent áp dụng lên dev → promote sang staging → promote sang production.
+
+      Cùng tinh thần này là **12-factor**: cấu hình tách khỏi code và đưa qua **biến môi trường**, tiến trình **stateless**,
+      nên cùng một bản build chạy được ở mọi môi trường chỉ với cấu hình khác nhau.
+  - id: b07
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Trong mô hình **GitOps**, ai đó sửa tay một cấu hình trực tiếp trên hệ thống thật khiến nó khác với Git. Điều gì được mong đợi xảy ra?"
+    options:
+      - {id: a, text_md: "Agent reconcile phát hiện drift và đưa hệ thống thật về đúng như trong Git"}
+      - {id: b, text_md: "Git tự cập nhật theo thay đổi tay vì hệ thống thật mới là nguồn sự thật"}
+      - {id: c, text_md: "Không có gì xảy ra vì GitOps chỉ chạy khi có người bấm deploy"}
+    answer: [a]
+    explain_md: "Trong GitOps, Git là source of truth và agent liên tục reconcile, nên thay đổi tay (drift) bị sửa lại hoặc bị cảnh báo. (b) đảo ngược chiều nguồn sự thật; (c) bỏ qua tính liên tục của reconcile."
+  - id: b08
+    type: quiz_mcq
+    graded: false
+    prompt_md: "Vì sao thay đổi hạ tầng nên đi qua dev và staging trước khi tới production?"
+    options:
+      - {id: a, text_md: "Để phát hiện lỗi ở môi trường không ảnh hưởng người dùng thật"}
+      - {id: b, text_md: "Vì production không cho phép dùng Git"}
+      - {id: c, text_md: "Vì mỗi môi trường phải dùng một công cụ khác nhau"}
+    answer: [a]
+    explain_md: "Promotion giúp bắt lỗi sớm ở môi trường an toàn. Production vẫn dùng Git (b), và các môi trường thường dùng chung công cụ và định nghĩa (c)."
+  - id: b09
+    type: callout
+    kind: interview
+    md: |
+      **Thanh điểm mức 3 (level-3 bar).** Bạn giải thích được **IaC giải quyết vấn đề gì** (bấm tay khó lặp lại, không review,
+      môi trường lệch nhau) và mô tả được cách một thay đổi hạ tầng đi từ **Git đến production**: pull request và review,
+      chạy `plan` để xem trước, merge, agent **reconcile**/apply lên dev, staging rồi production. Bạn phân biệt được
+      **declarative** với **imperative**, biết vai trò của **state** và rủi ro khi apply mà không đọc plan, và hiểu **drift** cùng
+      cách GitOps xử lý nó.
+  - id: b10
+    type: summary
+    bullets_vi:
+      - "**IaC**: hạ tầng mô tả bằng code/cấu hình trong Git, nên lặp lại được, có review và lịch sử."
+      - "**Declarative** nói trạng thái mong muốn, công cụ tự tính khác biệt; **imperative** liệt kê từng bước."
+      - "**plan** xem trước, **apply** thực hiện, **state** ghi lại hạ tầng được quản lý; luôn đọc plan trước khi apply."
+      - "**GitOps**: Git là source of truth, agent **reconcile** hạ tầng thật về Git, sửa **drift**; rollback bằng revert."
+      - "Thay đổi **promote** lần lượt dev, staging, production; cấu hình tách khỏi code (12-factor)."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [E151], l2: [E152], l3: [E153]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-12"

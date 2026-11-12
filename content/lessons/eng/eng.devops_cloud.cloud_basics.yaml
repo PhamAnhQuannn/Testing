@@ -1,0 +1,138 @@
+id: eng.devops_cloud.cloud_basics
+version: 1
+status: published
+title_vi: "Cloud cơ bản: IaaS/PaaS/SaaS, region và AZ, managed service, shared responsibility"
+est_minutes: 12
+objectives_vi:
+  - "Phân biệt **IaaS**, **PaaS**, **SaaS** theo việc bạn quản lý phần nào và nhà cung cấp quản lý phần nào."
+  - "Nêu các chỗ chạy code (**VM**, **container**, **serverless**) và các loại **storage** (object, block, file)."
+  - "Giải thích **region**, **availability zone (AZ)**, **managed service** và đánh đổi giữa kiểm soát với công vận hành."
+  - "Nêu **shared responsibility**, **IAM** (ít quyền nhất), **autoscaling** và các khoản chi phí chính."
+blocks:
+  - id: s_models
+    type: section
+    title_vi: "Cloud là gì: IaaS, PaaS, SaaS"
+    summary_vi: "Cloud là thuê tài nguyên qua mạng, trả theo mức dùng, tăng giảm trong vài phút. Mức thuê càng cao (IaaS, PaaS, SaaS) thì bạn tự quản càng ít."
+  - id: b01
+    type: text
+    md: |
+      **Cloud** là thuê máy chủ, lưu trữ và cả database qua mạng, **trả tiền theo mức dùng** và tăng giảm trong
+      vài phút, thay vì tự mua máy và tự dựng phòng máy. Ba nhà cung cấp lớn là AWS, GCP và Azure (ở đây chỉ
+      lấy làm ví dụ; khái niệm chung cho mọi nhà cung cấp).
+
+      Ba mức thuê, ví von theo chỗ ở:
+      - **IaaS** (Infrastructure as a Service): thuê **máy ảo và mạng** trống, giống thuê đất. Nhà cung cấp lo
+        phần cứng; bạn tự quản từ **hệ điều hành** trở lên (cài đặt, vá lỗi, chạy app).
+      - **PaaS** (Platform as a Service): **nền tảng chạy app giúp bạn**, giống thuê nhà có sẵn đồ. Bạn chỉ
+        quản **code và cấu hình**; hệ điều hành và runtime do nhà cung cấp lo.
+      - **SaaS** (Software as a Service): **phần mềm dùng ngay**, giống ở khách sạn. Bạn chỉ dùng (email, công cụ
+        quản lý dự án), không quản hạ tầng hay code.
+
+      Đi từ IaaS lên SaaS: bạn **kiểm soát ít hơn nhưng bớt việc vận hành hơn**.
+  - id: b02
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Team bạn chỉ muốn đưa **code** lên và để nhà cung cấp lo hệ điều hành, runtime và việc chạy app. Mô hình nào hợp nhất?"
+    options:
+      - {id: a, text_md: "SaaS"}
+      - {id: b, text_md: "IaaS"}
+      - {id: c, text_md: "PaaS"}
+    answer: [c]
+    explain_md: "PaaS: bạn quản code và cấu hình, nhà cung cấp lo OS và runtime. IaaS (b) bắt bạn tự quản từ hệ điều hành lên; SaaS (a) là phần mềm hoàn chỉnh, bạn không đưa code của mình lên."
+  - id: s_building
+    type: section
+    title_vi: "Các khối xây dựng: compute, storage, managed service, mạng"
+    summary_vi: "Code chạy trên VM, container hoặc serverless. Lưu trữ có object, block, file. Managed service để nhà cung cấp vận hành database, queue. Mạng gồm VPC, security group, load balancer, CDN."
+  - id: b03
+    type: text
+    md: |
+      **Chỗ chạy code (compute):**
+      - **VM** (máy ảo): bạn tự quản cả máy; linh hoạt nhất, nhiều việc nhất.
+      - **Container**: đóng gói app (ví dụ bằng Docker) rồi để nền tảng chạy; gọn và nhất quán giữa các môi trường.
+      - **Serverless** (hàm): nộp một hàm, nhà cung cấp chạy khi có yêu cầu và **tính tiền theo lần chạy**;
+        không phải quản máy, nhưng có giới hạn (thời gian chạy, khởi động nguội).
+
+      **Storage:**
+      - **Object storage**: lưu file (ảnh, backup) theo tên/khóa, rất bền và rẻ, truy cập qua API.
+      - **Block storage**: ổ đĩa **thường** gắn vào một máy, dùng cho OS hoặc database tự quản.
+      - **File storage**: thư mục dùng chung cho nhiều máy.
+
+      **Managed service**: database, message queue... do nhà cung cấp **vận hành** (cài, vá, backup, failover),
+      bạn đỡ việc nhưng **đổi lại ít quyền chỉnh sâu** và thường tốn phí cao hơn tự chạy ở quy mô nhỏ.
+
+      **Mạng:** **VPC** là mạng riêng ảo của bạn trong cloud; **security group** là tường lửa cho nhóm máy
+      (cổng nào được vào); **load balancer** chia yêu cầu cho nhiều server; **CDN** giữ bản sao file tĩnh gần người dùng.
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "App cần lưu hàng triệu **ảnh người dùng tải lên**, truy cập qua URL/API, ưu tiên bền và rẻ. Loại storage nào phù hợp nhất?"
+    options:
+      - {id: a, text_md: "Object storage"}
+      - {id: b, text_md: "Block storage gắn vào một VM"}
+      - {id: c, text_md: "File storage dùng chung giữa các máy"}
+    answer: [a]
+    explain_md: "Object storage sinh ra cho lượng lớn file theo khóa, bền và rẻ. Block (b) gắn vào một máy, hợp ổ đĩa của VM hay database tự quản; file storage (c) hợp khi nhiều máy cần chung một cây thư mục."
+  - id: s_reliability
+    type: section
+    title_vi: "Region, AZ, shared responsibility, IAM và chi phí"
+    summary_vi: "Region là vùng địa lý, AZ là datacenter cô lập trong region; chạy nhiều AZ để chịu lỗi. Nhà cung cấp bảo mật cloud, bạn bảo mật thứ bạn đặt lên cloud. IAM ít quyền nhất; autoscaling và chi phí theo mức dùng."
+  - id: b05
+    type: text
+    md: |
+      **Region** là một **vùng địa lý** (ví dụ một thành phố/quốc gia). Trong mỗi region có nhiều **availability
+      zone (AZ)**: các **trung tâm dữ liệu cô lập** (nguồn điện, mạng riêng) nhưng nối nhau tốc độ cao.
+      Chạy app trên **nhiều AZ** thì một datacenter mất điện hệ thống vẫn sống; **multi-region** bảo vệ trước
+      sự cố cả vùng, đổi lại phức tạp và đắt hơn.
+
+      **Shared responsibility (trách nhiệm chia sẻ):** nhà cung cấp bảo mật **bản thân cloud** (datacenter, phần
+      cứng, tầng ảo hóa); **bạn** bảo mật **thứ bạn đặt lên cloud** (dữ liệu, cấu hình, tài khoản và quyền truy
+      cập, patch OS nếu dùng IaaS). Ranh giới dịch lên khi dùng PaaS/managed service, nhưng dữ liệu và quyền truy cập
+      **luôn là phần của bạn**.
+
+      **IAM** (Identity and Access Management) phân quyền ai và dịch vụ nào được làm gì, theo
+      **nguyên tắc ít quyền nhất** (least privilege).
+
+      **Autoscaling** tự thêm bớt máy theo tải. **Chi phí** chủ yếu gồm giờ chạy compute, dung lượng lưu, và
+      lượng dữ liệu **đi ra** ngoài cloud; autoscaling giúp tránh trả tiền cho máy rảnh nhưng cũng cần đặt trần để tránh hóa đơn bất ngờ.
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một **S3-style bucket** (object storage) bị đặt chế độ công khai nên lộ dữ liệu khách hàng. Theo **shared responsibility**, ai chịu trách nhiệm chính về lỗi cấu hình này?"
+    options:
+      - {id: a, text_md: "Nhà cung cấp cloud, vì họ sở hữu datacenter"}
+      - {id: b, text_md: "Khách hàng, vì cấu hình và quyền truy cập dữ liệu là phần của họ"}
+      - {id: c, text_md: "Không ai, vì object storage là managed service"}
+    answer: [b]
+    explain_md: "Nhà cung cấp bảo mật cloud (hạ tầng); cấu hình quyền, dữ liệu và tài khoản của bạn là phần của khách hàng. Managed service (c) chỉ chuyển bớt việc vận hành, không chuyển trách nhiệm về dữ liệu và quyền truy cập."
+  - id: b07
+    type: quiz_fill
+    graded: true
+    prompt_md: "Điền một từ tiếng Anh: để một datacenter mất điện hệ thống vẫn chạy, ta triển khai trên nhiều ______ (các trung tâm dữ liệu cô lập trong cùng một region)."
+    blanks:
+      - accept: ["availability zone", "availability zones", "az", "azs"]
+    explain_md: "Đó là **availability zone (AZ)**: datacenter cô lập trong một region. Chạy nhiều AZ cho khả năng chịu lỗi mà không cần chuyển sang region khác."
+  - id: b08
+    type: callout
+    kind: interview
+    md: |
+      **Thanh điểm mức 3 (level-3 bar).** Cho một web app nhỏ, bạn chọn được dịch vụ cho **chỗ chạy code**
+      (VM, container hay serverless), **database** (managed), **kho ảnh** (object storage) và **cổng vào**
+      (load balancer), kèm lý do và đánh đổi. Bạn giải thích được **VPC** (mạng riêng, security group), **IAM**
+      ít quyền nhất, chạy **nhiều AZ**, **shared responsibility**, và khác nhau giữa **serverless** với **container**.
+  - id: b09
+    type: summary
+    bullets_vi:
+      - "**IaaS** thuê máy/mạng (bạn quản từ OS lên), **PaaS** nền tảng chạy code giúp bạn, **SaaS** phần mềm dùng ngay."
+      - "Chỗ chạy code: **VM** (nhiều quyền, nhiều việc), **container**, **serverless** (trả theo lần chạy, có giới hạn)."
+      - "Storage: **object** (file theo khóa), **block** (ổ gắn một máy), **file** (thư mục chung)."
+      - "**Managed service** đổi bớt kiểm soát lấy bớt vận hành; **VPC**, security group, load balancer, CDN lo mạng."
+      - "**Region** là vùng địa lý, **AZ** là datacenter cô lập trong region; chạy nhiều AZ để chịu lỗi."
+      - "**Shared responsibility**: nhà cung cấp bảo mật cloud, bạn bảo mật thứ đặt lên cloud; **IAM** ít quyền nhất; **autoscaling** và chi phí theo mức dùng."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [E157], l2: [E158], l3: [E159]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-12"

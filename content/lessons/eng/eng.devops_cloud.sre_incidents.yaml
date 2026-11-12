@@ -1,0 +1,145 @@
+id: eng.devops_cloud.sre_incidents
+version: 1
+status: published
+title_vi: "SRE và xử lý sự cố: SLO, error budget, incident response, postmortem, runbook, toil"
+est_minutes: 13
+objectives_vi:
+  - "Phân biệt **SLI**, **SLO**, **SLA** và tính được **error budget** từ SLO."
+  - "Mô tả quy trình **incident response**: detect, triage/severity, **mitigate** trước, resolve, rồi tìm root cause."
+  - "Viết **blameless postmortem** có dòng thời gian, nguyên nhân hệ thống và **action items** cụ thể."
+  - "Nêu vai trò của **on-call**, **runbook**, cảnh báo ít nhiễu và giảm **toil** bằng tự động hóa."
+blocks:
+  - id: s_slo
+    type: section
+    title_vi: "SLI, SLO, SLA và error budget"
+    summary_vi: "SLI là số đo, SLO là mục tiêu nội bộ, SLA là cam kết với khách. Error budget = 1 - SLO: phần không tin cậy còn được phép, dùng để cân bằng giữa ra tính năng và ổn định."
+  - id: b01
+    type: text
+    md: |
+      **SRE** (Site Reliability Engineering) vận hành dịch vụ như một bài toán kỹ thuật: đặt mục tiêu đo được
+      và có quy trình rõ ràng khi hỏng.
+
+      - **SLI** (Service Level Indicator): con số đo chất lượng, ví dụ tỉ lệ request thành công hoặc
+        tỉ lệ request nhanh hơn 300 ms.
+      - **SLO** (Service Level Objective): **mục tiêu nội bộ** cho SLI, ví dụ 99,9% request thành công trong 30 ngày.
+      - **SLA** (Service Level Agreement): **cam kết với khách hàng**, thường kèm đền bù. SLA nên lỏng hơn SLO
+        để còn khoảng đệm.
+
+      **Error budget** = 1 - SLO, tức mức không tin cậy mà ta **được phép** tiêu. Ví dụ SLO 99% trong 30 ngày
+      nghĩa là được phép lỗi 1% (số request, hoặc thời gian nếu SLI tính theo uptime). Còn ngân sách thì ra tính năng, chấp nhận rủi ro; **hết ngân sách**
+      thì đóng băng các bản phát hành rủi ro và dồn sức vào ổn định. Nhờ vậy dev và ops có chung một thước đo
+      thay vì tranh cãi cảm tính. SLO 100% là mục tiêu không hợp lý: quá đắt và chặn mọi thay đổi.
+  - id: b02
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một dịch vụ có **SLO 99%** trong 30 ngày và đã dùng hết **error budget** từ giữa tháng. Hành động hợp lý nhất là gì?"
+    options:
+      - {id: a, text_md: "Tiếp tục phát hành tính năng mới như thường vì SLA vẫn chưa bị vi phạm"}
+      - {id: b, text_md: "Tạm dừng các bản phát hành rủi ro và ưu tiên việc ổn định độ tin cậy"}
+      - {id: c, text_md: "Nâng SLO lên 100% để không bao giờ hết ngân sách"}
+    answer: [b]
+    explain_md: "Hết error budget là tín hiệu để ưu tiên ổn định, đóng băng thay đổi rủi ro. Tiếp tục ra tính năng (a) bỏ qua tín hiệu đó; SLO 100% (c) làm ngân sách bằng 0 và không thực tế."
+  - id: b03
+    type: quiz_fill
+    graded: true
+    prompt_md: "Điền một cụm tiếng Anh: phần không tin cậy còn được phép trong một SLO, bằng 1 trừ SLO, gọi là ______ ."
+    blanks:
+      - accept: ["error budget", "the error budget", "errorbudget", "error-budget", "error budgets"]
+    explain_md: "Đó là **error budget**. Nó cho biết còn bao nhiêu \"lỗi được phép\" trước khi phải ưu tiên ổn định."
+  - id: s_incident
+    type: section
+    title_vi: "Incident response và on-call"
+    summary_vi: "Sự cố đi theo chuỗi detect, triage, mitigate, resolve. Giảm thiểu thiệt hại trước, tìm root cause sau. On-call nhận cảnh báo; runbook hướng dẫn từng bước."
+  - id: b04
+    type: text
+    md: |
+      **Incident** (sự cố) là lúc dịch vụ hỏng hoặc xuống cấp ảnh hưởng người dùng. Quy trình thường gặp:
+
+      1. **Detect**: cảnh báo hoặc báo cáo từ người dùng.
+      2. **Triage**: đánh giá phạm vi và gán **severity** (ví dụ SEV1 là nghiêm trọng nhất); gọi thêm người nếu cần (**escalation**).
+      3. **Mitigate**: **khôi phục dịch vụ trước**, bằng rollback, tắt feature flag, scale up, chuyển traffic.
+         Chưa cần biết nguyên nhân gốc.
+      4. **Resolve**: dịch vụ ổn định, đóng sự cố.
+      5. **Học hỏi**: tìm **root cause** và làm **postmortem**.
+
+      Trong sự cố lớn thường có các vai trò: **incident commander** (điều phối), người sửa (**ops/responder**)
+      và người **communications** (cập nhật cho các bên liên quan). **MTTR** (mean time to recover) là thời gian
+      trung bình để khôi phục; mitigate nhanh làm MTTR giảm.
+
+      **On-call** là người được phân ca trực để nhận cảnh báo (**on-call rotation**). **Runbook** là tài liệu
+      từng bước xử lý các lỗi quen thuộc, giúp người trực xử lý nhất quán kể cả lúc 3 giờ sáng.
+      Cảnh báo tốt chỉ báo triệu chứng cần người làm ngay (alert on symptoms); cảnh báo nhiễu làm người trực
+      mệt và bỏ sót cảnh báo thật.
+  - id: b05
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Sau một bản deploy, tỉ lệ lỗi tăng vọt và người dùng bị ảnh hưởng. Bạn vừa có bản deploy trước đó đang chạy tốt. Việc **đầu tiên** nên làm?"
+    options:
+      - {id: a, text_md: "Đọc toàn bộ code mới để tìm đúng dòng gây lỗi rồi mới hành động"}
+      - {id: b, text_md: "Rollback về bản trước để khôi phục dịch vụ, rồi điều tra nguyên nhân gốc sau"}
+      - {id: c, text_md: "Viết postmortem trước để không quên chi tiết"}
+    answer: [b]
+    explain_md: "Mitigate đi trước: khôi phục dịch vụ nhanh nhất có thể (rollback). Tìm root cause (a) và postmortem (c) làm sau khi dịch vụ đã ổn."
+  - id: s_postmortem
+    type: section
+    title_vi: "Postmortem, toil và độ an toàn khi phát hành"
+    summary_vi: "Blameless postmortem nhìn vào hệ thống và action items, không đổ lỗi cá nhân. Toil lặp lại thủ công nên được tự động hóa; canary và rollback trigger giúp phát hành an toàn."
+  - id: b06
+    type: text
+    md: |
+      **Postmortem** là bản rút kinh nghiệm sau sự cố. Nguyên tắc **blameless**: hỏi "hệ thống nào cho phép lỗi
+      này xảy ra?" thay vì "ai làm sai?". Đổ lỗi cá nhân khiến người ta giấu lỗi và hệ thống không cải thiện.
+      Một postmortem tốt gồm:
+      - **Tóm tắt và tác động** (bao nhiêu người dùng, bao lâu).
+      - **Dòng thời gian** (timeline) phát hiện, xử lý, khôi phục.
+      - **Root cause / contributing factors** mang tính hệ thống.
+      - **Action items** cụ thể: có chủ sở hữu và hạn. "Cẩn thận hơn" không phải action item;
+        "thêm cảnh báo khi ổ đĩa đầy 80%, giao cho đội X trước ngày Y" mới là action item.
+
+      **Toil** là công việc vận hành thủ công, lặp đi lặp lại, có thể tự động hóa và không tạo giá trị lâu dài.
+      SRE giảm toil bằng **automation** để dành thời gian cho cải tiến độ tin cậy.
+
+      Một số kỹ thuật bảo vệ dịch vụ: **graceful shutdown** (hoàn tất request đang xử lý trước khi tắt),
+      **load shedding** (khi quá tải, từ chối bớt request để phần còn lại vẫn sống), và **canary analysis**
+      với **rollback trigger** (điều kiện cụ thể, ví dụ tỉ lệ lỗi vượt ngưỡng, tự động kích hoạt quay lại bản cũ).
+  - id: b07
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Sau sự cố hết ổ đĩa, bản **blameless postmortem** nào dưới đây tốt nhất?"
+    options:
+      - {id: a, text_md: "Nêu tên kỹ sư quên dọn log và yêu cầu người đó cẩn thận hơn"}
+      - {id: b, text_md: "Mô tả timeline, nguyên nhân hệ thống (không có cảnh báo dung lượng, log không xoay vòng) và action items có chủ sở hữu, hạn"}
+      - {id: c, text_md: "Ghi ngắn gọn \"sự cố đã được xử lý\" để khỏi mất thời gian"}
+    answer: [b]
+    explain_md: "Blameless tập trung vào hệ thống và việc cần làm cụ thể. Đổ lỗi cá nhân (a) khiến người ta giấu lỗi; bản quá ngắn (c) không rút ra được bài học nào."
+  - id: b08
+    type: quiz_fill
+    graded: true
+    prompt_md: "Điền một từ tiếng Anh: việc thủ công, lặp đi lặp lại và có thể tự động hóa trong vận hành được gọi là ______ ."
+    blanks:
+      - accept: ["toil"]
+    explain_md: "Đó là **toil**. SRE giảm toil bằng automation để có thời gian cải thiện độ tin cậy."
+  - id: b09
+    type: callout
+    kind: interview
+    md: |
+      **Thanh điểm mức 3 (level-3 bar).** Bạn đặt được một **SLO** hợp lý cho dịch vụ (chọn SLI, ngưỡng, cửa sổ thời gian)
+      và tính được **error budget**; mô tả quy trình **incident response** với bước **mitigate** đi trước tìm
+      root cause; và viết được **blameless postmortem** có timeline, nguyên nhân hệ thống và **action items**
+      cụ thể (có chủ sở hữu, hạn). Biết vai trò **on-call**, **runbook**, giảm **toil**.
+  - id: b10
+    type: summary
+    bullets_vi:
+      - "**SLI** là số đo, **SLO** là mục tiêu nội bộ, **SLA** là cam kết với khách; **error budget = 1 - SLO**."
+      - "Còn ngân sách thì ra tính năng; hết ngân sách thì đóng băng thay đổi rủi ro và ưu tiên ổn định."
+      - "Incident: detect, triage/severity, **mitigate trước** (rollback, tắt flag), resolve, rồi tìm root cause; **MTTR** đo thời gian khôi phục."
+      - "**On-call** nhận cảnh báo ít nhiễu; **runbook** là hướng dẫn từng bước cho lỗi quen thuộc."
+      - "**Blameless postmortem**: timeline, nguyên nhân hệ thống, **action items** cụ thể; giảm **toil** bằng automation."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [E163], l2: [E164], l3: [E165]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-12"

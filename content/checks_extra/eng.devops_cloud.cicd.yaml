@@ -1,0 +1,61 @@
+subtopic_id: eng.devops_cloud.cicd
+items:
+  - id: E148
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Phân biệt **CI** và **CD**. Nêu các bước chính của một **pipeline** và điều gì xảy ra khi một bước bị fail.
+    answer_md: |
+      - **CI** (Continuous Integration): tự động build và chạy test mỗi lần push hoặc mở pull request, để phát hiện lỗi sớm.
+      - **CD** (Continuous Delivery/Deployment): tự động đóng gói và đưa bản đã kiểm tra lên server.
+      - Pipeline: **build, test, scan, package, deploy** chạy nối tiếp.
+      - Một bước **fail thì pipeline dừng**, các bước sau không chạy, nên code lỗi không ra production.
+    rubric_md: "Đạt khi nêu đúng CI = tự test khi push, CD = tự đóng gói/deploy; liệt kê được các bước chính (build, test, deploy là tối thiểu) và nói bước hỏng thì dừng. Đủ ý: bằng chứng điểm 1; lẫn lộn CI với deploy hoặc nói pipeline vẫn deploy khi test fail: điểm 0."
+  - id: E149
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Một pipeline GitHub Actions cần (1) một token để deploy lên server, (2) tải lại thư viện mỗi lần chạy rất chậm,
+      (3) bước deploy phải dùng đúng bản đã được test. Hãy nêu cách xử lý từng điểm và giải thích **secret**,
+      **cache**, **artifact** khác nhau thế nào.
+    answer_md: |
+      1. **Secret**: lưu token trong **secret store** của công cụ CI và tham chiếu bằng **tên** trong YAML;
+         không viết giá trị vào file YAML (YAML nằm trong repo, Git giữ lịch sử) và không in ra log. Nếu lộ thì rotate.
+      2. **Cache**: cache thư mục thư viện đã tải (khóa theo file lock/requirements) để lần sau nhanh hơn.
+         Cache chỉ là tối ưu: mất cache thì pipeline vẫn đúng, chỉ chậm hơn.
+      3. **Artifact**: build và đóng gói **một lần** (zip hoặc Docker image), lưu lại; bước test và deploy dùng
+         đúng artifact đó, nên bản được test chính là bản được deploy.
+      - Khác nhau: secret = giá trị nhạy cảm cần bảo vệ; cache = tăng tốc, có thể mất; artifact = sản phẩm build cần giữ và truyền giữa các bước.
+    rubric_md: "Đạt khi: (a) secret trong secret store, gọi bằng tên, không trong YAML/log; (b) cache để tăng tốc và nêu được nó có thể mất mà không làm sai kết quả; (c) artifact build một lần dùng cho các bước sau; (d) phân biệt được ba khái niệm. Đủ (a)-(c): bằng chứng điểm 2. Viết token thẳng vào YAML hoặc coi cache là nơi lưu bản deploy: tối đa điểm 1."
+  - id: E150
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      Bạn thiết kế CI/CD cho một dịch vụ backend có database. Hãy: (a) vẽ/liệt kê pipeline từ `git push` đến
+      production và nói bước nào chặn khi hỏng; (b) chọn chiến lược phát hành (rolling, blue-green hay canary)
+      và giải thích vì sao; (c) nêu cách quay lại (rollback) khi bản mới lỗi, kể cả vai trò của feature flag;
+      (d) bản mới cần đổi tên một cột trong database mà không ngừng dịch vụ: nêu thứ tự thực hiện.
+    answer_md: |
+      **(a) Pipeline:** push hoặc PR kích hoạt: **build** (cài thư viện, biên dịch) → **test** (unit, integration, lint)
+      → **scan** (lỗ hổng thư viện, secret lỡ commit) → **package** (tạo artifact/Docker image, gắn version)
+      → **deploy staging** (kiểm tra thêm) → **deploy production** (có thể qua bước duyệt tay). Bước nào fail
+      thì pipeline **dừng**: test fail hoặc scan phát hiện lỗ hổng nghiêm trọng chặn trước khi tạo artifact và deploy.
+      Secret lấy từ secret store theo tên, không nằm trong YAML.
+
+      **(b) Chiến lược:** ví dụ **canary**: cho ~5% lưu lượng dùng bản mới, theo dõi tỉ lệ lỗi và độ trễ
+      (health gating), ổn thì tăng dần, xấu thì dừng; ít người bị ảnh hưởng. Chấp nhận khác như **rolling**
+      (ít tốn tài nguyên, hai bản chạy cùng lúc) hoặc **blue-green** (chuyển lưu lượng, quay lại nhanh nhưng tốn gấp đôi
+      tài nguyên) nếu có lý do hợp lý.
+
+      **(c) Quay lại:** nếu dùng feature flag thì tắt flag (**kill switch**) là nhanh nhất, không cần deploy.
+      Còn lại **rollback** bằng cách deploy lại artifact bản trước (giữ sẵn), hoặc chuyển lưu lượng về môi
+      trường cũ (blue-green), hoặc đưa canary về 0%.
+
+      **(d) Đổi tên cột (expand-contract):** (1) **Expand**: thêm cột mới (nullable/default), bản cũ vẫn chạy bình thường;
+      (2) deploy code mới **ghi cả hai cột nhưng vẫn đọc cột cũ**; (3) khi mọi server đã chạy bản mới (không còn ai chỉ ghi cột cũ),
+      **backfill** dữ liệu cũ rồi **chuyển sang đọc cột mới**; (4) **Contract**: xóa cột cũ ở lần deploy sau. Vì bản cũ và mới
+      chạy cùng lúc khi deploy dần và rollback phải còn an toàn, không đổi tên hay xóa cột trong một bước.
+    rubric_md: "Đạt mức 3 khi đủ bốn phần: (a) pipeline có đủ các bước build/test/package/deploy (nên có scan) và nói rõ bước fail thì dừng, secret không trong YAML; (b) chọn một chiến lược kèm lý do và nhắc theo dõi chỉ số hoặc đánh đổi; (c) cách quay lại cụ thể (tắt flag, deploy lại artifact cũ, hoặc chuyển lưu lượng ngược); (d) expand-contract đúng thứ tự (thêm cột; ghi cả hai nhưng đọc cột cũ; backfill rồi mới chuyển đọc cột mới; xóa cột cũ sau). Đủ cả bốn trong time-box: bằng chứng điểm 3. Thiếu một phần, hoặc đổi tên/xóa cột trong một bước, hoặc không có cách quay lại: chưa đạt mức 3."

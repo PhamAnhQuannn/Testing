@@ -1,0 +1,189 @@
+id: eng.devops_cloud.docker
+version: 1
+status: published
+title_vi: "Docker và container: image, Dockerfile, layer cache, multi-stage, non-root, volume, CMD/ENTRYPOINT"
+est_minutes: 14
+objectives_vi:
+  - "Phân biệt **container** với **VM** (dùng chung kernel, nhẹ hơn) và **image** với **container** (bản đóng gói vs bản đang chạy)."
+  - "Viết được **Dockerfile** cho app Python nhỏ, hiểu **layer** và **build cache** để đặt lệnh đúng thứ tự."
+  - "Giải thích **multi-stage build**, chạy **non-root**, **port mapping**, **volume** và vì sao secret đi qua **env var** lúc chạy chứ không bake vào image."
+  - "Phân biệt **CMD** với **ENTRYPOINT**, và vai trò của **registry** cùng **tag**."
+blocks:
+  - id: s_concepts
+    type: section
+    title_vi: "Container, image và Dockerfile"
+    summary_vi: "Container là tiến trình cô lập dùng chung kernel của máy chủ, nhẹ hơn VM. Image là bản đóng gói chưa chạy; container là image đang chạy. Dockerfile là công thức tạo image."
+  - id: b01
+    type: text
+    md: |
+      **Container** là một tiến trình (hoặc nhóm tiến trình) chạy **cô lập**, kèm theo thư viện và file nó cần.
+      Linux tạo ra sự cô lập này bằng **namespaces** (mỗi container "nhìn thấy" riêng tiến trình, mạng, file system của mình)
+      và **cgroups** (giới hạn CPU, RAM mà container được dùng).
+
+      **Container khác VM** (máy ảo):
+      - **VM** chạy cả một hệ điều hành đầy đủ (có kernel riêng) trên phần cứng ảo hóa: nặng hơn, khởi động lâu hơn, cô lập mạnh hơn.
+      - **Container** **dùng chung kernel** của máy chủ: nhỏ hơn, khởi động nhanh (thường tính bằng giây hoặc ít hơn),
+        nhưng mức cô lập yếu hơn VM vì cùng kernel.
+
+      **Image vs container**: **image** là bản đóng gói **chưa chạy** (chỉ đọc), như file cài đặt;
+      **container** là một **bản đang chạy** (instance) tạo từ image, như chương trình đang mở.
+      Từ một image có thể chạy nhiều container.
+
+      **Dockerfile** là file công thức từng bước tạo image:
+      - `FROM` chọn image nền (ví dụ `python:3.12-slim`), `WORKDIR` đặt thư mục làm việc,
+      - `COPY` chép file vào image, `RUN` chạy lệnh lúc **build** (ví dụ cài thư viện),
+      - `CMD` là lệnh mặc định lúc **chạy** container.
+
+      Hai lệnh cơ bản: `docker build -t app .` (tạo image tên `app` từ thư mục hiện tại) và `docker run -p 8000:8000 app` (chạy container).
+  - id: b02
+    type: quiz_mcq
+    graded: true
+    prompt_md: "So với **máy ảo (VM)**, **container** khác ở điểm cốt lõi nào?"
+    options:
+      - {id: a, text_md: "Mỗi container chạy một kernel hệ điều hành riêng nên cô lập tuyệt đối"}
+      - {id: b, text_md: "Các container dùng chung kernel của máy chủ nên nhẹ và khởi động nhanh hơn, nhưng cô lập yếu hơn VM"}
+      - {id: c, text_md: "Container chỉ chạy được trên Windows"}
+    answer: [b]
+    explain_md: "Container dùng chung kernel của host (cô lập bằng namespaces và cgroups) nên nhẹ và nhanh. VM mới có kernel riêng (a sai). Container không bị giới hạn ở Windows (c sai); Docker chạy tốt trên Linux."
+  - id: b03
+    type: quiz_fill
+    graded: true
+    prompt_md: "Điền một từ tiếng Anh: bản đóng gói **chưa chạy** (chỉ đọc), từ đó ta tạo ra nhiều container, gọi là ______."
+    blanks:
+      - accept: ["image", "docker image", "images", "container image"]
+    explain_md: "Đó là **image**. Container là một bản đang chạy của image, giống file cài đặt (image) so với chương trình đang mở (container)."
+  - id: s_build
+    type: section
+    title_vi: "Layer, build cache, multi-stage và non-root"
+    summary_vi: "Mỗi lệnh RUN/COPY/ADD tạo một layer và được cache nếu không đổi, nên đặt phần ít đổi (cài thư viện) lên trước phần hay đổi (code). Multi-stage giữ image cuối nhỏ; nên chạy bằng user thường."
+  - id: b04
+    type: text
+    md: |
+      **Layer và build cache**: mỗi lệnh như `COPY` hay `RUN` tạo ra một **layer** trong image. Khi build lại,
+      Docker dùng **cache** cho các layer **không đổi**; nhưng một layer đổi thì **mọi layer phía sau** đều phải build lại.
+
+      Vì vậy đặt phần **ít đổi lên trước**, phần **hay đổi xuống sau**:
+
+      ```dockerfile
+      FROM python:3.12-slim
+      WORKDIR /app
+      COPY requirements.txt .
+      RUN pip install --no-cache-dir -r requirements.txt
+      COPY . .
+      CMD ["python", "main.py"]
+      ```
+
+      Sửa code chỉ làm layer `COPY . .` build lại; layer cài thư viện vẫn lấy từ cache. Nếu chép toàn bộ code trước khi
+      cài thư viện, mỗi lần sửa một dòng code là phải cài lại hết.
+
+      **Multi-stage build**: build ở một giai đoạn (có compiler, công cụ build nặng), rồi chỉ **chép kết quả** sang giai đoạn cuối
+      bằng `COPY --from=...`. Image cuối **nhỏ hơn** và ít thành phần thừa, nên bề mặt tấn công nhỏ hơn.
+      Chọn base nhỏ (ví dụ bản `-slim`) cũng giúp.
+
+      **Non-root**: mặc định tiến trình trong container thường chạy bằng **root**. Nên tạo user thường và dùng lệnh `USER`;
+      nếu app bị khai thác thì kẻ xấu không có quyền root trong container (giảm thiệt hại, dù container không phải hàng rào tuyệt đối).
+  - id: b05
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một Dockerfile Python cần cài thư viện từ `requirements.txt` và chép code. Thứ tự nào giúp build lại **nhanh nhất** khi bạn chỉ sửa code?"
+    options:
+      - {id: a, text_md: "COPY toàn bộ code trước, rồi mới COPY requirements.txt và RUN pip install"}
+      - {id: b, text_md: "COPY requirements.txt và RUN pip install trước, rồi mới COPY code"}
+      - {id: c, text_md: "Gộp tất cả vào một lệnh CMD"}
+    answer: [b]
+    explain_md: "Layer cài thư viện chỉ phụ thuộc requirements.txt nên được cache khi chỉ code đổi. Ở (a), sửa code làm layer COPY đổi và kéo theo cài lại toàn bộ thư viện. CMD (c) chạy lúc start container, không phải lúc build."
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao nên thêm `USER` để chạy app bằng tài khoản thường trong container?"
+    options:
+      - {id: a, text_md: "Để giảm quyền của kẻ tấn công nếu app bị khai thác (không có quyền root trong container)"}
+      - {id: b, text_md: "Để image build nhanh hơn"}
+      - {id: c, text_md: "Để container dùng kernel riêng"}
+    answer: [a]
+    explain_md: "Chạy non-root theo nguyên tắc least privilege: nếu app bị hack, kẻ xấu chỉ có quyền hạn chế. Nó không làm build nhanh hơn (b) và không đổi việc container dùng chung kernel (c)."
+  - id: s_run
+    type: section
+    title_vi: "Chạy container: port, volume, env, CMD vs ENTRYPOINT, registry"
+    summary_vi: "Port mapping nối cổng máy với cổng container (app phải nghe trên 0.0.0.0); volume giữ dữ liệu; secret truyền qua env lúc chạy. CMD là mặc định có thể thay, ENTRYPOINT là chương trình cố định. Registry lưu image, tag là nhãn phiên bản."
+  - id: b07
+    type: text
+    md: |
+      **Port mapping**: `-p 8000:8000` nối cổng 8000 của máy bạn (bên trái) với cổng 8000 trong container (bên phải).
+      Chương trình trong container phải lắng nghe trên `0.0.0.0`; nếu chỉ nghe `127.0.0.1` thì từ ngoài container không vào được.
+
+      **Volume**: hệ file của container bị mất khi container bị xóa. Muốn giữ dữ liệu (ví dụ file database) thì gắn **volume**
+      (`-v mydata:/var/lib/data`): dữ liệu sống ngoài vòng đời container.
+
+      **Cấu hình và secret**: truyền lúc chạy qua **biến môi trường** (`docker run -e DB_PASSWORD ...`, hoặc mục `environment`
+      trong compose, hoặc cơ chế secret của nền tảng). **Không** viết secret vào Dockerfile (`ENV`, `COPY .env`, `ARG`):
+      nó nằm lại trong **layer** của image, ai kéo được image đều xem được bằng `docker history` hoặc giải nén layer;
+      xóa ở layer sau cũng không xóa được khỏi layer cũ. (Env lúc chạy là mức cơ bản nhưng vẫn lộ qua
+      `docker inspect` hay `/proc`; production nên dùng **secret mount** dạng file hoặc secret manager của nền tảng,
+      và secret lúc build dùng `RUN --mount=type=secret`, không dùng `ARG`/`ENV`.)
+
+      **docker compose**: một file YAML mô tả nhiều container chạy cùng nhau (app + database), chạy bằng `docker compose up`.
+      Trong mạng của compose, tên service (ví dụ `db`) chính là địa chỉ để gọi nhau.
+
+      **CMD vs ENTRYPOINT**:
+      - `CMD` là lệnh **mặc định**; gõ lệnh khác sau `docker run <image> ...` sẽ **thay** nó.
+      - `ENTRYPOINT` là chương trình **cố định**; phần gõ thêm sau tên image thành **tham số** của nó.
+      - Hay kết hợp: `ENTRYPOINT ["python", "main.py"]` cố định chương trình, `CMD ["--port", "8000"]` là tham số mặc định có thể đổi.
+      - Nên dùng dạng mảng `["python", "main.py"]` (exec form) để tiến trình nhận được tín hiệu dừng đúng cách.
+
+      **Registry và tag**: **registry** (Docker Hub, GitHub Container Registry, registry của cloud) là kho lưu image;
+      `docker push` đẩy lên, `docker pull` kéo về. **Tag** là nhãn phiên bản, ví dụ `python:3.12-slim`.
+      Tag có thể bị trỏ sang image khác (ví dụ `latest`), nên khi deploy hãy dùng tag cụ thể (thậm chí digest) để tái lập được.
+  - id: b08
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một app cần mật khẩu database. Cách nào an toàn và đúng thực hành?"
+    options:
+      - {id: a, text_md: "Viết `ENV DB_PASSWORD=...` trong Dockerfile để image tự có sẵn"}
+      - {id: b, text_md: "Truyền qua biến môi trường (hoặc secret của nền tảng) lúc chạy container, không đưa vào layer của image"}
+      - {id: c, text_md: "COPY file .env thật vào image rồi xóa ở lệnh RUN kế tiếp"}
+    answer: [b]
+    explain_md: "Secret trong layer của image lộ cho bất kỳ ai kéo được image. Xóa ở layer sau (c) không xóa khỏi layer cũ. Tiêm lúc chạy mới giữ secret ngoài image."
+  - id: b09
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Dockerfile có `ENTRYPOINT [\"python\", \"main.py\"]` và `CMD [\"--port\", \"8000\"]`. Bạn chạy `docker run app --port 9000`. Điều gì xảy ra?"
+    options:
+      - {id: a, text_md: "Chạy `python main.py --port 9000`: ENTRYPOINT giữ nguyên, tham số mới thay CMD"}
+      - {id: b, text_md: "Chạy `--port 9000` như một chương trình độc lập, bỏ qua ENTRYPOINT"}
+      - {id: c, text_md: "Chạy `python main.py --port 8000 --port 9000`"}
+    answer: [a]
+    explain_md: "ENTRYPOINT là phần cố định; phần gõ sau tên image thay thế CMD và trở thành tham số của ENTRYPOINT. Muốn thay cả ENTRYPOINT phải dùng cờ `--entrypoint`."
+  - id: b10
+    type: quiz_fill
+    graded: true
+    prompt_md: "Điền một từ tiếng Anh: cơ chế do Docker quản lý (named ______) giữ dữ liệu (ví dụ file database) tồn tại sau khi container bị xóa, gắn vào container bằng cờ `-v`, gọi là ______."
+    blanks:
+      - accept: ["volume", "volumes", "docker volume"]
+    explain_md: "Đó là **volume**. Hệ file ghi trong container mất khi container bị xóa; volume sống ngoài vòng đời container."
+  - id: b11
+    type: callout
+    kind: interview
+    md: |
+      **Thanh điểm mức 3 (level-3 bar).** Bạn viết được Dockerfile cho một app Python nhỏ (base `-slim`, `WORKDIR`,
+      `COPY requirements.txt` + `RUN pip install` trước khi `COPY` code, `CMD` dạng mảng, chạy non-root), build và chạy bằng
+      `-p`; giải thích khác nhau giữa **image** và **container**, **container** và **VM**; nêu vì sao thứ tự lệnh ảnh hưởng
+      **build cache**, khi nào dùng **multi-stage**, vì sao secret đi qua **env** lúc chạy chứ không bake vào layer, và
+      phân biệt **CMD** với **ENTRYPOINT**.
+  - id: b12
+    type: summary
+    bullets_vi:
+      - "**Container** dùng chung kernel (namespaces + cgroups), nhẹ hơn **VM**; **image** là bản chưa chạy, **container** là bản đang chạy."
+      - "**Dockerfile**: `FROM`, `WORKDIR`, `COPY`, `RUN`, `CMD`; build bằng `docker build`, chạy bằng `docker run -p`."
+      - "Mỗi lệnh **RUN/COPY/ADD** là một **layer**, được **cache**: đặt phần ít đổi (cài thư viện) trước phần hay đổi (code)."
+      - "**Multi-stage** giữ image cuối nhỏ; chạy **non-root** để giảm thiệt hại khi bị khai thác."
+      - "**Port mapping** nối cổng (app nghe `0.0.0.0`), **volume** giữ dữ liệu, **compose** chạy nhiều container; secret qua **env** lúc chạy, không nằm trong layer."
+      - "**CMD** là mặc định có thể thay, **ENTRYPOINT** là chương trình cố định; **registry** lưu image, **tag** đánh dấu phiên bản (dùng tag cụ thể khi deploy)."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [E145], l2: [E146], l3: [E147]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-12"

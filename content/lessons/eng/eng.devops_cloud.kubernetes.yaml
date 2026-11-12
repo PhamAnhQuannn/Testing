@@ -1,0 +1,157 @@
+id: eng.devops_cloud.kubernetes
+version: 1
+status: published
+title_vi: "Kubernetes cơ bản: pod, deployment, service, desired state, probe, scaling"
+est_minutes: 13
+objectives_vi:
+  - "Giải thích ý tưởng cốt lõi của **Kubernetes**: khai báo **desired state**, **control loop** liên tục **reconcile** để trạng thái thực tế tiến về trạng thái mong muốn."
+  - "Phân biệt **pod**, **ReplicaSet/Deployment** và **Service**, và nối chúng bằng **label/selector**."
+  - "Mô tả đường đi của một request tới pod, vai trò của **probe** (liveness/readiness) và **HPA** khi tải tăng."
+  - "Dùng `kubectl get/logs/describe` để đoán nguyên nhân khi pod ở trạng thái **CrashLoopBackOff** hoặc **OOMKilled**."
+blocks:
+  - id: s_model
+    type: section
+    title_vi: "Desired state và reconcile: ý tưởng cốt lõi"
+    summary_vi: "Bạn khai báo trạng thái mong muốn (cần 3 bản app này), Kubernetes chạy control loop liên tục so sánh thực tế với mong muốn và sửa chênh lệch. Pod là đơn vị nhỏ nhất, chết thì được thay bằng pod mới."
+  - id: b01
+    type: text
+    md: |
+      Khi có hàng chục container trên nhiều máy, chạy tay từng cái không còn khả thi. **Kubernetes** (k8s) là hệ thống
+      điều phối container trên một **cluster** (nhiều máy gom lại, điều khiển như một). Bạn không ra lệnh
+      "chạy container này trên máy kia"; bạn **khai báo trạng thái mong muốn** (**desired state**), ví dụ
+      "luôn có 3 bản của app này, dùng image này".
+
+      Cơ chế làm điều đó gọi là **control loop** (reconcile loop): một vòng lặp liên tục **so sánh** trạng thái thực tế
+      với desired state rồi **hành động** để thu hẹp chênh lệch. Nhờ vậy hệ thống **tự sửa lỗi** (self-heal): một
+      một pod bị xóa (hoặc node chứa nó chết) thì thấy "thực tế 2, mong muốn 3" và tạo thêm một pod; bạn đổi số bản thành 5 thì nó chạy thêm.
+
+      Các thành phần chính:
+      - **Control plane**: bộ não ra quyết định (API server, **etcd** lưu trạng thái, **scheduler** chọn node cho pod,
+        các controller chạy control loop).
+      - **Node**: máy chạy pod.
+      - **Pod**: **đơn vị triển khai nhỏ nhất**, gồm một hoặc vài container **dùng chung network và storage**.
+        Pod là tạm thời: khi pod **bị xóa** hay node chứa nó chết, ReplicaSet tạo pod **mới** với **địa chỉ IP khác**.
+        (Phân biệt: một **container** trong pod bị crash thì kubelet **khởi động lại ngay trong pod cũ**, giữ nguyên IP —
+        lặp nhiều lần thành **CrashLoopBackOff**; còn mất cả pod/node mới sinh pod thay thế có IP khác.)
+  - id: b02
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một pod do Deployment quản lý bị xóa (hoặc node chứa nó chết). Hành vi nào mô tả đúng cách Kubernetes phản ứng?"
+    options:
+      - {id: a, text_md: "Control loop thấy số pod thực tế thấp hơn desired state nên tạo pod mới để bù"}
+      - {id: b, text_md: "Hệ thống đứng yên cho tới khi quản trị viên chạy lệnh tạo lại pod"}
+      - {id: c, text_md: "Pod cũ được sửa tại chỗ và giữ nguyên địa chỉ IP"}
+    answer: [a]
+    explain_md: "Kubernetes hoạt động theo reconcile: so thực tế với desired state và tự sửa chênh lệch. Không cần can thiệp tay (b), và pod thay thế là pod mới có IP khác (c)."
+  - id: b03
+    type: quiz_fill
+    graded: true
+    prompt_md: "Điền một từ tiếng Anh: đơn vị nhỏ nhất có thể triển khai trong Kubernetes, chứa một hoặc vài container dùng chung network và storage, gọi là ______."
+    blanks:
+      - accept: ["pod", "pods"]
+    explain_md: "Đó là **pod**. Deployment và Service đều làm việc trên các pod."
+  - id: s_workloads
+    type: section
+    title_vi: "Deployment, ReplicaSet, Service và label/selector"
+    summary_vi: "Deployment khai báo số bản và image, tạo ReplicaSet giữ đúng số pod và cập nhật dần (rolling update, rollback). Service là địa chỉ cố định chia tải cho nhóm pod chọn bằng label/selector. Ingress đưa traffic từ ngoài vào Service."
+  - id: b04
+    type: text
+    md: |
+      Bạn hiếm khi tạo pod trần. Thường dùng **Deployment**:
+      - Deployment khai báo "cần N **replica** của pod này, image này" và tạo **ReplicaSet** để giữ đúng N pod.
+      - Khi đổi image, Deployment làm **rollout** (rolling update): tạo pod mới dần, bỏ pod cũ dần để
+        ít bị gián đoạn. Có sự cố thì **rollback** về phiên bản trước.
+
+      Vì pod đổi IP liên tục, cần một địa chỉ ổn định: **Service** cho **IP ảo và tên DNS cố định**, và **chia tải**
+      (load balancing) tới các pod phía sau. **Ingress** nhận traffic HTTP từ Internet rồi chuyển vào Service.
+
+      Cách nối: pod mang các **label** (cặp key=value, ví dụ `app=web`); Service có **selector** (ví dụ `app=web`)
+      và gửi traffic tới mọi pod **khớp label đó** (chỉ pod đang sẵn sàng). Deployment cũng dùng selector để biết pod nào là của nó.
+      Đường đi một request điển hình: **người dùng -> Ingress -> Service -> một trong các pod**.
+  - id: b05
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Pod web liên tục bị thay thế nên IP đổi. Làm sao client vẫn gọi được ổn định tới nhóm pod đó?"
+    options:
+      - {id: a, text_md: "Ghi cứng IP của từng pod vào cấu hình client"}
+      - {id: b, text_md: "Tạo Service có selector khớp label của các pod, client gọi qua địa chỉ/tên của Service"}
+      - {id: c, text_md: "Đặt số replica bằng 1 để IP không bao giờ đổi"}
+    answer: [b]
+    explain_md: "Service cho địa chỉ ổn định và chia tải tới các pod khớp selector. IP pod không ổn định (a), và một replica không đảm bảo IP giữ nguyên khi pod bị thay (c)."
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Bạn muốn đổi image của app từ phiên bản cũ sang mới với ít gián đoạn, và quay lại được nếu có lỗi. Công cụ nào phù hợp nhất?"
+    options:
+      - {id: a, text_md: "Deployment với rolling update và rollback"}
+      - {id: b, text_md: "Xóa toàn bộ pod bằng tay rồi tạo lại"}
+      - {id: c, text_md: "Service đổi selector sang image khác"}
+    answer: [a]
+    explain_md: "Deployment (qua ReplicaSet) cập nhật dần và giữ lịch sử để rollback. Service chỉ định tuyến traffic, không quản lý image (c)."
+  - id: s_ops
+    type: section
+    title_vi: "Probe, tài nguyên, scaling và gỡ lỗi"
+    summary_vi: "Liveness: không sống thì khởi động lại. Readiness: chưa sẵn sàng thì tạm không gửi traffic. Requests/limits khai báo tài nguyên, vượt limit RAM thì OOMKilled. HPA tăng giảm số pod theo tải. kubectl logs/describe giúp tìm nguyên nhân."
+  - id: b07
+    type: text
+    md: |
+      **Probe** cho Kubernetes biết app đang thế nào:
+      - **Liveness**: còn sống không? Thất bại thì **khởi động lại** container.
+      - **Readiness**: sẵn sàng nhận request chưa? Chưa thì pod **tạm bị rút khỏi Service** (không bị restart).
+      - **Startup**: dành cho app khởi động chậm; **tạm hoãn liveness/readiness** cho tới khi app lên xong, tránh liveness giết app đang khởi động (ví dụ app mất 30 giây).
+
+      **Requests / limits**: requests là lượng CPU/RAM **xin trước** (scheduler dựa vào đó để chọn node), limits là **mức tối đa**.
+      Vượt limit RAM thì container bị giết (**OOMKilled**); vượt limit CPU thì chỉ bị làm chậm (throttle).
+
+      **HPA** (Horizontal Pod Autoscaler) tự **tăng giảm số replica** theo tải (ví dụ thêm pod khi CPU trung bình vượt 70% so với **requests**; cần có metrics-server và đặt requests).
+      Đây cũng là desired state: HPA đổi số bản mong muốn, controller thực hiện.
+
+      Gỡ lỗi: **CrashLoopBackOff** nghĩa là container cứ khởi động rồi chết, Kubernetes thử lại với thời gian chờ tăng dần.
+      - `kubectl get pods`: xem trạng thái và số lần restart.
+      - `kubectl logs TÊN_POD`: xem log của app (lỗi code, thiếu biến môi trường...).
+      - `kubectl describe pod TÊN_POD`: xem sự kiện và lý do chết (ví dụ OOMKilled, probe thất bại).
+
+      Ngoài ra: **ConfigMap** giữ cấu hình, **Secret** giữ thông tin nhạy cảm (mặc định chỉ **encode base64**, không phải mã hóa,
+      và lưu trong etcd chưa mã hóa — nên cần RBAC chặt và bật encryption at rest). **Namespace** chia cluster thành vùng riêng; **RBAC** phân quyền;
+      **StatefulSet** dành cho app giữ dữ liệu bền như database.
+  - id: b08
+    type: quiz_mcq
+    graded: true
+    prompt_md: "App mất 30 giây để khởi động. Trong lúc đó bạn không muốn khách bị gửi vào pod chưa sẵn sàng, nhưng cũng không muốn pod bị restart. Dùng gì?"
+    options:
+      - {id: a, text_md: "Readiness probe, để pod chưa sẵn sàng bị loại khỏi Service"}
+      - {id: b, text_md: "Liveness probe với ngưỡng rất ngắn"}
+      - {id: c, text_md: "Tăng limits RAM"}
+    answer: [a]
+    explain_md: "Readiness quyết định pod có nhận traffic hay không và không gây restart (nếu đã có liveness, kèm startup probe để nó không giết app lúc khởi động). Liveness ngưỡng ngắn (b) sẽ giết app khi nó còn đang khởi động; limits RAM (c) không liên quan."
+  - id: b09
+    type: quiz_fill
+    graded: true
+    prompt_md: "Điền một từ tiếng Anh: trạng thái pod cho thấy container cứ khởi động rồi chết, Kubernetes thử lại với thời gian chờ tăng dần, là ______ (viết liền, tiếng Anh)."
+    blanks:
+      - accept: ["CrashLoopBackOff", "crashloopbackoff"]
+    explain_md: "Đó là **CrashLoopBackOff**. Dùng `kubectl logs` và `kubectl describe pod` để tìm lý do."
+  - id: b10
+    type: callout
+    kind: interview
+    md: |
+      **Thanh điểm mức 3 (level-3 bar).** Bạn giải thích được ý tưởng **desired state + reconcile**, mô tả đường đi
+      của một request tới pod (Ingress -> Service -> pod, nối bằng label/selector), đặt được **liveness/readiness probe**
+      đúng mục đích, nói được **HPA** thêm pod khi nào, và dùng `kubectl logs/describe` để đoán nguyên nhân
+      **CrashLoopBackOff** (lỗi app, thiếu biến môi trường, hết RAM/OOMKilled).
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "**Desired state + reconcile**: bạn khai báo, control loop liên tục kéo thực tế về mong muốn (self-heal, scale đúng số replica)."
+      - "**Pod** là đơn vị nhỏ nhất, tạm thời; **Deployment** quản lý ReplicaSet, rolling update và rollback."
+      - "**Service** là địa chỉ ổn định chia tải tới pod khớp **label/selector**; **Ingress** đưa traffic từ ngoài vào."
+      - "**Liveness** restart khi chết, **readiness** rút pod khỏi Service khi chưa sẵn sàng; **requests/limits** và **OOMKilled**."
+      - "**HPA** tăng giảm số pod theo tải; gỡ lỗi bằng `kubectl get/logs/describe`."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [E154], l2: [E155], l3: [E156]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-12"

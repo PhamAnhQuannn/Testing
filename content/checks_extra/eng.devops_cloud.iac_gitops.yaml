@@ -1,0 +1,58 @@
+subtopic_id: eng.devops_cloud.iac_gitops
+items:
+  - id: E151
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      **Infrastructure as Code (IaC)** là gì và vì sao tốt hơn việc bấm tay trên giao diện web của cloud? Trả lời trong 2-3 câu.
+    answer_md: |
+      - IaC là mô tả hạ tầng (máy chủ, mạng, database) bằng **file code/cấu hình** lưu trong **Git**; công cụ (ví dụ Terraform) đọc file và tạo đúng như mô tả.
+      - Tốt hơn bấm tay vì: **lặp lại được** (dựng lại giống hệt), **có lịch sử và review** (mỗi thay đổi là một commit/pull request),
+        và **nhất quán** giữa dev, staging, prod; không phải nhớ đã bấm gì.
+    rubric_md: "Đạt khi nêu đúng định nghĩa (hạ tầng mô tả bằng code/cấu hình, lưu trong Git) và ít nhất hai lợi ích (lặp lại được, review/lịch sử, nhất quán giữa môi trường). Đủ ý: bằng chứng điểm 1; chỉ nói 'nhanh hơn' hoặc 'tự động' mà không nêu lợi ích nào ở trên: điểm 0."
+  - id: E152
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Một đồng nghiệp chạy `plan` và thấy kết quả `+ 1 to add, - 1 to destroy` cho một database. Hãy:
+      (a) giải thích plan, apply và state là gì;
+      (b) nói điều gì sắp xảy ra nếu apply và có nên apply ngay không;
+      (c) phân biệt **declarative** với **imperative**.
+    answer_md: |
+      **(a)** **plan** tính khác biệt giữa file mô tả và hạ tầng hiện có rồi **chỉ cho xem**, chưa đổi gì;
+      **apply** thực hiện các thay đổi đó; **state** là bản ghi công cụ giữ về các tài nguyên nó đang quản lý
+      (plan dựa vào state và hạ tầng thật để tính khác biệt).
+
+      **(b)** Sẽ tạo 1 tài nguyên mới và **xóa 1 tài nguyên**. Một database vừa bị destroy vừa có cái mới thường nghĩa là
+      tài nguyên bị **tạo lại** (ví dụ vì đổi một thuộc tính không sửa tại chỗ được), có thể **mất dữ liệu** hoặc gây gián đoạn.
+      **Không nên apply ngay**: xem tài nguyên nào bị xóa, vì sao, có backup chưa, có cách sửa tại chỗ không; xác nhận đúng ý định rồi mới apply.
+
+      **(c)** **Declarative**: mô tả trạng thái cuối mong muốn, công cụ tự so sánh và tính các bước (chạy lại khi đã đúng thì không đổi gì).
+      **Imperative**: liệt kê từng bước thực hiện; chạy lại có thể lặp việc vì kịch bản không tự biết hiện đã có gì.
+    rubric_md: "Đạt khi: (a) giải thích đúng cả plan (xem trước), apply (thực hiện), state (ghi lại hạ tầng được quản lý); (b) nhận ra có một tài nguyên bị xóa/tạo lại, nêu rủi ro mất dữ liệu hoặc gián đoạn và khuyên xem lại trước khi apply; (c) phân biệt đúng declarative (trạng thái mong muốn) và imperative (từng bước). Đủ (a)-(c): bằng chứng điểm 2. Khuyên apply ngay mà không đánh giá phần destroy: tối đa điểm 1."
+  - id: E153
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      Công ty bạn đang tạo hạ tầng cloud bằng cách bấm tay, dev và prod đã lệch nhau. Bạn đề xuất chuyển sang **IaC + GitOps**. Hãy:
+      (a) nêu IaC giải quyết những vấn đề gì;
+      (b) mô tả từng bước một thay đổi hạ tầng (ví dụ tăng từ 3 lên 5 máy chủ) đi từ Git đến production;
+      (c) giải thích GitOps xử lý **drift** như thế nào khi có người sửa tay trên production;
+      (d) nêu rủi ro cần kiểm soát khi vận hành (ví dụ với state và với apply).
+    answer_md: |
+      **(a) Vấn đề được giải quyết:** bấm tay không lặp lại được và không ai nhớ đã đổi gì; không có review; môi trường dev/prod lệch nhau (drift);
+      khó dựng lại khi sự cố. IaC lưu định nghĩa trong Git nên có lịch sử, review, tái lập và nhất quán giữa môi trường.
+
+      **(b) Luồng thay đổi:** sửa file khai báo (3 thành 5 máy chủ) trên một nhánh, mở **pull request**; CI chạy kiểm tra và `plan` để reviewer
+      thấy chính xác sẽ đổi gì; review và merge vào nhánh chính; agent/pipeline **apply/reconcile** lên **dev**, kiểm tra;
+      **promote** sang **staging**, kiểm tra; rồi **production** (có thể cần duyệt). Nếu lỗi thì `git revert` và hệ thống quay lại trạng thái trước.
+
+      **(c) Drift:** trong GitOps, **Git là source of truth**; agent (ví dụ Argo CD, Flux) liên tục so sánh trạng thái thật với Git. Khi
+      phát hiện thay đổi tay, nó **reconcile**: đưa hệ thống về đúng như Git (hoặc cảnh báo tùy cấu hình). Muốn giữ thay đổi thì phải đưa nó vào Git qua pull request.
+
+      **(d) Rủi ro:** **state** có thể chứa dữ liệu nhạy cảm nên lưu ở remote backend có phân quyền và lock, không để lộ; apply mà không đọc plan có thể xóa hoặc tạo lại tài nguyên làm mất dữ liệu
+      (cần review plan, backup, bảo vệ tài nguyên quan trọng); secret không để trong file khai báo; giới hạn ai được merge/apply vào production.
+    rubric_md: "Đạt mức 3 khi đủ cả bốn phần: (a) nêu ít nhất hai vấn đề IaC giải quyết (lặp lại/tái lập, review/lịch sử, lệch môi trường); (b) luồng có pull request + review/plan + merge + áp dụng qua dev, staging, rồi production (promotion); (c) GitOps: Git là source of truth, agent reconcile, sửa hoặc cảnh báo drift; (d) nêu ít nhất một rủi ro cụ thể (state nhạy cảm/lock, apply mù làm destroy, secret trong file). Đủ cả bốn trong time-box: bằng chứng điểm 3. Thiếu một phần, hoặc nói hệ thống thật mới là nguồn sự thật trong GitOps: chưa đạt mức 3."
