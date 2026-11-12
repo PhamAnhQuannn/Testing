@@ -1,0 +1,75 @@
+id: check-x892-cache-hits
+subtopic_id: cs.computer_basics.cpu_memory
+secondary_subtopics: []
+kind: check
+title: 'Check X892: direct-mapped cache hits'
+title_vi: 'Kiểm tra X892: đếm cache hit của cache ánh xạ trực tiếp'
+difficulty: easy
+source:
+  type: original
+  rewrite_required: true
+statement_en_md: |
+  Implement `cache_hits(accesses, num_lines)`, simulating a direct-mapped cache with `num_lines >= 1` lines.
+  Every memory address (an int) is its own block and maps to line `addr % num_lines`. The cache starts empty.
+  For each access in order: if that line currently holds exactly this address it is a hit (count it);
+  otherwise it is a miss and the address is loaded into that line, overwriting whatever was there.
+  Return the total number of hits. An empty access list gives `0`.
+  Eviction is by slot index (`addr % num_lines`), not a FIFO queue.
+  For `accesses = [0, 1, 0, 1]`, `num_lines = 4` the result is `2`.
+statement_vi_md: |
+  Cài `cache_hits(accesses, num_lines)` mô phỏng cache ánh xạ trực tiếp (direct-mapped) có `num_lines >= 1` dòng.
+  Mỗi địa chỉ bộ nhớ (số nguyên) là một block riêng và được ánh xạ vào dòng `addr % num_lines`. Cache ban đầu rỗng.
+  Với mỗi truy cập theo thứ tự: nếu dòng đó đang chứa đúng địa chỉ này thì là hit (đếm lại);
+  ngược lại là miss và địa chỉ được nạp vào dòng đó, ghi đè thứ đang nằm ở đó.
+  Trả về tổng số hit. Danh sách rỗng trả `0`.
+  Việc đuổi block (eviction) theo chỉ số dòng (`addr % num_lines`), không phải hàng đợi FIFO.
+  Với `accesses = [0, 1, 0, 1]`, `num_lines = 4` kết quả là `2`.
+constraints:
+- 'accesses là list số nguyên không âm; num_lines >= 1'
+- 'Cache ban đầu rỗng; mỗi dòng chứa tối đa một địa chỉ'
+- 'Chỉ dùng thư viện chuẩn của Python'
+examples:
+- input: 'accesses = [0, 1, 0, 1], num_lines = 4'
+  output: '2'
+  explain_vi: '0 miss, 1 miss, rồi 0 và 1 đều hit nên có 2 hit.'
+- input: 'accesses = [0, 4, 0], num_lines = 4'
+  output: '0'
+  explain_vi: '0 và 4 cùng ánh xạ vào dòng 0; 4 đuổi 0 ra, rồi 0 lại miss.'
+io:
+  mode: function
+  entry: cache_hits
+  params:
+  - name: accesses
+    type: list
+  - name: num_lines
+    type: int
+  returns: int
+  compare: exact
+starter:
+  python: |
+    def cache_hits(accesses, num_lines):
+        # TODO: giữ dict dòng -> địa chỉ đang nằm trong dòng đó, đếm hit
+        pass
+time_target_min: 6
+limits:
+  time_ms: 1000
+  memory_mb: 256
+  time_multiplier:
+    pyodide: 3
+hints:
+- "Dùng một dict cache: khóa là chỉ số dòng (addr % num_lines), giá trị là địa chỉ đang nằm ở dòng đó."
+- "Với mỗi addr: tính line = addr % num_lines rồi so cache.get(line) với addr; bằng nhau là hit."
+- "Nếu không hit thì gán cache[line] = addr (ghi đè địa chỉ cũ); cuối cùng trả số hit."
+solution:
+  file: solution.py
+  approach_vi: Giữ dict dòng sang địa chỉ; mỗi truy cập so địa chỉ đang nằm ở dòng addr % num_lines, trùng thì cộng hit, khác thì ghi đè.
+  complexity: "O(n) / O(num_lines)"
+tests:
+  sample: tests/sample.jsonl
+  hidden: tests/hidden.jsonl
+  generator: tests/gen.py
+tags:
+- check
+- x892
+status: validated
+version: 1

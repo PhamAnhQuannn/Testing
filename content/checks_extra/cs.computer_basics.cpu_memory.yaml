@@ -1,0 +1,63 @@
+subtopic_id: cs.computer_basics.cpu_memory
+items:
+  - id: X891
+    difficulty: 1
+    type: read_code
+    minutes: 3
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng.
+    code: |-
+      levels = [("register", 1), ("L1", 4), ("RAM", 200)]
+      total = 0
+      for name, cost in levels:
+          total += cost
+          print(name, total)
+      data = [10, 20, 30, 40]
+      cache = {}
+      hits = 0
+      for i in [0, 1, 0, 1, 2]:
+          if i in cache:
+              hits += 1
+          else:
+              cache[i] = data[i]
+      print(hits, sorted(cache))
+    expected_output: "register 1\nL1 5\nRAM 205\n2 [0, 1, 2]"
+    answer_md: "Phần đầu cộng dồn chi phí truy cập qua từng tầng: 1, rồi 1 + 4 = 5, rồi 5 + 200 = 205. Phần sau: truy cập 0 và 1 lần đầu là miss (nạp vào cache), lần hai là hit nên có 2 hit; 2 là miss và được nạp. Các khóa trong cache là 0, 1, 2."
+    rubric_md: "Output khớp từng dòng. Đúng: bằng chứng điểm 1; sai: tối đa điểm 0."
+  - id: X892
+    difficulty: 2
+    type: write_code
+    minutes: 6
+    prompt_md: |
+      Viết hàm `cache_hits(accesses, num_lines)` mô phỏng cache ánh xạ trực tiếp (direct-mapped) có `num_lines >= 1` dòng. Mỗi địa chỉ (số nguyên) là một block riêng và nằm ở dòng `addr % num_lines`. Cache ban đầu rỗng. Với mỗi truy cập theo thứ tự: nếu dòng đó đang chứa đúng địa chỉ này thì là hit; nếu không là miss và địa chỉ được nạp vào dòng đó, ghi đè địa chỉ cũ. Trả về tổng số hit; danh sách rỗng trả `0`. Ví dụ `cache_hits([0,1,0,1], 4)` trả `2`, còn `cache_hits([0,4,0], 4)` trả `0` vì 0 và 4 cùng dòng 0 nên đuổi nhau.
+    problem_id: check-x892-cache-hits
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 6 phút: bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X893
+    difficulty: 3
+    type: read_code
+    minutes: 5
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng và phân loại lỗi liên quan đến dòng thứ 2 và dòng thứ 3 của output (cú pháp, lúc chạy hay logic).
+    code: |-
+      def run(accesses, n):
+          lines = [None] * n
+          hits = 0
+          for a in accesses:
+              i = a % n
+              if lines[i] == a:
+                  hits += 1
+              else:
+                  lines[i] = a
+          return hits, lines
+
+
+      seq = [1, 5, 1, 2, 2, 6]
+      h, state = run(seq, 4)
+      print(h, state)
+      try:
+          print(state[len(state)])
+      except IndexError:
+          print("runtime error")
+      rate = h / len(state)
+      print("rate", rate)
+    expected_output: "1 [None, 1, 6, None]\nruntime error\nrate 0.25"
+    answer_md: "Cache 4 dòng. 1 miss nạp dòng 1; 5 cùng dòng 1 nên miss và đuổi 1; 1 lại miss và đuổi 5; 2 miss nạp dòng 2; 2 hit (hits = 1); 6 cùng dòng 2 nên miss và đuổi 2. Kết quả 1 [None, 1, 6, None]. state[4] vượt chỉ số hợp lệ 0 đến 3 nên ném IndexError và in runtime error. Cuối cùng rate = 1 / 4 = 0.25 vì chia cho số dòng cache thay vì số lần truy cập (6), đúng phải là 1 / 6; chương trình chạy bình thường nhưng ra kết quả sai. IndexError là lỗi lúc chạy (runtime); rate sai là lỗi logic."
+    rubric_md: "Output khớp từng dòng VÀ phân loại đúng: state[len(state)] là lỗi runtime (IndexError ném lúc chạy), rate chia cho len(state) thay vì len(seq) là lỗi logic (không báo lỗi nhưng sai kết quả; lỗi cú pháp thì Python từ chối chạy ngay từ đầu). Đúng: bằng chứng điểm 3; sai: tối đa điểm 2."

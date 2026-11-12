@@ -1,0 +1,52 @@
+subtopic_id: cs.computer_basics.data_representation
+items:
+  - id: X888
+    difficulty: 1
+    type: read_code
+    minutes: 3
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng.
+    code: |-
+      n = 13
+      bits = ""
+      while n > 0:
+          bits = str(n % 2) + bits
+          n //= 2
+      print(bits)
+      print(int(bits, 2))
+      print(hex(255))
+      print(bin(5))
+    expected_output: "1101\n13\n0xff\n0b101"
+    answer_md: "Đổi 13 sang nhị phân bằng chia 2 lấy dư, chèn bit vào đầu chuỗi: dư 1, 0, 1, 1 nên bits = 1101. int(bits, 2) đổi ngược lại thành 13. hex(255) là 0xff và bin(5) là 0b101 (cả hai đều có tiền tố)."
+    rubric_md: "Output khớp từng dòng. Đúng: bằng chứng điểm 1; sai: tối đa điểm 0."
+  - id: X889
+    difficulty: 2
+    type: write_code
+    minutes: 6
+    prompt_md: |
+      Viết hàm `decode_twos(bits)` giải mã số bù hai (two's complement). `bits` là list các bit 0/1, bit cao nhất (MSB) đứng đầu, đọc như số nguyên có dấu: bit đầu có trọng số ÂM `-2^(n-1)`, mỗi bit còn lại ở vị trí `i` có trọng số dương `2^(n-1-i)`. Trả về giá trị là số nguyên; list rỗng trả `0`. Ví dụ `decode_twos([1,0,0,0])` trả `-8`, `decode_twos([1,1,1,1])` trả `-1`, `decode_twos([0,1,0,1])` trả `5`, `decode_twos([1])` trả `-1`.
+    problem_id: check-x889-decode-twos
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 6 phút: bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X890
+    difficulty: 3
+    type: read_code
+    minutes: 5
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng và phân loại dòng thứ 3 và thứ 4 của output (đó là lỗi cú pháp, lỗi lúc chạy hay chỉ là hành vi tràn số/logic).
+    code: |-
+      def to_signed(x, bits):
+          if x >= 1 << (bits - 1):
+              return x - (1 << bits)
+          return x
+
+
+      print(to_signed(200, 8))
+      print(to_signed(127, 8))
+      print((127 + 1) & 0xFF)
+      print(to_signed((127 + 1) & 0xFF, 8))
+      print((-1) & 0xFF)
+      data = (258).to_bytes(2, "little")
+      print(list(data))
+      print(int.from_bytes(data, "big"))
+      print(chr(ord("a") - 32), len("é".encode("utf-8")))
+    expected_output: "-56\n127\n128\n-128\n255\n[2, 1]\n513\nA 2"
+    answer_md: "to_signed(200, 8): 200 >= 128 nên 200 - 256 = -56. 127 giữ nguyên. (127 + 1) & 0xFF = 128 (giá trị không dấu 8 bit); đọc 128 như số có dấu 8 bit thì 128 >= 128 nên 128 - 256 = -128, nghĩa là 127 + 1 tràn (overflow) và đổi dấu. (-1) & 0xFF = 255 (toàn bit 1). 258 = 0x0102; little-endian lưu byte thấp trước nên list là [2, 1]; đọc lại cùng hai byte theo big-endian cho 0x0201 = 513. ord('a') - 32 = 65 nên chr là A, và 'é' mã hóa UTF-8 thành 2 byte. Dòng 3 (128) và dòng 4 (-128) không gây lỗi cú pháp hay exception: đó là tràn số (wrap-around), tức hành vi/logic của số học 8 bit chứ không phải lỗi Python."
+    rubric_md: "Output khớp từng dòng VÀ phân loại đúng: dòng 3 và 4 là tràn số 8 bit (wrap-around, không có exception, không phải lỗi cú pháp; nếu không xử lý thì là lỗi logic của chương trình). Đúng: bằng chứng điểm 3; sai: tối đa điểm 2."

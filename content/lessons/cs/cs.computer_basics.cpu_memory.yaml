@@ -1,0 +1,200 @@
+id: cs.computer_basics.cpu_memory
+version: 1
+status: published
+title_vi: "CPU, bộ nhớ và cache"
+est_minutes: 15
+objectives_vi:
+  - "Mô tả kiến trúc von Neumann và chu trình fetch-decode-execute của CPU."
+  - "Nắm phân cấp bộ nhớ (register, cache L1/L2/L3, RAM, disk) và đánh đổi tốc độ - dung lượng."
+  - "Giải thích locality (temporal, spatial) và vì sao cache hoạt động."
+  - "Mô phỏng cache direct-mapped: hit, miss, eviction theo addr % số dòng."
+blocks:
+  - id: s_cpu
+    type: section
+    title_vi: "CPU và kiến trúc von Neumann"
+    summary_vi: "Chương trình và dữ liệu cùng nằm trong bộ nhớ; CPU lặp fetch-decode-execute."
+  - id: t01
+    type: text
+    md: |
+      **Kiến trúc von Neumann**: chương trình (lệnh) và dữ liệu cùng được lưu trong một bộ nhớ chính (RAM). CPU lấy lệnh từ RAM, giải mã rồi thực thi.
+
+      - **ALU** (Arithmetic Logic Unit) làm phép toán số học và logic.
+      - **Register** là các ô nhớ cực nhanh nằm ngay trong CPU, chứa toán hạng và kết quả tạm.
+      - **Program counter (PC)** là register giữ địa chỉ của lệnh kế tiếp.
+
+      Chu trình **fetch - decode - execute** lặp mãi:
+
+      ```text
+      1. fetch   : đọc lệnh tại địa chỉ PC từ bộ nhớ, tăng PC
+      2. decode  : xác định lệnh là gì, cần toán hạng nào
+      3. execute : ALU thực hiện (hoặc đọc/ghi bộ nhớ), ghi kết quả vào register
+      ```
+
+      Lệnh nhảy (jump, branch) chỉ đơn giản là ghi một địa chỉ mới vào PC.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Register nào của CPU giữ địa chỉ của lệnh sắp được fetch?"
+    options:
+      - {id: a, text_md: "Program counter (PC)"}
+      - {id: b, text_md: "ALU"}
+      - {id: c, text_md: "Cache line"}
+    answer: [a]
+    explain_md: "PC trỏ tới lệnh kế tiếp; ALU là khối tính toán, còn cache line là đơn vị lưu trong cache."
+  - id: s_hier
+    type: section
+    title_vi: "Phân cấp bộ nhớ và locality"
+    summary_vi: "Càng gần CPU càng nhanh nhưng càng nhỏ; cache dựa vào tính cục bộ."
+  - id: t02
+    type: text
+    md: |
+      **Phân cấp bộ nhớ** (memory hierarchy), từ nhanh/nhỏ/đắt đến chậm/lớn/rẻ:
+
+      | Tầng | Dung lượng điển hình | Độ trễ cỡ |
+      |---|---|---|
+      | Register | vài trăm byte | dưới 1 ns |
+      | Cache L1 / L2 / L3 | KB đến vài chục MB | 1 đến 40 ns |
+      | RAM | GB | khoảng 100 ns |
+      | Disk (SSD/HDD) | trăm GB đến TB | 0,1 ms (SSD) đến ms (HDD) |
+
+      Không có bộ nhớ nào vừa nhanh vừa lớn vừa rẻ, nên máy dùng cache: giữ bản sao dữ liệu hay dùng ở tầng nhanh hơn.
+
+      Cache hiệu quả nhờ **locality**:
+
+      - **Temporal locality**: dữ liệu vừa dùng nhiều khả năng sẽ được dùng lại sớm (biến trong vòng lặp).
+      - **Spatial locality**: dữ liệu gần địa chỉ vừa dùng nhiều khả năng sẽ được dùng tiếp (duyệt mảng tuần tự). Vì vậy cache nạp cả một **cache line** (thường 64 byte) mỗi lần.
+
+      ```python
+      # spatial locality tốt: duyệt từng hàng, các phần tử kề nhau trong bộ nhớ
+      for i in range(n):
+          for j in range(m):
+              total += grid[i][j]
+      ```
+  - id: q02
+    type: predict_output
+    code: |
+      levels = [("register", 1), ("L1", 4), ("RAM", 100)]
+      total = 0
+      for name, cost in levels:
+          total += cost
+      print(total)
+      print(levels[2][1] // levels[1][1])
+    expected_output: |
+      105
+      25
+    explain_md: "Tổng 1 + 4 + 100 = 105; RAM chậm hơn L1 là 100 // 4 = 25 lần trong mô hình đơn giản này."
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Duyệt một mảng từ phần tử đầu đến cuối tận dụng loại locality nào nhiều nhất?"
+    options:
+      - {id: a, text_md: "Spatial locality, vì các phần tử kề nhau và nằm chung cache line"}
+      - {id: b, text_md: "Không có locality nào"}
+      - {id: c, text_md: "Chỉ temporal locality"}
+    answer: [a]
+    explain_md: "Truy cập một phần tử kéo cả cache line vào cache, các phần tử kế bên sau đó là hit."
+  - id: s_cache
+    type: section
+    title_vi: "Cache direct-mapped và bộ nhớ ảo"
+    summary_vi: "Mỗi địa chỉ chỉ có một dòng cố định: line = addr % số dòng; ảo hóa bằng page."
+  - id: t03
+    type: text
+    md: |
+      Cache có nhiều **dòng** (line). Khi CPU đọc một địa chỉ: tìm trong cache, nếu có là **hit**, nếu không là **miss** và phải lấy từ tầng chậm hơn rồi nạp vào cache (có thể **evict**, đuổi một block cũ).
+
+      Ba cách đặt block vào cache:
+
+      - **Direct-mapped**: mỗi block chỉ được vào đúng một dòng, `line = addr % num_lines`. Đơn giản, nhanh, nhưng hai địa chỉ cùng dòng sẽ đuổi nhau liên tục (conflict miss).
+      - **Fully associative**: block vào dòng nào cũng được; ít conflict nhưng phải tìm khắp cache.
+      - **Set-associative** (N-way): block được vào bất kỳ dòng nào trong một tập N dòng; cân bằng giữa hai loại trên.
+
+      ```python
+      def access(cache, addr, num_lines):
+          line = addr % num_lines
+          if cache.get(line) == addr:
+              return True          # hit
+          cache[line] = addr       # miss: ghi đè block cũ ở dòng này
+          return False
+      ```
+
+      Với 4 dòng, địa chỉ 0 và 4 cùng ánh xạ vào dòng 0 nên dãy `0, 4, 0, 4` toàn miss, trong khi `0, 1, 0, 1` chỉ miss hai lần đầu. Khác với FIFO page replacement: ở đây block bị đuổi do trùng chỉ số dòng, không phải do vào cache sớm nhất.
+
+      **Bộ nhớ ảo** (virtual memory): mỗi tiến trình thấy một không gian địa chỉ ảo riêng, chia thành các **page** (thường 4 KB); hệ điều hành và phần cứng (MMU, page table) ánh xạ page ảo sang frame vật lý hoặc ra disk. Page không có trong RAM gây **page fault**.
+  - id: q04
+    type: predict_output
+    code: |
+      cache = {}
+      hits = 0
+      for a in [2, 6, 2, 3, 3]:
+          line = a % 4
+          if cache.get(line) == a:
+              hits += 1
+          else:
+              cache[line] = a
+      print(hits)
+    expected_output: |
+      1
+    explain_md: "2 miss (dòng 2), 6 cùng dòng 2 nên miss và đuổi 2, 2 lại miss, 3 miss (dòng 3), 3 hit. Tổng 1 hit."
+  - id: q05
+    type: quiz_fill
+    prompt_md: "Trong cache direct-mapped có 8 dòng, địa chỉ 21 nằm ở dòng số ___."
+    blanks: [{accept: ["5"]}]
+    explain_md: "21 % 8 = 5."
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: đếm số dòng cache bị chạm"
+    summary_vi: "Viết hàm đếm số dòng khác nhau mà một dãy truy cập chạm tới."
+    exercise_ref: ex_lines
+  - id: t04
+    type: text
+    md: |
+      Số dòng khác nhau được chạm tới cho biết dãy truy cập trải rộng ra sao trong cache.
+
+      ```text
+      distinct_lines([0, 1, 2, 3], 4) -> 4
+      distinct_lines([0, 4, 8], 4)    -> 1   (cả ba cùng dòng 0)
+      ```
+  - id: ex_lines
+    type: code_exercise
+    md: |
+      Cài `distinct_lines(accesses, num_lines)`: mỗi địa chỉ nằm ở dòng `addr % num_lines`; trả về số dòng khác nhau mà dãy `accesses` chạm tới (kiểu int). Ví dụ `distinct_lines([0, 4, 8], 4)` trả `1`, `distinct_lines([], 4)` trả `0`.
+    entry: distinct_lines
+    starter: |
+      def distinct_lines(accesses, num_lines):
+          # TODO: gom các giá trị addr % num_lines rồi đếm số giá trị khác nhau
+          pass
+    guidance_md: |
+      - Tính dòng của mỗi địa chỉ bằng toán tử %.
+      - Dùng set để loại trùng.
+    hints:
+      - level: nudge
+        md: "Cần một set để nhớ các dòng đã gặp."
+      - level: approach
+        md: "Với mỗi addr, thêm addr % num_lines vào set."
+      - level: near_solution
+        md: "Trả len của set sau khi duyệt hết dãy."
+    tests:
+      - {args: [[0, 1, 2, 3], 4], expected: 4}
+      - {args: [[0, 4, 8], 4], expected: 1}
+      - {args: [[], 4], expected: 0}
+      - {args: [[5, 13, 6, 14, 7], 8], expected: 3}
+      - {args: [[10, 20, 30], 1], expected: 1}
+    solution: |
+      def distinct_lines(accesses, num_lines):
+          lines = set()
+          for addr in accesses:
+              lines.add(addr % num_lines)
+          return len(lines)
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Von Neumann: lệnh và dữ liệu cùng nằm trong bộ nhớ; CPU lặp fetch-decode-execute, PC giữ địa chỉ lệnh kế tiếp, ALU tính toán, register là bộ nhớ nhanh nhất."
+      - "Phân cấp register, cache L1/L2/L3, RAM, disk: càng gần CPU càng nhanh và nhỏ; cache có hiệu quả nhờ temporal và spatial locality."
+      - "Cache direct-mapped: line = addr % num_lines, hit khi dòng đang chứa đúng địa chỉ, miss thì ghi đè (eviction); fully và set-associative giảm conflict miss."
+      - "Bộ nhớ ảo chia không gian địa chỉ thành page ánh xạ sang frame vật lý; page không có trong RAM gây page fault."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X891], l2: [X892], l3: [X893]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-11"
