@@ -1,0 +1,157 @@
+id: eng.apis.rest_design
+version: 1
+status: published
+title_vi: "Thiết kế REST API: resource, method, status code và body lỗi"
+est_minutes: 12
+objectives_vi:
+  - "Đặt tên **resource** bằng danh từ số nhiều trong URL và để **hành động** nằm ở method HTTP."
+  - "Chọn đúng **method** (GET/POST/PUT/PATCH/DELETE) và hiểu **safe**/**idempotent** của từng method."
+  - "Chọn đúng **status code** (2xx/4xx/5xx) cho từng kết quả: tạo mới, không thấy, sai dữ liệu, chưa đăng nhập."
+  - "Phân biệt **PUT** (thay cả đối tượng) với **PATCH** (sửa một phần) và thiết kế **body lỗi** nhất quán."
+blocks:
+  - id: s_resource_method
+    type: section
+    title_vi: "Resource là danh từ, hành động là method"
+    summary_vi: "URL chỉ đối tượng (danh từ số nhiều như /orders/12); hành động nằm ở method HTTP. GET đọc, POST tạo, PUT/PATCH sửa, DELETE xóa."
+  - id: b01
+    type: text
+    md: |
+      **REST API** là cách một chương trình (server) cho chương trình khác (client) đọc và ghi dữ
+      liệu qua **HTTP** bằng các địa chỉ dễ đoán, ví dụ `GET /orders/12`. Ý tưởng cốt lõi: URL
+      chỉ **resource** (tài nguyên, tức đối tượng) và dùng **danh từ số nhiều**, còn **hành động**
+      nằm ở **method** HTTP chứ không nằm trong đường dẫn.
+      - Tốt: `/orders`, `/orders/12`, `/orders/12/items`.
+      - Tránh: `/getOrder`, `/createOrder`, `/deleteOrder/12` (động từ trong URL).
+
+      Ánh xạ **CRUD** sang method:
+      - **Create** → `POST /orders` (tạo đơn mới).
+      - **Read** → `GET /orders` (danh sách), `GET /orders/12` (một đơn).
+      - **Update** → `PUT /orders/12` hoặc `PATCH /orders/12`.
+      - **Delete** → `DELETE /orders/12`.
+
+      Dùng **path parameter** để chỉ đối tượng (`/orders/12`) và **query parameter** để lọc/sắp xếp
+      (`/orders?status=paid&sort=-date`).
+  - id: b02
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Cách đặt tên endpoint nào đúng chuẩn REST để lấy đơn hàng số 12?"
+    options:
+      - {id: a, text_md: "`GET /getOrder?id=12`"}
+      - {id: b, text_md: "`GET /orders/12`"}
+      - {id: c, text_md: "`POST /order/get/12`"}
+    answer: [b]
+    explain_md: "URL dùng danh từ số nhiều chỉ resource (`/orders/12`) và hành động đọc nằm ở method GET. (a) và (c) nhét động từ vào đường dẫn; (c) còn dùng POST cho thao tác chỉ đọc."
+  - id: b03
+    type: text
+    md: |
+      Hai tính chất quan trọng của method:
+      - **Safe** (an toàn): không làm thay đổi dữ liệu trên server. **GET** là safe.
+      - **Idempotent** (lũy đẳng): gọi **một lần hay nhiều lần** thì kết quả trên server **như nhau**.
+        **GET**, **PUT**, **DELETE** là idempotent; **POST** thì **không** (gọi hai lần có thể tạo
+        hai đơn). Vì vậy client có thể thử lại PUT/DELETE khi mạng chập chờn mà ít rủi ro hơn POST.
+
+      Khi hành động không khớp động từ CRUD nào (ví dụ "hủy đơn"), có thể dùng
+      `POST /orders/12/cancel`.
+  - id: b04
+    type: quiz_fill
+    graded: true
+    prompt_md: "Điền một từ tiếng Anh: method `GET` không làm thay đổi dữ liệu trên server nên được gọi là ______ (an toàn)."
+    blanks:
+      - accept: ["safe"]
+    explain_md: "GET là **safe** (và cũng idempotent). PUT/DELETE idempotent nhưng không safe vì chúng thay đổi dữ liệu; POST không safe và cũng không idempotent."
+  - id: s_status_put_patch
+    type: section
+    title_vi: "Status code, PUT vs PATCH"
+    summary_vi: "2xx thành công (201 khi tạo, 204 không nội dung), 4xx lỗi do client (400/422 sai dữ liệu, 401/403 quyền, 404 không thấy, 409 xung đột), 5xx lỗi server. PUT thay cả đối tượng, PATCH sửa một phần."
+  - id: b05
+    type: text
+    md: |
+      **Status code** cho client biết kết quả. Có ba họ chính:
+      - **2xx** thành công: `200 OK` (đọc/sửa thành công, có body), `201 Created` (đã tạo mới, nên
+        kèm header `Location` trỏ tới resource mới), `204 No Content` (thành công, không có body — hay
+        dùng cho DELETE).
+      - **4xx** lỗi do **client**: `400 Bad Request` (yêu cầu sai), `401 Unauthorized` (chưa xác
+        thực/đăng nhập), `403 Forbidden` (đã đăng nhập nhưng không đủ quyền), `404 Not Found` (không
+        thấy resource), `409 Conflict` (xung đột, ví dụ trùng dữ liệu), `422 Unprocessable Entity`
+        (đúng cú pháp nhưng sai nghiệp vụ/validation), `429 Too Many Requests` (gọi quá nhiều).
+      - **5xx** lỗi do **server**: `500 Internal Server Error`.
+
+      Nguyên tắc: lỗi do client gửi sai → **4xx**; server hỏng → **5xx**. Đừng trả `200` kèm lỗi
+      trong body.
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Client gọi `POST /orders` với dữ liệu hợp lệ và server tạo đơn thành công. Status code phù hợp nhất là gì?"
+    options:
+      - {id: a, text_md: "`200 OK` kèm body `{\"error\": false}`"}
+      - {id: b, text_md: "`201 Created`, kèm header `Location` trỏ tới đơn mới"}
+      - {id: c, text_md: "`204 No Content`"}
+      - {id: d, text_md: "`404 Not Found`"}
+    answer: [b]
+    explain_md: "Tạo resource mới thành công trả `201 Created` và nên gửi `Location`. (a) không sai hẳn nhưng kém chính xác; (c) dành cho thành công không có body như DELETE; (d) là lỗi không thấy resource."
+  - id: b07
+    type: text
+    md: |
+      **PUT vs PATCH** khi cập nhật đơn `{item, qty, note}`:
+      - **PUT** `/orders/12` **thay cả đối tượng** bằng bản mới: client gửi **đủ** các trường
+        `{item, qty, note}`; trường nào không gửi coi như bị thay/xóa. PUT là **idempotent**.
+      - **PATCH** `/orders/12` chỉ **sửa vài trường được gửi**, ví dụ body `{"qty": 3}` chỉ đổi `qty`,
+        giữ nguyên `item` và `note`.
+
+      Còn **validation** (kiểm tra đầu vào): kiểm tra dữ liệu trước khi dùng, thường qua **DTO**
+      (class mô tả dữ liệu vào/ra API). Dữ liệu sai → trả `400` hoặc `422`, không để lọt vào hệ thống.
+  - id: b08
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Bạn chỉ muốn đổi `qty` của đơn 12 và giữ nguyên `item`, `note`. Request nào hợp lý nhất?"
+    options:
+      - {id: a, text_md: "`PATCH /orders/12` với body `{\"qty\": 3}`"}
+      - {id: b, text_md: "`PUT /orders/12` với body `{\"qty\": 3}` và mong `item`, `note` được giữ nguyên"}
+      - {id: c, text_md: "`POST /orders/12/update` với body `{\"qty\": 3}` là cách duy nhất"}
+    answer: [a]
+    explain_md: "PATCH dùng để sửa một phần. PUT mang nghĩa thay cả đối tượng nên thiếu trường có thể làm mất dữ liệu (b sai). (c) sai vì có method chuẩn cho việc này."
+  - id: s_errors_contract
+    type: section
+    title_vi: "Body lỗi nhất quán và hợp đồng API"
+    summary_vi: "Mọi lỗi trả cùng một dạng JSON (ví dụ code, message) để client xử lý chung. API là hợp đồng: đổi tên trường hay status code có thể làm vỡ client."
+  - id: b09
+    type: text
+    md: |
+      **Body lỗi nhất quán**: mọi lỗi trả về **cùng một dạng JSON** để client xử lý chung, ví dụ:
+
+      ```json
+      {"error": {"code": "ORDER_NOT_FOUND", "message": "Order 12 does not exist"}}
+      ```
+
+      Kèm status code đúng (ở đây `404`). Với lỗi validation có thể thêm danh sách trường sai. Có
+      chuẩn **problem+json** (RFC 9457) cho dạng lỗi này; ở mức cơ bản chỉ cần nhất quán.
+
+      Ví dụ bốn tình huống: thiếu trường → `400`/`422`; không tìm thấy → `404`; trùng dữ liệu →
+      `409`; lỗi server → `500` — cùng một dạng body.
+
+      **API contract** (hợp đồng API): đường dẫn, method, tên trường và status code là thứ client dựa
+      vào. Đổi tên trường hoặc đổi status code của API đang dùng có thể **làm vỡ** client, nên giữ
+      ổn định và thêm thay đổi theo cách không phá vỡ (thêm trường mới thay vì đổi/xóa trường cũ).
+  - id: b10
+    type: callout
+    kind: interview
+    md: |
+      **Thanh điểm mức 3 (level-3 bar).** Bạn thiết kế được bộ API CRUD cho một đối tượng (ví dụ
+      booking): nêu đúng **method**, **URL**, **status code** thành công và lỗi (`201`, `204`, `400`/`422`,
+      `404`, `409`), phân biệt **PUT** và **PATCH**, và đề xuất một **body lỗi** chung cho mọi tình huống.
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "**Resource** là danh từ số nhiều trong URL (`/orders/12`); **hành động** nằm ở method HTTP, không nằm trong đường dẫn."
+      - "GET đọc (safe + idempotent), POST tạo (không idempotent), PUT/PATCH sửa, DELETE xóa; PUT và DELETE idempotent."
+      - "Status code: **201** khi tạo, **204** không body, **400/422** sai dữ liệu, **401/403** auth/quyền, **404** không thấy, **409** xung đột, **5xx** lỗi server."
+      - "**PUT** thay cả đối tượng; **PATCH** chỉ sửa trường được gửi."
+      - "Mọi lỗi dùng **cùng một dạng JSON**; giữ **API contract** ổn định để không làm vỡ client."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [E109], l2: [E110], l3: [E111]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-11"

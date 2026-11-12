@@ -1,0 +1,136 @@
+id: eng.apis.api_versioning_webhooks
+version: 1
+status: published
+title_vi: "Đánh phiên bản API, thay đổi gây vỡ và webhook"
+est_minutes: 12
+objectives_vi:
+  - "Giải thích vì sao phải **đánh phiên bản** (versioning) API và phân loại thay đổi là **additive** (tương thích) hay **breaking** (gây vỡ)."
+  - "So sánh các cách versioning: **URL path** (`/v1`), **header / media type** và **query**, kèm đánh đổi."
+  - "Mô tả **deprecation** và **sunset**: báo trước ngày tắt bản cũ để client kịp chuyển."
+  - "Giải thích **webhook** là gì, vì sao tốt hơn **polling**, và cách nhận an toàn: kiểm tra chữ ký, xử lý retry và tin trùng."
+blocks:
+  - id: s_versioning
+    type: section
+    title_vi: "Vì sao phải đánh phiên bản và thay đổi nào gây vỡ"
+    summary_vi: "API giống hợp đồng với client: thêm điều khoản mới thì ổn, xóa/đổi tên/đổi kiểu thì client cũ hỏng. Đổi lớn thì mở /v2 chạy song song /v1."
+  - id: b01
+    type: text
+    md: |
+      Một **API** giống một **hợp đồng** với mọi client đang dùng nó (app điện thoại, đối tác...). Bạn
+      không kiểm soát được khi nào họ cập nhật app, nên nếu đổi API tùy ý thì app của họ **hỏng**.
+      **Versioning** (đánh phiên bản) cho phép bạn đổi lớn mà vẫn để client cũ chạy trên bản cũ.
+
+      Phân loại thay đổi:
+      - **Additive / backward-compatible** (an toàn): thêm **trường tùy chọn** (optional field) vào
+        response, thêm **endpoint** mới, thêm tham số tùy chọn. Client cũ bỏ qua phần thừa.
+      - **Breaking** (gây vỡ): **xóa** trường, **đổi tên** trường hoặc URL, **đổi kiểu** (số `5` thành
+        chuỗi `"5"`), thêm tham số **bắt buộc** mới.
+  - id: b02
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Thay đổi nào sau đây là **backward-compatible** (không làm vỡ client cũ)?"
+    options:
+      - {id: a, text_md: "Đổi tên trường `price` thành `cost` trong response."}
+      - {id: b, text_md: "Thêm một trường tùy chọn `note` vào response."}
+      - {id: c, text_md: "Đổi kiểu `price` từ số `5` thành chuỗi `\"5\"`."}
+    answer: [b]
+    explain_md: "Thêm trường tùy chọn là additive: client cũ bỏ qua trường lạ. (a) đổi tên, (c) đổi kiểu đều là breaking vì client cũ đang đọc `price` theo kiểu số."
+  - id: b03
+    type: text
+    md: |
+      Ba cách phổ biến để ghi version:
+      - **URL path**: `/v1/orders`, `/v2/orders`. Đơn giản, dễ thử bằng trình duyệt, dễ cache; bản cũ
+        chạy song song một thời gian. Đây là cách phổ biến nhất.
+      - **Header / media type**: ví dụ `Accept: application/vnd.app.v2+json`. URL gọn hơn nhưng khó
+        thử bằng trình duyệt và khó cache hơn.
+      - **Query**: `/orders?version=2`. Dễ làm nhưng dễ bị bỏ sót và làm cache lộn xộn.
+
+      Dù chọn cách nào, quy tắc vàng là **cố gắng chỉ thêm (additive)** để ít phải tăng version;
+      chỉ mở `/v2` khi buộc phải có breaking change.
+  - id: b04
+    type: quiz_fill
+    graded: true
+    prompt_md: "Điền một từ: cách versioning đặt số phiên bản ngay trong đường dẫn như `/v1/orders` và `/v2/orders` gọi là versioning qua ______ của request."
+    blanks:
+      - accept: ["URL", "url", "URI", "uri", "path", "URL path", "url path"]
+    explain_md: "Đặt version trong URL (path) là cách đơn giản và phổ biến nhất. Header/media type và query là các lựa chọn khác với đánh đổi riêng."
+  - id: s_deprecation
+    type: section
+    title_vi: "Deprecation và sunset"
+    summary_vi: "Báo trước ngày tắt bản cũ (header, email, tài liệu) rồi mới tắt, để client kịp chuyển sang bản mới."
+  - id: b05
+    type: text
+    md: |
+      **Deprecation** là việc tuyên bố một version/endpoint **sắp ngừng hỗ trợ**; **sunset** là
+      **ngày tắt thật**. Một chính sách tử tế gồm:
+      1. Phát hành bản mới (`/v2`) và **giữ `/v1` chạy song song**.
+      2. **Báo trước** đủ lâu qua tài liệu, email và header phản hồi (ví dụ `Deprecation`, `Sunset`).
+      3. Theo dõi ai còn gọi bản cũ, nhắc họ, rồi mới **tắt** vào ngày đã hẹn.
+
+      Tắt đột ngột, không báo, là cách nhanh nhất làm mất lòng tin của client.
+  - id: s_webhooks
+    type: section
+    title_vi: "Webhook: server gọi ngược"
+    summary_vi: "Webhook là server chủ động POST sự kiện tới địa chỉ client đã đăng ký; tốt hơn polling. Nhận an toàn: kiểm tra chữ ký, trả 2xx nhanh, xử lý idempotent vì có retry và tin trùng."
+  - id: b06
+    type: text
+    md: |
+      **Webhook** là **gọi ngược** (callback qua HTTP): thay vì client hỏi liên tục "xong chưa?"
+      (**polling**), khi có sự kiện (ví dụ "thanh toán xong") **server của provider chủ động gửi
+      `POST`** tới **URL mà client đã đăng ký**. Ưu điểm so với polling: **gần thời gian thực**, ít
+      request thừa, tốn ít tài nguyên hơn.
+
+      Phía nhận (subscriber) cần chú ý:
+      - **Xác thực**: provider **ký** nội dung bằng **HMAC** (chữ ký tính từ nội dung + khóa bí mật
+        chung). Bạn **kiểm tra chữ ký** trước khi tin; có thể kiểm tra timestamp để chống **replay**
+        (phát lại tin cũ). Chi tiết HMAC học ở mục secrets_encryption.
+      - **Xác nhận**: trả mã **2xx** thật nhanh để báo đã nhận; làm việc nặng ở nền.
+      - **Retry**: nếu không nhận được 2xx, provider **gửi lại**, chờ lâu dần giữa các lần
+        (ví dụ 1 phút, 5 phút, 30 phút).
+      - **Idempotent**: vì có retry nên bạn có thể nhận **cùng một tin hai lần**; dùng mã sự kiện
+        (event id) để **bỏ qua tin trùng**, tránh xử lý hai lần (ví dụ cộng tiền hai lần).
+  - id: b07
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Về **webhook**, phát biểu nào đúng?"
+    options:
+      - {id: a, text_md: "Client phải gọi server định kỳ để hỏi có sự kiện mới hay không (pull)."}
+      - {id: b, text_md: "Server (provider) chủ động gửi HTTP POST tới URL client đã đăng ký khi có sự kiện (push)."}
+      - {id: c, text_md: "Webhook chỉ gửi đúng một lần nên không bao giờ cần xử lý tin trùng."}
+    answer: [b]
+    explain_md: "Webhook là push: provider POST tới URL đã đăng ký. (a) là polling, ngược với webhook. (c) sai — có retry nên cùng một tin có thể đến nhiều lần, cần xử lý idempotent."
+  - id: b08
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Endpoint nhận webhook của bạn nhận được cùng một sự kiện `payment.succeeded` (cùng event id) hai lần do provider retry. Cách xử lý đúng?"
+    options:
+      - {id: a, text_md: "Xử lý cả hai lần để chắc chắn không sót."}
+      - {id: b, text_md: "Kiểm tra chữ ký, ghi nhớ event id đã xử lý và bỏ qua lần trùng (xử lý idempotent), vẫn trả 2xx."}
+      - {id: c, text_md: "Trả lỗi 500 cho lần trùng để provider ngừng gửi."}
+    answer: [b]
+    explain_md: "Retry nghĩa là tin trùng là bình thường; dùng event id để xử lý đúng một lần và vẫn trả 2xx. (a) có thể cộng tiền hai lần. (c) 500 chỉ khiến provider tiếp tục retry."
+  - id: b09
+    type: callout
+    kind: interview
+    md: |
+      **Thanh điểm mức 3 (level-3 bar).** Bạn **phân loại** được thay đổi API là additive hay
+      breaking, **chọn cách versioning kèm lý do** (ví dụ `/v1` trong URL vì đơn giản, dễ thử, dễ
+      cache; header gọn URL hơn nhưng khó cache), nêu chính sách **deprecation**, và **mô tả cách
+      gửi/nhận webhook**: POST tới URL đã đăng ký, ký HMAC, retry với chờ lâu dần, client xử lý
+      idempotent.
+  - id: b10
+    type: summary
+    bullets_vi:
+      - "API là hợp đồng: thay đổi **additive** (thêm trường tùy chọn, endpoint mới) là an toàn; **xóa, đổi tên, đổi kiểu** là **breaking**."
+      - "Versioning: **URL path** (`/v1`) đơn giản và phổ biến nhất; **header/media type** gọn URL nhưng khó cache; **query** dễ nhưng dễ lộn xộn. Ưu tiên chỉ thêm để ít phải tăng version."
+      - "**Deprecation/sunset**: giữ bản cũ chạy song song, báo trước ngày tắt rồi mới tắt."
+      - "**Webhook** = server push sự kiện (POST) tới URL client đăng ký, tốt hơn polling."
+      - "Nhận webhook: **kiểm tra chữ ký (HMAC)**, trả **2xx** nhanh, chấp nhận **retry** và xử lý **idempotent** theo event id để bỏ qua tin trùng."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [E112], l2: [E113], l3: [E114]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-11"
