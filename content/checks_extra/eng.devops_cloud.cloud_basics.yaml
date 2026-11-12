@@ -1,0 +1,60 @@
+subtopic_id: eng.devops_cloud.cloud_basics
+items:
+  - id: E157
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Phân biệt **IaaS**, **PaaS** và **SaaS** bằng một câu cho mỗi loại, và nói rõ bạn phải tự quản phần nào.
+    answer_md: |
+      - **IaaS**: thuê máy ảo và mạng trống; nhà cung cấp lo phần cứng, bạn tự quản từ **hệ điều hành** trở lên.
+      - **PaaS**: nền tảng chạy app giúp bạn; bạn chỉ quản **code và cấu hình**, OS và runtime do nhà cung cấp lo.
+      - **SaaS**: phần mềm dùng ngay (ví dụ email, công cụ quản lý dự án); bạn chỉ dùng, không quản hạ tầng hay code.
+      - Từ IaaS lên SaaS: kiểm soát ít hơn, việc vận hành ít hơn.
+    rubric_md: "Đạt khi mô tả đúng cả ba mô hình với ranh giới quản lý: IaaS bạn quản từ OS lên, PaaS bạn quản code và cấu hình, SaaS chỉ dùng. Đủ ba: bằng chứng điểm 1; nhầm PaaS với IaaS hoặc không nêu phần bạn tự quản: điểm 0."
+  - id: E158
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Giải thích **region** và **availability zone (AZ)** là gì, vì sao nên chạy một dịch vụ quan trọng trên
+      nhiều AZ, và nêu một đánh đổi khi chọn **managed database** thay vì tự cài database trên VM.
+    answer_md: |
+      - **Region**: một vùng địa lý. **AZ**: datacenter cô lập (điện, mạng riêng) bên trong một region, nối nhau
+        tốc độ cao.
+      - Chạy trên **nhiều AZ** để **chịu lỗi**: một datacenter mất điện hay hỏng mạng thì các AZ còn lại tiếp tục
+        phục vụ (cần load balancer và database có bản sao ở AZ khác). **Multi-region** bảo vệ khi cả vùng gặp sự cố
+        nhưng phức tạp và đắt hơn.
+      - **Managed database**: nhà cung cấp lo cài đặt, vá lỗi, backup, failover nên **bớt công vận hành**;
+        đổi lại **ít quyền chỉnh sâu** (phiên bản, cấu hình, extension bị giới hạn) và thường tốn phí cao hơn
+        ở quy mô nhỏ. Tự cài trên VM thì kiểm soát nhiều nhưng bạn phải tự vận hành tất cả.
+    rubric_md: "Đạt khi: (a) định nghĩa đúng region (vùng địa lý) và AZ (datacenter cô lập trong region); (b) nêu nhiều AZ để một nơi hỏng vẫn sống; (c) nêu đánh đổi managed service: bớt vận hành so với bớt kiểm soát hoặc chi phí. Đủ (a)-(c): bằng chứng điểm 2. Nói AZ là region khác nhau hoặc chỉ nói managed là tốt hơn mà không có đánh đổi: tối đa điểm 1."
+  - id: E159
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      Bạn dựng một **web app nhỏ** (backend Python, database quan hệ, người dùng tải ảnh lên). Hãy: (a) chọn dịch vụ
+      cloud cho chỗ chạy code, database, kho ảnh và cổng vào, kèm lý do; (b) so sánh **serverless** với
+      **container** cho phần chạy code; (c) giải thích **VPC** và **IAM** trong thiết kế này; (d) nói
+      theo **shared responsibility** phần nào là của bạn.
+    answer_md: |
+      **(a) Chọn dịch vụ** (ví dụ tên AWS, nhà khác có tương đương):
+      - Chạy code: **container** (ECS/Fargate) hoặc **serverless** (Lambda) nếu tải thất thường; VM nếu cần kiểm soát OS.
+      - Database: **managed database** (RDS) để có backup, failover, bớt vận hành.
+      - Kho ảnh: **object storage** (S3), rẻ, bền, truy cập qua API/URL; có thể thêm **CDN** phía trước.
+      - Cổng vào: **load balancer** (ALB) chia yêu cầu cho nhiều bản chạy trên **nhiều AZ**.
+
+      **(b) Serverless vs container:** serverless tính tiền theo lần chạy, tự scale tới 0 và không quản máy, hợp tải
+      thất thường; nhưng có giới hạn thời gian chạy, khởi động nguội và khó chạy tiến trình dài. Container
+      cho môi trường nhất quán, chạy được tiến trình dài, kiểm soát nhiều hơn; đổi lại phải cấu hình cluster
+      hay nền tảng và thường trả tiền cả khi rảnh.
+
+      **(c) VPC và IAM:** đặt app và database trong **VPC** (mạng riêng); database ở **subnet riêng** chỉ cho
+      app truy cập qua **security group** (mở đúng cổng cần), chỉ load balancer công khai. **IAM** theo
+      **ít quyền nhất**: role của app chỉ được đọc/ghi bucket ảnh của nó, không cấp quyền admin.
+
+      **(d) Shared responsibility:** nhà cung cấp bảo mật cloud (datacenter, phần cứng, ảo hóa). Bạn chịu trách
+      nhiệm code, **cấu hình** (bucket có công khai hay không, security group), **IAM**, **dữ liệu**,
+      và patch OS nếu dùng VM.
+    rubric_md: "Đạt mức 3 khi đủ cả bốn phần: (a) chọn hợp lý compute, managed database, object storage và load balancer kèm lý do; (b) so sánh serverless với container có ít nhất hai tiêu chí (chi phí, khởi động, giới hạn, kiểm soát); (c) giải thích VPC/security group và IAM ít quyền nhất trong thiết kế; (d) shared responsibility: nhà cung cấp lo cloud, bạn lo cấu hình, dữ liệu, quyền truy cập. Đủ cả bốn trong time-box: bằng chứng điểm 3. Thiếu một phần hoặc nói nhà cung cấp lo cả bảo mật dữ liệu: chưa đạt mức 3."

@@ -1,0 +1,79 @@
+subtopic_id: eng.devops_cloud.docker
+items:
+  - id: E145
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      **Image** và **container** khác nhau thế nào? Và container khác máy ảo (VM) ở điểm cốt lõi nào?
+    answer_md: |
+      - **Image** là bản đóng gói **chưa chạy** (chỉ đọc) gồm code, thư viện, cấu hình; **container** là một **bản đang chạy**
+        tạo từ image. Từ một image chạy được nhiều container.
+      - **Container** **dùng chung kernel** của máy chủ (cô lập bằng namespaces và cgroups) nên nhẹ, khởi động nhanh;
+        **VM** có hệ điều hành và kernel riêng nên nặng hơn, nhưng cô lập mạnh hơn.
+    rubric_md: "Đạt khi nêu đúng image = bản chưa chạy / container = bản đang chạy, và container dùng chung kernel (nhẹ hơn) còn VM có kernel riêng. Đủ hai ý: bằng chứng điểm 1; nhầm image với container hoặc nói container có kernel riêng: điểm 0."
+  - id: E146
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Dockerfile của một app Python hiện là: `FROM python:3.12`, `COPY . .`, `RUN pip install -r requirements.txt`,
+      `CMD python main.py`. Mỗi lần sửa một dòng code, build chạy lại rất lâu. Hãy giải thích nguyên nhân,
+      sửa Dockerfile, và nêu thêm hai cải thiện (về kích thước hoặc an toàn).
+    answer_md: |
+      **Nguyên nhân:** mỗi lệnh tạo một **layer** và Docker cache layer không đổi, nhưng khi một layer đổi thì mọi layer sau nó
+      phải build lại. `COPY . .` đứng trước `pip install` nên sửa code làm layer này đổi, kéo theo cài lại toàn bộ thư viện.
+
+      **Sửa:** đặt phần ít đổi lên trước:
+      ```dockerfile
+      FROM python:3.12-slim
+      WORKDIR /app
+      COPY requirements.txt .
+      RUN pip install --no-cache-dir -r requirements.txt
+      COPY . .
+      CMD ["python", "main.py"]
+      ```
+      Giờ chỉ sửa code thì layer cài thư viện vẫn được cache.
+
+      **Cải thiện thêm:** dùng base `-slim` (nhỏ hơn); tạo user thường và `USER` để chạy **non-root**;
+      thêm `.dockerignore` (bỏ `.git`, `__pycache__`, file `.env`) để không đưa file thừa hay secret vào image;
+      dùng **multi-stage** nếu cần compiler lúc build; `CMD` dạng mảng (exec form).
+    rubric_md: "Đạt khi: (a) giải thích đúng cơ chế layer + cache (layer đổi thì các layer sau build lại); (b) sửa Dockerfile với COPY requirements.txt và RUN pip install trước COPY code; (c) nêu ít nhất hai cải thiện hợp lệ (slim, non-root, .dockerignore, multi-stage). Đủ (a)-(b) và nêu được ít nhất hai cải thiện (c): bằng chứng điểm 2. Chỉ nói 'dùng cache' mà không sửa thứ tự lệnh hoặc không giải thích vì sao: tối đa điểm 1."
+  - id: E147
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      Bạn có một web app Python nhỏ (`main.py`, `requirements.txt`) lắng nghe cổng 8000 và cần mật khẩu database.
+      Hãy: (a) viết Dockerfile (có chạy non-root); (b) nêu lệnh build và chạy, kể cả cách truyền mật khẩu và mở cổng;
+      (c) giải thích khác nhau giữa **image** và **container**; (d) nói vì sao không để mật khẩu trong image và
+      vì sao app phải nghe trên `0.0.0.0`.
+    answer_md: |
+      **(a) Dockerfile:**
+      ```dockerfile
+      FROM python:3.12-slim
+      WORKDIR /app
+      COPY requirements.txt .
+      RUN pip install --no-cache-dir -r requirements.txt
+      RUN useradd --create-home appuser
+      COPY --chown=appuser:appuser . .
+      USER appuser
+      EXPOSE 8000
+      CMD ["python", "main.py"]
+      ```
+      (`requirements.txt` chép và cài trước để tận dụng build cache; `COPY --chown` để file thuộc về user non-root;
+      `EXPOSE` chỉ là tài liệu, không mở cổng.)
+
+      **(b) Build và chạy:**
+      `docker build -t app:1.0 .` rồi `docker run -p 8000:8000 -e DB_PASSWORD app:1.0`
+      (hoặc `-e DB_PASSWORD=...` / `--env-file` / secret của nền tảng); app đọc `os.environ["DB_PASSWORD"]`.
+      Mở `http://localhost:8000` trên máy.
+
+      **(c) Image vs container:** image là bản đóng gói chưa chạy (nhiều layer, chỉ đọc), container là bản đang chạy tạo
+      từ image (thêm một lớp ghi tạm; xóa container thì dữ liệu trong đó mất trừ khi dùng **volume**).
+      Một image chạy được nhiều container.
+
+      **(d) Secret và địa chỉ nghe:** secret viết vào Dockerfile (`ENV`, `COPY .env`) nằm lại trong **layer**, ai kéo được image
+      đều đọc được, xóa ở layer sau không xóa khỏi layer cũ; nên truyền qua env lúc chạy. App phải nghe `0.0.0.0` vì
+      `127.0.0.1` chỉ là loopback bên trong container, port mapping từ ngoài sẽ không tới được.
+    rubric_md: "Đạt mức 3 khi đủ cả bốn phần: (a) Dockerfile hợp lý: FROM base, WORKDIR, COPY requirements + RUN pip install trước COPY code, CMD, và USER non-root; (b) lệnh docker build và docker run có -p và truyền mật khẩu qua env lúc chạy; (c) phân biệt đúng image (bản chưa chạy) và container (bản đang chạy); (d) secret không bake vào layer (vẫn lộ qua layer) và nghe 0.0.0.0. Đủ cả bốn trong time-box: bằng chứng điểm 3. Thiếu non-root hoặc thứ tự cache, hoặc đặt mật khẩu bằng ENV trong Dockerfile: chưa đạt mức 3."

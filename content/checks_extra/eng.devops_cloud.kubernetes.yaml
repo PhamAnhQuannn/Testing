@@ -1,0 +1,58 @@
+subtopic_id: eng.devops_cloud.kubernetes
+items:
+  - id: E154
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Giải thích ngắn gọn **desired state** và **reconcile** trong Kubernetes, và **pod** là gì.
+    answer_md: |
+      - **Desired state**: bạn khai báo trạng thái mong muốn (ví dụ "luôn có 3 bản của app này"), không ra lệnh từng bước.
+      - **Reconcile**: control loop liên tục so sánh trạng thái thực tế với mong muốn rồi sửa chênh lệch
+        (pod chết thì tạo pod mới, đổi số replica thì chạy thêm hoặc bớt).
+      - **Pod**: đơn vị triển khai nhỏ nhất, gồm một hoặc vài container dùng chung network và storage;
+        pod là tạm thời, bị thay bằng pod mới (IP khác).
+    rubric_md: "Đạt khi nêu đúng ý khai báo trạng thái mong muốn và control loop tự kéo thực tế về mong muốn, cùng định nghĩa pod là đơn vị nhỏ nhất chứa một hoặc nhiều container. Đủ ý: bằng chứng điểm 1; coi Kubernetes chỉ là công cụ chạy lệnh từng bước hoặc nhầm pod với node: điểm 0."
+  - id: E155
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Một web app chạy bằng **Deployment** với 3 replica, phía trước có **Service**. (a) Service biết gửi traffic tới pod nào
+      bằng cách nào? (b) Một pod bị **xóa** (hoặc node chứa nó chết) thì chuyện gì xảy ra? (c) Bạn đổi image sang phiên bản mới thì
+      Deployment làm gì, và nếu phiên bản mới lỗi thì sao?
+    answer_md: |
+      **(a)** Pod có **label** (ví dụ `app=web`); Service có **selector** khớp label đó và chia tải tới các pod khớp
+      (chỉ những pod đang ready). Service có IP ảo/DNS cố định nên client không cần biết IP từng pod.
+
+      **(b)** Deployment tạo **ReplicaSet** giữ đủ 3 pod. Pod bị xóa làm thực tế còn 2 so với mong muốn 3, control loop
+      **reconcile** bằng cách tạo pod mới (IP khác); Service tự thêm pod mới vào khi nó ready.
+
+      **(c)** Deployment làm **rolling update**: tạo ReplicaSet mới, tăng pod mới dần và giảm pod cũ dần để ít gián đoạn.
+      Phiên bản mới lỗi thì **rollback** về ReplicaSet/phiên bản trước.
+    rubric_md: "Đạt khi: (a) nêu label/selector và Service là địa chỉ ổn định chia tải; (b) nêu ReplicaSet/control loop tạo pod thay thế theo desired state; (c) nêu rolling update và rollback. Đủ cả ba: bằng chứng điểm 2. Nói Service gắn cứng IP pod, hoặc pod chết thì phải tạo tay: tối đa điểm 1."
+  - id: E156
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      Bạn trực một dịch vụ chạy trên Kubernetes. Hãy: (a) mô tả đường đi của một request từ người dùng tới pod và
+      nói **HPA** đứng ở đâu, thêm pod khi nào; (b) với app mất 30 giây để khởi động, phân biệt **liveness** và
+      **readiness probe** và nói đặt thế nào; (c) một pod đang ở **CrashLoopBackOff**: nêu ít nhất 3 nguyên nhân thường gặp
+      và lệnh `kubectl` bạn dùng để kiểm tra từng nguyên nhân, kể cả cách nhận ra OOMKilled.
+    answer_md: |
+      **(a)** Người dùng -> **Ingress** -> **Service** (chọn pod bằng label/selector, chia tải) -> một trong các **pod**.
+      **HPA** theo dõi metric (ví dụ CPU trung bình) và **điều chỉnh số replica** của Deployment: khi vượt ngưỡng
+      (ví dụ 70%) thì tăng số bản mong muốn, controller tạo thêm pod; tải giảm thì giảm bớt.
+
+      **(b)** **Readiness**: pod chưa sẵn sàng thì bị rút khỏi Service, không nhận traffic, nhưng không bị restart;
+      đặt để chỉ báo ready sau khi app khởi động xong (hoặc dùng startup probe/initial delay đủ lớn cho 30 giây).
+      **Liveness**: app treo hoặc chết thì khởi động lại container; không đặt ngưỡng ngắn hơn thời gian khởi động,
+      vì sẽ giết app khi nó chưa kịp lên và gây restart liên tục.
+
+      **(c)** Nguyên nhân thường gặp: (1) **lỗi app** (exception khi khởi động): `kubectl logs TÊN_POD`
+      (có thể thêm `--previous` để xem log lần chạy trước); (2) **thiếu biến môi trường/ConfigMap/Secret** hoặc cấu hình sai:
+      `kubectl logs` và `kubectl describe pod` kiểm tra env và mount; (3) **hết RAM**: `kubectl describe pod`
+      thấy `Last State: Terminated, Reason: OOMKilled` và limit RAM thấp; xử lý bằng sửa leak hoặc tăng limit.
+      Ngoài ra liveness probe sai cũng gây restart lặp. `kubectl get pods` cho thấy số lần restart.
+    rubric_md: "Đạt mức 3 khi đủ cả ba phần: (a) đường đi Ingress -> Service -> pod và HPA đổi số replica theo tải (nêu ngưỡng ví dụ); (b) phân biệt đúng liveness (restart) với readiness (rút khỏi Service) và cách đặt cho app khởi động chậm; (c) ít nhất ba nguyên nhân CrashLoopBackOff cùng lệnh kubectl logs/describe phù hợp, nhận ra OOMKilled qua describe. Đủ cả ba trong time-box: bằng chứng điểm 3. Nhầm liveness với readiness, hoặc không nêu cách kiểm tra bằng kubectl: chưa đạt mức 3."

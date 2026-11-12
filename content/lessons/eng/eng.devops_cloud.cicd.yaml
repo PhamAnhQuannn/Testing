@@ -1,0 +1,170 @@
+id: eng.devops_cloud.cicd
+version: 1
+status: published
+title_vi: "CI/CD và chiến lược phát hành: pipeline, secret, artifact, rolling / blue-green / canary, feature flag, rollback"
+est_minutes: 13
+objectives_vi:
+  - "Phân biệt **CI** (tự chạy test mỗi lần push) với **CD** (tự đóng gói và đưa lên server), và mô tả **pipeline** build, test, scan, package, deploy cùng lúc nó **dừng**."
+  - "Dùng đúng **secret**, **artifact** và **cache** trong pipeline: secret gọi bằng tên từ kho bí mật của công cụ CI, không viết trong YAML."
+  - "So sánh **rolling**, **blue-green**, **canary**, và vai trò của **feature flag / kill switch** cùng **rollback**."
+  - "Giải thích vì sao migration database phải theo **expand-contract** khi deploy dần."
+blocks:
+  - id: s_pipeline
+    type: section
+    title_vi: "CI, CD và pipeline"
+    summary_vi: "CI tự chạy test mỗi lần push; CD tự đóng gói và đưa lên server. Pipeline là chuỗi bước nối tiếp, bước nào hỏng thì dừng và code lỗi không ra production."
+  - id: b01
+    type: text
+    md: |
+      **CI** (Continuous Integration) là tự động **build và chạy test** mỗi lần có người đẩy code (push hoặc
+      mở pull request), để phát hiện lỗi sớm khi gộp code. **CD** (Continuous Delivery/Deployment) là tự động
+      **đóng gói và đưa bản đã kiểm tra lên server**. Delivery thường còn một bước duyệt tay trước production;
+      Deployment thì tự đưa lên luôn.
+
+      **Pipeline** (dây chuyền) là chuỗi các bước chạy **nối tiếp**, ví dụ:
+      1. **build**: biên dịch hoặc cài thư viện;
+      2. **test**: unit test, integration test, lint;
+      3. **scan**: quét lỗ hổng thư viện, secret lỡ commit (quét **image** container thì nằm sau bước package);
+      4. **package**: tạo **artifact** như file zip hoặc Docker image;
+      5. **deploy**: đưa artifact lên môi trường (staging rồi production).
+
+      Quy tắc quan trọng: **một bước hỏng thì pipeline dừng**, các bước sau không chạy, nên code lỗi không ra
+      production. Công cụ CI (GitHub Actions, GitLab CI, Jenkins) đọc file cấu hình **YAML** nằm trong repo
+      để biết phải chạy gì và khi nào (ví dụ `on: push`).
+  - id: b02
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Trong một pipeline gồm build, test, scan, package, deploy, bước **test** bị fail. Điều gì xảy ra đúng với cách pipeline thường được thiết kế?"
+    options:
+      - {id: a, text_md: "Pipeline dừng ở đó; các bước package và deploy không chạy"}
+      - {id: b, text_md: "Pipeline bỏ qua test và vẫn deploy, rồi gửi cảnh báo sau"}
+      - {id: c, text_md: "Pipeline tự sửa code rồi chạy lại test"}
+    answer: [a]
+    explain_md: "Mục đích của pipeline là chặn code lỗi: một bước fail thì dừng (a). Vẫn deploy (b) làm mất ý nghĩa của test; pipeline không tự sửa code (c)."
+  - id: s_secrets
+    type: section
+    title_vi: "Secret, artifact và cache"
+    summary_vi: "Secret cất trong kho bí mật của công cụ CI và gọi bằng tên. Artifact là kết quả build được lưu để bước sau dùng; cache giữ thư viện đã tải cho nhanh."
+  - id: b03
+    type: text
+    md: |
+      **Secret trong pipeline** (mật khẩu, token deploy, API key): lưu ở **kho bí mật** (secret store) của
+      công cụ CI và **gọi bằng tên** trong pipeline; **không viết giá trị trong file YAML** vì YAML nằm trong
+      repo và Git giữ toàn bộ lịch sử. Không in secret ra log. Nếu secret đã lộ thì phải **rotate**.
+
+      **Artifact** (ở đây là kết quả build được lưu lại, không phải nghĩa thường) như file zip hoặc Docker image:
+      build một lần rồi các bước sau (test, deploy) **tải đúng artifact đó**, nên thứ được test chính là thứ
+      được deploy.
+
+      **Cache** giữ thứ có thể tải lại, như thư viện đã cài, để lần chạy sau nhanh hơn. Cache chỉ là tối ưu tốc
+      độ: mất cache thì pipeline vẫn chạy đúng, chỉ chậm hơn. Artifact là sản phẩm cần giữ.
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Pipeline cần một **token deploy** để đẩy bản mới lên server. Cách đặt token nào đúng?"
+    options:
+      - {id: a, text_md: "Viết thẳng giá trị token vào file YAML của pipeline cho tiện"}
+      - {id: b, text_md: "Lưu token trong secret store của công cụ CI và tham chiếu bằng tên trong YAML"}
+      - {id: c, text_md: "In token ra log để cả team kiểm tra được"}
+    answer: [b]
+    explain_md: "Giá trị nằm trong secret store, YAML chỉ chứa tên tham chiếu. Viết thẳng vào YAML (a) là commit secret vào Git; in ra log (c) làm lộ secret."
+  - id: b05
+    type: quiz_fill
+    graded: true
+    prompt_md: "Điền một từ tiếng Anh: kết quả của bước build (file zip hay Docker image) được lưu lại để các bước sau tải về dùng gọi là ______."
+    blanks:
+      - accept: ["artifact", "artifacts", "build artifact"]
+    explain_md: "Đó là **artifact**. Build một lần rồi dùng lại cho test và deploy để bản được test chính là bản được deploy."
+  - id: s_release
+    type: section
+    title_vi: "Chiến lược phát hành, feature flag và rollback"
+    summary_vi: "Rolling thay dần từng server, blue-green chạy hai bản rồi chuyển lưu lượng, canary cho một ít người dùng thử trước. Feature flag bật/tắt tính năng không cần deploy; rollback quay về bản trước."
+  - id: b06
+    type: text
+    md: |
+      Cách đưa bản mới lên production:
+      - **Rolling**: thay **dần từng server** (hoặc từng nhóm) bằng bản mới. Trong lúc đó **bản cũ và bản mới
+        chạy cùng lúc**. Tốn ít tài nguyên thêm, nhưng phải chịu được hai phiên bản song song.
+      - **Blue-green**: chạy **hai môi trường song song** (blue là bản hiện tại, green là bản mới), kiểm tra
+        green rồi **chuyển lưu lượng** sang green. Quay lại nhanh bằng cách chuyển ngược, nhưng tốn gấp đôi
+        tài nguyên trong lúc chuyển.
+      - **Canary**: cho **một phần nhỏ người dùng** dùng bản mới trước, theo dõi chỉ số (lỗi, độ trễ), ổn thì
+        tăng dần. Nếu chỉ số xấu thì dừng hoặc quay lại, nên chỉ ít người bị ảnh hưởng.
+
+      **Feature flag** là công tắc bật/tắt tính năng **không cần deploy lại**: code đã có trên production nhưng
+      tính năng chỉ chạy khi flag bật, nên tách được "deploy code" khỏi "phát hành tính năng". Flag dùng để tắt
+      khẩn cấp gọi là **kill switch**.
+
+      **Rollback** là quay về bản trước khi bản mới gặp lỗi (khác rollback của transaction). Muốn rollback
+      nhanh thì phải giữ sẵn artifact bản trước. Chiến lược nào cũng nên có **health gating**: theo dõi chỉ số
+      sức khỏe và tự dừng hoặc quay lại khi xấu.
+  - id: b07
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Team muốn cho khoảng 5% người dùng dùng bản mới, theo dõi tỉ lệ lỗi rồi mới tăng dần. Đây là chiến lược nào?"
+    options:
+      - {id: a, text_md: "Canary"}
+      - {id: b, text_md: "Blue-green"}
+      - {id: c, text_md: "Dừng toàn bộ hệ thống rồi thay tất cả cùng lúc"}
+    answer: [a]
+    explain_md: "Cho một phần nhỏ người dùng thử trước rồi tăng dần là canary. Blue-green (b) chuyển cả lưu lượng giữa hai môi trường; thay tất cả cùng lúc (c) không có bước thử nhỏ."
+  - id: b08
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một tính năng mới vừa lên production gây lỗi nghiêm trọng, và code đã được gói sẵn cùng flag điều khiển nó. Cách nhanh nhất để giảm thiệt hại mà không cần build lại là gì?"
+    options:
+      - {id: a, text_md: "Viết lại code, chạy lại toàn bộ pipeline rồi deploy"}
+      - {id: b, text_md: "Tắt feature flag (kill switch) của tính năng đó"}
+      - {id: c, text_md: "Chờ người dùng báo lỗi rồi xử lý trong sprint sau"}
+    answer: [b]
+    explain_md: "Tắt flag có hiệu lực ngay mà không cần deploy lại. Chạy lại pipeline (a) mất thời gian trong lúc lỗi đang xảy ra; chờ báo lỗi (c) là bỏ mặc sự cố."
+  - id: s_migration
+    type: section
+    title_vi: "Migration khi deploy dần"
+    summary_vi: "Rolling, canary và cả rollback của blue-green đều khiến hai phiên bản dùng chung một database, nên đổi schema theo expand-contract và không phá bản cũ."
+  - id: b09
+    type: text
+    md: |
+      Vì deploy dần khiến **bản cũ và bản mới cùng chạy trên một database**, một migration phá tương thích
+      (đổi tên hay xóa cột) sẽ làm bản cũ lỗi. Cách làm an toàn là **expand-contract**:
+      1. **Expand**: thêm cột mới (cho phép null hoặc có default), chưa xóa cột cũ; migration này tương thích
+         với cả bản cũ.
+      2. Deploy code mới **ghi cả hai cột** nhưng **vẫn đọc cột cũ** (trong lúc rolling, bản cũ còn ghi mỗi cột cũ).
+      3. Khi mọi server đã chạy bản mới (không còn ai chỉ ghi cột cũ), **backfill** dữ liệu cũ sang cột mới,
+         rồi mới **chuyển sang đọc cột mới**.
+      4. **Contract**: xóa cột cũ ở một lần deploy sau.
+
+      Nhờ đó rollback code (kể cả chuyển lưu lượng về bản blue cũ) vẫn an toàn vì schema còn tương thích với
+      bản trước. Chi tiết xem bài về schema migrations.
+  - id: b10
+    type: quiz_fill
+    graded: true
+    prompt_md: "Điền một từ tiếng Anh: để đổi tên một cột mà không ngừng dịch vụ khi deploy dần, ta thêm cột mới trước (giai đoạn expand) và chỉ xóa cột cũ ở giai đoạn cuối gọi là ______."
+    blanks:
+      - accept: ["contract", "contract phase", "contracting"]
+    explain_md: "Giai đoạn cuối là **contract**: chỉ xóa cột cũ khi không còn code nào dùng nó."
+  - id: b11
+    type: callout
+    kind: interview
+    md: |
+      **Thanh điểm mức 3 (level-3 bar).** Vẽ được **pipeline từ lúc push code đến production** (build, test,
+      scan, package, deploy), nói rõ **khi nào nó dừng** (bước nào fail, bước nào chặn), secret lấy từ đâu
+      (secret store, không trong YAML). Chọn được **cách phát hành** (rolling, blue-green hay canary, có
+      feature flag không) kèm **cách quay lại** (rollback artifact cũ, tắt flag) và nhắc migration phải theo
+      **expand-contract**.
+  - id: b12
+    type: summary
+    bullets_vi:
+      - "**CI** tự test mỗi lần push; **CD** tự đóng gói và deploy. Pipeline build, test, scan, package, deploy; **bước hỏng thì dừng**."
+      - "**Secret** gọi bằng tên từ secret store, không viết trong YAML; **artifact** build một lần dùng lại; **cache** chỉ để nhanh."
+      - "**Rolling** thay dần (hai bản chạy cùng lúc), **blue-green** chuyển lưu lượng giữa hai môi trường, **canary** cho ít người thử trước."
+      - "**Feature flag / kill switch** bật tắt không cần deploy; **rollback** quay về bản trước (giữ sẵn artifact cũ)."
+      - "Deploy dần: migration theo **expand-contract** để bản cũ và mới cùng chạy được."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [E148], l2: [E149], l3: [E150]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-12"

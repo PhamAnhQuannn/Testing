@@ -1,0 +1,152 @@
+id: eng.devops_cloud.observability
+version: 1
+status: published
+title_vi: "Quan sát hệ thống (observability): logs, metrics, traces, SLI/SLO và cảnh báo"
+est_minutes: 12
+objectives_vi:
+  - "Phân biệt ba trụ cột **logs**, **metrics**, **traces** và biết khi nào xem cái nào trước."
+  - "Giải thích vì sao dùng **percentile (p95/p99)** thay vì trung bình để đo **latency**."
+  - "Nêu **structured logging**, **trace ID** và cách một request được lần theo qua nhiều service."
+  - "Phân biệt **SLI** với **SLO**, và chọn **alert** theo triệu chứng thay vì theo từng metric."
+blocks:
+  - id: s_pillars
+    type: section
+    title_vi: "Ba trụ cột: logs, metrics, traces"
+    summary_vi: "Logs là sự kiện rời rạc có timestamp, metrics là con số tổng hợp theo thời gian (rẻ, hợp cho alert và dashboard), traces là hành trình của một request qua các service."
+  - id: b01
+    type: text
+    md: |
+      **Observability** là khả năng nhìn vào bên trong hệ thống đang chạy qua dữ liệu nó phát ra (**telemetry**),
+      giống bảng đồng hồ trên xe cho biết xe sắp hỏng ở đâu. Có **ba trụ cột** (three pillars):
+
+      - **Logs**: các **sự kiện rời rạc** có timestamp và mức (INFO, ERROR). Chi tiết nhất nhưng tốn chỗ lưu.
+        **Structured logging** ghi log dạng JSON để máy lọc được, ví dụ
+        `{"level":"ERROR","trace_id":"ab12","msg":"timeout"}`.
+      - **Metrics**: **con số tổng hợp theo thời gian** như số request mỗi giây, tỉ lệ lỗi, latency. Rẻ, nhìn
+        nhanh được xu hướng, nên hợp cho **alert** và **dashboard**.
+      - **Traces**: **hành trình của một request** đi qua từng service, cho biết mỗi chặng mất bao lâu.
+        **Trace ID** là mã nối các log và span của cùng một request.
+
+      Cách dùng thường gặp: **metric** báo "có chuyện" (lỗi tăng, chậm), **trace** chỉ ra "chậm ở service nào",
+      **log** cho biết "vì sao" ở chi tiết từng sự kiện.
+  - id: b02
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Trang thanh toán đang chậm và request đi qua 5 service. Bạn muốn biết **chặng nào** trong một request chiếm nhiều thời gian nhất. Nên xem gì?"
+    options:
+      - {id: a, text_md: "Distributed trace của request đó"}
+      - {id: b, text_md: "Chỉ log của một service bất kỳ"}
+      - {id: c, text_md: "Metric tổng số request mỗi giây"}
+    answer: [a]
+    explain_md: "Trace cho thấy thời gian từng chặng của một request qua các service. Log một service (b) chỉ thấy một phần; metric request mỗi giây (c) cho biết tải chứ không chỉ ra chặng chậm."
+  - id: b03
+    type: quiz_fill
+    graded: true
+    prompt_md: "Điền một từ tiếng Anh: mã dùng để nối các log và span của cùng một request qua nhiều service gọi là ______ ID."
+    blanks:
+      - accept: ["trace", "trace id", "correlation", "correlation id"]
+    explain_md: "Đó là **trace ID** (hay correlation ID). Gắn nó vào mọi dòng log để gom lại toàn bộ hành trình một request."
+  - id: s_latency
+    type: section
+    title_vi: "Percentile latency và các loại metric"
+    summary_vi: "Trung bình che mất người dùng chậm nhất; p95/p99 cho thấy đuôi chậm. Counter chỉ tăng, gauge lên xuống, histogram đếm theo nhóm để tính percentile."
+  - id: b04
+    type: text
+    md: |
+      **Percentile**: **p99** là mức latency mà **99% request có latency ≤ mức đó** (chỉ còn ≤1% chậm hơn).
+      **Trung bình** bị kéo bởi số đông nhanh nên che mất người dùng chậm.
+
+      Ví dụ 100 request: 98 cái 100ms và 2 cái 10 giây. Trung bình khoảng 298ms trông ổn, nhưng p99 là 10 giây
+      cho thấy một số người dùng đang chờ rất lâu. Vì vậy báo cáo **p95/p99 latency**, không chỉ trung bình.
+
+      Các loại metric:
+      - **Counter**: chỉ tăng (tổng số request, tổng số lỗi); xem **tốc độ** (rate) của nó.
+      - **Gauge**: lên xuống được (số kết nối đang mở, bộ nhớ đang dùng).
+      - **Histogram**: đếm giá trị theo nhóm (bucket) để tính percentile.
+
+      Hai khung đo hay dùng: **RED** cho dịch vụ (Rate, Errors, Duration) và **USE** cho tài nguyên như CPU, ổ đĩa
+      (Utilization, Saturation, Errors).
+
+      **Cardinality**: **label** là cặp tên=giá trị gắn vào metric (`route=/pay`). Label có quá nhiều giá trị khác
+      nhau (ví dụ user ID) làm số chuỗi metric **bùng nổ** và chi phí tăng. Giữ label ở số giá trị nhỏ, có giới hạn.
+  - id: b05
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao báo cáo **p99 latency** hữu ích hơn chỉ báo cáo **trung bình**?"
+    options:
+      - {id: a, text_md: "p99 luôn nhỏ hơn trung bình nên trông tốt hơn"}
+      - {id: b, text_md: "p99 lộ ra nhóm request chậm nhất mà trung bình có thể che mất"}
+      - {id: c, text_md: "Trung bình không tính được trên metric"}
+    answer: [b]
+    explain_md: "p99 phản ánh đuôi chậm (1% chậm nhất), nơi người dùng thực sự khó chịu. p99 thường lớn hơn trung bình (a sai), và trung bình vẫn tính được (c sai) nhưng dễ che vấn đề."
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Metric nào dễ gây **cardinality** bùng nổ nhất?"
+    options:
+      - {id: a, text_md: "Label `method` với vài giá trị (GET, POST, PUT)"}
+      - {id: b, text_md: "Label `user_id` với hàng triệu giá trị khác nhau"}
+      - {id: c, text_md: "Label `status_class` (2xx, 4xx, 5xx)"}
+    answer: [b]
+    explain_md: "Mỗi giá trị label khác nhau tạo ra một chuỗi (series) riêng, nên `user_id` hàng triệu giá trị làm chi phí bùng nổ. Hai label còn lại có số giá trị nhỏ và cố định."
+  - id: s_slo
+    type: section
+    title_vi: "SLI, SLO, alert và dashboard"
+    summary_vi: "SLI là con số đo được, SLO là mục tiêu cho SLI đó. Alert gọi người khi triệu chứng đe dọa SLO; dashboard để khám phá. Cảnh báo theo triệu chứng, không theo mọi metric."
+  - id: b07
+    type: text
+    md: |
+      - **SLI** (Service Level Indicator): **con số đo được** về chất lượng dịch vụ, ví dụ "% request thành công"
+        hoặc "% request có latency dưới 300ms".
+      - **SLO** (Service Level Objective): **mục tiêu** cho SLI đó, ví dụ "99,9% request thành công trong 30 ngày".
+
+      **Alert** là thứ **gọi người trực** (page), nên chỉ đặt cho **triệu chứng** đe dọa SLO: tỉ lệ lỗi tăng,
+      p99 latency vượt ngưỡng kéo dài. Đừng báo mỗi khi một thông số lạ (CPU cao tạm thời) vì sẽ gây nhiễu
+      (alert fatigue). **Dashboard** để **khám phá và điều tra** (xem xu hướng, so sánh), không ai phải nhìn chằm chằm.
+
+      **Health check**: **liveness** cho biết tiến trình còn sống; **readiness** cho biết đã sẵn sàng nhận request
+      (ví dụ đã kết nối xong database).
+
+      Công cụ phổ biến: Prometheus (thu thập metric), Grafana (vẽ biểu đồ), OpenTelemetry (chuẩn chung để thu
+      log/metric/trace). Đây là ví dụ, các khái niệm không gắn với một nhà cung cấp.
+  - id: b08
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Nhóm bạn có SLO 99,9% request thành công. Alert nào hợp lý nhất để **gọi người trực**?"
+    options:
+      - {id: a, text_md: "CPU của một server vượt 70% trong 10 giây"}
+      - {id: b, text_md: "Tỉ lệ request lỗi vượt ngưỡng kéo dài, đe dọa SLO"}
+      - {id: c, text_md: "Có một dòng log mức INFO mới"}
+    answer: [b]
+    explain_md: "Alert nên bám triệu chứng người dùng cảm nhận được và đe dọa SLO, như tỉ lệ lỗi tăng kéo dài. CPU tăng tạm thời (a) và log INFO (c) thường chỉ gây nhiễu."
+  - id: b09
+    type: quiz_fill
+    graded: true
+    prompt_md: "Điền một từ tiếng Anh: \"99,9% request thành công\" là một ______ (mục tiêu), còn \"% request thành công đo được\" là SLI."
+    blanks:
+      - accept: ["slo", "SLO", "service level objective"]
+    explain_md: "Mục tiêu là **SLO**; SLI là con số đo được để so với mục tiêu đó."
+  - id: b10
+    type: callout
+    kind: interview
+    md: |
+      **Thanh điểm mức 3 (level-3 bar).** Với sự cố "trang chậm", bạn chọn được nên xem **log, metric hay trace**
+      trước (thường metric để xác nhận và khoanh vùng, trace để tìm chặng chậm, log để tìm nguyên nhân) và giải
+      thích vì sao **p99** quan trọng hơn trung bình. Bạn cũng phân biệt được **SLI/SLO**, biết đặt **alert**
+      theo triệu chứng, và nêu được rủi ro **cardinality**.
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "**Logs** là sự kiện rời rạc, **metrics** là số tổng hợp theo thời gian, **traces** là hành trình một request."
+      - "Dùng **p95/p99** để thấy đuôi chậm; trung bình có thể che mất người dùng chậm nhất."
+      - "**Structured logging** + **trace ID** giúp gom log của một request qua nhiều service."
+      - "**SLI** là số đo được, **SLO** là mục tiêu cho SLI; **alert** theo triệu chứng đe dọa SLO, **dashboard** để khám phá."
+      - "Cẩn thận **cardinality**: label quá nhiều giá trị làm chi phí telemetry bùng nổ."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [E160], l2: [E161], l3: [E162]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-12"

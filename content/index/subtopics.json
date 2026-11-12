@@ -25821,6 +25821,839 @@
       "plan_hours": 5
     },
     {
+      "id": "eng.devops_cloud.docker",
+      "section": "eng",
+      "module": "eng.devops_cloud",
+      "name_vi": "Docker và container (Docker)",
+      "order": 1,
+      "summary_vi": "Docker đóng gói chương trình cùng mọi thư viện nó cần vào một 'hộp' (container) chạy giống nhau ở mọi nơi, hết cảnh 'máy em chạy được mà máy thầy thì không'. Học xong bạn viết Dockerfile và chạy một dịch vụ trong container.",
+      "mastery_bar_vi": "Mức 3: viết Dockerfile cho một app Python nhỏ, build và chạy nó, và giải thích khác nhau giữa image và container.",
+      "prerequisites": [
+        "cs.os.processes",
+        "eng.workflow.linux_shell"
+      ],
+      "lang_prereqs": {
+        "python": [],
+        "java": []
+      },
+      "key_concepts": [
+        "container vs VM; namespaces and cgroups",
+        "image layers and build cache",
+        "Dockerfile best practices, multi-stage builds",
+        "small/non-root images",
+        "volumes, networks, port mapping",
+        "docker compose",
+        "registries and tagging",
+        "CMD vs ENTRYPOINT",
+        "config and secrets via env vars; none baked into image layers"
+      ],
+      "concepts_vi": [
+        {
+          "text": "Container: hộp chạy một chương trình cô lập cùng thư viện của nó, nhẹ hơn máy ảo (VM) vì dùng chung nhân hệ điều hành. Dùng bằng hai lệnh: build (bước biến code thành image) rồi run (chạy image thành container).",
+          "level": "co_ban"
+        },
+        {
+          "text": "Image (ảnh) vs container: image là bản đóng gói chưa chạy; container là image đang chạy, như file cài đặt và chương trình đang mở.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Dockerfile: file công thức từng bước tạo image, gồm FROM (nền), COPY (chép code), RUN (cài thư viện), CMD (lệnh chạy). Build: docker build -t app . (tạo image tên app từ thư mục hiện tại). Chạy: docker run -p 8000:8000 app.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Port mapping và volume: -p 8000:8000 nối cổng 8000 của máy bạn với cổng 8000 trong container, nên mở http://localhost:8000 trên máy mình là gọi được vào container (chương trình trong container phải lắng nghe trên 0.0.0.0, không chỉ 127.0.0.1); volume giữ dữ liệu khi container bị xóa.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Cấu hình qua biến môi trường: secret và mật khẩu truyền khi chạy, không đóng cứng vào image.",
+          "level": "co_ban"
+        },
+        {
+          "text": "docker compose: một file YAML chạy nhiều container cùng nhau (app + database).",
+          "level": "co_ban"
+        },
+        {
+          "text": "Layer và build cache: mỗi lệnh như COPY hay RUN tạo một lớp, Docker nhớ (cache) lớp nào không đổi; đặt dòng ít đổi (cài thư viện) lên trước dòng hay đổi (chép code) để build nhanh.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Multi-stage build và image nhỏ: build ở một giai đoạn, chỉ chép kết quả sang image cuối. Nên chạy bằng user thường, không phải root (root là tài khoản quản trị tối cao của Linux; nếu app bị hack, kẻ xấu có quyền tối cao trong container).",
+          "level": "nang_cao"
+        },
+        {
+          "text": "namespaces và cgroups: tính năng Linux tạo ra cô lập (nhìn riêng) và giới hạn tài nguyên cho container.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Registry, tag; CMD vs ENTRYPOINT: registry là kho lưu image (Docker Hub), tag là nhãn phiên bản (python:3.12-slim). CMD là lệnh mặc định khi chạy, có thể bị thay khi gõ docker run; ENTRYPOINT là chương trình cố định luôn chạy, phần gõ thêm thành tham số của nó.",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "Write a Dockerfile for a Python service",
+          "vi": "Viết Dockerfile 4 dòng cho chương trình main.py ở khung bên dưới (một web nhỏ dùng thư viện chuẩn của Python, lắng nghe cổng 8000): FROM python:3.12-slim, WORKDIR /app, COPY main.py, CMD chạy python main.py. Rồi build, chạy và mở http://localhost:8000. App dùng thư viện ngoài thì thêm COPY requirements.txt và RUN pip install -r requirements.txt trước khi chép code.",
+          "starter_code_vi": {
+            "lang": "dockerfile",
+            "code": "# main.py (đặt cùng thư mục với Dockerfile)\n# from http.server import HTTPServer, BaseHTTPRequestHandler\n# class H(BaseHTTPRequestHandler):\n#     def do_GET(self):\n#         self.send_response(200); self.end_headers(); self.wfile.write(b'Xin chao')\n# HTTPServer(('0.0.0.0', 8000), H).serve_forever()\n\n# Dockerfile\nFROM python:3.12-slim\nWORKDIR /app\n# TODO: COPY main.py vào /app; CMD [\"python\", \"main.py\"]\n\n# build: docker build -t app .\n# chạy:  docker run -p 8000:8000 app\n# thử:   curl http://localhost:8000"
+          }
+        },
+        {
+          "title": "Difference between a virtual machine and a container",
+          "vi": "So sánh VM và container về kích thước, thời gian khởi động, mức cô lập bằng 3 gạch đầu dòng."
+        },
+        {
+          "title": "Run app and database with docker compose",
+          "vi": "Viết file docker-compose.yml chạy app Python (build từ Dockerfile ở thư mục hiện tại) và Postgres (một phần mềm database phổ biến, dùng image postgres:16); app đọc địa chỉ và mật khẩu database từ biến môi trường, không viết cứng. Chạy bằng docker compose up.",
+          "starter_code_vi": {
+            "lang": "yaml",
+            "code": "services:\n  app:\n    build: .\n    ports: [\"8000:8000\"]\n    environment:\n      DB_HOST: db          # tên service db cũng là địa chỉ của nó trong mạng compose\n  db:\n    image: postgres:16\n    # TODO: environment POSTGRES_PASSWORD lấy từ biến môi trường của máy, không ghi cứng"
+          }
+        },
+        {
+          "title": "How do image layers and caching work?",
+          "vi": "Giải thích vì sao đặt COPY requirements.txt trước COPY code giúp build nhanh hơn."
+        }
+      ],
+      "beginner_note_vi": "Cần biết tiến trình (cs.os.processes) và shell. Namespaces ở đây khác namespace của Python.",
+      "example_problems": [
+        "Difference between a virtual machine and a container",
+        "Write a Dockerfile for a Python/Java service",
+        "How do image layers and caching work?"
+      ],
+      "bank_topics": [
+        "backend_web.devops_cloud"
+      ],
+      "bank_counts": {
+        "backend_web.devops_cloud": {
+          "total": 53,
+          "y2026": 26
+        }
+      },
+      "target_swe": {
+        "intern": 0,
+        "fresher": 1,
+        "junior": 3,
+        "senior": 3
+      },
+      "target_ai": {
+        "intern": 0,
+        "fresher": 1,
+        "junior": 2,
+        "senior": 2
+      },
+      "est_hours": 5,
+      "plan_order": 225,
+      "plan_day": null,
+      "plan_hours": 5
+    },
+    {
+      "id": "eng.devops_cloud.cicd",
+      "section": "eng",
+      "module": "eng.devops_cloud",
+      "name_vi": "CI/CD, chiến lược triển khai và IaC (CI/CD)",
+      "order": 2,
+      "summary_vi": "CI/CD là 'dây chuyền kiểm hàng' tự động: mỗi lần đẩy code, máy tự chạy test, đóng gói và đưa lên server; bước nào hỏng thì dừng. Khi phát hành, không đổi tất cả một lúc mà cho ít người thử trước (canary) để lỡ hỏng còn quay lại.",
+      "mastery_bar_vi": "Mức 3: vẽ pipeline từ lúc push code đến production, nói rõ khi nào nó dừng, và chọn cách phát hành kèm cách quay lại.",
+      "prerequisites": [
+        "eng.workflow.git_basics",
+        "eng.devops_cloud.docker"
+      ],
+      "lang_prereqs": {
+        "python": [],
+        "java": []
+      },
+      "key_concepts": [
+        "pipeline stages: build, test, scan, package, deploy",
+        "GitHub Actions / GitLab CI / Jenkins basics",
+        "artifacts, caching, secrets in pipelines",
+        "rolling vs blue-green vs canary",
+        "feature flags, kill switch and rollbacks",
+        "database migrations compatible with rolling deploys (expand/contract)",
+        "dark launches, shadow traffic and release health gating"
+      ],
+      "concepts_vi": [
+        {
+          "text": "CI/CD: CI (Continuous Integration) tự chạy test mỗi lần đẩy code; CD (Continuous Delivery/Deployment) tự đóng gói và đưa lên server.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Pipeline (dây chuyền): chuỗi bước build, test, đóng gói, deploy chạy nối tiếp; một bước hỏng thì dừng, code lỗi không ra production.",
+          "level": "co_ban"
+        },
+        {
+          "text": "YAML và công cụ CI: YAML là file cấu hình thụt lề như Python; GitHub Actions, GitLab CI đọc file YAML nằm trong repo để biết phải chạy gì.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Secret trong pipeline: mật khẩu cất ở kho bí mật của công cụ CI và gọi bằng tên, không viết trong file YAML.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Artifact và cache: artifact (ở đây là kết quả build được lưu lại như file zip hay image, không phải nghĩa thường) để bước sau tải về; cache giữ thư viện đã tải cho nhanh.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Rollback: quay về bản trước khi bản mới gặp lỗi. (Khác rollback của transaction.)",
+          "level": "co_ban"
+        },
+        {
+          "text": "Rolling và blue-green: rolling thay dần từng server (lúc đó bản cũ và mới chạy cùng lúc); blue-green chạy hai bản song song rồi chuyển lưu lượng sang bản mới.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Canary và feature flag: canary cho một ít người dùng thử bản mới trước; feature flag là công tắc bật/tắt tính năng mà không cần deploy lại.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Migration khi deploy dần: vì bản cũ và mới chạy cùng lúc, đổi bảng theo expand-contract (xem schema_migrations).",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "Write a GitHub Actions workflow",
+          "vi": "Đọc file mẫu ở khung bên dưới và giải thích từng dòng làm gì, rồi thêm một bước sau pytest để build image Docker bằng lệnh docker build -t app . (máy chạy ubuntu-latest của GitHub đã có sẵn Docker).",
+          "starter_code_vi": {
+            "lang": "yaml",
+            "code": "name: ci\non: push                 # chạy mỗi khi push\njobs:\n  test:\n    runs-on: ubuntu-latest        # máy ảo do GitHub cấp\n    steps:\n      - uses: actions/checkout@v4   # lấy code về\n      - run: pip install -r requirements.txt pytest\n      - run: pytest      # TODO: thêm bước docker build sau dòng này"
+          }
+        },
+        {
+          "title": "Blue-green vs canary",
+          "vi": "Giải thích bằng hình vẽ hai cách phát hành và nói cách nào quay lại nhanh hơn."
+        },
+        {
+          "title": "Roll out a schema change without downtime",
+          "vi": "Liệt kê thứ tự deploy code và migration để đổi tên một cột mà không ngừng dịch vụ (xem schema_migrations)."
+        },
+        {
+          "title": "Design a CI/CD pipeline for a backend service",
+          "vi": "Liệt kê các bước từ git push đến production, nói bước nào chặn khi hỏng."
+        }
+      ],
+      "beginner_note_vi": "Fresher chưa bắt buộc; nếu đọc, chỉ cần phần Cơ bản. Production = môi trường thật (xem glossary).",
+      "example_problems": [
+        "Design a CI/CD pipeline for backend and model-serving APIs",
+        "Blue-green vs canary",
+        "Design a feature flag service",
+        "Roll out a schema change without downtime"
+      ],
+      "bank_topics": [
+        "backend_web.devops_cloud",
+        "system_design.infra_components",
+        "system_design.data_analytics"
+      ],
+      "bank_counts": {
+        "backend_web.devops_cloud": {
+          "total": 53,
+          "y2026": 26
+        },
+        "system_design.infra_components": {
+          "total": 132,
+          "y2026": 72
+        },
+        "system_design.data_analytics": {
+          "total": 142,
+          "y2026": 92
+        }
+      },
+      "target_swe": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 2,
+        "senior": 3
+      },
+      "target_ai": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 2,
+        "senior": 2
+      },
+      "est_hours": 5,
+      "plan_order": 226,
+      "plan_day": null,
+      "plan_hours": 5
+    },
+    {
+      "id": "eng.devops_cloud.iac_gitops",
+      "section": "eng",
+      "module": "eng.devops_cloud",
+      "name_vi": "Hạ tầng bằng code và GitOps (IaC)",
+      "order": 3,
+      "summary_vi": "IaC (Infrastructure as Code) là mô tả hạ tầng (máy chủ, mạng, database) bằng file code thay vì bấm chuột, để dựng lại giống hệt khi cần. Học xong bạn hiểu vì sao hạ tầng cũng được lưu trong Git và review như code.",
+      "mastery_bar_vi": "Mức 3: giải thích IaC giải quyết vấn đề gì và mô tả cách một thay đổi hạ tầng đi từ Git đến production.",
+      "prerequisites": [
+        "eng.devops_cloud.cicd"
+      ],
+      "lang_prereqs": {
+        "python": [],
+        "java": []
+      },
+      "key_concepts": [
+        "infrastructure as code: declarative Terraform plan/apply/state",
+        "12-factor config: config in env, stateless processes",
+        "GitOps and environment promotion (dev/staging/prod)",
+        "config service and A/B experiment assignment"
+      ],
+      "concepts_vi": [
+        {
+          "text": "Infrastructure as Code: viết file khai báo hạ tầng; chạy công cụ (Terraform) để tạo đúng như file mô tả.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Declarative: bạn nói 'muốn có 3 máy chủ', công cụ tự lo cách làm.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Terraform plan/apply/state: plan cho xem thay đổi sẽ làm, apply thực hiện, state ghi lại hạ tầng đang có.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "12-factor: quy tắc app dễ chạy trên cloud, như cấu hình qua biến môi trường và tiến trình không giữ trạng thái.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "GitOps: lấy Git làm nguồn sự thật; sửa file hạ tầng trong Git thì hệ thống tự cập nhật theo.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Môi trường dev, staging, prod: nâng cấp lần lượt qua từng môi trường (promotion) rồi mới tới người dùng thật.",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "What is infrastructure as code?",
+          "vi": "Giải thích bằng 2-3 câu và ví dụ file khai báo một máy chủ, vì sao tốt hơn bấm tay trên web."
+        },
+        {
+          "title": "Describe environments",
+          "vi": "Nêu mỗi môi trường dev, staging, production dùng để làm gì và vì sao không thử thẳng trên production."
+        },
+        {
+          "title": "Read a Terraform plan",
+          "vi": "Cho kết quả plan '+ 1 to add, - 1 to destroy', giải thích điều gì sắp xảy ra và có nên apply ngay không."
+        }
+      ],
+      "beginner_note_vi": "Intern và fresher có thể bỏ qua. Cần học cicd trước.",
+      "example_problems": [
+        "What is infrastructure as code?"
+      ],
+      "bank_topics": [
+        "backend_web.devops_cloud",
+        "system_design.infra_components",
+        "system_design.data_analytics"
+      ],
+      "bank_counts": {
+        "backend_web.devops_cloud": {
+          "total": 53,
+          "y2026": 26
+        },
+        "system_design.infra_components": {
+          "total": 132,
+          "y2026": 72
+        },
+        "system_design.data_analytics": {
+          "total": 142,
+          "y2026": 92
+        }
+      },
+      "target_swe": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 2,
+        "senior": 3
+      },
+      "target_ai": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 0,
+        "senior": 2
+      },
+      "est_hours": 2,
+      "plan_order": 227,
+      "plan_day": null,
+      "plan_hours": 2
+    },
+    {
+      "id": "eng.devops_cloud.kubernetes",
+      "section": "eng",
+      "module": "eng.devops_cloud",
+      "name_vi": "Kubernetes cơ bản (Kubernetes)",
+      "order": 4,
+      "summary_vi": "Khi có hàng chục container trên nhiều máy, Kubernetes là 'quản lý ca': bạn nói 'cần 3 bản app này luôn chạy', nó tự chạy, tự khởi động lại cái chết, thêm bản khi đông khách. Pod là một 'ca làm' nhỏ nhất, chứa một hoặc vài container.",
+      "mastery_bar_vi": "Mức 3: mô tả đường đi của một request tới pod, đặt probe, và dùng kubectl logs/describe để đoán nguyên nhân CrashLoopBackOff.",
+      "prerequisites": [
+        "eng.devops_cloud.docker"
+      ],
+      "lang_prereqs": {
+        "python": [],
+        "java": []
+      },
+      "key_concepts": [
+        "pod, deployment, replicaset, service",
+        "control plane vs nodes",
+        "service types, ingress",
+        "ConfigMap and Secret",
+        "liveness / readiness / startup probes",
+        "resource requests and limits, OOMKilled",
+        "HPA autoscaling",
+        "rolling update and rollback",
+        "namespaces, RBAC, network policy",
+        "StatefulSet vs Deployment"
+      ],
+      "concepts_vi": [
+        {
+          "text": "Kubernetes (K8s): hệ thống tự chạy, giám sát và khởi động lại nhiều container trên nhiều máy; bạn khai báo trạng thái mong muốn, nó tự giữ đúng.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Pod: đơn vị nhỏ nhất, chạy một hoặc vài container chung; pod chết thì được thay bằng pod mới (địa chỉ đổi).",
+          "level": "co_ban"
+        },
+        {
+          "text": "Deployment và ReplicaSet: Deployment khai báo 'cần 3 bản pod này, image này'; nó tạo ReplicaSet giữ đúng số bản và cập nhật dần khi bạn đổi image.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Service và Ingress: Service là địa chỉ cố định chia lưu lượng đều cho nhóm pod; Ingress nhận lưu lượng từ Internet rồi chuyển vào Service.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Probe: liveness (còn sống không; không thì khởi động lại), readiness (sẵn sàng nhận request chưa; chưa thì tạm không gửi khách vào).",
+          "level": "co_ban"
+        },
+        {
+          "text": "ConfigMap và Secret: ConfigMap giữ cấu hình, Secret giữ mật khẩu; truyền vào pod qua biến môi trường.",
+          "level": "co_ban"
+        },
+        {
+          "text": "kubectl: lệnh điều khiển cụm (cluster: nhiều máy gom lại để Kubernetes điều khiển như một). kubectl get pods liệt kê pod, kubectl logs TÊN_POD xem log, kubectl describe pod TÊN_POD xem sự kiện và lý do chết.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Control plane và node: control plane là bộ não ra quyết định, node là máy chạy pod.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Requests và limits: requests là lượng CPU/RAM xin trước, limits là mức tối đa; vượt limit RAM thì pod bị giết (OOMKilled).",
+          "level": "nang_cao"
+        },
+        {
+          "text": "HPA (Horizontal Pod Autoscaler): tự tăng giảm số pod theo tải, ví dụ thêm pod khi CPU vượt 70%.",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "Explain Kubernetes autoscaling and traffic routing",
+          "vi": "Điền đường đi của một request từ người dùng đến pod và nói HPA đứng ở đâu, thêm pod khi nào.",
+          "starter_code_vi": "Người dùng -> Ingress -> Service -> [Pod 1] [Pod 2] [Pod 3]\n# TODO: HPA theo dõi cái gì? thêm pod khi nào?"
+        },
+        {
+          "title": "Why is my pod in CrashLoopBackOff?",
+          "vi": "CrashLoopBackOff nghĩa là pod cứ khởi động rồi chết, Kubernetes thử lại với thời gian chờ tăng dần. Nêu 3 nguyên nhân thường gặp (lỗi app, thiếu biến môi trường, hết RAM) và lệnh kubectl logs / kubectl describe pod để kiểm tra từng cái.",
+          "starter_code_vi": "kubectl get pods\nkubectl logs web-7d9f\nkubectl describe pod web-7d9f\n# TODO: dòng nào cho biết hết RAM (OOMKilled)?"
+        },
+        {
+          "title": "Readiness vs liveness probe",
+          "vi": "Giải thích khác nhau bằng ví dụ app mất 30 giây để khởi động."
+        }
+      ],
+      "beginner_note_vi": "Phần tự chọn, chỉ học sau khi vững Docker. Intern và fresher bỏ qua (mục tiêu 0); junior học 7 ý Cơ bản trước.",
+      "example_problems": [
+        "Explain Kubernetes autoscaling and traffic routing",
+        "Why is my pod in CrashLoopBackOff?",
+        "Readiness vs liveness probe",
+        "Kubernetes security basics"
+      ],
+      "bank_topics": [
+        "backend_web.devops_cloud"
+      ],
+      "bank_counts": {
+        "backend_web.devops_cloud": {
+          "total": 53,
+          "y2026": 26
+        }
+      },
+      "target_swe": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 2,
+        "senior": 3
+      },
+      "target_ai": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 1,
+        "senior": 2
+      },
+      "est_hours": 5,
+      "plan_order": 228,
+      "plan_day": null,
+      "plan_hours": 5
+    },
+    {
+      "id": "eng.devops_cloud.cloud_basics",
+      "section": "eng",
+      "module": "eng.devops_cloud",
+      "name_vi": "Cloud cơ bản (cloud computing)",
+      "order": 5,
+      "summary_vi": "Cloud là thuê máy chủ, ổ lưu trữ và cả database qua mạng, dùng bao nhiêu trả bấy nhiêu, như thuê điện thay vì tự xây nhà máy. Bạn chọn mức thuê: máy trống tự cài (IaaS), nền tảng chỉ cần ném code lên (PaaS), hay phần mềm dùng ngay (SaaS).",
+      "mastery_bar_vi": "Mức 3: chọn dịch vụ cloud cho một web app nhỏ (chỗ chạy code, database, kho ảnh, cổng vào) và giải thích VPC, IAM, khác nhau giữa serverless với container.",
+      "prerequisites": [
+        "cs.networks.ip_routing"
+      ],
+      "lang_prereqs": {
+        "python": [],
+        "java": []
+      },
+      "key_concepts": [
+        "IaaS / PaaS / SaaS / serverless",
+        "compute: VM, containers, Lambda/Cloud Functions",
+        "storage: object, block, file",
+        "managed databases and queues",
+        "VPC, subnets, security groups, load balancers",
+        "IAM and least privilege",
+        "regions, AZs, multi-region",
+        "cost basics and autoscaling",
+        "CDN and DNS in cloud",
+        "AWS vs GCP vs Azure equivalents"
+      ],
+      "concepts_vi": [
+        {
+          "text": "Cloud: thuê máy chủ, lưu trữ, database qua mạng, tính tiền theo mức dùng, tăng giảm trong vài phút. AWS, GCP, Azure là ba nhà cung cấp lớn.",
+          "level": "co_ban"
+        },
+        {
+          "text": "IaaS / PaaS / SaaS: IaaS thuê máy trống tự cài (thuê đất), PaaS chỉ ném code lên (thuê nhà có đồ), SaaS dùng phần mềm trọn gói (ở khách sạn).",
+          "level": "co_ban"
+        },
+        {
+          "text": "Ba chỗ chạy code: máy ảo (VM, tự quản cả máy; AWS gọi là EC2), container (đóng gói bằng Docker; AWS ECS/Fargate), serverless (nộp hàm, nhà cloud chạy khi có yêu cầu và tính tiền theo lần chạy; AWS Lambda).",
+          "level": "co_ban"
+        },
+        {
+          "text": "Storage: object storage lưu file như ảnh theo tên (S3); block storage là ổ đĩa gắn vào một máy; file storage là thư mục dùng chung.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Managed service: database, message queue (hộp thư trung gian: bên gửi bỏ việc vào, bên nhận lấy ra làm sau) do nhà cloud vận hành, bạn đỡ phải tự cài. Ví dụ AWS RDS (database), SQS (queue).",
+          "level": "co_ban"
+        },
+        {
+          "text": "IAM (Identity and Access Management): phân quyền ai và dịch vụ nào được làm gì trên cloud, theo nguyên tắc ít quyền nhất.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Load balancer (bộ chia tải): nhận mọi yêu cầu rồi chia đều cho nhiều server phía sau. CDN: mạng máy chủ giữ bản sao file tĩnh ở gần người dùng cho tải nhanh.",
+          "level": "co_ban"
+        },
+        {
+          "text": "VPC và security group: VPC là mạng riêng ảo của bạn trong cloud; security group là tường lửa cho nhóm máy, cho phép cổng nào được vào.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Region và AZ: region là vùng địa lý, AZ là trung tâm dữ liệu riêng trong vùng; chạy trên nhiều AZ để một nơi mất điện vẫn sống.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Autoscaling và chi phí: tự thêm bớt máy theo tải; phí tính theo giờ chạy, dung lượng lưu và lượng dữ liệu đi ra.",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "How would you host a web app on AWS?",
+          "vi": "Chọn dịch vụ cho app Python có database và file ảnh: chỗ chạy code (EC2, ECS/Fargate hoặc Lambda), database (RDS), nơi lưu ảnh (S3), cổng vào (ALB, một load balancer), kèm lý do mỗi lựa chọn.",
+          "starter_code_vi": "Chỗ chạy code: ?   (VM / container / serverless)\nDatabase:       ?\nLưu ảnh:        ?\nCổng vào:       ?   (gợi ý: load balancer)\n# TODO: điền và giải thích lý do mỗi ô"
+        },
+        {
+          "title": "Serverless vs containers",
+          "vi": "So sánh hai cách chạy code về chi phí, thời gian khởi động và giới hạn."
+        },
+        {
+          "title": "Compare cloud compute options",
+          "vi": "Lập bảng VM, container, serverless: khi nào chọn mỗi loại."
+        }
+      ],
+      "beginner_note_vi": "Intern và fresher (mục tiêu 0) chỉ cần ý tưởng thuê tài nguyên qua mạng (2 ý đầu); chi tiết dành cho junior trở lên.",
+      "example_problems": [
+        "Compare cloud compute options",
+        "Serverless vs containers",
+        "How would you host a web app on AWS?"
+      ],
+      "bank_topics": [
+        "backend_web.devops_cloud"
+      ],
+      "bank_counts": {
+        "backend_web.devops_cloud": {
+          "total": 53,
+          "y2026": 26
+        }
+      },
+      "target_swe": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 2,
+        "senior": 3
+      },
+      "target_ai": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 2,
+        "senior": 2
+      },
+      "est_hours": 5,
+      "plan_order": 229,
+      "plan_day": null,
+      "plan_hours": 5
+    },
+    {
+      "id": "eng.devops_cloud.observability",
+      "section": "eng",
+      "module": "eng.devops_cloud",
+      "name_vi": "Quan sát hệ thống: log, metric, trace (observability)",
+      "order": 6,
+      "summary_vi": "Observability là khả năng nhìn vào bên trong hệ thống đang chạy qua log, metric và trace, như bảng đồng hồ trên xe giúp biết xe sắp hỏng. Học xong bạn chọn đúng công cụ để biết dịch vụ có khỏe không và hỏng ở đâu.",
+      "mastery_bar_vi": "Mức 3: với một sự cố 'trang chậm', chọn xem log, metric hay trace trước và giải thích vì sao p99 quan trọng hơn trung bình.",
+      "prerequisites": [
+        "cs.networks.http"
+      ],
+      "lang_prereqs": {
+        "python": [],
+        "java": []
+      },
+      "key_concepts": [
+        "logs vs metrics vs traces",
+        "structured logging, log levels, correlation / trace IDs",
+        "RED and USE methods, four golden signals",
+        "metric types: counter, gauge, histogram",
+        "percentiles (p95/p99) vs averages",
+        "distributed tracing and context propagation",
+        "Prometheus, Grafana, OpenTelemetry",
+        "health checks: liveness vs readiness",
+        "alerting on symptoms and SLO burn rate",
+        "cardinality and cost of telemetry"
+      ],
+      "concepts_vi": [
+        {
+          "text": "Log: dòng chữ ghi sự kiện, có mức (INFO, ERROR); log cấu trúc là JSON để máy lọc được: {\"level\":\"ERROR\",\"trace_id\":\"ab12\",\"msg\":\"timeout\"}.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Metric: con số đo theo thời gian như số request mỗi giây, tỉ lệ lỗi, độ trễ; rẻ và nhìn nhanh được xu hướng.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Trace: hành trình một yêu cầu đi qua từng service; trace ID là mã nối các log của cùng một yêu cầu.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Percentile p95/p99 vs trung bình: p99 là mức độ trễ mà 99% yêu cầu nhanh hơn hoặc bằng, còn 1% chậm nhất nằm trên mức đó; trung bình bị kéo bởi số đông nhanh nên che mất người dùng chậm nhất.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Health check: đường kiểm tra nhanh cho biết dịch vụ còn sống (liveness) và sẵn sàng nhận việc (readiness).",
+          "level": "co_ban"
+        },
+        {
+          "text": "Loại metric: counter chỉ tăng, gauge lên xuống được; histogram đếm theo nhóm giá trị để tính p99.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Phương pháp RED cho dịch vụ: Rate (số yêu cầu mỗi giây), Errors (tỉ lệ lỗi), Duration (độ trễ).",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Phương pháp USE cho tài nguyên như CPU, ổ đĩa: Utilization (mức dùng), Saturation (bão hòa: đang xếp hàng chờ), Errors.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Nhãn (label) và cardinality: nhãn là cặp tên=giá trị gắn vào metric (route=/pay); quá nhiều giá trị khác nhau làm chi phí đo bùng nổ.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Cảnh báo theo triệu chứng: báo khi người dùng bị ảnh hưởng (lỗi tăng, chậm) thay vì mỗi thông số lạ, để người trực không bị nhiễu.",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "Why use p99 instead of the average?",
+          "vi": "Cho 100 request: 98 cái 100ms và 2 cái 10 giây. Tính trung bình (298ms) và tìm p99 (xếp 100 giá trị tăng dần, giá trị thứ 99 là 10 giây); nói vì sao trung bình trông ổn còn p99 cho thấy 1-2% người dùng đang chờ rất lâu."
+        },
+        {
+          "title": "How would you monitor a production service?",
+          "vi": "Liệt kê 4 metric và 2 cảnh báo đầu tiên cho một API đặt hàng."
+        },
+        {
+          "title": "Add structured logging",
+          "vi": "Sửa một dòng print thành log JSON có thời gian, mức, trace ID và nội dung."
+        },
+        {
+          "title": "How do you trace a request across microservices?",
+          "vi": "Giải thích cách một trace ID đi qua 3 service để gom log lại."
+        }
+      ],
+      "beginner_note_vi": "Intern và fresher có thể chỉ đọc 5 ý cơ bản. Production = môi trường thật.",
+      "example_problems": [
+        "How would you monitor a production service?",
+        "How do you trace a request across microservices?",
+        "Why use p99 instead of the average?",
+        "Debug a p99 latency spike"
+      ],
+      "bank_topics": [
+        "backend_web.devops_cloud",
+        "backend_web.testing_debugging",
+        "system_design.distributed_infra"
+      ],
+      "bank_counts": {
+        "backend_web.devops_cloud": {
+          "total": 53,
+          "y2026": 26
+        },
+        "backend_web.testing_debugging": {
+          "total": 134,
+          "y2026": 92
+        },
+        "system_design.distributed_infra": {
+          "total": 187,
+          "y2026": 131
+        }
+      },
+      "target_swe": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 2,
+        "senior": 3
+      },
+      "target_ai": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 2,
+        "senior": 2
+      },
+      "est_hours": 5,
+      "plan_order": 230,
+      "plan_day": null,
+      "plan_hours": 5
+    },
+    {
+      "id": "eng.devops_cloud.sre_incidents",
+      "section": "eng",
+      "module": "eng.devops_cloud",
+      "name_vi": "SRE và xử lý sự cố (SRE and incidents)",
+      "order": 7,
+      "summary_vi": "SRE (Site Reliability Engineering) là cách vận hành dịch vụ ổn định như kỹ sư phần mềm: đặt mục tiêu đo được và có quy trình khi hỏng. Học xong bạn hiểu SLO, error budget và cách xử lý sự cố có tổ chức.",
+      "mastery_bar_vi": "Mức 3: đặt một SLO hợp lý cho dịch vụ, mô tả quy trình xử lý sự cố và viết postmortem có việc cần làm cụ thể.",
+      "prerequisites": [
+        "eng.devops_cloud.observability"
+      ],
+      "lang_prereqs": {
+        "python": [],
+        "java": []
+      },
+      "key_concepts": [
+        "SLI, SLO, SLA and error budget",
+        "alerting on symptoms, avoiding noise, paging policy",
+        "runbooks and on-call basics",
+        "incident response roles: triage, mitigate, communicate",
+        "blameless postmortem and action items",
+        "toil and automation",
+        "graceful shutdown and load shedding",
+        "release safety: canary analysis, rollback triggers"
+      ],
+      "concepts_vi": [
+        {
+          "text": "SLI, SLO, SLA: SLI là số đo (tỉ lệ thành công), SLO là mục tiêu nội bộ (99,9%), SLA là cam kết với khách có đền bù.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Error budget: phần lỗi còn được phép trong SLO; hết ngân sách thì ngừng ra tính năng mới, lo ổn định.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Incident (sự cố): quy trình phân loại (triage), giảm thiểu thiệt hại trước, thông báo, rồi mới tìm nguyên nhân gốc.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Vai trò khi xử lý sự cố: người chỉ huy, người sửa, người cập nhật thông tin.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Postmortem không đổ lỗi: bản rút kinh nghiệm nhìn vào hệ thống và việc cần làm, không đổ cho cá nhân.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Runbook và on-call: tài liệu từng bước xử lý lỗi quen thuộc; người trực nhận cảnh báo.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Cảnh báo ít nhiễu: chỉ báo thứ cần người làm ngay.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Toil và tự động hóa: việc lặp lại thủ công nên được tự động hóa.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Graceful shutdown và load shedding: tắt nhẹ nhàng; khi quá tải thì bỏ bớt yêu cầu để phần còn lại sống.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Canary analysis và rollback trigger: điều kiện cụ thể kích hoạt quay lại bản cũ.",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "What is an SLO and error budget?",
+          "vi": "Cho SLO 99,9% trong 30 ngày, tính số phút được phép lỗi và nói điều gì xảy ra khi dùng hết."
+        },
+        {
+          "title": "Walk me through handling a production incident",
+          "vi": "Kể 5 bước từ lúc nhận cảnh báo đến lúc đóng sự cố, nói rõ bước giảm thiểu đi trước bước tìm nguyên nhân."
+        },
+        {
+          "title": "Write a blameless postmortem",
+          "vi": "Viết bản rút kinh nghiệm ngắn cho sự cố 'hết ổ đĩa', gồm dòng thời gian, nguyên nhân gốc và 3 việc cần làm."
+        }
+      ],
+      "beginner_note_vi": "Intern và fresher có thể bỏ qua. Production = môi trường thật.",
+      "example_problems": [
+        "What is an SLO and error budget?",
+        "Explain core SRE practices",
+        "Walk me through handling a production incident"
+      ],
+      "bank_topics": [
+        "backend_web.devops_cloud"
+      ],
+      "bank_counts": {
+        "backend_web.devops_cloud": {
+          "total": 53,
+          "y2026": 26
+        }
+      },
+      "target_swe": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 1,
+        "senior": 3
+      },
+      "target_ai": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 0,
+        "senior": 2
+      },
+      "est_hours": 3,
+      "plan_order": 231,
+      "plan_day": null,
+      "plan_hours": 3
+    },
+    {
       "id": "sd.fundamentals.scalability",
       "section": "sd",
       "module": "sd.fundamentals",
@@ -25925,7 +26758,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 225,
+      "plan_order": 232,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -26033,7 +26866,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 226,
+      "plan_order": 233,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -26140,7 +26973,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 227,
+      "plan_order": 234,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -26250,7 +27083,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 228,
+      "plan_order": 235,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -26361,7 +27194,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 229,
+      "plan_order": 236,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -26478,7 +27311,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 230,
+      "plan_order": 237,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -26590,7 +27423,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 231,
+      "plan_order": 238,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -26690,7 +27523,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 232,
+      "plan_order": 239,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -26796,7 +27629,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 233,
+      "plan_order": 240,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -26905,7 +27738,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 234,
+      "plan_order": 241,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -27050,7 +27883,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 235,
+      "plan_order": 242,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -27163,7 +27996,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 236,
+      "plan_order": 243,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -27276,7 +28109,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 237,
+      "plan_order": 244,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -27381,7 +28214,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 238,
+      "plan_order": 245,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -27489,7 +28322,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 239,
+      "plan_order": 246,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -27606,7 +28439,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 240,
+      "plan_order": 247,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -27714,7 +28547,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 241,
+      "plan_order": 248,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -27818,7 +28651,7 @@
         "senior": 0
       },
       "est_hours": 3,
-      "plan_order": 242,
+      "plan_order": 249,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -27930,7 +28763,7 @@
         "senior": 1
       },
       "est_hours": 3,
-      "plan_order": 243,
+      "plan_order": 250,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -28047,7 +28880,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 244,
+      "plan_order": 251,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -28156,7 +28989,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 245,
+      "plan_order": 252,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -28262,7 +29095,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 246,
+      "plan_order": 253,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -28397,7 +29230,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 247,
+      "plan_order": 254,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -28516,7 +29349,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 248,
+      "plan_order": 255,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -28644,7 +29477,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 249,
+      "plan_order": 256,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -28749,7 +29582,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 250,
+      "plan_order": 257,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -28862,7 +29695,7 @@
         "senior": 0
       },
       "est_hours": 2,
-      "plan_order": 251,
+      "plan_order": 258,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -28986,7 +29819,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 252,
+      "plan_order": 259,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -29094,7 +29927,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 253,
+      "plan_order": 260,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -29211,7 +30044,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 254,
+      "plan_order": 261,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -29316,7 +30149,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 255,
+      "plan_order": 262,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -29425,7 +30258,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 256,
+      "plan_order": 263,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -29561,7 +30394,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 257,
+      "plan_order": 264,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -29680,7 +30513,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 258,
+      "plan_order": 265,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -29805,7 +30638,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 259,
+      "plan_order": 266,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -29902,7 +30735,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 260,
+      "plan_order": 267,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -30024,7 +30857,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 261,
+      "plan_order": 268,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -30141,7 +30974,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 262,
+      "plan_order": 269,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -30250,7 +31083,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 263,
+      "plan_order": 270,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -30360,7 +31193,7 @@
         "senior": 1
       },
       "est_hours": 4,
-      "plan_order": 264,
+      "plan_order": 271,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -30465,7 +31298,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 265,
+      "plan_order": 272,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -30575,7 +31408,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 266,
+      "plan_order": 273,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -30680,7 +31513,7 @@
         "senior": 0
       },
       "est_hours": 3,
-      "plan_order": 267,
+      "plan_order": 274,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -30805,7 +31638,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 268,
+      "plan_order": 275,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -30928,7 +31761,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 269,
+      "plan_order": 276,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -31033,7 +31866,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 270,
+      "plan_order": 277,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -31135,7 +31968,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 271,
+      "plan_order": 278,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -31238,7 +32071,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 272,
+      "plan_order": 279,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -31356,7 +32189,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 273,
+      "plan_order": 280,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -31461,7 +32294,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 274,
+      "plan_order": 281,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -31553,7 +32386,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 275,
+      "plan_order": 282,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -31665,7 +32498,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 276,
+      "plan_order": 283,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -31783,7 +32616,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 277,
+      "plan_order": 284,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -31892,7 +32725,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 278,
+      "plan_order": 285,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -32002,7 +32835,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 279,
+      "plan_order": 286,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -32112,7 +32945,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 280,
+      "plan_order": 287,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -32220,7 +33053,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 281,
+      "plan_order": 288,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -32329,7 +33162,7 @@
         "senior": 1
       },
       "est_hours": 4,
-      "plan_order": 282,
+      "plan_order": 289,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -32439,7 +33272,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 283,
+      "plan_order": 290,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -32538,7 +33371,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 284,
+      "plan_order": 291,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -32642,7 +33475,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 285,
+      "plan_order": 292,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -32750,7 +33583,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 286,
+      "plan_order": 293,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -32860,7 +33693,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 287,
+      "plan_order": 294,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -32959,7 +33792,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 288,
+      "plan_order": 295,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -33062,7 +33895,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 289,
+      "plan_order": 296,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -33164,7 +33997,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 290,
+      "plan_order": 297,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -33268,7 +34101,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 291,
+      "plan_order": 298,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -33374,7 +34207,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 292,
+      "plan_order": 299,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -33478,7 +34311,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 293,
+      "plan_order": 300,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -33578,7 +34411,7 @@
         "senior": 0
       },
       "est_hours": 3,
-      "plan_order": 294,
+      "plan_order": 301,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -33683,7 +34516,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 295,
+      "plan_order": 302,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -33794,7 +34627,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 296,
+      "plan_order": 303,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -33901,7 +34734,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 297,
+      "plan_order": 304,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -34012,7 +34845,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 298,
+      "plan_order": 305,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -34122,7 +34955,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 299,
+      "plan_order": 306,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -34225,7 +35058,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 300,
+      "plan_order": 307,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -34329,7 +35162,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 301,
+      "plan_order": 308,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -34443,7 +35276,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 302,
+      "plan_order": 309,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -34562,7 +35395,7 @@
         "senior": 0
       },
       "est_hours": 6,
-      "plan_order": 303,
+      "plan_order": 310,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -34671,7 +35504,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 304,
+      "plan_order": 311,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -34772,7 +35605,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 305,
+      "plan_order": 312,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -34877,7 +35710,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 306,
+      "plan_order": 313,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -34983,7 +35816,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 307,
+      "plan_order": 314,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -35094,7 +35927,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 308,
+      "plan_order": 315,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -35200,7 +36033,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 309,
+      "plan_order": 316,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -35302,7 +36135,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 310,
+      "plan_order": 317,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -35420,7 +36253,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 311,
+      "plan_order": 318,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -35538,7 +36371,7 @@
       },
       "est_hours": 3,
       "est_hours_beginner": 5,
-      "plan_order": 312,
+      "plan_order": 319,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -35664,7 +36497,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 313,
+      "plan_order": 320,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -35776,7 +36609,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 314,
+      "plan_order": 321,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -35901,7 +36734,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 315,
+      "plan_order": 322,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -36017,7 +36850,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 316,
+      "plan_order": 323,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -36132,7 +36965,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 317,
+      "plan_order": 324,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -36259,7 +37092,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 318,
+      "plan_order": 325,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -36384,7 +37217,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 319,
+      "plan_order": 326,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -36510,7 +37343,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 320,
+      "plan_order": 327,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -36640,7 +37473,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 321,
+      "plan_order": 328,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -36737,7 +37570,7 @@
       },
       "est_hours": 2,
       "est_hours_beginner": 3,
-      "plan_order": 322,
+      "plan_order": 329,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -36855,7 +37688,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 323,
+      "plan_order": 330,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -36968,7 +37801,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 324,
+      "plan_order": 331,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -37082,7 +37915,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 325,
+      "plan_order": 332,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -37197,7 +38030,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 326,
+      "plan_order": 333,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -37306,7 +38139,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 327,
+      "plan_order": 334,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -37419,7 +38252,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 328,
+      "plan_order": 335,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -37529,7 +38362,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 329,
+      "plan_order": 336,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -37636,7 +38469,7 @@
       },
       "est_hours": 3,
       "est_hours_beginner": 4,
-      "plan_order": 330,
+      "plan_order": 337,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -37758,7 +38591,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 331,
+      "plan_order": 338,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -37877,7 +38710,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 332,
+      "plan_order": 339,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -38004,7 +38837,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 333,
+      "plan_order": 340,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -38130,7 +38963,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 334,
+      "plan_order": 341,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -38253,7 +39086,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 335,
+      "plan_order": 342,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -38370,7 +39203,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 336,
+      "plan_order": 343,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -38477,7 +39310,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 337,
+      "plan_order": 344,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -38592,7 +39425,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 338,
+      "plan_order": 345,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -38708,7 +39541,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 339,
+      "plan_order": 346,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -38823,7 +39656,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 340,
+      "plan_order": 347,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -38955,7 +39788,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 341,
+      "plan_order": 348,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -39074,7 +39907,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 342,
+      "plan_order": 349,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -39180,7 +40013,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 343,
+      "plan_order": 350,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -39295,7 +40128,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 344,
+      "plan_order": 351,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -39412,7 +40245,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 345,
+      "plan_order": 352,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -39535,7 +40368,7 @@
         "senior": 3
       },
       "est_hours": 2,
-      "plan_order": 346,
+      "plan_order": 353,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -39663,7 +40496,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 347,
+      "plan_order": 354,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -39783,7 +40616,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 348,
+      "plan_order": 355,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -39897,7 +40730,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 349,
+      "plan_order": 356,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -40019,7 +40852,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 350,
+      "plan_order": 357,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -40145,7 +40978,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 351,
+      "plan_order": 358,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -40265,7 +41098,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 352,
+      "plan_order": 359,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -40382,7 +41215,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 353,
+      "plan_order": 360,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -40501,7 +41334,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 354,
+      "plan_order": 361,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -40613,7 +41446,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 355,
+      "plan_order": 362,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -40735,7 +41568,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 356,
+      "plan_order": 363,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -40860,7 +41693,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 357,
+      "plan_order": 364,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -40977,7 +41810,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 358,
+      "plan_order": 365,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -41088,7 +41921,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 359,
+      "plan_order": 366,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -41200,7 +42033,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 360,
+      "plan_order": 367,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -41307,7 +42140,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 361,
+      "plan_order": 368,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -41427,7 +42260,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 362,
+      "plan_order": 369,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -41550,7 +42383,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 363,
+      "plan_order": 370,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -41660,7 +42493,7 @@
         "senior": 3
       },
       "est_hours": 2,
-      "plan_order": 364,
+      "plan_order": 371,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -41770,7 +42603,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 365,
+      "plan_order": 372,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -41886,7 +42719,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 366,
+      "plan_order": 373,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -42011,7 +42844,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 367,
+      "plan_order": 374,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -42125,7 +42958,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 368,
+      "plan_order": 375,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -42242,7 +43075,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 369,
+      "plan_order": 376,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -42340,7 +43173,7 @@
         "senior": 3
       },
       "est_hours": 2,
-      "plan_order": 370,
+      "plan_order": 377,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -42458,7 +43291,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 371,
+      "plan_order": 378,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -42582,7 +43415,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 372,
+      "plan_order": 379,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -42707,7 +43540,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 373,
+      "plan_order": 380,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -42835,7 +43668,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 374,
+      "plan_order": 381,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -42951,7 +43784,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 375,
+      "plan_order": 382,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -43055,7 +43888,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 376,
+      "plan_order": 383,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -43172,7 +44005,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 377,
+      "plan_order": 384,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -43284,7 +44117,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 378,
+      "plan_order": 385,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -43384,7 +44217,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 379,
+      "plan_order": 386,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -43518,7 +44351,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 380,
+      "plan_order": 387,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -43654,7 +44487,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 381,
+      "plan_order": 388,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -43799,7 +44632,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 382,
+      "plan_order": 389,
       "plan_day": null,
       "plan_hours": 6
     }
