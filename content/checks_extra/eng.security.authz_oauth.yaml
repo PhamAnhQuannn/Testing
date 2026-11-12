@@ -1,0 +1,47 @@
+subtopic_id: eng.security.authz_oauth
+items:
+  - id: E139
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Phân biệt **authentication** và **authorization**. Vì sao quyền phải được kiểm tra ở **server** thay vì chỉ ẩn nút trên giao diện?
+    answer_md: |
+      - **Authentication (AuthN)**: xác định bạn là ai (đăng nhập). **Authorization (AuthZ)**: quyết định bạn được làm gì. AuthN đi trước, AuthZ sau.
+      - Giao diện chỉ là tiện ích; kẻ tấn công có thể gọi thẳng API và bỏ qua UI. Vì vậy server phải kiểm tra quyền trên **mọi request**, và mặc định từ chối (deny by default).
+    rubric_md: "Đạt khi nêu đúng AuthN là bạn là ai và AuthZ là bạn được làm gì, và giải thích được rằng ẩn UI không chặn được lời gọi API trực tiếp nên server phải kiểm tra từng request. Đúng cả hai: bằng chứng điểm 1; đảo nghĩa hai khái niệm hoặc cho rằng ẩn nút là đủ: điểm 0."
+  - id: E140
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Ứng dụng blog có ba loại người dùng: **reader** (đọc bài), **author** (đọc, viết bài và sửa/xóa **bài của mình**), **admin** (quản lý mọi bài và người dùng).
+      Hãy thiết kế **RBAC** cho ứng dụng (role -> permission), nêu cách kiểm tra ở endpoint `PUT /posts/{id}` phía server, và áp dụng **least privilege** cùng **deny by default**.
+    answer_md: |
+      - **Permission**: `post:read`, `post:create`, `post:edit_own`, `post:edit_any`, `post:delete_own`, `post:delete_any`, `user:manage`.
+      - **Role -> permission**: `reader` = {post:read}; `author` = reader + {post:create, post:edit_own, post:delete_own}; `admin` = mọi permission.
+      - **Endpoint `PUT /posts/{id}` (server-side, mỗi request)**: (1) xác thực (AuthN) để biết user; (2) nạp bài theo `id`; (3) cho phép nếu user có `post:edit_any`, hoặc có `post:edit_own` **và** `post.author_id == user.id` (kiểm tra mức **đối tượng**, tránh BOLA); (4) ngược lại trả 403.
+      - **Least privilege**: mỗi role chỉ có quyền tối thiểu; author không có `user:manage`.
+      - **Deny by default**: role hoặc permission không được liệt kê thì từ chối; người dùng mới mặc định là `reader`.
+    rubric_md: "Đạt khi: có bảng role -> permission hợp lý theo least privilege (reader chỉ đọc, author thêm quyền trên bài của mình, admin rộng nhất); mô tả kiểm tra server-side gồm xác thực rồi kiểm quyền và kiểm tra quyền sở hữu đối tượng (author_id == user.id) cho edit_own; nêu deny by default. Đủ các ý: bằng chứng điểm 2. Chỉ ẩn UI, hoặc thiếu kiểm tra sở hữu đối tượng, hoặc cho author quyền sửa mọi bài: tối đa điểm 1."
+  - id: E141
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      Nhóm bạn làm web app cho phép "Đăng nhập bằng Google" và đọc lịch Google của người dùng.
+      (a) Mô tả luồng **authorization code + PKCE**, nêu vai trò của bốn bên (resource owner, client, authorization server, resource server) và việc dùng **access token**, **refresh token**, **scope**.
+      (b) Giải thích **OIDC** thêm gì lên OAuth2 và vì sao không nên dùng access token làm bằng chứng danh tính.
+      (c) Đồng nghiệp đề xuất lưu refresh token trong `localStorage` và để `GET /events/{id}` chỉ kiểm tra "đã đăng nhập". Nêu rủi ro và cách sửa.
+    answer_md: |
+      **(a)** Resource owner = người dùng; client = web app; authorization server = Google accounts; resource server = Google Calendar API.
+      1. Client tạo **code verifier** ngẫu nhiên, gửi **code challenge** (bản băm) cùng `scope` (ví dụ `openid email` và quyền đọc lịch) khi chuyển hướng người dùng sang authorization server.
+      2. Người dùng đăng nhập và bấm Cho phép (consent).
+      3. Authorization server chuyển về client kèm **code** tạm.
+      4. Client đổi code lấy token, gửi kèm **code verifier**; kẻ chặn được code không có verifier thì vô dụng.
+      5. Client nhận **access token** (ngắn hạn, giới hạn bởi scope) để gọi Calendar API, và **refresh token** (chỉ để xin access token mới).
+
+      **(b)** **OIDC** là lớp danh tính trên OAuth2, thêm **ID token** (JWT) cho biết người dùng là ai; client xác minh chữ ký, issuer, audience, hạn dùng. Access token dành cho resource server, không nhằm cho client xác định danh tính và không đảm bảo token được phát cho chính app này, nên dùng nó làm bằng chứng đăng nhập là sai.
+
+      **(c)** Refresh token trong `localStorage` bị đánh cắp được nếu có XSS; nên giữ ở backend (hoặc cookie HttpOnly, Secure), xoay vòng và thu hồi được. `GET /events/{id}` chỉ kiểm tra đăng nhập là lỗi **BOLA**: đổi `id` là xem được sự kiện người khác. Sửa: server kiểm tra sự kiện thuộc user (hoặc user có quyền) trên từng request, deny by default, xin scope tối thiểu.
+    rubric_md: "Đạt mức 3 khi: (a) nêu đúng bốn vai trò và các bước auth code flow có vai trò của PKCE (challenge rồi verifier), phân biệt access token và refresh token, nhắc scope; (b) nói OIDC thêm ID token để xác thực và giải thích vì sao access token không phải bằng chứng danh tính; (c) chỉ ra rủi ro lưu refresh token ở nơi JS đọc được và lỗi BOLA, kèm cách sửa (kiểm tra quyền theo đối tượng ở server, lưu token an toàn). Đủ cả ba trong time-box: bằng chứng điểm 3. Nhầm OAuth2 là xác thực, hoặc thiếu PKCE, hoặc thiếu kiểm tra mức đối tượng: chưa đạt mức 3."

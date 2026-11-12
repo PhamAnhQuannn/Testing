@@ -1,0 +1,177 @@
+id: eng.security.owasp
+version: 1
+status: published
+title_vi: "OWASP Top 10 và lập trình an toàn: injection, XSS, CSRF, IDOR, SSRF"
+est_minutes: 12
+objectives_vi:
+  - "Giải thích **OWASP Top 10** là gì và vì sao biết các lỗi phổ biến giúp **chặn trước** khi viết code."
+  - "Nhận diện **SQL injection** và sửa bằng **parameterized query**; nhận diện **XSS** và sửa bằng **output encoding**."
+  - "Phân biệt **CSRF** (token + SameSite), **IDOR / broken access control** (kiểm quyền phía server) và **SSRF** (allowlist URL)."
+  - "Áp dụng hai nguyên tắc chung: **validate input** và **least privilege**."
+blocks:
+  - id: s_owasp_intro
+    type: section
+    title_vi: "OWASP Top 10 và Injection"
+    summary_vi: "OWASP Top 10 là danh sách rủi ro bảo mật web phổ biến. Injection xảy ra khi dữ liệu người dùng bị ghép vào câu lệnh; sửa bằng parameterized query."
+  - id: b01
+    type: text
+    md: |
+      **OWASP** (Open Worldwide Application Security Project) là tổ chức công bố **OWASP Top 10**: danh
+      sách các rủi ro bảo mật web phổ biến nhất. Mục tiêu của bài này là **nhận ra** lỗi trong code
+      và biết **cách phòng**, giống như biết các chỗ cửa hay bị cạy để khóa trước. Bài đi qua **năm
+      lỗi hay gặp** (injection, XSS, CSRF, IDOR, SSRF) làm ví dụ — đây KHÔNG phải toàn bộ Top 10, và
+      trong bản 2021 XSS nằm trong A03 Injection còn IDOR thuộc A01 Broken Access Control.
+
+      **Injection** (ví dụ **SQL injection**) xảy ra khi code **ghép dữ liệu người dùng thẳng vào câu
+      lệnh** (SQL, shell...), khiến dữ liệu bị hiểu nhầm thành lệnh.
+
+      Mẫu **dễ bị lỗi** (đừng dùng): nối chuỗi để dựng câu SQL.
+
+      ```python
+      # SAI: ghép chuỗi với dữ liệu người dùng
+      sql = f"SELECT * FROM users WHERE name = '{name}'"
+      ```
+
+      Cách **sửa đúng** là **parameterized query** (prepared statement): câu SQL và giá trị được gửi
+      **tách riêng**, nên database luôn coi giá trị là dữ liệu, không bao giờ là lệnh. (Lưu ý: tên
+      bảng/cột hay `ORDER BY` KHÔNG tham số hóa được — phải dùng **allowlist** các giá trị hợp lệ.)
+
+      ```python
+      # ĐÚNG: dấu ? là chỗ trống, giá trị truyền riêng
+      db.execute("SELECT * FROM users WHERE name = ?", (name,))
+      ```
+
+      Không tự "escape tay" rồi vẫn ghép chuỗi: dễ sót trường hợp. Thêm lớp bảo vệ: tài khoản
+      database chỉ có quyền cần thiết (**least privilege**).
+  - id: b02
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Cách phòng **SQL injection** đúng và đáng tin cậy nhất là gì?"
+    options:
+      - {id: a, text_md: "Tự escape vài ký tự đặc biệt bằng tay rồi vẫn ghép chuỗi SQL"}
+      - {id: b, text_md: "Dùng **parameterized query** (prepared statement), truyền giá trị tách khỏi câu SQL"}
+      - {id: c, text_md: "Chỉ kiểm tra input ở phía trình duyệt (JavaScript)"}
+    answer: [b]
+    explain_md: "Parameterized query tách lệnh và dữ liệu nên giá trị không thể bị hiểu thành lệnh. Escape tay dễ sót, còn kiểm tra ở trình duyệt thì người dùng có thể bỏ qua."
+  - id: s_xss_csrf
+    type: section
+    title_vi: "XSS và CSRF"
+    summary_vi: "XSS: script lạ chạy trên trang của bạn; sửa bằng output encoding, auto-escaping, CSP. CSRF: trang khác lừa trình duyệt gửi yêu cầu thay bạn; sửa bằng CSRF token và SameSite."
+  - id: b03
+    type: text
+    md: |
+      **XSS** (Cross-Site Scripting): ứng dụng đưa dữ liệu người dùng vào trang HTML **mà không mã hóa**,
+      nên nội dung đó bị trình duyệt coi là mã chạy được trên máy **người xem khác**. Có ba dạng:
+      **stored** (lưu trong database), **reflected** (phản chiếu từ URL), **DOM-based** (xử lý ở JavaScript phía client).
+
+      Cách phòng:
+      - **Output encoding / escape** theo ngữ cảnh khi hiển thị (HTML, thuộc tính, URL, JavaScript).
+      - Dùng **template engine / framework có auto-escaping** (React, Jinja2 bật autoescape) và tránh
+        các hàm chèn HTML thô như `innerHTML` hay `dangerouslySetInnerHTML` với dữ liệu người dùng.
+      - Thêm **CSP** (Content Security Policy): header giới hạn nguồn script được chạy, là lớp
+        bảo vệ bổ sung chứ không thay cho encoding.
+
+      **CSRF** (Cross-Site Request Forgery): trang độc hại lừa trình duyệt **đang đăng nhập** của bạn
+      gửi yêu cầu tới site thật, vì trình duyệt **tự gửi kèm cookie**. Khác XSS: CSRF không chạy script
+      trên site của bạn mà lợi dụng niềm tin của server vào cookie.
+
+      Cách phòng:
+      - **Anti-CSRF token**: mã ngẫu nhiên gắn vào form hợp lệ, server kiểm tra mỗi yêu cầu thay đổi dữ liệu.
+      - Cookie đặt thuộc tính **SameSite** (`Lax` hoặc `Strict`) để trình duyệt không gửi cookie
+        trong yêu cầu xuất phát từ site khác.
+      - Không dùng `GET` để thay đổi dữ liệu.
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một trang bình luận hiển thị nội dung người dùng nhập. Biện pháp chính để phòng **XSS** là gì?"
+    options:
+      - {id: a, text_md: "**Output encoding** (escape) dữ liệu theo ngữ cảnh khi hiển thị, kèm framework auto-escaping"}
+      - {id: b, text_md: "Dùng anti-CSRF token cho form bình luận"}
+      - {id: c, text_md: "Đặt mật khẩu database dài hơn"}
+    answer: [a]
+    explain_md: "XSS xảy ra khi dữ liệu người dùng được xuất ra HTML mà không mã hóa, nên cách sửa chính là output encoding. CSRF token phòng CSRF, không phải XSS."
+  - id: b05
+    type: quiz_fill
+    graded: true
+    prompt_md: "Điền một từ: thuộc tính cookie ______ bảo trình duyệt không gửi cookie trong yêu cầu xuất phát từ site khác, giúp giảm **CSRF**."
+    blanks:
+      - accept: ["SameSite", "samesite"]
+    explain_md: "Đó là **SameSite** (giá trị `Lax` hoặc `Strict`). Kết hợp với anti-CSRF token cho các yêu cầu thay đổi dữ liệu."
+  - id: s_access_ssrf
+    type: section
+    title_vi: "Broken access control, IDOR và SSRF"
+    summary_vi: "IDOR: server không kiểm quyền trên từng đối tượng; sửa bằng kiểm tra phía server. SSRF: server bị lừa gọi URL nội bộ; sửa bằng allowlist và chặn dải nội bộ."
+  - id: b06
+    type: text
+    md: |
+      **Broken access control** là lỗi kiểm quyền: người dùng làm được việc không được phép. Dạng quen
+      thuộc là **IDOR** (Insecure Direct Object Reference): endpoint `GET /invoices/{id}` chỉ kiểm tra
+      "đã đăng nhập" nhưng **không kiểm tra hóa đơn có thuộc người này không**, nên đổi `id` trên URL là xem
+      được dữ liệu người khác.
+
+      Cách phòng:
+      - **Kiểm tra quyền phía server, trên từng đối tượng, ở mọi yêu cầu**: so chủ sở hữu của đối tượng
+        với người dùng trong session.
+      - **Không tin ID hay quyền do client gửi lên**; lấy danh tính từ session/token đã xác thực.
+      - Mặc định **từ chối** (deny by default), chỉ cho phép khi có quy tắc rõ.
+
+      ```python
+      invoice = get_invoice(invoice_id)
+      if invoice is None or invoice.owner_id != current_user.id:
+          abort(404)   # không cho xem hóa đơn của người khác
+      ```
+
+      **SSRF** (Server-Side Request Forgery): chức năng cho người dùng nhập URL để server tải (ví dụ lấy
+      ảnh từ link) bị lợi dụng để server gọi tới **địa chỉ nội bộ** mà bên ngoài không truy cập được.
+
+      Cách phòng:
+      - Dùng **allowlist** các domain/URL được phép gọi ra ngoài (không dùng danh sách cấm).
+      - **Chặn dải địa chỉ nội bộ** (loopback, mạng riêng, địa chỉ metadata của cloud), kiểm tra
+        cả sau khi phân giải DNS và khi redirect.
+      - Chỉ cho phép giao thức cần thiết (`https`), đặt timeout.
+  - id: b07
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Endpoint `GET /orders/{id}` chỉ kiểm tra người dùng đã đăng nhập. Người A đổi `id` và xem được đơn của người B. Đây là lỗi gì và sửa thế nào?"
+    options:
+      - {id: a, text_md: "XSS; sửa bằng cách escape HTML"}
+      - {id: b, text_md: "IDOR (broken access control); sửa bằng kiểm tra phía server rằng đơn thuộc về người dùng hiện tại"}
+      - {id: c, text_md: "CSRF; sửa bằng cách ẩn id trên URL"}
+    answer: [b]
+    explain_md: "Server không kiểm quyền trên từng đối tượng nên là IDOR. Ẩn hay đổi dạng id không đủ: phải kiểm chủ sở hữu ở server trên mọi yêu cầu."
+  - id: b08
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Tính năng cho người dùng nhập URL ảnh để server tải về có nguy cơ **SSRF**. Biện pháp phòng phù hợp nhất?"
+    options:
+      - {id: a, text_md: "Dùng **allowlist** domain được phép và chặn dải địa chỉ nội bộ"}
+      - {id: b, text_md: "Thêm anti-CSRF token vào form"}
+      - {id: c, text_md: "Dùng parameterized query khi lưu URL"}
+    answer: [a]
+    explain_md: "SSRF là server bị lừa gọi tới nơi không nên gọi. Allowlist và chặn dải nội bộ giới hạn nơi server được phép kết nối; hai đáp án kia phòng lỗi khác."
+  - id: b09
+    type: callout
+    kind: interview
+    md: |
+      **Thanh điểm mức 3 (level-3 bar).** Cho một đoạn code web, bạn chỉ ra được lỗi (SQL injection,
+      XSS, IDOR...) và nêu cách sửa đúng: **parameterized query**, **output encoding**, **kiểm quyền phía
+      server trên từng đối tượng**. Bạn phân biệt được **XSS** (script chạy trên trang) với **CSRF**
+      (yêu cầu giả mạo dùng cookie), và nhớ hai nguyên tắc chung: **validate input** (kiểm tra dữ liệu
+      nhận vào theo kiểu, độ dài, định dạng, nhưng không thay cho parameterized query hay output
+      encoding) và **least privilege** (mỗi tài khoản, dịch vụ chỉ có quyền tối thiểu cần thiết).
+  - id: b10
+    type: summary
+    bullets_vi:
+      - "**OWASP Top 10** là danh sách rủi ro web phổ biến; học để nhận ra và chặn trước."
+      - "**SQL injection**: không ghép chuỗi SQL; dùng **parameterized query** (prepared statement)."
+      - "**XSS**: **output encoding** theo ngữ cảnh, framework auto-escaping, thêm **CSP** làm lớp bổ sung."
+      - "**CSRF**: **anti-CSRF token** và cookie **SameSite**; **IDOR**: kiểm quyền phía server trên từng đối tượng, không tin ID từ client."
+      - "**SSRF**: **allowlist** URL ra ngoài, chặn dải nội bộ. Chung: **validate input** và **least privilege**."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [E133], l2: [E134], l3: [E135]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-12"

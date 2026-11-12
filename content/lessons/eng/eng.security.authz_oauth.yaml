@@ -1,0 +1,151 @@
+id: eng.security.authz_oauth
+version: 1
+status: published
+title_vi: "Phân quyền, OAuth2 và OIDC: AuthN vs AuthZ, RBAC, auth code flow + PKCE"
+est_minutes: 12
+objectives_vi:
+  - "Phân biệt **authentication** (bạn là ai) với **authorization** (bạn được làm gì) và biết quyền phải kiểm tra **phía server ở mọi request**."
+  - "Thiết kế **RBAC** (vai trò gán quyền, người gán vai trò) theo **least privilege** và **deny by default**."
+  - "Mô tả **OAuth2** là ủy quyền có phạm vi (không lộ mật khẩu) và luồng **authorization code + PKCE** với các vai trò, token, scope."
+  - "Phân biệt **OAuth2** với **OIDC** và nhận diện lỗi hay gặp như **BOLA**."
+blocks:
+  - id: s_authn_authz
+    type: section
+    title_vi: "AuthN vs AuthZ, RBAC và least privilege"
+    summary_vi: "AuthN xác định bạn là ai, AuthZ quyết định bạn được làm gì và phải kiểm tra ở server mỗi request. RBAC gán quyền cho vai trò; cấp tối thiểu và từ chối mặc định."
+  - id: b01
+    type: text
+    md: |
+      **Authentication (AuthN, xác thực)** trả lời "bạn là ai?" (đăng nhập bằng mật khẩu, passkey...).
+      **Authorization (AuthZ, phân quyền)** trả lời "bạn được làm gì?". Thứ tự là AuthN trước, AuthZ sau:
+      biết bạn là ai rồi mới xét quyền.
+
+      Quy tắc quan trọng: **kiểm tra quyền ở server, trên từng request**. Ẩn nút "Xóa" trong giao diện
+      chỉ là tiện cho người dùng; kẻ tấn công vẫn có thể gọi thẳng API. Nếu server không kiểm tra thì
+      nút ẩn cũng vô nghĩa.
+
+      **RBAC (Role-Based Access Control)**: gán **quyền (permission)** cho **vai trò (role)** như
+      `admin`, `editor`, `member`, rồi gán vai trò cho người. Thêm người mới chỉ cần chọn vai trò.
+
+      Hai nguyên tắc đi kèm:
+      - **Least privilege**: chỉ cấp quyền tối thiểu cần dùng.
+      - **Deny by default**: không có luật cho phép thì từ chối.
+
+      ```python
+      ROLE_PERMS = {"member": {"read"}, "editor": {"read", "write"}}
+
+      def can(user_roles, perm):
+          # deny by default: không role nào có perm thì False
+          return any(perm in ROLE_PERMS.get(r, set()) for r in user_roles)
+      ```
+  - id: b02
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Ứng dụng ẩn nút **Xóa bài** với người dùng thường trên giao diện, nhưng endpoint `DELETE /posts/{id}` không kiểm tra vai trò. Nhận định nào đúng?"
+    options:
+      - {id: a, text_md: "An toàn, vì người dùng thường không thấy nút nên không thể xóa"}
+      - {id: b, text_md: "Không an toàn, phải kiểm tra quyền ở server trên mỗi request"}
+      - {id: c, text_md: "An toàn nếu dùng HTTPS"}
+    answer: [b]
+    explain_md: "Ẩn UI không phải kiểm soát truy cập: ai cũng có thể gọi thẳng API. Quyền phải được server kiểm tra ở mọi request. HTTPS bảo vệ đường truyền, không thay cho phân quyền."
+  - id: b03
+    type: quiz_fill
+    graded: true
+    prompt_md: "Điền một cụm tiếng Anh: nguyên tắc chỉ cấp quyền tối thiểu cần thiết cho người hoặc service gọi là ______ privilege."
+    blanks:
+      - accept: ["least", "Least", "least privilege", "Least privilege"]
+    explain_md: "Đó là **least privilege**: giới hạn quyền tối thiểu để thiệt hại nhỏ nhất nếu tài khoản bị lộ hoặc có lỗi."
+  - id: s_oauth_oidc
+    type: section
+    title_vi: "OAuth2, authorization code + PKCE và OIDC"
+    summary_vi: "OAuth2 là ủy quyền có phạm vi để app hành động thay bạn mà không biết mật khẩu. OIDC thêm ID token để đăng nhập (xác thực) trên nền OAuth2."
+  - id: b04
+    type: text
+    md: |
+      **OAuth2** là chuẩn **ủy quyền (delegated authorization)**: cho app A dùng một phần dữ liệu của
+      bạn ở dịch vụ B (ví dụ Google) **mà không cần biết mật khẩu** của bạn, chỉ nhận một token có
+      phạm vi giới hạn.
+
+      Bốn vai trò:
+      - **Resource owner**: người dùng, chủ dữ liệu.
+      - **Client**: app muốn truy cập.
+      - **Authorization server**: nơi bạn đăng nhập và đồng ý, phát token.
+      - **Resource server**: API giữ dữ liệu, nhận access token.
+
+      **Authorization code flow** (rút gọn): (1) app chuyển hướng bạn sang authorization server;
+      (2) bạn đăng nhập và bấm Cho phép; (3) server chuyển bạn về app kèm **mã tạm (code)**;
+      (4) client (backend nếu có; SPA/mobile không có backend thì dùng **PKCE** thay cho client secret)
+      đổi code lấy token; (5) app gọi API bằng token.
+
+      - **Access token**: ngắn hạn, dùng gọi API, bị giới hạn bởi **scope** (ví dụ chỉ đọc email).
+      - **Refresh token**: dài hạn hơn, chỉ dùng để xin access token mới, phải giữ kín.
+      - **PKCE**: client tạo một chuỗi bí mật ngẫu nhiên, gửi **bản băm** ở bước 1 và **bản gốc** ở bước đổi code.
+        Kẻ cướp được code mà không có bản gốc thì vô dụng. Bắt buộc cho **public client** (app di động, SPA)
+        vì không giữ được client secret, và nên dùng cho cả client khác.
+  - id: b05
+    type: quiz_mcq
+    graded: true
+    prompt_md: "**OAuth2** về bản chất là gì?"
+    options:
+      - {id: a, text_md: "Chuẩn ủy quyền (delegated authorization): cho app hành động thay người dùng với phạm vi giới hạn mà không biết mật khẩu"}
+      - {id: b, text_md: "Chuẩn xác thực cho biết người dùng là ai"}
+      - {id: c, text_md: "Thuật toán mã hóa mật khẩu"}
+    answer: [a]
+    explain_md: "OAuth2 là ủy quyền, không phải xác thực. Việc cho biết người dùng là ai do lớp OIDC đảm nhiệm."
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một app di động (public client) dùng authorization code flow. **PKCE** giúp gì?"
+    options:
+      - {id: a, text_md: "Mã hóa access token trong bộ nhớ"}
+      - {id: b, text_md: "Khiến code bị chặn giữa đường trở nên vô dụng vì kẻ cướp không có chuỗi bí mật gốc"}
+      - {id: c, text_md: "Thay thế scope bằng role"}
+    answer: [b]
+    explain_md: "PKCE gắn code với code verifier mà chỉ client gốc giữ. Không có verifier thì không đổi được code lấy token."
+  - id: b07
+    type: text
+    md: |
+      **OIDC (OpenID Connect)** là **lớp danh tính đặt trên OAuth2**. Nó thêm **ID token** (thường là JWT)
+      chứa thông tin người dùng là ai, dùng để **đăng nhập**. **Access token** vẫn chỉ để gọi API.
+
+      Lỗi hay gặp:
+      - **Nhầm AuthN với AuthZ**: đăng nhập được không có nghĩa được làm mọi việc.
+      - **Dùng access token OAuth2 làm bằng chứng danh tính**: access token dành cho resource server, không
+        phải cho client biết ai đang đăng nhập; hãy dùng OIDC và xác minh ID token.
+      - **BOLA (broken object-level authorization)**: endpoint `GET /orders/123` chỉ kiểm tra đã đăng nhập mà
+        không kiểm tra đơn 123 có thuộc người đó không, nên đổi số 123 là xem được đơn người khác.
+        Cách sửa: luôn kiểm tra quyền trên **từng đối tượng** ở server.
+  - id: b08
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Muốn app biết **ai đang đăng nhập** khi dùng 'Đăng nhập bằng Google', nên dựa vào gì?"
+    options:
+      - {id: a, text_md: "Access token OAuth2 thuần, coi như bằng chứng danh tính"}
+      - {id: b, text_md: "ID token của OIDC (đã xác minh), vì OIDC là lớp danh tính trên OAuth2"}
+      - {id: c, text_md: "Refresh token"}
+    answer: [b]
+    explain_md: "OIDC thêm ID token để xác định người dùng. Access token chỉ để gọi API, refresh token chỉ để xin access token mới."
+  - id: b09
+    type: callout
+    kind: interview
+    md: |
+      **Thanh điểm mức 3 (level-3 bar).** Bạn vẽ được luồng "Đăng nhập bằng Google" qua 5 bước, nói
+      mỗi token để làm gì, vì sao cần **PKCE**; phân biệt rõ **AuthN với AuthZ** và **OAuth2 với OIDC**;
+      thiết kế **RBAC** với least privilege, deny by default và kiểm tra quyền server-side, kể cả mức
+      từng đối tượng để tránh BOLA.
+  - id: b10
+    type: summary
+    bullets_vi:
+      - "**AuthN** = bạn là ai; **AuthZ** = bạn được làm gì. AuthN trước, AuthZ sau; quyền kiểm tra **server-side ở mọi request**, không chỉ ẩn UI."
+      - "**RBAC**: quyền gán cho role, role gán cho người; theo **least privilege** và **deny by default**."
+      - "**OAuth2** = ủy quyền có phạm vi (resource owner, client, authorization server, resource server); **auth code + PKCE** cho public client."
+      - "**Access token** gọi API (có scope); **refresh token** xin access token mới và phải giữ kín."
+      - "**OIDC** = lớp danh tính trên OAuth2 với **ID token** để đăng nhập; đừng dùng access token làm bằng chứng danh tính; tránh **BOLA**."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [E139], l2: [E140], l3: [E141]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-12"
