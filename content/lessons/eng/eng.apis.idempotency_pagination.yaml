@@ -1,0 +1,138 @@
+id: eng.apis.idempotency_pagination
+version: 1
+status: published
+title_vi: "Idempotency, phân trang và rate limit"
+est_minutes: 12
+objectives_vi:
+  - "Giải thích **idempotent** là gì và phân biệt method nào tự nhiên idempotent (GET/PUT/DELETE) với method không (POST)."
+  - "Mô tả mẫu **Idempotency-Key** giúp retry POST an toàn, không trừ tiền hai lần."
+  - "So sánh **offset/limit** với **cursor (keyset) pagination** và biết vì sao cursor ổn định hơn khi dữ liệu thay đổi."
+  - "Hiểu **rate limiting**: vì sao cần, mã **429**, header **Retry-After** và ý tưởng **token bucket**."
+blocks:
+  - id: s_idempotency
+    type: section
+    title_vi: "Idempotency và retry an toàn"
+    summary_vi: "Idempotent = gửi một hay nhiều lần kết quả vẫn như một lần. GET/PUT/DELETE tự nhiên idempotent, POST thì không; Idempotency-Key cho phép retry POST an toàn."
+  - id: b01
+    type: text
+    md: |
+      Mạng hay chập chờn nên client thường **gửi lại** (retry) cùng một yêu cầu. Một thao tác là
+      **idempotent** nếu **áp dụng một lần hay nhiều lần cho cùng kết quả cuối** như nhau.
+
+      Với HTTP:
+      - **GET**, **PUT**, **DELETE** vốn **idempotent**: `PUT /users/7` đặt cả bản ghi về cùng
+        một giá trị; `DELETE /users/7` xóa xong thì xóa lần nữa vẫn là "đã xóa".
+      - **POST** (ví dụ `POST /payments` tạo một lần thanh toán) **không** idempotent: gửi hai lần
+        có thể tạo **hai** khoản thanh toán.
+
+      Retry thường chỉ an toàn với method idempotent và khi gặp lỗi tạm thời (timeout, `503`);
+      không nên retry mù quáng lỗi `4xx` do client sai.
+  - id: b02
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Nhóm HTTP method nào sau đây **tự nhiên idempotent**?"
+    options:
+      - {id: a, text_md: "GET, PUT, DELETE."}
+      - {id: b, text_md: "POST, PUT, DELETE."}
+      - {id: c, text_md: "GET, POST, PUT."}
+    answer: [a]
+    explain_md: "GET, PUT, DELETE áp dụng nhiều lần cho cùng kết quả cuối. POST thường tạo tài nguyên mới mỗi lần gọi nên không idempotent, vì vậy (b) và (c) sai."
+  - id: b03
+    type: text
+    md: |
+      Vậy làm sao retry **POST** an toàn? Dùng mẫu **Idempotency-Key**:
+      1. Client sinh một mã duy nhất (thường UUID) cho **mỗi ý định** và gửi trong header
+         `Idempotency-Key: 7c9e...`.
+      2. Server lần đầu thấy key: xử lý, rồi **lưu key → kết quả** (status + body).
+      3. Nếu client **gửi lại cùng key** (do timeout, mất mạng), server **không xử lý lại** mà trả
+         **kết quả đã lưu**.
+
+      Nhờ đó một `POST /payments` bị retry **không trừ tiền hai lần**. Lưu ý: dùng **key mới** cho
+      yêu cầu thật sự mới, còn retry thì giữ **nguyên key**; nếu cùng key nhưng nội dung khác, server
+      nên **từ chối (409/422)** vì mỗi key chỉ đại diện một ý định.
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Client gửi `POST /payments` kèm `Idempotency-Key`, bị timeout nên gửi lại **cùng key**. Server nên làm gì?"
+    options:
+      - {id: a, text_md: "Xử lý lại và tạo thêm một khoản thanh toán mới."}
+      - {id: b, text_md: "Trả về kết quả đã lưu cho key đó, không tạo khoản thanh toán thứ hai."}
+      - {id: c, text_md: "Luôn trả 400 vì key đã bị dùng."}
+    answer: [b]
+    explain_md: "Mục đích của Idempotency-Key là replay cùng key cho cùng kết quả đã lưu, nên không trừ tiền hai lần. (a) gây trừ tiền đôi; (c) làm client không biết kết quả của lần đầu."
+  - id: s_pagination
+    type: section
+    title_vi: "Phân trang: offset và cursor"
+    summary_vi: "Offset/limit đơn giản nhưng chậm với offset lớn và dễ lặp/sót dòng khi có insert; cursor (keyset) dựa trên khóa sắp xếp nên ổn định và nhanh."
+  - id: b05
+    type: text
+    md: |
+      **Phân trang** (pagination) chia danh sách dài thành từng trang.
+
+      - **Offset/limit**: `GET /posts?limit=20&offset=40`. Dễ làm, nhảy tới trang bất kỳ. Nhược điểm:
+        (1) DB phải **bỏ qua** `offset` dòng nên offset lớn thì **chậm**; (2) nếu có dòng mới được
+        **chèn** giữa các lần gọi, các dòng bị **đẩy xuống** nên trang sau có thể **lặp** dòng cũ
+        hoặc **sót** dòng.
+      - **Cursor (keyset)**: `GET /posts?limit=20&cursor=abc123`. Cursor mã hóa **vị trí cuối** của
+        trang trước (ví dụ `created_at` + `id` làm tie-breaker), truy vấn kiểu
+        `WHERE (created_at, id) < (...) ORDER BY created_at DESC, id DESC LIMIT 20`. Nhờ dùng index
+        nên **nhanh** ở mọi độ sâu và **ổn định** khi có insert. Đổi lại: khó nhảy tới trang N.
+
+      Cursor thường **opaque** (client coi là chuỗi mờ, không tự đoán cấu trúc). Luôn cần **thứ tự
+      ổn định** (có tie-breaker như `id`), nếu không vẫn có thể lặp/sót dòng.
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao cursor pagination phù hợp với feed có dữ liệu mới liên tục được thêm vào hơn offset/limit?"
+    options:
+      - {id: a, text_md: "Vì cursor luôn trả toàn bộ dữ liệu trong một lần gọi."}
+      - {id: b, text_md: "Vì cursor neo vào vị trí cuối của trang trước nên không bị lặp hoặc sót dòng khi có dòng mới chèn vào, và vẫn nhanh nhờ index."}
+      - {id: c, text_md: "Vì cursor cho phép nhảy thẳng tới trang số 500 dễ dàng."}
+    answer: [b]
+    explain_md: "Cursor dựa trên khóa sắp xếp của dòng cuối nên insert mới không làm dịch vị trí. (a) sai vì vẫn chia trang; (c) là điểm yếu của cursor, không phải ưu điểm."
+  - id: s_rate_limit
+    type: section
+    title_vi: "Rate limiting"
+    summary_vi: "Rate limit bảo vệ API khỏi quá tải/lạm dụng; vượt mức trả 429 Too Many Requests kèm Retry-After; token bucket là cách cài phổ biến."
+  - id: b07
+    type: text
+    md: |
+      **Rate limiting** giới hạn số yêu cầu một client (thường theo API key hoặc IP) được gửi trong
+      một khoảng thời gian, để **bảo vệ server** khỏi quá tải, lạm dụng và chia sẻ công bằng.
+
+      - Khi vượt giới hạn server trả **`429 Too Many Requests`**, thường kèm header
+        **`Retry-After`** (số giây nên chờ) để client biết khi nào thử lại.
+      - **Token bucket**: mỗi client có một "xô" chứa tối đa N token; mỗi yêu cầu lấy 1 token, xô
+        được **nạp lại đều** theo thời gian. Hết token thì trả 429. Cho phép **burst** ngắn nhưng
+        giữ tốc độ trung bình ổn định.
+      - Phía client: gặp 429 thì **chờ theo `Retry-After`** (hoặc exponential backoff), đừng retry dồn dập.
+  - id: b08
+    type: quiz_fill
+    graded: true
+    prompt_md: "Điền số: khi client vượt rate limit, API trả mã trạng thái HTTP `______` (Too Many Requests)."
+    blanks:
+      - accept: ["429"]
+    explain_md: "429 Too Many Requests là mã chuẩn cho vượt rate limit, thường kèm header Retry-After cho biết nên chờ bao lâu."
+  - id: b09
+    type: callout
+    kind: interview
+    md: |
+      **Thanh điểm mức 3 (level-3 bar).** Bạn thiết kế được một API tạo thanh toán an toàn khi
+      retry bằng **Idempotency-Key**, chọn đúng **offset hay cursor** cho từng tình huống và giải
+      thích vì sao, đồng thời mô tả cách rate limit (**token bucket**, **429**, **Retry-After**) và
+      cách client phản ứng.
+  - id: b10
+    type: summary
+    bullets_vi:
+      - "**Idempotent**: gửi một hay nhiều lần cho cùng kết quả; **GET/PUT/DELETE** tự nhiên idempotent, **POST** thì không."
+      - "**Idempotency-Key**: server lưu key → kết quả, replay cùng key trả kết quả cũ nên retry POST không trừ tiền hai lần."
+      - "**Offset/limit** đơn giản nhưng chậm khi offset lớn và dễ lặp/sót dòng khi có insert; **cursor (keyset)** ổn định và nhanh, cần thứ tự ổn định (tie-breaker)."
+      - "**Rate limit**: vượt mức trả **429** kèm **Retry-After**; **token bucket** cho phép burst ngắn; client chờ rồi mới retry."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [E115], l2: [E116], l3: [E117]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-11"
