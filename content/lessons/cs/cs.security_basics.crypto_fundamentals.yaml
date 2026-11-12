@@ -1,0 +1,150 @@
+id: cs.security_basics.crypto_fundamentals
+version: 1
+status: published
+title_vi: "Mật mã học cơ bản: mã hoá, hàm băm và HMAC"
+est_minutes: 15
+objectives_vi:
+  - "Phân biệt mã hoá đối xứng (symmetric) và bất đối xứng (asymmetric/public-key), biết AES và RSA dùng vào việc gì."
+  - "Hiểu XOR cipher và one-time pad: XOR là involution, và vì sao dùng lại key thì mất an toàn."
+  - "Nắm hàm băm (SHA), tính một chiều, va chạm (collision) và HMAC để bảo vệ toàn vẹn."
+  - "Nhớ bộ ba CIA và nguyên lý Kerckhoffs: an toàn nằm ở khoá, không nằm ở thuật toán bí mật."
+blocks:
+  - id: s_enc
+    type: section
+    title_vi: "Mã hoá đối xứng và bất đối xứng"
+    summary_vi: "Một khoá chung hay cặp khoá công khai/riêng; XOR và one-time pad."
+  - id: t01
+    type: text
+    md: |
+      **Mã hoá (encryption)** biến plaintext thành ciphertext bằng một thuật toán và một khoá (key). Có hai họ chính.
+
+      - **Đối xứng (symmetric)**: người gửi và người nhận dùng CÙNG một khoá. Nhanh, hợp để mã hoá dữ liệu lớn. Ví dụ **AES** (khối 128 bit, khoá 128/192/256 bit, nhiều vòng thay thế và trộn bit). Khó ở chỗ phải trao đổi khoá một cách an toàn.
+      - **Bất đối xứng (asymmetric / public-key)**: mỗi bên có cặp khoá, **public key** công khai để mã hoá hoặc kiểm chữ ký, **private key** giữ kín để giải mã hoặc ký. Ví dụ **RSA** dựa trên độ khó của việc phân tích tích hai số nguyên tố lớn. Chậm hơn nhiều nên thực tế dùng để trao đổi khoá, rồi mã hoá dữ liệu bằng khoá đối xứng (như trong TLS).
+
+      Ý tưởng gọn nhất của mã đối xứng là **XOR cipher**: lấy từng byte của dữ liệu XOR với byte khoá, khoá lặp vòng nếu ngắn hơn dữ liệu.
+
+      ```python
+      def xor_cipher(data, key):
+          return [b ^ key[i % len(key)] for i, b in enumerate(data)]
+
+      enc = xor_cipher([65, 66, 67], [7])   # [70, 69, 68]
+      dec = xor_cipher(enc, [7])            # [65, 66, 67]  (XOR hai lần cùng key)
+      ```
+
+      XOR là **involution**: a ^ k ^ k = a, nên mã hoá và giải mã là cùng một phép. **One-time pad** dùng khoá ngẫu nhiên, dài bằng dữ liệu và chỉ dùng MỘT lần thì an toàn tuyệt đối. Nếu dùng lại khoá, XOR hai ciphertext sẽ triệt tiêu khoá: c1 ^ c2 = p1 ^ p2, lộ cấu trúc của plaintext. Khoá ngắn lặp vòng cũng yếu vì cùng lý do. **XOR cipher ở đây chỉ để HỌC**: khoá lặp vòng bị phá dễ bằng phân tích tần suất hoặc known-plaintext, nên thực tế luôn dùng thuật toán đã kiểm chứng (AES-GCM, ChaCha20) từ thư viện, đừng tự cài mã để bảo vệ dữ liệu thật.
+  - id: q01
+    type: predict_output
+    code: |
+      data = [10, 20, 30]
+      enc = [b ^ 3 for b in data]
+      print(enc)
+      print([b ^ 3 for b in enc])
+    expected_output: |
+      [9, 23, 29]
+      [10, 20, 30]
+    explain_md: "10 ^ 3 = 9 (1010 ^ 0011 = 1001), 20 ^ 3 = 23 (10100 ^ 00011 = 10111), 30 ^ 3 = 29 (11110 ^ 00011 = 11101). XOR lần nữa với 3 trả lại dữ liệu gốc."
+  - id: q02
+    type: quiz_mcq
+    prompt_md: "Vì sao dùng lại cùng một khoá one-time pad cho hai thông điệp là nguy hiểm?"
+    options:
+      - {id: a, text_md: "Vì c1 ^ c2 = p1 ^ p2: khoá triệt tiêu, kẻ tấn công thu được quan hệ giữa hai plaintext"}
+      - {id: b, text_md: "Vì XOR không đảo ngược được"}
+      - {id: c, text_md: "Vì khoá bị ngắn đi sau mỗi lần dùng"}
+    answer: [a]
+    explain_md: "(p1 ^ k) ^ (p2 ^ k) = p1 ^ p2. Đó là lý do chữ 'one-time' là điều kiện bắt buộc."
+  - id: s_hash
+    type: section
+    title_vi: "Hàm băm, HMAC và nguyên lý thiết kế"
+    summary_vi: "Hàm băm một chiều, va chạm, HMAC, bộ ba CIA, Kerckhoffs."
+  - id: t02
+    type: text
+    md: |
+      **Hàm băm (hash function)** như **SHA-256** nhận dữ liệu bất kỳ và trả về digest độ dài cố định (256 bit).
+
+      - **Tính một chiều (preimage resistance)**: từ digest không thể suy ngược ra dữ liệu gốc.
+      - **Hiệu ứng thác lũ**: đổi 1 bit đầu vào làm digest đổi hoàn toàn.
+      - **Va chạm (collision)**: hai đầu vào khác nhau cho cùng digest. Vì đầu vào vô hạn mà digest hữu hạn nên va chạm luôn tồn tại, nhưng hàm băm tốt làm cho việc tìm ra nó là bất khả thi. MD5 và SHA-1 đã bị tìm ra va chạm nên không còn dùng cho mục đích an toàn.
+      - Lưu mật khẩu: băm kèm **salt** bằng hàm chậm (bcrypt, scrypt, Argon2), không bao giờ lưu plaintext.
+
+      Hàm băm một mình không chống được kẻ sửa tin rồi băm lại. **HMAC** = hash có khoá: HMAC(k, m) chỉ người biết khoá k mới tính được, nên bảo đảm **toàn vẹn (integrity)** và xác thực nguồn gốc. Khi so sánh tag nên dùng so sánh thời gian hằng số (`hmac.compare_digest`).
+
+      ```python
+      import hashlib, hmac
+      d = hashlib.sha256(b"hello").hexdigest()          # 64 ký tự hex
+      tag = hmac.new(b"secret", b"hello", hashlib.sha256).hexdigest()
+      ```
+
+      **Bộ ba CIA**: *Confidentiality* (bảo mật: chỉ người được phép đọc; mã hoá), *Integrity* (toàn vẹn: không bị sửa trái phép; hash, HMAC, chữ ký số), *Availability* (sẵn sàng: dịch vụ dùng được; chống DoS, dự phòng).
+
+      **Nguyên lý Kerckhoffs**: hệ mật phải an toàn dù kẻ địch biết toàn bộ thuật toán, chỉ cần khoá là bí mật. Vì vậy dùng thuật toán công khai đã được cộng đồng kiểm chứng (AES, RSA, SHA-256) và không tự chế mã "bí mật".
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Bạn cần bảo đảm tin nhắn không bị sửa giữa đường VÀ đến từ người biết khoá chung. Dùng gì?"
+    options:
+      - {id: a, text_md: "HMAC trên tin nhắn với khoá chung"}
+      - {id: b, text_md: "Chỉ SHA-256 của tin nhắn, gửi kèm"}
+      - {id: c, text_md: "Giữ bí mật thuật toán mã hoá"}
+    answer: [a]
+    explain_md: "SHA-256 trần thì kẻ tấn công sửa tin rồi tính lại digest. Giữ bí mật thuật toán vi phạm nguyên lý Kerckhoffs."
+  - id: q04
+    type: quiz_fill
+    prompt_md: "Trong bộ ba CIA, tính chất bảo đảm dữ liệu không bị sửa trái phép là ___ (một từ tiếng Anh)."
+    blanks: [{accept: ["integrity", "Integrity"]}]
+    explain_md: "Integrity (toàn vẹn), được bảo vệ bằng hash, HMAC và chữ ký số."
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: XOR cipher"
+    summary_vi: "Cài mã hoá XOR với khoá lặp vòng."
+    exercise_ref: ex_xor
+  - id: t04
+    type: text
+    md: |
+      Cài `xor_cipher(data, key)`: `data` là list byte (0-255), `key` là list byte không rỗng; byte thứ i XOR với `key[i % len(key)]`.
+
+      ```text
+      xor_cipher([65, 66, 67], [7])    -> [70, 69, 68]
+      xor_cipher([1, 2, 3, 4], [1, 2]) -> [0, 0, 2, 6]
+      ```
+  - id: ex_xor
+    type: code_exercise
+    md: |
+      Cài `xor_cipher(data, key)` trả về list số nguyên: `out[i] = data[i] ^ key[i % len(key)]`. Data rỗng trả `[]`. Gọi lại với cùng key sẽ khôi phục data.
+    entry: xor_cipher
+    starter: |
+      def xor_cipher(data, key):
+          # TODO: XOR từng byte với key lặp vòng
+          pass
+    guidance_md: |
+      - Dùng chỉ số i của từng phần tử.
+      - Lấy byte khoá bằng `key[i % len(key)]`.
+    hints:
+      - level: nudge
+        md: "Duyệt data kèm chỉ số bằng enumerate."
+      - level: approach
+        md: "Với mỗi (i, b), kết quả là b ^ key[i % len(key)]."
+      - level: near_solution
+        md: "Dùng list comprehension và trả về list."
+    tests:
+      - {args: [[65, 66, 67], [7]], expected: [70, 69, 68]}
+      - {args: [[1, 2, 3, 4], [1, 2]], expected: [0, 0, 2, 6]}
+      - {args: [[], [5]], expected: []}
+      - {args: [[255, 0], [255]], expected: [0, 255]}
+      - {args: [[5, 5, 5], [1, 2]], expected: [4, 7, 4]}
+    solution: |
+      def xor_cipher(data, key):
+          return [b ^ key[i % len(key)] for i, b in enumerate(data)]
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Đối xứng (AES) dùng một khoá chung, nhanh; bất đối xứng (RSA) dùng cặp public/private, chậm, thường để trao đổi khoá hoặc ký."
+      - "XOR là involution (a ^ k ^ k = a); one-time pad chỉ an toàn khi khoá ngẫu nhiên, dài bằng dữ liệu và dùng một lần."
+      - "Hàm băm (SHA-256) một chiều, digest cố định, va chạm khó tìm; HMAC thêm khoá để bảo đảm toàn vẹn và xác thực."
+      - "CIA = Confidentiality, Integrity, Availability; Kerckhoffs: an toàn nằm ở khoá, không ở thuật toán bí mật."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X894], l2: [X895], l3: [X896]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-11"

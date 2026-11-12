@@ -1,0 +1,184 @@
+id: cs.discrete_math.logic_sets_counting
+version: 1
+status: published
+title_vi: "Logic, tập hợp và đếm"
+est_minutes: 15
+objectives_vi:
+  - "Lập bảng chân trị cho and/or/not/xor/implies/iff và dùng luật De Morgan."
+  - "Dùng phép toán tập hợp (hợp, giao, hiệu, bù), tập con và lực lượng."
+  - "Đếm bằng quy tắc cộng/nhân, hoán vị P(n,k), tổ hợp C(n,k) và nguyên lý bù trừ."
+  - "Áp dụng nguyên lý chuồng bồ câu để chứng minh sự tồn tại."
+blocks:
+  - id: s_logic
+    type: section
+    title_vi: "Mệnh đề và bảng chân trị"
+    summary_vi: "Mệnh đề đúng/sai, các phép nối và luật De Morgan."
+  - id: t01
+    type: text
+    md: |
+      **Mệnh đề** là câu khẳng định chỉ có thể đúng (T) hoặc sai (F). Các phép nối cơ bản, với p, q là mệnh đề:
+
+      ```text
+      p  q | p and q | p or q | p xor q | p -> q | p <-> q
+      T  T |    T    |   T    |    F    |   T    |    T
+      T  F |    F    |   T    |    T    |   F    |    F
+      F  T |    F    |   T    |    T    |   T    |    F
+      F  F |    F    |   F    |    F    |   T    |    T
+      ```
+
+      - `not p` đảo giá trị của p.
+      - **implies** `p -> q` chỉ sai khi p đúng mà q sai; nó tương đương `(not p) or q`.
+      - **iff** `p <-> q` đúng khi p và q cùng giá trị; `xor` là phủ định của iff (trong Python: `p != q`).
+
+      **Luật De Morgan**: `not (p and q) = (not p) or (not q)` và `not (p or q) = (not p) and (not q)`.
+      Đảo phủ định qua ngoặc thì and đổi thành or và ngược lại. Hai mệnh đề luôn cùng giá trị gọi là **tương đương logic**.
+  - id: q01
+    type: quiz_mcq
+    prompt_md: "Mệnh đề `p -> q` sai trong trường hợp nào?"
+    options:
+      - {id: a, text_md: "p đúng và q sai"}
+      - {id: b, text_md: "p sai và q đúng"}
+      - {id: c, text_md: "p sai và q sai"}
+    answer: [a]
+    explain_md: "Phép kéo theo chỉ vi phạm khi giả thiết p đúng mà kết luận q sai; khi p sai thì mệnh đề đúng một cách hiển nhiên."
+  - id: s_sets
+    type: section
+    title_vi: "Tập hợp"
+    summary_vi: "Hợp, giao, hiệu, bù, tập con và lực lượng."
+  - id: t02
+    type: text
+    md: |
+      **Tập hợp** là nhóm phần tử không lặp, không quan tâm thứ tự. **Lực lượng** |A| là số phần tử.
+
+      - **Hợp** `A | B` (union): phần tử thuộc A hoặc B.
+      - **Giao** `A & B` (intersection): phần tử thuộc cả hai.
+      - **Hiệu** `A - B` (difference): thuộc A nhưng không thuộc B.
+      - **Bù** (complement) của A: mọi phần tử của tập vũ trụ U không thuộc A, tức `U - A`.
+      - **Tập con** `A <= B`: mọi phần tử của A đều thuộc B. Tập n phần tử có đúng `2^n` tập con.
+
+      De Morgan cho tập hợp: `complement(A | B) = complement(A) & complement(B)` và `complement(A & B) = complement(A) | complement(B)`.
+
+      ```python
+      a = {1, 2, 3, 4}
+      b = {3, 4, 5}
+      print(sorted(a | b))   # [1, 2, 3, 4, 5]
+      print(sorted(a & b))   # [3, 4]
+      print(sorted(a - b))   # [1, 2]
+      print(sorted(a ^ b))   # [1, 2, 5]  (hiệu đối xứng)
+      ```
+  - id: q02
+    type: predict_output
+    code: |
+      a = {1, 2, 3, 4}
+      b = {3, 4, 5}
+      print(sorted(a & b))
+      print(sorted(a - b))
+      print(len(a | b))
+    expected_output: |
+      [3, 4]
+      [1, 2]
+      5
+    explain_md: "Giao là {3, 4}; hiệu a - b bỏ 3 và 4 còn {1, 2}; hợp là {1, 2, 3, 4, 5} có 5 phần tử."
+  - id: s_count
+    type: section
+    title_vi: "Đếm"
+    summary_vi: "Quy tắc cộng/nhân, hoán vị, tổ hợp, bù trừ, chuồng bồ câu."
+  - id: t03
+    type: text
+    md: |
+      **Quy tắc cộng**: nếu hai việc không thể xảy ra cùng lúc, có m và n cách thì chọn một trong hai có `m + n` cách.
+      **Quy tắc nhân**: nếu làm việc 1 có m cách rồi việc 2 có n cách thì làm cả hai có `m * n` cách.
+
+      - **Hoán vị** (chọn k phần tử có thứ tự từ n): `P(n, k) = n! / (n - k)! = n (n-1) ... (n-k+1)`.
+      - **Tổ hợp** (chọn k phần tử không thứ tự): `C(n, k) = n! / (k! (n-k)!) = P(n, k) / k!`. Có `C(n, k) = C(n, n-k)` và `C(n, 0) = 1`.
+      - **Nguyên lý bù trừ** (inclusion-exclusion): `|A | B| = |A| + |B| - |A & B|`, vì phần giao bị đếm hai lần.
+        Với ba tập: `|A|+|B|+|C| - |A&B| - |A&C| - |B&C| + |A&B&C|`.
+      - **Chuồng bồ câu** (pigeonhole): nhét n + 1 con bồ câu vào n chuồng thì có chuồng chứa ít nhất 2 con. Tổng quát, N vật vào k hộp thì có hộp chứa ít nhất `ceil(N / k)` vật.
+
+      ```python
+      # C(n, k) nhân dần để luôn chia hết: kết quả sau mỗi bước là C(n, i+1)
+      def choose(n, k):
+          r = 1
+          for i in range(k):
+              r = r * (n - i) // (i + 1)
+          return r
+      ```
+
+      Ví dụ: xếp 3 người vào 5 ghế có thứ tự: `P(5, 3) = 5 * 4 * 3 = 60`; chọn 3 người từ 5 không thứ tự: `C(5, 3) = 10`.
+  - id: q03
+    type: quiz_fill
+    prompt_md: "Có 3 áo và 4 quần, mỗi bộ gồm một áo và một quần. Theo quy tắc nhân có ___ bộ."
+    blanks: [{accept: ["12"]}]
+    explain_md: "Hai lựa chọn độc lập nên nhân: 3 * 4 = 12."
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Một lớp có 30 sinh viên, 18 người học Python, 15 người học Java, 7 người học cả hai. Bao nhiêu người học ít nhất một trong hai?"
+    options:
+      - {id: a, text_md: "26 (18 + 15 - 7)"}
+      - {id: b, text_md: "33 (18 + 15)"}
+      - {id: c, text_md: "22 (18 + 15 - 7 - 4)"}
+    answer: [a]
+    explain_md: "Bù trừ: |P | J| = 18 + 15 - 7 = 26."
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: tổ hợp C(n, k)"
+    summary_vi: "Viết hàm tính số tổ hợp."
+    exercise_ref: ex_choose
+  - id: t04
+    type: text
+    md: |
+      Cài C(n, k) bằng số nguyên: nhân dần `r * (n - i) // (i + 1)`; mỗi bước phép chia là chính xác.
+
+      ```text
+      choose(5, 2) -> 10
+      choose(6, 3) -> 20
+      choose(3, 5) -> 0    (k > n: không có cách chọn)
+      ```
+  - id: ex_choose
+    type: code_exercise
+    md: |
+      Cài `choose(n, k)` trả về số tổ hợp C(n, k) (kiểu int). Nếu `k < 0` hoặc `k > n` thì trả `0`. Ví dụ `choose(5, 2)` trả `10`, `choose(4, 0)` trả `1`.
+    entry: choose
+    starter: |
+      def choose(n, k):
+          # TODO: xử lý k ngoài [0, n], rồi nhân dần r * (n - i) // (i + 1)
+          pass
+    guidance_md: |
+      - Trả 0 khi k < 0 hoặc k > n.
+      - Bắt đầu r = 1, lặp i từ 0 đến k - 1.
+    hints:
+      - level: nudge
+        md: "Kiểm tra k ngoài khoảng hợp lệ trước, rồi dùng một vòng for range(k)."
+      - level: approach
+        md: "Mỗi bước: r = r * (n - i) // (i + 1); sau bước i, r = C(n, i + 1)."
+      - level: near_solution
+        md: "Trả r sau vòng lặp; với k = 0 vòng rỗng nên r = 1."
+    tests:
+      - {args: [5, 2], expected: 10}
+      - {args: [4, 0], expected: 1}
+      - {args: [6, 3], expected: 20}
+      - {args: [10, 10], expected: 1}
+      - {args: [3, 5], expected: 0}
+    solution: |
+      def choose(n, k):
+          if k < 0 or k > n:
+              return 0
+          r = 1
+          for i in range(k):
+              r = r * (n - i) // (i + 1)
+          return r
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Bảng chân trị: p -> q tương đương (not p) or q; xor là p != q; De Morgan đổi and thành or khi đảo phủ định."
+      - "Tập hợp: hợp, giao, hiệu, bù; tập n phần tử có 2^n tập con; De Morgan cũng đúng cho tập hợp."
+      - "Đếm: cộng cho các trường hợp loại trừ, nhân cho các bước nối tiếp; P(n,k) có thứ tự, C(n,k) không thứ tự."
+      - "Bù trừ |A | B| = |A| + |B| - |A & B|; chuồng bồ câu: N vật vào k hộp thì có hộp chứa ít nhất ceil(N/k)."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X885], l2: [X886], l3: [X887]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-11"

@@ -1,0 +1,152 @@
+id: cs.computer_basics.data_representation
+version: 1
+status: published
+title_vi: "Biểu diễn dữ liệu trong máy tính"
+est_minutes: 15
+objectives_vi:
+  - "Đổi qua lại giữa hệ nhị phân, thập lục phân, bát phân và thập phân."
+  - "Hiểu số bù hai (two's complement), dải giá trị n bit và tràn số (overflow)."
+  - "Nắm sơ lược dấu phẩy động IEEE-754, mã ký tự ASCII/Unicode/UTF-8 và endianness."
+blocks:
+  - id: s_int
+    type: section
+    title_vi: "Cơ số và số nguyên có dấu"
+    summary_vi: "Nhị phân, hex, và số bù hai với bit dấu mang trọng số âm."
+  - id: t01
+    type: text
+    md: |
+      Máy tính lưu mọi thứ bằng **bit** (0 hoặc 1). Một số viết trong cơ số b là tổng các chữ số nhân với lũy thừa của b.
+
+      - **Nhị phân** (cơ số 2): `1101` = 8 + 4 + 0 + 1 = 13.
+      - **Bát phân** (cơ số 8) và **thập lục phân** (cơ số 16, hex): mỗi chữ số hex gom đúng 4 bit, nên `0xFF` = `1111 1111` = 255.
+      - **Đổi thập phân sang cơ số b**: chia b liên tục, lấy phần dư từ cuối lên đầu.
+
+      ```python
+      bin(13)          # '0b1101'
+      hex(255)         # '0xff'
+      oct(8)           # '0o10'
+      int("1101", 2)   # 13
+      int("ff", 16)    # 255
+      ```
+
+      **Unsigned** dùng n bit biểu diễn 0 đến 2^n - 1 (8 bit: 0..255). Để biểu diễn số âm, máy dùng **số bù hai (two's complement)**: bit cao nhất (MSB) có trọng số **âm** -2^(n-1), các bit còn lại dương.
+
+      ```text
+      8 bit:  1000 0000 = -128
+              1111 1111 = -128 + 127 = -1
+              0111 1111 = 127
+      ```
+
+      Dải n bit có dấu là từ -2^(n-1) đến 2^(n-1) - 1 (8 bit: -128..127; 32 bit: -2^31..2^31 - 1). Muốn lấy số đối: đảo mọi bit rồi cộng 1. Vượt dải thì **tràn số (overflow)**: 127 + 1 trong 8 bit có dấu thành -128 (wrap-around). Python int không tràn vì có độ dài tùy ý, nhưng `& 0xFF` mô phỏng được phép tính 8 bit.
+  - id: q01
+    type: predict_output
+    code: |
+      print(bin(6 & 3), 0b101 + 1, hex(26))
+    expected_output: |
+      0b10 6 0x1a
+    explain_md: "6 & 3 = 0b110 & 0b011 = 0b010 nên bin là 0b10; 0b101 + 1 = 5 + 1 = 6; 26 = 16 + 10 nên hex là 0x1a."
+  - id: q02
+    type: quiz_mcq
+    prompt_md: "Số nguyên có dấu 8 bit dạng bù hai biểu diễn được dải giá trị nào?"
+    options:
+      - {id: a, text_md: "-128 đến 127"}
+      - {id: b, text_md: "-127 đến 128"}
+      - {id: c, text_md: "0 đến 255"}
+    answer: [a]
+    explain_md: "Bit dấu có trọng số -128 nên nhỏ nhất là -128; lớn nhất là 127 (0111 1111). Dải 0..255 là của số không dấu."
+  - id: q03
+    type: quiz_fill
+    prompt_md: "Trong 8 bit bù hai, dải giá trị đi từ -128 đến ___."
+    blanks: [{accept: ["127", "+127"]}]
+    explain_md: "2^7 - 1 = 127; cộng thêm 1 thì tràn số và quay về -128."
+  - id: s_other
+    type: section
+    title_vi: "Số thực, ký tự và thứ tự byte"
+    summary_vi: "IEEE-754, ASCII/Unicode/UTF-8 và endianness."
+  - id: t02
+    type: text
+    md: |
+      **Dấu phẩy động IEEE-754** chia bit thành ba phần: **sign** (1 bit dấu), **exponent** (số mũ, có bias) và **mantissa** (phần định trị). Giá trị = (-1)^sign x 1.mantissa x 2^(exponent - bias). `float` của Python là 64 bit (1 + 11 + 52), float32 là 32 bit (1 + 8 + 23). Vì chỉ có hữu hạn bit nên nhiều số thập phân (như 0.1) không biểu diễn chính xác: `0.1 + 0.2 != 0.3`. So sánh float nên dùng ngưỡng sai số, tiền tệ nên dùng số nguyên hoặc `Decimal`.
+
+      **Mã ký tự**: **ASCII** gán 7 bit cho 128 ký tự (`'A'` = 65, `'a'` = 97, `'0'` = 48). **Unicode** gán một code point cho hầu hết ký tự trên thế giới. **UTF-8** là cách mã hóa Unicode thành 1 đến 4 byte, tương thích ngược với ASCII (ký tự ASCII chỉ 1 byte, `é` cần 2 byte).
+
+      ```python
+      ord("A")                     # 65
+      chr(97)                      # 'a'
+      len("é".encode("utf-8"))     # 2
+      ```
+
+      **Endianness**: số nhiều byte được lưu theo thứ tự nào. **Little-endian** lưu byte thấp trước (x86, ARM thông dụng), **big-endian** lưu byte cao trước (thứ tự mạng). Số 258 = 0x0102 là bytes `02 01` ở little-endian và `01 02` ở big-endian.
+
+      ```python
+      (258).to_bytes(2, "little")   # b'\x02\x01'
+      (258).to_bytes(2, "big")      # b'\x01\x02'
+      ```
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Số 258 (0x0102) lưu trong 2 byte theo little-endian thì byte đầu tiên trong bộ nhớ là gì?"
+    options:
+      - {id: a, text_md: "0x02 (byte thấp trước)"}
+      - {id: b, text_md: "0x01 (byte cao trước)"}
+      - {id: c, text_md: "0x00"}
+    answer: [a]
+    explain_md: "Little-endian lưu byte có trọng số nhỏ nhất ở địa chỉ thấp nhất nên byte đầu là 0x02."
+  - id: s_gate
+    type: section
+    title_vi: "Thực hành: đọc bit thành số có dấu"
+    summary_vi: "Viết hàm đổi giá trị không dấu n bit sang có dấu."
+    exercise_ref: ex_signed
+  - id: t03
+    type: text
+    md: |
+      Cùng một dãy bit có thể đọc không dấu hoặc có dấu. Nếu giá trị không dấu x >= 2^(n-1) thì bit dấu đang bật, và số có dấu tương ứng là x - 2^n.
+
+      ```text
+      to_signed(200, 8) -> -56   (200 - 256)
+      to_signed(127, 8) -> 127
+      ```
+  - id: ex_signed
+    type: code_exercise
+    md: |
+      Cài `to_signed(x, bits)`: `x` là giá trị không dấu trong `bits` bit (0 <= x < 2^bits). Trả về giá trị khi đọc cùng dãy bit như số bù hai có dấu (kiểu int). Ví dụ `to_signed(200, 8)` trả `-56`, `to_signed(127, 8)` trả `127`.
+    entry: to_signed
+    starter: |
+      def to_signed(x, bits):
+          # TODO: nếu bit dấu bật (x >= 2^(bits-1)) thì trừ 2^bits
+          pass
+    guidance_md: |
+      - Bit dấu bật khi x >= 1 << (bits - 1).
+      - Khi đó giá trị có dấu là x - (1 << bits).
+    hints:
+      - level: nudge
+        md: "So x với 1 << (bits - 1) để biết bit dấu có bật không."
+      - level: approach
+        md: "Nếu x >= 1 << (bits - 1) thì trả x - (1 << bits), ngược lại trả x."
+      - level: near_solution
+        md: "Ví dụ 200 với 8 bit: 200 >= 128 nên trả 200 - 256 = -56."
+    tests:
+      - {args: [200, 8], expected: -56}
+      - {args: [127, 8], expected: 127}
+      - {args: [128, 8], expected: -128}
+      - {args: [0, 8], expected: 0}
+      - {args: [15, 4], expected: -1}
+    solution: |
+      def to_signed(x, bits):
+          if x >= 1 << (bits - 1):
+              return x - (1 << bits)
+          return x
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "Đổi cơ số bằng chia dư; mỗi chữ số hex là 4 bit; bin/hex/int(x, base) trong Python."
+      - "Số bù hai: MSB trọng số âm, dải n bit là -2^(n-1)..2^(n-1)-1; vượt dải thì tràn số (wrap-around)."
+      - "IEEE-754: sign/exponent/mantissa, nhiều số thập phân không chính xác nên so sánh float cần ngưỡng."
+      - "ASCII 7 bit, Unicode là bảng code point, UTF-8 là mã hóa 1-4 byte; little-endian lưu byte thấp trước, big-endian lưu byte cao trước."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X888], l2: [X889], l3: [X890]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: "36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9"
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-11"

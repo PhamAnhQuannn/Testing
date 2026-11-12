@@ -279,6 +279,11 @@ EXTRA_IDS = {
     "cs.onramp.terminal_editor_basics",
     "cs.complexity.analysis",
     "cs.complexity.ds_costs",
+    # Wave 8 Round 51: cs discrete_math + computer_basics + security_basics (concept; closes cs).
+    "cs.discrete_math.logic_sets_counting",
+    "cs.computer_basics.data_representation",
+    "cs.computer_basics.cpu_memory",
+    "cs.security_basics.crypto_fundamentals",
 }
 
 # Expected shipped counts, asserted so an upstream tree edit can't silently change the snapshot.
@@ -286,7 +291,7 @@ PLAN_MVP_COUNT = 40
 EXPECTED_SD = 86
 EXPECTED_ML4 = 39
 EXPECTED_EXTRA_IDS = len(EXTRA_IDS)  # Wave 2 additions
-EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 363
+EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 367
 
 # Node fields the app uses (SPEC 4.2); optional ones are skipped when a node lacks them.
 NODE_FIELDS = [
