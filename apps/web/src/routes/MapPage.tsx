@@ -16,6 +16,7 @@ const TRACK_FILTERS: { key: string; label: string; sections: string[] | null }[]
   { key: "lld", label: "LLD", sections: ["lld"] },
   { key: "sd", label: "System Design", sections: ["sd"] },
   { key: "ai", label: "AI engineer", sections: ["ml"] },
+  { key: "eng", label: "Kỹ nghệ phần mềm", sections: ["eng"] },
 ];
 
 /** One skill-map node. Colour is never the only channel: score number + status label + lock icon. */

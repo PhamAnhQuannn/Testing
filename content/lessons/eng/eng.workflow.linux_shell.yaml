@@ -1,0 +1,173 @@
+id: eng.workflow.linux_shell
+version: 1
+status: published
+title_vi: "Linux và shell cơ bản: file, pipe, quyền và tiến trình"
+est_minutes: 12
+objectives_vi:
+  - "Di chuyển trong **filesystem** bằng `cd`/`ls`/`pwd` và phân biệt đường dẫn **tuyệt đối** (absolute) với **tương đối** (relative)."
+  - "Dùng **pipe** (`|`) và **redirection** (`>`, `>>`, `2>`) với ba luồng stdin/stdout/stderr."
+  - "Đọc và đặt **quyền file** (rwx, `chmod` dạng octal, owner/group/other)."
+  - "Xem và dừng **tiến trình** (`ps`, `kill`), hiểu foreground/background và signal SIGTERM so với SIGKILL."
+blocks:
+  - id: s_files_paths
+    type: section
+    title_vi: "Shell, filesystem và đường dẫn"
+    summary_vi: "Shell là cửa sổ gõ lệnh điều khiển máy; filesystem là một cây thư mục bắt đầu từ `/`. `pwd` cho biết đang ở đâu, `ls` liệt kê, `cd` đổi thư mục; đường dẫn tuyệt đối bắt đầu bằng `/`, tương đối tính từ thư mục hiện tại."
+  - id: b01
+    type: text
+    md: |
+      **Shell** là chương trình cho bạn gõ lệnh để điều khiển máy tính — đặc biệt hữu ích trên
+      server không có giao diện đồ họa. Trên Linux, mọi file nằm trong một **cây thư mục** (filesystem)
+      bắt đầu từ gốc `/` (root). Ba lệnh đầu tiên phải thuộc:
+      - `pwd` (print working directory): in ra thư mục **hiện tại** bạn đang đứng.
+      - `ls`: liệt kê file trong thư mục (`ls -l` cho dạng chi tiết kèm quyền).
+      - `cd <thư mục>`: đổi sang thư mục khác (`cd ..` lên một cấp, `cd` một mình về thư mục home `~`).
+  - id: b02
+    type: text
+    md: |
+      Có hai cách viết **đường dẫn** (path):
+      - **Tuyệt đối** (absolute): bắt đầu bằng `/`, tính từ gốc, ví dụ `/home/quan/app/main.py`.
+        Đứng ở đâu cũng trỏ đúng một chỗ.
+      - **Tương đối** (relative): **không** bắt đầu bằng `/`, tính từ thư mục hiện tại, ví dụ
+        `app/main.py` hoặc `../logs/app.log` (`.` là thư mục hiện tại, `..` là thư mục cha).
+
+      Cùng một đường dẫn tương đối sẽ trỏ đến chỗ khác nhau nếu bạn `cd` sang thư mục khác, nên khi
+      viết script hay cấu hình, đường dẫn tuyệt đối an toàn hơn.
+  - id: b03
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Bạn đang đứng ở `/home/quan/app`. Lệnh nào sau đây **luôn** mở được file `/etc/hosts`, bất kể bạn đang đứng ở đâu?"
+    options:
+      - {id: a, text_md: "`cat etc/hosts` (đường dẫn tương đối)"}
+      - {id: b, text_md: "`cat /etc/hosts` (đường dẫn tuyệt đối bắt đầu bằng `/`)"}
+      - {id: c, text_md: "`cat ../hosts` (đi lên một cấp rồi lấy `hosts`)"}
+    answer: [b]
+    explain_md: "Đường dẫn bắt đầu bằng `/` là tuyệt đối, tính từ gốc nên đúng ở mọi nơi. (a) và (c) là đường dẫn tương đối, kết quả phụ thuộc thư mục hiện tại: từ `/home/quan/app`, `etc/hosts` là `/home/quan/app/etc/hosts` và `../hosts` là `/home/quan/hosts`."
+  - id: s_pipes
+    type: section
+    title_vi: "Pipe và redirection"
+    summary_vi: "Mỗi chương trình có stdin (0), stdout (1), stderr (2). `|` nối stdout của lệnh trước vào stdin của lệnh sau; `>` ghi đè file, `>>` ghi nối thêm, `2>` chuyển hướng stderr."
+  - id: b04
+    type: text
+    md: |
+      Mỗi chương trình có ba **luồng** (stream) chuẩn:
+      - **stdin** (số 0): dữ liệu đi vào.
+      - **stdout** (số 1): kết quả bình thường đi ra.
+      - **stderr** (số 2): thông báo lỗi đi ra (tách riêng khỏi stdout).
+
+      **Redirection** đổi nơi các luồng này đi tới:
+      - `cmd > out.txt`: ghi stdout ra file, **ghi đè** nội dung cũ.
+      - `cmd >> out.txt`: **ghi nối thêm** (append) vào cuối file.
+      - `cmd 2> err.txt`: chuyển **stderr** ra file (chỉ lỗi, không lấy kết quả thường).
+      - `cmd < in.txt`: lấy stdin từ file.
+  - id: b05
+    type: text
+    md: |
+      **Pipe** `|` nối **stdout** của lệnh bên trái vào **stdin** của lệnh bên phải, để ghép các
+      công cụ nhỏ thành một dây chuyền. Ví dụ đếm số lần mỗi dòng xuất hiện trong log:
+      ```
+      sort app.log | uniq -c | sort -rn | head
+      ```
+      `sort` xếp dòng, `uniq -c` gộp các dòng giống nhau liền kề và đếm, `sort -rn` xếp theo số đếm giảm
+      dần, `head` lấy 10 dòng đầu. Lưu ý: pipe chỉ chuyển **stdout**, còn stderr vẫn hiện ra màn hình
+      trừ khi bạn chuyển hướng riêng bằng `2>`.
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Lệnh `./backup.sh > ok.log 2> err.log` làm gì?"
+    options:
+      - {id: a, text_md: "Ghi **stdout** của script vào `ok.log` và ghi **stderr** (lỗi) vào `err.log`."}
+      - {id: b, text_md: "Ghi mọi thứ (cả kết quả lẫn lỗi) vào `ok.log`, còn `err.log` luôn rỗng."}
+      - {id: c, text_md: "Dùng pipe để chuyển stdout của script thành stdin của `err.log`."}
+    answer: [a]
+    explain_md: "`>` chuyển hướng stdout (luồng 1) và `2>` chuyển hướng stderr (luồng 2) sang hai file riêng. (b) sai vì stderr đã được tách sang `err.log`. (c) sai vì `>` là redirection ra file, không phải pipe; pipe `|` nối vào một lệnh chứ không phải file."
+  - id: b07
+    type: quiz_fill
+    graded: true
+    prompt_md: "Điền toán tử: để ghi lỗi (stderr) của `make build` vào file `errors.log`, ta gõ `make build ______ errors.log` (toán tử chuyển hướng luồng số 2)."
+    blanks:
+      - accept: ["2>"]
+    explain_md: "`2>` chuyển hướng **stderr** (file descriptor 2). `>` một mình chỉ chuyển stdout (luồng 1), còn `>>` là ghi nối thêm stdout; muốn ghi nối thêm stderr thì dùng `2>>`."
+  - id: s_permissions
+    type: section
+    title_vi: "Quyền file: rwx và chmod"
+    summary_vi: "Mỗi file có quyền r (4), w (2), x (1) cho ba nhóm owner, group, other. `ls -l` hiện dạng rwxr-xr-x; `chmod 755` = owner rwx, group và other r-x."
+  - id: b08
+    type: text
+    md: |
+      Mỗi file có một **chủ sở hữu** (owner), một **nhóm** (group) và "những người còn lại" (other).
+      Với mỗi nhóm có ba quyền: **r** (read, đọc), **w** (write, ghi), **x** (execute, chạy).
+      `ls -l` hiển thị chúng dạng chín ký tự, ví dụ `-rwxr-xr-x`: sau ký tự loại file là ba bộ
+      owner `rwx`, group `r-x`, other `r-x` (dấu `-` nghĩa là không có quyền đó).
+
+      `chmod` đặt quyền bằng **số octal**: cộng giá trị **r=4, w=2, x=1** cho từng nhóm, được ba chữ số
+      theo thứ tự owner, group, other:
+      - `7` = 4+2+1 = `rwx`; `5` = 4+1 = `r-x`; `6` = 4+2 = `rw-`; `4` = `r--`; `0` = `---`.
+      - `chmod 755 run.sh`: owner `rwx`, group và other `r-x` (mọi người chạy được, chỉ owner sửa được).
+      - `chmod 644 notes.txt`: owner `rw-`, group và other `r--` (file thường, chỉ owner sửa được).
+  - id: b09
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Sau `chmod 755 run.sh`, phát biểu nào đúng?"
+    options:
+      - {id: a, text_md: "Chỉ owner đọc và chạy được; group và other không có quyền gì."}
+      - {id: b, text_md: "Owner có `rwx` (đọc, ghi, chạy); group và other chỉ có `r-x` (đọc và chạy, không ghi)."}
+      - {id: c, text_md: "Mọi người (owner, group, other) đều có `rwx`, kể cả quyền ghi."}
+    answer: [b]
+    explain_md: "7 = 4+2+1 = `rwx` cho owner; 5 = 4+1 = `r-x` cho group và cho other. (a) sai vì group/other vẫn đọc và chạy được. (c) sẽ là `777`, một cấu hình thường bị coi là không an toàn."
+  - id: s_processes
+    type: section
+    title_vi: "Tiến trình: ps, kill và signal"
+    summary_vi: "`ps` liệt kê tiến trình (mỗi cái có PID); thêm `&` để chạy background, `fg`/`bg`/`jobs` quản lý; `kill PID` gửi SIGTERM (xin tắt nhẹ nhàng), `kill -9` gửi SIGKILL (buộc dừng ngay, không dọn dẹp)."
+  - id: b10
+    type: text
+    md: |
+      Mỗi chương trình đang chạy là một **tiến trình** (process) với một số hiệu **PID**.
+      - `ps aux`: liệt kê mọi tiến trình (kèm PID, CPU, RAM); `top` xem trực tiếp mức dùng tài nguyên.
+      - **Foreground**: lệnh chiếm terminal cho đến khi xong. Gõ `Ctrl+C` để ngắt.
+      - **Background**: thêm `&` cuối lệnh (`python server.py &`) để lệnh chạy nền, terminal vẫn dùng
+        được; `jobs` liệt kê việc nền, `fg` đưa về foreground, `bg` cho tiếp tục chạy nền.
+  - id: b11
+    type: text
+    md: |
+      Để dừng một tiến trình, ta gửi nó một **signal** bằng `kill`:
+      - `kill PID` gửi **SIGTERM** (signal 15): "xin hãy tắt", chương trình có cơ hội **dọn dẹp**
+        (đóng file, lưu trạng thái) rồi thoát.
+      - `kill -9 PID` gửi **SIGKILL** (signal 9): hệ điều hành **buộc dừng ngay**, chương trình
+        không bắt được và không kịp dọn dẹp.
+
+      Nên thử SIGTERM trước; chỉ dùng `kill -9` khi tiến trình bị treo không chịu thoát.
+  - id: b12
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một server bị treo. Bạn đã gõ `kill 4321` mà nó vẫn chạy. Bước hợp lý tiếp theo và lý do là gì?"
+    options:
+      - {id: a, text_md: "`kill -9 4321` gửi SIGKILL, buộc hệ điều hành dừng tiến trình ngay (đổi lại nó không kịp dọn dẹp)."}
+      - {id: b, text_md: "`kill 4321` thêm lần nữa, vì SIGTERM sẽ có tác dụng nếu lặp lại đủ nhiều."}
+      - {id: c, text_md: "`ps aux` để tắt tiến trình, vì `ps` là lệnh dừng chương trình."}
+    answer: [a]
+    explain_md: "SIGTERM có thể bị chương trình bỏ qua khi nó treo; SIGKILL (`-9`) không thể bị bắt hay bỏ qua nên dừng chắc chắn, nhưng mất cơ hội dọn dẹp. (b) lặp lại cùng signal không đổi kết quả. (c) sai vì `ps` chỉ liệt kê tiến trình, không dừng nó."
+  - id: b13
+    type: callout
+    kind: interview
+    md: |
+      **Thanh điểm cơ bản (intern bar).** Khi được hỏi về Linux shell, hãy nói được: (1) `cd`/`ls`/`pwd`
+      và khác biệt đường dẫn **tuyệt đối** (bắt đầu `/`) với **tương đối**; (2) `|` nối stdout vào stdin,
+      `>` ghi đè, `>>` nối thêm, `2>` chuyển stderr; (3) quyền **rwx = 4/2/1** và giải thích được
+      `chmod 755` (owner `rwx`, group/other `r-x`); (4) `ps` xem tiến trình, `kill` gửi **SIGTERM**,
+      `kill -9` gửi **SIGKILL** buộc dừng, và `&` chạy nền.
+  - id: b14
+    type: summary
+    bullets_vi:
+      - "**Filesystem** là cây thư mục từ `/`: `pwd` (đang ở đâu), `ls` (liệt kê), `cd` (đổi). Đường dẫn **tuyệt đối** bắt đầu bằng `/`, **tương đối** tính từ thư mục hiện tại (`.`, `..`)."
+      - "**stdin/stdout/stderr** = luồng 0/1/2. `|` nối stdout vào stdin của lệnh sau; `>` ghi đè, `>>` ghi nối thêm, `2>` chuyển stderr."
+      - "**Quyền file**: r=4, w=2, x=1 cho **owner/group/other**; `chmod 755` = `rwxr-xr-x`, `chmod 644` = `rw-r--r--`."
+      - "**Tiến trình**: `ps aux` xem PID; `&` chạy background, `fg`/`bg`/`jobs` quản lý; `kill PID` = **SIGTERM** (dọn dẹp được), `kill -9 PID` = **SIGKILL** (buộc dừng ngay)."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [E103], l2: [E104], l3: [E105]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-11"

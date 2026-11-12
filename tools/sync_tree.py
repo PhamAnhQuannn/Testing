@@ -26,7 +26,13 @@ PLAN_SNAPSHOT_LAST_DAY = 14
 
 # Extra tracks selected whole (not in the plan days).
 EXTRA_SECTIONS = {"sd"}
-EXTRA_MODULES = {"ml.llm", "ml.rag_agents", "ml.llm_eval_serving", "ml.system_design"}
+EXTRA_MODULES = {
+    "ml.llm",
+    "ml.rag_agents",
+    "ml.llm_eval_serving",
+    "ml.system_design",
+    "eng.workflow",
+}
 
 # Individual nodes materialized beyond the MVP plan window (Wave 2+ fundamentals additions).
 EXTRA_IDS = {
@@ -290,8 +296,11 @@ EXTRA_IDS = {
 PLAN_MVP_COUNT = 40
 EXPECTED_SD = 86
 EXPECTED_ML4 = 39
+EXPECTED_ENG = 3  # eng concept modules shipped so far (eng.workflow)
 EXPECTED_EXTRA_IDS = len(EXTRA_IDS)  # Wave 2 additions
-EXPECTED_TOTAL = PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_EXTRA_IDS  # 367
+EXPECTED_TOTAL = (
+    PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_ENG + EXPECTED_EXTRA_IDS
+)  # 370
 
 # Node fields the app uses (SPEC 4.2); optional ones are skipped when a node lacks them.
 NODE_FIELDS = [
@@ -400,14 +409,22 @@ def main() -> None:
     subtopics = build_subtopics(nodes, plan)
 
     sd = sum(1 for s in subtopics if s["section"] in EXTRA_SECTIONS)
-    ml4 = sum(1 for s in subtopics if s["module"] in EXTRA_MODULES)
+    ml4 = sum(1 for s in subtopics if s["module"] in EXTRA_MODULES and s["section"] == "ml")
+    eng = sum(1 for s in subtopics if s["section"] == "eng")
     extra_ids = sum(1 for s in subtopics if s["id"] in EXTRA_IDS)
-    plan_count = len(subtopics) - sd - ml4 - extra_ids
-    got = (plan_count, sd, ml4, extra_ids, len(subtopics))
-    want = (PLAN_MVP_COUNT, EXPECTED_SD, EXPECTED_ML4, EXPECTED_EXTRA_IDS, EXPECTED_TOTAL)
+    plan_count = len(subtopics) - sd - ml4 - eng - extra_ids
+    got = (plan_count, sd, ml4, eng, extra_ids, len(subtopics))
+    want = (
+        PLAN_MVP_COUNT,
+        EXPECTED_SD,
+        EXPECTED_ML4,
+        EXPECTED_ENG,
+        EXPECTED_EXTRA_IDS,
+        EXPECTED_TOTAL,
+    )
     if got != want:
         raise SystemExit(
-            f"unexpected counts (plan, sd, ml4, extra_ids, total): got {got}, expected {want}"
+            f"unexpected counts (plan, sd, ml4, eng, extra_ids, total): got {got}, expected {want}"
         )
 
     hashes = {"skill_tree.json": sha256_file(args.skill_tree), "plan.json": sha256_file(args.plan)}

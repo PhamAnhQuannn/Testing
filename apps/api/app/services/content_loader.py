@@ -28,7 +28,7 @@ GRADED_TYPES = {"quiz_mcq", "quiz_fill", "predict_output"}
 # Concept tracks (SPEC 5.2): System Design and the AI-engineer LLM subset of `ml`. A subtopic of
 # one of these with no code evidence is a "concept subtopic" (see `spec_for`). Must match the
 # selection in tools/sync_tree.py.
-CONCEPT_SECTIONS = {"sd"}
+CONCEPT_SECTIONS = {"sd", "eng"}
 CONCEPT_MODULES = {"ml.llm", "ml.rag_agents", "ml.llm_eval_serving", "ml.system_design"}
 # Explicit per-subtopic concept-track override: py/dsa/cs subtopics with no code evidence path
 # (only concept/read_code checks). Keep in sync with tools/validate_content.py.
@@ -54,6 +54,7 @@ TRACKS: list[dict[str, Any]] = [
     {"key": "lld", "name_vi": "Thiết kế hướng đối tượng (LLD)", "sections": ["lld"]},
     {"key": "system_design", "name_vi": "System Design", "sections": ["sd"]},
     {"key": "ai", "name_vi": "AI engineer (LLM)", "sections": ["ml"]},
+    {"key": "engineering", "name_vi": "Kỹ nghệ phần mềm", "sections": ["eng"]},
 ]
 SECTION_NAMES: dict[str, str] = {
     "py": "Python nền tảng",
@@ -62,6 +63,7 @@ SECTION_NAMES: dict[str, str] = {
     "lld": "Thiết kế hướng đối tượng (LLD)",
     "sd": "System Design",
     "ml": "AI engineer (LLM)",
+    "eng": "Thực hành kỹ nghệ",
 }
 MODULE_NAMES: dict[str, str] = {
     "py.core": "Cốt lõi Python",
@@ -124,6 +126,7 @@ MODULE_NAMES: dict[str, str] = {
     "ml.rag_agents": "RAG & agent",
     "ml.llm_eval_serving": "Đánh giá & triển khai LLM",
     "ml.system_design": "Thiết kế hệ thống AI",
+    "eng.workflow": "Quy trình & Git",
 }
 
 
