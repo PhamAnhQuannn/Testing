@@ -23,12 +23,13 @@ EXTRA_MODULES = {
     "eng.workflow",
     "eng.apis",
     "eng.testing_quality",
+    "eng.security",
 }
 
 
 def test_index_starts_with_the_40_subtopics_of_spec_4_1():
     ids = [s["id"] for s in SUBTOPICS]
-    assert len(ids) == 378  # 40 plan + 86 sd + 39 ml + 11 eng + 202 Wave-2..8 py+dsa+lld+ml+cs
+    assert len(ids) == 382  # 40 plan + 86 sd + 39 ml + 15 eng + 202 Wave-2..8 py+dsa+lld+ml+cs
     assert ids[:40] == spec_table_ids()
 
 
@@ -36,7 +37,7 @@ def test_extra_track_section_counts():
     sections = [s["section"] for s in SUBTOPICS]
     assert sections.count("sd") == 86
     assert sections.count("ml") == 72  # 39 LLM + 12 math + 8 fund + 7 classical + 6 nlp (EXTRA_IDS)
-    assert sections.count("eng") == 11  # eng concept modules (workflow/apis/testing_quality)
+    assert sections.count("eng") == 15  # eng concept modules (+security)
     assert sum(1 for s in SUBTOPICS if s["module"] in EXTRA_MODULES and s["section"] == "ml") == 39
 
 
@@ -51,7 +52,7 @@ def test_every_plan_subtopic_has_a_lesson_file_named_after_it():
 def test_assumed_prerequisites():
     assumed = load_json(CONTENT / "index/assumed.json")["assumed"]
     shipped = {s["id"] for s in SUBTOPICS}
-    assert len(assumed) == 10  # unshipped prereqs of sd + ml + eng + Wave-2..8 py/dsa/lld/ml/cs
+    assert len(assumed) == 7  # unshipped prereqs of sd + ml + eng + Wave-2..8 py/dsa/lld/ml/cs
     assert "ml.deep_learning.neural_net_basics" in assumed
     assert set(assumed).isdisjoint(shipped)
     assert assumed == sorted(assumed)

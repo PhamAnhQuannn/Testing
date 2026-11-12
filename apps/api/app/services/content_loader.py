@@ -129,6 +129,7 @@ MODULE_NAMES: dict[str, str] = {
     "eng.workflow": "Quy trình & Git",
     "eng.apis": "Thiết kế API",
     "eng.testing_quality": "Kiểm thử & chất lượng",
+    "eng.security": "Bảo mật & xác thực",
 }
 
 

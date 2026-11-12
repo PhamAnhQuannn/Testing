@@ -1,0 +1,62 @@
+subtopic_id: eng.security.authn_sessions_jwt
+items:
+  - id: E136
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Vì sao không được lưu mật khẩu dạng plaintext hay chỉ băm bằng **SHA-256**? Nên lưu thế nào, và **salt** để làm gì?
+    answer_md: |
+      - **Plaintext**: database bị lộ là lộ toàn bộ mật khẩu (và nhiều người dùng chung mật khẩu ở site khác).
+      - **SHA-256 đơn thuần** (hay MD5) được thiết kế để **nhanh**, nên kẻ tấn công thử hàng tỉ mật khẩu mỗi giây
+        hoặc dùng bảng tra dựng sẵn.
+      - Nên dùng hash **chậm, có salt** cho mật khẩu: **bcrypt**, **scrypt** hoặc **Argon2**.
+      - **Salt** là chuỗi ngẫu nhiên riêng từng người dùng trộn vào mật khẩu trước khi băm: cùng mật khẩu vẫn ra hash
+        khác nhau và rainbow table vô dụng.
+    rubric_md: "Đạt khi nêu đúng: plaintext lộ khi database bị lộ; SHA-256/MD5 quá nhanh nên dễ brute force; dùng bcrypt/scrypt/Argon2 (hash chậm); salt ngẫu nhiên riêng từng người dùng chống bảng tra và trùng hash. Đủ ý: bằng chứng điểm 1. Nói 'SHA-256 là đủ an toàn' hoặc không nêu vai trò của salt: điểm 0."
+  - id: E137
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Một đội thiết kế đăng nhập như sau: (a) lưu `SHA-256(password)` không salt; (b) sau khi đăng nhập
+      phát một **JWT** có payload `{"user": "an", "password": "abc123", "role": "admin"}`; (c) token
+      **không có `exp`** và server chỉ giải mã payload rồi tin nội dung, không kiểm tra chữ ký.
+      Hãy chỉ ra từng lỗ hổng và đề xuất cách sửa.
+    answer_md: |
+      - **(a)** SHA-256 không salt quá nhanh và dễ bị tra bảng: dùng **bcrypt/scrypt/Argon2** với **salt riêng** từng người dùng.
+      - **(b)** JWT chỉ **ký chứ không mã hóa**, payload ai cũng đọc được: **không đặt mật khẩu hay dữ liệu nhạy cảm**
+        trong token; chỉ để định danh tối thiểu như `sub` và `exp`.
+      - **(c1)** Thiếu **`exp`**: token sống mãi nếu bị lộ. Thêm `exp` ngắn (access token vài phút) cộng **refresh token**
+        có xoay vòng và thu hồi được.
+      - **(c2)** Không verify **chữ ký**: ai cũng tự tạo token với `role: admin`. Phải verify chữ ký ở mọi request, cố định
+        thuật toán cho phép và **từ chối `alg: none`**, đồng thời kiểm tra `exp`.
+      - Thêm: quyền/role nên lấy từ dữ liệu phía server hoặc claim đã verify, không từ body request.
+    rubric_md: "Đạt khi: nêu đủ ba lỗi chính (hash mật khẩu yếu, bí mật trong payload, thiếu exp/không verify chữ ký) và sửa đúng (bcrypt/Argon2 + salt; bỏ bí mật khỏi payload, JWT không mã hóa; verify chữ ký + exp, từ chối alg none, token ngắn hạn + refresh). Đủ cả ba lỗi và cách sửa: bằng chứng điểm 2. Bỏ sót việc không verify chữ ký hoặc cho rằng payload JWT được mã hóa: tối đa điểm 1."
+  - id: E138
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      Bạn xây API cho một app có web và mobile, chạy nhiều server phía sau load balancer. Hãy:
+      (1) mô tả luồng đăng nhập từ lúc nhập mật khẩu tới khi có access token (hoặc session);
+      (2) so sánh **server session** với **JWT** theo nơi lưu trạng thái, thu hồi, mở rộng nhiều server và rủi ro,
+      rồi chọn một phương án và nêu lý do;
+      (3) nếu chọn JWT, nêu cách xử lý việc **thu hồi** và **nơi lưu token** trên trình duyệt.
+    answer_md: |
+      **(1) Luồng:** client gửi username + mật khẩu qua **HTTPS** -> server tìm hash đã lưu (có salt) -> băm mật khẩu vừa nhập
+      bằng bcrypt/Argon2 và so sánh -> đúng thì phát session ID (cookie `HttpOnly`, `Secure`, `SameSite`) hoặc access token
+      (JWT ký, có `exp`); sai thì báo lỗi chung chung, kèm giới hạn số lần thử (rate limiting).
+
+      **(2) So sánh:**
+      - **Session**: trạng thái ở server (database/Redis dùng chung); **thu hồi dễ** (xóa phiên); nhiều server cần kho phiên chung;
+        rủi ro: kho phiên là điểm phụ thuộc, cần chống CSRF (SameSite).
+      - **JWT**: trạng thái nằm trong token (**stateless**), mỗi server chỉ cần kiểm tra chữ ký nên **mở rộng dễ**; **thu hồi khó**
+        trước khi hết hạn; rủi ro: token bị đánh cắp dùng được đến `exp`, payload đọc được.
+      - Chọn có lý do: web một domain cần thu hồi tức thì -> session; nhiều service/mobile cần kiểm tra không tra sổ -> JWT
+        ngắn hạn. Cả hai lựa chọn đều chấp nhận nếu nêu đúng lý do.
+
+      **(3) Với JWT:** access token **sống ngắn** (vài phút) + **refresh token** xoay vòng (rotation), lưu phía server để
+      thu hồi khi đăng xuất/bị lộ (hoặc danh sách thu hồi cho trường hợp khẩn). Luôn verify chữ ký + `exp`, cố định thuật toán,
+      từ chối `alg: none`. Lưu token: tránh `localStorage` (XSS đọc được); ưu tiên cookie `HttpOnly` + `Secure` + `SameSite`.
+    rubric_md: "Đạt mức 3 khi: (a) mô tả đúng luồng (HTTPS, băm so hash có salt bằng bcrypt/Argon2, phát session cookie hoặc token); (b) so sánh session và JWT đúng ở thu hồi, trạng thái/mở rộng và rủi ro, rồi chọn có lý do; (c) với JWT nêu token ngắn hạn + refresh token xoay vòng/thu hồi và tránh localStorage hoặc dùng cookie HttpOnly. Đủ cả ba trong time-box: bằng chứng điểm 3. Nói 'JWT an toàn hơn vì được mã hóa' hoặc không nêu cách thu hồi: chưa đạt mức 3."

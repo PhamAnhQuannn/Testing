@@ -1,0 +1,149 @@
+id: eng.security.authn_sessions_jwt
+version: 1
+status: published
+title_vi: "Xác thực: lưu mật khẩu an toàn, session cookie và JWT"
+est_minutes: 13
+objectives_vi:
+  - "Phân biệt **authentication** (bạn là ai) với authorization và mô tả luồng đăng nhập cơ bản."
+  - "Giải thích vì sao mật khẩu phải được lưu bằng **hash chậm có salt** (bcrypt/scrypt/Argon2), không phải plaintext, MD5 hay SHA-256 đơn thuần."
+  - "Mô tả **session** với cookie `HttpOnly`, `Secure`, `SameSite` và cấu trúc **JWT** (header.payload.signature)."
+  - "Nêu các lỗi JWT hay gặp và so sánh **session với JWT** để chọn có lý do."
+blocks:
+  - id: s_password
+    type: section
+    title_vi: "Authentication và cách lưu mật khẩu"
+    summary_vi: "Authentication là chứng minh bạn là ai. Mật khẩu không bao giờ lưu dạng thường: dùng hash chậm có salt riêng cho từng người dùng."
+  - id: b01
+    type: text
+    md: |
+      **Authentication** (xác thực) là chứng minh "bạn là ai", giống đưa thẻ sinh viên cho bảo vệ.
+      Khác với **authorization** (phân quyền: bạn được làm gì). Sau khi đăng nhập thành công, server
+      phát một "vé" (session hoặc token) để bạn không phải nhập lại mật khẩu ở mỗi request.
+
+      **Lưu mật khẩu** là chỗ sai nhiều nhất. Nếu database bị lộ, mật khẩu không được phép đọc ra được:
+      - **Không bao giờ** lưu **plaintext** (mật khẩu nguyên văn).
+      - **Không dùng** MD5 hay SHA-256 đơn thuần: chúng được thiết kế để **nhanh**, nên kẻ tấn công
+        thử hàng tỉ mật khẩu mỗi giây (brute force, bảng tra rainbow table).
+      - **Dùng** hàm băm **chậm, có salt** dành riêng cho mật khẩu: **bcrypt**, **scrypt** hoặc **Argon2**.
+        Chúng cố ý tốn thời gian/bộ nhớ để việc đoán mật khẩu trở nên đắt đỏ.
+
+      **Salt** là chuỗi ngẫu nhiên **riêng cho từng người dùng**, trộn vào mật khẩu trước khi băm. Nhờ
+      đó hai người cùng mật khẩu vẫn có hai hash khác nhau và bảng tra dựng sẵn vô dụng. Thư viện như
+      bcrypt/Argon2 tự sinh và lưu salt trong chuỗi kết quả, bạn không cần tự làm.
+
+      Khi đăng nhập: băm mật khẩu người dùng vừa nhập (cùng salt đã lưu) rồi **so với hash trong database**.
+      Không bao giờ "giải mã" ngược, vì hash là một chiều.
+  - id: b02
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Cách lưu mật khẩu nào **đúng** nhất?"
+    options:
+      - {id: a, text_md: "Lưu plaintext nhưng giới hạn quyền đọc database"}
+      - {id: b, text_md: "Băm bằng SHA-256 một lần cho mỗi mật khẩu"}
+      - {id: c, text_md: "Băm bằng bcrypt (hoặc Argon2) với salt riêng cho từng người dùng"}
+    answer: [c]
+    explain_md: "Mật khẩu cần hash chậm có salt như bcrypt/Argon2. SHA-256 đơn thuần quá nhanh nên dễ bị brute force; plaintext lộ ngay khi database bị lộ."
+  - id: b03
+    type: quiz_fill
+    graded: true
+    prompt_md: "Điền một từ tiếng Anh: chuỗi ngẫu nhiên riêng cho từng người dùng, trộn vào mật khẩu trước khi băm để cùng mật khẩu vẫn cho hash khác nhau, gọi là ______."
+    blanks:
+      - accept: ["salt"]
+    explain_md: "Đó là **salt**. Nó làm bảng tra dựng sẵn (rainbow table) vô dụng và che việc hai người dùng trùng mật khẩu."
+  - id: s_session_jwt
+    type: section
+    title_vi: "Session cookie và JWT"
+    summary_vi: "Session: server giữ sổ, client giữ mã phiên ngẫu nhiên trong cookie an toàn. JWT: vé có chữ ký gồm header.payload.signature, server không cần giữ sổ."
+  - id: b04
+    type: text
+    md: |
+      **Session** (phiên): sau khi đăng nhập, **server lưu** thông tin phiên (ai đang đăng nhập, hết hạn lúc nào)
+      và gửi cho client một **mã phiên ngẫu nhiên, vô nghĩa** (opaque session ID) trong **cookie**. Mỗi request,
+      trình duyệt tự gửi cookie lại, server tra sổ để biết đó là ai. Muốn đăng xuất hoặc thu hồi: **xóa phiên
+      khỏi sổ** là xong.
+
+      Cookie phiên cần ba cờ bảo vệ:
+      - **HttpOnly**: JavaScript không đọc được cookie, giảm thiệt hại khi trang bị XSS.
+      - **Secure**: chỉ gửi qua HTTPS.
+      - **SameSite**: trình duyệt không gửi cookie khi request xuất phát từ trang web khác, giúp chặn CSRF.
+
+      **JWT** (JSON Web Token) là "vé tự chứa", gồm ba phần nối bằng dấu chấm: **header.payload.signature**.
+      - **Header**: thuật toán ký (ví dụ `HS256`).
+      - **Payload**: các **claim** như `sub` (ai) và `exp` (hết hạn lúc nào, tính bằng giây từ 1970).
+      - **Signature**: chữ ký tính từ header + payload bằng khóa bí mật, để biết token **không bị sửa**.
+
+      Server **không cần lưu sổ**: chỉ cần kiểm tra chữ ký và hạn (stateless). Vì vậy rất tiện khi có nhiều
+      server. Lưu ý: **HS256** dùng một khóa bí mật chung để ký và kiểm tra; **RS256** dùng cặp khóa
+      công khai/riêng tư, tiện khi nhiều service chỉ cần kiểm tra.
+  - id: b05
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một JWT chuẩn (JWS) có phần **payload** chứa `{\"sub\": \"user42\", \"exp\": 1893456000}`. Phát biểu nào đúng?"
+    options:
+      - {id: a, text_md: "Payload được mã hóa nên người ngoài không đọc được, có thể bỏ mật khẩu vào đó"}
+      - {id: b, text_md: "Payload chỉ được **ký chứ không mã hóa**: ai có token cũng giải mã base64url và đọc được, nên không đặt dữ liệu bí mật vào"}
+      - {id: c, text_md: "Payload không thể bị sửa vì nó nằm trong header"}
+    answer: [b]
+    explain_md: "JWT là signed, không phải encrypted. Payload chỉ **encode** base64url (không phải encrypt) nên ai cũng decode đọc được. Chữ ký chỉ giúp phát hiện sửa đổi, không che nội dung."
+  - id: b06
+    type: text
+    md: |
+      **Lỗi JWT hay gặp và cách phòng:**
+      - **Không kiểm tra chữ ký** hoặc **không kiểm tra `exp`**: phải verify **cả hai** ở mỗi request. Token
+        hết hạn hay chữ ký sai thì từ chối.
+      - **`alg: none` và nhầm thuật toán (algorithm confusion)**: kẻ tấn công sửa header thành `alg: none`
+        (không chữ ký), hoặc đổi RS256 thành HS256. Phòng: server **chỉ chấp nhận danh sách thuật toán
+        đã định sẵn**, không tin trường `alg` trong token; **từ chối `none`**.
+      - **Lộ dữ liệu**: payload đọc được, nên **không đặt mật khẩu/bí mật** trong đó.
+      - **Khó thu hồi**: token còn hợp lệ cho tới khi hết hạn dù người dùng đã đăng xuất. Cách giảm rủi ro:
+        **access token sống ngắn** (vài phút) cộng **refresh token** để lấy cái mới, có xoay vòng (rotation)
+        và có thể thu hồi phía server.
+      - **Lưu trong `localStorage`**: JavaScript đọc được nên XSS có thể đánh cắp; cân nhắc cookie `HttpOnly`.
+
+      Ngoài ra, danh tính luôn lấy từ **token đã được kiểm tra**, không lấy từ body request (client có thể gửi bừa).
+  - id: b07
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Server nhận một JWT có header `{\"alg\": \"none\"}` và không có chữ ký. Server nên làm gì?"
+    options:
+      - {id: a, text_md: "Chấp nhận vì token ghi rõ là không cần chữ ký"}
+      - {id: b, text_md: "Từ chối: chỉ chấp nhận các thuật toán đã cấu hình sẵn và luôn verify chữ ký"}
+      - {id: c, text_md: "Chấp nhận nếu `exp` còn hạn"}
+    answer: [b]
+    explain_md: "Không được tin trường alg do client gửi. Server cố định thuật toán cho phép, từ chối none và luôn verify chữ ký cùng exp."
+  - id: b08
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Người dùng bấm đăng xuất hoặc bị khóa tài khoản, và bạn cần vô hiệu hóa quyền truy cập **ngay lập tức**. Phương án nào làm việc này **dễ nhất**?"
+    options:
+      - {id: a, text_md: "Dùng server session: xóa phiên khỏi sổ"}
+      - {id: b, text_md: "Dùng JWT stateless dài hạn: không cần làm gì vì token tự hết hạn"}
+      - {id: c, text_md: "Xóa cookie trên máy của kẻ tấn công"}
+    answer: [a]
+    explain_md: "Session nằm trong sổ của server nên xóa là thu hồi ngay. JWT stateless còn hợp lệ tới khi hết hạn, nên cần access token ngắn cộng refresh token hoặc danh sách thu hồi."
+  - id: b09
+    type: callout
+    kind: interview
+    md: |
+      **Thanh điểm mức 3 (level-3 bar).** Bạn mô tả được luồng đăng nhập từ nhập mật khẩu đến có vé:
+      server lấy salt, băm bằng bcrypt/Argon2, so với hash đã lưu, rồi phát session cookie
+      (`HttpOnly`, `Secure`, `SameSite`) hoặc access token. Bạn nêu được cách lưu mật khẩu và chọn
+      **session hay JWT có lý do**: session dễ thu hồi nhưng server giữ trạng thái; JWT stateless, tiện mở
+      rộng nhiều server nhưng khó thu hồi nên cần token sống ngắn. Bạn biết JWT không mã hóa, phải verify
+      chữ ký và `exp`, và từ chối `alg: none`.
+  - id: b10
+    type: summary
+    bullets_vi:
+      - "**Authentication** chứng minh bạn là ai; **authorization** quyết định bạn được làm gì."
+      - "Mật khẩu: không plaintext, không MD5/SHA-256 đơn thuần; dùng **bcrypt/scrypt/Argon2** với **salt** riêng từng người dùng."
+      - "**Session**: server giữ sổ, client giữ mã phiên ngẫu nhiên trong cookie `HttpOnly`, `Secure`, `SameSite`; dễ thu hồi."
+      - "**JWT** = header.payload.signature, stateless; chỉ **ký, không mã hóa**, nên không đặt bí mật trong payload."
+      - "Luôn verify **chữ ký và `exp`**, từ chối `alg: none`; JWT khó thu hồi nên dùng access token ngắn cộng refresh token."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [E136], l2: [E137], l3: [E138]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-12"
