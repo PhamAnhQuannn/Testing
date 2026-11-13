@@ -1,0 +1,53 @@
+subtopic_id: eng.architecture.layered_patterns
+items:
+  - id: E172
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Trong kiến trúc phân lớp **controller / service / repository**, mỗi lớp làm việc gì? Vì sao tách như vậy (separation of concerns)?
+    answer_md: |
+      - **Controller**: nhận request, đọc dữ liệu vào, gọi service và trả response.
+      - **Service**: chứa luật nghiệp vụ (kiểm tra, tính toán, quy tắc).
+      - **Repository**: đọc/ghi database (lớp truy cập dữ liệu, không phải Git repository).
+      - **Separation of concerns**: mỗi lớp một việc nên sửa một chỗ không làm vỡ chỗ khác, code dễ đọc và dễ test.
+    rubric_md: "Đạt khi nêu đúng vai trò của cả ba lớp (controller: request/response; service: luật nghiệp vụ; repository: đọc ghi database) và ý chính của separation of concerns (mỗi lớp một việc, sửa chỗ này không vỡ chỗ kia). Đủ hai ý: bằng chứng điểm 1; nhầm vai trò (ví dụ đặt luật nghiệp vụ ở repository) hoặc chỉ liệt kê tên lớp không giải thích: điểm 0."
+  - id: E173
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Trả lời ba ý:
+      1. **Dependency injection (DI)** là gì? Viết lại `class OrderService: def __init__(self): self.db = Database()` để dùng DI, và nói vì sao dễ test hơn.
+      2. Phân biệt **DTO**, **entity** và **domain model**.
+      3. **MVC** là gì? Nêu vai trò M, V, C bằng ví dụ trang danh sách sản phẩm.
+    answer_md: |
+      1. **DI**: lớp nhận thứ nó cần từ bên ngoài thay vì tự tạo. Ví dụ:
+         `def __init__(self, db): self.db = db`. Khi test truyền một đối tượng giả (fake/mock) thay cho
+         database thật nên test nhanh, không cần hạ tầng thật.
+      2. **DTO**: dữ liệu vào/ra API. **Entity**: đối tượng ánh xạ một bảng database. **Domain model**: đối tượng
+         nghiệp vụ mang luật của bài toán.
+      3. **MVC** (Model-View-Controller): kiểu tách dữ liệu, giao diện và điều khiển. Model là dữ liệu sản phẩm,
+         View là trang hiển thị danh sách, Controller nhận request, lấy dữ liệu từ Model rồi chọn View.
+    rubric_md: "Đạt khi đúng cả ba ý: (1) DI = nhận dependency từ ngoài (qua constructor) + lý do dễ test là thay được bằng fake/mock; (2) DTO = dữ liệu vào/ra API, entity = ánh xạ bảng database, domain model = đối tượng nghiệp vụ; (3) MVC = Model-View-Controller với vai trò đúng. Đủ ba: bằng chứng điểm 2. Đúng hai: tối đa điểm 1. Không tính ý sai (ví dụ DI = tự tạo object bên trong, entity = dữ liệu trả về API)."
+  - id: E174
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      Bạn được giao chức năng nhỏ "đặt hàng" cho một backend. Hãy: (a) chia thành ba lớp, nói đoạn code nào đặt ở controller, service, repository
+      (controller nhận body, gọi service, trả 201); (b) viết DI cho service và nói vì sao việc tách lớp giúp test;
+      (c) phân biệt **DI** với **inversion of control (IoC)**; (d) nêu **middleware** là gì và một việc phù hợp để đặt ở đó.
+    answer_md: |
+      **(a)** Controller: nhận body, gọi `order_service.dat_hang(...)`, trả `201`. Service: luật nghiệp vụ (kiểm tra số lượng,
+      tồn kho, tính tiền). Repository: lưu đơn vào database (`save`).
+
+      **(b)** Service nhận repository qua constructor: `OrderService(repo)`. Khi test truyền `FakeRepo` thay database thật nên
+      kiểm tra được luật nghiệp vụ riêng, nhanh, không phụ thuộc hạ tầng. Tách lớp làm service chỉ phụ thuộc một giao diện đơn giản.
+
+      **(c)** **DI**: lớp nhận dependency từ ngoài. **IoC**: framework gọi code của bạn (bạn viết hàm xử lý `/orders`,
+      framework như FastAPI/Spring gọi nó mỗi request). DI là một cách để đạt IoC (container tạo và truyền dependency),
+      nhưng hai khái niệm không đồng nhất.
+
+      **(d)** **Middleware/filter/interceptor**: code chạy trước hoặc sau mọi request; ví dụ kiểm tra đăng nhập hoặc ghi log.
+    rubric_md: "Đạt mức 3 khi: (a) chia đúng ba lớp (controller request/response, service luật nghiệp vụ, repository đọc ghi database); (b) viết hoặc mô tả DI nhận dependency qua constructor và giải thích test được bằng fake/mock thay database thật; (c) phân biệt đúng DI (nhận dependency từ ngoài) với IoC (framework gọi code của bạn), không coi hai khái niệm là một; (d) middleware = code chạy trước/sau mọi request, ví dụ auth hoặc logging. Đủ cả bốn ý: bằng chứng điểm 3. Thiếu một ý hoặc nhầm (ví dụ đặt SQL trong controller, coi DI và IoC là một): chưa đạt mức 3."

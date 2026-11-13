@@ -1,0 +1,165 @@
+id: eng.architecture.layered_patterns
+version: 1
+status: published
+title_vi: "Kiến trúc phân lớp, MVC và clean design"
+est_minutes: 12
+objectives_vi:
+  - "Chia một chức năng backend thành **controller / service / repository** và nêu việc của từng lớp."
+  - "Giải thích **separation of concerns** và vì sao tách lớp giúp code dễ đọc, dễ sửa, dễ test."
+  - "Viết và giải thích **dependency injection (DI)**; phân biệt với **inversion of control (IoC)**."
+  - "Phân biệt **DTO / entity / domain model**, hiểu **MVC** và vai trò của **middleware / filter / interceptor**."
+blocks:
+  - id: s_layers
+    type: section
+    title_vi: "Phân lớp và separation of concerns"
+    summary_vi: "Backend chia thành controller (nhận request, trả response), service (luật nghiệp vụ), repository (đọc ghi database). Mỗi lớp một việc."
+  - id: b01
+    type: text
+    md: |
+      Hãy hình dung một nhà hàng: người **nhận order**, **đầu bếp** và **kho nguyên liệu** mỗi bên một việc.
+      Backend cũng được chia thành các **lớp** (layer) theo cách tương tự:
+
+      - **Controller**: nhận request, đọc dữ liệu vào, gọi service rồi **trả response** (ví dụ mã `201`).
+      - **Service**: chứa **luật nghiệp vụ** (kiểm tra tồn kho, tính tiền, quy tắc giảm giá).
+      - **Repository**: chỉ **đọc/ghi database**. Lưu ý: "repository" ở đây là lớp truy cập database,
+        **không phải Git repository**.
+
+      Nguyên tắc nền là **separation of concerns** (tách mối quan tâm): mỗi lớp **một việc**, nên
+      sửa một chỗ không làm vỡ chỗ khác. Ví dụ đổi từ SQLite sang PostgreSQL thì chủ yếu sửa repository,
+      còn luật nghiệp vụ trong service giữ nguyên.
+
+      ```python
+      # controller: chỉ lo HTTP
+      def post_order(body):
+          order = order_service.dat_hang(body["item"], body["qty"])
+          return 201, order
+
+      # service: luật nghiệp vụ, không biết SQL hay HTTP
+      def dat_hang(self, item, qty):
+          if qty <= 0:
+              raise ValueError("qty phai > 0")
+          return self.repo.save({"item": item, "qty": qty})
+      ```
+  - id: b02
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Trong kiến trúc **controller / service / repository**, đoạn code chứa luật \"đơn hàng trên 1 triệu thì được giảm 5%\" nên đặt ở đâu?"
+    options:
+      - {id: a, text_md: "Ở **controller**, vì nơi đây nhận dữ liệu của người dùng"}
+      - {id: b, text_md: "Ở **service**, vì đây là luật nghiệp vụ"}
+      - {id: c, text_md: "Ở **repository**, ngay trong câu SQL"}
+    answer: [b]
+    explain_md: "Luật nghiệp vụ thuộc service. Controller chỉ lo nhận request/trả response, repository chỉ lo đọc ghi database; trộn luật vào đó làm khó sửa và khó test."
+  - id: s_di
+    type: section
+    title_vi: "Dependency injection và inversion of control"
+    summary_vi: "DI: lớp nhận thứ nó cần từ ngoài thay vì tự tạo, nên dễ thay bằng đồ giả khi test. IoC: framework gọi code của bạn."
+  - id: b03
+    type: text
+    md: |
+      **Dependency injection (DI)**: một lớp **nhận thứ nó cần từ bên ngoài** (qua tham số constructor)
+      thay vì **tự tạo** bên trong.
+
+      ```python
+      # Khó test: tự tạo Database thật bên trong
+      class OrderService:
+          def __init__(self):
+              self.db = Database()
+
+      # Dễ test: nhận db từ ngoài
+      class OrderService:
+          def __init__(self, db):
+              self.db = db
+          def dat_hang(self, item):
+              self.db.save(item)
+
+      # Trong test, truyền một đối tượng giả (fake/mock)
+      service = OrderService(FakeDatabase())
+      ```
+
+      Nhờ vậy test không cần database thật: chỉ cần truyền **fake/mock** vào. Đây cũng là lý do tách
+      lớp giúp test: service chỉ phụ thuộc vào "thứ có hàm `save`", không phụ thuộc vào database cụ thể.
+
+      **Inversion of control (IoC, đảo chiều điều khiển)** là một ý rộng hơn: **framework gọi code của bạn**
+      thay vì bạn gọi framework. Ví dụ bạn chỉ viết hàm xử lý `/orders`; framework (FastAPI, Spring) tự gọi
+      hàm đó mỗi khi có request. **DI là một cách để đạt IoC** (framework/container tạo và truyền
+      dependency cho bạn), nhưng hai khái niệm không phải một.
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao viết `OrderService(db)` (nhận `db` từ ngoài) dễ test hơn so với việc `OrderService` tự tạo `Database()` bên trong?"
+    options:
+      - {id: a, text_md: "Vì khi test có thể truyền một đối tượng giả (fake/mock) thay cho database thật"}
+      - {id: b, text_md: "Vì code chạy nhanh hơn trong mọi trường hợp"}
+      - {id: c, text_md: "Vì không cần viết service nữa"}
+    answer: [a]
+    explain_md: "DI cho phép thay dependency từ bên ngoài, nên test dùng được đồ giả và không cần database thật. Tốc độ không phải lý do chính."
+  - id: b05
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Câu nào mô tả đúng **inversion of control (IoC)**?"
+    options:
+      - {id: a, text_md: "Bạn tự gọi từng hàm của thư viện theo thứ tự bạn muốn, framework chỉ đứng yên"}
+      - {id: b, text_md: "Framework gọi code của bạn (ví dụ gọi hàm xử lý `/orders` mỗi khi có request)"}
+      - {id: c, text_md: "Mỗi class phải tự tạo mọi thứ nó cần để tránh phụ thuộc"}
+    answer: [b]
+    explain_md: "IoC là framework giữ quyền điều khiển và gọi code của bạn. DI là một cách để đạt IoC chứ không đồng nghĩa với IoC."
+  - id: s_models
+    type: section
+    title_vi: "DTO, entity, MVC và middleware"
+    summary_vi: "DTO là dữ liệu vào/ra API, entity ánh xạ bảng, domain model là đối tượng nghiệp vụ. MVC tách dữ liệu, giao diện, điều khiển. Middleware chạy trước/sau mọi request."
+  - id: b06
+    type: text
+    md: |
+      **DTO vs entity vs domain model**:
+      - **DTO** (Data Transfer Object): dữ liệu **vào/ra API** (ví dụ body của `POST /orders`, JSON trả về).
+      - **Entity**: đối tượng **ánh xạ một bảng database** (các cột).
+      - **Domain model**: **đối tượng nghiệp vụ** mang luật của bài toán.
+
+      Tách chúng giúp đổi API hoặc đổi schema database mà không kéo nhau vỡ (ví dụ không trả
+      cột `password_hash` ra ngoài chỉ vì entity có cột đó). Với app nhỏ, ba loại này đôi khi trùng nhau.
+
+      **MVC** (Model-View-Controller) là kiểu tách **dữ liệu (Model)**, **giao diện (View)** và **điều khiển
+      (Controller)**. Ví dụ trang danh sách sản phẩm: Model là dữ liệu sản phẩm, View là trang hiển thị
+      danh sách, Controller nhận request, lấy dữ liệu từ Model rồi chọn View để hiển thị. Trong một API
+      backend không trả HTML, "View" thường là **JSON trả về** (hoặc do frontend đảm nhiệm), còn Model và
+      Controller vẫn đóng vai như trên.
+
+      **Middleware / filter / interceptor** là đoạn code chạy **trước hoặc sau mọi request** (hoặc
+      nhóm request), như kiểm tra đăng nhập, ghi log, đo thời gian. Tên gọi khác nhau theo framework
+      nhưng ý tưởng là một: xử lý việc chung ở một chỗ, không lặp trong từng controller.
+
+      **Chỉ cần biết (awareness)**: **hexagonal / clean architecture** đặt nghiệp vụ ở giữa, còn
+      database và web ở ngoài, nối với phần giữa qua các **cổng giao tiếp (port/interface)** để đổi database
+      hay web mà không sửa nghiệp vụ.
+  - id: b07
+    type: quiz_fill
+    graded: true
+    prompt_md: "Điền một từ: đoạn code chạy trước mọi request để kiểm tra đăng nhập hoặc ghi log được gọi chung là ______ (hoặc filter/interceptor tùy framework)."
+    blanks:
+      - accept: ["middleware", "Middleware"]
+    explain_md: "Đó là **middleware**: xử lý việc chung ở một chỗ thay vì lặp trong từng controller."
+  - id: b08
+    type: callout
+    kind: interview
+    md: |
+      **Thanh điểm mức 3 (level-3 bar).** Cho một chức năng nhỏ, bạn chia được thành **ba lớp**
+      (controller / service / repository), viết **DI** cho nó (nhận dependency qua constructor) và giải thích
+      vì sao việc tách lớp giúp test: service chỉ phụ thuộc vào một giao diện đơn giản nên có thể truyền
+      đồ giả thay database thật. Bạn cũng phân biệt được DI với IoC, và DTO / entity / domain model.
+  - id: b09
+    type: summary
+    bullets_vi:
+      - "**Layered architecture**: controller (request/response), service (luật nghiệp vụ), repository (đọc ghi database)."
+      - "**Separation of concerns**: mỗi lớp một việc nên sửa một chỗ không vỡ chỗ khác."
+      - "**DI**: nhận dependency từ ngoài, dễ truyền fake/mock khi test. **IoC**: framework gọi code của bạn; DI là một cách đạt IoC."
+      - "**DTO** = dữ liệu vào/ra API; **entity** = ánh xạ bảng; **domain model** = đối tượng nghiệp vụ. **MVC** = Model-View-Controller."
+      - "**Middleware/filter/interceptor**: code chạy trước/sau mọi request. Awareness: hexagonal/clean architecture đặt nghiệp vụ ở giữa."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [E172], l2: [E173], l3: [E174]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-12"

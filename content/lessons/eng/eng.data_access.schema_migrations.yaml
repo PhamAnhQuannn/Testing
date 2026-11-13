@@ -1,0 +1,148 @@
+id: eng.data_access.schema_migrations
+version: 1
+status: published
+title_vi: "Migration schema và đổi DB không downtime"
+est_minutes: 12
+objectives_vi:
+  - "Giải thích **migration** là gì (file đánh số, chạy theo thứ tự, review như code) và vì sao **forward-only**: không sửa file đã chạy."
+  - "Phân biệt **rollback của migration** (bước `down`) với rollback của transaction, và biết vì sao xóa cột thì khó lùi."
+  - "Hiểu **rolling deploy**: code cũ và code mới cùng chạy trên MỘT database nên migration phải giữ cho cả hai chạy được."
+  - "Lập kế hoạch **expand-contract** (đúng thứ tự 4 bước) và thêm cột **NOT NULL** vào bảng lớn bằng **backfill theo lô**."
+blocks:
+  - id: s_mig_basics
+    type: section
+    title_vi: "Migration, forward-only và rollback"
+    summary_vi: "Migration là file đánh số cho mỗi thay đổi schema, chạy theo thứ tự. Forward-only: không sửa file đã chạy, muốn đổi thì thêm file mới."
+  - id: b01
+    type: text
+    md: |
+      **Migration** là một **file có đánh số** cho mỗi thay đổi cấu trúc bảng (schema), ví dụ
+      `003_add_phone.sql`. Các công cụ quen thuộc: **Alembic**, **Flyway**, **Liquibase**, **Django
+      migrations**. Các file được chạy **theo thứ tự** và được **review như code**, nên máy nào chạy đủ
+      các file theo thứ tự cũng có **cùng một schema** (máy của bạn, CI, production).
+
+      ```sql
+      -- 003_add_phone.sql (chiều lên)
+      ALTER TABLE users ADD COLUMN phone VARCHAR(20);
+      ```
+
+      **Forward-only**: **không sửa file migration đã chạy** (đã merge/deploy). Nếu sửa, máy đã chạy
+      rồi sẽ không chạy lại, còn máy mới chạy bản sửa, và hai nơi lệch schema. Muốn thay đổi thì **thêm
+      file mới có số lớn hơn** (ví dụ `004_...`).
+
+      **Rollback (lùi lại)**: một migration có thể kèm bước **`down`** để lùi. Thêm cột thì lùi dễ
+      (`DROP COLUMN`), nhưng **xóa cột thì mất dữ liệu** nên không lùi được thật sự. Đây là khái niệm
+      khác với rollback của **transaction** (hủy các câu lệnh chưa commit).
+  - id: b02
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Migration `003_add_phone.sql` đã chạy trên production, nhưng bạn phát hiện cột nên dài hơn. Cách làm đúng theo nguyên tắc **forward-only** là gì?"
+    options:
+      - {id: a, text_md: "Sửa trực tiếp file `003_add_phone.sql` rồi deploy lại"}
+      - {id: b, text_md: "Thêm file migration mới có số lớn hơn (ví dụ `004_...`) để đổi cột"}
+      - {id: c, text_md: "Xóa file `003` khỏi repo để các máy chạy lại từ đầu"}
+    answer: [b]
+    explain_md: "Migration đã chạy thì không sửa: máy đã chạy sẽ không chạy lại nên schema lệch nhau. Thay đổi mới luôn là một file mới có số lớn hơn."
+  - id: s_rolling
+    type: section
+    title_vi: "Rolling deploy và expand-contract"
+    summary_vi: "Khi deploy dần, code cũ và code mới cùng dùng một database. Expand-contract đổi schema qua 4 bước theo đúng thứ tự để cả hai bản đều chạy được."
+  - id: b03
+    type: text
+    md: |
+      **Rolling deploy**: khi deploy, các server được **thay dần từng cái**, nên có lúc **code cũ và code
+      mới cùng chạy trên MỘT database**. Vì vậy migration không được làm một trong hai bản chạy lỗi.
+      Ví dụ đổi tên cột `email` thành `contact_email` bằng một câu `RENAME` sẽ làm code cũ (vẫn đọc
+      `email`) lỗi ngay.
+
+      **Expand-contract** (mở rộng rồi thu hẹp) là cách đổi schema **không downtime**, gồm **4 bước theo
+      đúng thứ tự**:
+      1. **Expand**: thêm cột mới (`contact_email`, cho phép NULL). Code cũ không bị ảnh hưởng.
+      2. Deploy code **ghi cả hai cột** (`email` và `contact_email`), gọi là **dual write**.
+      3. **Backfill** dữ liệu cũ vào cột mới, **xong rồi mới chuyển code sang ĐỌC cột mới**. Backfill
+         phải hoàn tất trước khi có code dựa vào cột mới; nếu đọc sớm, các dòng cũ sẽ thiếu dữ liệu.
+      4. **Contract**: cuối cùng mới **xóa cột cũ** (`email`), khi không còn code nào dùng nó.
+
+      Lỗi kinh điển là **đảo thứ tự**: chuyển sang đọc cột mới trước khi backfill xong, hoặc xóa cột cũ
+      khi vẫn còn bản code cũ đang chạy.
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Đổi tên cột `email` thành `contact_email` bằng **expand-contract**. Thứ tự đúng của 4 bước là gì?"
+    options:
+      - {id: a, text_md: "Thêm cột mới, ghi cả hai cột, backfill dữ liệu cũ rồi chuyển sang đọc cột mới, cuối cùng xóa cột cũ"}
+      - {id: b, text_md: "Thêm cột mới, chuyển sang đọc cột mới, backfill dữ liệu cũ, xóa cột cũ, rồi mới ghi cả hai cột"}
+      - {id: c, text_md: "Xóa cột cũ, thêm cột mới, backfill dữ liệu, rồi deploy code mới"}
+    answer: [a]
+    explain_md: "Đúng thứ tự: thêm cột, dual write, backfill xong rồi mới đọc cột mới, cuối cùng mới xóa cột cũ. Đọc cột mới trước khi backfill xong thì dòng cũ bị thiếu dữ liệu; xóa cột cũ sớm làm code cũ lỗi."
+  - id: b05
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Vì sao trong **rolling deploy**, migration phải giữ cho cả code cũ lẫn code mới chạy được?"
+    options:
+      - {id: a, text_md: "Vì migration luôn tự động lùi lại nếu code mới lỗi"}
+      - {id: b, text_md: "Vì mỗi server có một database riêng nên phải đồng bộ lại sau"}
+      - {id: c, text_md: "Vì trong lúc thay dần, code cũ và code mới cùng dùng một database"}
+    answer: [c]
+    explain_md: "Server được thay từng cái nên có lúc hai phiên bản code cùng chạy trên một database. Schema phải tương thích với cả hai, đó là lý do dùng expand-contract thay vì đổi một bước."
+  - id: s_big_table
+    type: section
+    title_vi: "NOT NULL trên bảng lớn và backfill theo lô"
+    summary_vi: "Thêm cột NOT NULL vào bảng lớn: thêm cột nullable, backfill theo lô, rồi mới đặt NOT NULL."
+  - id: b06
+    type: text
+    md: |
+      **Thêm cột NOT NULL vào bảng lớn** nếu làm thẳng có thể **khóa bảng lâu** và làm **code cũ lỗi**
+      (code cũ chưa biết cột mới nên `INSERT` không điền giá trị). Cách làm an toàn:
+      1. Thêm cột **cho phép NULL** trước (nhanh, code cũ vẫn chạy).
+      2. **Backfill theo lô** để điền dữ liệu cũ.
+      3. Khi mọi dòng đã có giá trị (và code mới luôn ghi cột này), mới **đặt NOT NULL**.
+
+      **Backfill theo lô**: điền từng nhóm nhỏ (ví dụ 1000 dòng một lần) thay vì một câu `UPDATE` cho
+      cả bảng, để không giữ khóa quá lâu và không làm database quá tải.
+
+      ```sql
+      -- lặp lại cho tới khi không còn dòng nào được cập nhật
+      UPDATE users SET contact_email = email
+      WHERE id IN (
+        SELECT id FROM users WHERE contact_email IS NULL LIMIT 1000
+      );
+      ```
+
+      (Cú pháp `LIMIT` trong subquery `IN` ở trên là của **Postgres**; MySQL không nhận, cần cách khác
+      như lọc theo khoảng `id`.)
+
+      Hai kỹ thuật liên quan: tạo index **online** (ví dụ `CREATE INDEX CONCURRENTLY` trong Postgres, không
+      chặn việc ghi) và **dual write** (tạm ghi cùng lúc vào hai nơi rồi kiểm tra hai bên khớp nhau).
+  - id: b07
+    type: quiz_fill
+    graded: true
+    prompt_md: "Điền một từ: để thêm cột **NOT NULL** vào bảng lớn an toàn, trước hết thêm cột cho phép NULL, rồi điền dữ liệu cũ bằng ______ theo lô nhỏ, và cuối cùng mới đặt NOT NULL."
+    blanks:
+      - accept: ["backfill", "Backfill"]
+    explain_md: "Đó là **backfill**: điền dữ liệu cũ vào cột mới theo từng lô nhỏ để không khóa bảng lâu, sau đó mới đặt NOT NULL."
+  - id: b08
+    type: callout
+    kind: interview
+    md: |
+      **Thanh điểm mức 3 (level-3 bar).** Bạn lập được kế hoạch từng bước **expand-contract** để đổi
+      tên một cột trên bảng lớn mà ứng dụng vẫn chạy bình thường: thêm cột mới, ghi cả hai cột, **backfill
+      xong rồi mới chuyển sang đọc cột mới**, cuối cùng xóa cột cũ. Bạn nói rõ ở mỗi bước code đang chạy
+      dùng cột nào, giải thích vì sao **rolling deploy** buộc phải làm nhiều bước, và nhớ rằng thêm cột
+      NOT NULL vào bảng lớn thì thêm nullable, backfill theo lô, rồi mới đặt NOT NULL.
+  - id: b09
+    type: summary
+    bullets_vi:
+      - "**Migration** là file đánh số cho mỗi thay đổi schema, chạy theo thứ tự, review như code (Alembic, Flyway, Liquibase, Django)."
+      - "**Forward-only**: không sửa migration đã chạy; muốn đổi thì thêm file mới số lớn hơn. Bước `down` lùi được: thêm cột dễ, xóa cột mất dữ liệu."
+      - "**Rolling deploy**: code cũ và code mới cùng dùng một database, nên schema phải chạy được với cả hai."
+      - "**Expand-contract**: thêm cột mới, ghi cả hai cột, backfill xong rồi mới đọc cột mới, cuối cùng xóa cột cũ."
+      - "Thêm **NOT NULL** vào bảng lớn: thêm nullable, **backfill theo lô**, rồi mới đặt NOT NULL; tạo index bằng cách online."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [E169], l2: [E170], l3: [E171]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-12"
