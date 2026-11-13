@@ -1,0 +1,132 @@
+id: eng.architecture.monolith_microservices
+version: 1
+status: published
+title_vi: "Monolith và microservices: khi nào tách, và cái giá phải trả"
+est_minutes: 12
+objectives_vi:
+  - "Phân biệt **monolith** (một chương trình, deploy một lần) với **microservices** (nhiều service gọi nhau qua mạng) và nêu ưu, nhược của từng kiểu."
+  - "Giải thích nguyên tắc **bắt đầu bằng monolith** (hoặc **modular monolith**) và chỉ tách khi có lý do rõ: đội lớn, cần scale riêng, cần deploy độc lập."
+  - "Mô tả hệ quả của **database per service**: không còn JOIN giữa service, chỉ có **eventual consistency**, và cần **saga** thay cho transaction chung."
+  - "Phân biệt giao tiếp **đồng bộ** (REST/gRPC) với **bất đồng bộ** (event + message queue) và nhận ra vai trò của **API gateway**, **service discovery**."
+blocks:
+  - id: s_mono_vs_micro
+    type: section
+    title_vi: "Monolith, microservices và cái giá của việc tách"
+    summary_vi: "Monolith là một chương trình: dễ làm, dễ debug, gọi hàm cục bộ. Microservices tách thành nhiều service gọi nhau qua mạng: scale và deploy riêng được, nhưng thêm mạng chập chờn và chi phí vận hành. Bắt đầu bằng monolith, chỉ tách khi có lý do rõ."
+  - id: b01
+    type: text
+    md: |
+      **Monolith**: cả ứng dụng là **một chương trình**, build và deploy một lần. Các phần (sản phẩm, đơn
+      hàng, thanh toán) gọi nhau bằng **lời gọi hàm cục bộ**, dùng chung một database nên có thể **JOIN** và
+      dùng một transaction. Ưu điểm: dễ làm lúc đầu, dễ chạy thử, dễ tìm lỗi. Nhược điểm khi hệ thống lớn:
+      sửa một chỗ vẫn phải deploy cả khối, đội đông dễ dẫm chân nhau, không thể scale riêng một phần.
+
+      **Microservices**: tách thành **nhiều service nhỏ** (đơn hàng, thanh toán, kho...) **gọi nhau qua
+      mạng**. Mỗi service có thể **deploy, scale và do một đội sở hữu độc lập**.
+
+      Nhưng tách ra có **cái giá**:
+      - Gọi qua mạng thì **chậm hơn** và có thể **hỏng giữa chừng** (timeout, mất kết nối).
+      - **Không còn JOIN** giữa dữ liệu của các service, không còn transaction chung.
+      - **Vận hành phức tạp hơn**: nhiều thứ để deploy, giám sát, theo dõi lỗi xuyên service.
+
+      **Nguyên tắc quan trọng:** hãy **bắt đầu bằng monolith** (tốt hơn nữa là **modular monolith**: một
+      chương trình nhưng chia module có ranh giới rõ) và **chỉ tách khi có lý do rõ ràng** (đội lớn cần làm
+      độc lập, một phần cần scale riêng, cần deploy độc lập). "Dùng microservices ngay từ đầu" cho mọi dự
+      án là cách làm sai. Tách sai ranh giới còn dẫn tới **distributed monolith**: nhiều service nhưng vẫn
+      dính chặt vào nhau, gánh cả nhược điểm của hai kiểu.
+
+      **Ranh giới service** nên theo **bounded context** (ranh giới nghiệp vụ trong DDD, Domain-Driven
+      Design), không theo tầng kỹ thuật. **Conway's law**: cấu trúc hệ thống có xu hướng phản ánh cấu trúc
+      giao tiếp của tổ chức, nên ranh giới service thường đi theo ranh giới đội.
+  - id: b02
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một startup 4 người sắp làm sản phẩm mới, chưa rõ nghiệp vụ sẽ thay đổi ra sao. Lựa chọn kiến trúc hợp lý nhất lúc đầu?"
+    options:
+      - {id: a, text_md: "Chia ngay thành nhiều **microservices** để sau này dễ mở rộng"}
+      - {id: b, text_md: "Bắt đầu bằng **monolith** (hoặc modular monolith), chỉ tách khi có lý do rõ như đội lớn hay cần scale riêng"}
+      - {id: c, text_md: "Mỗi lập trình viên tự dựng một service riêng với database riêng"}
+    answer: [b]
+    explain_md: "Đội nhỏ, nghiệp vụ chưa ổn định thì monolith nhanh làm, dễ debug, dễ đổi ranh giới. Tách sớm chỉ thêm chi phí mạng và vận hành mà chưa có lợi ích đi kèm."
+  - id: s_data_comm
+    type: section
+    title_vi: "Dữ liệu và giao tiếp giữa các service"
+    summary_vi: "Mỗi service sở hữu database riêng nên không JOIN chéo, dữ liệu nhất quán dần (eventual consistency) và dùng saga cho thao tác nhiều service. Giao tiếp đồng bộ qua REST/gRPC, bất đồng bộ qua event và message queue."
+  - id: b03
+    type: text
+    md: |
+      **Database per service** (data ownership): mỗi service **sở hữu dữ liệu của mình**, service khác
+      không đọc thẳng database đó mà phải gọi qua API hoặc nhận event. Hệ quả:
+      - **Không JOIN** giữa các service; muốn ghép dữ liệu phải gọi từng service rồi ghép ở code.
+      - Dữ liệu giữa các service chỉ **nhất quán dần** (**eventual consistency**): sau một lúc các bản
+        mới khớp nhau, không phải khớp ngay lập tức.
+      - Không có **transaction chung**. Ví dụ "đặt hàng + trừ kho" qua hai service: tạo đơn xong (bước 1)
+        mà trừ kho lỗi (bước 2) thì bước 1 đã commit rồi. Cần cách bù lại: **saga**.
+
+      **Saga**: giao dịch qua nhiều service được chia thành **chuỗi bước**, mỗi bước có **bước bù**
+      (compensating action), ví dụ tạo đơn → trừ kho → thu tiền; nếu một bước sau lỗi (hết hàng, hoặc
+      thu tiền lỗi) thì chạy **bước bù** của các bước trước (hoàn kho, hủy đơn). Các bước và bước bù nên
+      **idempotent** để chạy lại an toàn.
+
+      **Giao tiếp giữa service:**
+      - **Đồng bộ**: service A gọi **REST** hoặc **gRPC** sang B rồi chờ trả lời. Đơn giản, nhưng nếu B chết
+        hoặc chậm thì A cũng lỗi hoặc chậm theo.
+      - **Bất đồng bộ**: A gửi **event** vào **message queue** (hộp thư trung gian), B lấy ra xử lý sau.
+        Hai bên không phải chờ nhau, nhưng kết quả đến muộn hơn và khó theo dõi luồng hơn.
+
+      **Nhận biết thêm:** **API gateway** là cổng chung phía trước: client chỉ gọi một địa chỉ, gateway
+      chuyển `/orders` tới service đơn hàng, `/pay` tới service thanh toán và kiểm tra đăng nhập tại một
+      chỗ. **Service discovery** là sổ danh bạ: mỗi service khi chạy đăng ký địa chỉ của mình, service khác
+      tra sổ để gọi (vì địa chỉ đổi liên tục khi deploy hay scale).
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Hệ thống đã tách service **đơn hàng** và **kho**, mỗi service có database riêng. Tạo đơn thành công nhưng bước trừ kho thất bại. Cách xử lý đúng hướng là gì?"
+    options:
+      - {id: a, text_md: "Dùng một câu **JOIN** giữa hai database để rollback cả hai"}
+      - {id: b, text_md: "Dùng **saga**: thử lại bước trừ kho, hoặc chạy **bước bù** (hủy/hoàn đơn) để dữ liệu nhất quán dần"}
+      - {id: c, text_md: "Bỏ qua, vì microservices luôn tự đồng bộ dữ liệu"}
+    answer: [b]
+    explain_md: "Hai database riêng nên không có JOIN hay transaction chung. Saga chia thao tác thành chuỗi bước kèm bước bù; hệ thống đạt eventual consistency chứ không nhất quán tức thì."
+  - id: b05
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Service A cần báo cho service B rằng đơn đã tạo, nhưng không muốn phải chờ B và không muốn lỗi của B làm A lỗi theo. Cách giao tiếp phù hợp?"
+    options:
+      - {id: a, text_md: "**Bất đồng bộ**: A gửi **event** vào **message queue**, B lấy ra xử lý sau"}
+      - {id: b, text_md: "**Đồng bộ**: A gọi REST sang B và chờ trả lời"}
+      - {id: c, text_md: "A đọc trực tiếp database của B"}
+    answer: [a]
+    explain_md: "Event qua message queue tách hai bên: A không phải chờ B. Gọi REST đồng bộ làm A phụ thuộc B; đọc thẳng database của B phá vỡ nguyên tắc mỗi service sở hữu dữ liệu của mình."
+  - id: b06
+    type: quiz_fill
+    graded: true
+    prompt_md: "Điền một cụm từ: khi mỗi service có database riêng, dữ liệu giữa các service chỉ khớp nhau sau một lúc, gọi là ______ consistency."
+    blanks:
+      - accept: ["eventual", "Eventual", "eventual consistency", "Eventual consistency"]
+    explain_md: "Đó là **eventual consistency** (nhất quán dần): các bản dữ liệu cuối cùng sẽ khớp nhau, nhưng không khớp ngay lập tức như trong một transaction của một database."
+  - id: b07
+    type: callout
+    kind: interview
+    md: |
+      **Thanh điểm mức 3 (level-3 bar).** Bạn nêu được **khi nào không nên dùng microservices** (đội nhỏ,
+      nghiệp vụ chưa ổn định, chưa có yêu cầu scale hay deploy độc lập: nên bắt đầu bằng **monolith** hoặc
+      **modular monolith**) và mô tả **cái giá phải trả khi tách**: gọi qua **mạng** (chậm, hỏng giữa chừng),
+      **mất JOIN** vì mỗi service một database, **mất transaction chung** nên phải dùng **saga** và chấp
+      nhận **eventual consistency**, cộng thêm chi phí vận hành.
+  - id: b08
+    type: summary
+    bullets_vi:
+      - "**Monolith**: một chương trình, dễ làm, dễ debug, gọi hàm cục bộ, có JOIN. **Microservices**: nhiều service gọi nhau qua mạng, scale và deploy độc lập."
+      - "Cái giá của việc tách: **mạng** chập chờn, **mất JOIN** và transaction chung, vận hành phức tạp hơn."
+      - "**Bắt đầu bằng monolith** (hoặc modular monolith); chỉ tách khi có lý do rõ (đội, scale, deploy độc lập). Ranh giới theo **bounded context**; **Conway's law**."
+      - "**Database per service** nên chỉ có **eventual consistency**; thao tác nhiều service dùng **saga** với bước bù."
+      - "Đồng bộ: **REST/gRPC**; bất đồng bộ: **event + message queue**. **API gateway** là cổng chung, **service discovery** là sổ danh bạ."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [E175], l2: [E176], l3: [E177]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-12"

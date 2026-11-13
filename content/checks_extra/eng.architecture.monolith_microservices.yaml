@@ -1,0 +1,59 @@
+subtopic_id: eng.architecture.monolith_microservices
+items:
+  - id: E175
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      **Monolith** và **microservices** khác nhau thế nào? Nêu một ưu điểm của mỗi kiểu, và cho biết nên bắt đầu
+      dự án mới bằng kiểu nào.
+    answer_md: |
+      - **Monolith**: cả ứng dụng là một chương trình, deploy một lần; các phần gọi nhau bằng hàm cục bộ và dùng
+        chung database. Ưu điểm: dễ làm, dễ debug, có JOIN và transaction chung.
+      - **Microservices**: nhiều service nhỏ gọi nhau qua mạng, mỗi service deploy và scale độc lập, có thể do đội
+        riêng sở hữu. Ưu điểm: scale và deploy độc lập.
+      - Nên **bắt đầu bằng monolith** (hoặc modular monolith) và chỉ tách khi có lý do rõ (đội lớn, cần scale riêng,
+        cần deploy độc lập).
+    rubric_md: "Đạt khi nêu đúng: monolith là một chương trình/deploy một lần (dễ làm, dễ debug), microservices là nhiều service gọi nhau qua mạng (scale/deploy độc lập), và nên bắt đầu bằng monolith, chỉ tách khi có lý do rõ. Đủ cả ba ý: bằng chứng điểm 1; thiếu một ý hoặc nói 'luôn dùng microservices ngay từ đầu': điểm 0."
+  - id: E176
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Một shop online tách thành service sản phẩm, đơn hàng và thanh toán, mỗi service có database riêng.
+      1. Nêu **hai cái giá** của việc tách so với monolith.
+      2. Vì sao không còn **JOIN** giữa các service, và hệ quả với tính nhất quán dữ liệu là gì?
+      3. "Đặt hàng + trừ kho" qua hai service: bước 1 tạo đơn xong, bước 2 trừ kho lỗi. Nêu hướng xử lý.
+      4. Phân biệt giao tiếp **đồng bộ** và **bất đồng bộ** giữa hai service.
+    answer_md: |
+      1. Cái giá: gọi qua **mạng** (chậm hơn, có thể hỏng giữa chừng); mất JOIN và transaction chung; vận hành, giám sát
+         phức tạp hơn (chọn hai ý).
+      2. Mỗi service **sở hữu database riêng** (database per service), service khác không đọc thẳng nên không JOIN
+         được. Hệ quả: dữ liệu chỉ **nhất quán dần** (**eventual consistency**), không khớp tức thì.
+      3. Không có transaction chung nên bước 1 đã commit. Dùng **saga**: thử lại bước 2, hoặc chạy **bước bù** (hủy/hoàn
+         đơn) để dữ liệu nhất quán trở lại.
+      4. **Đồng bộ**: A gọi REST/gRPC sang B và chờ trả lời; B chết thì A lỗi theo. **Bất đồng bộ**: A gửi **event** vào
+         **message queue**, B xử lý sau; hai bên không chờ nhau.
+    rubric_md: "Đạt khi đúng cả bốn phần: (1) hai cái giá hợp lệ (mạng, mất JOIN/transaction, vận hành); (2) mỗi service một database nên không JOIN + eventual consistency; (3) saga hoặc thử lại/bước bù; (4) đồng bộ (REST/gRPC, chờ trả lời) vs bất đồng bộ (event/message queue, không chờ). Đủ bốn: bằng chứng điểm 2. Đúng ba: tối đa điểm 1. Sai (ví dụ 'JOIN giữa hai database để rollback', 'microservices tự đồng bộ'): không tính phần đó."
+  - id: E177
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      Một công ty có 5 lập trình viên, một sản phẩm mới chưa có nhiều người dùng. CTO đề xuất "làm microservices ngay
+      cho hiện đại", chia thành 8 service, mỗi service một database. Bạn được nhờ đánh giá.
+      Hãy: (a) cho biết đề xuất này có hợp lý không và đề xuất thay thế; (b) nêu các cái giá cụ thể công ty sẽ phải trả
+      nếu tách; (c) nêu khi nào việc tách mới thực sự hợp lý và nên chọn ranh giới service theo tiêu chí nào.
+    answer_md: |
+      **(a) Không hợp lý.** Đội nhỏ, nghiệp vụ chưa ổn định, chưa có yêu cầu scale hay deploy độc lập. Nên **bắt đầu bằng
+      monolith** (hoặc **modular monolith**: một chương trình, chia module có ranh giới rõ) và tách sau khi có lý do.
+      Tách sớm còn dễ chọn sai ranh giới, thành **distributed monolith** (nhiều service nhưng vẫn dính chặt).
+
+      **(b) Cái giá:** gọi qua **mạng** (chậm, timeout, hỏng giữa chừng, cần retry); **mất JOIN** vì mỗi service một
+      database, chỉ có **eventual consistency**; **mất transaction chung** nên thao tác nhiều service cần **saga** với bước
+      bù; vận hành nặng hơn (8 service để deploy, giám sát, theo dõi lỗi xuyên service, thêm API gateway, service discovery).
+
+      **(c) Khi nào tách:** đội lớn cần làm và deploy độc lập, một phần cần scale riêng, yêu cầu công nghệ hoặc cách ly khác
+      nhau. Ranh giới theo **bounded context** (ranh giới nghiệp vụ, DDD), và theo **Conway's law** thường khớp với ranh
+      giới đội; tránh chia theo tầng kỹ thuật.
+    rubric_md: "Đạt mức 3 khi: (a) kết luận không nên microservices ngay, nên bắt đầu monolith/modular monolith; (b) nêu được cái giá: mạng, mất JOIN, mất transaction chung (saga/eventual consistency), vận hành; (c) nêu điều kiện tách hợp lý (đội, scale riêng, deploy độc lập) và ranh giới theo bounded context hoặc Conway's law. Đủ cả ba ý: điểm 3. Thiếu một ý hoặc ủng hộ 'microservices mặc định': chưa đạt mức 3."

@@ -24767,6 +24767,234 @@
       "plan_hours": 4
     },
     {
+      "id": "eng.data_access.orm_n_plus_one",
+      "section": "eng",
+      "module": "eng.data_access",
+      "name_vi": "ORM, N+1 và mẫu truy vấn (ORM and N+1)",
+      "order": 1,
+      "summary_vi": "ORM (Object-Relational Mapper) là thư viện cho phép thao tác bảng database bằng class và object thay vì viết SQL; lỗi N+1 là khi code chạy 1 câu lấy N dòng rồi thêm N câu nữa. Học xong bạn dùng ORM mà vẫn nhận ra và tránh các truy vấn thừa.",
+      "mastery_bar_vi": "Mức 3: nhìn log SQL của một API, chỉ ra chỗ bị N+1 và sửa còn vài câu truy vấn.",
+      "prerequisites": [
+        "cs.sql.joins"
+      ],
+      "lang_prereqs": {
+        "python": [
+          "py.ecosystem.db_python"
+        ],
+        "java": [
+          "java.ecosystem.jpa_basics"
+        ]
+      },
+      "key_concepts": [
+        "ORM vs query builder vs raw SQL",
+        "lazy vs eager loading",
+        "N+1 problem and fixes (join fetch, batch loading)",
+        "repository / DAO pattern",
+        "unit of work and session lifecycle",
+        "logging ORM-generated SQL and asserting query counts",
+        "bulk insert/update vs per-entity saves"
+      ],
+      "concepts_vi": [
+        {
+          "text": "ORM: ánh xạ một bảng thành một class, một dòng thành một object; bạn gọi user.save() thay vì viết INSERT.",
+          "level": "co_ban"
+        },
+        {
+          "text": "ORM vs query builder vs raw SQL: ORM tiện nhất, query builder ghép câu lệnh bằng code, raw SQL linh hoạt nhất; mỗi cách có chỗ dùng.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Lazy vs eager loading: lazy chỉ tải dữ liệu liên quan khi chạm tới; eager tải luôn cùng lúc với một câu lệnh.",
+          "level": "co_ban"
+        },
+        {
+          "text": "N+1 problem: lặp qua 100 bài viết rồi mỗi vòng lại truy vấn tác giả thì thành 101 câu; sửa bằng JOIN hoặc eager loading.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Bật log SQL: in ra câu SQL mà ORM sinh ra để đếm số truy vấn mỗi request.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Repository/DAO: lớp bao việc đọc ghi database để phần còn lại của code không dính SQL. (Khác với 'Git repository'.)",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Session và unit of work: session gom các thay đổi và ghi một lần khi commit; cần biết vòng đời session.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Bulk insert/update: ghi nhiều dòng trong một câu thay vì lưu từng object, nhanh hơn nhiều lần.",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "What is the N+1 query problem?",
+          "vi": "Chạy đoạn code ở khung bên dưới (Python + sqlite3, có sẵn 100 bài và 10 tác giả), xem số câu SQL in ra, rồi viết lại bằng một câu JOIN để chỉ còn 1 câu.",
+          "starter_code_vi": {
+            "lang": "python",
+            "code": "import sqlite3\ndb = sqlite3.connect(':memory:')\ndb.executescript('''\nCREATE TABLE users(id INTEGER PRIMARY KEY, ten TEXT);\nCREATE TABLE posts(id INTEGER PRIMARY KEY, user_id INTEGER, tieu_de TEXT);''')\nfor i in range(1, 11): db.execute('INSERT INTO users VALUES (?, ?)', (i, f'user{i}'))\nfor i in range(1, 101): db.execute('INSERT INTO posts VALUES (?, ?, ?)', (i, i % 10 + 1, f'bai{i}'))\nso_cau = 0\ndef chay(sql, *args):\n    global so_cau\n    so_cau += 1\n    return db.execute(sql, args).fetchall()\nfor p in chay('SELECT id, user_id FROM posts'):\n    ten = chay('SELECT ten FROM users WHERE id = ?', p[1])[0][0]\nprint('số câu SQL:', so_cau)   # bao nhiêu?\n# TODO: viết lại bằng một câu SELECT ... JOIN, in lại so_cau"
+          }
+        },
+        {
+          "title": "Lazy vs eager loading",
+          "vi": "Giải thích bằng ví dụ bài viết và bình luận: khi nào lazy gây chậm, khi nào eager tải thừa."
+        },
+        {
+          "title": "ORM vs raw SQL trade-offs",
+          "vi": "Nêu 2 trường hợp nên dùng ORM và 2 trường hợp nên viết SQL thẳng."
+        }
+      ],
+      "beginner_note_vi": "Cần biết SQL JOIN (cs.sql.joins). Với Python, nên học SQLAlchemy cơ bản ở py.ecosystem.db_python trước.",
+      "example_problems": [
+        "What is the N+1 query problem?",
+        "Lazy vs eager loading",
+        "ORM vs raw SQL trade-offs"
+      ],
+      "bank_topics": [
+        "backend_web.architecture",
+        "backend_web.testing_debugging"
+      ],
+      "bank_counts": {
+        "backend_web.architecture": {
+          "total": 25,
+          "y2026": 14
+        },
+        "backend_web.testing_debugging": {
+          "total": 134,
+          "y2026": 92
+        }
+      },
+      "target_swe": {
+        "intern": 0,
+        "fresher": 1,
+        "junior": 3,
+        "senior": 3
+      },
+      "target_ai": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 1,
+        "senior": 2
+      },
+      "est_hours": 4,
+      "plan_order": 216,
+      "plan_day": null,
+      "plan_hours": 4
+    },
+    {
+      "id": "eng.data_access.schema_migrations",
+      "section": "eng",
+      "module": "eng.data_access",
+      "name_vi": "Migration schema và đổi DB không downtime (schema migrations)",
+      "order": 2,
+      "summary_vi": "Migration là 'nhật ký sửa bảng' có đánh số: mỗi lần thêm hay đổi cột là một file, máy nào chạy đủ các file theo thứ tự thì có cùng cấu trúc bảng. Học xong bạn viết được migration đơn giản và biết vì sao đổi bảng lớn phải làm từng bước.",
+      "mastery_bar_vi": "Mức 3: lập kế hoạch từng bước (expand-contract) để đổi tên một cột trên bảng lớn mà ứng dụng vẫn chạy bình thường.",
+      "prerequisites": [
+        "eng.data_access.orm_n_plus_one"
+      ],
+      "lang_prereqs": {
+        "python": [],
+        "java": []
+      },
+      "key_concepts": [
+        "migration tools (Flyway, Alembic, Liquibase, Django migrations)",
+        "forward-only, versioned, reviewed migrations",
+        "expand-contract (zero-downtime) pattern",
+        "add column / NOT NULL on a huge table safely",
+        "backfills in batches",
+        "online index creation",
+        "dual writes and keeping two stores in sync",
+        "rollback strategy and deploy ordering with migrations"
+      ],
+      "concepts_vi": [
+        {
+          "text": "Migration: mỗi thay đổi cấu trúc bảng (schema) là một file đánh số như 003_add_phone.sql (Alembic, Flyway), chạy theo thứ tự và được review như code.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Forward-only: không sửa file migration đã chạy; muốn sửa thì thêm file mới có số lớn hơn.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Rollback (lùi lại): file migration có thể kèm bước 'down' để lùi; thêm cột lùi dễ, xóa cột thì mất dữ liệu. (Khác rollback của transaction.)",
+          "level": "co_ban"
+        },
+        {
+          "text": "Bản cũ và bản mới chạy cùng lúc: deploy thường thay dần từng server (rolling deploy), nên có lúc code cũ và code mới cùng dùng một database.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Expand-contract (mở rộng rồi thu hẹp): thêm cột mới, cho code ghi cả hai cột, chuyển code sang đọc cột mới, cuối cùng xóa cột cũ.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Thêm cột NOT NULL vào bảng lớn: thêm cột cho phép NULL (rỗng) trước, điền dữ liệu, rồi mới đặt NOT NULL; làm thẳng có thể khóa bảng lâu và làm code cũ lỗi.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Backfill theo lô: điền dữ liệu cũ vào cột mới từng nhóm nhỏ (ví dụ 1000 dòng một lần) để không khóa bảng quá lâu.",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "Write a simple migration",
+          "vi": "Viết migration thêm cột phone (VARCHAR(20)) vào bảng users và migration ngược để bỏ cột đó. Gợi ý: ALTER TABLE users ADD COLUMN ... và DROP COLUMN ....",
+          "starter_code_vi": {
+            "lang": "sql",
+            "code": "-- 003_add_phone.sql (chiều lên)\n-- TODO: thêm cột phone vào users\n-- 003_add_phone_down.sql (chiều lùi)\n-- TODO: bỏ cột phone"
+          }
+        },
+        {
+          "title": "How do you add a NOT NULL column to a huge table without downtime?",
+          "vi": "Liệt kê các bước theo thứ tự: thêm cột cho phép NULL, deploy code ghi cột mới, backfill dữ liệu cũ, đặt NOT NULL; nói vì sao không làm một bước."
+        },
+        {
+          "title": "Rename a column with zero downtime",
+          "vi": "Đổi tên cột email thành contact_email bằng expand-contract; nêu từng bước và code đang chạy dùng cột nào ở mỗi bước.",
+          "starter_code_vi": "Bước 1: thêm cột contact_email (cho phép NULL)\nBước 2: TODO code ghi vào cột nào?\nBước 3: TODO backfill rồi đọc cột nào?\nBước 4: TODO khi nào xóa cột email?"
+        }
+      ],
+      "beginner_note_vi": "Intern và fresher chưa bắt buộc; junior học 4 ý Cơ bản trước rồi mới tới Nâng cao. 'Deploy' xem glossary.",
+      "example_problems": [
+        "How do you add a NOT NULL column to a huge table without downtime?",
+        "How do you keep two databases in sync after an async write?",
+        "Rename a column with zero downtime"
+      ],
+      "bank_topics": [
+        "backend_web.architecture",
+        "cs_fundamentals.db_concepts"
+      ],
+      "bank_counts": {
+        "backend_web.architecture": {
+          "total": 25,
+          "y2026": 14
+        },
+        "cs_fundamentals.db_concepts": {
+          "total": 104,
+          "y2026": 20
+        }
+      },
+      "target_swe": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 2,
+        "senior": 3
+      },
+      "target_ai": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 1,
+        "senior": 2
+      },
+      "est_hours": 3,
+      "plan_order": 217,
+      "plan_day": null,
+      "plan_hours": 3
+    },
+    {
       "id": "eng.security.owasp",
       "section": "eng",
       "module": "eng.security",
@@ -24886,7 +25114,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 216,
+      "plan_order": 218,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -25012,7 +25240,7 @@
         "senior": 2
       },
       "est_hours": 6,
-      "plan_order": 217,
+      "plan_order": 219,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -25129,7 +25357,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 218,
+      "plan_order": 220,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -25235,7 +25463,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 219,
+      "plan_order": 221,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -25356,7 +25584,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 220,
+      "plan_order": 222,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -25468,7 +25696,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 221,
+      "plan_order": 223,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -25569,7 +25797,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 222,
+      "plan_order": 224,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -25699,7 +25927,7 @@
         "senior": 2
       },
       "est_hours": 6,
-      "plan_order": 223,
+      "plan_order": 225,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -25816,7 +26044,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 224,
+      "plan_order": 226,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -25943,7 +26171,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 225,
+      "plan_order": 227,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -26071,7 +26299,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 226,
+      "plan_order": 228,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -26172,7 +26400,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 227,
+      "plan_order": 229,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -26290,7 +26518,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 228,
+      "plan_order": 230,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -26406,7 +26634,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 229,
+      "plan_order": 231,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -26536,7 +26764,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 230,
+      "plan_order": 232,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -26649,9 +26877,240 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 231,
+      "plan_order": 233,
       "plan_day": null,
       "plan_hours": 3
+    },
+    {
+      "id": "eng.architecture.layered_patterns",
+      "section": "eng",
+      "module": "eng.architecture",
+      "name_vi": "Kiến trúc phân lớp, MVC và clean design (layered architecture)",
+      "order": 1,
+      "summary_vi": "Kiến trúc phân lớp chia backend thành các tầng, mỗi tầng một việc, như nhà hàng có người nhận order, đầu bếp và kho nguyên liệu. Học xong bạn tổ chức code thành controller, service, repository để dễ đọc và dễ test.",
+      "mastery_bar_vi": "Mức 3: chia một chức năng nhỏ thành ba lớp, viết DI cho nó và giải thích vì sao việc tách lớp giúp test.",
+      "prerequisites": [
+        "eng.apis.rest_design",
+        "lld.oop_principles.solid"
+      ],
+      "lang_prereqs": {
+        "python": [],
+        "java": []
+      },
+      "key_concepts": [
+        "controller / service / repository layers",
+        "MVC and its variants",
+        "dependency injection and inversion of control",
+        "hexagonal / clean architecture",
+        "DTO vs entity vs domain model",
+        "separation of concerns",
+        "middleware, filters, interceptors"
+      ],
+      "concepts_vi": [
+        {
+          "text": "Controller / service / repository: controller nhận request và trả response; service chứa luật nghiệp vụ; repository đọc ghi database.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Separation of concerns (tách mối quan tâm): mỗi lớp một việc nên sửa một chỗ không vỡ chỗ khác.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Dependency injection (DI): lớp nhận thứ nó cần từ ngoài thay vì tự tạo (đã làm quen ở mocking_integration), nên dễ thay bằng đồ giả khi test.",
+          "level": "co_ban"
+        },
+        {
+          "text": "DTO vs entity vs domain model: DTO là dữ liệu vào/ra API, entity ánh xạ bảng database, domain model là đối tượng nghiệp vụ.",
+          "level": "co_ban"
+        },
+        {
+          "text": "MVC (Model-View-Controller): kiểu tách dữ liệu, giao diện và điều khiển.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Inversion of control (đảo chiều điều khiển): framework gọi code của bạn thay vì bạn gọi framework. Ví dụ bạn chỉ viết hàm xử lý /orders, framework (Spring, FastAPI) tự gọi nó mỗi khi có request.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Middleware, filter, interceptor: đoạn code chạy trước hoặc sau mọi request, như kiểm tra đăng nhập, ghi log.",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "Structure a service into layers",
+          "vi": "Cho chức năng 'đặt hàng', nói đoạn code nào đặt ở controller, service, repository; hoàn thành đoạn code ở khung bên dưới (controller nhận body, gọi service, trả 201).",
+          "starter_code_vi": {
+            "lang": "python",
+            "code": "class OrderRepository:           # repository: đọc ghi database\n    def save(self, order): print('saved', order)\nclass OrderService:              # service: luật nghiệp vụ, nhận repo từ ngoài (DI)\n    def __init__(self, repo): self.repo = repo\n    def dat_hang(self, item, qty):\n        if qty <= 0: raise ValueError('qty phải > 0')\n        self.repo.save({'item': item, 'qty': qty})\ndef post_orders(body, service):  # controller: nhận request, trả response\n    # TODO: gọi service.dat_hang với body['item'], body['qty'] rồi trả 201\n    ...\nprint(post_orders({'item': 'ao', 'qty': 2}, OrderService(OrderRepository())))"
+          }
+        },
+        {
+          "title": "What is dependency injection?",
+          "vi": "Cho class OrderService tự tạo Database bên trong; viết lại để nhận database từ ngoài và nói vì sao dễ test hơn.",
+          "starter_code_vi": {
+            "lang": "python",
+            "code": "class OrderService:\n    def __init__(self):\n        self.db = Database()   # TODO: nhận db qua tham số thay vì tự tạo\n    def dat_hang(self, item):\n        self.db.save(item)"
+          }
+        },
+        {
+          "title": "Explain the MVC model",
+          "vi": "Giải thích vai trò M, V, C bằng ví dụ trang danh sách sản phẩm."
+        }
+      ],
+      "beginner_note_vi": "Từ 'repository' ở đây là lớp truy cập database, không phải Git repository. Intern có thể bỏ qua.",
+      "example_problems": [
+        "Explain the MVC model",
+        "Structure a service into layers",
+        "What is dependency injection?"
+      ],
+      "bank_topics": [
+        "backend_web.architecture"
+      ],
+      "bank_counts": {
+        "backend_web.architecture": {
+          "total": 25,
+          "y2026": 14
+        }
+      },
+      "target_swe": {
+        "intern": 0,
+        "fresher": 1,
+        "junior": 2,
+        "senior": 3
+      },
+      "target_ai": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 2,
+        "senior": 2
+      },
+      "est_hours": 4,
+      "plan_order": 234,
+      "plan_day": null,
+      "plan_hours": 4
+    },
+    {
+      "id": "eng.architecture.monolith_microservices",
+      "section": "eng",
+      "module": "eng.architecture",
+      "name_vi": "Monolith và microservices",
+      "order": 2,
+      "summary_vi": "Monolith là một cửa hàng đa năng: mọi thứ trong một chương trình, dễ làm, dễ tìm lỗi. Microservices là dãy quầy riêng gọi nhau qua mạng: mỗi quầy tự lớn, tự sửa, nhưng thêm chuyện mạng chập chờn và không còn JOIN dữ liệu chung. Bắt đầu bằng monolith, chỉ tách khi có lý do rõ.",
+      "mastery_bar_vi": "Mức 3: nêu khi nào không nên dùng microservices và mô tả cái giá phải trả khi tách (JOIN, transaction, mạng).",
+      "prerequisites": [
+        "eng.architecture.layered_patterns"
+      ],
+      "lang_prereqs": {
+        "python": [],
+        "java": []
+      },
+      "key_concepts": [
+        "modular monolith vs microservices: ownership, scaling, deploy independence",
+        "service boundaries and bounded contexts (DDD intro); Conway's law",
+        "database per service and data ownership (no joins, eventual consistency)",
+        "sync (REST/gRPC) vs async (events) communication",
+        "API gateway and service discovery",
+        "saga and outbox in practice",
+        "distributed monolith anti-pattern",
+        "strangler fig migration",
+        "start simple: split only when a requirement forces it"
+      ],
+      "concepts_vi": [
+        {
+          "text": "Monolith: cả ứng dụng là một chương trình, deploy một lần; dễ làm và dễ tìm lỗi lúc đầu, nhưng khi lớn thì sửa một chỗ phải deploy cả khối.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Microservices: tách thành nhiều chương trình nhỏ (đơn hàng, thanh toán...) gọi nhau qua mạng, mỗi cái deploy và tăng số máy (scale) riêng.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Cái giá của việc tách: gọi qua mạng thì chậm hơn và có thể hỏng giữa chừng, thêm nhiều thứ phải vận hành. Chỉ tách khi đội lớn hoặc một phần cần scale riêng.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Mỗi service một database: không JOIN giữa các service; dữ liệu chỉ nhất quán dần (eventual consistency: sau một lúc các bản mới khớp nhau).",
+          "level": "co_ban"
+        },
+        {
+          "text": "Đặt hàng + trừ kho qua hai service: hai database nên không có transaction chung; bước 2 hỏng thì bước 1 đã xong, phải có cách bù lại.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Đồng bộ: service A gọi REST hoặc gRPC (cách gọi hàm từ xa nhanh) sang B rồi chờ trả lời; nếu B chết thì A cũng lỗi.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Bất đồng bộ: A gửi event (sự kiện) vào message queue (hộp thư trung gian), B lấy ra làm sau; hai bên không phải chờ nhau.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "API gateway và service discovery: gateway là cổng chung phía trước, client chỉ gọi một địa chỉ, gateway chuyển /orders tới service đơn hàng, /pay tới service thanh toán và kiểm tra đăng nhập tại một chỗ. Service discovery là sổ danh bạ: mỗi service khi chạy đăng ký 'tôi là payment ở 10.0.0.7:8000', service khác tra sổ để gọi (vì địa chỉ đổi liên tục khi deploy hay scale).",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Saga: giao dịch qua nhiều service chia thành chuỗi bước, mỗi bước có bước bù (hoàn kho nếu thanh toán lỗi).",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "Monolith vs microservices",
+          "vi": "Cho shop online có sản phẩm, đơn hàng, thanh toán: liệt kê 2 lợi và 2 hại khi tách thành 3 service."
+        },
+        {
+          "title": "What breaks when each service has its own DB?",
+          "vi": "Giải thích vì sao không còn JOIN, và đi qua tình huống 'đặt hàng + trừ kho' khi bước 2 lỗi.",
+          "starter_code_vi": "1. Order service: tạo đơn  (xong)\n2. Inventory service: trừ kho (LỖI)\n# TODO: đơn đã tạo mà kho chưa trừ. Nêu 2 cách xử lý (thử lại / bù lại)"
+        },
+        {
+          "title": "Break a monolith into services",
+          "vi": "Đề xuất ranh giới service cho một ứng dụng đặt đồ ăn và nói thứ tự tách."
+        },
+        {
+          "title": "API gateway role and service discovery",
+          "vi": "Giải thích hai khái niệm bằng một ví dụ có 3 service."
+        }
+      ],
+      "beginner_note_vi": "Fresher chưa bắt buộc; nếu đọc, chỉ cần 3 ý Cơ bản đầu để biết khác nhau giữa hai kiểu. Cần học layered_patterns trước.",
+      "example_problems": [
+        "Monolith vs microservices",
+        "Break a monolith for an e-commerce site into services",
+        "Build two interacting services for a refund flow",
+        "API gateway role and service discovery",
+        "What breaks when each service has its own DB?"
+      ],
+      "bank_topics": [
+        "backend_web.architecture",
+        "system_design.concepts"
+      ],
+      "bank_counts": {
+        "backend_web.architecture": {
+          "total": 25,
+          "y2026": 14
+        },
+        "system_design.concepts": {
+          "total": 84,
+          "y2026": 32
+        }
+      },
+      "target_swe": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 2,
+        "senior": 3
+      },
+      "target_ai": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 1,
+        "senior": 2
+      },
+      "est_hours": 6,
+      "plan_order": 235,
+      "plan_day": null,
+      "plan_hours": 6
     },
     {
       "id": "sd.fundamentals.scalability",
@@ -26758,7 +27217,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 232,
+      "plan_order": 236,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -26866,7 +27325,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 233,
+      "plan_order": 237,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -26973,7 +27432,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 234,
+      "plan_order": 238,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -27083,7 +27542,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 235,
+      "plan_order": 239,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -27194,7 +27653,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 236,
+      "plan_order": 240,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -27311,7 +27770,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 237,
+      "plan_order": 241,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -27423,7 +27882,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 238,
+      "plan_order": 242,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -27523,7 +27982,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 239,
+      "plan_order": 243,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -27629,7 +28088,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 240,
+      "plan_order": 244,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -27738,7 +28197,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 241,
+      "plan_order": 245,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -27883,7 +28342,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 242,
+      "plan_order": 246,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -27996,7 +28455,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 243,
+      "plan_order": 247,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -28109,7 +28568,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 244,
+      "plan_order": 248,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -28214,7 +28673,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 245,
+      "plan_order": 249,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -28322,7 +28781,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 246,
+      "plan_order": 250,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -28439,7 +28898,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 247,
+      "plan_order": 251,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -28547,7 +29006,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 248,
+      "plan_order": 252,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -28651,7 +29110,7 @@
         "senior": 0
       },
       "est_hours": 3,
-      "plan_order": 249,
+      "plan_order": 253,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -28763,7 +29222,7 @@
         "senior": 1
       },
       "est_hours": 3,
-      "plan_order": 250,
+      "plan_order": 254,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -28880,7 +29339,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 251,
+      "plan_order": 255,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -28989,7 +29448,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 252,
+      "plan_order": 256,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -29095,7 +29554,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 253,
+      "plan_order": 257,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -29230,7 +29689,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 254,
+      "plan_order": 258,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -29349,7 +29808,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 255,
+      "plan_order": 259,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -29477,7 +29936,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 256,
+      "plan_order": 260,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -29582,7 +30041,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 257,
+      "plan_order": 261,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -29695,7 +30154,7 @@
         "senior": 0
       },
       "est_hours": 2,
-      "plan_order": 258,
+      "plan_order": 262,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -29819,7 +30278,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 259,
+      "plan_order": 263,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -29927,7 +30386,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 260,
+      "plan_order": 264,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -30044,7 +30503,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 261,
+      "plan_order": 265,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -30149,7 +30608,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 262,
+      "plan_order": 266,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -30258,7 +30717,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 263,
+      "plan_order": 267,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -30394,7 +30853,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 264,
+      "plan_order": 268,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -30513,7 +30972,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 265,
+      "plan_order": 269,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -30638,7 +31097,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 266,
+      "plan_order": 270,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -30735,7 +31194,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 267,
+      "plan_order": 271,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -30857,7 +31316,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 268,
+      "plan_order": 272,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -30974,7 +31433,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 269,
+      "plan_order": 273,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -31083,7 +31542,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 270,
+      "plan_order": 274,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -31193,7 +31652,7 @@
         "senior": 1
       },
       "est_hours": 4,
-      "plan_order": 271,
+      "plan_order": 275,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -31298,7 +31757,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 272,
+      "plan_order": 276,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -31408,7 +31867,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 273,
+      "plan_order": 277,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -31513,7 +31972,7 @@
         "senior": 0
       },
       "est_hours": 3,
-      "plan_order": 274,
+      "plan_order": 278,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -31638,7 +32097,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 275,
+      "plan_order": 279,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -31761,7 +32220,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 276,
+      "plan_order": 280,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -31866,7 +32325,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 277,
+      "plan_order": 281,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -31968,7 +32427,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 278,
+      "plan_order": 282,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -32071,7 +32530,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 279,
+      "plan_order": 283,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -32189,7 +32648,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 280,
+      "plan_order": 284,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -32294,7 +32753,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 281,
+      "plan_order": 285,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -32386,7 +32845,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 282,
+      "plan_order": 286,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -32498,7 +32957,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 283,
+      "plan_order": 287,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -32616,7 +33075,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 284,
+      "plan_order": 288,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -32725,7 +33184,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 285,
+      "plan_order": 289,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -32835,7 +33294,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 286,
+      "plan_order": 290,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -32945,7 +33404,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 287,
+      "plan_order": 291,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -33053,7 +33512,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 288,
+      "plan_order": 292,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -33162,7 +33621,7 @@
         "senior": 1
       },
       "est_hours": 4,
-      "plan_order": 289,
+      "plan_order": 293,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -33272,7 +33731,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 290,
+      "plan_order": 294,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -33371,7 +33830,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 291,
+      "plan_order": 295,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -33475,7 +33934,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 292,
+      "plan_order": 296,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -33583,7 +34042,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 293,
+      "plan_order": 297,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -33693,7 +34152,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 294,
+      "plan_order": 298,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -33792,7 +34251,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 295,
+      "plan_order": 299,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -33895,7 +34354,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 296,
+      "plan_order": 300,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -33997,7 +34456,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 297,
+      "plan_order": 301,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -34101,7 +34560,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 298,
+      "plan_order": 302,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -34207,7 +34666,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 299,
+      "plan_order": 303,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -34311,7 +34770,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 300,
+      "plan_order": 304,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -34411,7 +34870,7 @@
         "senior": 0
       },
       "est_hours": 3,
-      "plan_order": 301,
+      "plan_order": 305,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -34516,7 +34975,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 302,
+      "plan_order": 306,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -34627,7 +35086,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 303,
+      "plan_order": 307,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -34734,7 +35193,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 304,
+      "plan_order": 308,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -34845,7 +35304,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 305,
+      "plan_order": 309,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -34955,7 +35414,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 306,
+      "plan_order": 310,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -35058,7 +35517,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 307,
+      "plan_order": 311,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -35162,7 +35621,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 308,
+      "plan_order": 312,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -35276,7 +35735,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 309,
+      "plan_order": 313,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -35395,7 +35854,7 @@
         "senior": 0
       },
       "est_hours": 6,
-      "plan_order": 310,
+      "plan_order": 314,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -35504,7 +35963,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 311,
+      "plan_order": 315,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -35605,7 +36064,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 312,
+      "plan_order": 316,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -35710,7 +36169,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 313,
+      "plan_order": 317,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -35816,7 +36275,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 314,
+      "plan_order": 318,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -35927,7 +36386,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 315,
+      "plan_order": 319,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -36033,7 +36492,7 @@
         "senior": 0
       },
       "est_hours": 4,
-      "plan_order": 316,
+      "plan_order": 320,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -36135,7 +36594,7 @@
         "senior": 0
       },
       "est_hours": 5,
-      "plan_order": 317,
+      "plan_order": 321,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -36253,7 +36712,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 318,
+      "plan_order": 322,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -36371,7 +36830,7 @@
       },
       "est_hours": 3,
       "est_hours_beginner": 5,
-      "plan_order": 319,
+      "plan_order": 323,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -36497,7 +36956,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 320,
+      "plan_order": 324,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -36609,7 +37068,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 321,
+      "plan_order": 325,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -36734,7 +37193,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 322,
+      "plan_order": 326,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -36850,7 +37309,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 323,
+      "plan_order": 327,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -36965,7 +37424,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 324,
+      "plan_order": 328,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -37092,7 +37551,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 325,
+      "plan_order": 329,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -37217,7 +37676,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 326,
+      "plan_order": 330,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -37343,7 +37802,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 327,
+      "plan_order": 331,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -37473,7 +37932,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 328,
+      "plan_order": 332,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -37570,7 +38029,7 @@
       },
       "est_hours": 2,
       "est_hours_beginner": 3,
-      "plan_order": 329,
+      "plan_order": 333,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -37688,7 +38147,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 330,
+      "plan_order": 334,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -37801,7 +38260,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 331,
+      "plan_order": 335,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -37915,7 +38374,7 @@
         "senior": 2
       },
       "est_hours": 3,
-      "plan_order": 332,
+      "plan_order": 336,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -38030,7 +38489,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 333,
+      "plan_order": 337,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -38139,7 +38598,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 334,
+      "plan_order": 338,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -38252,7 +38711,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 335,
+      "plan_order": 339,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -38362,7 +38821,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 336,
+      "plan_order": 340,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -38469,7 +38928,7 @@
       },
       "est_hours": 3,
       "est_hours_beginner": 4,
-      "plan_order": 337,
+      "plan_order": 341,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -38591,7 +39050,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 338,
+      "plan_order": 342,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -38710,7 +39169,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 339,
+      "plan_order": 343,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -38837,7 +39296,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 340,
+      "plan_order": 344,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -38963,7 +39422,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 341,
+      "plan_order": 345,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -39086,7 +39545,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 342,
+      "plan_order": 346,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -39203,7 +39662,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 343,
+      "plan_order": 347,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -39310,7 +39769,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 344,
+      "plan_order": 348,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -39425,7 +39884,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 345,
+      "plan_order": 349,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -39541,7 +40000,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 346,
+      "plan_order": 350,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -39656,7 +40115,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 347,
+      "plan_order": 351,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -39788,7 +40247,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 348,
+      "plan_order": 352,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -39907,7 +40366,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 349,
+      "plan_order": 353,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -40013,7 +40472,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 350,
+      "plan_order": 354,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -40128,7 +40587,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 351,
+      "plan_order": 355,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -40245,7 +40704,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 352,
+      "plan_order": 356,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -40368,7 +40827,7 @@
         "senior": 3
       },
       "est_hours": 2,
-      "plan_order": 353,
+      "plan_order": 357,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -40496,7 +40955,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 354,
+      "plan_order": 358,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -40616,7 +41075,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 355,
+      "plan_order": 359,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -40730,7 +41189,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 356,
+      "plan_order": 360,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -40852,7 +41311,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 357,
+      "plan_order": 361,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -40978,7 +41437,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 358,
+      "plan_order": 362,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -41098,7 +41557,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 359,
+      "plan_order": 363,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -41215,7 +41674,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 360,
+      "plan_order": 364,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -41334,7 +41793,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 361,
+      "plan_order": 365,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -41446,7 +41905,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 362,
+      "plan_order": 366,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -41568,7 +42027,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 363,
+      "plan_order": 367,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -41693,7 +42152,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 364,
+      "plan_order": 368,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -41810,7 +42269,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 365,
+      "plan_order": 369,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -41921,7 +42380,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 366,
+      "plan_order": 370,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -42033,7 +42492,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 367,
+      "plan_order": 371,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -42140,7 +42599,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 368,
+      "plan_order": 372,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -42260,7 +42719,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 369,
+      "plan_order": 373,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -42383,7 +42842,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 370,
+      "plan_order": 374,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -42493,7 +42952,7 @@
         "senior": 3
       },
       "est_hours": 2,
-      "plan_order": 371,
+      "plan_order": 375,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -42603,7 +43062,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 372,
+      "plan_order": 376,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -42719,7 +43178,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 373,
+      "plan_order": 377,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -42844,7 +43303,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 374,
+      "plan_order": 378,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -42958,7 +43417,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 375,
+      "plan_order": 379,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -43075,7 +43534,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 376,
+      "plan_order": 380,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -43173,7 +43632,7 @@
         "senior": 3
       },
       "est_hours": 2,
-      "plan_order": 377,
+      "plan_order": 381,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -43291,7 +43750,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 378,
+      "plan_order": 382,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -43415,7 +43874,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 379,
+      "plan_order": 383,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -43540,7 +43999,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 380,
+      "plan_order": 384,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -43668,7 +44127,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 381,
+      "plan_order": 385,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -43784,7 +44243,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 382,
+      "plan_order": 386,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -43888,7 +44347,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 383,
+      "plan_order": 387,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -44005,7 +44464,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 384,
+      "plan_order": 388,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -44117,7 +44576,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 385,
+      "plan_order": 389,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -44217,7 +44676,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 386,
+      "plan_order": 390,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -44351,7 +44810,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 387,
+      "plan_order": 391,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -44487,7 +44946,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 388,
+      "plan_order": 392,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -44632,7 +45091,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 389,
+      "plan_order": 393,
       "plan_day": null,
       "plan_hours": 6
     }

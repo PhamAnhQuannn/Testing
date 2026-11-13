@@ -1,0 +1,152 @@
+id: eng.data_access.orm_n_plus_one
+version: 1
+status: published
+title_vi: "ORM, N+1 và mẫu truy vấn"
+est_minutes: 12
+objectives_vi:
+  - "Giải thích **ORM** ánh xạ bảng thành class, dòng thành object, và so sánh **ORM vs query builder vs raw SQL**."
+  - "Phân biệt **lazy** và **eager loading**; nhận ra **N+1 problem** (1 câu lấy N dòng rồi N câu nữa) và sửa bằng JOIN / eager loading."
+  - "Bật **SQL logging** để đếm số truy vấn mỗi request và phát hiện truy vấn thừa."
+  - "Hiểu **repository / DAO**, **session / unit of work** và **bulk insert/update** so với lưu từng object."
+blocks:
+  - id: s_orm_basics
+    type: section
+    title_vi: "ORM và các cách truy cập database"
+    summary_vi: "ORM ánh xạ bảng thành class, dòng thành object. ORM, query builder và raw SQL là ba mức trừu tượng, mỗi mức có chỗ dùng."
+  - id: b01
+    type: text
+    md: |
+      **ORM** (Object-Relational Mapper) là thư viện cho phép thao tác database bằng **class và object**
+      thay vì tự viết SQL: một **bảng** ánh xạ thành một **class**, một **dòng** thành một **object**.
+      Bạn gọi `user.save()` và ORM tự sinh câu `INSERT` hoặc `UPDATE` tương ứng.
+
+      Có ba mức truy cập database:
+      - **ORM** (SQLAlchemy, Django ORM, JPA/Hibernate): tiện nhất cho thao tác CRUD thông thường, ít
+        code lặp, nhưng che giấu câu SQL thật nên dễ sinh truy vấn thừa nếu không để ý.
+      - **Query builder**: ghép câu lệnh bằng code (ví dụ `select(...).where(...)`), vẫn thấy rõ hình
+        dạng của SQL.
+      - **Raw SQL**: linh hoạt và kiểm soát nhất (báo cáo phức tạp, tối ưu riêng), nhưng phải tự ghép
+        tham số an toàn và tự ánh xạ kết quả.
+
+      ORM **không phải lúc nào cũng nhanh hơn hay tốt hơn** SQL thẳng: nó đổi sự tiện lợi lấy mức kiểm
+      soát. Thực tế hay kết hợp: ORM cho việc thường ngày, raw SQL cho truy vấn nặng hoặc phức tạp.
+  - id: b02
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Nhận định nào về **ORM vs raw SQL** là hợp lý?"
+    options:
+      - {id: a, text_md: "ORM luôn nhanh hơn raw SQL nên không bao giờ cần viết SQL thẳng"}
+      - {id: b, text_md: "ORM tiện cho CRUD thông thường; raw SQL cho kiểm soát chi tiết hoặc truy vấn phức tạp, nên thường dùng kết hợp"}
+      - {id: c, text_md: "Dùng ORM thì không cần quan tâm ORM sinh ra câu SQL nào"}
+    answer: [b]
+    explain_md: "Mỗi cách có đánh đổi: ORM giảm code lặp nhưng che giấu SQL; raw SQL kiểm soát tốt nhưng tốn công. Không có cách nào luôn thắng, và vẫn phải để ý SQL mà ORM sinh ra."
+  - id: s_n_plus_one
+    type: section
+    title_vi: "Lazy/eager loading và N+1"
+    summary_vi: "Lazy tải dữ liệu liên quan khi chạm tới, eager tải trước. N+1 là 1 câu lấy N dòng rồi N câu cho dữ liệu liên quan; sửa bằng JOIN hoặc eager loading."
+  - id: b03
+    type: text
+    md: |
+      **Lazy loading**: dữ liệu liên quan (ví dụ tác giả của bài viết) chỉ được tải **khi bạn chạm tới**
+      thuộc tính đó. **Eager loading**: tải luôn dữ liệu liên quan **ngay từ đầu**, trong cùng một câu
+      (JOIN) hoặc một câu bổ sung theo lô.
+
+      **N+1 problem**: ORM chạy **1 câu** lấy N dòng, rồi với mỗi dòng lại chạy **thêm 1 câu** lấy dữ liệu
+      liên quan, tổng cộng **N+1 câu**. Ví dụ lặp qua 100 bài viết rồi mỗi vòng đọc `post.author`
+      (lazy) sẽ thành 101 câu SQL (con số xấu nhất: nếu nhiều bài trùng tác giả, ORM có thể bớt câu
+      nhờ cache của phiên).
+
+      ```python
+      # N+1: 1 câu lấy bài viết + 100 câu lấy tác giả
+      for post in session.query(Post).all():
+          print(post.author.name)   # mỗi lần chạm author là một truy vấn (lazy)
+      ```
+
+      Cách sửa là tải dữ liệu liên quan **cùng lúc**:
+      - Python: SQLAlchemy `joinedload` / `selectinload`; Django `select_related` (JOIN, cho quan hệ
+        một-một/nhiều-một) và `prefetch_related` (câu thứ hai theo lô, cho quan hệ nhiều).
+      - Java: JPA `JOIN FETCH` hoặc `@EntityGraph`.
+      - Hoặc tự viết một câu `JOIN`, hoặc **batch loading** (gom id rồi tải bằng một câu `IN`).
+
+      ```python
+      # Sửa: eager loading, còn 1 câu (hoặc 2 câu với selectinload)
+      for post in session.query(Post).options(joinedload(Post.author)).all():
+          print(post.author.name)
+      ```
+
+      Eager không phải thuốc chữa mọi thứ: tải trước dữ liệu mà không dùng đến là **tải thừa**. Chỉ
+      eager-load những quan hệ thật sự cần.
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Code lặp qua 100 bài viết và mỗi vòng đọc `post.author` (lazy) thì ORM chạy bao nhiêu câu SQL, và đó là vấn đề gì?"
+    options:
+      - {id: a, text_md: "1 câu; không có vấn đề gì"}
+      - {id: b, text_md: "101 câu (1 + N); đó là **N+1 problem**"}
+      - {id: c, text_md: "100 câu; đó là lỗi cú pháp SQL"}
+    answer: [b]
+    explain_md: "1 câu lấy 100 bài viết cộng 100 câu lấy tác giả cho từng bài là 101 câu, tức N+1. Sửa bằng JOIN hoặc eager loading."
+  - id: b05
+    type: quiz_fill
+    graded: true
+    prompt_md: "Điền một từ: trong Django, để tránh N+1 khi truy cập quan hệ nhiều-một (khóa ngoại) bằng JOIN, ta dùng `select_related`; còn kiểu tải theo lô cho quan hệ nhiều là `______`."
+    blanks:
+      - accept: ["prefetch_related", "prefetch_related()"]
+    explain_md: "Đó là **prefetch_related**: chạy một câu bổ sung theo lô rồi ghép ở phía Python. SQLAlchemy có `selectinload` tương tự, Java có `JOIN FETCH` / `@EntityGraph`."
+  - id: s_patterns
+    type: section
+    title_vi: "Chẩn đoán và mẫu truy vấn"
+    summary_vi: "Bật SQL logging để đếm truy vấn. Repository/DAO tách code database khỏi phần còn lại. Session gom thay đổi; bulk ghi nhiều dòng trong ít câu."
+  - id: b06
+    type: text
+    md: |
+      **Chẩn đoán**: bật **SQL logging** (ví dụ `echo=True` trong SQLAlchemy, log `django.db.backends`,
+      `show_sql` của Hibernate) để in ra câu SQL mà ORM sinh ra, rồi **đếm số truy vấn mỗi request**.
+      Nếu số câu tăng theo số dòng dữ liệu (N), rất có thể đang bị N+1. Có thể viết test khẳng định
+      "endpoint này chạy tối đa K câu" để chặn lỗi quay lại.
+
+      **Repository / DAO** (Data Access Object): lớp bao việc **đọc/ghi database** để phần còn lại của
+      code không dính SQL hay chi tiết ORM, dễ thay thế và dễ test. (Đây KHÔNG phải "Git repository".)
+
+      **Session và unit of work**: session theo dõi các object bạn thay đổi và **ghi một lần khi
+      commit**, gói trong một transaction. Cần nắm vòng đời session: lazy loading thường chỉ hoạt động
+      khi session còn mở.
+
+      **Bulk insert/update**: ghi nhiều dòng trong **một câu hoặc một lô** (ví dụ `bulk_create`,
+      `executemany`, `INSERT ... VALUES (...), (...)`) thay vì `save()` từng object trong vòng lặp; thường
+      nhanh hơn nhiều lần vì giảm số lượt đi-về tới database. Lưu ý bulk có thể bỏ qua các hook/validation
+      của từng object.
+  - id: b07
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một API chậm. Bước chẩn đoán phù hợp nhất để kiểm tra nghi vấn **N+1** là gì?"
+    options:
+      - {id: a, text_md: "Bật **SQL logging** và đếm số câu SQL mỗi request, xem có tăng theo số dòng không"}
+      - {id: b, text_md: "Chuyển toàn bộ sang raw SQL ngay mà chưa đo"}
+      - {id: c, text_md: "Tăng RAM của server"}
+    answer: [a]
+    explain_md: "Đo trước khi sửa: log SQL cho thấy số truy vấn thực tế. Nếu số câu tăng theo N thì là N+1 và sửa bằng JOIN/eager loading, không cần bỏ ORM."
+  - id: b08
+    type: callout
+    kind: interview
+    md: |
+      **Thanh điểm mức 3 (level-3 bar).** Nhìn **log SQL của một API**, bạn chỉ ra được chỗ bị
+      **N+1** (cùng một câu lặp lại N lần với tham số khác nhau) và **sửa còn vài câu truy vấn** bằng
+      JOIN / eager loading (`joinedload`, `selectinload`, `select_related`, `prefetch_related`,
+      `JOIN FETCH`). Bạn nêu được đánh đổi ORM vs query builder vs raw SQL và biết chỉ eager-load thứ cần dùng.
+  - id: b09
+    type: summary
+    bullets_vi:
+      - "**ORM** ánh xạ bảng thành class, dòng thành object; không luôn nhanh hơn SQL, là đánh đổi tiện lợi lấy kiểm soát."
+      - "**ORM vs query builder vs raw SQL**: tiện nhất, ghép bằng code, linh hoạt nhất; thường kết hợp."
+      - "**Lazy** tải khi chạm tới, **eager** tải trước. **N+1** = 1 câu + N câu; sửa bằng JOIN / eager loading / batch loading."
+      - "Chẩn đoán bằng **SQL logging** và đếm truy vấn mỗi request; có thể assert số truy vấn trong test."
+      - "**Repository/DAO** bao truy cập DB (không phải Git repository); **session/unit of work** ghi một lần khi commit; **bulk** thay vì lưu từng object."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [E166], l2: [E167], l3: [E168]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-12"

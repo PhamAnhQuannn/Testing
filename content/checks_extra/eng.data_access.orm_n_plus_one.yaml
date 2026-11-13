@@ -1,0 +1,54 @@
+subtopic_id: eng.data_access.orm_n_plus_one
+items:
+  - id: E166
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      **N+1 problem** là gì? Cho ví dụ với bài viết và tác giả, và nêu cách sửa chính.
+    answer_md: |
+      - **N+1**: ORM chạy **1 câu** lấy N dòng, rồi với mỗi dòng chạy **thêm 1 câu** lấy dữ liệu liên quan,
+        tổng cộng **N+1 câu**.
+      - Ví dụ: lặp qua 100 bài viết rồi mỗi vòng đọc tác giả (lazy loading) thì thành 101 câu SQL.
+      - Cách sửa: tải dữ liệu liên quan cùng lúc bằng **JOIN** hoặc **eager loading** (`joinedload`/`selectinload`,
+        `select_related`/`prefetch_related`, `JOIN FETCH`/`@EntityGraph`); hoặc batch loading.
+    rubric_md: "Đạt khi nêu đúng: 1 câu lấy N dòng + N câu cho dữ liệu liên quan (tổng N+1) và cách sửa bằng JOIN/eager loading (hoặc batch loading). Đủ hai ý: điểm 1; chỉ mô tả 'chậm' hoặc sửa bằng 'bỏ ORM'/'thêm RAM' mà không nêu cơ chế: điểm 0."
+  - id: E167
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Với mỗi tình huống, hãy **gọi tên khái niệm hoặc kỹ thuật** liên quan và nêu ý chính:
+      1. Dữ liệu liên quan chỉ được tải khi code chạm tới thuộc tính, còn kiểu kia thì tải luôn cùng lúc từ đầu.
+      2. Một lớp bao việc đọc/ghi database để phần còn lại của code không chứa SQL.
+      3. Cần ghi 10.000 dòng vào database và đang gọi `save()` từng object trong vòng lặp.
+    answer_md: |
+      1. **Lazy loading** (tải khi chạm tới, dễ gây N+1) và **eager loading** (tải trước bằng JOIN hoặc câu theo lô,
+         nhưng có thể tải thừa nếu không dùng đến).
+      2. **Repository / DAO**: tách truy cập dữ liệu khỏi logic còn lại, dễ thay thế và test. Không phải Git repository.
+      3. **Bulk insert/update** (`bulk_create`, `executemany`, `INSERT` nhiều dòng): ghi theo lô trong ít câu, giảm số lượt
+         đi-về tới database nên thường nhanh hơn nhiều lần; lưu ý có thể bỏ qua hook/validation từng object.
+    rubric_md: "Đạt khi đúng cả ba cặp (khái niệm, ý chính): (1) lazy vs eager loading; (2) repository/DAO; (3) bulk insert/update thay vì lưu từng object. Đủ ba: điểm 2. Đúng hai: tối đa điểm 1. Gọi sai tên hoặc nói ngược lazy/eager: không tính cặp đó."
+  - id: E168
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      Log SQL của endpoint `GET /posts` cho thấy một request chạy 1 câu `SELECT ... FROM posts` rồi 50 câu
+      `SELECT ... FROM users WHERE id = ?` với id khác nhau. Đồng nghiệp đề xuất "bỏ ORM, viết raw SQL cho toàn bộ ứng dụng".
+      Hãy: chẩn đoán vấn đề; đề xuất cách sửa cụ thể (nêu ít nhất một ví dụ cho Python hoặc Java) và số câu mong đợi sau khi sửa;
+      phản biện đề xuất của đồng nghiệp; nêu cách ngăn lỗi quay lại.
+    answer_md: |
+      **Chẩn đoán**: **N+1 problem**: cùng một câu lặp lại 50 lần chỉ khác tham số, do lazy loading quan hệ tác giả.
+      Nhận ra nhờ **SQL logging** và đếm truy vấn mỗi request.
+
+      **Sửa**: eager loading hoặc JOIN, ví dụ SQLAlchemy `joinedload(Post.author)` / `selectinload`, Django
+      `select_related('author')`, JPA `JOIN FETCH` hoặc `@EntityGraph`; hoặc tự viết một câu `JOIN`. Còn **1 câu** (JOIN)
+      hoặc **2 câu** (selectinload/prefetch dùng `IN`), không còn phụ thuộc vào N.
+
+      **Phản biện**: gốc lỗi là cách tải quan hệ, không phải việc dùng ORM; chỉ cần sửa chỗ đó. ORM vẫn tiện cho CRUD thông thường;
+      raw SQL đánh đổi bằng nhiều code lặp, phải tự ghép tham số an toàn và tự ánh xạ. Nên kết hợp: raw SQL/query builder cho
+      truy vấn đặc biệt. Lưu ý chỉ eager-load những quan hệ thật sự cần để khỏi tải thừa.
+
+      **Ngăn quay lại**: viết test khẳng định số truy vấn tối đa của endpoint và/hoặc bật SQL logging trong môi trường dev/CI.
+    rubric_md: "Đạt mức 3 khi: (a) chẩn đoán đúng N+1 (1 câu + N câu, do lazy loading); (b) sửa bằng JOIN/eager loading với ví dụ cụ thể và số câu còn lại là 1-2, không phụ thuộc N; (c) phản biện đúng rằng lỗi nằm ở cách tải quan hệ chứ không phải ORM, nêu đánh đổi ORM vs raw SQL; (d) nêu cách chặn tái phát (assert số truy vấn trong test hoặc bật SQL logging). Đủ cả bốn ý: điểm 3. Thiếu một ý hoặc khẳng định 'ORM luôn chậm'/'chỉ raw SQL mới đúng': chưa đạt mức 3."
