@@ -53,7 +53,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from check_specs import EXTRA_INPUTS, SPECIAL
+from check_specs import DEFERRED, EXTRA_INPUTS, SPECIAL
 from common import CONTENT, ROOT, dump_jsonl, dump_yaml, load_json, load_yaml
 from gen_hidden import generate_hidden
 from run_problem import run_native
@@ -534,6 +534,7 @@ def convert(assessment: Path, content: Path, only: set[str] | None = None) -> di
     subtopics = load_json(content / "index/subtopics.json")["subtopics"]
     subtopic_ids = {s["id"] for s in subtopics}
     items = load_json(assessment)["items"]
+    items = [i for i in items if i["id"] not in DEFERRED]
     if only is not None:
         items = [i for i in items if i["id"] in only]
     mvp, skipped = split_items(items, subtopic_ids)

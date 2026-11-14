@@ -212,6 +212,10 @@ EXTRA_IDS = {
     "ml.classical.dimensionality_reduction",
     "ml.classical.recsys_algorithms",
     "ml.classical.time_series_anomaly",
+    # ML numpy wave 1: un-defer the two numpy nodes now that Pyodide loads numpy (closes
+    # ml.classical 14/14). Gradable checks use hand-authored numpy problems (packages: [numpy]).
+    "ml.classical.knn_nb_svm",
+    "ml.classical.unsupervised",
     # Wave 4 Round 34: ML foundations - NLP & Transformers A (opens ml.nlp_transformers).
     "ml.nlp_transformers.classic_nlp",
     "ml.nlp_transformers.tokenization",
@@ -307,7 +311,7 @@ EXPECTED_ENG = 33  # eng nodes shipped (8 modules, +frontend_basics in R7 — en
 EXPECTED_EXTRA_IDS = len(EXTRA_IDS)  # Wave 2 additions
 EXPECTED_TOTAL = (
     PLAN_MVP_COUNT + EXPECTED_SD + EXPECTED_ML4 + EXPECTED_ENG + EXPECTED_EXTRA_IDS
-)  # 400
+)  # 402
 
 # Node fields the app uses (SPEC 4.2); optional ones are skipped when a node lacks them.
 NODE_FIELDS = [

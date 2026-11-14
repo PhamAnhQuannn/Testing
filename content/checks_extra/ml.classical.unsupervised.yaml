@@ -1,0 +1,40 @@
+subtopic_id: ml.classical.unsupervised
+items:
+  - id: X900
+    difficulty: 1
+    type: read_code
+    minutes: 4
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng và nói rõ điểm hòa khoảng cách và cụm rỗng được xử lý thế nào.
+    code: |-
+      xs = [1, 3, 5, 9, 10, 11]
+      cs = [2, 8, 100.0]
+      labels = [min(range(len(cs)), key=lambda j: abs(x - cs[j])) for x in xs]
+      print(labels)
+      new = []
+      for j in range(len(cs)):
+          pts = [x for x, l in zip(xs, labels) if l == j]
+          new.append(sum(pts) / len(pts) if pts else cs[j])
+      print(new)
+    expected_output: "[0, 0, 0, 1, 1, 1]\n[3.0, 10.0, 100.0]"
+    answer_md: "Điểm 1 và 3 gần tâm 2; điểm 5 cách tâm 2 và tâm 8 đều 3 nên hòa, min trả chỉ số nhỏ hơn (nhãn 0); 9, 10, 11 về tâm 8. Nhãn: [0, 0, 0, 1, 1, 1]. Tâm mới: (1+3+5)/3 = 3.0, (9+10+11)/3 = 10.0; cụm thứ ba rỗng nên giữ nguyên tâm cũ 100.0."
+    rubric_md: "Output khớp từng dòng VÀ nêu đúng: hòa khoảng cách về chỉ số nhỏ, cụm rỗng giữ tâm cũ. Đúng: bằng chứng điểm 1; sai: không có bằng chứng."
+  - id: X901
+    difficulty: 2
+    type: write_code
+    minutes: 10
+    prompt_md: |
+      Viết hàm `kmeans_step(xs, centroids)` (có thể dùng `numpy`) thực hiện **một** vòng lặp k-means 1 chiều: gán mỗi điểm trong `xs` vào centroid gần nhất (hòa khoảng cách thì về centroid **chỉ số nhỏ hơn**), rồi trả danh sách centroid mới là trung bình các điểm của mỗi cụm, làm tròn 6 chữ số. Cụm **rỗng giữ nguyên centroid cũ**. Ví dụ: `xs=[1,3,5,9,10,11]`, `centroids=[2,8]` cho `[3.0, 10.0]`.
+    problem_id: check-x901-kmeans-step
+    rubric_md: "Pass toàn bộ test ẩn không cần gợi ý trong time-box 10 phút: bằng chứng điểm 2; sai hoặc phải xem gợi ý: tối đa điểm 1."
+  - id: X902
+    difficulty: 3
+    type: read_code
+    minutes: 6
+    prompt_md: Chạy tay (không chạy máy), đoạn code dưới in ra gì? Ghi đúng từng dòng, rồi cho biết k nào là "elbow" và vì sao không thể chọn k chỉ bằng cách lấy inertia nhỏ nhất.
+    code: |-
+      xs = [1, 2, 3, 10, 11, 12]
+      for k, cs in [(1, [6.5]), (2, [2, 11]), (3, [2, 10.5, 12])]:
+          print(k, sum(min((x - c) ** 2 for c in cs) for x in xs))
+    expected_output: "1 125.5\n2 4\n3 2.5"
+    answer_md: "k=1: trung bình 6.5, độ lệch ±5.5, ±4.5, ±3.5 nên inertia = 2·(30.25+20.25+12.25) = 125.5. k=2: tâm 2 và 11, bình phương lệch 1,0,1,1,0,1 nên 4. k=3: 1+0+1 cho cụm trái, 0.25+0.25 cho cụm giữa, 0 cho điểm 12, tổng 2.5. Inertia giảm từ 125.5 xuống 4 (giảm 121.5) rồi chỉ giảm thêm 1.5, nên elbow ở k=2 (khớp với hai nhóm rõ ràng). Inertia luôn không tăng khi k tăng (k = số điểm cho inertia 0), nên cần elbow hoặc silhouette (−1 đến 1, càng gần 1 càng tốt) thay vì lấy inertia nhỏ nhất."
+    rubric_md: "Output khớp từng dòng VÀ chọn đúng k=2 với lý do mức giảm inertia (khuỷu) và nêu inertia luôn giảm khi tăng k. Đúng: bằng chứng điểm 3; sai: tối đa điểm 2."

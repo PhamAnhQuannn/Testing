@@ -1,0 +1,135 @@
+id: ml.classical.unsupervised
+version: 1
+status: published
+title_vi: "Phân cụm và giảm chiều"
+est_minutes: 14
+objectives_vi:
+  - "Mô tả vòng lặp k-means (assign nearest centroid, update về mean) và thực hiện tay một vài vòng trên dữ liệu 1 chiều."
+  - "Chọn k có căn cứ đo được bằng elbow (inertia) và silhouette; hiểu vai trò của k-means++ init."
+  - "Nêu giới hạn của k-means (cụm tròn, cỡ đều, nhạy scale và outlier) và khi nào dùng GMM/EM hoặc DBSCAN."
+  - "Hiểu PCA qua SVD trên dữ liệu đã trừ mean, explained variance, và cách đánh giá cụm khi không có nhãn."
+blocks:
+  - id: s_kmeans
+    type: section
+    title_vi: "Vòng lặp k-means"
+    summary_vi: "Chọn tâm, gán điểm vào tâm gần nhất, dời tâm về trung bình cụm, lặp đến khi ổn định."
+  - id: t01
+    type: text
+    md: |
+      **Unsupervised learning** tìm cấu trúc trong dữ liệu **không có nhãn**. Bài toán điển hình là **clustering**:
+      gom các điểm giống nhau thành nhóm, và không có đáp án đúng để đối chiếu.
+
+      **k-means** làm như sau với `k` cho trước:
+      1. Chọn `k` **centroid** (tâm) ban đầu.
+      2. **Assign**: gán mỗi điểm vào centroid gần nhất.
+      3. **Update**: dời mỗi centroid về **trung bình (mean)** các điểm thuộc cụm đó.
+      4. Lặp bước 2-3 đến khi nhãn không đổi nữa.
+
+      Mục tiêu là cực tiểu hoá **inertia** = tổng bình phương khoảng cách từ mỗi điểm đến centroid của nó.
+      Mỗi bước đều không làm inertia tăng, nên thuật toán hội tụ, nhưng chỉ tới một cực tiểu địa phương.
+
+      Ví dụ 1 chiều: điểm `1, 2, 3, 10, 11, 12`, centroid ban đầu `1` và `2`.
+      - **Vòng 1**: điểm 1 về tâm 1; các điểm 2, 3, 10, 11, 12 về tâm 2. Tâm mới: `1.0` và `(2+3+10+11+12)/5 = 7.6`.
+      - **Vòng 2** (tâm `1.0`, `7.6`): điểm 1, 2, 3 về tâm thứ nhất; 10, 11, 12 về tâm thứ hai. Tâm mới: `2.0` và `11.0`.
+      - Vòng 3 nhãn không đổi: **hội tụ** ở `2` và `11`.
+
+      Chú ý phân biệt **một bước** (từ `[1, 2]` ra `[1.0, 7.6]`) với **hội tụ** (`[2.0, 11.0]`). Nếu một cụm rỗng,
+      cách phổ biến là giữ nguyên centroid cũ. Khi một điểm cách đều hai tâm, cần quy ước (ví dụ chọn tâm chỉ số nhỏ hơn).
+
+      ```python
+      import numpy as np
+
+      def kmeans_step(xs, cs):
+          x = np.asarray(xs, float)
+          c = np.asarray(cs, float)
+          lab = np.abs(x[:, None] - c[None, :]).argmin(axis=1)
+          return [x[lab == j].mean() if (lab == j).any() else c[j] for j in range(len(c))]
+      ```
+  - id: q01
+    type: predict_output
+    code: |
+      xs = [1, 2, 3, 10, 11, 12]
+      cs = [1, 2]
+      labels = [min(range(2), key=lambda j: abs(x - cs[j])) for x in xs]
+      print(labels)
+      new = [sum(x for x, l in zip(xs, labels) if l == j) / labels.count(j) for j in range(2)]
+      print(new)
+    expected_output: "[0, 1, 1, 1, 1, 1]\n[1.0, 7.6]"
+    explain_md: "Điểm 1 gần tâm 1 (khoảng cách 0 so với 1) nên nhãn 0; mọi điểm còn lại gần tâm 2 hơn nên nhãn 1. Tâm mới: 1/1 = 1.0 và 38/5 = 7.6. Đây mới là một bước, chưa hội tụ."
+  - id: q02
+    type: quiz_mcq
+    prompt_md: "Sau khi k-means hội tụ, kết luận nào đúng?"
+    options:
+      - {id: a, text_md: "Chắc chắn là phân cụm tối ưu toàn cục, không cần chạy lại"}
+      - {id: b, text_md: "Đã đạt một cực tiểu địa phương của inertia; init khác có thể cho kết quả khác"}
+      - {id: c, text_md: "Inertia bằng 0, nghĩa là mọi điểm đã trùng tâm cụm"}
+    answer: [b]
+    explain_md: "k-means chỉ đảm bảo hội tụ về cực tiểu địa phương, nên người ta chạy nhiều lần và dùng k-means++ init (rải centroid ban đầu cách xa nhau) để ổn định hơn."
+  - id: s_choose
+    type: section
+    title_vi: "Chọn k, giới hạn và các thuật toán khác"
+    summary_vi: "Elbow, silhouette, giới hạn của k-means, GMM/EM, DBSCAN, PCA qua SVD."
+  - id: t02
+    type: text
+    md: |
+      **Chọn k.** Inertia luôn giảm khi tăng k, nên không thể chọn k nhỏ nhất theo inertia.
+      - **Elbow**: vẽ inertia theo k, chọn điểm "khuỷu" mà sau đó inertia giảm rất chậm.
+      - **Silhouette** (từ −1 đến 1): đo mỗi điểm gần cụm của mình so với cụm lân cận gần nhất; càng gần 1 thì cụm càng chặt và tách rời.
+        Chọn k có silhouette trung bình cao.
+
+      **Giới hạn của k-means.** Nó ngầm giả định cụm **tròn** và **cỡ gần bằng nhau**; nhạy với **scale** của feature
+      (feature có đơn vị lớn lấn át khoảng cách, nên cần chuẩn hoá trước) và với **outlier** (vì dùng mean). Với dữ liệu hình
+      lưỡi liềm (kiểu `make_moons` của sklearn) k-means cắt sai. `k-means++` giúp chọn tâm ban đầu rải đều, không sửa được các giới hạn trên.
+
+      **Lựa chọn khác.**
+      - **GMM** (Gaussian Mixture Model): mỗi cụm là một phân phối Gauss, gán **mềm** (xác suất thuộc từng cụm). Huấn luyện bằng **EM**:
+        bước E tính responsibility của từng cụm cho mỗi điểm, bước M cập nhật mean/covariance/trọng số. Cụm có thể hình elip, cỡ khác nhau.
+      - **DBSCAN**: coi cụm là vùng mật độ cao; tự tìm số cụm, bắt được hình dạng bất kỳ và đánh dấu điểm **noise**. Cần chọn `eps` và `min_samples`.
+      - **Hierarchical clustering**: gộp dần thành cây (dendrogram), cắt ở mức mong muốn.
+
+      **PCA** giảm chiều: trừ mean mỗi cột, rồi lấy **SVD** `X = U·S·Vᵀ`. Các hàng của `Vᵀ` là các principal component; **explained variance**
+      của thành phần thứ i tỉ lệ với `s_i²`, và **explained variance ratio** là `s_i² / Σ s²`.
+
+      **Đánh giá khi không có nhãn**: dùng silhouette, độ ổn định khi đổi seed/mẫu, hoặc hiệu quả trên tác vụ phía sau (downstream task).
+  - id: q03
+    type: quiz_mcq
+    prompt_md: "Dữ liệu gồm hai cụm hình lưỡi liềm lồng vào nhau kèm vài điểm nhiễu. Nên chọn thuật toán nào?"
+    options:
+      - {id: a, text_md: "k-means, vì nó luôn chia đúng mọi hình dạng cụm"}
+      - {id: b, text_md: "PCA, vì nó tự gán nhãn cụm cho từng điểm dữ liệu"}
+      - {id: c, text_md: "DBSCAN, vì cụm là vùng mật độ cao hình dạng bất kỳ và nhiễu bị đánh dấu noise"}
+    answer: [c]
+    explain_md: "k-means giả định cụm tròn nên cắt lưỡi liềm sai. PCA là giảm chiều, không tự gán cụm."
+  - id: q04
+    type: predict_output
+    code: |
+      xs = [1, 2, 3, 10, 11, 12]
+      cs = [2.0, 11.0]
+      print(sum(min((x - c) ** 2 for c in cs) for x in xs))
+    expected_output: "4.0"
+    explain_md: "Độ lệch so với tâm gần nhất là −1, 0, 1, −1, 0, 1; bình phương là 1, 0, 1, 1, 0, 1 nên inertia = 4.0."
+  - id: q05
+    type: quiz_mcq
+    prompt_md: "Một feature có đơn vị lớn gấp 1000 lần các feature khác. Điều gì xảy ra với k-means và nên làm gì?"
+    options:
+      - {id: a, text_md: "Không ảnh hưởng gì vì k-means bất biến theo thang đo (scale)"}
+      - {id: b, text_md: "Feature đó lấn át khoảng cách; nên chuẩn hoá (scale) feature trước khi chạy"}
+      - {id: c, text_md: "Nên bỏ hết các feature còn lại, chỉ giữ lại một feature"}
+    answer: [b]
+    explain_md: "k-means dùng khoảng cách Euclid nên nhạy với scale; thường chuẩn hoá (ví dụ z-score) trước khi phân cụm."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "k-means: chọn k centroid, assign điểm vào tâm gần nhất, dời tâm về mean, lặp đến ổn định; cực tiểu hoá inertia (cực tiểu địa phương)."
+      - "Ví dụ 1-D 1,2,3,10,11,12 từ tâm [1, 2]: một bước ra [1.0, 7.6], hội tụ ở [2.0, 11.0]."
+      - "Chọn k bằng elbow (inertia) và silhouette (−1 đến 1); k-means++ rải tâm ban đầu."
+      - "Giới hạn: cụm tròn cỡ đều, nhạy scale và outlier; GMM/EM cho gán mềm cụm elip, DBSCAN cho hình dạng bất kỳ và noise."
+      - "PCA = SVD trên dữ liệu đã trừ mean, explained variance ratio = s_i²/Σs²; không nhãn thì đánh giá bằng silhouette hoặc downstream task."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X900], l2: [X901], l3: [X902]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-14"
