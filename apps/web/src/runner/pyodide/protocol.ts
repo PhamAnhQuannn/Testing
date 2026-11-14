@@ -1,7 +1,14 @@
 // Messages between the main thread (PyodideRunner) and the Web Worker.
 import type { ProblemIO, TestCase, TestResult } from "../Runner";
 
-export type ToWorker = { type: "run"; runId: number; code: string; io: ProblemIO; tests: TestCase[] };
+export type ToWorker = {
+  type: "run";
+  runId: number;
+  code: string;
+  io: ProblemIO;
+  tests: TestCase[];
+  packages: string[];
+};
 
 export type FromWorker =
   | { type: "ready" }

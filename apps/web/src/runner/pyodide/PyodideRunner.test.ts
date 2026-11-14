@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { PyodideRunner, perTestLimitMs, WATCHDOG_SLACK_MS } from "./PyodideRunner";
+import { PACKAGE_LOAD_BUDGET_MS, PyodideRunner, perTestLimitMs, WATCHDOG_SLACK_MS } from "./PyodideRunner";
 import type { FromWorker, ToWorker, WorkerLike } from "./protocol";
 import type { TestResult } from "../Runner";
 
@@ -108,6 +108,32 @@ describe("PyodideRunner protocol", () => {
     workers[0].emit({ type: "done", runId });
     expect((await promise).verdict).toBe("AC");
     expect(workers[0].terminated).toBe(false);
+  });
+
+  it("forwards packages and gives only the first test the package-load budget", async () => {
+    const { runner, workers } = setup();
+    workers[0].emit({ type: "ready" });
+    const promise = runner.run({ code: "x", io, tests, limits, packages: ["numpy"] });
+    await tick();
+    const request = workers[0].received[0] as Extract<ToWorker, { type: "run" }>;
+    expect(request.packages).toEqual(["numpy"]);
+    const limit = perTestLimitMs({ limits });
+    await vi.advanceTimersByTimeAsync(limit + PACKAGE_LOAD_BUDGET_MS - 100); // loading, no TLE yet
+    expect(workers[0].terminated).toBe(false);
+    workers[0].emit({ type: "progress", runId: request.runId, result: ok("a") });
+    await vi.advanceTimersByTimeAsync(limit + 100); // later tests get the normal limit
+    expect(workers[0].terminated).toBe(true);
+    expect((await promise).verdict).toBe("TLE");
+  });
+
+  it("sends an empty packages list and no extra budget for pure-Python runs", async () => {
+    const { runner, workers } = setup();
+    workers[0].emit({ type: "ready" });
+    const promise = runner.run({ code: "x", io, tests, limits });
+    await tick();
+    expect((workers[0].received[0] as Extract<ToWorker, { type: "run" }>).packages).toEqual([]);
+    await vi.advanceTimersByTimeAsync(perTestLimitMs({ limits }) + 100);
+    expect((await promise).verdict).toBe("TLE");
   });
 
   it("a compile error ends the run with a single CE result", async () => {

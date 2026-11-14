@@ -609,6 +609,8 @@ export interface Problem {
   buggy_code?: string;
   reference_code?: string;
   starter_test?: string;
+  /** Pyodide packages (numpy, pandas) the problem needs. */
+  packages?: string[];
 }
 
 export function normalizeProblem(data: unknown): Problem {
@@ -641,6 +643,9 @@ export function normalizeProblem(data: unknown): Problem {
     ...(typeof root.buggy_code === "string" ? { buggy_code: root.buggy_code } : {}),
     ...(typeof root.reference_code === "string" ? { reference_code: root.reference_code } : {}),
     ...(typeof root.starter_test === "string" ? { starter_test: root.starter_test } : {}),
+    ...(Array.isArray(root.packages) && root.packages.length
+      ? { packages: root.packages as string[] }
+      : {}),
   };
 }
 

@@ -10,6 +10,7 @@ interface PyodideInterface {
   FS: { mkdirTree(path: string): void; writeFile(path: string, data: string): void };
   globals: { set(name: string, value: unknown): void };
   runPython(code: string): unknown;
+  loadPackage(names: string[]): Promise<void>;
 }
 type LoadPyodide = (options: { indexURL: string }) => Promise<PyodideInterface>;
 
@@ -57,6 +58,7 @@ ctx.onmessage = async (event: MessageEvent<ToWorker>) => {
   const { runId } = request;
   try {
     const pyodide = await booted;
+    if (request.packages?.length) await pyodide.loadPackage(request.packages);
     pyodide.globals.set("_request_json", JSON.stringify(request));
     pyodide.runPython("_prep_run(_request_json)");
     for (;;) {

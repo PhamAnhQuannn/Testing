@@ -8,7 +8,7 @@ import { buildPanel, hiddenLabel, sampleLabel } from "./runView";
 
 export async function runProblem(
   kind: "run" | "submit",
-  problem: Pick<Problem, "id" | "io" | "limits" | "sample_tests">,
+  problem: Pick<Problem, "id" | "io" | "limits" | "sample_tests" | "packages">,
   source: string,
   setPanel: (panel: PanelState | null) => void,
 ): Promise<RunResult> {
@@ -24,6 +24,7 @@ export async function runProblem(
     io: problem.io,
     tests,
     limits: problem.limits,
+    packages: problem.packages,
     onProgress: (r) => {
       seen.push(r);
       setPanel(buildPanel(kind, tests, seen, options, true));
