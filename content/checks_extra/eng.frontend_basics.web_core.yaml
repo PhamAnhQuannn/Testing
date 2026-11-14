@@ -1,0 +1,54 @@
+subtopic_id: eng.frontend_basics.web_core
+items:
+  - id: E184
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      **DOM** là gì? Nêu ít nhất hai cách JavaScript đọc hoặc sửa DOM.
+    answer_md: |
+      - **DOM** (Document Object Model) là **cây các phần tử HTML** mà trình duyệt dựng từ trang; trang được vẽ theo cây này.
+      - JavaScript đọc/sửa cây đó: `document.querySelector(...)` để tìm phần tử, `.textContent` để đọc/đổi chữ,
+        `.classList.add/remove/toggle` để đổi class, `createElement` + `append` để tạo node, `.remove()` để xóa.
+      - JavaScript sửa cây DOM trong trình duyệt, không sửa file HTML trên server.
+    rubric_md: "Đạt khi nêu đúng: DOM là cây phần tử HTML do trình duyệt dựng, và nêu được ít nhất hai thao tác (querySelector, textContent, classList, tạo/xóa node). Đủ hai ý: bằng chứng điểm 1; chỉ nói 'là file HTML' hoặc không nêu thao tác nào: điểm 0."
+  - id: E185
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Trả lời ba ý:
+      1. **Flexbox** khác **grid** ở điểm nào? Khi nào chọn mỗi cái?
+      2. Phần tử có `<p class="note" id="intro">`. Luật `p { color: blue; }` (viết sau), `.note { color: green; }`, `#intro { color: red; }`. Màu chữ là gì và vì sao?
+      3. Event bubbling là gì và nó cho phép kỹ thuật event delegation như thế nào?
+    answer_md: |
+      1. **Flexbox** bố trí theo **một chiều** (hàng hoặc cột): hợp thanh nav, hàng nút. **Grid** (`display: grid`) bố trí
+         **hai chiều** (hàng và cột cùng lúc): hợp lưới thẻ, khung trang.
+      2. **Đỏ**. Specificity: **id > class > thẻ**; `#intro` có độ cụ thể cao nhất nên thắng, bất kể thứ tự viết.
+         Thứ tự (luật sau thắng) chỉ quyết định khi hai luật cùng độ cụ thể.
+      3. **Event bubbling**: sự kiện xảy ra ở phần tử **con** rồi **nổi lên cha** tới `document`. Nhờ đó gắn **một listener ở cha**,
+         dùng `event.target` (hoặc `closest`) để biết con nào được bấm: đó là **event delegation**; vẫn chạy với con thêm sau.
+    rubric_md: "Đạt khi đúng cả ba ý: (1) flexbox 1 chiều, grid 2 chiều; (2) màu đỏ vì id có specificity cao nhất; (3) bubbling nổi từ con lên cha và delegation là một listener ở cha dùng event.target. Đủ ba: bằng chứng điểm 2. Đúng hai: tối đa điểm 1. Nói bubbling nổi từ cha xuống con, hoặc chọn màu theo thứ tự viết: không tính ý đó."
+  - id: E186
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      Bạn được giao dựng một trang "danh sách sản phẩm" gồm các thẻ sản phẩm, mỗi thẻ có ảnh, tên và nút "Thêm vào giỏ".
+      Yêu cầu: trên màn hình rộng hiện 3 cột, trên điện thoại hiện 1 cột; sản phẩm được tải thêm động khi cuộn;
+      người dùng chỉ dùng bàn phím và trình đọc màn hình vẫn dùng được.
+      Hãy mô tả: (a) bố cục và cách làm responsive; (b) cách xử lý click "Thêm vào giỏ" cho cả thẻ thêm sau;
+      (c) các lựa chọn HTML ngữ nghĩa và a11y; (d) một selector bị ghi đè không mong muốn thì bạn debug theo hướng nào.
+    answer_md: |
+      **(a)** Dùng **grid** (hai chiều): `display: grid; grid-template-columns: repeat(3, 1fr); gap: ...;` rồi
+      **media query** (ví dụ `@media (max-width: 600px)`) đổi thành `1fr`. Dùng đơn vị tương đối (`fr`, `%`, `rem`).
+
+      **(b)** **Event delegation**: một listener `click` ở phần tử cha (container), dùng `event.target.closest('button')`
+      để biết nút nào được bấm. Nhờ **event bubbling** (nổi từ con lên cha) nên thẻ thêm sau vẫn hoạt động, không cần gắn lại.
+
+      **(c)** Thẻ ngữ nghĩa (`main`, `article` cho mỗi sản phẩm, `header`/`nav`), ảnh có **`alt`** mô tả, hành động là
+      **`<button>`** thật (focus và bấm được bằng Enter/Space), có thứ tự focus hợp lý; không dùng `div onclick`; ARIA chỉ khi thẻ chuẩn không đủ.
+
+      **(d)** Xem **specificity** của các luật cùng chọn phần tử (id > class > thẻ; cùng độ cụ thể thì luật sau thắng), dùng
+      công cụ DevTools xem luật nào bị gạch; sửa bằng selector đơn giản, đúng độ cụ thể thay vì `!important`.
+    rubric_md: "Đạt mức 3 khi: (a) grid (hoặc flex hợp lý) + media query/đơn vị tương đối; (b) event delegation với listener ở cha và event.target, giải thích bubbling nổi từ con lên cha; (c) nêu thẻ ngữ nghĩa, alt, button thật dùng được bằng bàn phím; (d) debug bằng specificity/cascade (id > class > thẻ, thứ tự) thay vì chỉ thêm !important. Đủ cả bốn ý: bằng chứng điểm 3. Thiếu một ý hoặc sai hướng bubbling (từ cha xuống con): chưa đạt mức 3."

@@ -1,0 +1,166 @@
+id: eng.frontend_basics.react_ui_patterns
+version: 1
+status: published
+title_vi: "Các bài code UI với React: loading/error/empty, race condition, debounce, optimistic update"
+est_minutes: 12
+objectives_vi:
+  - "Xử lý đủ **bốn trạng thái** khi lấy dữ liệu (**loading, error, empty, success**) và tính **derived state** khi render thay vì lưu trùng."
+  - "Giải thích **race condition** trong `useEffect` và sửa bằng **cleanup** (cờ `ignore` hoặc `AbortController`); dựng **debounced autocomplete**."
+  - "Mô tả **optimistic update** (đổi giao diện ngay, **rollback** khi server lỗi) cho nút upvote/like."
+  - "Nêu khi nào tách **custom hook**, các cách tối ưu hiệu năng (memo, lazy loading, virtualization) và cách test bằng **React Testing Library**."
+blocks:
+  - id: s_ui_fetch
+    type: section
+    title_vi: "Lấy dữ liệu: bốn trạng thái và derived state"
+    summary_vi: "Khi lấy dữ liệu, UI cần xử lý loading, error, empty và success. Giá trị tính được từ state thì tính khi render, không lưu trùng."
+  - id: b01
+    type: text
+    md: |
+      Các bài phỏng vấn UI với React (feed bài đăng có nút upvote, ô tìm kiếm gợi ý...) hay kiểm tra
+      bạn có xử lý **đủ trạng thái** hay không. Khi lấy dữ liệu từ server có **bốn trạng thái**:
+      **loading** (đang tải), **error** (lỗi), **empty** (tải xong nhưng danh sách rỗng) và
+      **success** (có dữ liệu). Chỉ vẽ trường hợp success là lỗi phổ biến: người dùng sẽ thấy màn hình
+      trắng khi đang tải, khi lỗi, hoặc khi không có kết quả.
+
+      ```jsx
+      function Feed() {
+        const [posts, setPosts] = useState([]);
+        const [loading, setLoading] = useState(true);
+        const [error, setError] = useState(null);
+
+        // ... useEffect gọi API, cập nhật 3 state trên ...
+
+        if (loading) return <Spinner />;
+        if (error) return <ErrorMessage error={error} />;
+        if (posts.length === 0) return <p>Chưa có bài đăng nào.</p>;
+        return posts.map((p) => <Post key={p.id} post={p} />);
+      }
+      ```
+
+      **Derived state** (state dẫn xuất): giá trị **tính được** từ state hoặc props thì **tính ngay khi
+      render**, KHÔNG lưu thêm vào một state riêng. Ví dụ danh sách đã lọc là `posts.filter(...)`,
+      tổng số là `posts.length`. Lưu trùng dễ khiến hai state **lệch đồng bộ** (quên cập nhật một
+      bên). Chỉ dùng `useMemo` nếu phép tính thật sự đắt.
+
+      Tương tự, **sắp xếp, lọc, phân trang** danh sách: giữ trong state chỉ các lựa chọn gốc (từ khóa,
+      kiểu sắp xếp, số trang) rồi tính danh sách hiển thị từ chúng.
+  - id: b02
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Component hiển thị danh sách bài đăng tải từ API. Cách xử lý nào đúng nhất?"
+    options:
+      - {id: a, text_md: "Chỉ vẽ danh sách khi có dữ liệu (success); các trường hợp khác để trống"}
+      - {id: b, text_md: "Xử lý cả bốn trạng thái: **loading**, **error**, **empty** và **success**"}
+      - {id: c, text_md: "Chỉ cần thêm spinner **loading**, lỗi và rỗng thì không cần xử lý"}
+    answer: [b]
+    explain_md: "Người dùng cần biết ứng dụng đang tải, đã lỗi hay thật sự không có dữ liệu. Bỏ sót trạng thái nào cũng cho ra giao diện khó hiểu."
+  - id: s_ui_effects
+    type: section
+    title_vi: "Race condition, debounce và optimistic update"
+    summary_vi: "Phản hồi cũ có thể về sau phản hồi mới; sửa bằng cleanup trong useEffect. Debounce giảm số lần gọi API. Optimistic update đổi UI ngay và rollback khi lỗi."
+  - id: b03
+    type: text
+    md: |
+      **Race condition trong effect**: ô tìm kiếm gọi API mỗi lần `query` đổi. Nếu người dùng gõ nhanh,
+      yêu cầu cho `"re"` có thể trả về **sau** yêu cầu cho `"react"`; phản hồi cũ ghi đè kết quả mới
+      và UI hiển thị **sai**. Cách sửa là **cleanup** của `useEffect`: khi `query` đổi, cleanup chạy
+      và đánh dấu kết quả của lần trước là **bỏ qua** (cờ `ignore`), hoặc **hủy request** bằng
+      `AbortController`.
+
+      ```jsx
+      useEffect(() => {
+        let ignore = false;
+        fetchResults(query).then((data) => {
+          if (!ignore) setResults(data); // bỏ qua phản hồi cũ
+        });
+        return () => { ignore = true; }; // cleanup khi query đổi
+      }, [query]);
+      ```
+
+      **Debounced autocomplete**: thay vì gọi API ở mỗi phím, **đợi người dùng ngừng gõ** một khoảng
+      ngắn (ví dụ 300 ms) rồi mới gọi. Trong `useEffect`, đặt `setTimeout` và **cleanup bằng
+      `clearTimeout`**, nên mỗi lần gõ tiếp sẽ hủy hẹn giờ trước đó. Debounce giảm số request nhưng
+      KHÔNG thay cho việc xử lý race condition; vẫn nên kết hợp cả hai.
+
+      ```jsx
+      useEffect(() => {
+        const t = setTimeout(() => setDebounced(query), 300);
+        return () => clearTimeout(t);
+      }, [query]);
+      ```
+
+      **Optimistic update** (ví dụ upvote, like): cập nhật giao diện **ngay lập tức** khi người dùng bấm,
+      rồi mới gửi request. Nếu server **báo lỗi**, **hoàn lại (rollback)** về giá trị cũ và báo cho người
+      dùng. Cảm giác mượt hơn vì không phải chờ mạng.
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Ô tìm kiếm gọi API mỗi khi `query` đổi, người dùng gõ rất nhanh nên đôi khi kết quả cũ hiện đè kết quả mới. Nguyên nhân và cách sửa đúng là gì?"
+    options:
+      - {id: a, text_md: "Phản hồi cũ về **sau** phản hồi mới; dùng **cleanup** trong `useEffect` (cờ `ignore` hoặc `AbortController`) để bỏ kết quả cũ"}
+      - {id: b, text_md: "React render sai thứ tự; thêm `key` ngẫu nhiên cho từng kết quả"}
+      - {id: c, text_md: "Server luôn trả về đúng thứ tự; chỉ cần tăng timeout"}
+    answer: [a]
+    explain_md: "Các request độc lập, thứ tự phản hồi không đảm bảo giống thứ tự gửi. Cleanup khi query đổi giúp chỉ nhận kết quả của lần gọi mới nhất."
+  - id: b05
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Nút upvote dùng **optimistic update**. Khi server trả lỗi thì nên làm gì?"
+    options:
+      - {id: a, text_md: "Giữ nguyên số điểm mới trên giao diện vì người dùng đã thấy rồi"}
+      - {id: b, text_md: "Tải lại toàn bộ trang mà không báo gì"}
+      - {id: c, text_md: "**Rollback** về giá trị cũ và báo lỗi cho người dùng"}
+    answer: [c]
+    explain_md: "Optimistic update giả định thao tác sẽ thành công; nếu sai thì UI phải hoàn lại để khớp với server."
+  - id: s_ui_hooks
+    type: section
+    title_vi: "Custom hook, hiệu năng và test"
+    summary_vi: "Custom hook tách logic dùng lại (tên bắt đầu use). Tối ưu bằng memo, lazy loading, virtualization. Test bằng React Testing Library theo hành vi người dùng."
+  - id: b06
+    type: text
+    md: |
+      **Custom hook** là hàm có **tên bắt đầu bằng `use`**, bên trong dùng các hook khác, để **tách logic
+      dùng lại** (không phải giao diện). Ví dụ `useFetch(url)` trả về `{ data, loading, error }`,
+      đóng gói luôn phần cleanup chống race condition; component chỉ việc gọi và vẽ.
+
+      **Hiệu năng**: đo trước, tối ưu sau. Các công cụ chính: **memo** (`React.memo`, `useMemo`,
+      `useCallback`) để tránh render/tính lại không cần; **lazy loading** (`React.lazy`, code
+      splitting) để tải code khi cần; **virtualization** (chỉ vẽ các dòng đang nhìn thấy trong danh sách
+      rất dài).
+
+      **Test component** với **React Testing Library**: test theo **hành vi người dùng** thấy và làm.
+      Query theo **role** hoặc **text** (`getByRole('button', { name: /upvote/i })`), mô phỏng thao tác
+      (click, gõ) rồi kiểm tra kết quả hiển thị. KHÔNG test chi tiết nội bộ (tên state, hàm nội bộ),
+      vì refactor đổi nội bộ không nên làm test hỏng.
+  - id: b07
+    type: quiz_fill
+    graded: true
+    prompt_md: "Điền một từ: **custom hook** trong React là hàm có tên bắt đầu bằng ______."
+    blanks:
+      - accept: ["use"]
+    explain_md: "Tên bắt đầu bằng `use` (ví dụ `useFetch`) để React và linter nhận ra đó là hook và kiểm tra quy tắc hook."
+  - id: b08
+    type: callout
+    kind: interview
+    md: |
+      **Thanh điểm mức 3 (level-3 bar).** Trong 45 phút bạn dựng được feed hoặc ô gợi ý có đủ **loading,
+      error, empty**, **debounce** và **bỏ qua phản hồi cũ** (cleanup bằng cờ `ignore` hoặc
+      `AbortController`). Bạn tính **derived state** khi render thay vì lưu trùng, làm **optimistic
+      update** có **rollback**, biết tách **custom hook**, và nêu được cách test bằng **React Testing
+      Library** theo hành vi người dùng.
+  - id: b09
+    type: summary
+    bullets_vi:
+      - "Lấy dữ liệu có **bốn trạng thái**: **loading, error, empty, success**; UI xử lý đủ cả bốn."
+      - "**Derived state**: giá trị tính được thì tính khi render, không lưu trùng vào state."
+      - "**Race condition**: phản hồi cũ về sau phản hồi mới; sửa bằng **cleanup** (`ignore` / `AbortController`). **Debounce**: đợi ngừng gõ rồi mới gọi, cleanup `clearTimeout`."
+      - "**Optimistic update**: đổi UI ngay, **rollback** khi server lỗi. **Custom hook**: tên bắt đầu `use`, tách logic dùng lại."
+      - "Hiệu năng: memo, lazy loading, virtualization. Test: **React Testing Library**, theo role/text và hành vi người dùng."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [E196], l2: [E197], l3: [E198]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-13"

@@ -1,0 +1,165 @@
+id: eng.frontend_basics.react_basics
+version: 1
+status: published
+title_vi: "React nền tảng: component, props, state, useEffect, key"
+est_minutes: 12
+objectives_vi:
+  - "Giải thích **component** (hàm trả về **JSX**) và **props** (dữ liệu cha truyền cho con, **read-only**, một chiều)."
+  - "Dùng **useState** đúng cách: state đổi qua `setX` thì React **render lại**; không gán thẳng biến state."
+  - "Dùng **useEffect** cho việc phụ sau render (fetch, subscription) với **dependency array** và hàm **cleanup**; viết **controlled input**."
+  - "Render danh sách bằng `.map` với **key** ổn định; hiểu **virtual DOM / reconciliation**, **lifting state up** và **context**."
+blocks:
+  - id: s_react_core
+    type: section
+    title_vi: "Component, JSX, props và state"
+    summary_vi: "Component là hàm trả về JSX. Props đi từ cha xuống con và chỉ đọc. State do useState giữ; state đổi thì React render lại component."
+  - id: b01
+    type: text
+    md: |
+      **React** xây giao diện từ các **component**: mỗi component là một **hàm** nhận dữ liệu và trả về
+      **JSX**, tức mô tả giao diện trông như HTML nhưng nằm trong JavaScript. Bạn mô tả "giao diện
+      trông thế nào với dữ liệu này", React lo việc cập nhật DOM.
+
+      **props** là dữ liệu **cha truyền cho con**, đi **một chiều** (cha → con). Component con **không
+      được sửa props** (read-only); muốn thay đổi, cha phải đổi dữ liệu của mình.
+
+      ```jsx
+      function Greeting({ name }) {          // name là props
+        return <h1>Xin chào, {name}!</h1>;   // JSX
+      }
+
+      function App() {
+        return <Greeting name="Lan" />;       // cha truyền props cho con
+      }
+      ```
+
+      **state** là dữ liệu riêng mà component tự giữ và có thể đổi theo thời gian. Hook **useState**
+      trả về cặp `[giá trị, hàm cập nhật]`. Khi gọi hàm cập nhật, React **render lại** component với
+      giá trị mới. KHÔNG gán thẳng `dem = 1`: React không biết state đã đổi nên không vẽ lại.
+
+      ```jsx
+      function Counter() {
+        const [dem, setDem] = useState(0);
+        return <button onClick={() => setDem(dem + 1)}>Đã bấm {dem} lần</button>;
+      }
+      ```
+
+      Quy tắc nhớ: **props** là dữ liệu từ ngoài đưa vào (chỉ đọc), **state** là dữ liệu của chính
+      component (đổi qua `setX`). Props hoặc state đổi đều có thể khiến component render lại.
+  - id: b02
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Trong một component React, cách đúng để tăng biến state `dem` (khai báo bằng `const [dem, setDem] = useState(0)`) là gì?"
+    options:
+      - {id: a, text_md: "Gán trực tiếp `dem = dem + 1`"}
+      - {id: b, text_md: "Gọi `setDem(dem + 1)` để React biết state đổi và render lại"}
+      - {id: c, text_md: "Sửa giá trị `props` do cha truyền xuống"}
+    answer: [b]
+    explain_md: "State chỉ được đổi qua hàm cập nhật (`setDem`), khi đó React render lại. Gán thẳng không báo cho React, còn props là read-only."
+  - id: s_react_effects
+    type: section
+    title_vi: "useEffect, controlled input và danh sách"
+    summary_vi: "useEffect chạy việc phụ sau render, dependency array quyết định khi nào chạy lại, cleanup dọn dẹp. Controlled input lấy value từ state. Danh sách cần key ổn định."
+  - id: b03
+    type: text
+    md: |
+      **useEffect** chạy **việc phụ** (side effect) như gọi API, đăng ký subscription, đặt timer
+      **sau khi render**. **Dependency array** (mảng thứ hai) quyết định khi nào effect chạy lại: `[]`
+      chỉ chạy sau lần render đầu, `[id]` chạy lại khi `id` đổi. Hàm **cleanup** (hàm trả về từ
+      effect) chạy **trước lần chạy effect kế tiếp** và khi component **unmount**.
+
+      ```jsx
+      useEffect(() => {
+        const t = setInterval(tick, 1000);
+        return () => clearInterval(t);   // cleanup
+      }, []);
+      ```
+
+      Vài hook khác (nêu ngắn): **useRef** giữ giá trị/tham chiếu DOM mà đổi nó không gây render lại;
+      **useMemo** nhớ kết quả tính toán nặng; **useCallback** nhớ một hàm giữa các lần render.
+
+      **Controlled input**: ô nhập có `value` lấy từ state và `onChange` gọi setState, nên **React là
+      nguồn sự thật** của giá trị trong ô.
+
+      ```jsx
+      const [ten, setTen] = useState("");
+      <input value={ten} onChange={(e) => setTen(e.target.value)} />
+      ```
+
+      **Danh sách**: render bằng `.map`, mỗi phần tử cần prop **key** **ổn định** và duy nhất giữa các
+      anh em, thường là `id` của dữ liệu. KHÔNG nên dùng **index** làm key khi danh sách có thể thêm,
+      xóa hoặc sắp xếp lại: React gán nhầm state/DOM cho phần tử khác, gây bug và render kém hiệu quả.
+
+      ```jsx
+      <ul>
+        {todos.map((t) => <li key={t.id}>{t.title}</li>)}
+      </ul>
+      ```
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một danh sách todo có thể thêm, xóa và sắp xếp. Chọn `key` nào cho `<li>` là phù hợp nhất?"
+    options:
+      - {id: a, text_md: "Chỉ số `index` của phần tử trong mảng"}
+      - {id: b, text_md: "`id` ổn định, duy nhất của mỗi todo"}
+      - {id: c, text_md: "Số ngẫu nhiên tạo mới ở mỗi lần render"}
+    answer: [b]
+    explain_md: "Key phải ổn định và duy nhất. Index đổi khi thêm/xóa/sắp xếp nên dễ gán nhầm state; số ngẫu nhiên mỗi lần render làm React tạo lại toàn bộ phần tử."
+  - id: b05
+    type: quiz_fill
+    graded: true
+    prompt_md: "Điền một từ: trong `useEffect`, hàm trả về để dọn dẹp (ví dụ `clearInterval`) gọi là hàm ______."
+    blanks:
+      - accept: ["cleanup", "clean-up", "clean up"]
+    explain_md: "Đó là hàm **cleanup**: chạy trước lần effect kế tiếp và khi component unmount."
+  - id: s_react_render
+    type: section
+    title_vi: "Virtual DOM, lifting state up và context"
+    summary_vi: "React dựng virtual DOM, diff với lần trước rồi chỉ cập nhật phần đổi lên DOM thật. State dùng chung đưa lên cha gần nhất; context tránh prop drilling."
+  - id: b06
+    type: text
+    md: |
+      **Virtual DOM và reconciliation**: mỗi lần render, React dựng một **cây ảo** (virtual DOM) mô tả
+      giao diện, **so sánh (diff)** với cây của lần trước, rồi chỉ **cập nhật phần đổi** lên DOM thật.
+      Quá trình so sánh này gọi là **reconciliation**; `key` giúp React nhận ra phần tử nào là phần
+      tử cũ khi danh sách thay đổi.
+
+      **Lifting state up**: khi hai component anh em cần dùng chung một state, **đưa state lên
+      component cha gần nhất** rồi truyền xuống bằng props (và truyền hàm cập nhật để con gọi).
+      Nếu phải truyền qua nhiều tầng trung gian (**prop drilling**), dùng **Context**: đặt giá trị ở
+      một Provider và các component bên dưới đọc bằng `useContext`, không cần truyền props từng tầng.
+  - id: b07
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Nói về **virtual DOM** và **reconciliation**, phát biểu nào đúng?"
+    options:
+      - {id: a, text_md: "React xóa toàn bộ DOM thật và dựng lại từ đầu sau mỗi lần render"}
+      - {id: b, text_md: "React so sánh cây ảo mới với cây ảo lần trước rồi chỉ cập nhật phần khác biệt lên DOM thật"}
+      - {id: c, text_md: "React cập nhật DOM thật ngay khi bạn gán trực tiếp vào biến state"}
+    answer: [b]
+    explain_md: "Reconciliation diff cây ảo mới với cây cũ và chỉ áp phần đổi lên DOM thật. Gán thẳng biến state không làm React render lại."
+  - id: b08
+    type: callout
+    kind: interview
+    md: |
+      **Thanh điểm mức 3 (level-3 bar).** Bạn dựng được một component lấy dữ liệu từ API, hiển thị
+      trạng thái **đang tải** và **lỗi** bằng **useState** và **useEffect** (đặt dependency array đúng,
+      có cleanup khi cần), render danh sách với **key** ổn định, và không **render thừa**. Bạn giải
+      thích được props vs state, controlled input, virtual DOM / reconciliation và khi nào dùng
+      **lifting state up** hay **context**.
+  - id: b09
+    type: summary
+    bullets_vi:
+      - "**Component** là hàm trả về **JSX**; **props** từ cha xuống con, read-only; **state** đổi qua `setX` (useState) thì React render lại."
+      - "**useEffect** chạy việc phụ sau render; **dependency array** quyết định khi nào chạy lại; **cleanup** chạy trước lần sau và khi unmount."
+      - "**Controlled input**: `value` từ state + `onChange` gọi setState, React là nguồn sự thật."
+      - "Danh sách dùng `.map` với **key** ổn định (id), tránh index khi danh sách thay đổi."
+      - "**Virtual DOM + reconciliation**: diff cây ảo, chỉ cập nhật phần đổi; **lifting state up** và **context** để chia sẻ state, tránh prop drilling."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [E193], l2: [E194], l3: [E195]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-13"
