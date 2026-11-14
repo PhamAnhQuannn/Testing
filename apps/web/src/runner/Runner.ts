@@ -50,6 +50,8 @@ export interface RunRequest {
   io: ProblemIO;
   tests: TestCase[];
   limits: RunLimits;
+  /** Pyodide packages to load before the tests run (e.g. numpy, pandas). */
+  packages?: string[];
   onProgress?: (result: TestResult, index: number) => void;
 }
 

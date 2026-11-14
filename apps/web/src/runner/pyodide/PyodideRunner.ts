@@ -11,6 +11,9 @@ import type { FromWorker, WorkerLike } from "./protocol";
 /** Extra time on top of `time_ms x multiplier` for message passing and the first-call overhead. */
 export const WATCHDOG_SLACK_MS = 300;
 
+/** One-time extra budget for the first test when the run must first load numpy/pandas. */
+export const PACKAGE_LOAD_BUDGET_MS = 30000;
+
 export type WorkerFactory = () => WorkerLike;
 
 type Timers = {
@@ -122,6 +125,7 @@ export class PyodideRunner implements Runner {
     const runId = ++this.runCounter;
     const limitMs = perTestLimitMs(req);
     const results: TestResult[] = [];
+    const hasPackages = (req.packages?.length ?? 0) > 0;
 
     return new Promise<RunResult>((resolve, reject) => {
       let timer: unknown;
@@ -136,8 +140,9 @@ export class PyodideRunner implements Runner {
       const resolveNow = () =>
         resolve(summarize(results, req.tests.length, Math.round(this.timers.now() - started)));
 
-      const arm = () => {
+      const arm = (first = false) => {
         this.timers.clearTimeout(timer);
+        const budgetMs = first && hasPackages ? limitMs + PACKAGE_LOAD_BUDGET_MS : limitMs;
         timer = this.timers.setTimeout(() => {
           finish(() => {
             const test = req.tests[results.length];
@@ -155,7 +160,7 @@ export class PyodideRunner implements Runner {
             this.restart();
             resolveNow();
           });
-        }, limitMs);
+        }, budgetMs);
       };
 
       worker.onmessage = (event: { data: FromWorker }) => {
@@ -165,7 +170,7 @@ export class PyodideRunner implements Runner {
           results.push(message.result);
           req.onProgress?.(message.result, results.length - 1);
           if (message.result.verdict === "CE") finish(resolveNow);
-          else arm();
+          else arm(); // the package-load budget applies only to the initial arm
         } else if (message.type === "done") {
           finish(resolveNow);
         } else if (message.type === "error") {
@@ -182,8 +187,15 @@ export class PyodideRunner implements Runner {
         });
       };
 
-      arm();
-      worker.postMessage({ type: "run", runId, code: req.code, io: req.io, tests: req.tests });
+      arm(true);
+      worker.postMessage({
+        type: "run",
+        runId,
+        code: req.code,
+        io: req.io,
+        tests: req.tests,
+        packages: req.packages ?? [],
+      });
     });
   }
 }

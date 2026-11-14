@@ -27,7 +27,8 @@ from common import ROOT, load_yaml, read_jsonl
 
 HARNESS = ROOT / "apps/web/src/runner/pyodide/harness.py"
 STARTUP_GRACE_S = 2.0  # interpreter start-up and request parsing, before the first test
-PYODIDE_STARTUP_GRACE_S = 30.0  # Node + loading the WASM runtime, generous for cold CI runners
+PYODIDE_STARTUP_GRACE_S = 30.0  # Node + WASM runtime, generous for cold CI runners
+PYODIDE_PACKAGE_GRACE_S = 45.0  # extra head-room when a problem loads numpy/pandas wheels
 PYODIDE_DIR = ROOT / "tools/pyodide-node"
 ENGINES = ("native", "pyodide")
 
@@ -58,7 +59,13 @@ def overall_verdict(results: list[dict]) -> str:
 
 
 def _run_child(
-    command: list[str], code: str, io: dict, tests: list[dict], time_limit_ms: float, grace_s: float
+    command: list[str],
+    code: str,
+    io: dict,
+    tests: list[dict],
+    time_limit_ms: float,
+    grace_s: float,
+    env: dict | None = None,
 ) -> dict:
     """Run `tests` in a child process; a test over `time_limit_ms` ends the run with TLE."""
     request = json.dumps({"code": code, "io": io, "tests": tests}).encode()
@@ -73,6 +80,7 @@ def _run_child(
             stdout=subprocess.PIPE,
             stderr=stderr,
             bufsize=0,
+            env=env,
         )
         try:
             proc.stdin.write(request)
@@ -119,17 +127,22 @@ def pyodide_available() -> bool:
     return (PYODIDE_DIR / "node_modules/pyodide/pyodide.mjs").is_file()
 
 
-def run_pyodide(code: str, io: dict, tests: list[dict], time_limit_ms: float) -> dict:
+def run_pyodide(code: str, io: dict, tests: list[dict], time_limit_ms: float, packages=()) -> dict:
     """Run `tests` with harness.py under Pyodide in Node; same result shape as `run_native`."""
     if not pyodide_available():
         raise RuntimeError("Pyodide is not installed: run `npm ci` in tools/pyodide-node")
     command = ["node", str(PYODIDE_DIR / "run.mjs"), str(HARNESS)]
-    return _run_child(command, code, io, tests, time_limit_ms, PYODIDE_STARTUP_GRACE_S)
+    env = {**os.environ, "PREP_PACKAGES": json.dumps(list(packages))}
+    grace = PYODIDE_PACKAGE_GRACE_S if packages else PYODIDE_STARTUP_GRACE_S
+    return _run_child(command, code, io, tests, time_limit_ms, grace, env)
 
 
-def run_engine(engine: str, code: str, io: dict, tests: list[dict], time_limit_ms: float) -> dict:
-    runner = {"native": run_native, "pyodide": run_pyodide}[engine]
-    return runner(code, io, tests, time_limit_ms)
+def run_engine(
+    engine: str, code: str, io: dict, tests: list[dict], time_limit_ms: float, packages=()
+) -> dict:
+    if engine == "pyodide":
+        return run_pyodide(code, io, tests, time_limit_ms, packages)
+    return run_native(code, io, tests, time_limit_ms)
 
 
 def engine_limit_ms(problem: dict, engine: str) -> float:
@@ -160,7 +173,8 @@ def main() -> int:
     if args.tag:
         tests = [t for t in tests if args.tag in t.get("tags", [])]
     limit_ms = engine_limit_ms(problem, args.engine) * args.time_factor
-    run = run_engine(args.engine, code, problem["io"], tests, limit_ms)
+    packages = problem.get("packages", [])
+    run = run_engine(args.engine, code, problem["io"], tests, limit_ms, packages)
     for r in run["results"]:
         print(f"{r['verdict']:<4} {r['id']}  {r['elapsed_ms']} ms  {r['error']}".rstrip())
     print(f"verdict: {run['verdict']}")

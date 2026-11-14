@@ -581,7 +581,7 @@ class Validator:
                 module = impl + "\n" + test + "\n" + driver
                 cases = [{"id": expected.lower(), "args": [], "expected": expected}]
                 if engine == "pyodide":
-                    run = run_pyodide(module, WRITE_TEST_IO, cases, WRITE_TEST_PYODIDE_MS)
+                    run = run_pyodide(module, WRITE_TEST_IO, cases, WRITE_TEST_PYODIDE_MS, [])
                 else:
                     run = run_native(module, WRITE_TEST_IO, cases, SNIPPET_TIME_MS)
                 if run["verdict"] not in ("AC", "WA"):
@@ -622,7 +622,10 @@ class Validator:
         if not stress:
             return
         limit_ms = engine_limit_ms(problem, "pyodide")
-        run = run_pyodide(solution.read_text(encoding="utf-8"), problem["io"], stress, limit_ms)
+        packages = problem.get("packages", [])
+        run = run_pyodide(
+            solution.read_text(encoding="utf-8"), problem["io"], stress, limit_ms, packages
+        )
         for result in run["results"]:
             if result["verdict"] != "AC":
                 self.fail(

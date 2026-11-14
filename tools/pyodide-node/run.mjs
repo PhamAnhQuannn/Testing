@@ -12,6 +12,8 @@ const request = readFileSync(0, "utf8");
 
 // Anything Python writes outside the harness's own redirection must not reach the result channel.
 const pyodide = await loadPyodide({ stdout: () => {}, stderr: () => {} });
+const pkgs = JSON.parse(process.env.PREP_PACKAGES || "[]");
+if (pkgs.length) await pyodide.loadPackage(pkgs);
 pyodide.FS.writeFile("/harness.py", readFileSync(harnessPath, "utf8"));
 pyodide.globals.set("request_json", request);
 pyodide.runPython(`

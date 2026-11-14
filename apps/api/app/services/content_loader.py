@@ -494,8 +494,10 @@ class ContentStore:
             "tags",
             "version",
             "status",
+            "packages",
         ]
         out = {k: copy.deepcopy(d[k]) for k in keys if k in d}
+        out["packages"] = list(d.get("packages", []))
         out["sample_tests"] = self.sample_tests(e)
         out["hint_count"] = len(d.get("hints", []))
         if d.get("item_kind") == "write_test":
