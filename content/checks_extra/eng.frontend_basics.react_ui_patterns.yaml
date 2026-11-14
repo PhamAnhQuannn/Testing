@@ -1,0 +1,44 @@
+subtopic_id: eng.frontend_basics.react_ui_patterns
+items:
+  - id: E196
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Khi component React lấy dữ liệu từ API, UI cần xử lý **bốn trạng thái** nào? Vì sao chỉ vẽ trường hợp success là chưa đủ?
+    answer_md: |
+      - Bốn trạng thái: **loading** (đang tải), **error** (lỗi), **empty** (tải xong nhưng không có dữ liệu) và **success** (có dữ liệu).
+      - Chỉ xử lý success thì người dùng thấy màn hình trắng khi đang tải, khi lỗi hoặc khi kết quả rỗng, không biết ứng dụng hỏng hay đang chờ.
+      - Mỗi trạng thái cần giao diện riêng (spinner, thông báo lỗi kèm thử lại, thông báo "không có kết quả").
+    rubric_md: "Đạt khi nêu đủ bốn trạng thái loading, error, empty, success và giải thích người dùng cần phản hồi ở từng trạng thái (không chỉ success). Đủ bốn và lý do: bằng chứng điểm 1; thiếu empty hoặc error, hoặc không nêu lý do: điểm 0."
+  - id: E197
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Với mỗi tình huống React, hãy **gọi tên vấn đề** và nêu **cách sửa đúng**:
+      1. Component lưu `posts` và cả `filteredPosts` trong hai `useState`; sau khi người dùng đổi từ khóa lọc, đôi khi danh sách hiển thị không khớp.
+      2. Ô tìm kiếm gọi API trong `useEffect` theo `query`; gõ nhanh thì đôi khi kết quả của từ khóa cũ hiện đè kết quả mới.
+      3. Ô gợi ý gọi API ở mỗi phím bấm, tạo rất nhiều request.
+    answer_md: |
+      1. **Derived state bị lưu trùng** nên hai state lệch đồng bộ. Sửa: chỉ giữ `posts` và từ khóa lọc trong state, **tính** `filteredPosts` khi render (`posts.filter(...)`); `useMemo` chỉ khi phép tính đắt.
+      2. **Race condition** trong effect: phản hồi cũ có thể về **sau** phản hồi mới và ghi đè. Sửa: **cleanup** trong `useEffect` bằng cờ `ignore` (bỏ kết quả của lần gọi cũ) hoặc `AbortController` để hủy request.
+      3. Thiếu **debounce**. Sửa: trong `useEffect` đặt `setTimeout` (ví dụ 300 ms) rồi mới gọi API, cleanup bằng `clearTimeout` để mỗi lần gõ tiếp hủy hẹn giờ trước.
+    rubric_md: "Đạt khi đúng cả ba cặp (vấn đề, cách sửa): (1) derived state lưu trùng + tính khi render; (2) race condition + cleanup ignore/AbortController; (3) thiếu debounce + setTimeout với cleanup clearTimeout. Đủ ba: bằng chứng điểm 2. Đúng hai: tối đa điểm 1. Sửa sai (ví dụ 'thêm key', 'thêm useEffect để đồng bộ hai state', 'tăng timeout'): không tính cặp đó."
+  - id: E198
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      Bạn dựng một **feed** bài đăng, mỗi bài có nút **upvote**. Hãy mô tả cách làm để: (a) hiển thị đúng khi tải, lỗi và rỗng; (b) upvote cảm giác tức thì nhưng vẫn đúng khi server lỗi; (c) tách logic lấy dữ liệu dùng lại cho nhiều màn hình; (d) feed có hàng nghìn bài vẫn mượt. Cuối cùng nêu cách **test** nút upvote bằng React Testing Library.
+    answer_md: |
+      **(a)** Xử lý đủ **loading, error, empty, success** (spinner, thông báo lỗi có thử lại, thông báo rỗng, danh sách). Fetch trong `useEffect` có **cleanup** (cờ `ignore` hoặc `AbortController`) để không nhận phản hồi cũ khi input đổi hoặc component unmount.
+
+      **(b) Optimistic update**: khi bấm, tăng điểm trên UI **ngay**, rồi gửi request; nếu server lỗi thì **rollback** về điểm cũ và báo lỗi cho người dùng.
+
+      **(c) Custom hook** (tên bắt đầu `use`, ví dụ `useFetch`) đóng gói state loading/error/data và cleanup; component chỉ gọi hook và vẽ. Tính danh sách sắp xếp/lọc/phân trang như **derived state** khi render.
+
+      **(d) Hiệu năng**: **virtualization** (chỉ vẽ dòng đang nhìn thấy) hoặc phân trang, `React.memo` cho item để tránh render lại, **lazy loading** cho phần nặng; đo trước khi tối ưu.
+
+      **Test**: dùng **React Testing Library**, render feed với API giả, tìm nút bằng **role/text** (`getByRole('button', { name: /upvote/i })`), click rồi kiểm tra điểm hiển thị tăng; thêm ca server lỗi kiểm tra điểm quay về. Test theo **hành vi người dùng**, không test state hay hàm nội bộ.
+    rubric_md: "Đạt mức 3 khi: (a) nêu đủ loading/error/empty/success; (b) optimistic update có rollback khi lỗi; (c) custom hook tách logic dùng lại (tên use...); (d) ít nhất một kỹ thuật hiệu năng đúng (virtualization/memo/lazy loading); test bằng React Testing Library theo hành vi người dùng, query theo role/text, không test chi tiết nội bộ. Đủ các ý: bằng chứng điểm 3. Thiếu rollback, thiếu một trạng thái, hoặc test chi tiết nội bộ: chưa đạt mức 3."

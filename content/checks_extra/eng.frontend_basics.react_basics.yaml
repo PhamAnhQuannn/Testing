@@ -1,0 +1,59 @@
+subtopic_id: eng.frontend_basics.react_basics
+items:
+  - id: E193
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      Trong React, **props** và **state** khác nhau thế nào? Nếu muốn đổi giá trị của một state, bạn làm gì?
+    answer_md: |
+      - **props**: dữ liệu **cha truyền cho con**, đi một chiều (cha → con); component con **không được sửa**
+        (read-only).
+      - **state**: dữ liệu riêng của component, giữ bằng **useState**: `const [x, setX] = useState(0)`.
+      - Muốn đổi state phải gọi **`setX(...)`**; React sẽ **render lại** component. KHÔNG gán thẳng `x = 1`
+        vì React không biết state đã đổi.
+    rubric_md: "Đạt khi nêu đúng: props do cha truyền xuống và read-only, state là dữ liệu của chính component; đổi state qua hàm setX (useState) khiến React render lại, không gán trực tiếp. Đủ hai ý (phân biệt props/state và đổi state bằng setX): bằng chứng điểm 1. Nói con có thể sửa props hoặc gán thẳng biến state: điểm 0."
+  - id: E194
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Trả lời ba phần về React:
+      1. `useEffect` dùng để làm gì, và **dependency array** cùng hàm **cleanup** có vai trò gì?
+      2. **Controlled input** là gì? Viết (hoặc mô tả) cách làm một ô nhập controlled.
+      3. Khi render danh sách bằng `.map`, vì sao cần `key`, nên chọn key nào và vì sao không nên dùng index khi danh sách có thể thêm/xóa/sắp xếp?
+    answer_md: |
+      1. **useEffect** chạy **việc phụ** (fetch, subscription, timer) **sau khi render**. **Dependency array**
+         quyết định khi nào chạy lại (`[]` chỉ sau lần render đầu, `[id]` khi `id` đổi). **Cleanup** (hàm
+         effect trả về) chạy **trước lần chạy kế tiếp** và khi **unmount** để dọn dẹp (hủy timer, bỏ đăng ký).
+      2. **Controlled input**: ô nhập có `value` lấy từ **state** và `onChange` gọi **setState**, nên React là
+         nguồn sự thật. Ví dụ: `<input value={ten} onChange={(e) => setTen(e.target.value)} />`.
+      3. `key` giúp React (reconciliation) nhận ra phần tử nào là phần tử cũ. Chọn key **ổn định, duy nhất**
+         như **id** dữ liệu. Không dùng **index** khi danh sách thay đổi vì index đổi theo vị trí, khiến state/DOM
+         bị gán nhầm và render kém hiệu quả.
+    rubric_md: "Đạt khi đúng cả ba phần: (1) useEffect là việc phụ sau render + dependency array quyết định khi chạy lại + cleanup chạy trước lần sau/khi unmount; (2) controlled input = value từ state + onChange gọi setState; (3) key ổn định (id), không dùng index khi danh sách thêm/xóa/sắp xếp kèm lý do. Đủ ba: bằng chứng điểm 2. Đúng hai: tối đa điểm 1. Sai (ví dụ 'cleanup chạy trước render đầu', 'index luôn là key tốt'): không tính phần đó."
+  - id: E195
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      Bạn dựng màn hình "danh sách người dùng": gọi API lấy dữ liệu, hiển thị trạng thái **đang tải** và **lỗi**,
+      có ô tìm kiếm lọc theo tên. Hai component anh em (`SearchBox` và `UserList`) cần dùng chung từ khóa tìm kiếm,
+      và nhiều component sâu bên dưới cần biết người dùng hiện tại.
+      Hãy: thiết kế bằng `useState` và `useEffect` (state nào, effect khi nào chạy, có cần cleanup không);
+      nói cách render danh sách (dùng `key` gì); nói cách chia sẻ từ khóa giữa hai component anh em và cách
+      chia sẻ người dùng hiện tại xuống sâu; giải thích virtual DOM / reconciliation giúp gì khi state đổi.
+    answer_md: |
+      **State và effect**: dùng `useState` cho `users`, `loading`, `error` (và từ khóa tìm kiếm). `useEffect` gọi API
+      **sau render**, dependency array `[]` nếu chỉ tải một lần (hoặc `[query]` nếu tải lại khi từ khóa đổi). Trong
+      effect: đặt `loading = true`, gọi API, `setUsers` khi xong, `setError` khi lỗi, cuối cùng `loading = false`.
+      **Cleanup** (cờ bỏ qua kết quả hoặc hủy request) để **bỏ kết quả cũ về trễ** khi từ khóa đổi nhanh (và
+      tránh cập nhật sau khi unmount). Render có điều kiện: đang tải, lỗi, hoặc danh sách `.map` với **key = id**.
+
+      **Chia sẻ state**: **lifting state up**, đặt từ khóa ở component cha chung, truyền xuống `SearchBox` (value +
+      hàm cập nhật, controlled input) và `UserList` (props để lọc). Người dùng hiện tại cần ở nhiều tầng sâu: dùng
+      **Context** (Provider + `useContext`) để tránh **prop drilling**.
+
+      **Virtual DOM / reconciliation**: khi state đổi, React render lại, dựng cây ảo mới, **diff** với cây trước và
+      chỉ cập nhật phần đổi lên DOM thật; key ổn định giúp nhận đúng phần tử trong danh sách.
+    rubric_md: "Đạt mức 3 khi: (a) dùng useState cho dữ liệu/loading/error và useEffect gọi API sau render với dependency array hợp lý, nêu cleanup (tránh setState sau unmount/kết quả cũ); (b) lifting state up cho state dùng chung giữa component anh em (controlled input) và context cho dữ liệu dùng ở nhiều tầng/tránh prop drilling; (c) giải thích virtual DOM + reconciliation: diff cây ảo, chỉ cập nhật phần đổi lên DOM thật; (d) render danh sách bằng .map với key ổn định (id). Đủ cả bốn ý: bằng chứng điểm 3. Thiếu một ý hoặc sai (ví dụ 'gán thẳng state', 'quên dependency array gây gọi API vô hạn', 'key = index cho danh sách đổi'): chưa đạt mức 3."

@@ -1,0 +1,220 @@
+id: eng.frontend_basics.js_core
+version: 1
+status: published
+title_vi: "JavaScript cốt lõi: closure, this, Promise, event loop"
+est_minutes: 12
+objectives_vi:
+  - "Giải thích **closure** (hàm nhớ biến của phạm vi nơi nó được tạo ra) và phân biệt **var / let / const**, **hoisting**."
+  - "Phân biệt **this** của hàm thường (phụ thuộc cách gọi) với **arrow function** (lấy `this` từ phạm vi bao ngoài); biết `class` là cú pháp ngắn trên **prototype**."
+  - "Dùng **Promise** và **async/await**; dùng **map / filter / reduce**; hiểu ý tưởng **debounce** và **throttle**."
+  - "Đoán đúng thứ tự chạy của **event loop**: call stack, rồi **microtask** (Promise), rồi **macrotask** (setTimeout)."
+blocks:
+  - id: s_scope_closure
+    type: section
+    title_vi: "Phạm vi, hoisting và closure"
+    summary_vi: "let/const có phạm vi khối, var có phạm vi hàm và bị hoisting. Closure là hàm nhớ biến của phạm vi nơi nó được tạo ra."
+  - id: b01
+    type: text
+    md: |
+      JavaScript chạy được ở trình duyệt và Node. Bài này gom các ý cốt lõi hay bị hỏi: phạm vi biến,
+      closure, `this`, Promise và event loop. Nhiều ý quen với Python (closure, async/await).
+
+      **Khai báo biến**: `const` (không gán lại) và `let` (gán lại được) có **phạm vi khối** `{ }`; `var`
+      có **phạm vi hàm** và bị **hoisting**: khai báo `var` (và `function`) được "kéo lên" đầu phạm vi,
+      nên dùng `var` trước dòng khai báo cho giá trị `undefined` chứ không báo lỗi. `let`/`const` cũng
+      được hoist nhưng đứng ở "vùng chết" cho tới dòng khai báo, truy cập sớm sẽ ném `ReferenceError`.
+      Thói quen tốt: mặc định `const`, cần gán lại mới dùng `let`, tránh `var`.
+
+      **Closure**: một hàm **nhớ các biến của phạm vi nơi nó được tạo ra**, kể cả khi được gọi sau đó ở
+      nơi khác. Ví dụ hàm đếm giữ biến `count` riêng:
+
+      ```js
+      function makeCounter() {
+        let count = 0;            // biến của makeCounter
+        return () => ++count;     // hàm trả về "nhớ" count
+      }
+      const c = makeCounter();
+      c(); // 1
+      c(); // 2  (makeCounter đã kết thúc nhưng count vẫn còn)
+      ```
+
+      Mỗi lần gọi `makeCounter()` tạo một `count` mới, độc lập. Closure là nền của nhiều kỹ thuật
+      (đóng gói dữ liệu, callback, debounce, memoize).
+  - id: b02
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Hàm `makeCounter()` ở trên đã chạy xong và trả về một hàm. Vì sao gọi `c()` nhiều lần vẫn tăng được `count`?"
+    options:
+      - {id: a, text_md: "Vì **closure**: hàm trả về nhớ biến `count` của phạm vi nơi nó được tạo ra"}
+      - {id: b, text_md: "Vì `count` là biến toàn cục"}
+      - {id: c, text_md: "Vì `let` luôn được hoist ra ngoài hàm"}
+    answer: [a]
+    explain_md: "Closure giữ lại tham chiếu tới biến của phạm vi bao ngoài khi hàm được tạo, kể cả sau khi hàm bao ngoài kết thúc. `count` không phải biến toàn cục."
+  - id: s_this_proto
+    type: section
+    title_vi: "this, arrow function, prototype và class"
+    summary_vi: "Hàm thường: this phụ thuộc cách gọi. Arrow function không có this riêng, lấy từ phạm vi bao ngoài. class là cú pháp ngắn trên prototype."
+  - id: b03
+    type: text
+    md: |
+      **this** trong hàm thường **phụ thuộc cách gọi**: `obj.f()` thì `this` là `obj`; gọi trần `f()`
+      thì `this` là `undefined` (strict mode) hoặc đối tượng toàn cục. Có thể chỉ định bằng
+      `f.call(x)`, `f.apply(x, [..])`, `f.bind(x)`.
+
+      **Arrow function** `() => {}` **không có `this` riêng**: nó lấy `this` từ **phạm vi bao ngoài** nơi
+      nó được viết. Vì vậy arrow hợp làm callback bên trong method:
+
+      ```js
+      const timer = {
+        seconds: 0,
+        start() {
+          setInterval(() => { this.seconds++; }, 1000); // this = timer (từ start)
+        },
+      };
+      ```
+
+      Nếu dùng `function () {}` ở chỗ arrow, `this` sẽ phụ thuộc cách `setInterval` gọi nó, không còn là `timer`.
+
+      **Prototype và class**: đối tượng JS kế thừa qua **prototype chain** (đối tượng có liên kết tới
+      prototype để tìm thuộc tính). `class` là **cú pháp ngắn** viết trên cơ chế prototype đó, không phải
+      mô hình kế thừa khác:
+
+      ```js
+      class Dog {
+        constructor(name) { this.name = name; }
+        bark() { return this.name + " woof"; }   // nằm trên Dog.prototype
+      }
+      ```
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Điều nào đúng về `this` của **arrow function**?"
+    options:
+      - {id: a, text_md: "Luôn là đối tượng gọi hàm, giống hàm thường"}
+      - {id: b, text_md: "Arrow function không có `this` riêng; nó lấy `this` từ phạm vi bao ngoài nơi nó được viết"}
+      - {id: c, text_md: "Luôn là `window` hoặc đối tượng toàn cục"}
+    answer: [b]
+    explain_md: "Arrow function không tự ràng buộc this; `this` được xác định từ phạm vi bao ngoài (lexical). Hàm thường mới phụ thuộc cách gọi."
+  - id: s_async_loop
+    type: section
+    title_vi: "Promise, async/await và event loop"
+    summary_vi: "Promise là lời hứa về giá trị tương lai. JS chạy một việc một lúc; sau mỗi lần stack rỗng, microtask (Promise) chạy trước macrotask (setTimeout)."
+  - id: b05
+    type: text
+    md: |
+      **Promise** là đối tượng đại diện cho **giá trị trong tương lai**, có ba trạng thái: **pending**
+      (đang chờ), **fulfilled** (thành công, có giá trị), **rejected** (lỗi). Xử lý bằng `.then()` /
+      `.catch()`, hoặc dùng **async/await**: hàm `async` luôn **trả về một Promise**, và `await` **chờ**
+      Promise xong rồi lấy giá trị (lỗi thì ném ra để bắt bằng `try/catch`).
+
+      ```js
+      async function load() {
+        try {
+          const res = await fetch("/api/user");
+          return await res.json();
+        } catch (e) {
+          console.error("lỗi", e);
+        }
+      }
+      ```
+
+      **Event loop**: JS chạy **một việc một lúc** (single-threaded) trên **call stack**. Việc chờ (hẹn
+      giờ, mạng) được môi trường xử lý riêng; xong thì **callback** vào hàng đợi và chỉ chạy khi stack
+      rỗng. Có hai hàng đợi chính:
+      - **Microtask**: callback của Promise (`.then`, phần sau `await`), `queueMicrotask`.
+      - **Macrotask**: `setTimeout`, `setInterval`, sự kiện DOM...
+
+      Quy tắc: sau khi stack rỗng, **chạy hết microtask trước**, rồi mới lấy **một macrotask** tiếp theo.
+
+      ```js
+      console.log("A");
+      setTimeout(() => console.log("B"), 0);          // macrotask
+      Promise.resolve().then(() => console.log("C")); // microtask
+      console.log("D");
+      // In ra: A D C B
+      ```
+
+      Mã đồng bộ (A, D) chạy trước; rồi microtask (C); cuối cùng macrotask (B), dù `setTimeout` là 0 ms.
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Đoạn code sau in ra thứ tự nào?\n\n```js\nsetTimeout(() => console.log(\"1\"), 0);\nPromise.resolve().then(() => console.log(\"2\"));\nconsole.log(\"3\");\n```"
+    options:
+      - {id: a, text_md: "`1 2 3`"}
+      - {id: b, text_md: "`3 1 2`"}
+      - {id: c, text_md: "`3 2 1`"}
+    answer: [c]
+    explain_md: "Mã đồng bộ in 3 trước. Sau đó microtask (Promise.then) in 2, rồi macrotask (setTimeout) in 1: microtask chạy trước macrotask."
+  - id: b07
+    type: quiz_fill
+    graded: true
+    prompt_md: "Điền một từ khóa: trong hàm `async`, ______ làm hàm tạm dừng cho tới khi một Promise xong và trả về giá trị của nó."
+    blanks:
+      - accept: ["await"]
+    explain_md: "Đó là **await**. Nó chỉ dùng trong hàm `async` (hoặc module cấp cao nhất) và chờ Promise fulfilled; nếu rejected thì ném lỗi."
+  - id: s_utils
+    type: section
+    title_vi: "map/filter/reduce, debounce và throttle"
+    summary_vi: "map biến đổi, filter lọc, reduce gộp. Debounce gọi sau khi ngừng một khoảng; throttle giới hạn tần suất. Cả hai dựa trên closure."
+  - id: b08
+    type: text
+    md: |
+      **Phương thức mảng**: `map` **biến đổi** từng phần tử (mảng mới cùng độ dài), `filter` **lọc** giữ
+      phần tử thỏa điều kiện, `reduce` **gộp** cả mảng thành một giá trị. Chúng không sửa mảng gốc.
+
+      ```js
+      const nums = [1, 2, 3, 4];
+      nums.map(x => x * 2);            // [2, 4, 6, 8]
+      nums.filter(x => x % 2 === 0);   // [2, 4]
+      nums.reduce((s, x) => s + x, 0); // 10
+      ```
+
+      **debounce** và **throttle** kiểm soát hàm bị gọi dồn dập (gõ phím, cuộn trang):
+      - **debounce**: chỉ gọi hàm **sau khi ngừng** sự kiện một khoảng thời gian (ví dụ tìm kiếm khi người dùng ngừng gõ 300 ms).
+      - **throttle**: **giới hạn tần suất**, tối đa một lần mỗi khoảng thời gian (ví dụ xử lý cuộn trang mỗi 100 ms).
+
+      Debounce viết được nhờ **closure** giữ biến `timer`:
+
+      ```js
+      function debounce(fn, ms) {
+        let timer;                       // closure giữ timer
+        return (...args) => {
+          clearTimeout(timer);
+          timer = setTimeout(() => fn(...args), ms);
+        };
+      }
+      ```
+  - id: b09
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Ô tìm kiếm chỉ nên gọi API khi người dùng **ngừng gõ** một lúc. Kỹ thuật nào phù hợp?"
+    options:
+      - {id: a, text_md: "**debounce**"}
+      - {id: b, text_md: "**reduce**"}
+      - {id: c, text_md: "**hoisting**"}
+    answer: [a]
+    explain_md: "Debounce hoãn việc gọi cho tới khi sự kiện ngừng một khoảng. Throttle thì giới hạn tần suất (tối đa một lần mỗi khoảng), không đợi ngừng."
+  - id: b10
+    type: callout
+    kind: interview
+    md: |
+      **Thanh điểm mức 3 (level-3 bar).** Bạn giải thích được **closure** (hàm nhớ biến của phạm vi nơi
+      nó được tạo ra) và **event loop** (single-threaded, **microtask chạy trước macrotask** sau mỗi lần
+      stack rỗng), đoán đúng thứ tự in của một đoạn code trộn `setTimeout` và Promise. Bạn nhớ arrow
+      function không có `this` riêng, và tự viết được **debounce** hoặc một Promise đơn giản không lỗi.
+  - id: b11
+    type: summary
+    bullets_vi:
+      - "**let/const** phạm vi khối; **var** phạm vi hàm và bị **hoisting**. Mặc định dùng `const`."
+      - "**Closure**: hàm nhớ biến của phạm vi nơi nó được tạo ra, kể cả khi gọi sau ở nơi khác."
+      - "**this**: hàm thường phụ thuộc cách gọi; **arrow** không có `this` riêng, lấy từ phạm vi bao ngoài. `class` là cú pháp ngắn trên **prototype**."
+      - "**Promise** (pending/fulfilled/rejected), hàm `async` trả Promise, `await` chờ Promise."
+      - "**Event loop**: một việc một lúc; **microtask** (Promise) chạy trước **macrotask** (setTimeout). **debounce** chờ ngừng, **throttle** giới hạn tần suất."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [E187], l2: [E188], l3: [E189]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-13"

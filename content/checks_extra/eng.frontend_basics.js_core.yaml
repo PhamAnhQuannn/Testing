@@ -1,0 +1,62 @@
+subtopic_id: eng.frontend_basics.js_core
+items:
+  - id: E187
+    difficulty: 1
+    type: concept
+    minutes: 3
+    prompt_md: |
+      **Closure** trong JavaScript là gì? Cho ví dụ ngắn về một hàm đếm dùng closure.
+    answer_md: |
+      - **Closure**: một hàm **nhớ các biến của phạm vi nơi nó được tạo ra**, kể cả khi được gọi sau đó ở nơi khác.
+      - Ví dụ: `makeCounter()` khai báo `let count = 0` và trả về `() => ++count`. Mỗi lần gọi hàm trả về,
+        `count` tăng dù `makeCounter` đã kết thúc; mỗi lần gọi `makeCounter()` có `count` riêng.
+      - Ứng dụng: đóng gói dữ liệu, callback, debounce, memoize.
+    rubric_md: "Đạt khi nêu đúng: hàm giữ/nhớ biến của phạm vi nơi nó được tạo ra (không chỉ 'hàm trong hàm'), và có ví dụ hợp lệ (biến được giữ lại giữa các lần gọi). Đủ hai ý: bằng chứng điểm 1; chỉ nói 'biến toàn cục' hoặc định nghĩa sai: điểm 0."
+  - id: E188
+    difficulty: 2
+    type: concept
+    minutes: 8
+    prompt_md: |
+      Trả lời ba ý:
+      1. `this` trong **hàm thường** khác `this` trong **arrow function** thế nào?
+      2. `class` trong JavaScript liên quan gì đến **prototype**?
+      3. Phân biệt `map`, `filter`, `reduce` bằng một câu mỗi phương thức.
+    answer_md: |
+      1. Hàm thường: `this` **phụ thuộc cách gọi** (`obj.f()` thì là `obj`; gọi trần thì `undefined`/toàn cục; có thể đổi bằng
+         `call/apply/bind`). Arrow function: **không có `this` riêng**, lấy `this` từ **phạm vi bao ngoài** nơi nó được viết.
+      2. `class` là **cú pháp ngắn** viết trên cơ chế **prototype**: method của class nằm trên prototype, kế thừa vẫn qua prototype chain.
+      3. `map` **biến đổi** từng phần tử thành mảng mới; `filter` **lọc** giữ phần tử thỏa điều kiện; `reduce` **gộp** cả mảng thành một giá trị.
+    rubric_md: "Đạt khi đúng cả ba ý: (1) hàm thường this theo cách gọi, arrow lấy this từ phạm vi bao ngoài (không có this riêng); (2) class là cú pháp ngắn trên prototype; (3) map biến đổi, filter lọc, reduce gộp. Đủ ba: bằng chứng điểm 2. Đúng hai: tối đa điểm 1. Nói 'class là kế thừa kiểu mới hoàn toàn khác prototype' hoặc 'arrow this luôn là window': không tính ý đó."
+  - id: E189
+    difficulty: 3
+    type: concept
+    minutes: 10
+    prompt_md: |
+      Đoạn code sau chạy trong trình duyệt:
+
+      ```js
+      console.log("A");
+      setTimeout(() => console.log("B"), 0);
+      Promise.resolve().then(() => console.log("C"));
+      (async () => {
+        console.log("D");
+        await null;
+        console.log("E");
+      })();
+      console.log("F");
+      ```
+      (a) Cho biết thứ tự in ra và giải thích bằng **event loop**, **microtask** và **macrotask**.
+      (b) Ô tìm kiếm gọi API mỗi lần gõ phím gây quá tải. Đề xuất cách sửa và phác thảo cách viết bằng **closure**.
+      (c) Vì sao dùng `function () {}` thay vì arrow trong callback của `setInterval` bên trong một method có thể làm sai `this`?
+    answer_md: |
+      **(a)** Thứ tự: `A D F C E B`. JS chạy một việc một lúc trên call stack: mã đồng bộ in A, D (phần trước `await`
+      vẫn chạy đồng bộ), F. Khi stack rỗng, chạy hết **microtask** theo thứ tự đăng ký: `.then` in C, rồi phần sau `await`
+      in E. Cuối cùng mới lấy **macrotask** `setTimeout` in B, dù trễ 0 ms. Quy tắc: microtask chạy trước macrotask.
+
+      **(b)** Dùng **debounce**: chỉ gọi API sau khi người dùng ngừng gõ một khoảng (ví dụ 300 ms). Viết bằng closure giữ biến
+      `timer`: hàm trả về gọi `clearTimeout(timer)` rồi `timer = setTimeout(() => fn(...args), ms)`. (Throttle cũng có thể
+      dùng nếu cần giới hạn tần suất thay vì chờ ngừng.)
+
+      **(c)** Hàm thường có `this` phụ thuộc cách `setInterval` gọi nó, nên không còn là đối tượng của method. Arrow function
+      không có `this` riêng, lấy `this` từ phạm vi bao ngoài (method), nên `this` vẫn là đối tượng đó.
+    rubric_md: "Đạt mức 3 khi: (a) thứ tự đúng A D F C E B với giải thích đồng bộ trước, microtask (Promise.then, sau await) trước macrotask (setTimeout); (b) debounce (hoặc throttle có lý do) và closure giữ timer/clearTimeout; (c) arrow lấy this từ phạm vi bao ngoài, hàm thường this phụ thuộc cách gọi. Đủ ba ý: bằng chứng điểm 3. Sai thứ tự (ví dụ đặt B trước C) hoặc nói 'setTimeout 0 chạy ngay': chưa đạt mức 3."

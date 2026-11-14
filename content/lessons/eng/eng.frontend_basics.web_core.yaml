@@ -1,0 +1,172 @@
+id: eng.frontend_basics.web_core
+version: 1
+status: published
+title_vi: "HTML, CSS và DOM: ngữ nghĩa, bố cục, specificity, sự kiện"
+est_minutes: 12
+objectives_vi:
+  - "Giải thích **DOM** là cây các phần tử HTML mà trình duyệt dựng, và dùng JavaScript để **đọc/sửa** nó (`querySelector`, `textContent`, `classList`)."
+  - "Dùng **HTML ngữ nghĩa** và nguyên tắc **a11y** (alt, label, nút bấm được bằng bàn phím) để trang dùng được với trình đọc màn hình."
+  - "Chọn đúng **flexbox** (1 chiều) hay **grid** (2 chiều), làm trang **responsive** bằng media query, và đọc được **specificity** / **cascade**."
+  - "Giải thích **event bubbling** và **event delegation** (một listener ở phần tử cha xử lý nhiều con)."
+blocks:
+  - id: s_dom
+    type: section
+    title_vi: "HTML, DOM và sự kiện"
+    summary_vi: "Trình duyệt biến HTML thành cây DOM; JavaScript sửa cây này. Sự kiện nổi từ con lên cha (bubbling) nên có thể dùng event delegation."
+  - id: b01
+    type: text
+    md: |
+      Khi tải một trang, trình duyệt **phân tích HTML** và dựng thành **DOM** (Document Object Model):
+      một **cây** các phần tử (`html` → `body` → `ul` → `li`...). JavaScript không sửa file HTML,
+      mà sửa **cây DOM đang sống** trong trình duyệt, và trang được vẽ lại theo.
+
+      ```html
+      <ul id="todo">
+        <li class="item">Học DOM</li>
+        <li class="item">Học CSS</li>
+      </ul>
+      ```
+
+      ```javascript
+      const list = document.querySelector('#todo');      // đọc: tìm phần tử
+      list.firstElementChild.textContent = 'Học DOM xong'; // sửa chữ
+      list.firstElementChild.classList.add('done');        // thêm class
+      const li = document.createElement('li');            // tạo node mới
+      li.textContent = 'Học a11y';
+      list.append(li);                                     // gắn vào cây
+      list.lastElementChild.remove();                      // xóa node
+      ```
+
+      **Sự kiện** (event): gắn hàm xử lý bằng `el.addEventListener('click', fn)`. Điểm quan trọng là
+      **event bubbling**: sự kiện xảy ra ở phần tử **con** rồi **nổi lên cha**, ông... cho tới `document`.
+      Nhờ vậy có **event delegation**: gắn **một** listener ở phần tử cha và dùng `event.target` để biết
+      con nào vừa được bấm. Cách này gọn hơn gắn listener cho từng con, và vẫn chạy với các con **thêm sau**.
+
+      ```javascript
+      list.addEventListener('click', (event) => {
+        const li = event.target.closest('li');   // con nào được bấm?
+        if (li) li.classList.toggle('done');
+      });
+      ```
+  - id: b02
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Bạn có danh sách 100 thẻ `<li>`, thêm/xóa liên tục. Cách xử lý bấm vào từng `<li>` gọn và bền nhất là gì?"
+    options:
+      - {id: a, text_md: "Gắn 100 listener, mỗi `<li>` một cái, và gắn lại mỗi khi thêm `<li>` mới"}
+      - {id: b, text_md: "**Event delegation**: gắn một listener ở `<ul>` cha, dùng `event.target` để biết `<li>` nào được bấm"}
+      - {id: c, text_md: "Sửa trực tiếp file HTML trên server mỗi lần bấm"}
+    answer: [b]
+    explain_md: "Sự kiện nổi (bubbling) từ con lên cha, nên một listener ở cha bắt được click của mọi con, kể cả con thêm sau. Cách (a) tốn và dễ sót; JavaScript sửa DOM trong trình duyệt chứ không sửa file HTML."
+  - id: s_semantic
+    type: section
+    title_vi: "HTML ngữ nghĩa và a11y"
+    summary_vi: "Dùng thẻ đúng nghĩa (header, nav, main, article, footer), alt cho ảnh, label cho input, nút thật cho hành động để trang dùng được bằng bàn phím và trình đọc màn hình."
+  - id: b03
+    type: text
+    md: |
+      **HTML ngữ nghĩa** (semantic HTML) là chọn thẻ theo **ý nghĩa**, không chỉ theo hình dạng:
+      `header`, `nav`, `main`, `article`, `footer` thay cho chuỗi `div` vô nghĩa. Trình đọc màn hình và
+      công cụ tìm kiếm dựa vào đó để hiểu cấu trúc trang.
+
+      **Accessibility (a11y)** cơ bản:
+      - Ảnh có nội dung thì có **`alt`** mô tả; ảnh trang trí thì `alt=""`.
+      - Mỗi ô nhập có **`<label for="...">`** gắn với input.
+      - Hành động dùng **`<button>`** thật: nó tự **focus** được và bấm được bằng bàn phím (Enter/Space).
+        Một `<div onclick>` thì không, trừ khi bạn tự thêm rất nhiều thứ.
+      - **ARIA** chỉ là bổ sung khi thẻ chuẩn không đủ; thẻ ngữ nghĩa đúng luôn tốt hơn.
+
+      ```html
+      <header><nav><a href="/">Trang chủ</a></nav></header>
+      <main>
+        <article>
+          <img src="cat.jpg" alt="Con mèo nằm trên ghế">
+          <label for="email">Email</label>
+          <input id="email" type="email" required>
+          <button type="submit">Gửi</button>
+        </article>
+      </main>
+      ```
+
+      **Form** có validation sẵn của trình duyệt (`required`, `type="email"`, `minlength`), nhưng đó chỉ là
+      tiện cho người dùng: server vẫn phải kiểm tra lại.
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Cách nào làm một hành động bấm được **dùng được bằng bàn phím và trình đọc màn hình** tốt nhất?"
+    options:
+      - {id: a, text_md: "Dùng `<div onclick=\"...\">` rồi tô màu giống nút"}
+      - {id: b, text_md: "Dùng thẻ `<button>` thật với chữ mô tả rõ hành động"}
+      - {id: c, text_md: "Dùng `<span>` và chỉ báo hành động bằng màu đỏ"}
+    answer: [b]
+    explain_md: "`<button>` tự có focus, kích hoạt bằng Enter/Space và được trình đọc màn hình nhận ra là nút. `div`/`span` không có các hành vi đó, còn màu sắc không được là kênh duy nhất truyền thông tin."
+  - id: s_css
+    type: section
+    title_vi: "CSS: bố cục, responsive, specificity"
+    summary_vi: "Flexbox bố trí 1 chiều, grid 2 chiều; media query làm trang co giãn; specificity quyết định luật CSS nào thắng khi xung đột."
+  - id: b05
+    type: text
+    md: |
+      **Box model**: mỗi phần tử là một hộp gồm `content` + `padding` + `border` + `margin`.
+
+      **Bố cục**:
+      - **Flexbox** (`display: flex`): xếp các con theo **một chiều** (hàng hoặc cột), căn chỉnh và chia chỗ.
+        Hợp cho thanh nav, hàng nút.
+      - **Grid** (`display: grid`): bố cục **hai chiều** (hàng và cột cùng lúc). Hợp cho lưới thẻ, khung trang.
+      - **position**: `static` (mặc định), `relative` (lệch so với chỗ gốc), `absolute` (đặt theo tổ tiên gần nhất
+        đã có `position` khác `static`).
+
+      ```css
+      .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+      @media (max-width: 600px) {             /* responsive: màn hình hẹp */
+        .cards { grid-template-columns: 1fr; }
+      }
+      ```
+
+      **Responsive**: dùng đơn vị tương đối (`%`, `rem`, `fr`) và **media query** để đổi bố cục theo màn hình.
+
+      **Cascade và specificity**: khi nhiều luật cùng chọn một phần tử, trình duyệt chọn theo độ **cụ thể**
+      của selector: **id > class > thẻ**. Hai luật cùng độ cụ thể thì luật **viết sau** thắng. Vì vậy tránh
+      `!important` và selector quá dài; hãy giữ selector đơn giản.
+  - id: b06
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Một phần tử `<p class=\"note\" id=\"intro\">`. Có hai luật: `p { color: blue; }` (viết sau) và `.note { color: green; }`. Nếu thêm `#intro { color: red; }` thì màu chữ là gì và vì sao?"
+    options:
+      - {id: a, text_md: "Xanh dương, vì luật `p` viết sau cùng"}
+      - {id: b, text_md: "Xanh lá, vì class mạnh hơn thẻ"}
+      - {id: c, text_md: "Đỏ, vì selector **id** có specificity cao hơn class và thẻ"}
+    answer: [c]
+    explain_md: "Specificity: id > class > thẻ, nên `#intro` thắng bất kể thứ tự viết. Thứ tự chỉ quyết định khi hai luật cùng độ cụ thể."
+  - id: b07
+    type: quiz_fill
+    graded: true
+    prompt_md: "Điền một từ: để bố trí các phần tử theo **hai chiều** (hàng và cột), dùng `display: ______`."
+    blanks:
+      - accept: ["grid", "Grid"]
+    explain_md: "Đó là `display: grid`. `display: flex` (flexbox) chỉ bố trí theo một chiều tại một thời điểm."
+  - id: b08
+    type: callout
+    kind: interview
+    md: |
+      **Thanh điểm mức 3 (level-3 bar).** Bạn dựng được một trang bố cục **flex** hoặc **grid** co giãn theo
+      màn hình (media query), nêu được **specificity** giải quyết xung đột CSS thế nào (id > class > thẻ),
+      và giải thích **event bubbling** (sự kiện nổi từ con lên cha) cùng **event delegation** (một listener ở
+      cha, dùng `event.target`). Bạn cũng chọn thẻ **ngữ nghĩa** và nhớ các điểm **a11y** cơ bản: `alt`,
+      `label`, nút bấm thật dùng được bằng bàn phím.
+  - id: b09
+    type: summary
+    bullets_vi:
+      - "**DOM** là cây phần tử HTML trình duyệt dựng; JavaScript đọc/sửa bằng `querySelector`, `textContent`, `classList`, tạo/xóa node."
+      - "Sự kiện: `addEventListener`. **Event bubbling** nổi từ con lên cha; **delegation** = một listener ở cha + `event.target`."
+      - "**HTML ngữ nghĩa** (header/nav/main/article/footer) và **a11y**: `alt`, `label`, `<button>` thật dùng được bằng bàn phím."
+      - "**Flexbox** 1 chiều, **grid** 2 chiều (`display: grid`); **responsive** bằng đơn vị tương đối và media query."
+      - "**Specificity**: id > class > thẻ; cùng độ cụ thể thì luật viết sau thắng. `position`: static/relative/absolute."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [E184], l2: [E185], l3: [E186]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-13"

@@ -133,6 +133,7 @@ MODULE_NAMES: dict[str, str] = {
     "eng.devops_cloud": "DevOps & Cloud",
     "eng.data_access": "Truy cập dữ liệu trong ứng dụng",
     "eng.architecture": "Kiến trúc ứng dụng",
+    "eng.frontend_basics": "Frontend cơ bản",
 }
 
 

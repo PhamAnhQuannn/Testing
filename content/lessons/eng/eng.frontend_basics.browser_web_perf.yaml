@@ -1,0 +1,169 @@
+id: eng.frontend_basics.browser_web_perf
+version: 1
+status: published
+title_vi: "Trình duyệt và hiệu năng web: render pipeline, async/defer, Core Web Vitals"
+est_minutes: 12
+objectives_vi:
+  - "Mô tả **render pipeline** 5 bước (parse, style, layout, paint, composite) theo đúng thứ tự và phân biệt **reflow** với **repaint**."
+  - "Giải thích vì sao script thường **chặn render** và chọn đúng giữa **async** và **defer**."
+  - "Phân biệt **cookie** với **localStorage / sessionStorage**, và biết `fetch` trả về một **Promise**."
+  - "Nêu **Core Web Vitals** (LCP, INP, CLS), các kỹ thuật tối ưu (lazy loading, code splitting, caching/CDN) và khác nhau giữa **CSR / SSR / SSG**."
+blocks:
+  - id: s_pipeline
+    type: section
+    title_vi: "Render pipeline, reflow và repaint"
+    summary_vi: "Trình duyệt biến HTML/CSS thành hình qua parse, style, layout, paint, composite. Reflow tính lại vị trí/kích thước nên đắt; repaint chỉ vẽ lại nên rẻ hơn."
+  - id: b01
+    type: text
+    md: |
+      Khi bạn mở một trang, trình duyệt chạy **render pipeline** (đường render) gồm **5 bước theo thứ tự**:
+
+      1. **Parse**: đọc HTML thành cây **DOM**, đọc CSS thành cây **CSSOM**.
+      2. **Style**: kết hợp DOM và CSSOM để biết mỗi phần tử có những kiểu (style) nào.
+      3. **Layout**: tính **vị trí và kích thước** của từng hộp trên trang.
+      4. **Paint**: **vẽ pixel** (màu nền, chữ, viền, ảnh) cho từng phần tử.
+      5. **Composite**: **ghép các layer** đã vẽ thành ảnh cuối cùng hiển thị trên màn hình.
+
+      Khi trang thay đổi sau đó, trình duyệt có thể phải chạy lại một phần pipeline:
+
+      - **Reflow** (còn gọi là layout) xảy ra khi thay đổi **vị trí hoặc kích thước**, ví dụ đổi `width`,
+        thêm/xóa phần tử, đổi cỡ chữ. Reflow **đắt** vì phải tính lại layout (có thể cho cả các phần tử
+        liên quan) và **kéo theo repaint**.
+      - **Repaint** xảy ra khi chỉ đổi **diện mạo mà không đổi layout**, ví dụ đổi `color` hoặc
+        `background-color`. Repaint **rẻ hơn** reflow vì bỏ qua bước tính layout.
+
+      ```js
+      // Có thể gây reflow: đổi kích thước
+      box.style.width = "400px";
+      // Thường chỉ repaint: đổi màu
+      box.style.backgroundColor = "tomato";
+      ```
+
+      Mẹo: gom nhiều thay đổi DOM lại làm một lần, và tránh xen kẽ "ghi style rồi đọc kích thước" trong
+      vòng lặp để không ép trình duyệt tính layout liên tục.
+  - id: b02
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Thứ tự đúng của **render pipeline** là gì, và thao tác nào là **reflow**?"
+    options:
+      - {id: a, text_md: "Parse, style, layout, paint, composite; đổi `width` của phần tử gây reflow"}
+      - {id: b, text_md: "Parse, paint, layout, style, composite; đổi `color` gây reflow"}
+      - {id: c, text_md: "Layout, parse, style, composite, paint; đổi `color` gây reflow"}
+    answer: [a]
+    explain_md: "Thứ tự là parse, style, layout, paint, composite. Đổi width/kích thước làm thay đổi layout nên là reflow (và kéo theo repaint); đổi màu thường chỉ repaint."
+  - id: s_loading
+    type: section
+    title_vi: "Script chặn render, async/defer, fetch và lưu trữ"
+    summary_vi: "Script thường chặn parse HTML; async chạy ngay khi tải xong, defer chạy sau khi parse xong theo thứ tự. fetch trả Promise; cookie gửi kèm request, localStorage chỉ ở client."
+  - id: b03
+    type: text
+    md: |
+      Một thẻ `<script>` **thường** (không có `async`/`defer`) sẽ **chặn việc parse HTML**: trình duyệt
+      dừng lại, tải và chạy script xong mới đọc tiếp. Script nặng ở đầu trang làm trang hiện chậm. Có hai
+      cách để script **không chặn parse**:
+
+      ```html
+      <script src="analytics.js" async></script>
+      <script src="app.js" defer></script>
+      ```
+
+      - **async**: tải **song song** với việc parse, và **chạy ngay khi tải xong** (có thể giữa lúc đang
+        parse). **Thứ tự chạy không được đảm bảo** nên phù hợp với script độc lập (analytics).
+      - **defer**: tải **song song**, nhưng chỉ **chạy sau khi parse HTML xong**, và **theo đúng thứ tự**
+        xuất hiện. Phù hợp với script ứng dụng cần DOM hoặc phụ thuộc lẫn nhau.
+
+      **fetch** là API của trình duyệt để gọi HTTP (gọi API). `fetch` trả về một **Promise**:
+
+      ```js
+      const res = await fetch("/api/items");
+      if (!res.ok) throw new Error("HTTP " + res.status); // fetch KHÔNG tự lỗi với 404/500
+      const data = await res.json();
+      ```
+
+      **Lưu trữ phía trình duyệt**:
+      - **Cookie**: nhỏ, được trình duyệt **tự gửi kèm mỗi request** tới server (nên hợp với session, nhưng
+        cũng phải cẩn thận về bảo mật và dung lượng).
+      - **localStorage**: lưu **chỉ ở client**, **không gửi** lên server, còn sau khi đóng tab.
+      - **sessionStorage**: giống localStorage nhưng mất khi đóng **tab**.
+  - id: b04
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Bạn có hai script: `analytics.js` (độc lập) và `app.js` cần chạy sau khi HTML parse xong, giữ đúng thứ tự. Cách dùng thẻ script nào hợp lý?"
+    options:
+      - {id: a, text_md: "`analytics.js` dùng `defer`, `app.js` dùng `async`"}
+      - {id: b, text_md: "`analytics.js` dùng `async`, `app.js` dùng `defer`"}
+      - {id: c, text_md: "Cả hai để script thường ở đầu `<head>` để chạy sớm nhất"}
+    answer: [b]
+    explain_md: "async chạy ngay khi tải xong, thứ tự không đảm bảo, hợp script độc lập. defer chạy sau khi parse xong theo thứ tự, hợp script ứng dụng. Script thường chặn parse HTML."
+  - id: b05
+    type: quiz_fill
+    graded: true
+    prompt_md: "Điền một từ: hàm `fetch` của trình duyệt trả về một ______ (đối tượng đại diện cho kết quả bất đồng bộ, dùng với `await` hoặc `.then`)."
+    blanks:
+      - accept: ["Promise", "promise"]
+    explain_md: "`fetch` trả về một **Promise**. Lưu ý Promise chỉ reject khi lỗi mạng; với 404/500 bạn phải tự kiểm tra `res.ok`."
+  - id: s_perf
+    type: section
+    title_vi: "Core Web Vitals, kỹ thuật tối ưu và CSR/SSR/SSG"
+    summary_vi: "LCP đo tốc độ tải nội dung chính, INP đo độ phản hồi tương tác, CLS đo độ ổn định bố cục. Tối ưu bằng lazy loading, code splitting, caching/CDN; chọn CSR/SSR/SSG theo nhu cầu."
+  - id: b06
+    type: text
+    md: |
+      **Core Web Vitals** là bộ chỉ số của Google đo trải nghiệm người dùng thật:
+
+      - **LCP** (Largest Contentful Paint): **tốc độ tải nội dung chính** (thường là ảnh hoặc khối chữ lớn nhất).
+      - **INP** (Interaction to Next Paint): **độ phản hồi khi tương tác** (bấm, gõ phím). INP **thay thế FID**
+        trong Core Web Vitals.
+      - **CLS** (Cumulative Layout Shift): **độ ổn định bố cục**: nội dung không nên "nhảy" khi đang tải
+        (ví dụ ảnh không có kích thước làm đẩy chữ xuống).
+
+      Các kỹ thuật tối ưu phổ biến:
+      - **Lazy loading**: chỉ tải ảnh/thành phần **dưới màn hình đầu** khi sắp hiện ra (`<img loading="lazy">`),
+        giảm tải ban đầu. KHÔNG lazy-load ảnh **LCP/banner** (ảnh chính đầu trang) vì sẽ làm LCP chậm hơn.
+      - **Code splitting**: tách bundle JavaScript thành nhiều phần, tải phần cần thiết trước, giảm JS chạy
+        lúc đầu (giúp INP).
+      - **Caching và CDN**: lưu bản sao file tĩnh ở cache của trình duyệt và ở **CDN** (mạng máy chủ gần
+        người dùng) để tải nhanh hơn. Đặt kích thước cho ảnh/video để tránh CLS.
+
+      **CSR vs SSR vs SSG** là nơi và lúc dựng HTML:
+      - **CSR** (Client-Side Rendering): trình duyệt tải JS rồi **render ở client**; tương tác tốt sau khi
+        tải nhưng lần đầu có thể chậm và bất lợi cho SEO / nội dung hiện trễ hơn.
+      - **SSR** (Server-Side Rendering): **server render HTML ở mỗi request**; nội dung hiện sớm, tốn tài nguyên server.
+      - **SSG** (Static Site Generation): HTML được **dựng sẵn lúc build**, phục vụ như file tĩnh qua CDN; rất
+        nhanh nhưng nội dung chỉ đổi khi build lại.
+  - id: b07
+    type: quiz_mcq
+    graded: true
+    prompt_md: "Chỉ số **Core Web Vitals** nào đo độ phản hồi khi người dùng tương tác (bấm, gõ), thay thế **FID**?"
+    options:
+      - {id: a, text_md: "**INP**"}
+      - {id: b, text_md: "**LCP**"}
+      - {id: c, text_md: "**CLS**"}
+    answer: [a]
+    explain_md: "INP đo độ phản hồi tương tác. LCP đo tốc độ tải nội dung chính, CLS đo độ ổn định bố cục."
+  - id: b08
+    type: callout
+    kind: interview
+    md: |
+      **Thanh điểm mức 3 (level-3 bar).** Bạn giải thích được **render pipeline** (parse, style, layout,
+      paint, composite) và phân biệt **reflow** (đắt, tính lại layout) với **repaint** (rẻ hơn). Với một
+      trang chậm, bạn chọn được **ít nhất 3 kỹ thuật** có lý do để cải thiện **LCP/INP**: ví dụ dùng
+      **defer/async** cho script chặn render, **lazy loading** ảnh dưới màn hình đầu, **code splitting**,
+      **caching/CDN**, hoặc chuyển sang **SSR/SSG** cho nội dung quan trọng. Bạn cũng nhớ rằng đo bằng số
+      liệu (Core Web Vitals) trước khi tối ưu.
+  - id: b09
+    type: summary
+    bullets_vi:
+      - "**Render pipeline**: parse (DOM + CSSOM), style, layout, paint, composite."
+      - "**Reflow** (đổi vị trí/kích thước) đắt và kéo theo repaint; **repaint** (đổi màu) rẻ hơn."
+      - "Script thường **chặn parse**; **async** chạy ngay khi tải xong (không đảm bảo thứ tự), **defer** chạy sau khi parse xong theo thứ tự."
+      - "`fetch` trả **Promise**; **cookie** được gửi kèm request, **localStorage/sessionStorage** chỉ ở client."
+      - "**LCP** (tải nội dung chính), **INP** (phản hồi tương tác), **CLS** (ổn định bố cục); tối ưu bằng lazy loading, code splitting, caching/CDN; **CSR/SSR/SSG** khác nhau ở nơi và lúc render."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [E190], l2: [E191], l3: [E192]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-13"
