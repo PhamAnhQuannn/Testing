@@ -39474,6 +39474,130 @@
       "plan_hours": 3
     },
     {
+      "id": "ml.classical.knn_nb_svm",
+      "section": "ml",
+      "module": "ml.classical",
+      "name_vi": "k-NN, Naive Bayes và SVM (k-NN, Naive Bayes, SVM)",
+      "order": 3,
+      "summary_vi": "Ba mô hình kinh điển có trực giác đời thường: k-NN hỏi k hàng xóm gần nhất, Naive Bayes đếm từ xuất hiện (như lọc spam), SVM vẽ đường chia hai nhóm với khoảng đệm rộng nhất. Học xong bạn cài k-NN, tính tay Naive Bayes và biết khi nào nên dùng từng loại.",
+      "mastery_bar_vi": "Mức 3: cài đặt k-NN, tính tay một bài Naive Bayes nhỏ, nói được SVM là gì bằng một câu (đường chia có lề rộng nhất) và so sánh ba mô hình về dữ liệu, tốc độ, độ nhạy với thang đo.",
+      "prerequisites": [
+        "ml.classical.logistic_regression",
+        "ml.math.probability_basics"
+      ],
+      "lang_prereqs": {
+        "python": [],
+        "java": null
+      },
+      "key_concepts": [
+        "k-NN: choice of k, distance metrics, feature scaling",
+        "curse of dimensionality",
+        "lazy vs eager learners; ANN as scale-up",
+        "Naive Bayes conditional-independence assumption, Laplace smoothing",
+        "text classification with Naive Bayes",
+        "maximum margin & support vectors",
+        "soft margin C, hinge loss",
+        "kernel trick (RBF, polynomial)",
+        "SVM vs logistic regression, scaling sensitivity"
+      ],
+      "concepts_vi": [
+        {
+          "text": "k-NN: dự đoán theo đa số nhãn của k điểm gần nhất; k nhỏ dễ overfit, k lớn quá trơn.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Khoảng cách và thang đo: khoảng cách Euclid d = √Σ(aᵢ − bᵢ)²; các feature phải cùng thang đo (scale), nếu không cột lớn lấn át.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Lời nguyền chiều cao (curse of dimensionality): nhiều chiều thì mọi điểm đều xa nhau gần như bằng nhau, k-NN kém đi.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Naive Bayes: P(nhóm | các từ) ∝ P(nhóm)·Π P(từᵢ | nhóm) (∝: tỉ lệ với; Π: nhân một dãy số, như Σ nhưng nhân), giả sử các từ độc lập ('ngây thơ'); tốt cho phân loại văn bản.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Laplace smoothing: cộng 1 vào mọi số đếm để từ chưa từng thấy không làm xác suất bằng 0.",
+          "level": "co_ban"
+        },
+        {
+          "text": "SVM (support vector machine): chọn đường chia có lề (margin) rộng nhất; các điểm sát đường chia gọi là support vector và chỉ chúng quyết định đường.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Soft margin C và hinge loss: C lớn ít chấp nhận điểm nằm sai phía nên dễ overfit; hinge = max(0, 1 − y·z) với y ∈ {−1, +1}.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Kernel trick: ngầm đưa dữ liệu lên không gian nhiều chiều hơn (kernel là hàm đo độ giống giữa hai điểm; RBF: giống nhiều nếu hai điểm gần nhau; polynomial: dùng tích bậc cao) để tách bằng một đường thẳng khi dữ liệu không tách được ở 2 chiều.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Lazy và eager: k-NN không 'học' gì lúc train nên chậm lúc dự đoán; các mô hình khác học trước (eager) nên dự đoán nhanh.",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "k-NN bằng tay",
+          "vi": "Điểm mới (2,2); bốn điểm có nhãn: A(1,2) nhãn 1, B(2,3) nhãn 0, C(3,2) nhãn 1, D(6,6) nhãn 0. Khoảng cách tới A, B, C đều là 1 và tới D là √32 ≈ 5,66. Với k = 3 lấy A, B, C bỏ phiếu: nhãn 1 thắng 2-1."
+        },
+        {
+          "title": "Naive Bayes lọc spam bằng bảng đếm",
+          "vi": "5 thư: 3 spam, 2 thường. Từ 'khuyến mãi' có trong 2 thư spam và 1 thư thường. Tổng 3 thư có từ này, 2 là spam nên P(spam | 'khuyến mãi') = 2/3 ≈ 0,67. Kiểm tra bằng công thức Bayes: P(spam) = 3/5 = 0,6; P('khuyến mãi'|spam) = 2/3; P(thường) = 0,4; P('khuyến mãi'|thường) = 1/2, nên (0,6·2/3)/(0,6·2/3 + 0,4·1/2) = 0,4/0,6 = 2/3."
+        },
+        {
+          "title": "Cài k-NN bằng NumPy",
+          "vi": "Cài k-NN khoảng 15 dòng và thử k = 1, 3, 15 trên dữ liệu 2 chiều tự sinh; so độ chính xác.",
+          "starter_code_vi": {
+            "lang": "python",
+            "code": "import numpy as np\ndef knn_predict(X_train, y_train, x, k):\n    d = ...   # TODO: np.sqrt(((X_train - x)**2).sum(axis=1)), khoảng cách Euclid tới mọi hàng\n    idx = np.argsort(d)[:k]\n    return np.bincount(y_train[idx]).argmax()   # nhãn nhiều phiếu nhất"
+          }
+        },
+        {
+          "title": "Lời nguyền chiều cao",
+          "vi": "Chọn 1.000 điểm ngẫu nhiên, mỗi điểm có d tọa độ, mỗi tọa độ ngẫu nhiên từ 0 đến 1 (kiểu np.random.rand(1000, d)). Tính tỉ số khoảng cách xa nhất / gần nhất từ một điểm khi d = 2 và d = 1000; nhận xét.",
+          "starter_code_vi": {
+            "lang": "python",
+            "code": "import numpy as np\nfor d in (2, 1000):\n    X = np.random.rand(1000, d)\n    dist = ...   # TODO: khoảng cách từ X[0] tới X[1:]\n    print(d, dist.max() / dist.min())"
+          }
+        }
+      ],
+      "beginner_note_vi": "Fresher cần phần Cơ bản (k-NN, Naive Bayes); SVM ở phần Nâng cao, chỉ cần nắm ý chính.",
+      "example_problems": [
+        "Why does k-NN degrade in high dimensions?",
+        "Why is Naive Bayes \"naive\"?",
+        "What is an SVM? What is a kernel? Role of C?",
+        "Implement k-NN with NumPy"
+      ],
+      "bank_topics": [
+        "ml_ai.classical_ml"
+      ],
+      "bank_counts": {
+        "ml_ai.classical_ml": {
+          "total": 60,
+          "y2026": 17
+        }
+      },
+      "target_swe": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 0,
+        "senior": 0
+      },
+      "target_ai": {
+        "intern": 0,
+        "fresher": 2,
+        "junior": 2,
+        "senior": 2
+      },
+      "est_hours": 5,
+      "plan_order": 346,
+      "plan_day": null,
+      "plan_hours": 5
+    },
+    {
       "id": "ml.classical.decision_trees",
       "section": "ml",
       "module": "ml.classical",
@@ -39582,7 +39706,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 346,
+      "plan_order": 347,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -39692,9 +39816,116 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 347,
+      "plan_order": 348,
       "plan_day": null,
       "plan_hours": 5
+    },
+    {
+      "id": "ml.classical.unsupervised",
+      "section": "ml",
+      "module": "ml.classical",
+      "name_vi": "Phân cụm và giảm chiều (unsupervised learning)",
+      "order": 6,
+      "summary_vi": "Học không giám sát (unsupervised learning) tìm cấu trúc trong dữ liệu không có nhãn, ví dụ gom khách hàng giống nhau thành nhóm (phân cụm, clustering). Học xong bạn chạy và đánh giá được k-means và biết khi nào chọn thuật toán khác.",
+      "mastery_bar_vi": "Mức 3: cài đặt k-means, chọn k có căn cứ đo được và so sánh k-means với DBSCAN trên dữ liệu có hình dạng khác nhau.",
+      "prerequisites": [
+        "ml.fundamentals.ml_overview",
+        "ml.math.linear_algebra_basics"
+      ],
+      "lang_prereqs": {
+        "python": [],
+        "java": null
+      },
+      "key_concepts": [
+        "k-means objective, k-means++ init, choosing k (elbow, silhouette)",
+        "GMM and EM; k-means vs GMM",
+        "hierarchical clustering and DBSCAN",
+        "limitations: cluster shape, scale, outliers",
+        "evaluating clusters without labels",
+        "PCA via covariance eigen-decomposition or SVD, explained variance",
+        "whitening; PCA before clustering",
+        "t-SNE and UMAP: uses and caveats (distances not interpretable)",
+        "feature selection vs feature extraction"
+      ],
+      "concepts_vi": [
+        {
+          "text": "Cụm (cluster): nhóm điểm gần nhau; không có đáp án đúng cho trước.",
+          "level": "co_ban"
+        },
+        {
+          "text": "k-means: chọn k tâm, gán mỗi điểm vào tâm gần nhất, dời tâm về trung bình cụm, lặp tới khi ổn định.",
+          "level": "co_ban"
+        },
+        {
+          "text": "Chọn k: elbow (điểm gập của đồ thị inertia, tổng bình phương khoảng cách tới tâm) và silhouette (từ −1 đến 1, cao là cụm chặt và xa nhau).",
+          "level": "co_ban"
+        },
+        {
+          "text": "Hạn chế của k-means: giả định cụm tròn và cùng cỡ; nhạy với thang đo và outlier.",
+          "level": "co_ban"
+        },
+        {
+          "text": "k-means++: cách chọn tâm ban đầu rải đều để kết quả ổn định hơn.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "GMM và EM: mỗi cụm là một phân phối Gaussian; mỗi điểm thuộc cụm theo xác suất. EM lặp hai bước: tính xác suất mỗi điểm thuộc từng cụm, rồi cập nhật tham số cụm theo các xác suất đó.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "DBSCAN và phân cấp (hierarchical): DBSCAN coi cụm là vùng dày điểm, điểm lẻ là nhiễu, tự tìm số cụm.",
+          "level": "nang_cao"
+        },
+        {
+          "text": "Đánh giá khi không có nhãn: silhouette, hoặc xem cụm có giúp ích cho tác vụ sau không.",
+          "level": "nang_cao"
+        }
+      ],
+      "examples_vi": [
+        {
+          "title": "k-means by hand",
+          "vi": "6 điểm 1 chiều 1, 2, 3, 10, 11, 12 với hai tâm đầu là 1 và 2: gán điểm về tâm gần hơn, tính tâm mới = trung bình cụm; sau 2 vòng tâm là 2 và 11."
+        },
+        {
+          "title": "Choose k",
+          "vi": "Chạy k-means với k = 2..8 trên dữ liệu 2 chiều, vẽ inertia và silhouette theo k để chọn k."
+        },
+        {
+          "title": "k-means vs DBSCAN",
+          "vi": "Tạo dữ liệu hai vòng cung (X, _ = make_moons(300, noise=0.05) từ sklearn.datasets), chạy KMeans(2) và DBSCAN(eps=0.2, min_samples=5): k-means chia sai còn DBSCAN đúng; giải thích vì sao."
+        }
+      ],
+      "example_problems": [
+        "Choose k for k-means",
+        "k-means vs GMM",
+        "Derive PCA; how many components?",
+        "Why not interpret t-SNE distances?"
+      ],
+      "bank_topics": [
+        "ml_ai.classical_ml"
+      ],
+      "bank_counts": {
+        "ml_ai.classical_ml": {
+          "total": 60,
+          "y2026": 17
+        }
+      },
+      "target_swe": {
+        "intern": 0,
+        "fresher": 0,
+        "junior": 0,
+        "senior": 0
+      },
+      "target_ai": {
+        "intern": 0,
+        "fresher": 2,
+        "junior": 2,
+        "senior": 3
+      },
+      "est_hours": 6,
+      "plan_order": 349,
+      "plan_day": null,
+      "plan_hours": 6
     },
     {
       "id": "ml.classical.dimensionality_reduction",
@@ -39799,7 +40030,7 @@
       },
       "est_hours": 3,
       "est_hours_beginner": 4,
-      "plan_order": 348,
+      "plan_order": 350,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -39921,7 +40152,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 349,
+      "plan_order": 351,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -40040,7 +40271,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 350,
+      "plan_order": 352,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -40167,7 +40398,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 351,
+      "plan_order": 353,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -40293,7 +40524,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 352,
+      "plan_order": 354,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -40416,7 +40647,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 353,
+      "plan_order": 355,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -40533,7 +40764,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 354,
+      "plan_order": 356,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -40640,7 +40871,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 355,
+      "plan_order": 357,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -40755,7 +40986,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 356,
+      "plan_order": 358,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -40871,7 +41102,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 357,
+      "plan_order": 359,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -40986,7 +41217,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 358,
+      "plan_order": 360,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -41118,7 +41349,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 359,
+      "plan_order": 361,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -41237,7 +41468,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 360,
+      "plan_order": 362,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -41343,7 +41574,7 @@
         "senior": 2
       },
       "est_hours": 4,
-      "plan_order": 361,
+      "plan_order": 363,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -41458,7 +41689,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 362,
+      "plan_order": 364,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -41575,7 +41806,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 363,
+      "plan_order": 365,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -41698,7 +41929,7 @@
         "senior": 3
       },
       "est_hours": 2,
-      "plan_order": 364,
+      "plan_order": 366,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -41826,7 +42057,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 365,
+      "plan_order": 367,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -41946,7 +42177,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 366,
+      "plan_order": 368,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -42060,7 +42291,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 367,
+      "plan_order": 369,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -42182,7 +42413,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 368,
+      "plan_order": 370,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -42308,7 +42539,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 369,
+      "plan_order": 371,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -42428,7 +42659,7 @@
         "senior": 2
       },
       "est_hours": 5,
-      "plan_order": 370,
+      "plan_order": 372,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -42545,7 +42776,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 371,
+      "plan_order": 373,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -42664,7 +42895,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 372,
+      "plan_order": 374,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -42776,7 +43007,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 373,
+      "plan_order": 375,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -42898,7 +43129,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 374,
+      "plan_order": 376,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -43023,7 +43254,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 375,
+      "plan_order": 377,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -43140,7 +43371,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 376,
+      "plan_order": 378,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -43251,7 +43482,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 377,
+      "plan_order": 379,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -43363,7 +43594,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 378,
+      "plan_order": 380,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -43470,7 +43701,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 379,
+      "plan_order": 381,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -43590,7 +43821,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 380,
+      "plan_order": 382,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -43713,7 +43944,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 381,
+      "plan_order": 383,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -43823,7 +44054,7 @@
         "senior": 3
       },
       "est_hours": 2,
-      "plan_order": 382,
+      "plan_order": 384,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -43933,7 +44164,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 383,
+      "plan_order": 385,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -44049,7 +44280,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 384,
+      "plan_order": 386,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -44174,7 +44405,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 385,
+      "plan_order": 387,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -44288,7 +44519,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 386,
+      "plan_order": 388,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -44405,7 +44636,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 387,
+      "plan_order": 389,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -44503,7 +44734,7 @@
         "senior": 3
       },
       "est_hours": 2,
-      "plan_order": 388,
+      "plan_order": 390,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -44621,7 +44852,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 389,
+      "plan_order": 391,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -44745,7 +44976,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 390,
+      "plan_order": 392,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -44870,7 +45101,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 391,
+      "plan_order": 393,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -44998,7 +45229,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 392,
+      "plan_order": 394,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -45114,7 +45345,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 393,
+      "plan_order": 395,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -45218,7 +45449,7 @@
         "senior": 3
       },
       "est_hours": 3,
-      "plan_order": 394,
+      "plan_order": 396,
       "plan_day": null,
       "plan_hours": 3
     },
@@ -45335,7 +45566,7 @@
         "senior": 3
       },
       "est_hours": 5,
-      "plan_order": 395,
+      "plan_order": 397,
       "plan_day": null,
       "plan_hours": 5
     },
@@ -45447,7 +45678,7 @@
         "senior": 3
       },
       "est_hours": 4,
-      "plan_order": 396,
+      "plan_order": 398,
       "plan_day": null,
       "plan_hours": 4
     },
@@ -45547,7 +45778,7 @@
         "senior": 2
       },
       "est_hours": 2,
-      "plan_order": 397,
+      "plan_order": 399,
       "plan_day": null,
       "plan_hours": 2
     },
@@ -45681,7 +45912,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 398,
+      "plan_order": 400,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -45817,7 +46048,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 399,
+      "plan_order": 401,
       "plan_day": null,
       "plan_hours": 6
     },
@@ -45962,7 +46193,7 @@
         "senior": 3
       },
       "est_hours": 6,
-      "plan_order": 400,
+      "plan_order": 402,
       "plan_day": null,
       "plan_hours": 6
     }

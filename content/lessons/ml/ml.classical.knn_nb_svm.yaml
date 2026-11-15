@@ -1,0 +1,151 @@
+id: ml.classical.knn_nb_svm
+version: 1
+status: published
+title_vi: "k-NN, Naive Bayes và SVM"
+est_minutes: 14
+objectives_vi:
+  - "Giải thích k-NN dự đoán bằng đa số nhãn của k điểm gần nhất (khoảng cách Euclid), vai trò của k và của việc scale feature."
+  - "Tính xác suất Naive Bayes từ bảng đếm, nêu giả định độc lập có điều kiện và dùng Laplace smoothing để tránh xác suất 0."
+  - "Mô tả trực giác SVM: biên rộng nhất (max margin), support vectors, soft margin C, hinge loss và kernel trick (mức nâng cao)."
+  - "Phân biệt lazy learner (k-NN) với eager learner (Naive Bayes, SVM) và nêu curse of dimensionality."
+blocks:
+  - id: s_knn
+    type: section
+    title_vi: "k-NN"
+    summary_vi: "Dự đoán theo đa số k láng giềng, chọn k, scale feature, curse of dimensionality."
+  - id: t01
+    type: text
+    md: |
+      **k-NN** (k-nearest neighbours) không học tham số nào. Để phân loại điểm mới `q`, ta:
+      1. Tính khoảng cách Euclid từ `q` tới mọi điểm huấn luyện: `d = sqrt(Σ (x_j − q_j)²)`.
+      2. Lấy `k` điểm gần nhất.
+      3. Trả **nhãn chiếm đa số** trong `k` điểm đó (hồi quy thì lấy trung bình).
+
+      ```python
+      import numpy as np
+      d = np.sqrt(((X_train - q) ** 2).sum(axis=1))
+      idx = np.argsort(d, kind="stable")[:k]
+      pred = np.bincount(y_train[idx]).argmax()
+      ```
+
+      Chọn `k`: **k nhỏ** (ví dụ 1) bám sát nhiễu nên dễ overfit; **k lớn** làm biên quá mượt, có thể underfit
+      (k bằng cả tập thì luôn trả nhãn đa số toàn cục). Với phân loại hai lớp, hay chọn `k` lẻ để tránh hoà phiếu.
+
+      **Phải scale feature** (chuẩn hoá về cùng thang): khoảng cách bị feature có khoảng giá trị lớn chi phối.
+      Ví dụ thu nhập (hàng chục nghìn) áp đảo tuổi (hàng chục), nên tuổi gần như không ảnh hưởng.
+  - id: q01
+    type: predict_output
+    code: |
+      import numpy as np
+      P = np.array([[31, 51000], [60, 50100]])
+      q = np.array([30, 50000])
+      d = np.sqrt(((P - q) ** 2).sum(axis=1))
+      print(d.argmin())
+    expected_output: "1"
+    explain_md: "Điểm 0 lệch (1, 1000) nên d ≈ 1000.0; điểm 1 lệch (30, 100) nên d ≈ 104.4. Chỉ số 1 gần hơn dù chênh tuổi tới 30: cột thu nhập chi phối. Đó là lý do phải scale feature."
+  - id: q02
+    type: quiz_mcq
+    prompt_md: "Với k-NN, tăng k từ 1 lên một giá trị rất lớn thường có tác dụng gì?"
+    options:
+      - {id: a, text_md: "Biên quyết định mượt hơn, ít overfit nhưng có thể underfit"}
+      - {id: b, text_md: "Mô hình càng bám sát từng điểm nhiễu"}
+      - {id: c, text_md: "Không cần scale feature nữa"}
+    answer: [a]
+    explain_md: "k lớn lấy phiếu trên nhiều điểm nên mượt hơn (variance giảm, bias tăng). Scale feature luôn cần vì khoảng cách vẫn bị cột lớn chi phối."
+  - id: t02
+    type: text
+    md: |
+      **Curse of dimensionality**: khi số chiều tăng, các điểm có xu hướng cách đều nhau (khoảng cách gần nhất và xa nhất
+      xấp xỉ nhau), nên khái niệm "gần nhất" mất ý nghĩa và k-NN kém đi; cần nhiều dữ liệu hơn theo cấp số nhân.
+      Cách giảm nhẹ: bỏ feature thừa, giảm chiều (PCA), chọn feature.
+
+      **Lazy learner**: k-NN không có bước huấn luyện (chỉ lưu dữ liệu) nhưng **dự đoán chậm** (O(n·d) mỗi điểm nếu duyệt hết)
+      và tốn bộ nhớ. Ngược lại **eager learner** (Naive Bayes, SVM, linear model) tốn công lúc train, dự đoán nhanh.
+  - id: s_nb
+    type: section
+    title_vi: "Naive Bayes"
+    summary_vi: "Bảng đếm spam, giả định độc lập, Laplace smoothing."
+  - id: t03
+    type: text
+    md: |
+      **Naive Bayes** áp dụng định lý Bayes với giả định "ngây thơ": các feature (từ) **độc lập có điều kiện** khi biết lớp.
+
+      `P(lớp | từ₁..từₙ) ∝ P(lớp) · Π P(từᵢ | lớp)`
+
+      Ta tính điểm cho mỗi lớp rồi chọn lớp lớn nhất (không cần chia cho mẫu số chung). Giả định độc lập thường sai
+      nhưng mô hình vẫn hiệu quả cho **text/spam**: nhanh, ít dữ liệu, dễ huấn luyện.
+
+      Ví dụ bảng đếm: có 3 email chứa từ "khuyến mãi", trong đó 2 là spam và 1 là ham; vậy
+      `P(spam | "khuyến mãi") = 2/3` (đếm trực tiếp trong các email có từ đó).
+
+      **Vấn đề xác suất 0**: nếu một từ chưa từng xuất hiện trong lớp spam thì `P(từ | spam) = 0` và cả tích bằng 0.
+      **Laplace smoothing** cộng 1 vào mỗi số đếm: `P(từ | lớp) = (đếm + 1) / (tổng đếm lớp + |V|)`
+      với `|V|` là kích thước từ vựng (với feature nhị phân có/không thì mẫu số là `số email của lớp + 2`).
+  - id: q04
+    type: quiz_mcq
+    prompt_md: "Vì sao Naive Bayes cần Laplace smoothing?"
+    options:
+      - {id: a, text_md: "Để một từ chưa gặp trong lớp không làm xác suất cả email bằng 0"}
+      - {id: b, text_md: "Để các từ trở nên độc lập với nhau"}
+      - {id: c, text_md: "Để scale các feature về cùng thang"}
+    answer: [a]
+    explain_md: "Không smoothing, một từ có đếm 0 làm P(từ | lớp) = 0 và triệt tiêu toàn bộ tích. Cộng 1 giữ mọi xác suất dương; nó không làm các từ độc lập (đó là giả định của mô hình)."
+  - id: q05
+    type: quiz_mcq
+    prompt_md: "Giả định chính của Naive Bayes là gì?"
+    options:
+      - {id: a, text_md: "Các feature độc lập có điều kiện khi biết lớp"}
+      - {id: b, text_md: "Mọi feature có phân phối chuẩn như nhau"}
+      - {id: c, text_md: "Các lớp có số mẫu bằng nhau"}
+    answer: [a]
+    explain_md: "Naive Bayes phân tích P(x | lớp) thành tích P(xᵢ | lớp). Không đòi phân phối chuẩn hay lớp cân bằng (prior P(lớp) đã xử lý mất cân bằng)."
+  - id: s_svm
+    type: section
+    title_vi: "SVM (nâng cao)"
+    summary_vi: "Max margin, support vectors, soft margin C, hinge loss, kernel trick: mức nhận biết."
+  - id: t05
+    type: text
+    md: |
+      **SVM** (support vector machine) tìm đường/siêu phẳng chia hai lớp có **margin rộng nhất** (khoảng cách tới điểm gần
+      nhất của mỗi lớp lớn nhất). Chỉ các điểm **support vectors** quyết định biên; xoá điểm khác không đổi biên. (Hard
+      margin: support vector nằm đúng trên mép margin. Soft margin: cả điểm vi phạm margin cũng là support vector.)
+
+      - **Soft margin**: cho phép một số điểm vi phạm margin. Tham số **C** cân bằng: C lớn phạt vi phạm nặng (margin hẹp,
+        dễ overfit), C nhỏ chấp nhận vi phạm (margin rộng, mượt hơn).
+      - **Hinge loss**: `max(0, 1 − y·z)` với `y ∈ {−1, +1}` và `z = w·x + b`. Điểm đúng phía với margin ≥ 1 có loss 0.
+      - **Kernel trick**: dữ liệu không tách tuyến tính có thể tách được trong không gian đặc trưng cao hơn; kernel (RBF,
+        polynomial) tính tích vô hướng ở không gian đó mà không cần biến đổi tường minh.
+
+      Đây là phần nâng cao: chỉ cần nắm trực giác, không cần suy ra bài toán tối ưu. Cũng như k-NN, SVM nhạy với thang đo
+      nên nên scale feature.
+  - id: q06
+    type: predict_output
+    code: |
+      for y, z in [(1, 0.3), (-1, 0.3), (1, 2)]:
+          print(round(max(0, 1 - y * z), 2))
+    expected_output: "0.7\n1.3\n0"
+    explain_md: "Hinge = max(0, 1 − y·z): (1, 0.3) cho 0.7 (đúng phía nhưng trong margin); (−1, 0.3) cho 1.3 (sai phía, phạt nặng hơn); (1, 2) cho max(0, −1) = 0 (đúng phía, ngoài margin)."
+  - id: q07
+    type: quiz_mcq
+    prompt_md: "Trong SVM soft margin, tăng C lên rất lớn thì thường xảy ra gì?"
+    options:
+      - {id: a, text_md: "Phạt vi phạm margin nặng hơn: margin hẹp lại, dễ overfit"}
+      - {id: b, text_md: "Margin rộng ra và chấp nhận nhiều lỗi hơn"}
+      - {id: c, text_md: "Số support vectors luôn bằng 0"}
+    answer: [a]
+    explain_md: "C là mức phạt vi phạm: C lớn ép mô hình khớp từng điểm huấn luyện (margin hẹp, overfit); C nhỏ cho margin rộng, mượt hơn."
+  - id: t_sum
+    type: summary
+    bullets_vi:
+      - "k-NN: nhãn đa số của k điểm gần nhất (Euclid); k nhỏ overfit, k lớn quá mượt; bắt buộc scale feature."
+      - "Curse of dimensionality: nhiều chiều thì mọi điểm gần như cách đều nhau; k-NN là lazy learner (không train, dự đoán chậm)."
+      - "Naive Bayes: P(lớp) · Π P(từ | lớp) với giả định độc lập có điều kiện; Laplace smoothing (+1) tránh xác suất 0."
+      - "SVM: biên max margin, support vectors; soft margin C, hinge loss max(0, 1 − y·z), kernel trick cho dữ liệu phi tuyến (nâng cao)."
+problems: {practice: [], extra: []}
+mastery_check: {l1: [X897], l2: [X898], l3: [X899]}
+checkpoint: {pass_ratio: 0.7, min_items: 3}
+source:
+  tree_hash: 36427100490b5ba1792abb5e55cae72e2f656d1fb7474212ebca46d0e1fd12b9
+  authored_by: "claude"
+  reviewed_by: null
+  date: "2026-11-14"

@@ -4,7 +4,7 @@ import shutil
 
 import pytest
 
-from check_specs import EXTRA_INPUTS, SPECIAL
+from check_specs import DEFERRED, EXTRA_INPUTS, SPECIAL
 from common import CONTENT, dump_yaml, load_json, load_yaml, read_jsonl
 from convert_checks import ASSESSMENT, ConversionError, build_checks, convert, render_checks
 from validate_content import Validator, schema_errors
@@ -153,7 +153,7 @@ def test_author_added_items_are_merged_after_the_converted_ones(tmp_path):
 
 def test_committed_checks_are_up_to_date():
     """content/checks/* is exactly what the tool renders (no hand edits, no stale files)."""
-    items = [i for i in ITEMS if i["subtopic_id"] in MVP]
+    items = [i for i in ITEMS if i["subtopic_id"] in MVP and i["id"] not in DEFERRED]
     checks = build_checks(items, CONTENT)
     on_disk = {p.stem for p in (CONTENT / "checks").glob("*.yaml")}
     assert on_disk == set(checks)
@@ -163,7 +163,11 @@ def test_committed_checks_are_up_to_date():
 
 
 def test_every_mvp_write_code_item_has_inputs():
-    mvp_code = [i["id"] for i in ITEMS if i["type"] == "write_code" and i["subtopic_id"] in MVP]
+    mvp_code = [
+        i["id"]
+        for i in ITEMS
+        if i["type"] == "write_code" and i["subtopic_id"] in MVP and i["id"] not in DEFERRED
+    ]
     assert len(mvp_code) == 117
     assert [i for i in mvp_code if i not in EXTRA_INPUTS and i not in SPECIAL] == []
     # non-write_code (read_code + concept) upstream items for the shipped MVP subtopics

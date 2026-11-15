@@ -866,6 +866,12 @@ def ttlcache_tests() -> tuple[list[dict], list[dict]]:
 #   extras   more hidden inputs; the first is an edge case
 #   solution replacement reference code (only where the item must change shape, see `note`)
 #   note     extra Vietnamese sentence appended to the statement
+# write_code assessment items whose subtopic is shipped but that we do NOT auto-convert into a
+# check problem. The node ships hand-authored numpy problems (checks_extra + problems) instead,
+# so these stay deferred. Q240/Q241 are the ml.classical numpy items (Q241's driver chains
+# two functions assign()+update(), which the single-entry converter cannot replay).
+DEFERRED: set[str] = {"Q240", "Q241"}
+
 SPECIAL: dict[str, dict] = {
     "Q079": {
         "target": "reverse_list",
